@@ -45,9 +45,9 @@ pub struct GatewayState {
 /// Incoming GraphQL request body.
 #[derive(Debug, Deserialize)]
 struct GraphQLRequest {
-    query: String,
+    query:          String,
     #[serde(default)]
-    variables: Option<Value>,
+    variables:      Option<Value>,
     #[serde(default, rename = "operationName")]
     operation_name: Option<String>,
 }
@@ -173,11 +173,11 @@ async fn execute_plan(
             let response = match result {
                 Ok(resp) => resp,
                 Err(e) => SubgraphResponse {
-                    data: None,
+                    data:   None,
                     errors: vec![merger::GraphQLError {
-                        message: format!("Subgraph '{subgraph_name}' request failed: {e}"),
-                        path: None,
-                        locations: None,
+                        message:    format!("Subgraph '{subgraph_name}' request failed: {e}"),
+                        path:       None,
+                        locations:  None,
                         extensions: Some(json!({"code": "SUBGRAPH_REQUEST_FAILED"})),
                     }],
                 },
@@ -195,11 +195,11 @@ async fn execute_plan(
                 results.push((
                     "unknown".to_string(),
                     SubgraphResponse {
-                        data: None,
+                        data:   None,
                         errors: vec![merger::GraphQLError {
-                            message: format!("Task join error: {e}"),
-                            path: None,
-                            locations: None,
+                            message:    format!("Task join error: {e}"),
+                            path:       None,
+                            locations:  None,
                             extensions: None,
                         }],
                     },
@@ -274,7 +274,7 @@ mod tests {
         subgraphs.insert(
             "users".to_string(),
             SubgraphConfig {
-                url: "http://localhost:4001/graphql".to_string(),
+                url:    "http://localhost:4001/graphql".to_string(),
                 schema: None,
             },
         );

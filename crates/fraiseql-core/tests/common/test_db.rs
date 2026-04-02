@@ -111,9 +111,9 @@ impl TestDatabase {
 /// Test data row
 #[derive(Debug, Clone)]
 pub struct TestRow {
-    pub revenue: f64,
-    pub quantity: i32,
-    pub data: serde_json::Value,
+    pub revenue:     f64,
+    pub quantity:    i32,
+    pub data:        serde_json::Value,
     pub customer_id: String,
     pub occurred_at: String,
 }
@@ -165,29 +165,29 @@ pub fn generate_test_data(count: usize) -> Vec<TestRow> {
 /// Create standard sales metadata for testing
 pub fn create_sales_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name: "tf_sales".to_string(),
-        measures: vec![
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![
             MeasureColumn {
-                name: "revenue".to_string(),
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             },
             MeasureColumn {
-                name: "quantity".to_string(),
+                name:     "quantity".to_string(),
                 sql_type: SqlType::Int,
                 nullable: false,
             },
         ],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![
                 DimensionPath {
-                    name: "category".to_string(),
+                    name:      "category".to_string(),
                     json_path: "data->>'category'".to_string(),
                     data_type: "text".to_string(),
                 },
                 DimensionPath {
-                    name: "region".to_string(),
+                    name:      "region".to_string(),
                     json_path: "data->>'region'".to_string(),
                     data_type: "text".to_string(),
                 },
@@ -195,16 +195,16 @@ pub fn create_sales_metadata() -> FactTableMetadata {
         },
         denormalized_filters: vec![
             FilterColumn {
-                name: "customer_id".to_string(),
+                name:     "customer_id".to_string(),
                 sql_type: SqlType::Text,
-                indexed: true,
+                indexed:  true,
             },
             FilterColumn {
-                name: "occurred_at".to_string(),
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             },
         ],
-        calendar_dimensions: vec![],
+        calendar_dimensions:  vec![],
     }
 }

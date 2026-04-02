@@ -49,22 +49,22 @@ impl QueryMatch {
         let selections = fields
             .iter()
             .map(|f| FieldSelection {
-                name: f.clone(),
-                alias: None,
-                arguments: Vec::new(),
+                name:          f.clone(),
+                alias:         None,
+                arguments:     Vec::new(),
                 nested_fields: Vec::new(),
-                directives: Vec::new(),
+                directives:    Vec::new(),
             })
             .collect();
 
         let parsed_query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: Some(query_def.name.clone()),
-            root_field: query_def.name.clone(),
-            selections: Vec::new(),
-            variables: Vec::new(),
-            fragments: Vec::new(),
-            source: String::new(),
+            root_field:     query_def.name.clone(),
+            selections:     Vec::new(),
+            variables:      Vec::new(),
+            fragments:      Vec::new(),
+            source:         String::new(),
         };
 
         Ok(Self {
@@ -142,7 +142,7 @@ impl QueryMatcher {
     ) -> Result<QueryMatch> {
         // 1. Parse GraphQL query using proper parser
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message: e.to_string(),
+            message:  e.to_string(),
             location: "query".to_string(),
         })?;
 
@@ -154,7 +154,7 @@ impl QueryMatcher {
         let resolved_selections = resolver.resolve_spreads(&parsed.selections).map_err(|e| {
             FraiseQLError::Validation {
                 message: e.to_string(),
-                path: Some("fragments".to_string()),
+                path:    Some("fragments".to_string()),
             }
         })?;
 
@@ -163,7 +163,7 @@ impl QueryMatcher {
             DirectiveEvaluator::filter_selections(&resolved_selections, &variables_map).map_err(
                 |e| FraiseQLError::Validation {
                     message: e.to_string(),
-                    path: Some("directives".to_string()),
+                    path:    Some("directives".to_string()),
                 },
             )?;
 
@@ -358,25 +358,25 @@ mod tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         schema
     }
@@ -560,25 +560,25 @@ mod tests {
     fn test_uzer_typo_suggests_user() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "user".to_string(),
-            return_type: "User".to_string(),
-            returns_list: false,
-            nullable: true,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "user".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        false,
+            nullable:            true,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -593,25 +593,25 @@ mod tests {
     fn test_unknown_query_error_includes_suggestion() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -629,7 +629,7 @@ mod tests {
     #[test]
     fn test_resolve_inline_arg_literal_integer() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "3".to_string(),
             value_type: "int".to_string(),
         };
@@ -641,7 +641,7 @@ mod tests {
     #[test]
     fn test_resolve_inline_arg_literal_string() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "status".to_string(),
+            name:       "status".to_string(),
             value_json: "\"active\"".to_string(),
             value_type: "string".to_string(),
         };
@@ -653,7 +653,7 @@ mod tests {
     #[test]
     fn test_resolve_inline_arg_literal_boolean() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "active".to_string(),
+            name:       "active".to_string(),
             value_json: "true".to_string(),
             value_type: "boolean".to_string(),
         };
@@ -665,7 +665,7 @@ mod tests {
     #[test]
     fn test_resolve_inline_arg_literal_null() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "null".to_string(),
             value_type: "null".to_string(),
         };
@@ -678,7 +678,7 @@ mod tests {
     fn test_resolve_inline_arg_variable_reference_json_quoted() {
         // Parser serializes Variable("myLimit") as "\"$myLimit\""
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "\"$myLimit\"".to_string(),
             value_type: "variable".to_string(),
         };
@@ -692,7 +692,7 @@ mod tests {
     fn test_resolve_inline_arg_variable_reference_raw() {
         // Defensive: unquoted $var format
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "$limit".to_string(),
             value_type: "variable".to_string(),
         };
@@ -705,7 +705,7 @@ mod tests {
     #[test]
     fn test_resolve_inline_arg_variable_not_found() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "\"$missing\"".to_string(),
             value_type: "variable".to_string(),
         };
@@ -717,7 +717,7 @@ mod tests {
     #[test]
     fn test_resolve_inline_arg_object() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "where".to_string(),
+            name:       "where".to_string(),
             value_json: r#"{"status":{"eq":"active"}}"#.to_string(),
             value_type: "object".to_string(),
         };
@@ -729,7 +729,7 @@ mod tests {
     #[test]
     fn test_resolve_inline_arg_list() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "ids".to_string(),
+            name:       "ids".to_string(),
             value_json: "[1,2,3]".to_string(),
             value_type: "list".to_string(),
         };

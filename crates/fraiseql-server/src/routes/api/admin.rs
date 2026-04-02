@@ -21,7 +21,7 @@ use crate::routes::{
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ReloadSchemaRequest {
     /// Path to compiled schema file
-    pub schema_path: String,
+    pub schema_path:   String,
     /// If true, only validate the schema without applying changes
     pub validate_only: bool,
 }
@@ -39,24 +39,24 @@ pub struct ReloadSchemaResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CacheClearRequest {
     /// Scope for clearing: "all", "entity", or "pattern"
-    pub scope: String,
+    pub scope:       String,
     /// Entity type (required if scope is "entity")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_type: Option<String>,
     /// Pattern (required if scope is "pattern")
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pattern: Option<String>,
+    pub pattern:     Option<String>,
 }
 
 /// Response after cache clear operation.
 #[derive(Debug, Serialize)]
 pub struct CacheClearResponse {
     /// Whether the operation succeeded
-    pub success: bool,
+    pub success:         bool,
     /// Number of entries cleared
     pub entries_cleared: usize,
     /// Human-readable message about the result
-    pub message: String,
+    pub message:         String,
 }
 
 /// Response containing runtime configuration (sanitized).
@@ -65,7 +65,7 @@ pub struct AdminConfigResponse {
     /// Server version
     pub version: String,
     /// Runtime configuration (secrets redacted)
-    pub config: HashMap<String, String>,
+    pub config:  HashMap<String, String>,
 }
 
 /// Reload schema from file.
@@ -110,7 +110,7 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         };
         Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: response,
+            data:   response,
         }))
     } else {
         // Step 3: Atomically swap the executor with the new schema
@@ -137,7 +137,7 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             },
             Err(e) => {
@@ -165,9 +165,9 @@ pub struct CacheStatsResponse {
     /// Whether cache is enabled
     pub cache_enabled: bool,
     /// Cache TTL in seconds
-    pub ttl_secs: u64,
+    pub ttl_secs:      u64,
     /// Human-readable message
-    pub message: String,
+    pub message:       String,
 }
 
 /// Clear cache entries by scope.
@@ -210,13 +210,13 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                     "Admin: cache cleared (all entries)"
                 );
                 let response = CacheClearResponse {
-                    success: true,
+                    success:         true,
                     entries_cleared: entries_before,
-                    message: format!("Cleared {} cache entries", entries_before),
+                    message:         format!("Cleared {} cache entries", entries_before),
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             } else {
                 Err(ApiError::internal_error("Cache not configured"))
@@ -256,7 +256,7 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             } else {
                 Err(ApiError::internal_error("Cache not configured"))
@@ -292,7 +292,7 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             } else {
                 Err(ApiError::internal_error("Cache not configured"))
@@ -319,12 +319,12 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
         let response = CacheStatsResponse {
             entries_count: cache.len(),
             cache_enabled: true,
-            ttl_secs: 60, // Default TTL from QueryCache::new(60)
-            message: format!("Cache contains {} entries with 60-second TTL", cache.len()),
+            ttl_secs:      60, // Default TTL from QueryCache::new(60)
+            message:       format!("Cache contains {} entries with 60-second TTL", cache.len()),
         };
         return Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: response,
+            data:   response,
         }));
     }
     {
@@ -332,12 +332,12 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
         let response = CacheStatsResponse {
             entries_count: 0,
             cache_enabled: false,
-            ttl_secs: 0,
-            message: "Cache is not configured".to_string(),
+            ttl_secs:      0,
+            message:       "Cache is not configured".to_string(),
         };
         Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: response,
+            data:   response,
         }))
     }
 }
@@ -404,7 +404,7 @@ pub async fn config_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn test_reload_schema_request_empty_path() {
         let request = ReloadSchemaRequest {
-            schema_path: String::new(),
+            schema_path:   String::new(),
             validate_only: false,
         };
 
@@ -523,7 +523,7 @@ mod tests {
     #[test]
     fn test_reload_schema_request_with_path() {
         let request = ReloadSchemaRequest {
-            schema_path: "/path/to/schema.json".to_string(),
+            schema_path:   "/path/to/schema.json".to_string(),
             validate_only: false,
         };
 
@@ -536,9 +536,9 @@ mod tests {
 
         for scope in valid_scopes {
             let request = CacheClearRequest {
-                scope: scope.to_string(),
+                scope:       scope.to_string(),
                 entity_type: None,
-                pattern: None,
+                pattern:     None,
             };
             assert_eq!(request.scope, scope);
         }
@@ -548,7 +548,7 @@ mod tests {
     fn test_admin_config_response_has_version() {
         let response = AdminConfigResponse {
             version: "2.0.0-a1".to_string(),
-            config: HashMap::new(),
+            config:  HashMap::new(),
         };
 
         assert!(!response.version.is_empty());
@@ -577,9 +577,9 @@ mod tests {
     #[test]
     fn test_cache_clear_response_counts_entries() {
         let response = CacheClearResponse {
-            success: true,
+            success:         true,
             entries_cleared: 42,
-            message: "Cleared".to_string(),
+            message:         "Cleared".to_string(),
         };
 
         assert_eq!(response.entries_cleared, 42);
@@ -588,9 +588,9 @@ mod tests {
     #[test]
     fn test_cache_clear_request_entity_required_for_entity_scope() {
         let request = CacheClearRequest {
-            scope: "entity".to_string(),
+            scope:       "entity".to_string(),
             entity_type: Some("User".to_string()),
-            pattern: None,
+            pattern:     None,
         };
 
         assert_eq!(request.scope, "entity");
@@ -600,9 +600,9 @@ mod tests {
     #[test]
     fn test_cache_clear_request_pattern_required_for_pattern_scope() {
         let request = CacheClearRequest {
-            scope: "pattern".to_string(),
+            scope:       "pattern".to_string(),
             entity_type: None,
-            pattern: Some("*_user".to_string()),
+            pattern:     Some("*_user".to_string()),
         };
 
         assert_eq!(request.scope, "pattern");
@@ -613,7 +613,7 @@ mod tests {
     fn test_admin_config_response_sanitization_excludes_paths() {
         let response = AdminConfigResponse {
             version: "2.0.0".to_string(),
-            config: {
+            config:  {
                 let mut m = HashMap::new();
                 m.insert("port".to_string(), "8000".to_string());
                 m.insert("host".to_string(), "0.0.0.0".to_string());
@@ -634,7 +634,7 @@ mod tests {
     fn test_admin_config_response_includes_limits() {
         let response = AdminConfigResponse {
             version: "2.0.0".to_string(),
-            config: {
+            config:  {
                 let mut m = HashMap::new();
                 m.insert("max_request_size".to_string(), "10MB".to_string());
                 m.insert("request_timeout".to_string(), "30s".to_string());
@@ -653,8 +653,8 @@ mod tests {
         let response = CacheStatsResponse {
             entries_count: 100,
             cache_enabled: true,
-            ttl_secs: 60,
-            message: "Cache statistics".to_string(),
+            ttl_secs:      60,
+            message:       "Cache statistics".to_string(),
         };
 
         assert_eq!(response.entries_count, 100);
@@ -666,7 +666,7 @@ mod tests {
     #[test]
     fn test_reload_schema_request_validates_path() {
         let request = ReloadSchemaRequest {
-            schema_path: "/path/to/schema.json".to_string(),
+            schema_path:   "/path/to/schema.json".to_string(),
             validate_only: false,
         };
 
@@ -676,7 +676,7 @@ mod tests {
     #[test]
     fn test_reload_schema_request_validate_only_flag() {
         let request = ReloadSchemaRequest {
-            schema_path: "/path/to/schema.json".to_string(),
+            schema_path:   "/path/to/schema.json".to_string(),
             validate_only: true,
         };
 
@@ -701,7 +701,7 @@ mod tests {
         // Verifies that the request type exposes the fields needed to emit a
         // complete audit log entry (schema_path + validate_only).
         let req = ReloadSchemaRequest {
-            schema_path: "/var/run/fraiseql/schema.compiled.json".to_string(),
+            schema_path:   "/var/run/fraiseql/schema.compiled.json".to_string(),
             validate_only: false,
         };
         assert!(!req.schema_path.is_empty(), "schema_path must be present for audit log");
@@ -714,16 +714,16 @@ mod tests {
         // Verifies that CacheClearRequest exposes the fields needed for audit logging
         // (scope, optional entity_type, optional pattern).
         let all_req = CacheClearRequest {
-            scope: "all".to_string(),
+            scope:       "all".to_string(),
             entity_type: None,
-            pattern: None,
+            pattern:     None,
         };
         assert_eq!(all_req.scope, "all");
 
         let entity_req = CacheClearRequest {
-            scope: "entity".to_string(),
+            scope:       "entity".to_string(),
             entity_type: Some("Order".to_string()),
-            pattern: None,
+            pattern:     None,
         };
         assert!(
             entity_req.entity_type.is_some(),
@@ -731,9 +731,9 @@ mod tests {
         );
 
         let pattern_req = CacheClearRequest {
-            scope: "pattern".to_string(),
+            scope:       "pattern".to_string(),
             entity_type: None,
-            pattern: Some("v_order*".to_string()),
+            pattern:     Some("v_order*".to_string()),
         };
         assert!(pattern_req.pattern.is_some(), "pattern scope must carry pattern for audit");
     }

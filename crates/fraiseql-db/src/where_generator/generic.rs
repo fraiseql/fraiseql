@@ -37,7 +37,7 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
             message: format!(
                 "Regex pattern exceeds maximum length of {MAX_REGEX_PATTERN_LEN} bytes"
             ),
-            path: None,
+            path:    None,
         });
     }
 
@@ -70,7 +70,7 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
                                       ReDoS). Simplify the pattern to avoid `(…+)+`, \
                                       `(…*)*`, or similar constructs."
                                 .to_string(),
-                            path: None,
+                            path:    None,
                         });
                     }
                 }
@@ -123,8 +123,8 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
 /// assert_eq!(sql, "data->>'email' = $1");
 /// ```
 pub struct GenericWhereGenerator<D: SqlDialect> {
-    dialect: D,
-    counter: ParamCounter,
+    dialect:         D,
+    counter:         ParamCounter,
     /// Optional indexed-column set (PostgreSQL optimisation: short-circuits JSONB
     /// extraction when a generated column covers the path).
     indexed_columns: Option<Arc<HashSet<String>>>,
@@ -682,7 +682,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     "Operator {operator:?} is not supported by the {} dialect",
                     self.dialect.name()
                 ),
-                path: None,
+                path:    None,
             }),
         }
     }
@@ -729,9 +729,9 @@ mod tests {
 
     fn field(path: &str, op: WhereOperator, val: serde_json::Value) -> WhereClause {
         WhereClause::Field {
-            path: vec![path.to_string()],
+            path:     vec![path.to_string()],
             operator: op,
-            value: val,
+            value:    val,
         }
     }
 

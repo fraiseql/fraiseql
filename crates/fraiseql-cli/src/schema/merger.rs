@@ -597,9 +597,9 @@ impl SchemaMerger {
         // them as project-wide fallbacks for list-query auto-params.
         schema.query_defaults = Some(IntermediateQueryDefaults {
             where_clause: toml_schema.query_defaults.where_clause,
-            order_by: toml_schema.query_defaults.order_by,
-            limit: toml_schema.query_defaults.limit,
-            offset: toml_schema.query_defaults.offset,
+            order_by:     toml_schema.query_defaults.order_by,
+            limit:        toml_schema.query_defaults.limit,
+            offset:       toml_schema.query_defaults.offset,
         });
 
         Ok(schema)

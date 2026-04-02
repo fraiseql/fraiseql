@@ -139,7 +139,7 @@ impl SqlDialect for PostgresDialect {
                 "(family({lhs}::inet) = 4 AND {lhs}::inet << '127.0.0.0/8'::inet) OR (family({lhs}::inet) = 6 AND {lhs}::inet << '::1/128'::inet)"
             )),
             _ => Err(UnsupportedOperator {
-                dialect: self.name(),
+                dialect:  self.name(),
                 operator: "InetCheck",
             }),
         }

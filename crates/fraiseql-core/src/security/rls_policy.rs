@@ -126,7 +126,7 @@ impl RlsWhereClause {
 #[derive(Debug, Clone)]
 struct CacheEntry {
     /// The cached RLS evaluation result
-    result: Option<WhereClause>,
+    result:     Option<WhereClause>,
     /// When this cache entry expires (Unix seconds)
     expires_at: u64,
 }
@@ -205,9 +205,9 @@ pub struct DefaultRLSPolicy {
     /// Enable multi-tenant isolation
     pub enable_tenant_isolation: bool,
     /// Field name for tenant isolation (default: "`tenant_id`")
-    pub tenant_field: String,
+    pub tenant_field:            String,
     /// Field name for owner-based access (default: "`author_id`")
-    pub owner_field: String,
+    pub owner_field:             String,
 }
 
 impl DefaultRLSPolicy {
@@ -215,8 +215,8 @@ impl DefaultRLSPolicy {
     pub fn new() -> Self {
         Self {
             enable_tenant_isolation: true,
-            tenant_field: "tenant_id".to_string(),
-            owner_field: "author_id".to_string(),
+            tenant_field:            "tenant_id".to_string(),
+            owner_field:             "author_id".to_string(),
         }
     }
 
@@ -262,18 +262,18 @@ impl RLSPolicy for DefaultRLSPolicy {
         if self.enable_tenant_isolation {
             if let Some(ref tenant_id) = context.tenant_id {
                 filters.push(WhereClause::Field {
-                    path: vec![self.tenant_field.clone()],
+                    path:     vec![self.tenant_field.clone()],
                     operator: crate::db::WhereOperator::Eq,
-                    value: serde_json::json!(tenant_id.clone()),
+                    value:    serde_json::json!(tenant_id.clone()),
                 });
             }
         }
 
         // Rule 2: Owner-based access (users can only access their own rows)
         filters.push(WhereClause::Field {
-            path: vec![self.owner_field.clone()],
+            path:     vec![self.owner_field.clone()],
             operator: crate::db::WhereOperator::Eq,
-            value: serde_json::json!(context.user_id.clone()),
+            value:    serde_json::json!(context.user_id.clone()),
         });
 
         // Combine all filters with AND and wrap in RlsWhereClause
@@ -316,13 +316,13 @@ pub struct CompiledRLSPolicy {
     /// RLS rules indexed by type name
     pub rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
     /// Default RLS rule if no type-specific rule exists
-    pub default_rule: Option<RLSRule>,
+    pub default_rule:  Option<RLSRule>,
     /// Cache for policy evaluation results (not serialized)
     #[serde(skip)]
-    cache: Arc<parking_lot::RwLock<std::collections::HashMap<String, CacheEntry>>>,
+    cache:             Arc<parking_lot::RwLock<std::collections::HashMap<String, CacheEntry>>>,
     /// Clock for cache-expiry checks. Injectable for deterministic testing.
     #[serde(skip, default = "default_system_clock")]
-    clock: Arc<dyn Clock>,
+    clock:             Arc<dyn Clock>,
 }
 
 impl std::fmt::Debug for CompiledRLSPolicy {
@@ -367,11 +367,11 @@ impl CompiledRLSPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RLSRule {
     /// Rule name (for debugging)
-    pub name: String,
+    pub name:              String,
     /// Expression to evaluate (e.g., "user.id == `object.author_id`")
-    pub expression: String,
+    pub expression:        String,
     /// Whether this rule result can be cached
-    pub cacheable: bool,
+    pub cacheable:         bool,
     /// Cache TTL in seconds (if cacheable)
     pub cache_ttl_seconds: Option<u64>,
 }
@@ -478,16 +478,16 @@ fn evaluate_rls_expression(
             if let Some(object_field) = right.strip_prefix("object.") {
                 // Return a field comparison filter
                 return Ok(Some(WhereClause::Field {
-                    path: vec![object_field.to_string()],
+                    path:     vec![object_field.to_string()],
                     operator: crate::db::WhereOperator::Eq,
-                    value: user_value.unwrap_or(serde_json::Value::Null),
+                    value:    user_value.unwrap_or(serde_json::Value::Null),
                 }));
             } else if serde_json::from_str::<serde_json::Value>(right).is_ok() {
                 // Literal value comparison
                 return Ok(Some(WhereClause::Field {
-                    path: vec!["_literal_".to_string()],
+                    path:     vec!["_literal_".to_string()],
                     operator: crate::db::WhereOperator::Eq,
-                    value: serde_json::json!(user_value),
+                    value:    serde_json::json!(user_value),
                 }));
             }
         }
@@ -510,9 +510,9 @@ fn evaluate_rls_expression(
     if expr.contains("tenant_id") && expr.contains("==") {
         if let Some(tenant_id) = &context.tenant_id {
             return Ok(Some(WhereClause::Field {
-                path: vec!["tenant_id".to_string()],
+                path:     vec!["tenant_id".to_string()],
                 operator: crate::db::WhereOperator::Eq,
-                value: serde_json::json!(tenant_id),
+                value:    serde_json::json!(tenant_id),
             }));
         }
     }
@@ -520,7 +520,7 @@ fn evaluate_rls_expression(
     // Unrecognised expression: fail closed to prevent silent cross-tenant access.
     Err(FraiseQLError::Validation {
         message: format!("Unrecognised RLS expression: '{expr}'"),
-        path: None,
+        path:    None,
     })
 }
 
@@ -546,25 +546,25 @@ mod tests {
 
     fn make_context(user_id: &str, roles: Vec<&str>, tenant_id: Option<&str>) -> SecurityContext {
         SecurityContext {
-            user_id: user_id.to_string(),
-            roles: roles.into_iter().map(String::from).collect(),
-            tenant_id: tenant_id.map(String::from),
-            scopes: vec![],
-            attributes: HashMap::new(),
-            request_id: "req1".to_string(),
-            ip_address: None,
+            user_id:          user_id.to_string(),
+            roles:            roles.into_iter().map(String::from).collect(),
+            tenant_id:        tenant_id.map(String::from),
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "req1".to_string(),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         }
     }
 
     fn cacheable_owner_rule() -> RLSRule {
         RLSRule {
-            name: "owner_only".to_string(),
-            expression: "user.id == object.author_id".to_string(),
-            cacheable: true,
+            name:              "owner_only".to_string(),
+            expression:        "user.id == object.author_id".to_string(),
+            cacheable:         true,
             cache_ttl_seconds: Some(300),
         }
     }
@@ -765,9 +765,9 @@ mod tests {
             CompiledRLSPolicy::new_with_clock(std::collections::HashMap::new(), None, clock);
 
         let result = Some(WhereClause::Field {
-            path: vec!["author_id".to_string()],
+            path:     vec!["author_id".to_string()],
             operator: crate::db::WhereOperator::Eq,
-            value: serde_json::json!("user_x"),
+            value:    serde_json::json!("user_x"),
         });
 
         policy.cache_result("user_x:Post", &result);
@@ -853,17 +853,17 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("department".to_string(), serde_json::json!("engineering"));
         let ctx = SecurityContext {
-            user_id: "u1".to_string(),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: attrs,
-            request_id: "r1".to_string(),
-            ip_address: None,
+            user_id:          "u1".to_string(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       attrs,
+            request_id:       "r1".to_string(),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         };
         assert_eq!(
             extract_user_value("department", &ctx),
@@ -889,9 +889,9 @@ mod tests {
         // Ensures extract_user_value("id") result reaches the generated WhereClause.
         // Kills mutations → None and → Some(Default) on line 518.
         let policy = policy_with_rule(RLSRule {
-            name: "owner_only".to_string(),
-            expression: "user.id == object.author_id".to_string(),
-            cacheable: false,
+            name:              "owner_only".to_string(),
+            expression:        "user.id == object.author_id".to_string(),
+            cacheable:         false,
             cache_ttl_seconds: None,
         });
 

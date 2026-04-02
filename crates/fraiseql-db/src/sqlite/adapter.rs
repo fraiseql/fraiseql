@@ -136,7 +136,7 @@ impl SqliteAdapter {
             .fetch_one(&pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to connect to SQLite database: {e}"),
+                message:   format!("Failed to connect to SQLite database: {e}"),
                 sql_state: None,
             })?;
 
@@ -183,7 +183,7 @@ impl SqliteAdapter {
 
         let rows: Vec<SqliteRow> =
             query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message: format!("SQLite query execution failed: {e}"),
+                message:   format!("SQLite query execution failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -353,7 +353,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let rows: Vec<SqliteRow> =
             query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message: format!("SQLite direct mutation failed: {e}"),
+                message:   format!("SQLite direct mutation failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -364,7 +364,7 @@ impl DatabaseAdapter for SqliteAdapter {
                      the target row may not exist or RLS filters rejected it",
                     ctx.table
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -406,7 +406,7 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn health_check(&self) -> Result<()> {
         sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message: format!("SQLite health check failed: {e}"),
+                message:   format!("SQLite health check failed: {e}"),
                 sql_state: None,
             }
         })?;
@@ -421,10 +421,10 @@ impl DatabaseAdapter for SqliteAdapter {
         let idle = self.pool.num_idle();
 
         PoolMetrics {
-            total_connections: size,
-            idle_connections: idle as u32,
+            total_connections:  size,
+            idle_connections:   idle as u32,
             active_connections: size - idle as u32,
-            waiting_requests: 0, // sqlx doesn't expose waiting count
+            waiting_requests:   0, // sqlx doesn't expose waiting count
         }
     }
 
@@ -441,7 +441,7 @@ impl DatabaseAdapter for SqliteAdapter {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| FraiseQLError::Database {
-                    message: format!("SQLite query execution failed: {e}"),
+                    message:   format!("SQLite query execution failed: {e}"),
                     sql_state: None,
                 })?;
 
@@ -515,7 +515,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let rows: Vec<SqliteRow> =
             query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message: format!("SQLite parameterized aggregate query failed: {e}"),
+                message:   format!("SQLite parameterized aggregate query failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -564,7 +564,7 @@ impl DatabaseAdapter for SqliteAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN QUERY PLAN {sql}");
@@ -572,7 +572,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .fetch_all(&self.pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("SQLite EXPLAIN failed: {e}"),
+                message:   format!("SQLite EXPLAIN failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -775,9 +775,9 @@ mod tests {
     async fn test_where_eq_operator() {
         let adapter = setup_user_table(5).await;
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Eq,
-            value: json!("user3"),
+            value:    json!("user3"),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -791,9 +791,9 @@ mod tests {
     async fn test_where_neq_operator() {
         let adapter = setup_user_table(3).await;
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Neq,
-            value: json!("user1"),
+            value:    json!("user1"),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -807,9 +807,9 @@ mod tests {
         let adapter = setup_user_table(5).await;
         // age = 20+i, so age > 23 → users 4 and 5
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: crate::where_clause::WhereOperator::Gt,
-            value: json!(23),
+            value:    json!(23),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -823,9 +823,9 @@ mod tests {
         let adapter = setup_user_table(5).await;
         // age >= 23 → users 3, 4, 5
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: crate::where_clause::WhereOperator::Gte,
-            value: json!(23),
+            value:    json!(23),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -839,9 +839,9 @@ mod tests {
         let adapter = setup_user_table(5).await;
         // age < 23 → users 1 and 2
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: crate::where_clause::WhereOperator::Lt,
-            value: json!(23),
+            value:    json!(23),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -855,9 +855,9 @@ mod tests {
         let adapter = setup_user_table(5).await;
         // age <= 23 → users 1, 2, 3
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: crate::where_clause::WhereOperator::Lte,
-            value: json!(23),
+            value:    json!(23),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -870,9 +870,9 @@ mod tests {
     async fn test_where_in_operator() {
         let adapter = setup_user_table(5).await;
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::In,
-            value: json!(["user1", "user3", "user5"]),
+            value:    json!(["user1", "user3", "user5"]),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -885,9 +885,9 @@ mod tests {
     async fn test_where_not_in_operator() {
         let adapter = setup_user_table(5).await;
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Nin,
-            value: json!(["user1", "user2"]),
+            value:    json!(["user1", "user2"]),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -901,9 +901,9 @@ mod tests {
         let adapter = setup_user_table(5).await;
         // name LIKE 'user%' matches all 5
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Like,
-            value: json!("user%"),
+            value:    json!("user%"),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -917,9 +917,9 @@ mod tests {
         let adapter = setup_user_table(3).await;
         // deleted_at is null for all rows (seeded as null)
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: crate::where_clause::WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -933,9 +933,9 @@ mod tests {
         let adapter = setup_user_table(3).await;
         // deleted_at is null → IS NOT NULL returns 0 rows
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: crate::where_clause::WhereOperator::IsNull,
-            value: json!(false),
+            value:    json!(false),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -950,14 +950,14 @@ mod tests {
         // name = "user2" AND age = 22
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["name".to_string()],
+                path:     vec!["name".to_string()],
                 operator: crate::where_clause::WhereOperator::Eq,
-                value: json!("user2"),
+                value:    json!("user2"),
             },
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: crate::where_clause::WhereOperator::Eq,
-                value: json!(22),
+                value:    json!(22),
             },
         ]);
         let results = adapter
@@ -974,14 +974,14 @@ mod tests {
         // name = "user1" OR name = "user5"
         let clause = WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["name".to_string()],
+                path:     vec!["name".to_string()],
                 operator: crate::where_clause::WhereOperator::Eq,
-                value: json!("user1"),
+                value:    json!("user1"),
             },
             WhereClause::Field {
-                path: vec!["name".to_string()],
+                path:     vec!["name".to_string()],
                 operator: crate::where_clause::WhereOperator::Eq,
-                value: json!("user5"),
+                value:    json!("user5"),
             },
         ]);
         let results = adapter
@@ -997,9 +997,9 @@ mod tests {
     async fn test_empty_result_set() {
         let adapter = setup_user_table(3).await;
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Eq,
-            value: json!("nonexistent"),
+            value:    json!("nonexistent"),
         };
         let results = adapter
             .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -1050,9 +1050,9 @@ mod tests {
 
         let adapter = setup_user_table(3).await;
         let projection = SqlProjectionHint {
-            database: crate::DatabaseType::SQLite,
-            projection_template: "json_object('name', json_extract(data, '$.name')) AS data"
-                .to_string(),
+            database:                    crate::DatabaseType::SQLite,
+            projection_template:
+                "json_object('name', json_extract(data, '$.name')) AS data".to_string(),
             estimated_reduction_percent: 50,
         };
         let results = adapter

@@ -280,14 +280,14 @@ fn test_strategy_local_for_owned_entity() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false, // Locally owned
-            external_fields: vec![],
+            is_extends:       false, // Locally owned
+            external_fields:  vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -306,14 +306,14 @@ fn test_strategy_direct_db_when_available() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "Order".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "Order".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: true, // Extended from another subgraph
-            external_fields: vec!["id".to_string()],
+            is_extends:       true, // Extended from another subgraph
+            external_fields:  vec!["id".to_string()],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -332,26 +332,26 @@ fn test_strategy_http_fallback() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: vec![],
+                is_extends:       false,
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name: "Product".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+                name:             "Product".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: true,
-                external_fields: vec!["id".to_string()],
+                is_extends:       true,
+                external_fields:  vec!["id".to_string()],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -494,7 +494,7 @@ fn test_federation_spec_version_2() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
+        types:   vec![],
     };
 
     assert!(metadata.enabled);
@@ -524,14 +524,14 @@ fn test_federation_directive_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
-            name: "User".to_string(),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+        types:   vec![FederatedType {
+            name:             "User".to_string(),
+            keys:             vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
+            is_extends:       false,
+            external_fields:  vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],

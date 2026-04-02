@@ -35,7 +35,7 @@ fn test_cross_database_postgres_to_mysql() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -77,7 +77,7 @@ fn test_cross_database_postgres_to_sqlserver() {
     rep_all.insert("product_id".to_string(), json!("prod123"));
 
     let representation = EntityRepresentation {
-        typename: "Product".to_string(),
+        typename:   "Product".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -123,7 +123,7 @@ fn test_cross_database_type_coercion_numeric() {
     rep_all.insert("order_id".to_string(), json!("order123"));
 
     let representation = EntityRepresentation {
-        typename: "Order".to_string(),
+        typename:   "Order".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -169,7 +169,7 @@ fn test_cross_database_type_coercion_string() {
     rep_all.insert("customer_id".to_string(), json!("cust123"));
 
     let representation = EntityRepresentation {
-        typename: "Customer".to_string(),
+        typename:   "Customer".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -218,7 +218,7 @@ fn test_cross_database_type_coercion_datetime() {
     rep_all.insert("event_id".to_string(), json!("evt123"));
 
     let representation = EntityRepresentation {
-        typename: "Event".to_string(),
+        typename:   "Event".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };

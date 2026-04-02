@@ -67,13 +67,13 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_disabled() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: false,
-            rps_per_ip: 1,
-            rps_per_user: 1,
-            burst_size: 1,
+            enabled:               false,
+            rps_per_ip:            1,
+            rps_per_user:          1,
+            burst_size:            1,
             cleanup_interval_secs: 300,
-            trust_proxy_headers: false,
-            trusted_proxy_cidrs: Vec::new(),
+            trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // Even with extremely low limits, should allow through when disabled
@@ -99,13 +99,13 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_user_limit() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 3,
-            burst_size: 3,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          3,
+            burst_size:            3,
             cleanup_interval_secs: 300,
-            trust_proxy_headers: false,
-            trusted_proxy_cidrs: Vec::new(),
+            trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // Should allow 3 requests for authenticated user
@@ -120,13 +120,13 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_independent_users() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 2,
-            burst_size: 2,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          2,
+            burst_size:            2,
             cleanup_interval_secs: 300,
-            trust_proxy_headers: false,
-            trusted_proxy_cidrs: Vec::new(),
+            trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // User 1 gets 2 requests
@@ -143,13 +143,13 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_user_remaining() {
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 10,
-            burst_size: 10,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          10,
+            burst_size:            10,
             cleanup_interval_secs: 300,
-            trust_proxy_headers: false,
-            trusted_proxy_cidrs: Vec::new(),
+            trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         let first = limiter.check_user_limit("user123").await;
@@ -176,13 +176,13 @@ mod tests {
     async fn test_rate_limiter_burst_capacity() {
         // Test that burst_size determines maximum accumulated tokens
         let limiter = RateLimiter::new(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 100,
-            rps_per_user: 100,
-            burst_size: 5,
+            enabled:               true,
+            rps_per_ip:            100,
+            rps_per_user:          100,
+            burst_size:            5,
             cleanup_interval_secs: 300,
-            trust_proxy_headers: false,
-            trusted_proxy_cidrs: Vec::new(),
+            trust_proxy_headers:   false,
+            trusted_proxy_cidrs:   Vec::new(),
         });
 
         // Should be able to get initial burst_size worth of tokens

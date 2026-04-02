@@ -21,7 +21,7 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct ExplainRequest {
     /// GraphQL query string to analyze
-    pub query: String,
+    pub query:     String,
     /// Optional GraphQL variables
     #[serde(default)]
     pub variables: Option<serde_json::Value>,
@@ -31,22 +31,22 @@ pub struct ExplainRequest {
 #[derive(Debug, Serialize)]
 pub struct ExplainResponse {
     /// Original query that was analyzed
-    pub query: String,
+    pub query:          String,
     /// Generated SQL equivalent (if available)
-    pub sql: Option<String>,
+    pub sql:            Option<String>,
     /// Complexity metrics for the query
-    pub complexity: ComplexityInfo,
+    pub complexity:     ComplexityInfo,
     /// Warning messages for potential issues
-    pub warnings: Vec<String>,
+    pub warnings:       Vec<String>,
     /// Estimated cost to execute the query
     pub estimated_cost: usize,
     /// Views/tables that would be accessed
     pub views_accessed: Vec<String>,
     /// Query type classification
-    pub query_type: String,
+    pub query_type:     String,
     /// Database-level EXPLAIN output (only when `debug.database_explain` is enabled)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub database_plan: Option<serde_json::Value>,
+    pub database_plan:  Option<serde_json::Value>,
 }
 
 /// Complexity information for a query.
@@ -56,9 +56,9 @@ pub struct ExplainResponse {
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct ComplexityInfo {
     /// Maximum selection-set nesting depth.
-    pub depth: usize,
+    pub depth:       usize,
     /// Complexity score (accounts for pagination multipliers on list fields).
-    pub complexity: usize,
+    pub complexity:  usize,
     /// Number of aliased fields (alias amplification indicator).
     pub alias_count: usize,
 }
@@ -74,7 +74,7 @@ pub struct ValidateRequest {
 #[derive(Debug, Serialize)]
 pub struct ValidateResponse {
     /// Whether the query is syntactically valid
-    pub valid: bool,
+    pub valid:  bool,
     /// List of validation errors (if any)
     pub errors: Vec<String>,
 }
@@ -83,11 +83,11 @@ pub struct ValidateResponse {
 #[derive(Debug, Serialize)]
 pub struct StatsResponse {
     /// Total number of queries executed
-    pub total_queries: usize,
+    pub total_queries:      usize,
     /// Number of successful query executions
     pub successful_queries: usize,
     /// Number of failed query executions
-    pub failed_queries: usize,
+    pub failed_queries:     usize,
     /// Average latency in milliseconds
     pub average_latency_ms: f64,
 }
@@ -119,8 +119,8 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         .map_err(|e| ApiError::validation_error(format!("Query parse error: {e}")))?;
 
     let complexity = ComplexityInfo {
-        depth: metrics.depth,
-        complexity: metrics.complexity,
+        depth:       metrics.depth,
+        complexity:  metrics.complexity,
         alias_count: metrics.alias_count,
     };
 
@@ -177,7 +177,7 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -196,8 +196,8 @@ pub async fn validate_handler<A: DatabaseAdapter>(
     if req.query.trim().is_empty() {
         return Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: ValidateResponse {
-                valid: false,
+            data:   ValidateResponse {
+                valid:  false,
                 errors: vec!["Query cannot be empty".to_string()],
             },
         }));
@@ -213,7 +213,7 @@ pub async fn validate_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -262,7 +262,7 @@ pub async fn stats_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 
@@ -317,8 +317,8 @@ mod tests {
     #[test]
     fn test_generate_warnings_deep() {
         let complexity = ComplexityInfo {
-            depth: 15,
-            complexity: 10,
+            depth:       15,
+            complexity:  10,
             alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
@@ -329,8 +329,8 @@ mod tests {
     #[test]
     fn test_generate_warnings_high_complexity() {
         let complexity = ComplexityInfo {
-            depth: 3,
-            complexity: 200,
+            depth:       3,
+            complexity:  200,
             alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
@@ -341,8 +341,8 @@ mod tests {
     #[test]
     fn test_generate_warnings_high_alias_count() {
         let complexity = ComplexityInfo {
-            depth: 2,
-            complexity: 5,
+            depth:       2,
+            complexity:  5,
             alias_count: 35,
         };
         let warnings = generate_warnings(&complexity);
@@ -352,8 +352,8 @@ mod tests {
     #[test]
     fn test_estimate_cost() {
         let complexity = ComplexityInfo {
-            depth: 2,
-            complexity: 3,
+            depth:       2,
+            complexity:  3,
             alias_count: 0,
         };
         let cost = estimate_cost(&complexity);
@@ -363,9 +363,9 @@ mod tests {
     #[test]
     fn test_stats_response_structure() {
         let response = StatsResponse {
-            total_queries: 100,
+            total_queries:      100,
             successful_queries: 95,
-            failed_queries: 5,
+            failed_queries:     5,
             average_latency_ms: 42.5,
         };
         assert_eq!(response.total_queries, 100);
@@ -377,18 +377,18 @@ mod tests {
     #[test]
     fn test_explain_response_structure() {
         let response = ExplainResponse {
-            query: "query { users { id } }".to_string(),
-            sql: Some("SELECT id FROM users".to_string()),
-            complexity: ComplexityInfo {
-                depth: 2,
-                complexity: 2,
+            query:          "query { users { id } }".to_string(),
+            sql:            Some("SELECT id FROM users".to_string()),
+            complexity:     ComplexityInfo {
+                depth:       2,
+                complexity:  2,
                 alias_count: 0,
             },
-            warnings: vec![],
+            warnings:       vec![],
             estimated_cost: 50,
             views_accessed: vec!["v_user".to_string()],
-            query_type: "regular".to_string(),
-            database_plan: None,
+            query_type:     "regular".to_string(),
+            database_plan:  None,
         };
 
         assert!(!response.query.is_empty());
@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn test_explain_request_structure() {
         let request = ExplainRequest {
-            query: "query { users { id } }".to_string(),
+            query:     "query { users { id } }".to_string(),
             variables: None,
         };
         assert!(!request.query.is_empty());

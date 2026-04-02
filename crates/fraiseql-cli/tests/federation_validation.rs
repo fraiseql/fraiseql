@@ -28,13 +28,13 @@ fn test_validate_requires_field_exists() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -42,7 +42,7 @@ fn test_validate_requires_field_exists() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
+        types:   vec![user_type],
     };
 
     // This should validate successfully
@@ -59,13 +59,13 @@ fn test_validate_requires_empty_path() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     // Manually create directives with empty path to test
     let mut directives = FieldFederationDirectives::new();
     directives.requires.push(FieldPathSelection {
-        path: vec![], // Empty path - invalid!
+        path:     vec![], // Empty path - invalid!
         typename: "User".to_string(),
     });
     user_type.set_field_directives("orders".to_string(), directives);
@@ -73,7 +73,7 @@ fn test_validate_requires_empty_path() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
+        types:   vec![user_type],
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -95,13 +95,13 @@ fn test_validate_requires_nested_field_path() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path: vec!["user".to_string(), "email".to_string()],
+            path:     vec!["user".to_string(), "email".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -109,7 +109,7 @@ fn test_validate_requires_nested_field_path() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
+        types:   vec![order_type],
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -129,13 +129,13 @@ fn test_validate_provides_field_exists() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path: vec!["weight".to_string()],
+            path:     vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -143,7 +143,7 @@ fn test_validate_provides_field_exists() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
+        types:   vec![order_type],
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -164,7 +164,7 @@ fn test_validate_external_only_on_extends() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     order_type.is_extends = true;
@@ -174,7 +174,7 @@ fn test_validate_external_only_on_extends() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
+        types:   vec![order_type],
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -190,7 +190,7 @@ fn test_validate_external_only_on_extends_fails() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     // is_extends is false (default)
@@ -200,7 +200,7 @@ fn test_validate_external_only_on_extends_fails() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
+        types:   vec![user_type],
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -226,26 +226,26 @@ fn test_validate_two_node_circular_requires() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path: vec!["user".to_string()],
+            path:     vec!["user".to_string()],
             typename: "Order".to_string(),
         }),
     );
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "user".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path: vec!["orders".to_string()],
+            path:     vec!["orders".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -253,7 +253,7 @@ fn test_validate_two_node_circular_requires() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type, order_type],
+        types:   vec![user_type, order_type],
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -277,39 +277,39 @@ fn test_validate_three_node_cycle() {
 
     let mut type_a = FederatedType::new("A".to_string());
     type_a.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     type_a.set_field_directives(
         "f1".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path: vec!["f2".to_string()],
+            path:     vec!["f2".to_string()],
             typename: "B".to_string(),
         }),
     );
 
     let mut type_b = FederatedType::new("B".to_string());
     type_b.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     type_b.set_field_directives(
         "f2".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path: vec!["f3".to_string()],
+            path:     vec!["f3".to_string()],
             typename: "C".to_string(),
         }),
     );
 
     let mut type_c = FederatedType::new("C".to_string());
     type_c.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     type_c.set_field_directives(
         "f3".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path: vec!["f1".to_string()],
+            path:     vec!["f1".to_string()],
             typename: "A".to_string(),
         }),
     );
@@ -317,7 +317,7 @@ fn test_validate_three_node_cycle() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![type_a, type_b, type_c],
+        types:   vec![type_a, type_b, type_c],
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -337,14 +337,14 @@ fn test_validate_key_fields_exist() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
+        types:   vec![user_type],
     };
 
     let result = validate_federation_metadata(&metadata);

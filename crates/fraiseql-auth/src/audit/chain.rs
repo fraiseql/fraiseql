@@ -110,11 +110,11 @@ pub enum ChainVerifyError {
     #[error("Chain broken at entry {entry_index}: expected {expected_hash}, got {stored_hash}")]
     BrokenLink {
         /// Zero-based index of the first broken entry.
-        entry_index: usize,
+        entry_index:   usize,
         /// The hash we computed from the chain.
         expected_hash: String,
         /// The `chain_hash` stored in the entry.
-        stored_hash: String,
+        stored_hash:   String,
     },
     /// An entry could not be parsed (missing or invalid `chain_hash` field).
     #[error("Entry {entry_index} is missing or has an invalid `chain_hash` field")]

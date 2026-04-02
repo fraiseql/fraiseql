@@ -31,11 +31,11 @@ pub enum SecretsBackendConfig {
     /// Read secrets from `HashiCorp` Vault.
     Vault {
         /// Vault server address (e.g., `https://vault.example.com:8200`).
-        addr: String,
+        addr:       String,
         /// Authentication method.
-        auth: VaultAuth,
+        auth:       VaultAuth,
         /// Optional namespace (Enterprise feature).
-        namespace: Option<String>,
+        namespace:  Option<String>,
         /// Whether to verify TLS certificates.
         tls_verify: bool,
     },
@@ -54,7 +54,7 @@ pub enum VaultAuth {
     /// Authenticate via `AppRole` (recommended for production).
     AppRole {
         /// The role ID for `AppRole` login.
-        role_id: String,
+        role_id:   String,
         /// The secret ID for `AppRole` login (high-value credential).
         secret_id: Zeroizing<String>,
     },
@@ -182,10 +182,10 @@ impl SecretsManager {
 /// (within one `check_interval` of expiry, ensuring renewal before the next
 /// poll cycle can catch it). Designed to run as a background tokio task.
 pub struct LeaseRenewalTask {
-    manager: Arc<SecretsManager>,
+    manager:        Arc<SecretsManager>,
     check_interval: Duration,
-    cancel_rx: tokio::sync::watch::Receiver<bool>,
-    tracked_keys: Vec<String>,
+    cancel_rx:      tokio::sync::watch::Receiver<bool>,
+    tracked_keys:   Vec<String>,
 }
 
 impl LeaseRenewalTask {
@@ -312,8 +312,8 @@ mod tests {
     /// A mock backend that returns a fixed secret with configurable expiry.
     /// Rotation calls are counted so tests can assert how many renewals occurred.
     struct MockBackend {
-        secret: String,
-        expiry: DateTime<Utc>,
+        secret:       String,
+        expiry:       DateTime<Utc>,
         rotate_count: Arc<AtomicUsize>,
     }
 
@@ -352,9 +352,9 @@ mod tests {
     async fn test_lease_renewal_task_cancels_cleanly() {
         let rotate_count = Arc::new(AtomicUsize::new(0));
         let backend = MockBackend {
-            secret: "s3cret".to_string(),
+            secret:       "s3cret".to_string(),
             // Expiry far in the future — no renewal needed.
-            expiry: Utc::now() + chrono::Duration::hours(1),
+            expiry:       Utc::now() + chrono::Duration::hours(1),
             rotate_count: Arc::clone(&rotate_count),
         };
         let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
@@ -376,12 +376,12 @@ mod tests {
     async fn test_lease_renewal_triggers_rotate_when_expiry_near() {
         let rotate_count = Arc::new(AtomicUsize::new(0));
         let backend = MockBackend {
-            secret: "s3cret".to_string(),
+            secret:       "s3cret".to_string(),
             // Already-expired credential: remaining is negative, which is always
             // less than the check_interval threshold, so renewal fires on every tick.
             // This works with any sub-second check_interval (where as_secs() == 0)
             // because negative < zero is true for chrono::Duration.
-            expiry: Utc::now() - chrono::Duration::seconds(1),
+            expiry:       Utc::now() - chrono::Duration::seconds(1),
             rotate_count: Arc::clone(&rotate_count),
         };
         let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
@@ -412,9 +412,9 @@ mod tests {
     async fn test_lease_renewal_skips_non_expiring_keys() {
         let rotate_count = Arc::new(AtomicUsize::new(0));
         let backend = MockBackend {
-            secret: "s3cret".to_string(),
+            secret:       "s3cret".to_string(),
             // Expiry 1 hour away — much longer than the check interval (50 ms).
-            expiry: Utc::now() + chrono::Duration::hours(1),
+            expiry:       Utc::now() + chrono::Duration::hours(1),
             rotate_count: Arc::clone(&rotate_count),
         };
         let manager = Arc::new(SecretsManager::new(Arc::new(backend)));

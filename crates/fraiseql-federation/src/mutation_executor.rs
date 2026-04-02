@@ -46,7 +46,7 @@ fn determine_mutation_type(mutation_name: &str) -> Result<MutationType> {
 #[derive(Clone)]
 pub struct FederationMutationExecutor<A: DatabaseAdapter> {
     /// Database adapter for executing mutations
-    adapter: Arc<A>,
+    adapter:  Arc<A>,
     /// Federation metadata
     metadata: FederationMetadata,
 }

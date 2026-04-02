@@ -122,7 +122,7 @@ fn relay_order_sql_forward_with_desc_custom_order() {
     use crate::types::sql_hints::{OrderByClause, OrderDirection};
     let quoted_col = quote_mysql_identifier("id");
     let order_by = vec![OrderByClause {
-        field: "created_at".to_string(),
+        field:     "created_at".to_string(),
         direction: OrderDirection::Desc,
     }];
     let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), true);
@@ -135,7 +135,7 @@ fn relay_order_sql_backward_flips_asc_to_desc() {
     use crate::types::sql_hints::{OrderByClause, OrderDirection};
     let quoted_col = quote_mysql_identifier("id");
     let order_by = vec![OrderByClause {
-        field: "created_at".to_string(),
+        field:     "created_at".to_string(),
         direction: OrderDirection::Asc,
     }];
     let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), false);

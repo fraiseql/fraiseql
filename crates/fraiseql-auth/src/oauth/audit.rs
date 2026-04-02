@@ -11,17 +11,17 @@ pub struct OAuthAuditEvent {
     /// Event type: authorization, token_exchange, token_refresh, logout
     pub event_type: String,
     /// Provider name
-    pub provider: String,
+    pub provider:   String,
     /// User ID (if known)
-    pub user_id: Option<String>,
+    pub user_id:    Option<String>,
     /// Status: success, failed
-    pub status: String,
+    pub status:     String,
     /// Error message (if failed)
-    pub error: Option<String>,
+    pub error:      Option<String>,
     /// Timestamp
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:  DateTime<Utc>,
     /// Additional metadata
-    pub metadata: HashMap<String, String>,
+    pub metadata:   HashMap<String, String>,
 }
 
 impl OAuthAuditEvent {
@@ -33,12 +33,12 @@ impl OAuthAuditEvent {
     ) -> Self {
         Self {
             event_type: event_type.into(),
-            provider: provider.into(),
-            user_id: None,
-            status: status.into(),
-            error: None,
-            timestamp: Utc::now(),
-            metadata: HashMap::new(),
+            provider:   provider.into(),
+            user_id:    None,
+            status:     status.into(),
+            error:      None,
+            timestamp:  Utc::now(),
+            metadata:   HashMap::new(),
         }
     }
 

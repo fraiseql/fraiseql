@@ -31,17 +31,17 @@ pub struct CorsConfig {
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            allowed_origins: vec![], // Empty = allow all
-            allowed_methods: vec!["GET".to_string(), "POST".to_string(), "OPTIONS".to_string()],
-            allowed_headers: vec![
+            enabled:           true,
+            allowed_origins:   vec![], // Empty = allow all
+            allowed_methods:   vec!["GET".to_string(), "POST".to_string(), "OPTIONS".to_string()],
+            allowed_headers:   vec![
                 "Content-Type".to_string(),
                 "Authorization".to_string(),
                 "X-Request-ID".to_string(),
             ],
-            expose_headers: vec![],
+            expose_headers:    vec![],
             allow_credentials: false,
-            max_age_secs: 86400, // 24 hours
+            max_age_secs:      86400, // 24 hours
         }
     }
 }

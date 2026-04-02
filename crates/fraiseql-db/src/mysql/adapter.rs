@@ -124,7 +124,7 @@ impl MySqlAdapter {
             .fetch_one(&pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to connect to MySQL database: {e}"),
+                message:   format!("Failed to connect to MySQL database: {e}"),
                 sql_state: None,
             })?;
 
@@ -311,7 +311,7 @@ impl DatabaseAdapter for MySqlAdapter {
     async fn health_check(&self) -> Result<()> {
         sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message: format!("MySQL health check failed: {e}"),
+                message:   format!("MySQL health check failed: {e}"),
                 sql_state: None,
             }
         })?;
@@ -326,10 +326,10 @@ impl DatabaseAdapter for MySqlAdapter {
         let idle = self.pool.num_idle();
 
         PoolMetrics {
-            total_connections: size,
-            idle_connections: idle as u32,
+            total_connections:  size,
+            idle_connections:   idle as u32,
             active_connections: size - idle as u32,
-            waiting_requests: 0, // sqlx doesn't expose waiting count
+            waiting_requests:   0, // sqlx doesn't expose waiting count
         }
     }
 
@@ -548,7 +548,7 @@ impl DatabaseAdapter for MySqlAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN FORMAT=JSON {sql}");
@@ -556,17 +556,17 @@ impl DatabaseAdapter for MySqlAdapter {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("MySQL EXPLAIN failed: {e}"),
+                message:   format!("MySQL EXPLAIN failed: {e}"),
                 sql_state: None,
             })?;
 
         let raw: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to read MySQL EXPLAIN output: {e}"),
+            message:   format!("Failed to read MySQL EXPLAIN output: {e}"),
             sql_state: None,
         })?;
 
         serde_json::from_str(&raw).map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to parse MySQL EXPLAIN JSON: {e}"),
+            message:   format!("Failed to parse MySQL EXPLAIN JSON: {e}"),
             sql_state: None,
         })
     }
@@ -675,7 +675,7 @@ impl MySqlAdapter {
 
         let row: MySqlRow =
             query.fetch_one(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message: format!("MySQL COUNT query failed: {e}"),
+                message:   format!("MySQL COUNT query failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -923,7 +923,7 @@ mod unit_tests {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
         let order_by = vec![OrderByClause {
-            field: "created_at".to_string(),
+            field:     "created_at".to_string(),
             direction: OrderDirection::Desc,
         }];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), true);
@@ -936,7 +936,7 @@ mod unit_tests {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
         let order_by = vec![OrderByClause {
-            field: "created_at".to_string(),
+            field:     "created_at".to_string(),
             direction: OrderDirection::Asc,
         }];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), false);

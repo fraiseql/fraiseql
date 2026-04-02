@@ -91,7 +91,7 @@ impl DatabaseAdapter for PostgresAdapter {
         if select_sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {select_sql}");
@@ -104,14 +104,14 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
         let rows = client.query(explain_sql.as_str(), &param_refs).await.map_err(|e| {
             FraiseQLError::Database {
-                message: format!("EXPLAIN ANALYZE failed: {e}"),
+                message:   format!("EXPLAIN ANALYZE failed: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             }
         })?;
 
         if let Some(row) = rows.first() {
             let plan: serde_json::Value = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to parse EXPLAIN output: {e}"),
+                message:   format!("Failed to parse EXPLAIN output: {e}"),
                 sql_state: None,
             })?;
             Ok(plan)
@@ -129,7 +129,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
 
         client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
-            message: format!("Health check failed: {e}"),
+            message:   format!("Health check failed: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -144,10 +144,10 @@ impl DatabaseAdapter for PostgresAdapter {
         let status = self.pool.status();
 
         PoolMetrics {
-            total_connections: status.size as u32,
-            idle_connections: status.available as u32,
+            total_connections:  status.size as u32,
+            idle_connections:   status.available as u32,
             active_connections: (status.size - status.available) as u32,
-            waiting_requests: status.waiting as u32,
+            waiting_requests:   status.waiting as u32,
         }
     }
 
@@ -163,7 +163,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
 
         let rows: Vec<Row> = client.query(sql, &[]).await.map_err(|e| FraiseQLError::Database {
-            message: format!("Query execution failed: {e}"),
+            message:   format!("Query execution failed: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -189,7 +189,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
         let rows: Vec<Row> =
             client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                message: format!("Parameterized aggregate query failed: {e}"),
+                message:   format!("Parameterized aggregate query failed: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -224,7 +224,7 @@ impl DatabaseAdapter for PostgresAdapter {
             // SET LOCAL and is parameterized to avoid SQL injection.
             let txn =
                 client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                    message: format!("Failed to start mutation timing transaction: {e}"),
+                    message:   format!("Failed to start mutation timing transaction: {e}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
 
@@ -234,19 +234,19 @@ impl DatabaseAdapter for PostgresAdapter {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to set mutation timing variable: {e}"),
+                message:   format!("Failed to set mutation timing variable: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
             let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
                 FraiseQLError::Database {
-                    message: format!("Function call {function_name} failed: {e}"),
+                    message:   format!("Function call {function_name} failed: {e}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 }
             })?;
 
             txn.commit().await.map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to commit mutation timing transaction: {e}"),
+                message:   format!("Failed to commit mutation timing transaction: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -258,7 +258,7 @@ impl DatabaseAdapter for PostgresAdapter {
             let rows: Vec<Row> =
                 client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
                     FraiseQLError::Database {
-                        message: format!("Function call {function_name} failed: {e}"),
+                        message:   format!("Function call {function_name} failed: {e}"),
                         sql_state: e.code().map(|c| c.code().to_string()),
                     }
                 })?;
@@ -281,7 +281,7 @@ impl DatabaseAdapter for PostgresAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN (ANALYZE false, FORMAT JSON) {sql}");
@@ -291,13 +291,13 @@ impl DatabaseAdapter for PostgresAdapter {
                 .query(explain_sql.as_str(), &[])
                 .await
                 .map_err(|e| FraiseQLError::Database {
-                    message: format!("EXPLAIN failed: {e}"),
+                    message:   format!("EXPLAIN failed: {e}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
 
         if let Some(row) = rows.first() {
             let plan: serde_json::Value = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to parse EXPLAIN output: {e}"),
+                message:   format!("Failed to parse EXPLAIN output: {e}"),
                 sql_state: None,
             })?;
             Ok(plan)

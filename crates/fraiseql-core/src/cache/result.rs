@@ -149,11 +149,11 @@ pub struct QueryResultCache {
     // Metrics counters — atomic so the hot `get()` path acquires only ONE shard
     // lock, not two. `Relaxed` ordering is sufficient: these counters are
     // independent and used only for monitoring, not for correctness.
-    hits: AtomicU64,
-    misses: AtomicU64,
-    total_cached: AtomicU64,
+    hits:          AtomicU64,
+    misses:        AtomicU64,
+    total_cached:  AtomicU64,
     invalidations: AtomicU64,
-    memory_bytes: AtomicUsize,
+    memory_bytes:  AtomicUsize,
 }
 
 /// Cache metrics for monitoring.
@@ -1025,12 +1025,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate() {
         let metrics = CacheMetrics {
-            hits: 80,
-            misses: 20,
-            total_cached: 100,
+            hits:          80,
+            misses:        20,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
 
         assert!((metrics.hit_rate() - 0.8).abs() < f64::EPSILON);
@@ -1040,12 +1040,12 @@ mod tests {
     #[test]
     fn test_metrics_hit_rate_zero_requests() {
         let metrics = CacheMetrics {
-            hits: 0,
-            misses: 0,
-            total_cached: 0,
+            hits:          0,
+            misses:        0,
+            total_cached:  0,
             invalidations: 0,
-            size: 0,
-            memory_bytes: 0,
+            size:          0,
+            memory_bytes:  0,
         };
 
         assert!((metrics.hit_rate() - 0.0).abs() < f64::EPSILON);
@@ -1055,22 +1055,22 @@ mod tests {
     #[test]
     fn test_metrics_is_healthy() {
         let good = CacheMetrics {
-            hits: 70,
-            misses: 30,
-            total_cached: 100,
+            hits:          70,
+            misses:        30,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
         assert!(good.is_healthy()); // 70% > 60%
 
         let bad = CacheMetrics {
-            hits: 50,
-            misses: 50,
-            total_cached: 100,
+            hits:          50,
+            misses:        50,
+            total_cached:  100,
             invalidations: 5,
-            size: 95,
-            memory_bytes: 1_000_000,
+            size:          95,
+            memory_bytes:  1_000_000,
         };
         assert!(!bad.is_healthy()); // 50% < 60%
     }

@@ -54,7 +54,7 @@ fn test_database_connection_reuse() {
         rep_all.insert("id".to_string(), json!("user1"));
 
         let representation = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };
@@ -118,7 +118,7 @@ fn test_database_connection_retry() {
         rep_all.insert("id".to_string(), json!("user1"));
 
         let representation = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };
@@ -176,12 +176,12 @@ fn test_database_query_execution_basic() {
 
     let representations = vec![
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep1_keys,
             all_fields: rep1_all,
         },
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep2_keys,
             all_fields: rep2_all,
         },
@@ -239,7 +239,7 @@ fn test_database_parameterized_queries() {
     rep_all.insert("id".to_string(), json!("O'Brien"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };

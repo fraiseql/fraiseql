@@ -96,21 +96,21 @@ use crate::saga_store::{Result as SagaStoreResult, SagaState};
 #[derive(Debug, Clone)]
 pub struct SagaStep {
     /// Unique step identifier
-    pub id: Uuid,
+    pub id:                     Uuid,
     /// Position in saga (1-indexed, must be sequential)
-    pub number: u32,
+    pub number:                 u32,
     /// Target subgraph for this step's execution
-    pub subgraph: String,
+    pub subgraph:               String,
     /// Entity type being mutated (e.g., "Order", "Payment")
-    pub typename: String,
+    pub typename:               String,
     /// Forward mutation operation name (e.g., "createOrder", "recordPayment")
-    pub mutation_name: String,
+    pub mutation_name:          String,
     /// Variables for forward mutation
     /// Must include all input fields for the mutation
-    pub variables: serde_json::Value,
+    pub variables:              serde_json::Value,
     /// Compensation mutation operation name
     /// Usually inverse of `mutation_name` (e.g., `deleteOrder`, `reversePayment`)
-    pub compensation_mutation: String,
+    pub compensation_mutation:  String,
     /// Variables for compensation mutation
     /// Must be able to identify and reverse the forward mutation
     pub compensation_variables: serde_json::Value,
@@ -181,29 +181,29 @@ pub enum CompensationStrategy {
 #[derive(Debug, Clone)]
 pub struct SagaResult {
     /// Saga identifier
-    pub saga_id: Uuid,
+    pub saga_id:         Uuid,
     /// Final state of saga
-    pub state: SagaState,
+    pub state:           SagaState,
     /// Number of successfully executed steps
     pub completed_steps: u32,
     /// Total number of steps
-    pub total_steps: u32,
+    pub total_steps:     u32,
     /// Error message if failed
-    pub error: Option<String>,
+    pub error:           Option<String>,
     /// Compensation performed
-    pub compensated: bool,
+    pub compensated:     bool,
 }
 
 /// Saga coordinator for distributed transaction orchestration
 pub struct SagaCoordinator {
     /// Saga persistence store
-    _store: Arc<dyn std::any::Any + Send + Sync>,
+    _store:      Arc<dyn std::any::Any + Send + Sync>,
     /// Forward phase executor
-    executor: Arc<dyn std::any::Any + Send + Sync>,
+    executor:    Arc<dyn std::any::Any + Send + Sync>,
     /// Compensation phase executor
     compensator: Arc<dyn std::any::Any + Send + Sync>,
     /// Compensation strategy
-    strategy: CompensationStrategy,
+    strategy:    CompensationStrategy,
 }
 
 impl SagaCoordinator {
@@ -488,15 +488,15 @@ impl SagaCoordinator {
 #[derive(Debug, Clone)]
 pub struct SagaStatus {
     /// Saga identifier
-    pub saga_id: Uuid,
+    pub saga_id:             Uuid,
     /// Current state
-    pub state: SagaState,
+    pub state:               SagaState,
     /// Total number of steps
-    pub step_count: u32,
+    pub step_count:          u32,
     /// Number of completed steps
-    pub completed_steps: u32,
+    pub completed_steps:     u32,
     /// Currently executing step, if any
-    pub current_step: Option<u32>,
+    pub current_step:        Option<u32>,
     /// Progress as percentage (0.0 - 100.0)
     pub progress_percentage: f64,
 }

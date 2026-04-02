@@ -13,17 +13,17 @@ use serde_json::json;
 /// Build a `FieldDefinition` with the given name and type string.
 fn field(name: &str, type_str: &str) -> FieldDefinition {
     FieldDefinition {
-        name: name.into(),
-        field_type: FieldType::parse(type_str),
-        nullable: true,
-        default_value: None,
-        description: None,
-        vector_config: None,
-        alias: None,
-        deprecation: None,
+        name:           name.into(),
+        field_type:     FieldType::parse(type_str),
+        nullable:       true,
+        default_value:  None,
+        description:    None,
+        vector_config:  None,
+        alias:          None,
+        deprecation:    None,
         requires_scope: None,
-        on_deny: FieldDenyPolicy::default(),
-        encryption: None,
+        on_deny:        FieldDenyPolicy::default(),
+        encryption:     None,
     }
 }
 

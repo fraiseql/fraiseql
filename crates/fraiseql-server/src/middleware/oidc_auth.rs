@@ -148,8 +148,8 @@ mod tests {
         use chrono::Utc;
 
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec!["read".to_string()],
+            user_id:    "user123".to_string(),
+            scopes:     vec!["read".to_string()],
             expires_at: Utc::now(),
         };
 

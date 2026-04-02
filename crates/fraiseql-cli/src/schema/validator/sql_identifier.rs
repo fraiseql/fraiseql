@@ -43,12 +43,12 @@ pub fn validate_sql_identifier(
 ) -> std::result::Result<(), ValidationError> {
     if value.is_empty() {
         return Err(ValidationError {
-            message: format!(
+            message:    format!(
                 "`{field}` at `{path}` must not be empty. \
                  Provide a view or function name such as \"v_user\" or \"public.v_user\"."
             ),
-            path: path.to_string(),
-            severity: ErrorSeverity::Error,
+            path:       path.to_string(),
+            severity:   ErrorSeverity::Error,
             suggestion: None,
         });
     }
@@ -57,15 +57,15 @@ pub fn validate_sql_identifier(
     for segment in value.split('.') {
         if segment.len() > PG_MAX_IDENTIFIER_BYTES {
             return Err(ValidationError {
-                message: format!(
+                message:    format!(
                     "`{field}` segment {segment:?} at `{path}` is {} bytes, \
                      which exceeds the PostgreSQL maximum of {PG_MAX_IDENTIFIER_BYTES} bytes. \
                      PostgreSQL silently truncates longer identifiers, causing \
                      \"relation not found\" errors at runtime.",
                     segment.len(),
                 ),
-                path: path.to_string(),
-                severity: ErrorSeverity::Error,
+                path:       path.to_string(),
+                severity:   ErrorSeverity::Error,
                 suggestion: Some("Shorten the identifier to 63 characters or fewer.".to_string()),
             });
         }
@@ -73,14 +73,14 @@ pub fn validate_sql_identifier(
 
     if !SAFE_IDENTIFIER.is_match(value) {
         return Err(ValidationError {
-            message: format!(
+            message:    format!(
                 "`{field}` value {value:?} at `{path}` is not a valid SQL identifier. \
                  Only ASCII letters, digits, underscores, and up to two schema dots are \
                  allowed (1-3 segments). Valid examples: \"v_user\", \"public.v_user\", \
                  \"catalog.schema.table\"."
             ),
-            path: path.to_string(),
-            severity: ErrorSeverity::Error,
+            path:       path.to_string(),
+            severity:   ErrorSeverity::Error,
             suggestion: Some(
                 "Remove semicolons, quotes, dashes, spaces, or any SQL syntax \
                  from the identifier value."

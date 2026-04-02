@@ -66,8 +66,8 @@ pub struct ListenerConfig {
 /// **Requires the `postgres` Cargo feature.**
 #[cfg(feature = "postgres")]
 pub struct EventListener {
-    config: ListenerConfig,
-    sender: mpsc::Sender<EntityEvent>,
+    config:  ListenerConfig,
+    sender:  mpsc::Sender<EntityEvent>,
     running: Arc<AtomicBool>,
 }
 

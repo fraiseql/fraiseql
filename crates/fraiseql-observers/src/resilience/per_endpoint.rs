@@ -15,7 +15,7 @@ use crate::error::Result;
 /// Manages circuit breakers per endpoint
 #[derive(Clone)]
 pub struct PerEndpointCircuitBreaker {
-    breakers: Arc<DashMap<String, Arc<CircuitBreaker>>>,
+    breakers:       Arc<DashMap<String, Arc<CircuitBreaker>>>,
     default_config: CircuitBreakerConfig,
 }
 
@@ -97,9 +97,9 @@ mod tests {
     #[tokio::test]
     async fn test_per_endpoint_independent_breakers() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.1,
-            sample_size: 2,
-            open_timeout_ms: 1000,
+            failure_threshold:      0.1,
+            sample_size:            2,
+            open_timeout_ms:        1000,
             half_open_max_requests: 3,
         };
         let manager = PerEndpointCircuitBreaker::new(config);

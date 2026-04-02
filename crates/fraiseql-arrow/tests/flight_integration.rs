@@ -76,7 +76,7 @@ impl TestDb {
         Self::create_tables(&test_pool).await?;
 
         Ok(Some(TestDb {
-            pool: test_pool,
+            pool:          test_pool,
             database_name: test_db_name,
         }))
     }

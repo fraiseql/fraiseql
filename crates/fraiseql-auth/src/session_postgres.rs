@@ -9,7 +9,7 @@ use crate::{
 
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
-    db: PgPool,
+    db:          PgPool,
     /// Optional RSA private key for JWT signing (None falls back to HMAC)
     signing_key: Option<Vec<u8>>,
 }
@@ -245,11 +245,11 @@ mod tests {
             .as_secs();
 
         let mut claims = crate::Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600,
-            iss: "fraiseql".to_string(),
-            aud: vec!["fraiseql-api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600,
+            iss:   "fraiseql".to_string(),
+            aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
         };
 
@@ -286,11 +286,11 @@ mod tests {
             .as_secs();
 
         let mut claims = crate::Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600,
-            iss: "fraiseql".to_string(),
-            aud: vec!["fraiseql-api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600,
+            iss:   "fraiseql".to_string(),
+            aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
         };
 

@@ -110,17 +110,17 @@ impl TypeDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, sql_source: impl Into<String>) -> Self {
         Self {
-            name: TypeName::new(name),
-            sql_source: SqlSource::new(sql_source),
-            jsonb_column: "data".to_string(),
-            fields: Vec::new(),
-            description: None,
+            name:                TypeName::new(name),
+            sql_source:          SqlSource::new(sql_source),
+            jsonb_column:        "data".to_string(),
+            fields:              Vec::new(),
+            description:         None,
             sql_projection_hint: None,
-            implements: Vec::new(),
-            requires_role: None,
-            is_error: false,
-            relay: false,
-            relationships: Vec::new(),
+            implements:          Vec::new(),
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       Vec::new(),
         }
     }
 
@@ -242,8 +242,8 @@ impl EnumDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            values: Vec::new(),
+            name:        name.into(),
+            values:      Vec::new(),
             description: None,
         }
     }
@@ -311,7 +311,7 @@ impl EnumValueDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:        name.into(),
             description: None,
             deprecation: None,
         }
@@ -387,10 +387,10 @@ impl InputObjectDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            fields: Vec::new(),
+            name:        name.into(),
+            fields:      Vec::new(),
             description: None,
-            metadata: None,
+            metadata:    None,
         }
     }
 
@@ -470,11 +470,11 @@ impl InputFieldDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, field_type: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            field_type: field_type.into(),
-            description: None,
-            default_value: None,
-            deprecation: None,
+            name:             name.into(),
+            field_type:       field_type.into(),
+            description:      None,
+            default_value:    None,
+            deprecation:      None,
             validation_rules: Vec::new(),
         }
     }
@@ -575,8 +575,8 @@ impl InterfaceDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            fields: Vec::new(),
+            name:        name.into(),
+            fields:      Vec::new(),
             description: None,
         }
     }
@@ -649,9 +649,9 @@ impl UnionDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:         name.into(),
             member_types: Vec::new(),
-            description: None,
+            description:  None,
         }
     }
 

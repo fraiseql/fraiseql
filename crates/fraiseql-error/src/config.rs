@@ -12,7 +12,7 @@ pub enum ConfigError {
     #[error("Failed to read configuration file {path}: {source}")]
     ReadError {
         /// Path to the file that could not be read.
-        path: PathBuf,
+        path:   PathBuf,
         /// Underlying I/O error.
         source: std::io::Error,
     },
@@ -31,7 +31,7 @@ pub enum ConfigError {
     #[error("Validation error in {field}: {message}")]
     ValidationError {
         /// Dot-separated path to the invalid configuration field.
-        field: String,
+        field:   String,
         /// Human-readable description of why the value is invalid.
         message: String,
     },

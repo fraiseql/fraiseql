@@ -33,12 +33,12 @@ impl StorageBackend for LocalStorageBackend {
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| FileError::Storage {
                 message: format!("Failed to create directory: {e}"),
-                source: Some(Box::new(e)),
+                source:  Some(Box::new(e)),
             })?;
         }
         tokio::fs::write(&path, data).await.map_err(|e| FileError::Storage {
             message: format!("Failed to write file: {e}"),
-            source: Some(Box::new(e)),
+            source:  Some(Box::new(e)),
         })?;
         Ok(key.to_string())
     }
@@ -53,7 +53,7 @@ impl StorageBackend for LocalStorageBackend {
             } else {
                 FileError::Storage {
                     message: format!("Failed to read file: {e}"),
-                    source: Some(Box::new(e)),
+                    source:  Some(Box::new(e)),
                 }
             }
         })
@@ -69,7 +69,7 @@ impl StorageBackend for LocalStorageBackend {
             } else {
                 FileError::Storage {
                     message: format!("Failed to delete file: {e}"),
-                    source: Some(Box::new(e)),
+                    source:  Some(Box::new(e)),
                 }
             }
         })
@@ -82,7 +82,7 @@ impl StorageBackend for LocalStorageBackend {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
             Err(e) => Err(FileError::Storage {
                 message: format!("Failed to check file existence: {e}"),
-                source: Some(Box::new(e)),
+                source:  Some(Box::new(e)),
             }),
         }
     }
@@ -90,7 +90,7 @@ impl StorageBackend for LocalStorageBackend {
     async fn presigned_url(&self, _key: &str, _expiry: Duration) -> StorageResult<String> {
         Err(FileError::Storage {
             message: "Presigned URLs are not supported for local storage".to_string(),
-            source: None,
+            source:  None,
         })
     }
 }

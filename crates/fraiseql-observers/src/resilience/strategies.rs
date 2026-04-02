@@ -25,14 +25,14 @@ pub enum ResilienceStrategy {
         /// Maximum retry attempts
         max_attempts: u32,
         /// Backoff in milliseconds
-        backoff_ms: u64,
+        backoff_ms:   u64,
     },
 }
 
 /// Executor with resilience strategy
 pub struct ResilientExecutor {
     circuit_breaker: Arc<CircuitBreaker>,
-    strategy: ResilienceStrategy,
+    strategy:        ResilienceStrategy,
 }
 
 impl ResilientExecutor {
@@ -126,7 +126,7 @@ mod tests {
             breaker,
             ResilienceStrategy::RetryWithBreaker {
                 max_attempts: 3,
-                backoff_ms: 10,
+                backoff_ms:   10,
             },
         );
 

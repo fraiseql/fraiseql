@@ -25,25 +25,25 @@ fn test_four_subgraph_composition() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
 
     let orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_order_type_basic(), create_user_type_extending()],
+        types:   vec![create_order_type_basic(), create_user_type_extending()],
     };
 
     let products = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_product_type_basic(), create_order_type_extending()],
+        types:   vec![create_product_type_basic(), create_order_type_extending()],
     };
 
     let payments = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             create_payment_type_basic(),
             create_user_type_extending(),
             create_order_type_extending(),
@@ -77,21 +77,21 @@ fn test_five_subgraph_composition_with_shared_extends() {
     let mut subgraphs = vec![FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     }];
 
     // Orders owns Order, extends User
     subgraphs.push(FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_order_type_basic(), create_user_type_extending()],
+        types:   vec![create_order_type_basic(), create_user_type_extending()],
     });
 
     // Products owns Product, extends User and Order
     subgraphs.push(FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             create_product_type_basic(),
             create_user_type_extending(),
             create_order_type_extending(),
@@ -102,7 +102,7 @@ fn test_five_subgraph_composition_with_shared_extends() {
     subgraphs.push(FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             create_user_type_extending(),
             create_order_type_extending(),
             create_product_type_extending(),
@@ -113,7 +113,7 @@ fn test_five_subgraph_composition_with_shared_extends() {
     subgraphs.push(FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             create_user_type_extending(),
             create_order_type_extending(),
             create_product_type_extending(),
@@ -141,7 +141,7 @@ fn test_field_type_conflict_same_type() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_with_fields(
+        types:   vec![create_user_type_with_fields(
             vec!["id"],
             vec![("email", "String")],
         )],
@@ -150,7 +150,7 @@ fn test_field_type_conflict_same_type() {
     let auth = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_extending_with_fields(vec![(
+        types:   vec![create_user_type_extending_with_fields(vec![(
             "email", "Int",
         )])],
     };
@@ -171,20 +171,20 @@ fn test_multiple_key_definitions_inconsistent() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_with_key(&["id"])],
+        types:   vec![create_user_type_with_key(&["id"])],
     };
 
     let mut auth_user = FederatedType::new("User".to_string());
     auth_user.is_extends = true;
     auth_user.keys.push(KeyDirective {
-        fields: vec!["email".to_string()],
+        fields:     vec!["email".to_string()],
         resolvable: true,
     });
 
     let auth = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![auth_user],
+        types:   vec![auth_user],
     };
 
     let _result = compose_federation_schemas(&[users, auth]);
@@ -207,13 +207,13 @@ fn test_external_fields_preserved_in_composition() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
 
     let mut orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_order_type_basic()],
+        types:   vec![create_order_type_basic()],
     };
 
     // Mark user_id as external
@@ -240,14 +240,14 @@ fn test_shareable_fields_preserved_in_composition() {
     let mut users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
     users.types[0].shareable_fields.push("email".to_string());
 
     let mut auth = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_extending()],
+        types:   vec![create_user_type_extending()],
     };
     auth.types[0].shareable_fields.push("email".to_string());
 
@@ -276,13 +276,13 @@ fn test_composition_with_multiple_directives() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
 
     let mut orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_order_type_basic()],
+        types:   vec![create_order_type_basic()],
     };
 
     // Add multiple directives to Order
@@ -312,13 +312,13 @@ fn test_composed_schema_validity() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
 
     let orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_order_type_basic(), create_user_type_extending()],
+        types:   vec![create_order_type_basic(), create_user_type_extending()],
     };
 
     let composed = compose_federation_schemas(&[users, orders])
@@ -347,13 +347,13 @@ fn test_composed_schema_federation_enabled_any_source() {
     let enabled_subgraph = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
 
     let disabled_subgraph = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
-        types: vec![create_order_type_basic()],
+        types:   vec![create_order_type_basic()],
     };
 
     let composed = compose_federation_schemas(&[enabled_subgraph, disabled_subgraph])
@@ -375,13 +375,13 @@ fn test_type_with_no_extensions() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
 
     let orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_order_type_basic()],
+        types:   vec![create_order_type_basic()],
     };
 
     let composed = compose_federation_schemas(&[users, orders])
@@ -400,7 +400,7 @@ fn test_many_extensions_single_owner() {
     let users = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![create_user_type_basic()],
+        types:   vec![create_user_type_basic()],
     };
 
     let mut subgraphs = vec![users];
@@ -410,14 +410,14 @@ fn test_many_extensions_single_owner() {
         let mut metadata = FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![],
+            types:   vec![],
         };
 
         // Each subgraph also owns a different type
         let type_name = format!("Service{}", i);
         let mut service_type = FederatedType::new(type_name);
         service_type.keys.push(KeyDirective {
-            fields: vec!["id".to_string()],
+            fields:     vec!["id".to_string()],
             resolvable: true,
         });
         metadata.types.push(service_type);
@@ -443,7 +443,7 @@ fn test_many_extensions_single_owner() {
 fn create_user_type_basic() -> FederatedType {
     let mut user = FederatedType::new("User".to_string());
     user.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     user.is_extends = false;
@@ -459,7 +459,7 @@ fn create_user_type_extending() -> FederatedType {
 fn create_user_type_with_key(key_fields: &[&str]) -> FederatedType {
     let mut user = FederatedType::new("User".to_string());
     user.keys.push(KeyDirective {
-        fields: key_fields.iter().map(|s| (*s).to_string()).collect(),
+        fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
         resolvable: true,
     });
     user.is_extends = false;
@@ -482,7 +482,7 @@ fn create_user_type_extending_with_fields(_fields: Vec<(&str, &str)>) -> Federat
 fn create_order_type_basic() -> FederatedType {
     let mut order = FederatedType::new("Order".to_string());
     order.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     order.is_extends = false;
@@ -498,7 +498,7 @@ fn create_order_type_extending() -> FederatedType {
 fn create_product_type_basic() -> FederatedType {
     let mut product = FederatedType::new("Product".to_string());
     product.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     product.is_extends = false;
@@ -514,7 +514,7 @@ fn create_product_type_extending() -> FederatedType {
 fn create_payment_type_basic() -> FederatedType {
     let mut payment = FederatedType::new("Payment".to_string());
     payment.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     payment.is_extends = false;
@@ -542,7 +542,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
         return Ok(ComposedSchema {
             enabled: false,
             version: "v2".to_string(),
-            types: Vec::new(),
+            types:   Vec::new(),
         });
     }
 
@@ -584,5 +584,5 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
 struct ComposedSchema {
     pub enabled: bool,
     pub version: String,
-    pub types: Vec<FederatedType>,
+    pub types:   Vec<FederatedType>,
 }

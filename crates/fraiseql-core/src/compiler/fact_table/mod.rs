@@ -50,23 +50,23 @@ mod tests;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactTableMetadata {
     /// Table name (e.g., "`tf_sales`")
-    pub table_name: String,
+    pub table_name:           String,
     /// Measures (aggregatable numeric columns)
-    pub measures: Vec<MeasureColumn>,
+    pub measures:             Vec<MeasureColumn>,
     /// Dimension column (JSONB)
-    pub dimensions: DimensionColumn,
+    pub dimensions:           DimensionColumn,
     /// Denormalized filter columns
     pub denormalized_filters: Vec<FilterColumn>,
     /// Calendar dimensions for optimized temporal aggregations
     #[serde(default)]
-    pub calendar_dimensions: Vec<CalendarDimension>,
+    pub calendar_dimensions:  Vec<CalendarDimension>,
 }
 
 /// A measure column (aggregatable numeric type)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasureColumn {
     /// Column name (e.g., "revenue")
-    pub name: String,
+    pub name:     String,
     /// SQL data type
     pub sql_type: SqlType,
     /// Is nullable
@@ -107,7 +107,7 @@ pub enum SqlType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DimensionColumn {
     /// Column name (default: "dimensions" for fact tables)
-    pub name: String,
+    pub name:  String,
     /// Detected dimension paths (optional, extracted from sample data)
     pub paths: Vec<DimensionPath>,
 }
@@ -116,7 +116,7 @@ pub struct DimensionColumn {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DimensionPath {
     /// Path name (e.g., "category")
-    pub name: String,
+    pub name:      String,
     /// JSON path (e.g., "dimensions->>'category'" for PostgreSQL)
     pub json_path: String,
     /// Data type hint
@@ -185,11 +185,11 @@ pub struct CalendarBucket {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilterColumn {
     /// Column name (e.g., "`customer_id`")
-    pub name: String,
+    pub name:     String,
     /// SQL data type
     pub sql_type: SqlType,
     /// Is indexed (for performance)
-    pub indexed: bool,
+    pub indexed:  bool,
 }
 
 /// Aggregation strategy for fact tables

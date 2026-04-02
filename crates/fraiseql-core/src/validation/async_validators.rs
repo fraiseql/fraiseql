@@ -67,13 +67,13 @@ impl std::fmt::Display for AsyncValidatorProvider {
 #[derive(Debug, Clone)]
 pub struct AsyncValidatorConfig {
     /// The provider to use
-    pub provider: AsyncValidatorProvider,
+    pub provider:       AsyncValidatorProvider,
     /// Timeout duration for the validation operation
-    pub timeout: Duration,
+    pub timeout:        Duration,
     /// Cache TTL in seconds (0 = no caching)
     pub cache_ttl_secs: u64,
     /// Field pattern this validator applies to (e.g., "*.email")
-    pub field_pattern: String,
+    pub field_pattern:  String,
 }
 
 impl AsyncValidatorConfig {
@@ -183,7 +183,7 @@ impl AsyncValidator for EmailFormatValidator {
         } else {
             Err(FraiseQLError::Validation {
                 message: format!("Invalid email format for field '{field}'"),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         }
     }
@@ -258,7 +258,7 @@ impl AsyncValidator for PhoneE164Validator {
                     "Invalid E.164 phone number for field '{field}': \
                      expected '+' followed by 7–15 digits (e.g. +14155552671)"
                 ),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         }
     }
@@ -278,7 +278,7 @@ impl AsyncValidator for PhoneE164Validator {
 /// Implements `AsyncValidator` for composition with other async validators,
 /// but performs no I/O.
 pub struct ChecksumAsyncValidator {
-    config: AsyncValidatorConfig,
+    config:    AsyncValidatorConfig,
     algorithm: String,
 }
 
@@ -313,7 +313,7 @@ impl AsyncValidator for ChecksumAsyncValidator {
                         "Unknown checksum algorithm '{}' for field '{}'",
                         other, field
                     ),
-                    path: Some(field.to_string()),
+                    path:    Some(field.to_string()),
                 });
             },
         };
@@ -325,7 +325,7 @@ impl AsyncValidator for ChecksumAsyncValidator {
                     "Checksum validation ({}) failed for field '{}'",
                     self.algorithm, field
                 ),
-                path: Some(field.to_string()),
+                path:    Some(field.to_string()),
             })
         }
     }

@@ -30,25 +30,25 @@ impl std::fmt::Display for ProviderType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthSession {
     /// Session ID
-    pub id: String,
+    pub id:               String,
     /// User ID (local system)
-    pub user_id: String,
+    pub user_id:          String,
     /// Provider type (oauth2, oidc)
-    pub provider_type: ProviderType,
+    pub provider_type:    ProviderType,
     /// Provider name (Auth0, Google, etc.)
-    pub provider_name: String,
+    pub provider_name:    String,
     /// Provider's user ID (sub claim)
     pub provider_user_id: String,
     /// Access token (encrypted)
-    pub access_token: String,
+    pub access_token:     String,
     /// Refresh token (encrypted), if available
-    pub refresh_token: Option<String>,
+    pub refresh_token:    Option<String>,
     /// When access token expires
-    pub token_expiry: DateTime<Utc>,
+    pub token_expiry:     DateTime<Utc>,
     /// Session creation time
-    pub created_at: DateTime<Utc>,
+    pub created_at:       DateTime<Utc>,
     /// Last time token was refreshed
-    pub last_refreshed: Option<DateTime<Utc>>,
+    pub last_refreshed:   Option<DateTime<Utc>>,
 }
 
 impl OAuthSession {
@@ -122,9 +122,9 @@ pub struct OAuth2ClientConfig {
     /// Authorization endpoint
     pub authorization_endpoint: String,
     /// Token endpoint
-    pub token_endpoint: String,
+    pub token_endpoint:         String,
     /// Use PKCE
-    pub use_pkce: bool,
+    pub use_pkce:               bool,
 }
 
 impl ExternalAuthProvider {

@@ -35,7 +35,7 @@ pub use tracing::TracingConfig;
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
     /// HTTP server binding, TLS, and connection-limit settings.
-    pub server: HttpServerConfig,
+    pub server:   HttpServerConfig,
     /// Primary database connection and pool settings.
     pub database: DatabaseConfig,
 
@@ -149,7 +149,7 @@ pub struct TlsConfig {
     /// Path to the PEM-encoded TLS certificate (or certificate chain).
     pub cert_file: PathBuf,
     /// Path to the PEM-encoded private key corresponding to `cert_file`.
-    pub key_file: PathBuf,
+    pub key_file:  PathBuf,
 }
 
 /// Per-request body size and concurrency limits for the HTTP server.
@@ -256,9 +256,9 @@ impl Default for LifecycleConfig {
     fn default() -> Self {
         Self {
             shutdown_timeout: default_shutdown_timeout(),
-            shutdown_delay: default_shutdown_delay(),
-            health_path: default_health_path(),
-            ready_path: default_ready_path(),
+            shutdown_delay:   default_shutdown_delay(),
+            health_path:      default_health_path(),
+            ready_path:       default_ready_path(),
         }
     }
 }
@@ -282,32 +282,32 @@ pub struct WebhookRouteConfig {
     /// Name of the environment variable that holds the webhook signing secret.
     pub secret_env: String,
     /// Webhook provider identifier (e.g. `"github"`, `"stripe"`).
-    pub provider: String,
+    pub provider:   String,
     /// URL path override; if absent, the route name is used as the path segment.
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:       Option<String>,
 }
 
 /// Configuration for a file-upload route.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileConfig {
     /// Named storage backend (must match a key in `storage`).
-    pub storage: String,
+    pub storage:  String,
     /// Maximum upload size as a human-readable string (e.g. `"50MB"`).
     pub max_size: String,
     /// URL path prefix for upload and download endpoints.
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:     Option<String>,
 }
 
 /// JWT authentication and OAuth provider configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AuthConfig {
     /// JWT signing secret configuration.
-    pub jwt: JwtConfig,
+    pub jwt:               JwtConfig,
     /// Named OAuth2/OIDC provider configurations.
     #[serde(default)]
-    pub providers: HashMap<String, OAuthProviderConfig>,
+    pub providers:         HashMap<String, OAuthProviderConfig>,
     /// Base URL for OAuth callback endpoints (e.g. `"https://api.example.com"`).
     #[serde(default)]
     pub callback_base_url: Option<String>,
@@ -324,14 +324,14 @@ pub struct JwtConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct OAuthProviderConfig {
     /// Well-known provider type identifier (e.g. `"auth0"`, `"github"`, `"google"`).
-    pub provider_type: String,
+    pub provider_type:     String,
     /// Name of the environment variable that holds the OAuth client ID.
-    pub client_id_env: String,
+    pub client_id_env:     String,
     /// Name of the environment variable that holds the OAuth client secret.
     pub client_secret_env: String,
     /// OIDC issuer URL (required for providers that support OIDC discovery).
     #[serde(default)]
-    pub issuer_url: Option<String>,
+    pub issuer_url:        Option<String>,
 }
 
 /// Reserved: placeholder for future notification system configuration.
@@ -342,9 +342,9 @@ pub struct NotificationsConfig {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct ObserverConfig {
     /// GraphQL entity type name to watch (e.g. `"User"`).
-    pub entity: String,
+    pub entity:  String,
     /// List of mutation operation names that trigger this observer.
-    pub events: Vec<String>,
+    pub events:  Vec<String>,
     /// Ordered list of actions to execute when an observed event fires.
     pub actions: Vec<ActionConfig>,
 }
@@ -357,7 +357,7 @@ pub struct ActionConfig {
     pub action_type: String,
     /// Optional Jinja2-style template used to render the action payload.
     #[serde(default)]
-    pub template: Option<String>,
+    pub template:    Option<String>,
 }
 
 // These types are now defined in their own modules and re-exported above
@@ -370,22 +370,22 @@ pub struct LoggingConfig {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
     /// Storage backend identifier (e.g. `"s3"`, `"gcs"`, `"local"`).
-    pub backend: String,
+    pub backend:      String,
     /// Bucket or container name (required for cloud backends).
     #[serde(default)]
-    pub bucket: Option<String>,
+    pub bucket:       Option<String>,
     /// Local filesystem path (used by the `"local"` backend).
     #[serde(default)]
-    pub path: Option<String>,
+    pub path:         Option<String>,
     /// Cloud region (e.g. `"eu-west-1"` for AWS, `"fr-par"` for Scaleway).
     #[serde(default)]
-    pub region: Option<String>,
+    pub region:       Option<String>,
     /// Custom endpoint URL (for S3-compatible providers or local development).
     #[serde(default)]
-    pub endpoint: Option<String>,
+    pub endpoint:     Option<String>,
     /// GCP project ID (used by the `"gcs"` backend).
     #[serde(default)]
-    pub project_id: Option<String>,
+    pub project_id:   Option<String>,
     /// Azure storage account name (used by the `"azure"` backend).
     #[serde(default)]
     pub account_name: Option<String>,

@@ -140,8 +140,8 @@ fn test_jwt_extraction_from_bearer_format() {
 fn test_security_context_creation() {
     let context = SecurityContext {
         session_token: "session-12345".to_string(),
-        user_id: "user-456".to_string(),
-        expiration: Some(9999999999),
+        user_id:       "user-456".to_string(),
+        expiration:    Some(9999999999),
     };
 
     assert_eq!(context.session_token, "session-12345");
@@ -158,8 +158,8 @@ fn test_service_with_security_context() {
     // Set security context after successful handshake
     let _context = SecurityContext {
         session_token: "session-abc".to_string(),
-        user_id: "user-123".to_string(),
-        expiration: None,
+        user_id:       "user-123".to_string(),
+        expiration:    None,
     };
 
     // security_context can be set on service after handshake completes
@@ -172,19 +172,19 @@ async fn test_get_flight_info_for_optimized_view() {
 
     // Create a FlightTicket for an optimized view and encode it
     let ticket = FlightTicket::OptimizedView {
-        view: "va_orders".to_string(),
-        filter: None,
+        view:     "va_orders".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
     let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
     // Create a FlightDescriptor with encoded ticket bytes
     let descriptor = FlightDescriptor {
         r#type: 1, // PATH
-        path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
-        cmd: Default::default(),
+        path:   vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+        cmd:    Default::default(),
     };
 
     let request = Request::new(descriptor);
@@ -206,19 +206,19 @@ async fn test_get_flight_info_invalid_view() {
 
     // Create a FlightTicket for a non-existent view and encode it
     let ticket = FlightTicket::OptimizedView {
-        view: "nonexistent_view".to_string(),
-        filter: None,
+        view:     "nonexistent_view".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
     let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
     // Create a FlightDescriptor with encoded ticket bytes
     let descriptor = FlightDescriptor {
         r#type: 1, // PATH
-        path: vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
-        cmd: Default::default(),
+        path:   vec![String::from_utf8_lossy(&ticket_bytes).to_string()],
+        cmd:    Default::default(),
     };
 
     let request = Request::new(descriptor);
@@ -265,7 +265,7 @@ async fn test_do_action_health_check() {
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "HealthCheck".to_string(),
-            body: vec![].into(),
+            body:   vec![].into(),
         };
 
         // Create a test user and session token
@@ -273,10 +273,10 @@ async fn test_do_action_health_check() {
         let exp = now + chrono::Duration::minutes(5);
 
         let claims = SessionTokenClaims {
-            sub: "test-user".to_string(),
-            exp: exp.timestamp(),
-            iat: now.timestamp(),
-            scopes: vec!["user".to_string()],
+            sub:          "test-user".to_string(),
+            exp:          exp.timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 
@@ -316,7 +316,7 @@ async fn test_do_action_unknown_action() {
         let service = FraiseQLFlightService::new();
         let action = Action {
             r#type: "UnknownAction".to_string(),
-            body: vec![].into(),
+            body:   vec![].into(),
         };
 
         // Must include authentication
@@ -324,10 +324,10 @@ async fn test_do_action_unknown_action() {
         let exp = now + chrono::Duration::minutes(5);
 
         let claims = SessionTokenClaims {
-            sub: "test-user".to_string(),
-            exp: exp.timestamp(),
-            iat: now.timestamp(),
-            scopes: vec!["user".to_string()],
+            sub:          "test-user".to_string(),
+            exp:          exp.timestamp(),
+            iat:          now.timestamp(),
+            scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 

@@ -93,9 +93,9 @@ fn assert_injection_safe(sql: &str, payload: &str, context: &str) {
 fn test_eq_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -107,9 +107,9 @@ fn test_eq_injection_generates_safe_sql() {
 fn test_neq_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Neq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -122,9 +122,9 @@ fn test_neq_injection_generates_safe_sql() {
 fn test_contains_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["comment".to_string()],
+            path:     vec!["comment".to_string()],
             operator: WhereOperator::Contains,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -137,9 +137,9 @@ fn test_contains_injection_generates_safe_sql() {
 fn test_icontains_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -152,9 +152,9 @@ fn test_icontains_injection_generates_safe_sql() {
 fn test_startswith_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["username".to_string()],
+            path:     vec!["username".to_string()],
             operator: WhereOperator::Startswith,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -167,9 +167,9 @@ fn test_startswith_injection_generates_safe_sql() {
 fn test_istartswith_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["username".to_string()],
+            path:     vec!["username".to_string()],
             operator: WhereOperator::Istartswith,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -182,9 +182,9 @@ fn test_istartswith_injection_generates_safe_sql() {
 fn test_endswith_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["domain".to_string()],
+            path:     vec!["domain".to_string()],
             operator: WhereOperator::Endswith,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -197,9 +197,9 @@ fn test_endswith_injection_generates_safe_sql() {
 fn test_iendswith_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["domain".to_string()],
+            path:     vec!["domain".to_string()],
             operator: WhereOperator::Iendswith,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -220,9 +220,9 @@ fn test_numeric_operators_injection_generates_safe_sql() {
     for (op, expected_sql_op) in operators {
         for payload in INJECTION_PAYLOADS {
             let clause = WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: op.clone(),
-                value: json!(payload),
+                value:    json!(payload),
             };
 
             let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -236,9 +236,9 @@ fn test_numeric_operators_injection_generates_safe_sql() {
 fn test_in_operator_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!([payload, "safe_value"]),
+            value:    json!([payload, "safe_value"]),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -251,9 +251,9 @@ fn test_in_operator_injection_generates_safe_sql() {
 fn test_nin_operator_injection_generates_safe_sql() {
     for payload in INJECTION_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Nin,
-            value: json!([payload, "safe_value"]),
+            value:    json!([payload, "safe_value"]),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -276,9 +276,9 @@ fn test_injection_in_simple_path_generates_safe_sql() {
 
     for malicious_field in malicious_paths {
         let clause = WhereClause::Field {
-            path: vec![malicious_field.to_string()],
+            path:     vec![malicious_field.to_string()],
             operator: WhereOperator::Eq,
-            value: json!("safe_value"),
+            value:    json!("safe_value"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -304,9 +304,9 @@ fn test_injection_in_nested_path_generates_safe_sql() {
 
     for path in malicious_paths {
         let clause = WhereClause::Field {
-            path: path.clone(),
+            path:     path.clone(),
             operator: WhereOperator::Eq,
-            value: json!("test@example.com"),
+            value:    json!("test@example.com"),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -333,14 +333,14 @@ fn test_injection_in_nested_path_generates_safe_sql() {
 fn test_injection_in_and_clause_generates_safe_sql() {
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("'; DROP TABLE users; --"),
+            value:    json!("'; DROP TABLE users; --"),
         },
         WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("' OR '1'='1"),
+            value:    json!("' OR '1'='1"),
         },
     ]);
 
@@ -356,14 +356,14 @@ fn test_injection_in_and_clause_generates_safe_sql() {
 fn test_injection_in_or_clause_generates_safe_sql() {
     let clause = WhereClause::Or(vec![
         WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Contains,
-            value: json!("' UNION SELECT * FROM passwords --"),
+            value:    json!("' UNION SELECT * FROM passwords --"),
         },
         WhereClause::Field {
-            path: vec!["bio".to_string()],
+            path:     vec!["bio".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("'; WAITFOR DELAY '00:00:05'--"),
+            value:    json!("'; WAITFOR DELAY '00:00:05'--"),
         },
     ]);
 
@@ -376,9 +376,9 @@ fn test_injection_in_or_clause_generates_safe_sql() {
 #[test]
 fn test_injection_in_not_clause_generates_safe_sql() {
     let clause = WhereClause::Not(Box::new(WhereClause::Field {
-        path: vec!["test".to_string()],
+        path:     vec!["test".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("'; DROP TABLE users; --"),
+        value:    json!("'; DROP TABLE users; --"),
     }));
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -393,9 +393,9 @@ fn test_injection_in_not_clause_generates_safe_sql() {
 #[test]
 fn test_null_byte_injection_generates_safe_sql() {
     let clause = WhereClause::Field {
-        path: vec!["data".to_string()],
+        path:     vec!["data".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("test\0attack"),
+        value:    json!("test\0attack"),
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -413,9 +413,9 @@ fn test_unicode_quote_injection_generates_safe_sql() {
 
     for payload in unicode_payloads {
         let clause = WhereClause::Field {
-            path: vec!["text".to_string()],
+            path:     vec!["text".to_string()],
             operator: WhereOperator::Contains,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -428,9 +428,9 @@ fn test_long_payload_injection_generates_safe_sql() {
     let long_payload = "x".repeat(10000) + "' OR '1'='1";
 
     let clause = WhereClause::Field {
-        path: vec!["comment".to_string()],
+        path:     vec!["comment".to_string()],
         operator: WhereOperator::Contains,
-        value: json!(long_payload),
+        value:    json!(long_payload),
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -447,9 +447,9 @@ fn test_encoded_payloads_generate_safe_sql() {
 
     for payload in encoded_payloads {
         let clause = WhereClause::Field {
-            path: vec!["data".to_string()],
+            path:     vec!["data".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -469,9 +469,9 @@ fn test_backslash_escaping_generates_safe_sql() {
 
     for payload in backslash_payloads {
         let clause = WhereClause::Field {
-            path: vec!["user".to_string()],
+            path:     vec!["user".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -485,9 +485,9 @@ fn test_comment_techniques_generate_safe_sql() {
 
     for payload in comment_payloads {
         let clause = WhereClause::Field {
-            path: vec!["id".to_string()],
+            path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -513,9 +513,9 @@ fn test_real_world_owasp_payloads_generate_safe_sql() {
 
     for payload in real_world_payloads {
         let clause = WhereClause::Field {
-            path: vec!["vulnerable_field".to_string()],
+            path:     vec!["vulnerable_field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -548,9 +548,9 @@ fn test_all_supported_operators_generate_safe_sql_for_injection() {
 
     for (op, expected_sql_op) in operators {
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: op.clone(),
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -567,9 +567,9 @@ fn test_is_null_operator_ignores_value_payload() {
     // IsNull uses the value as a boolean (true/false), not as a SQL value,
     // so injection payloads in the value field are harmless
     let clause = WhereClause::Field {
-        path: vec!["deleted_at".to_string()],
+        path:     vec!["deleted_at".to_string()],
         operator: WhereOperator::IsNull,
-        value: json!(true),
+        value:    json!(true),
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -577,9 +577,9 @@ fn test_is_null_operator_ignores_value_payload() {
 
     // Even with a string payload, IsNull extracts .as_bool() which defaults to true
     let clause = WhereClause::Field {
-        path: vec!["deleted_at".to_string()],
+        path:     vec!["deleted_at".to_string()],
         operator: WhereOperator::IsNull,
-        value: json!("'; DROP TABLE users; --"),
+        value:    json!("'; DROP TABLE users; --"),
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
@@ -590,9 +590,9 @@ fn test_is_null_operator_ignores_value_payload() {
 #[test]
 fn test_array_operator_injection_generates_safe_sql() {
     let clause = WhereClause::Field {
-        path: vec!["tags".to_string()],
+        path:     vec!["tags".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: json!(["normal", "'; DROP TABLE users; --"]),
+        value:    json!(["normal", "'; DROP TABLE users; --"]),
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).unwrap();

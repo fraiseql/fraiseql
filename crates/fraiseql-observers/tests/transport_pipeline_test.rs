@@ -29,15 +29,15 @@ use uuid::Uuid;
 fn make_observer(event_type: &str, entity: &str, condition: Option<&str>) -> ObserverDefinition {
     ObserverDefinition {
         event_type: event_type.to_string(),
-        entity: entity.to_string(),
-        condition: condition.map(str::to_string),
-        actions: vec![ActionConfig::Webhook {
-            url: Some("https://example.com/hook".to_string()),
-            url_env: None,
-            headers: HashMap::default(),
+        entity:     entity.to_string(),
+        condition:  condition.map(str::to_string),
+        actions:    vec![ActionConfig::Webhook {
+            url:           Some("https://example.com/hook".to_string()),
+            url_env:       None,
+            headers:       HashMap::default(),
             body_template: Some("{}".to_string()),
         }],
-        retry: RetryConfig::default(),
+        retry:      RetryConfig::default(),
         on_failure: FailurePolicy::Log,
     }
 }
@@ -94,8 +94,8 @@ fn event_filter_default_fields_are_none() {
 fn event_filter_fields_set_correctly() {
     let f = EventFilter {
         entity_type: Some("Order".to_string()),
-        operation: Some("INSERT".to_string()),
-        tenant_id: Some("tenant-abc".to_string()),
+        operation:   Some("INSERT".to_string()),
+        tenant_id:   Some("tenant-abc".to_string()),
     };
     assert_eq!(f.entity_type.as_deref(), Some("Order"));
     assert_eq!(f.operation.as_deref(), Some("INSERT"));

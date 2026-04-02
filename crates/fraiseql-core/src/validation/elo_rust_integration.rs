@@ -13,19 +13,19 @@ use parking_lot::RwLock;
 #[derive(Debug, Clone)]
 pub struct RustValidatorRegistryConfig {
     /// Enable ELO Rust validator compilation and caching
-    pub enabled: bool,
+    pub enabled:          bool,
     /// Cache compiled validators for reuse
     pub cache_validators: bool,
     /// Maximum number of validators to cache
-    pub max_cache_size: usize,
+    pub max_cache_size:   usize,
 }
 
 impl Default for RustValidatorRegistryConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled:          true,
             cache_validators: true,
-            max_cache_size: 1000,
+            max_cache_size:   1000,
         }
     }
 }
@@ -34,7 +34,7 @@ impl Default for RustValidatorRegistryConfig {
 #[derive(Debug, Clone)]
 pub struct EloRustValidator {
     /// Name/identifier of the validator
-    pub name: String,
+    pub name:           String,
     /// ELO expression source
     pub elo_expression: String,
     /// Generated Rust code (if compiled)
@@ -44,7 +44,7 @@ pub struct EloRustValidator {
 /// Registry for managing ELO Rust validators
 #[derive(Clone)]
 pub struct RustValidatorRegistry {
-    config: Arc<RustValidatorRegistryConfig>,
+    config:     Arc<RustValidatorRegistryConfig>,
     validators: Arc<RwLock<HashMap<String, EloRustValidator>>>,
 }
 
@@ -52,7 +52,7 @@ impl RustValidatorRegistry {
     /// Create a new validator registry with the given configuration
     pub fn new(config: RustValidatorRegistryConfig) -> Self {
         Self {
-            config: Arc::new(config),
+            config:     Arc::new(config),
             validators: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn test_validator_creation() {
         let validator = EloRustValidator {
-            name: "test".to_string(),
+            name:           "test".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -144,7 +144,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name: "test".to_string(),
+            name:           "test".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -160,7 +160,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name: "test".to_string(),
+            name:           "test".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -177,7 +177,7 @@ mod tests {
 
         for i in 0..5 {
             let validator = EloRustValidator {
-                name: format!("v{}", i),
+                name:           format!("v{}", i),
                 elo_expression: "true".to_string(),
                 generated_code: None,
             };
@@ -193,7 +193,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name: "test".to_string(),
+            name:           "test".to_string(),
             elo_expression: "true".to_string(),
             generated_code: None,
         };

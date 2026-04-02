@@ -30,7 +30,7 @@ pub struct EncryptedState {
     /// Ciphertext with authentication tag appended
     pub ciphertext: Vec<u8>,
     /// 96-bit nonce used for encryption
-    pub nonce: [u8; 12],
+    pub nonce:      [u8; 12],
 }
 
 impl EncryptedState {
@@ -251,19 +251,19 @@ impl fmt::Display for EncryptionAlgorithm {
 #[serde(default)]
 pub struct StateEncryptionConfig {
     /// Enable the service; when `false`, `from_compiled_schema` returns `None`.
-    pub enabled: bool,
+    pub enabled:   bool,
     /// AEAD algorithm to use.
     pub algorithm: EncryptionAlgorithm,
     /// Name of the environment variable holding the 64-char hex key.
-    pub key_env: Option<String>,
+    pub key_env:   Option<String>,
 }
 
 impl Default for StateEncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled:   false,
             algorithm: EncryptionAlgorithm::default(),
-            key_env: Some("STATE_ENCRYPTION_KEY".to_string()),
+            key_env:   Some("STATE_ENCRYPTION_KEY".to_string()),
         }
     }
 }
@@ -275,7 +275,7 @@ impl Default for StateEncryptionConfig {
 /// The 32-byte key is never printed in [`fmt::Debug`] output.
 pub struct StateEncryptionService {
     algorithm: EncryptionAlgorithm,
-    key: [u8; 32],
+    key:       [u8; 32],
 }
 
 impl fmt::Debug for StateEncryptionService {

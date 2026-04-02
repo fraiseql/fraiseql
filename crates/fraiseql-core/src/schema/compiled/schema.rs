@@ -503,13 +503,13 @@ impl CompiledSchema {
                 .entities
                 .iter()
                 .map(|e| crate::federation::types::FederatedType {
-                    name: e.name.clone(),
-                    keys: vec![crate::federation::types::KeyDirective {
-                        fields: e.key_fields.clone(),
+                    name:             e.name.clone(),
+                    keys:             vec![crate::federation::types::KeyDirective {
+                        fields:     e.key_fields.clone(),
                         resolvable: true,
                     }],
-                    is_extends: false,
-                    external_fields: Vec::new(),
+                    is_extends:       false,
+                    external_fields:  Vec::new(),
                     shareable_fields: Vec::new(),
                     field_directives: std::collections::HashMap::new(),
                 })
@@ -782,17 +782,17 @@ mod tests {
 
     fn make_type_def(name: &str) -> TypeDefinition {
         TypeDefinition {
-            name: name.into(),
-            sql_source: format!("v_{}", name.to_lowercase()).as_str().into(),
-            jsonb_column: "data".to_string(),
-            fields: vec![],
-            description: None,
+            name:                name.into(),
+            sql_source:          format!("v_{}", name.to_lowercase()).as_str().into(),
+            jsonb_column:        "data".to_string(),
+            fields:              vec![],
+            description:         None,
             sql_projection_hint: None,
-            implements: vec![],
-            requires_role: None,
-            is_error: false,
-            relay: false,
-            relationships: vec![],
+            implements:          vec![],
+            requires_role:       None,
+            is_error:            false,
+            relay:               false,
+            relationships:       vec![],
         }
     }
 
@@ -1053,14 +1053,14 @@ mod tests {
         assert!(!schema.has_fact_tables());
 
         let meta = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
         schema.add_fact_table("tf_sales".to_string(), meta);
 
@@ -1074,14 +1074,14 @@ mod tests {
         use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
 
         let make_meta = |name: &str| FactTableMetadata {
-            table_name: name.to_string(),
-            measures: vec![],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            table_name:           name.to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         };
 
         let mut schema = CompiledSchema::new();
@@ -1223,7 +1223,7 @@ mod tests {
             enabled: true,
             version: Some("v2".to_string()),
             entities: vec![FederationEntity {
-                name: "User".to_string(),
+                name:       "User".to_string(),
                 key_fields: vec!["id".to_string()],
             }],
             ..Default::default()

@@ -37,12 +37,12 @@ use crate::middleware::RateLimiter;
 /// reflection, and the fully-qualified service name.
 pub struct GrpcServices<A: DatabaseAdapter> {
     /// The dynamic gRPC service that dispatches RPCs.
-    pub service: DynamicGrpcService<A>,
+    pub service:                     DynamicGrpcService<A>,
     /// Raw `FileDescriptorSet` bytes for building reflection at serve time.
     /// Present when `GrpcConfig.reflection` is true.
     pub reflection_descriptor_bytes: Option<Vec<u8>>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
-    pub service_name: String,
+    pub service_name:                String,
 }
 
 // ---------------------------------------------------------------------------
@@ -57,15 +57,15 @@ pub struct GrpcServices<A: DatabaseAdapter> {
 /// `fraiseql-cli generate-proto`.
 pub struct DynamicGrpcService<A: DatabaseAdapter> {
     /// Shared database adapter for executing row queries.
-    adapter: Arc<A>,
+    adapter:        Arc<A>,
     /// Compiled schema (for type lookups during request processing).
-    schema: Arc<CompiledSchema>,
+    schema:         Arc<CompiledSchema>,
     /// RPC method → operation metadata dispatch table.
-    dispatch: Arc<RpcDispatchTable>,
+    dispatch:       Arc<RpcDispatchTable>,
     /// Protobuf descriptor pool (for decoding/encoding dynamic messages).
-    pool: Arc<DescriptorPool>,
+    pool:           Arc<DescriptorPool>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
-    service_name: Arc<str>,
+    service_name:   Arc<str>,
     /// Optional OIDC validator for JWT authentication.
     /// When present, incoming requests must carry a valid `authorization`
     /// metadata header (`Bearer <jwt>`). The validated token is converted
@@ -73,19 +73,19 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
     oidc_validator: Option<Arc<OidcValidator>>,
     /// Optional shared rate limiter (same instance used by GraphQL/REST).
     /// When present, requests are throttled per-IP and per-user before dispatch.
-    rate_limiter: Option<Arc<RateLimiter>>,
+    rate_limiter:   Option<Arc<RateLimiter>>,
 }
 
 impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
     fn clone(&self) -> Self {
         Self {
-            adapter: Arc::clone(&self.adapter),
-            schema: Arc::clone(&self.schema),
-            dispatch: Arc::clone(&self.dispatch),
-            pool: Arc::clone(&self.pool),
-            service_name: Arc::clone(&self.service_name),
+            adapter:        Arc::clone(&self.adapter),
+            schema:         Arc::clone(&self.schema),
+            dispatch:       Arc::clone(&self.dispatch),
+            pool:           Arc::clone(&self.pool),
+            service_name:   Arc::clone(&self.service_name),
             oidc_validator: self.oidc_validator.as_ref().map(Arc::clone),
-            rate_limiter: self.rate_limiter.as_ref().map(Arc::clone),
+            rate_limiter:   self.rate_limiter.as_ref().map(Arc::clone),
         }
     }
 }

@@ -10,7 +10,7 @@ use super::super::error::AuthError;
 #[derive(Debug, Clone)]
 pub struct ProviderFailoverManager {
     /// Primary provider name
-    primary_provider: String,
+    primary_provider:   String,
     /// Fallback providers in priority order
     fallback_providers: Vec<String>,
     /// Providers currently unavailable
@@ -23,9 +23,9 @@ impl ProviderFailoverManager {
     /// Create new failover manager
     pub fn new(primary: String, fallbacks: Vec<String>) -> Self {
         Self {
-            primary_provider: primary,
+            primary_provider:   primary,
             fallback_providers: fallbacks,
-            unavailable: Arc::new(std::sync::Mutex::new(Vec::new())),
+            unavailable:        Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 

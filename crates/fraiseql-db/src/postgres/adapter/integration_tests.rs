@@ -122,9 +122,9 @@ async fn test_where_eq() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["email".to_string()],
+        path:     vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("alice@example.com"),
+        value:    json!("alice@example.com"),
     };
 
     let results = adapter
@@ -141,9 +141,9 @@ async fn test_where_neq() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["role".to_string()],
+        path:     vec!["role".to_string()],
         operator: WhereOperator::Neq,
-        value: json!("user"),
+        value:    json!("user"),
     };
 
     let results = adapter
@@ -163,9 +163,9 @@ async fn test_where_gt() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["age".to_string()],
+        path:     vec!["age".to_string()],
         operator: WhereOperator::Gt,
-        value: json!(30),
+        value:    json!(30),
     };
 
     let results = adapter
@@ -187,9 +187,9 @@ async fn test_where_gte() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["age".to_string()],
+        path:     vec!["age".to_string()],
         operator: WhereOperator::Gte,
-        value: json!(30),
+        value:    json!(30),
     };
 
     let results = adapter
@@ -212,9 +212,9 @@ async fn test_where_icontains() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["email".to_string()],
+        path:     vec!["email".to_string()],
         operator: WhereOperator::Icontains,
-        value: json!("example.com"),
+        value:    json!("example.com"),
     };
 
     let results = adapter
@@ -234,9 +234,9 @@ async fn test_where_startswith() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["name".to_string()],
+        path:     vec!["name".to_string()],
         operator: WhereOperator::Startswith,
-        value: json!("Alice"),
+        value:    json!("Alice"),
     };
 
     let results = adapter
@@ -258,14 +258,14 @@ async fn test_where_and() {
 
     let where_clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["active".to_string()],
+            path:     vec!["active".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         },
         WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Gte,
-            value: json!(25),
+            value:    json!(25),
         },
     ]);
 
@@ -287,14 +287,14 @@ async fn test_where_or() {
 
     let where_clause = WhereClause::Or(vec![
         WhereClause::Field {
-            path: vec!["role".to_string()],
+            path:     vec!["role".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("admin"),
+            value:    json!("admin"),
         },
         WhereClause::Field {
-            path: vec!["role".to_string()],
+            path:     vec!["role".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("moderator"),
+            value:    json!("moderator"),
         },
     ]);
 
@@ -315,9 +315,9 @@ async fn test_where_not() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Not(Box::new(WhereClause::Field {
-        path: vec!["active".to_string()],
+        path:     vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(true),
+        value:    json!(true),
     }));
 
     let results = adapter
@@ -339,9 +339,9 @@ async fn test_where_in() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["role".to_string()],
+        path:     vec!["role".to_string()],
         operator: WhereOperator::In,
-        value: json!(["admin", "moderator"]),
+        value:    json!(["admin", "moderator"]),
     };
 
     let results = adapter
@@ -410,9 +410,9 @@ async fn test_nested_object_query() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["metadata".to_string(), "city".to_string()],
+        path:     vec!["metadata".to_string(), "city".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("Paris"),
+        value:    json!("Paris"),
     };
 
     let results = adapter
@@ -437,20 +437,20 @@ async fn test_complex_nested_where() {
     // (active = true) AND ((role = 'admin') OR (age >= 30))
     let where_clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["active".to_string()],
+            path:     vec!["active".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         },
         WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["role".to_string()],
+                path:     vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("admin"),
+                value:    json!("admin"),
             },
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value: json!(30),
+                value:    json!(30),
             },
         ]),
     ]);
@@ -550,9 +550,9 @@ async fn test_parameterized_limit_with_where_clause() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["active".to_string()],
+        path:     vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(true),
+        value:    json!(true),
     };
 
     // Parameterized LIMIT with WHERE clause
@@ -572,9 +572,9 @@ async fn test_parameterized_limit_and_offset_with_where_clause() {
     let adapter = create_test_adapter().await;
 
     let where_clause = WhereClause::Field {
-        path: vec!["active".to_string()],
+        path:     vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(true),
+        value:    json!(true),
     };
 
     // Parameterized LIMIT and OFFSET with WHERE clause

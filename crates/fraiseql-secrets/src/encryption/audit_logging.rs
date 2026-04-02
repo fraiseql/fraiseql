@@ -73,23 +73,23 @@ impl std::fmt::Display for EventStatus {
 #[derive(Debug, Clone)]
 pub struct AuditLogEntry {
     /// Timestamp of operation
-    timestamp: DateTime<Utc>,
+    timestamp:     DateTime<Utc>,
     /// User performing operation
-    user_id: String,
+    user_id:       String,
     /// Field name being encrypted/decrypted
-    field_name: String,
+    field_name:    String,
     /// Operation type
-    operation: OperationType,
+    operation:     OperationType,
     /// Success or failure
-    status: EventStatus,
+    status:        EventStatus,
     /// Error message if failed
     error_message: Option<String>,
     /// Request ID for correlation
-    request_id: String,
+    request_id:    String,
     /// Session ID for tracking
-    session_id: String,
+    session_id:    String,
     /// Additional context data
-    context: HashMap<String, String>,
+    context:       HashMap<String, String>,
 }
 
 impl AuditLogEntry {
@@ -226,7 +226,7 @@ impl AuditLogEntry {
 /// Handles logging of all encryption/decryption events for compliance.
 pub struct AuditLogger {
     /// In-memory log entries (for testing)
-    entries: Vec<AuditLogEntry>,
+    entries:     Vec<AuditLogEntry>,
     /// Maximum entries to keep in memory
     max_entries: usize,
 }

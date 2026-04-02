@@ -214,7 +214,7 @@ impl FactTableCacheConfig {
 #[derive(Debug, Clone)]
 pub struct CachedVersion {
     /// The version number.
-    pub version: i64,
+    pub version:    i64,
     /// When the version was fetched.
     pub fetched_at: Instant,
 }
@@ -245,7 +245,7 @@ impl CachedVersion {
 #[derive(Debug)]
 pub struct FactTableVersionProvider {
     /// Cached versions (`table_name` -> version).
-    versions: std::sync::RwLock<HashMap<String, CachedVersion>>,
+    versions:          std::sync::RwLock<HashMap<String, CachedVersion>>,
     /// How long to cache version lookups.
     version_cache_ttl: Duration,
 }

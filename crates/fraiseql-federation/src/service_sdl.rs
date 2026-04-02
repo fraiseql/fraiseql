@@ -103,7 +103,7 @@ mod tests {
         let metadata = FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![],
+            types:   vec![],
         };
 
         let base_schema = "type Query { test: String }";
@@ -145,14 +145,14 @@ mod tests {
         let metadata = FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
-                name: "User".to_string(),
-                keys: vec![KeyDirective {
-                    fields: vec!["id".to_string()],
+            types:   vec![FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![KeyDirective {
+                    fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends: false,
-                external_fields: Vec::new(),
+                is_extends:       false,
+                external_fields:  Vec::new(),
                 shareable_fields: Vec::new(),
                 field_directives: std::collections::HashMap::new(),
             }],

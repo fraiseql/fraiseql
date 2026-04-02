@@ -186,7 +186,7 @@ fn test_parse_error_deterministic_hash() {
 fn test_database_error_no_connection_leak() {
     let connection_string = "postgresql://admin:secret_password@db.internal:5432/prod_database";
     let err = FraiseQLError::Database {
-        message: format!("Failed to connect: {}", connection_string),
+        message:   format!("Failed to connect: {}", connection_string),
         sql_state: Some("08001".to_string()),
     };
 
@@ -203,7 +203,7 @@ fn test_database_error_no_schema_leak() {
     let internal_error =
         "Column 'password_hash' not found. Available columns: id, email, password_hash, api_key";
     let err = FraiseQLError::Database {
-        message: internal_error.to_string(),
+        message:   internal_error.to_string(),
         sql_state: Some("42703".to_string()),
     };
 
@@ -223,7 +223,7 @@ fn test_database_error_no_sql_keywords() {
 
     for sql_keyword in error_variants {
         let err = FraiseQLError::Database {
-            message: format!("Query failed: {}", sql_keyword),
+            message:   format!("Query failed: {}", sql_keyword),
             sql_state: None,
         };
 
@@ -269,8 +269,8 @@ fn test_authorization_error_no_sensitive_resource_leak() {
 
     for resource in sensitive_resources {
         let err = FraiseQLError::Authorization {
-            message: format!("Permission denied for {}", resource),
-            action: Some("read".to_string()),
+            message:  format!("Permission denied for {}", resource),
+            action:   Some("read".to_string()),
             resource: Some(resource.to_string()),
         };
 
@@ -331,7 +331,7 @@ fn test_all_error_variants_have_safe_user_messages() {
         FraiseQLError::parse("syntax error at position 42"),
         FraiseQLError::validation("invalid type"),
         FraiseQLError::Database {
-            message: "connection refused".to_string(),
+            message:   "connection refused".to_string(),
             sql_state: Some("08001".to_string()),
         },
         FraiseQLError::ConnectionPool {
@@ -339,27 +339,27 @@ fn test_all_error_variants_have_safe_user_messages() {
         },
         FraiseQLError::Timeout {
             timeout_ms: 5000,
-            query: Some("SELECT * FROM huge_table".to_string()),
+            query:      Some("SELECT * FROM huge_table".to_string()),
         },
         FraiseQLError::Cancelled {
             query_id: "q123".to_string(),
-            reason: "client disconnected".to_string(),
+            reason:   "client disconnected".to_string(),
         },
         FraiseQLError::Authorization {
-            message: "access denied".to_string(),
-            action: Some("read".to_string()),
+            message:  "access denied".to_string(),
+            action:   Some("read".to_string()),
             resource: Some("User.email".to_string()),
         },
         FraiseQLError::Authentication {
             message: "token expired".to_string(),
         },
         FraiseQLError::RateLimited {
-            message: "too many requests".to_string(),
+            message:          "too many requests".to_string(),
             retry_after_secs: 60,
         },
         FraiseQLError::NotFound {
             resource_type: "User".to_string(),
-            identifier: "12345".to_string(),
+            identifier:    "12345".to_string(),
         },
         FraiseQLError::Conflict {
             message: "unique constraint violated".to_string(),
@@ -369,7 +369,7 @@ fn test_all_error_variants_have_safe_user_messages() {
         },
         FraiseQLError::Internal {
             message: "unexpected error".to_string(),
-            source: None,
+            source:  None,
         },
     ];
 
@@ -385,12 +385,12 @@ fn test_all_error_variants_have_safe_user_messages() {
 fn test_error_messages_do_not_contain_internal_marker() {
     let errors: Vec<FraiseQLError> = vec![
         FraiseQLError::Database {
-            message: "internal error occurred".to_string(),
+            message:   "internal error occurred".to_string(),
             sql_state: None,
         },
         FraiseQLError::Internal {
             message: "internal state corrupted".to_string(),
-            source: None,
+            source:  None,
         },
     ];
 
@@ -413,7 +413,7 @@ fn test_error_message_size_bounded() {
         FraiseQLError::parse(huge_message.clone()),
         FraiseQLError::validation(huge_message.clone()),
         FraiseQLError::Database {
-            message: huge_message.clone(),
+            message:   huge_message.clone(),
             sql_state: None,
         },
         FraiseQLError::Configuration {
@@ -466,7 +466,7 @@ fn test_no_common_secret_patterns() {
     for pattern in secret_patterns {
         let err = FraiseQLError::Internal {
             message: format!("Error with {}: sensitive_value_here", pattern),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);
@@ -523,7 +523,7 @@ fn test_no_database_connection_strings_leaked() {
 
     for conn_str in connection_strings {
         let err = FraiseQLError::Database {
-            message: format!("Connection failed: {}", conn_str),
+            message:   format!("Connection failed: {}", conn_str),
             sql_state: None,
         };
 
@@ -548,7 +548,7 @@ fn test_no_hostnames_or_ips_leaked() {
 
     for endpoint in endpoints {
         let err = FraiseQLError::Database {
-            message: format!("Cannot reach {}", endpoint),
+            message:   format!("Cannot reach {}", endpoint),
             sql_state: None,
         };
 
@@ -576,7 +576,7 @@ fn test_no_function_names_leaked() {
     for func_name in function_names {
         let err = FraiseQLError::Internal {
             message: format!("Error in {}: unexpected state", func_name),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);
@@ -599,7 +599,7 @@ fn test_no_module_paths_leaked() {
     for module_path in module_paths {
         let err = FraiseQLError::Internal {
             message: format!("Panic in {}: {}", module_path, "assertion failed"),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);
@@ -653,7 +653,7 @@ fn test_unicode_normalization_attacks_prevented() {
     for payload in unicode_attacks {
         let err = FraiseQLError::Internal {
             message: format!("Error: {}", payload),
-            source: None,
+            source:  None,
         };
 
         let safe_msg = user_message(&err);

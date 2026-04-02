@@ -42,7 +42,7 @@ impl std::fmt::Display for ListenerState {
 
 /// All mutable state held under a single lock for atomic transitions.
 struct Inner {
-    state: ListenerState,
+    state:             ListenerState,
     state_change_time: Instant,
     recovery_attempts: u32,
 }
@@ -50,8 +50,8 @@ struct Inner {
 /// State machine for tracking listener lifecycle
 #[derive(Clone)]
 pub struct ListenerStateMachine {
-    inner: Arc<Mutex<Inner>>,
-    listener_id: String,
+    inner:                 Arc<Mutex<Inner>>,
+    listener_id:           String,
     max_recovery_attempts: u32,
 }
 
@@ -61,7 +61,7 @@ impl ListenerStateMachine {
     pub fn new(listener_id: String) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
-                state: ListenerState::Initializing,
+                state:             ListenerState::Initializing,
                 state_change_time: Instant::now(),
                 recovery_attempts: 0,
             })),

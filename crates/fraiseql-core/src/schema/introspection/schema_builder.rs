@@ -138,15 +138,15 @@ fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
     }
 
     IntrospectionType {
-        kind: TypeKind::Object,
-        name: Some("Query".to_string()),
-        description: Some("Root query type".to_string()),
-        fields: Some(fields),
-        interfaces: Some(vec![]),
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Object,
+        name:               Some("Query".to_string()),
+        description:        Some("Root query type".to_string()),
+        fields:             Some(fields),
+        interfaces:         Some(vec![]),
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }
@@ -157,15 +157,15 @@ fn build_mutation_type(schema: &CompiledSchema) -> IntrospectionType {
         schema.mutations.iter().map(build_mutation_field).collect();
 
     IntrospectionType {
-        kind: TypeKind::Object,
-        name: Some("Mutation".to_string()),
-        description: Some("Root mutation type".to_string()),
-        fields: Some(fields),
-        interfaces: Some(vec![]),
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Object,
+        name:               Some("Mutation".to_string()),
+        description:        Some("Root mutation type".to_string()),
+        fields:             Some(fields),
+        interfaces:         Some(vec![]),
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }
@@ -176,15 +176,15 @@ fn build_subscription_type(schema: &CompiledSchema) -> IntrospectionType {
         schema.subscriptions.iter().map(build_subscription_field).collect();
 
     IntrospectionType {
-        kind: TypeKind::Object,
-        name: Some("Subscription".to_string()),
-        description: Some("Root subscription type".to_string()),
-        fields: Some(fields),
-        interfaces: Some(vec![]),
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Object,
+        name:               Some("Subscription".to_string()),
+        description:        Some("Root subscription type".to_string()),
+        fields:             Some(fields),
+        interfaces:         Some(vec![]),
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }
@@ -204,15 +204,15 @@ fn build_query_field(query: &QueryDefinition) -> IntrospectionField {
     let return_type = type_ref(&query.return_type);
     let return_type = if query.returns_list {
         IntrospectionType {
-            kind: TypeKind::List,
-            name: None,
-            description: None,
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: Some(Box::new(return_type)),
+            kind:               TypeKind::List,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(return_type)),
             specified_by_u_r_l: None,
         }
     } else {
@@ -223,15 +223,15 @@ fn build_query_field(query: &QueryDefinition) -> IntrospectionField {
         return_type
     } else {
         IntrospectionType {
-            kind: TypeKind::NonNull,
-            name: None,
-            description: None,
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: Some(Box::new(return_type)),
+            kind:               TypeKind::NonNull,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(return_type)),
             specified_by_u_r_l: None,
         }
     };
@@ -261,88 +261,88 @@ fn build_relay_query_field(query: &QueryDefinition) -> IntrospectionField {
 
     // Return type: XxxConnection! (always non-null)
     let return_type = IntrospectionType {
-        kind: TypeKind::NonNull,
-        name: None,
-        description: None,
-        fields: None,
-        interfaces: None,
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: Some(Box::new(type_ref(&connection_type))),
+        kind:               TypeKind::NonNull,
+        name:               None,
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            Some(Box::new(type_ref(&connection_type))),
         specified_by_u_r_l: None,
     };
 
     // Standard Relay cursor arguments.
     let nullable_int = || IntrospectionType {
-        kind: TypeKind::Scalar,
-        name: Some("Int".to_string()),
-        description: None,
-        fields: None,
-        interfaces: None,
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Scalar,
+        name:               Some("Int".to_string()),
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     };
     let nullable_string = || IntrospectionType {
-        kind: TypeKind::Scalar,
-        name: Some("String".to_string()),
-        description: None,
-        fields: None,
-        interfaces: None,
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Scalar,
+        name:               Some("String".to_string()),
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     };
     let relay_args = vec![
         IntrospectionInputValue {
-            name: "first".to_string(),
-            description: Some("Return the first N items.".to_string()),
-            input_type: nullable_int(),
-            default_value: None,
-            is_deprecated: false,
+            name:               "first".to_string(),
+            description:        Some("Return the first N items.".to_string()),
+            input_type:         nullable_int(),
+            default_value:      None,
+            is_deprecated:      false,
             deprecation_reason: None,
-            validation_rules: vec![],
+            validation_rules:   vec![],
         },
         IntrospectionInputValue {
-            name: "after".to_string(),
-            description: Some("Cursor: return items after this position.".to_string()),
-            input_type: nullable_string(),
-            default_value: None,
-            is_deprecated: false,
+            name:               "after".to_string(),
+            description:        Some("Cursor: return items after this position.".to_string()),
+            input_type:         nullable_string(),
+            default_value:      None,
+            is_deprecated:      false,
             deprecation_reason: None,
-            validation_rules: vec![],
+            validation_rules:   vec![],
         },
         IntrospectionInputValue {
-            name: "last".to_string(),
-            description: Some("Return the last N items.".to_string()),
-            input_type: nullable_int(),
-            default_value: None,
-            is_deprecated: false,
+            name:               "last".to_string(),
+            description:        Some("Return the last N items.".to_string()),
+            input_type:         nullable_int(),
+            default_value:      None,
+            is_deprecated:      false,
             deprecation_reason: None,
-            validation_rules: vec![],
+            validation_rules:   vec![],
         },
         IntrospectionInputValue {
-            name: "before".to_string(),
-            description: Some("Cursor: return items before this position.".to_string()),
-            input_type: nullable_string(),
-            default_value: None,
-            is_deprecated: false,
+            name:               "before".to_string(),
+            description:        Some("Cursor: return items before this position.".to_string()),
+            input_type:         nullable_string(),
+            default_value:      None,
+            is_deprecated:      false,
             deprecation_reason: None,
-            validation_rules: vec![],
+            validation_rules:   vec![],
         },
     ];
 
     IntrospectionField {
-        name: query.name.clone(),
-        description: query.description.clone(),
-        args: relay_args,
-        field_type: return_type,
-        is_deprecated: query.is_deprecated(),
+        name:               query.name.clone(),
+        description:        query.description.clone(),
+        args:               relay_args,
+        field_type:         return_type,
+        is_deprecated:      query.is_deprecated(),
         deprecation_reason: query.deprecation_reason().map(ToString::to_string),
     }
 }
@@ -355,48 +355,48 @@ fn build_node_query_field() -> IntrospectionField {
     // Kind must be INTERFACE because Node is declared as an interface type,
     // not an OBJECT. Relay's compiler uses this to dispatch `... on User` fragments.
     let return_type = IntrospectionType {
-        kind: TypeKind::Interface,
-        name: Some("Node".to_string()),
-        description: None,
-        fields: None,
-        interfaces: None,
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Interface,
+        name:               Some("Node".to_string()),
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     };
 
     // Argument: id: ID! (non-null)
     let id_arg = IntrospectionInputValue {
-        name: "id".to_string(),
-        description: Some("Globally unique opaque identifier.".to_string()),
-        input_type: IntrospectionType {
-            kind: TypeKind::NonNull,
-            name: None,
-            description: None,
-            fields: None,
-            interfaces: None,
-            possible_types: None,
-            enum_values: None,
-            input_fields: None,
-            of_type: Some(Box::new(type_ref("ID"))),
+        name:               "id".to_string(),
+        description:        Some("Globally unique opaque identifier.".to_string()),
+        input_type:         IntrospectionType {
+            kind:               TypeKind::NonNull,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(type_ref("ID"))),
             specified_by_u_r_l: None,
         },
-        default_value: None,
-        is_deprecated: false,
+        default_value:      None,
+        is_deprecated:      false,
         deprecation_reason: None,
-        validation_rules: vec![],
+        validation_rules:   vec![],
     };
 
     IntrospectionField {
-        name: "node".to_string(),
-        description: Some(
+        name:               "node".to_string(),
+        description:        Some(
             "Fetch any object that implements the Node interface by its global ID.".to_string(),
         ),
-        args: vec![id_arg],
-        field_type: return_type,
-        is_deprecated: false,
+        args:               vec![id_arg],
+        field_type:         return_type,
+        is_deprecated:      false,
         deprecation_reason: None,
     }
 }
@@ -449,7 +449,7 @@ pub struct IntrospectionResponses {
     /// Full `__schema` response JSON.
     pub schema_response: String,
     /// Map of type name -> `__type` response JSON.
-    pub type_responses: HashMap<String, String>,
+    pub type_responses:  HashMap<String, String>,
 }
 
 impl IntrospectionResponses {

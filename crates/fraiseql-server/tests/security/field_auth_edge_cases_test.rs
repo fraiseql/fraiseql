@@ -45,20 +45,20 @@ use std::collections::HashSet;
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Reason: fields read selectively by field-auth test cases
 struct TestSecurityContext {
-    user_id: String,
+    user_id:   String,
     tenant_id: String,
-    roles: Vec<String>,
-    scopes: HashSet<String>,
+    roles:     Vec<String>,
+    scopes:    HashSet<String>,
 }
 
 impl TestSecurityContext {
     /// Create a new security context
     fn new(user_id: &str, tenant_id: &str, roles: Vec<&str>) -> Self {
         Self {
-            user_id: user_id.to_string(),
+            user_id:   user_id.to_string(),
             tenant_id: tenant_id.to_string(),
-            roles: roles.iter().map(|r| (*r).to_string()).collect(),
-            scopes: HashSet::new(),
+            roles:     roles.iter().map(|r| (*r).to_string()).collect(),
+            scopes:    HashSet::new(),
         }
     }
 
@@ -122,24 +122,24 @@ impl TestSecurityContext {
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Reason: fields read selectively by field-auth test cases
 struct FieldDefinition {
-    type_name: String,
-    field_name: String,
-    required_read_scope: Option<String>,
+    type_name:            String,
+    field_name:           String,
+    required_read_scope:  Option<String>,
     required_write_scope: Option<String>,
-    is_sensitive: bool,
-    is_masked: bool,
+    is_sensitive:         bool,
+    is_masked:            bool,
 }
 
 impl FieldDefinition {
     /// Create a new field definition
     fn new(type_name: &str, field_name: &str) -> Self {
         Self {
-            type_name: type_name.to_string(),
-            field_name: field_name.to_string(),
-            required_read_scope: Some(format!("read:{}.{}", type_name, field_name)),
+            type_name:            type_name.to_string(),
+            field_name:           field_name.to_string(),
+            required_read_scope:  Some(format!("read:{}.{}", type_name, field_name)),
             required_write_scope: Some(format!("write:{}.{}", type_name, field_name)),
-            is_sensitive: false,
-            is_masked: false,
+            is_sensitive:         false,
+            is_masked:            false,
         }
     }
 

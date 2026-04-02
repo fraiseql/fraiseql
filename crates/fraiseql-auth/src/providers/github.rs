@@ -33,21 +33,21 @@ pub struct GitHubOAuth {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubUser {
     /// GitHub numeric user ID (stable across username changes)
-    pub id: u64,
+    pub id:           u64,
     /// GitHub username (login handle)
-    pub login: String,
+    pub login:        String,
     /// Primary email address (may be `None` if the user keeps it private)
-    pub email: Option<String>,
+    pub email:        Option<String>,
     /// User's display name
-    pub name: Option<String>,
+    pub name:         Option<String>,
     /// URL to the user's avatar image
-    pub avatar_url: Option<String>,
+    pub avatar_url:   Option<String>,
     /// Short biography text from the profile
-    pub bio: Option<String>,
+    pub bio:          Option<String>,
     /// Company name from the profile
-    pub company: Option<String>,
+    pub company:      Option<String>,
     /// Location from the profile
-    pub location: Option<String>,
+    pub location:     Option<String>,
     /// Number of public repositories owned by the user
     pub public_repos: u32,
 }
@@ -56,11 +56,11 @@ pub struct GitHubUser {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubTeam {
     /// GitHub numeric team ID
-    pub id: u64,
+    pub id:           u64,
     /// Human-readable team name
-    pub name: String,
+    pub name:         String,
     /// URL-safe team slug (used in API paths)
-    pub slug: String,
+    pub slug:         String,
     /// Organization that owns this team
     pub organization: GitHubOrg,
 }
@@ -69,7 +69,7 @@ pub struct GitHubTeam {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitHubOrg {
     /// GitHub numeric organization ID
-    pub id: u64,
+    pub id:    u64,
     /// Organization login (handle)
     pub login: String,
 }

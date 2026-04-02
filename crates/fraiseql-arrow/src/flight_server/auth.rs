@@ -40,10 +40,10 @@ pub fn create_session_token(
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = SessionTokenClaims {
-        sub: user.user_id.clone(),
-        exp: exp.timestamp(),
-        iat: now.timestamp(),
-        scopes: user.scopes.clone(),
+        sub:          user.user_id.clone(),
+        exp:          exp.timestamp(),
+        iat:          now.timestamp(),
+        scopes:       user.scopes.clone(),
         session_type: "flight".to_string(),
     };
 

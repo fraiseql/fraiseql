@@ -110,10 +110,10 @@ pub(super) fn extract_java_query_args(annotation_body: &str) -> Vec<Intermediate
 
     for cap in arg_re.captures_iter(annotation_body) {
         args.push(IntermediateArgument {
-            name: cap[1].to_string(),
-            arg_type: cap[2].to_string(),
-            nullable: &cap[3] != "true",
-            default: None,
+            name:       cap[1].to_string(),
+            arg_type:   cap[2].to_string(),
+            nullable:   &cap[3] != "true",
+            default:    None,
             deprecated: None,
         });
     }

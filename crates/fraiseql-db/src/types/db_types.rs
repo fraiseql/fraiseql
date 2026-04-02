@@ -197,13 +197,13 @@ pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct PoolMetrics {
     /// Total number of connections in the pool.
-    pub total_connections: u32,
+    pub total_connections:  u32,
     /// Number of idle (available) connections.
-    pub idle_connections: u32,
+    pub idle_connections:   u32,
     /// Number of active (in-use) connections.
     pub active_connections: u32,
     /// Number of requests waiting for a connection.
-    pub waiting_requests: u32,
+    pub waiting_requests:   u32,
 }
 
 impl PoolMetrics {
@@ -252,10 +252,10 @@ mod tests {
     #[test]
     fn test_pool_metrics_utilization() {
         let metrics = PoolMetrics {
-            total_connections: 10,
-            idle_connections: 5,
+            total_connections:  10,
+            idle_connections:   5,
             active_connections: 5,
-            waiting_requests: 0,
+            waiting_requests:   0,
         };
 
         assert!((metrics.utilization() - 0.5).abs() < f64::EPSILON);
@@ -265,10 +265,10 @@ mod tests {
     #[test]
     fn test_pool_metrics_exhausted() {
         let metrics = PoolMetrics {
-            total_connections: 10,
-            idle_connections: 0,
+            total_connections:  10,
+            idle_connections:   0,
             active_connections: 10,
-            waiting_requests: 5,
+            waiting_requests:   5,
         };
 
         assert!((metrics.utilization() - 1.0).abs() < f64::EPSILON);

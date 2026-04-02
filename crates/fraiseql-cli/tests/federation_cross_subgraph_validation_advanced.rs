@@ -414,7 +414,7 @@ fn create_federated_type(name: &str, key_fields: &[&str], is_extends: bool) -> F
 
     if !is_extends {
         type_def.keys.push(KeyDirective {
-            fields: key_fields.iter().map(|s| (*s).to_string()).collect(),
+            fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
             resolvable: true,
         });
     }

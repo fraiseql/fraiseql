@@ -274,7 +274,7 @@ pub async fn run() {
                             let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
                             let action = commands::migrate::MigrateAction::Up {
                                 database_url: url,
-                                dir: mig_dir,
+                                dir:          mig_dir,
                             };
                             commands::migrate::run(&action, &formatter)
                         },
@@ -307,7 +307,7 @@ pub async fn run() {
                             let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
                             let action = commands::migrate::MigrateAction::Status {
                                 database_url: url,
-                                dir: mig_dir,
+                                dir:          mig_dir,
                             };
                             commands::migrate::run(&action, &formatter)
                         },

@@ -129,11 +129,11 @@ fn test_sanitized_config_from_server_config() {
     use crate::routes::api::types::SanitizedConfig;
 
     let config = crate::config::HttpServerConfig {
-        port: 8080,
-        host: "0.0.0.0".to_string(),
+        port:    8080,
+        host:    "0.0.0.0".to_string(),
         workers: Some(4),
-        tls: None,
-        limits: None,
+        tls:     None,
+        limits:  None,
     };
 
     let sanitized = SanitizedConfig::from_config(&config);
@@ -153,14 +153,14 @@ fn test_sanitized_config_indicates_tls_without_exposing_keys() {
     use crate::routes::api::types::SanitizedConfig;
 
     let config = crate::config::HttpServerConfig {
-        port: 8080,
-        host: "localhost".to_string(),
+        port:    8080,
+        host:    "localhost".to_string(),
         workers: None,
-        tls: Some(crate::config::TlsConfig {
+        tls:     Some(crate::config::TlsConfig {
             cert_file: PathBuf::from("/path/to/cert.pem"),
-            key_file: PathBuf::from("/path/to/key.pem"),
+            key_file:  PathBuf::from("/path/to/key.pem"),
         }),
-        limits: None,
+        limits:  None,
     };
 
     let sanitized = SanitizedConfig::from_config(&config);
@@ -178,22 +178,22 @@ fn test_sanitized_config_redaction() {
     use crate::routes::api::types::SanitizedConfig;
 
     let config1 = crate::config::HttpServerConfig {
-        port: 8000,
-        host: "127.0.0.1".to_string(),
+        port:    8000,
+        host:    "127.0.0.1".to_string(),
         workers: None,
-        tls: None,
-        limits: None,
+        tls:     None,
+        limits:  None,
     };
 
     let config2 = crate::config::HttpServerConfig {
-        port: 8000,
-        host: "127.0.0.1".to_string(),
+        port:    8000,
+        host:    "127.0.0.1".to_string(),
         workers: None,
-        tls: Some(crate::config::TlsConfig {
+        tls:     Some(crate::config::TlsConfig {
             cert_file: std::path::PathBuf::from("secret.cert"),
-            key_file: std::path::PathBuf::from("secret.key"),
+            key_file:  std::path::PathBuf::from("secret.key"),
         }),
-        limits: None,
+        limits:  None,
     };
 
     let san1 = SanitizedConfig::from_config(&config1);
@@ -266,9 +266,9 @@ fn test_extract_ip_ignores_all_spoofable_headers() {
 #[test]
 fn test_graphql_rate_limiter_is_per_ip() {
     let config = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 3,
-        window_secs: 60,
+        window_secs:  60,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -305,9 +305,9 @@ fn test_graphql_rate_limiter_is_per_ip() {
 #[test]
 fn test_graphql_rate_limiter_enforces_limit() {
     let config = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 2,
-        window_secs: 60,
+        window_secs:  60,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -330,9 +330,9 @@ fn test_graphql_rate_limiter_enforces_limit() {
 #[test]
 fn test_graphql_rate_limiter_disabled() {
     let config = AuthRateLimitConfig {
-        enabled: false,
+        enabled:      false,
         max_requests: 1,
-        window_secs: 60,
+        window_secs:  60,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -355,9 +355,9 @@ fn test_graphql_rate_limiter_disabled() {
 #[test]
 fn test_graphql_rate_limiter_window_reset() {
     let config = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 1,
-        window_secs: 0, // Immediate window reset for testing
+        window_secs:  0, // Immediate window reset for testing
     };
     let limiter = KeyedRateLimiter::new(config);
 

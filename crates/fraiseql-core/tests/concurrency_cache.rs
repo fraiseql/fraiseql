@@ -34,9 +34,9 @@ async fn test_cache_stampede_limited_database_hits() {
     let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string()));
     let barrier = Arc::new(Barrier::new(50));
     let where_clause = WhereClause::Field {
-        path: vec!["active".to_string()],
+        path:     vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(true),
+        value:    json!(true),
     };
 
     let mut handles = Vec::with_capacity(50);
@@ -110,9 +110,9 @@ async fn test_concurrent_queries_different_views_independent() {
     let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string()));
     let where_clause = WhereClause::Field {
-        path: vec!["active".to_string()],
+        path:     vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(true),
+        value:    json!(true),
     };
 
     // Warm both caches
@@ -174,9 +174,9 @@ async fn test_concurrent_cache_hits_return_consistent_data() {
     let cache = QueryResultCache::new(CacheConfig::enabled());
     let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string()));
     let where_clause = WhereClause::Field {
-        path: vec!["active".to_string()],
+        path:     vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(true),
+        value:    json!(true),
     };
 
     // Warm the cache

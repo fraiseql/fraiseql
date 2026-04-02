@@ -155,7 +155,7 @@ pub enum ObserverError {
     #[error("OB020: Event deserialization failed: {reason}")]
     DeserializationError {
         /// Raw bytes of the unparseable message
-        raw: Vec<u8>,
+        raw:    Vec<u8>,
         /// Human-readable reason (e.g. the `serde_json` error message)
         reason: String,
     },
@@ -170,7 +170,7 @@ pub enum ObserverError {
     )]
     TenantViolation {
         /// The `tenant_id` carried by the event (`None` if absent)
-        event_tenant: Option<String>,
+        event_tenant:   Option<String>,
         /// Human-readable description of the configured scope (e.g. `"Single(acme)"`)
         required_scope: String,
     },
@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn test_deserialization_error_routes_to_dlq() {
         let err = ObserverError::DeserializationError {
-            raw: b"not valid json {{".to_vec(),
+            raw:    b"not valid json {{".to_vec(),
             reason: "invalid json: expected value at line 1 column 1".to_string(),
         };
         // Not transient — retrying the same broken bytes cannot succeed.
@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn test_tenant_violation_error_code() {
         let err = ObserverError::TenantViolation {
-            event_tenant: Some("other-tenant".to_string()),
+            event_tenant:   Some("other-tenant".to_string()),
             required_scope: "Single(acme)".to_string(),
         };
         assert_eq!(err.code(), ObserverErrorCode::TenantViolation);
@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn test_tenant_violation_none_tenant() {
         let err = ObserverError::TenantViolation {
-            event_tenant: None,
+            event_tenant:   None,
             required_scope: "Single(acme)".to_string(),
         };
         assert_eq!(err.code(), ObserverErrorCode::TenantViolation);

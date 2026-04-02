@@ -36,7 +36,7 @@ fn test_single_entity_resolution_latency() {
     rep_all.insert("id".to_string(), json!("user1"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -76,7 +76,7 @@ fn test_batch_100_entities_resolution_latency() {
         rep_all.insert("id".to_string(), json!(id));
 
         reps.push(EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         });
@@ -137,7 +137,7 @@ fn test_concurrent_entity_resolution() {
         rep_all.insert("id".to_string(), json!(format!("user{}", i)));
 
         let representation = EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         };

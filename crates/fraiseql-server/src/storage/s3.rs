@@ -50,7 +50,7 @@ impl S3StorageBackend {
 fn storage_err(op: &str, err: impl std::fmt::Display) -> FileError {
     FileError::Storage {
         message: format!("S3 {op} failed: {err}"),
-        source: None,
+        source:  None,
     }
 }
 

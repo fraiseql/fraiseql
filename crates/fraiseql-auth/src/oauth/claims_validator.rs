@@ -160,7 +160,7 @@ mod tests {
             matches!(
                 result,
                 Err(AuthError::SessionTooOld {
-                    age: 200,
+                    age:          200,
                     max_age_secs: 60,
                 })
             ),

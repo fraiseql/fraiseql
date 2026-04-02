@@ -38,9 +38,9 @@ pub struct TlsRuntimeConfig {
 impl Default for TlsRuntimeConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            cert_file: String::new(),
-            key_file: String::new(),
+            enabled:     false,
+            cert_file:   String::new(),
+            key_file:    String::new(),
             min_version: "1.2".to_string(),
         }
     }
@@ -118,12 +118,12 @@ pub struct ServerRuntimeConfig {
 impl Default for ServerRuntimeConfig {
     fn default() -> Self {
         Self {
-            host: "0.0.0.0".to_string(),
-            port: 8080,
+            host:               "0.0.0.0".to_string(),
+            port:               8080,
             request_timeout_ms: 30_000,
-            keep_alive_secs: 75,
-            cors: CorsRuntimeConfig::default(),
-            tls: TlsRuntimeConfig::default(),
+            keep_alive_secs:    75,
+            cors:               CorsRuntimeConfig::default(),
+            tls:                TlsRuntimeConfig::default(),
         }
     }
 }
@@ -207,12 +207,12 @@ pub struct DatabaseRuntimeConfig {
 impl Default for DatabaseRuntimeConfig {
     fn default() -> Self {
         Self {
-            url: None,
-            pool_min: 2,
-            pool_max: 20,
+            url:                None,
+            pool_min:           2,
+            pool_max:           20,
             connect_timeout_ms: 5_000,
-            idle_timeout_ms: 600_000,
-            ssl_mode: "prefer".to_string(),
+            idle_timeout_ms:    600_000,
+            ssl_mode:           "prefer".to_string(),
         }
     }
 }
@@ -290,9 +290,9 @@ mod tests {
     fn test_server_runtime_config_validate_tls_missing_cert() {
         let cfg = ServerRuntimeConfig {
             tls: TlsRuntimeConfig {
-                enabled: true,
-                cert_file: String::new(),
-                key_file: "key.pem".to_string(),
+                enabled:     true,
+                cert_file:   String::new(),
+                key_file:    "key.pem".to_string(),
                 min_version: "1.2".to_string(),
             },
             ..Default::default()
@@ -305,9 +305,9 @@ mod tests {
     fn test_server_runtime_config_validate_tls_missing_key() {
         let cfg = ServerRuntimeConfig {
             tls: TlsRuntimeConfig {
-                enabled: true,
-                cert_file: "cert.pem".to_string(),
-                key_file: String::new(),
+                enabled:     true,
+                cert_file:   "cert.pem".to_string(),
+                key_file:    String::new(),
                 min_version: "1.2".to_string(),
             },
             ..Default::default()
@@ -320,9 +320,9 @@ mod tests {
     fn test_server_runtime_config_validate_bad_tls_version() {
         let cfg = ServerRuntimeConfig {
             tls: TlsRuntimeConfig {
-                enabled: true,
-                cert_file: "cert.pem".to_string(),
-                key_file: "key.pem".to_string(),
+                enabled:     true,
+                cert_file:   "cert.pem".to_string(),
+                key_file:    "key.pem".to_string(),
                 min_version: "1.0".to_string(),
             },
             ..Default::default()

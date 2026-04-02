@@ -59,12 +59,12 @@ impl AuthConfig {
     #[must_use]
     pub const fn permissive() -> Self {
         Self {
-            required: false,
+            required:          false,
             token_expiry_secs: 3600,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -76,12 +76,12 @@ impl AuthConfig {
     #[must_use]
     pub const fn standard() -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -93,12 +93,12 @@ impl AuthConfig {
     #[must_use]
     pub const fn strict() -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 1800,
-            signing_key: None,
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       None,
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -109,12 +109,12 @@ impl AuthConfig {
     #[must_use]
     pub fn with_hs256(secret: &str) -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: Some(SigningKey::hs256(secret)),
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       Some(SigningKey::hs256(secret)),
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 
@@ -125,12 +125,12 @@ impl AuthConfig {
     #[must_use]
     pub fn with_rs256_pem(pem: &str) -> Self {
         Self {
-            required: true,
+            required:          true,
             token_expiry_secs: 3600,
-            signing_key: Some(SigningKey::rs256_pem(pem)),
-            issuer: None,
-            audience: None,
-            clock_skew_secs: default_clock_skew(),
+            signing_key:       Some(SigningKey::rs256_pem(pem)),
+            issuer:            None,
+            audience:          None,
+            clock_skew_secs:   default_clock_skew(),
         }
     }
 

@@ -27,13 +27,13 @@ fn order_type() -> IntermediateType {
     IntermediateType {
         name: "Order".to_string(),
         fields: vec![IntermediateField {
-            field_type: "ID".to_string(),
-            name: "id".to_string(),
-            nullable: false,
-            description: None,
-            directives: None,
+            field_type:     "ID".to_string(),
+            name:           "id".to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     None,
             requires_scope: None,
-            on_deny: None,
+            on_deny:        None,
         }],
         ..Default::default()
     }
@@ -221,10 +221,10 @@ fn parse_inject_source_arg_conflict_returns_error() {
             sql_source: Some("v_order".to_string()),
             // `filter_id` appears both as an argument and as an inject param
             arguments: vec![IntermediateArgument {
-                name: "filter_id".to_string(),
-                arg_type: "ID".to_string(),
-                nullable: false,
-                default: None,
+                name:       "filter_id".to_string(),
+                arg_type:   "ID".to_string(),
+                nullable:   false,
+                default:    None,
                 deprecated: None,
             }],
             inject,

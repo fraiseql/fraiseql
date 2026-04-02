@@ -82,7 +82,7 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_forward_custom_order_by_asc() {
         let order_by = vec![OrderByClause {
-            field: "score".to_string(),
+            field:     "score".to_string(),
             direction: OrderDirection::Asc,
         }];
         let sql = build_relay_order_sql("[id]", Some(&order_by), true);
@@ -94,7 +94,7 @@ mod relay_sql_tests {
         // KEY TEST: backward pagination must flip ASC → DESC so the inner
         // FETCH NEXT subquery retrieves the correct N rows before the cursor.
         let order_by = vec![OrderByClause {
-            field: "score".to_string(),
+            field:     "score".to_string(),
             direction: OrderDirection::Asc,
         }];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
@@ -104,7 +104,7 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_backward_custom_order_by_desc_flips_to_asc() {
         let order_by = vec![OrderByClause {
-            field: "created_at".to_string(),
+            field:     "created_at".to_string(),
             direction: OrderDirection::Desc,
         }];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
@@ -115,11 +115,11 @@ mod relay_sql_tests {
     fn test_build_relay_order_sql_multi_column_forward() {
         let order_by = vec![
             OrderByClause {
-                field: "a".to_string(),
+                field:     "a".to_string(),
                 direction: OrderDirection::Asc,
             },
             OrderByClause {
-                field: "b".to_string(),
+                field:     "b".to_string(),
                 direction: OrderDirection::Desc,
             },
         ];
@@ -134,11 +134,11 @@ mod relay_sql_tests {
     fn test_build_relay_order_sql_multi_column_backward_all_flipped() {
         let order_by = vec![
             OrderByClause {
-                field: "a".to_string(),
+                field:     "a".to_string(),
                 direction: OrderDirection::Asc,
             },
             OrderByClause {
-                field: "b".to_string(),
+                field:     "b".to_string(),
                 direction: OrderDirection::Desc,
             },
         ];
@@ -160,7 +160,7 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_backward_outer_order_sql_with_custom_asc() {
         let order_by = vec![OrderByClause {
-            field: "score".to_string(),
+            field:     "score".to_string(),
             direction: OrderDirection::Asc,
         }];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
@@ -170,7 +170,7 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_backward_outer_order_sql_desc_preserved() {
         let order_by = vec![OrderByClause {
-            field: "score".to_string(),
+            field:     "score".to_string(),
             direction: OrderDirection::Desc,
         }];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));

@@ -8,9 +8,9 @@ use subtle::ConstantTimeEq as _;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PKCEChallenge {
     /// Random code verifier (43-128 characters)
-    pub code_verifier: String,
+    pub code_verifier:         String,
     /// BASE64URL(SHA256(code_verifier))
-    pub code_challenge: String,
+    pub code_challenge:        String,
     /// Challenge method: "S256" (SHA256)
     pub code_challenge_method: String,
 }
@@ -30,8 +30,8 @@ impl PKCEChallenge {
         let challenge = urlencoding::encode_binary(&digest).to_string();
 
         Self {
-            code_verifier: verifier,
-            code_challenge: challenge,
+            code_verifier:         verifier,
+            code_challenge:        challenge,
             code_challenge_method: "S256".to_string(),
         }
     }
@@ -60,7 +60,7 @@ impl Default for PKCEChallenge {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateParameter {
     /// Random state value
-    pub state: String,
+    pub state:      String,
     /// When state expires
     pub expires_at: DateTime<Utc>,
 }
@@ -69,7 +69,7 @@ impl StateParameter {
     /// Generate new state parameter
     pub fn new() -> Self {
         Self {
-            state: uuid::Uuid::new_v4().to_string(),
+            state:      uuid::Uuid::new_v4().to_string(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
@@ -98,7 +98,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NonceParameter {
     /// Random nonce value
-    pub nonce: String,
+    pub nonce:      String,
     /// When nonce expires
     pub expires_at: DateTime<Utc>,
 }
@@ -107,7 +107,7 @@ impl NonceParameter {
     /// Generate new nonce
     pub fn new() -> Self {
         Self {
-            nonce: uuid::Uuid::new_v4().to_string(),
+            nonce:      uuid::Uuid::new_v4().to_string(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }

@@ -238,9 +238,9 @@ fn test_retry_config_defaults() {
 fn test_action_type_names() {
     assert_eq!(
         ActionConfig::Webhook {
-            url: None,
-            url_env: None,
-            headers: HashMap::new(),
+            url:           None,
+            url_env:       None,
+            headers:       HashMap::new(),
             body_template: None,
         }
         .action_type(),
@@ -249,12 +249,12 @@ fn test_action_type_names() {
 
     assert_eq!(
         ActionConfig::Email {
-            to: None,
-            to_template: None,
-            subject: None,
+            to:               None,
+            to_template:      None,
+            subject:          None,
             subject_template: None,
-            body_template: None,
-            reply_to: None,
+            body_template:    None,
+            reply_to:         None,
         }
         .action_type(),
         "email"
@@ -264,9 +264,9 @@ fn test_action_type_names() {
 #[test]
 fn test_webhook_action_validation() {
     let invalid = ActionConfig::Webhook {
-        url: None,
-        url_env: None,
-        headers: HashMap::new(),
+        url:           None,
+        url_env:       None,
+        headers:       HashMap::new(),
         body_template: None,
     };
 
@@ -277,9 +277,9 @@ fn test_webhook_action_validation() {
     );
 
     let valid = ActionConfig::Webhook {
-        url: Some("https://example.com".to_string()),
-        url_env: None,
-        headers: HashMap::new(),
+        url:           Some("https://example.com".to_string()),
+        url_env:       None,
+        headers:       HashMap::new(),
         body_template: Some("{}".to_string()),
     };
 
@@ -291,12 +291,12 @@ fn test_webhook_action_validation() {
 #[test]
 fn test_email_action_validation() {
     let invalid = ActionConfig::Email {
-        to: None,
-        to_template: None,
-        subject: None,
+        to:               None,
+        to_template:      None,
+        subject:          None,
         subject_template: None,
-        body_template: None,
-        reply_to: None,
+        body_template:    None,
+        reply_to:         None,
     };
 
     let result = invalid.validate();
@@ -306,12 +306,12 @@ fn test_email_action_validation() {
     );
 
     let valid = ActionConfig::Email {
-        to: Some("user@example.com".to_string()),
-        to_template: None,
-        subject: Some("Test".to_string()),
+        to:               Some("user@example.com".to_string()),
+        to_template:      None,
+        subject:          Some("Test".to_string()),
         subject_template: None,
-        body_template: Some("Body".to_string()),
-        reply_to: None,
+        body_template:    Some("Body".to_string()),
+        reply_to:         None,
     };
 
     valid

@@ -43,7 +43,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         if security_context.is_expired() {
             return Err(FraiseQLError::Validation {
                 message: "Security token has expired".to_string(),
-                path: Some("request.authorization".to_string()),
+                path:    Some("request.authorization".to_string()),
             });
         }
 
@@ -55,7 +55,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             if !security_context.roles.iter().any(|r| r == required_role) {
                 return Err(FraiseQLError::Validation {
                     message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -88,7 +88,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .as_ref()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path: None,
+                    path:    None,
                 })?;
 
         // 6. Generate SQL projection hint for requested fields (optimization) Look up field types
@@ -118,8 +118,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
-                database: self.adapter.database_type(),
-                projection_template: projection_sql,
+                database:                    self.adapter.database_type(),
+                projection_template:         projection_sql,
                 estimated_reduction_percent: compute_projection_reduction(
                     plan.projection_fields.len(),
                 ),
@@ -269,7 +269,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         if query_match.query_def.requires_role.is_some() {
             return Err(FraiseQLError::Validation {
                 message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                path: None,
+                path:    None,
             });
         }
 
@@ -280,7 +280,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_match.query_def.name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -296,7 +296,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
             crate::error::FraiseQLError::Validation {
                 message: "Query has no SQL source".to_string(),
-                path: None,
+                path:    None,
             }
         })?;
 
@@ -312,8 +312,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
-                database: self.adapter.database_type(),
-                projection_template: projection_sql,
+                database:                    self.adapter.database_type(),
+                projection_template:         projection_sql,
                 estimated_reduction_percent: compute_projection_reduction(
                     plan.projection_fields.len(),
                 ),
@@ -420,7 +420,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .as_ref()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path: None,
+                    path:    None,
                 })?;
 
         // Build execution plan.
@@ -555,7 +555,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
         Ok(crate::runtime::BulkResult {
             affected_rows: entities.len() as u64,
-            entities: Some(entities),
+            entities:      Some(entities),
         })
     }
 
@@ -592,7 +592,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         Ok(crate::runtime::BulkResult {
             affected_rows: count,
-            entities: Some(vec![serde_json::Value::String(result)]),
+            entities:      Some(vec![serde_json::Value::String(result)]),
         })
     }
 
@@ -636,7 +636,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .as_ref()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path: None,
+                    path:    None,
                 })?;
 
         // 3. Build combined WHERE clause (RLS + inject)
@@ -649,7 +649,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Query '{}' has inject params but no security context is available",
                     query_match.query_def.name
                 ),
-                path: None,
+                path:    None,
             })?;
             let mut conditions: Vec<WhereClause> = query_match
                 .query_def
@@ -748,14 +748,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_def.name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
         let sql_source =
             query_def.sql_source.as_deref().ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Relay query '{}' has no sql_source configured", query_def.name),
-                path: None,
+                path:    None,
             })?;
 
         let cursor_column =
@@ -767,7 +767,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         "Relay query '{}' has no relay_cursor_column derived",
                         query_def.name
                     ),
-                    path: None,
+                    path:    None,
                 })?;
 
         // Guard: relay pagination requires the executor to have been constructed
@@ -779,7 +779,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                  the executor with `Executor::new_with_relay`.",
                 self.adapter.database_type()
             ),
-            path: None,
+            path:    None,
         })?;
 
         // --- RLS + inject_params evaluation (same logic as execute_from_match) ---
@@ -801,7 +801,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_def.name
                 ),
-                path: None,
+                path:    None,
             })?;
             let mut conditions: Vec<WhereClause> = query_def
                 .inject_params
@@ -851,7 +851,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
                             || FraiseQLError::Validation {
                                 message: format!("invalid relay cursor for `after`: {s:?}"),
-                                path: Some("after".to_string()),
+                                path:    Some("after".to_string()),
                             },
                         )?),
                         None => None,
@@ -860,7 +860,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
                             || FraiseQLError::Validation {
                                 message: format!("invalid relay cursor for `before`: {s:?}"),
-                                path: Some("before".to_string()),
+                                path:    Some("before".to_string()),
                             },
                         )?),
                         None => None,
@@ -873,7 +873,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                             Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
                                 FraiseQLError::Validation {
                                     message: format!("invalid relay cursor for `after`: {s:?}"),
-                                    path: Some("after".to_string()),
+                                    path:    Some("after".to_string()),
                                 }
                             })?)
                         },
@@ -884,7 +884,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                             Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
                                 FraiseQLError::Validation {
                                     message: format!("invalid relay cursor for `before`: {s:?}"),
-                                    path: Some("before".to_string()),
+                                    path:    Some("before".to_string()),
                                 }
                             })?)
                         },
@@ -1078,7 +1078,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             // Fall back to extracting inline literal, e.g. node(id: "NDI=")
             Self::extract_inline_node_id(query).ok_or_else(|| FraiseQLError::Validation {
                 message: "node query: missing or unresolvable 'id' argument".to_string(),
-                path: Some("node.id".to_string()),
+                path:    Some("node.id".to_string()),
             })?
         };
 
@@ -1086,7 +1086,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let (type_name, uuid) =
             decode_node_id(&raw_id).ok_or_else(|| FraiseQLError::Validation {
                 message: format!("node query: invalid node ID '{raw_id}'"),
-                path: Some("node.id".to_string()),
+                path:    Some("node.id".to_string()),
             })?;
 
         // 3. Find the SQL view for this type (O(1) index lookup built at startup).
@@ -1094,15 +1094,15 @@ impl<A: DatabaseAdapter> Executor<A> {
             self.node_type_index.get(&type_name).cloned().ok_or_else(|| {
                 FraiseQLError::Validation {
                     message: format!("node query: no registered SQL view for type '{type_name}'"),
-                    path: Some("node.id".to_string()),
+                    path:    Some("node.id".to_string()),
                 }
             })?;
 
         // 4. Build WHERE clause: data->>'id' = uuid
         let where_clause = WhereClause::Field {
-            path: vec!["id".to_string()],
+            path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value: serde_json::Value::String(uuid),
+            value:    serde_json::Value::String(uuid),
         };
 
         // 5. Execute the query (limit 1).
@@ -1167,21 +1167,21 @@ mod tests {
 
     fn leaf(name: &str) -> FieldSelection {
         FieldSelection {
-            name: name.to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![],
-            directives: vec![],
+            directives:    vec![],
         }
     }
 
     fn fragment(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
         FieldSelection {
-            name: name.to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: nested,
-            directives: vec![],
+            directives:    vec![],
         }
     }
 

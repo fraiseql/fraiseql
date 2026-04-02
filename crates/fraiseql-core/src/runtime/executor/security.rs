@@ -36,8 +36,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             // Return the first error (could aggregate all errors if desired)
             let first_error = &errors[0];
             Err(FraiseQLError::Authorization {
-                message: first_error.message.clone(),
-                action: Some("read".to_string()),
+                message:  first_error.message.clone(),
+                action:   Some("read".to_string()),
                 resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
             })
         }
@@ -184,7 +184,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 };
                 FraiseQLError::Timeout {
                     timeout_ms: self.config.query_timeout_ms,
-                    query: Some(query_snippet),
+                    query:      Some(query_snippet),
                 }
             })?
         } else {
@@ -226,7 +226,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let _ = (query, variables);
                 Err(FraiseQLError::Validation {
                     message: "Federation is not enabled in this build".to_string(),
-                    path: None,
+                    path:    None,
                 })
             },
             QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
@@ -306,11 +306,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                     projection_fields,
                 )
                 .map_err(|rejected_field| FraiseQLError::Authorization {
-                    message: format!(
+                    message:  format!(
                         "Access denied: field '{rejected_field}' on type '{return_type}' \
                          requires a scope you do not have"
                     ),
-                    action: Some("read".to_string()),
+                    action:   Some("read".to_string()),
                     resource: Some(format!("{return_type}.{rejected_field}")),
                 });
             }
@@ -319,7 +319,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // No security config or type not found → all fields allowed, none masked
         Ok(FieldAccessResult {
             allowed: projection_fields,
-            masked: Vec::new(),
+            masked:  Vec::new(),
         })
     }
 

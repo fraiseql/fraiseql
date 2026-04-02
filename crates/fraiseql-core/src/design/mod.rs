@@ -44,24 +44,24 @@ impl IssueSeverity {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FederationIssue {
     /// Severity level of the issue
-    pub severity: IssueSeverity,
+    pub severity:   IssueSeverity,
     /// Clear message describing the issue
-    pub message: String,
+    pub message:    String,
     /// Actionable suggestion for fixing the issue
     pub suggestion: String,
     /// Affected entity or component (if applicable)
-    pub entity: Option<String>,
+    pub entity:     Option<String>,
 }
 
 /// Cost analysis warning
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CostWarning {
     /// Severity level of the warning
-    pub severity: IssueSeverity,
+    pub severity:              IssueSeverity,
     /// Clear message describing the issue
-    pub message: String,
+    pub message:               String,
     /// Actionable suggestion for fixing the issue
-    pub suggestion: String,
+    pub suggestion:            String,
     /// Worst-case complexity score if applicable
     pub worst_case_complexity: Option<u32>,
 }
@@ -70,24 +70,24 @@ pub struct CostWarning {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheIssue {
     /// Severity level of the issue
-    pub severity: IssueSeverity,
+    pub severity:   IssueSeverity,
     /// Clear message describing the issue
-    pub message: String,
+    pub message:    String,
     /// Actionable suggestion for fixing the issue
     pub suggestion: String,
     /// Affected entity or field (if applicable)
-    pub affected: Option<String>,
+    pub affected:   Option<String>,
 }
 
 /// Authorization boundary issue
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthIssue {
     /// Severity level of the issue
-    pub severity: IssueSeverity,
+    pub severity:       IssueSeverity,
     /// Clear message describing the issue
-    pub message: String,
+    pub message:        String,
     /// Actionable suggestion for fixing the issue
-    pub suggestion: String,
+    pub suggestion:     String,
     /// Affected field or scope (if applicable)
     pub affected_field: Option<String>,
 }
@@ -96,11 +96,11 @@ pub struct AuthIssue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemaIssue {
     /// Severity level of the issue
-    pub severity: IssueSeverity,
+    pub severity:      IssueSeverity,
     /// Clear message describing the issue
-    pub message: String,
+    pub message:       String,
     /// Actionable suggestion for fixing the issue
-    pub suggestion: String,
+    pub suggestion:    String,
     /// Affected type or pattern (if applicable)
     pub affected_type: Option<String>,
 }
@@ -111,13 +111,13 @@ pub struct DesignAudit {
     /// Federation-related issues
     pub federation_issues: Vec<FederationIssue>,
     /// Cost analysis warnings
-    pub cost_warnings: Vec<CostWarning>,
+    pub cost_warnings:     Vec<CostWarning>,
     /// Cache coherency issues
-    pub cache_issues: Vec<CacheIssue>,
+    pub cache_issues:      Vec<CacheIssue>,
     /// Authorization boundary issues
-    pub auth_issues: Vec<AuthIssue>,
+    pub auth_issues:       Vec<AuthIssue>,
     /// Schema design issues
-    pub schema_issues: Vec<SchemaIssue>,
+    pub schema_issues:     Vec<SchemaIssue>,
 }
 
 impl DesignAudit {
@@ -125,10 +125,10 @@ impl DesignAudit {
     pub const fn new() -> Self {
         Self {
             federation_issues: Vec::new(),
-            cost_warnings: Vec::new(),
-            cache_issues: Vec::new(),
-            auth_issues: Vec::new(),
-            schema_issues: Vec::new(),
+            cost_warnings:     Vec::new(),
+            cache_issues:      Vec::new(),
+            auth_issues:       Vec::new(),
+            schema_issues:     Vec::new(),
         }
     }
 

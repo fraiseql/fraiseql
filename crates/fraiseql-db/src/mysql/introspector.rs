@@ -33,7 +33,7 @@ impl DatabaseIntrospector for MySqlIntrospector {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to list fact tables: {e}"),
+            message:   format!("Failed to list fact tables: {e}"),
             sql_state: None,
         })?;
 
@@ -52,7 +52,7 @@ impl DatabaseIntrospector for MySqlIntrospector {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to query column information: {e}"),
+            message:   format!("Failed to query column information: {e}"),
             sql_state: None,
         })?;
 
@@ -74,7 +74,7 @@ impl DatabaseIntrospector for MySqlIntrospector {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to query index information: {e}"),
+            message:   format!("Failed to query index information: {e}"),
             sql_state: None,
         })?;
 
@@ -101,7 +101,7 @@ impl DatabaseIntrospector for MySqlIntrospector {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to list relations: {e}"),
+            message:   format!("Failed to list relations: {e}"),
             sql_state: None,
         })?;
 
@@ -132,7 +132,7 @@ impl DatabaseIntrospector for MySqlIntrospector {
 
         let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message: format!("Failed to query sample JSON rows: {e}"),
+                message:   format!("Failed to query sample JSON rows: {e}"),
                 sql_state: None,
             }
         })?;
@@ -140,12 +140,12 @@ impl DatabaseIntrospector for MySqlIntrospector {
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {
             let text: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to read JSON column: {e}"),
+                message:   format!("Failed to read JSON column: {e}"),
                 sql_state: None,
             })?;
             let value: serde_json::Value =
                 serde_json::from_str(&text).map_err(|e| FraiseQLError::Parse {
-                    message: format!("Failed to parse JSON sample: {e}"),
+                    message:  format!("Failed to parse JSON sample: {e}"),
                     location: format!("{table_name}.{column_name}"),
                 })?;
             results.push(value);

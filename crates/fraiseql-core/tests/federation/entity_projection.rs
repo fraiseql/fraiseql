@@ -152,7 +152,7 @@ fn test_database_constraint_violation() {
     rep_all.insert("id".to_string(), json!("user1"));
 
     let representation = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };

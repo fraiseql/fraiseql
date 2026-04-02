@@ -75,9 +75,9 @@ fn auth_router() -> Router {
     let oidc_client = test_oidc_client();
 
     let state = Arc::new(AuthPkceState {
-        pkce_store: Arc::new(pkce_store),
-        oidc_client: Arc::new(oidc_client),
-        http_client: Arc::new(reqwest::Client::new()),
+        pkce_store:              Arc::new(pkce_store),
+        oidc_client:             Arc::new(oidc_client),
+        http_client:             Arc::new(reqwest::Client::new()),
         post_login_redirect_uri: None,
     });
 
@@ -273,9 +273,9 @@ async fn session_cookie_router(mock_server: &MockServer) -> Router {
     let pkce_store = PkceStateStore::new(300, None);
 
     let state = Arc::new(AuthPkceState {
-        pkce_store: Arc::new(pkce_store),
-        oidc_client: Arc::new(oidc_client),
-        http_client: Arc::new(reqwest::Client::new()),
+        pkce_store:              Arc::new(pkce_store),
+        oidc_client:             Arc::new(oidc_client),
+        http_client:             Arc::new(reqwest::Client::new()),
         post_login_redirect_uri: Some("https://app.example.com/dashboard".to_string()),
     });
 
@@ -395,9 +395,9 @@ async fn auth_pkce_flow_with_redis_store() {
 
     let oidc_client = test_oidc_client();
     let state = Arc::new(AuthPkceState {
-        pkce_store: Arc::new(pkce_store),
-        oidc_client: Arc::new(oidc_client),
-        http_client: Arc::new(reqwest::Client::new()),
+        pkce_store:              Arc::new(pkce_store),
+        oidc_client:             Arc::new(oidc_client),
+        http_client:             Arc::new(reqwest::Client::new()),
         post_login_redirect_uri: None,
     });
     let router = Router::new()

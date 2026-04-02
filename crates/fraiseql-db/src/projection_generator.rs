@@ -48,7 +48,7 @@ impl ProjectionField {
     #[must_use]
     pub fn scalar(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:         name.into(),
             is_composite: false,
         }
     }
@@ -57,7 +57,7 @@ impl ProjectionField {
     #[must_use]
     pub fn composite(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name:         name.into(),
             is_composite: true,
         }
     }
@@ -91,7 +91,7 @@ fn validate_field_name(field: &str) -> Result<()> {
                  only ASCII alphanumeric characters and underscores are allowed",
                 field
             ),
-            path: None,
+            path:    None,
         })
     }
 }
@@ -839,7 +839,7 @@ mod tests {
     fn test_typed_projection_scalar_field_uses_text_extraction() {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![ProjectionField {
-            name: "name".to_string(),
+            name:         "name".to_string(),
             is_composite: false,
         }];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
@@ -852,7 +852,7 @@ mod tests {
     fn test_typed_projection_composite_field_uses_jsonb_extraction() {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![ProjectionField {
-            name: "address".to_string(),
+            name:         "address".to_string(),
             is_composite: true,
         }];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
@@ -865,19 +865,19 @@ mod tests {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![
             ProjectionField {
-                name: "id".to_string(),
+                name:         "id".to_string(),
                 is_composite: false,
             },
             ProjectionField {
-                name: "address".to_string(),
+                name:         "address".to_string(),
                 is_composite: true,
             },
             ProjectionField {
-                name: "tags".to_string(),
+                name:         "tags".to_string(),
                 is_composite: true,
             },
             ProjectionField {
-                name: "email".to_string(),
+                name:         "email".to_string(),
                 is_composite: false,
             },
         ];
@@ -902,7 +902,7 @@ mod tests {
     fn test_typed_projection_camel_case_maps_to_snake_case_jsonb_key() {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![ProjectionField {
-            name: "firstName".to_string(),
+            name:         "firstName".to_string(),
             is_composite: false,
         }];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
@@ -921,7 +921,7 @@ mod tests {
     fn test_typed_projection_single_quote_in_field_name_escaped() {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![ProjectionField {
-            name: "it's".to_string(),
+            name:         "it's".to_string(),
             is_composite: false,
         }];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();

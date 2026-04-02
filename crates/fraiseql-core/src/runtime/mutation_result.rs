@@ -25,7 +25,7 @@ pub enum MutationOutcome {
     /// The mutation succeeded; the result entity is available.
     Success {
         /// The entity JSONB returned by the function.
-        entity: JsonValue,
+        entity:      JsonValue,
         /// GraphQL type name for the entity (from the `entity_type` column).
         entity_type: Option<String>,
         /// UUID string of the mutated entity (from the `entity_id` column).
@@ -33,16 +33,16 @@ pub enum MutationOutcome {
         /// Present for UPDATE and DELETE mutations. Used for entity-aware cache
         /// invalidation: only cache entries containing this UUID are evicted,
         /// leaving unrelated entries warm.
-        entity_id: Option<String>,
+        entity_id:   Option<String>,
         /// Cascade operations associated with this mutation.
-        cascade: Option<JsonValue>,
+        cascade:     Option<JsonValue>,
     },
     /// The mutation failed; error metadata is available.
     Error {
         /// Status code (e.g. `"failed:validation"`, `"conflict:duplicate"`).
-        status: String,
+        status:   String,
         /// Human-readable error message.
-        message: String,
+        message:  String,
         /// Structured metadata JSONB containing error-type field values.
         metadata: JsonValue,
     },
@@ -64,7 +64,7 @@ pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
         .and_then(|v| v.as_str())
         .ok_or_else(|| FraiseQLError::Validation {
             message: "mutation_response row is missing 'status' column".to_string(),
-            path: None,
+            path:    None,
         })?
         .to_string();
 
@@ -192,17 +192,17 @@ mod tests {
 
     fn make_field(name: &str, type_str: &str) -> FieldDefinition {
         FieldDefinition {
-            name: name.into(),
-            field_type: FieldType::parse(type_str),
-            nullable: true,
-            default_value: None,
-            description: None,
-            vector_config: None,
-            alias: None,
-            deprecation: None,
+            name:           name.into(),
+            field_type:     FieldType::parse(type_str),
+            nullable:       true,
+            default_value:  None,
+            description:    None,
+            vector_config:  None,
+            alias:          None,
+            deprecation:    None,
             requires_scope: None,
-            on_deny: FieldDenyPolicy::default(),
-            encryption: None,
+            on_deny:        FieldDenyPolicy::default(),
+            encryption:     None,
         }
     }
 

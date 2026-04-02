@@ -53,11 +53,11 @@ impl Default for ParsedQuery {
         Self {
             operation_type: "query".to_string(),
             operation_name: None,
-            root_field: String::new(),
-            selections: Vec::new(),
-            variables: Vec::new(),
-            fragments: Vec::new(),
-            source: String::new(),
+            root_field:     String::new(),
+            selections:     Vec::new(),
+            variables:      Vec::new(),
+            fragments:      Vec::new(),
+            source:         String::new(),
         }
     }
 }
@@ -131,11 +131,11 @@ impl PartialEq for GraphQLArgument {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphQLType {
     /// Type name (e.g., "String", "User")
-    pub name: String,
+    pub name:          String,
     /// Whether the type is nullable
-    pub nullable: bool,
+    pub nullable:      bool,
     /// Whether it's a list type
-    pub list: bool,
+    pub list:          bool,
     /// Whether list items are nullable
     pub list_nullable: bool,
 }
@@ -178,11 +178,11 @@ mod tests {
         let query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: Some("GetUsers".to_string()),
-            root_field: "users".to_string(),
-            selections: vec![],
-            variables: vec![],
-            fragments: vec![],
-            source: "{ users { id name } }".to_string(),
+            root_field:     "users".to_string(),
+            selections:     vec![],
+            variables:      vec![],
+            fragments:      vec![],
+            source:         "{ users { id name } }".to_string(),
         };
 
         assert_eq!(query.signature(), "query::users");
@@ -193,11 +193,11 @@ mod tests {
         let query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: None,
-            root_field: "users".to_string(),
-            selections: vec![],
-            variables: vec![], // No variables = cacheable
-            fragments: vec![],
-            source: "{ users { id } }".to_string(),
+            root_field:     "users".to_string(),
+            selections:     vec![],
+            variables:      vec![], // No variables = cacheable
+            fragments:      vec![],
+            source:         "{ users { id } }".to_string(),
         };
 
         assert!(query.is_cacheable());
@@ -208,20 +208,20 @@ mod tests {
         let query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: None,
-            root_field: "users".to_string(),
-            selections: vec![],
-            variables: vec![VariableDefinition {
-                name: "limit".to_string(),
-                var_type: GraphQLType {
-                    name: "Int".to_string(),
-                    nullable: false,
-                    list: false,
+            root_field:     "users".to_string(),
+            selections:     vec![],
+            variables:      vec![VariableDefinition {
+                name:          "limit".to_string(),
+                var_type:      GraphQLType {
+                    name:          "Int".to_string(),
+                    nullable:      false,
+                    list:          false,
                     list_nullable: false,
                 },
                 default_value: None,
             }],
-            fragments: vec![],
-            source: "query($limit: Int) { users(limit: $limit) { id } }".to_string(),
+            fragments:      vec![],
+            source:         "query($limit: Int) { users(limit: $limit) { id } }".to_string(),
         };
 
         assert!(!query.is_cacheable());
@@ -230,20 +230,20 @@ mod tests {
     #[test]
     fn test_field_selection_response_key() {
         let field_no_alias = FieldSelection {
-            name: "author".to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          "author".to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![],
-            directives: vec![],
+            directives:    vec![],
         };
         assert_eq!(field_no_alias.response_key(), "author");
 
         let field_with_alias = FieldSelection {
-            name: "author".to_string(),
-            alias: Some("writer".to_string()),
-            arguments: vec![],
+            name:          "author".to_string(),
+            alias:         Some("writer".to_string()),
+            arguments:     vec![],
             nested_fields: vec![],
-            directives: vec![],
+            directives:    vec![],
         };
         assert_eq!(field_with_alias.response_key(), "writer");
     }
@@ -251,13 +251,13 @@ mod tests {
     #[test]
     fn test_graphql_argument_equality() {
         let arg1 = GraphQLArgument {
-            name: "where".to_string(),
+            name:       "where".to_string(),
             value_type: "object".to_string(),
             value_json: r#"{"id": 1}"#.to_string(),
         };
 
         let arg2 = GraphQLArgument {
-            name: "where".to_string(),
+            name:       "where".to_string(),
             value_type: "object".to_string(),
             value_json: r#"{"id": 1}"#.to_string(),
         };
@@ -268,9 +268,9 @@ mod tests {
     #[test]
     fn test_fragment_definition() {
         let fragment = FragmentDefinition {
-            name: "UserFields".to_string(),
-            type_condition: "User".to_string(),
-            selections: vec![],
+            name:             "UserFields".to_string(),
+            type_condition:   "User".to_string(),
+            selections:       vec![],
             fragment_spreads: vec![],
         };
 

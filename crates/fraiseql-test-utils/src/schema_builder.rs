@@ -55,10 +55,10 @@ use fraiseql_core::schema::{
 /// ```
 #[derive(Default)]
 pub struct TestSchemaBuilder {
-    queries: Vec<QueryDefinition>,
-    mutations: Vec<MutationDefinition>,
-    types: Vec<TypeDefinition>,
-    security: Option<SecurityConfig>,
+    queries:    Vec<QueryDefinition>,
+    mutations:  Vec<MutationDefinition>,
+    types:      Vec<TypeDefinition>,
+    security:   Option<SecurityConfig>,
     federation: Option<serde_json::Value>,
 }
 
@@ -187,19 +187,19 @@ impl TestSchemaBuilder {
 /// assert!(query.returns_list);
 /// ```
 pub struct TestQueryBuilder {
-    name: String,
-    return_type: String,
-    returns_list: bool,
-    sql_source: Option<String>,
-    requires_role: Option<String>,
-    cache_ttl: Option<u64>,
-    description: Option<String>,
-    deprecated: Option<String>,
-    additional_views: Vec<String>,
-    no_source: bool,
-    relay: bool,
+    name:                String,
+    return_type:         String,
+    returns_list:        bool,
+    sql_source:          Option<String>,
+    requires_role:       Option<String>,
+    cache_ttl:           Option<u64>,
+    description:         Option<String>,
+    deprecated:          Option<String>,
+    additional_views:    Vec<String>,
+    no_source:           bool,
+    relay:               bool,
     relay_cursor_column: Option<String>,
-    relay_cursor_type: CursorType,
+    relay_cursor_type:   CursorType,
 }
 
 impl TestQueryBuilder {
@@ -209,19 +209,19 @@ impl TestQueryBuilder {
     #[must_use]
     pub fn new(name: &str, return_type: &str) -> Self {
         Self {
-            name: name.to_string(),
-            return_type: return_type.to_string(),
-            returns_list: false,
-            sql_source: None,
-            requires_role: None,
-            cache_ttl: None,
-            description: None,
-            deprecated: None,
-            additional_views: Vec::new(),
-            no_source: false,
-            relay: false,
+            name:                name.to_string(),
+            return_type:         return_type.to_string(),
+            returns_list:        false,
+            sql_source:          None,
+            requires_role:       None,
+            cache_ttl:           None,
+            description:         None,
+            deprecated:          None,
+            additional_views:    Vec::new(),
+            no_source:           false,
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
+            relay_cursor_type:   CursorType::default(),
         }
     }
 
@@ -380,11 +380,11 @@ impl TestQueryBuilder {
 /// assert_eq!(mutation.name, "createUser");
 /// ```
 pub struct TestMutationBuilder {
-    name: String,
+    name:        String,
     return_type: String,
-    sql_source: Option<String>,
+    sql_source:  Option<String>,
     description: Option<String>,
-    deprecated: Option<String>,
+    deprecated:  Option<String>,
 }
 
 impl TestMutationBuilder {
@@ -394,11 +394,11 @@ impl TestMutationBuilder {
     #[must_use]
     pub fn new(name: &str, return_type: &str) -> Self {
         Self {
-            name: name.to_string(),
+            name:        name.to_string(),
             return_type: return_type.to_string(),
-            sql_source: None,
+            sql_source:  None,
             description: None,
-            deprecated: None,
+            deprecated:  None,
         }
     }
 
@@ -465,13 +465,13 @@ impl TestMutationBuilder {
 /// assert_eq!(type_def.fields.len(), 2);
 /// ```
 pub struct TestTypeBuilder {
-    name: String,
-    sql_source: String,
-    fields: Vec<FieldDefinition>,
+    name:          String,
+    sql_source:    String,
+    fields:        Vec<FieldDefinition>,
     requires_role: Option<String>,
-    description: Option<String>,
-    relay: bool,
-    implements: Vec<String>,
+    description:   Option<String>,
+    relay:         bool,
+    implements:    Vec<String>,
 }
 
 impl TestTypeBuilder {
@@ -479,13 +479,13 @@ impl TestTypeBuilder {
     #[must_use]
     pub fn new(name: &str, sql_source: &str) -> Self {
         Self {
-            name: name.to_string(),
-            sql_source: sql_source.to_string(),
-            fields: Vec::new(),
+            name:          name.to_string(),
+            sql_source:    sql_source.to_string(),
+            fields:        Vec::new(),
             requires_role: None,
-            description: None,
-            relay: false,
-            implements: Vec::new(),
+            description:   None,
+            relay:         false,
+            implements:    Vec::new(),
         }
     }
 

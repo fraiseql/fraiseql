@@ -34,14 +34,14 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: String::new(),
-            max_connections: 10,
-            min_connections: 1,
+            url:                  String::new(),
+            max_connections:      10,
+            min_connections:      1,
             connect_timeout_secs: 10,
-            query_timeout_secs: 30,
-            idle_timeout_secs: 600,
-            ssl_mode: SslMode::Prefer,
-            mutation_timing: MutationTimingConfig::default(),
+            query_timeout_secs:   30,
+            idle_timeout_secs:    600,
+            ssl_mode:             SslMode::Prefer,
+            mutation_timing:      MutationTimingConfig::default(),
         }
     }
 }
@@ -68,7 +68,7 @@ fn default_timing_variable() -> String {
 impl Default for MutationTimingConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled:       false,
             variable_name: default_timing_variable(),
         }
     }

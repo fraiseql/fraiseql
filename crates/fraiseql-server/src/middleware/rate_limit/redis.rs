@@ -39,11 +39,11 @@ pub fn redis_error_count_total() -> u64 {
 /// Internal result returned by the Redis Lua token-bucket script.
 #[cfg(feature = "redis-rate-limiting")]
 struct RedisRateLimitResult {
-    allowed: bool,
+    allowed:          bool,
     /// Remaining tokens after this request (in whole tokens, not milli-tokens).
     remaining_tokens: f64,
     /// Milliseconds until the next token becomes available; 0 when allowed.
-    retry_after_ms: u64,
+    retry_after_ms:   u64,
 }
 
 /// Atomic token-bucket Lua script for Redis.
@@ -95,8 +95,8 @@ end
 /// and exposed in the `/metrics` endpoint.
 #[cfg(feature = "redis-rate-limiting")]
 pub struct RedisRateLimiter {
-    pool: redis::aio::ConnectionManager,
-    config: RateLimitConfig,
+    pool:       redis::aio::ConnectionManager,
+    config:     RateLimitConfig,
     path_rules: Vec<PathRateLimit>,
     /// Cached SHA of the loaded Lua script.  Cleared on `NOSCRIPT` errors so
     /// the script is transparently reloaded (e.g. after a Redis restart).

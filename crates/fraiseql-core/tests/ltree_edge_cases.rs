@@ -39,9 +39,9 @@ fn test_ltree_empty_path_handling() {
     for path in empty_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("test"),
+                value:    json!("test"),
             };
 
             // Should handle gracefully without panic
@@ -90,9 +90,9 @@ fn test_ltree_deep_nesting_5_plus_levels() {
     for path in deep_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("pattern"),
+                value:    json!("pattern"),
             };
 
             match clause {
@@ -124,9 +124,9 @@ fn test_ltree_special_characters_in_components() {
     for path in special_char_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("search_value"),
+                value:    json!("search_value"),
             };
 
             match clause {
@@ -165,9 +165,9 @@ fn test_ltree_combined_complex_paths() {
     for path in complex_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("test"),
+                value:    json!("test"),
             };
 
             match clause {
@@ -197,9 +197,9 @@ fn test_ltree_operators_with_injection_attempts() {
     for path in injection_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("malicious"),
+                value:    json!("malicious"),
             };
 
             match clause {
@@ -227,9 +227,9 @@ fn test_ltree_unicode_in_paths() {
     for path in unicode_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("unicode"),
+                value:    json!("unicode"),
             };
 
             match clause {
@@ -260,9 +260,9 @@ fn test_ltree_very_long_component_names() {
     for path in long_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("long"),
+                value:    json!("long"),
             };
 
             match clause {
@@ -294,9 +294,9 @@ fn test_ltree_whitespace_handling() {
     for path in whitespace_paths {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("whitespace"),
+                value:    json!("whitespace"),
             };
 
             match clause {
@@ -340,9 +340,9 @@ fn test_ltree_mixed_edge_cases() {
     for path in mixed_cases {
         for op in LTREE_OPERATORS {
             let clause = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!("test"),
+                value:    json!("test"),
             };
 
             match clause {
@@ -364,9 +364,9 @@ fn test_ltree_null_pattern_values() {
         for op in LTREE_OPERATORS {
             // Empty string pattern
             let clause1 = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!(""),
+                value:    json!(""),
             };
 
             match clause1 {
@@ -378,9 +378,9 @@ fn test_ltree_null_pattern_values() {
 
             // Null-like pattern (if operator supports it)
             let clause2 = WhereClause::Field {
-                path: path.clone(),
+                path:     path.clone(),
                 operator: op.clone(),
-                value: json!(null),
+                value:    json!(null),
             };
 
             match clause2 {

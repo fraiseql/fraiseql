@@ -31,9 +31,9 @@ pub struct RemoteDatabaseConfig {
     /// Connection string (e.g., `<postgresql://user:pass@host:5432/dbname>`).
     ///
     /// Not included in `Debug` output to prevent credential leakage in logs.
-    connection_string: String,
+    connection_string:   String,
     /// Optional pool size (default: 5)
-    pub pool_size: Option<u32>,
+    pub pool_size:       Option<u32>,
     /// Optional connection timeout in seconds (default: 5)
     pub timeout_seconds: Option<u32>,
 }
@@ -53,8 +53,8 @@ impl RemoteDatabaseConfig {
     pub fn new(connection_string: impl Into<String>) -> Self {
         Self {
             connection_string: connection_string.into(),
-            pool_size: None,
-            timeout_seconds: None,
+            pool_size:         None,
+            timeout_seconds:   None,
         }
     }
 
@@ -103,7 +103,7 @@ impl RemoteDatabaseConfig {
                     message: format!(
                         "pool_size {size} is out of range [{MIN_POOL_SIZE}, {MAX_POOL_SIZE}]"
                     ),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -113,7 +113,7 @@ impl RemoteDatabaseConfig {
                     message: format!(
                         "timeout_seconds {secs} is out of range [{MIN_TIMEOUT_SECS}, {MAX_TIMEOUT_SECS}]"
                     ),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -178,7 +178,7 @@ impl ConnectionManager {
                 "Direct database connection creation requires a database-specific implementation. \
                  This is an unstable API — contributions welcome."
                     .to_string(),
-            source: None,
+            source:  None,
         })
     }
 

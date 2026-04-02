@@ -196,11 +196,11 @@ mod tests {
         let metadata = crate::FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![crate::FederatedType {
-                name: "User".to_string(),
-                keys: vec![],
-                is_extends: false, // NOT extended = local
-                external_fields: vec![],
+            types:   vec![crate::FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![],
+                is_extends:       false, // NOT extended = local
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],
@@ -215,11 +215,11 @@ mod tests {
         let metadata = crate::FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![crate::FederatedType {
-                name: "User".to_string(),
-                keys: vec![],
-                is_extends: true, // Extended = remote
-                external_fields: vec![],
+            types:   vec![crate::FederatedType {
+                name:             "User".to_string(),
+                keys:             vec![],
+                is_extends:       true, // Extended = remote
+                external_fields:  vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],

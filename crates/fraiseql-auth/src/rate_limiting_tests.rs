@@ -6,9 +6,9 @@ use crate::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 #[test]
 fn test_rate_limit_allows_requests_within_limit() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 10,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     for i in 0..10 {
@@ -20,9 +20,9 @@ fn test_rate_limit_allows_requests_within_limit() {
 #[test]
 fn test_rate_limit_rejects_over_limit() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 3,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     for i in 0..3 {
@@ -37,9 +37,9 @@ fn test_rate_limit_rejects_over_limit() {
 #[test]
 fn test_rate_limit_per_key_independent() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 2,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     limiter.check("key1").ok();
@@ -52,9 +52,9 @@ fn test_rate_limit_per_key_independent() {
 #[test]
 fn test_rate_limit_error_contains_retry_info() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 1,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     limiter.check("key").ok();
@@ -71,9 +71,9 @@ fn test_rate_limit_error_contains_retry_info() {
 #[test]
 fn test_rate_limit_by_ip() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 5,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     let ip = "192.168.1.100";
@@ -90,9 +90,9 @@ fn test_rate_limit_by_ip() {
 #[test]
 fn test_different_ips_independent_limits() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 3,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     let ip1 = "192.168.1.1";
@@ -112,9 +112,9 @@ fn test_different_ips_independent_limits() {
 #[test]
 fn test_rejected_login_attempts() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 5,
-        window_secs: 3600,
+        window_secs:  3600,
     });
 
     let user = "alice@example.com";
@@ -131,9 +131,9 @@ fn test_rejected_login_attempts() {
 #[test]
 fn test_multiple_users_independent() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 5,
-        window_secs: 3600,
+        window_secs:  3600,
     });
 
     for _ in 0..5 {
@@ -150,9 +150,9 @@ fn test_multiple_users_independent() {
 #[test]
 fn test_active_limiters_count() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 100,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     assert_eq!(limiter.active_limiters(), 0);
@@ -167,9 +167,9 @@ fn test_active_limiters_count() {
 #[test]
 fn test_clear_limiters() {
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 1,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     limiter.check("key").ok();
@@ -190,9 +190,9 @@ fn test_thread_safe_rate_limiting() {
     use std::sync::Arc;
 
     let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 100,
-        window_secs: 60,
+        window_secs:  60,
     }));
 
     let mut handles = vec![];

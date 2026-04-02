@@ -61,17 +61,17 @@ fn order_success_row() -> HashMap<String, serde_json::Value> {
 
 fn admin_security_context() -> SecurityContext {
     SecurityContext {
-        user_id: "user-123".to_string(),
-        tenant_id: Some("tenant-456".to_string()),
-        roles: vec!["admin".to_string()],
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-test".to_string(),
-        ip_address: None,
+        user_id:          "user-123".to_string(),
+        tenant_id:        Some("tenant-456".to_string()),
+        roles:            vec!["admin".to_string()],
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-test".to_string(),
+        ip_address:       None,
         authenticated_at: Utc::now(),
-        expires_at: Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     }
 }
 
@@ -80,8 +80,8 @@ fn admin_security_context() -> SecurityContext {
 // ---------------------------------------------------------------------------
 
 struct RecordingMockAdapter {
-    called_fn: std::sync::Mutex<Option<String>>,
-    called_args: std::sync::Mutex<Vec<serde_json::Value>>,
+    called_fn:    std::sync::Mutex<Option<String>>,
+    called_args:  std::sync::Mutex<Vec<serde_json::Value>>,
     response_row: HashMap<String, serde_json::Value>,
 }
 
@@ -140,10 +140,10 @@ impl DatabaseAdapter for RecordingMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 

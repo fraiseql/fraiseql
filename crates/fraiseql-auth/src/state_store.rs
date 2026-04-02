@@ -67,7 +67,7 @@ pub trait StateStore: Send + Sync {
 #[derive(Debug)]
 pub struct InMemoryStateStore {
     // Map of state -> (provider, expiry_secs)
-    states: Arc<DashMap<String, (String, u64)>>,
+    states:     Arc<DashMap<String, (String, u64)>>,
     // Maximum number of states to store (prevents memory exhaustion)
     max_states: usize,
 }
@@ -80,7 +80,7 @@ impl InMemoryStateStore {
     /// Create a new in-memory state store with default limits
     pub fn new() -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states:     Arc::new(DashMap::new()),
             max_states: Self::MAX_STATES,
         }
     }
@@ -91,7 +91,7 @@ impl InMemoryStateStore {
     /// * `max_states` - Maximum number of states to store
     pub fn with_max_states(max_states: usize) -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states:     Arc::new(DashMap::new()),
             max_states: max_states.max(1), // Ensure at least 1 state
         }
     }

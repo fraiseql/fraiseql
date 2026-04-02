@@ -48,25 +48,25 @@ use crate::error::{ObserverError, Result};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointState {
     /// Listener identifier (used as primary key)
-    pub listener_id: String,
+    pub listener_id:       String,
     /// Last successfully processed changelog entry ID
     pub last_processed_id: i64,
     /// Timestamp of last checkpoint update
     pub last_processed_at: DateTime<Utc>,
     /// Size of the last batch processed
-    pub batch_size: usize,
+    pub batch_size:        usize,
     /// Total events processed in this batch
-    pub event_count: usize,
+    pub event_count:       usize,
 }
 
 impl Default for CheckpointState {
     fn default() -> Self {
         Self {
-            listener_id: String::new(),
+            listener_id:       String::new(),
             last_processed_id: 0,
             last_processed_at: Utc::now(),
-            batch_size: 0,
-            event_count: 0,
+            batch_size:        0,
+            event_count:       0,
         }
     }
 }
@@ -482,11 +482,11 @@ impl CheckpointStore for InMemoryCheckpointStore {
                 // No checkpoint exists yet. Succeed only when starting from zero.
                 if expected_id == 0 {
                     e.insert(CheckpointState {
-                        listener_id: listener_id.to_string(),
+                        listener_id:       listener_id.to_string(),
                         last_processed_id: new_id,
                         last_processed_at: Utc::now(),
-                        batch_size: 0,
-                        event_count: 0,
+                        batch_size:        0,
+                        event_count:       0,
                     });
                     Ok(true)
                 } else {
@@ -625,11 +625,11 @@ mod tests {
     #[test]
     fn test_checkpoint_state_serialization() {
         let state = CheckpointState {
-            listener_id: "test-listener".to_string(),
+            listener_id:       "test-listener".to_string(),
             last_processed_id: 1000,
             last_processed_at: Utc::now(),
-            batch_size: 50,
-            event_count: 50,
+            batch_size:        50,
+            event_count:       50,
         };
 
         let json = serde_json::to_string(&state).expect("serialize");
@@ -649,11 +649,11 @@ mod tests {
         assert!(store.load("l1").await.unwrap().is_none());
 
         let state = CheckpointState {
-            listener_id: "l1".to_string(),
+            listener_id:       "l1".to_string(),
             last_processed_id: 42,
             last_processed_at: Utc::now(),
-            batch_size: 10,
-            event_count: 10,
+            batch_size:        10,
+            event_count:       10,
         };
         store.save("l1", &state).await.unwrap();
 
@@ -665,11 +665,11 @@ mod tests {
     async fn test_in_memory_delete() {
         let store = InMemoryCheckpointStore::new_silent();
         let state = CheckpointState {
-            listener_id: "l1".to_string(),
+            listener_id:       "l1".to_string(),
             last_processed_id: 1,
             last_processed_at: Utc::now(),
-            batch_size: 0,
-            event_count: 0,
+            batch_size:        0,
+            event_count:       0,
         };
         store.save("l1", &state).await.unwrap();
         store.delete("l1").await.unwrap();

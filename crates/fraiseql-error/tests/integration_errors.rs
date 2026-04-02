@@ -6,7 +6,7 @@ use fraiseql_error::IntegrationError;
 fn search_error_code_and_display() {
     let err = IntegrationError::Search {
         provider: "elasticsearch".into(),
-        message: "cluster red".into(),
+        message:  "cluster red".into(),
     };
     assert_eq!(err.error_code(), "integration_search_error");
     assert_eq!(err.to_string(), "Search provider error: elasticsearch - cluster red");

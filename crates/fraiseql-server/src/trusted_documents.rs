@@ -51,7 +51,7 @@ struct Manifest {
 pub struct TrustedDocumentStore {
     /// hash → query body (keys stored WITHOUT "sha256:" prefix).
     documents: Arc<RwLock<HashMap<String, String>>>,
-    mode: TrustedDocumentMode,
+    mode:      TrustedDocumentMode,
 }
 
 impl TrustedDocumentStore {
@@ -112,7 +112,7 @@ impl TrustedDocumentStore {
     pub fn disabled() -> Self {
         Self {
             documents: Arc::new(RwLock::new(HashMap::new())),
-            mode: TrustedDocumentMode::Permissive,
+            mode:      TrustedDocumentMode::Permissive,
         }
     }
 

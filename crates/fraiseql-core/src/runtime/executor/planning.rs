@@ -33,11 +33,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .unwrap_or_else(|| "unknown".to_string());
                 let plan = self.planner.plan(&query_match)?;
                 Ok(super::super::ExplainPlan {
-                    sql: plan.sql,
-                    parameters: plan.parameters,
+                    sql:            plan.sql,
+                    parameters:     plan.parameters,
                     estimated_cost: plan.estimated_cost,
                     views_accessed: vec![view],
-                    query_type: "regular".to_string(),
+                    query_type:     "regular".to_string(),
                 })
             },
             QueryType::Mutation(ref name) => {
@@ -60,11 +60,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let fn_name =
                     mutation_def.sql_source.clone().unwrap_or_else(|| format!("fn_{name}"));
                 Ok(super::super::ExplainPlan {
-                    sql: format!("SELECT * FROM {fn_name}(...)"),
-                    parameters: Vec::new(),
+                    sql:            format!("SELECT * FROM {fn_name}(...)"),
+                    parameters:     Vec::new(),
                     estimated_cost: 100,
                     views_accessed: vec![fn_name],
-                    query_type: "mutation".to_string(),
+                    query_type:     "mutation".to_string(),
                 })
             },
             QueryType::Aggregate(ref name) => {
@@ -76,11 +76,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .and_then(|q| q.sql_source.clone())
                     .unwrap_or_else(|| "unknown".to_string());
                 Ok(super::super::ExplainPlan {
-                    sql: format!("SELECT ... FROM {sql_source} -- aggregate"),
-                    parameters: Vec::new(),
+                    sql:            format!("SELECT ... FROM {sql_source} -- aggregate"),
+                    parameters:     Vec::new(),
                     estimated_cost: 200,
                     views_accessed: vec![sql_source],
-                    query_type: "aggregate".to_string(),
+                    query_type:     "aggregate".to_string(),
                 })
             },
             QueryType::Window(ref name) => {
@@ -92,35 +92,35 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .and_then(|q| q.sql_source.clone())
                     .unwrap_or_else(|| "unknown".to_string());
                 Ok(super::super::ExplainPlan {
-                    sql: format!("SELECT ... FROM {sql_source} -- window"),
-                    parameters: Vec::new(),
+                    sql:            format!("SELECT ... FROM {sql_source} -- window"),
+                    parameters:     Vec::new(),
                     estimated_cost: 250,
                     views_accessed: vec![sql_source],
-                    query_type: "window".to_string(),
+                    query_type:     "window".to_string(),
                 })
             },
             QueryType::IntrospectionSchema | QueryType::IntrospectionType(_) => {
                 Ok(super::super::ExplainPlan {
-                    sql: String::new(),
-                    parameters: Vec::new(),
+                    sql:            String::new(),
+                    parameters:     Vec::new(),
                     estimated_cost: 0,
                     views_accessed: Vec::new(),
-                    query_type: "introspection".to_string(),
+                    query_type:     "introspection".to_string(),
                 })
             },
             QueryType::Federation(_) => Ok(super::super::ExplainPlan {
-                sql: String::new(),
-                parameters: Vec::new(),
+                sql:            String::new(),
+                parameters:     Vec::new(),
                 estimated_cost: 0,
                 views_accessed: Vec::new(),
-                query_type: "federation".to_string(),
+                query_type:     "federation".to_string(),
             }),
             QueryType::NodeQuery => Ok(super::super::ExplainPlan {
-                sql: String::new(),
-                parameters: Vec::new(),
+                sql:            String::new(),
+                parameters:     Vec::new(),
                 estimated_cost: 50,
                 views_accessed: Vec::new(),
-                query_type: "node".to_string(),
+                query_type:     "node".to_string(),
             }),
         }
     }

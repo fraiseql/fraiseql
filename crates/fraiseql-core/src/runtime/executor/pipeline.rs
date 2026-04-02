@@ -39,14 +39,14 @@ pub struct RootFieldResult {
     /// Response key for this field (alias if provided, otherwise field name).
     pub field_name: String,
     /// Resolved data value.
-    pub data: serde_json::Value,
+    pub data:       serde_json::Value,
 }
 
 /// Aggregated result from a multi-root parallel execution.
 #[derive(Debug)]
 pub struct PipelineResult {
     /// Results for each root field, in the order they were requested.
-    pub fields: Vec<RootFieldResult>,
+    pub fields:   Vec<RootFieldResult>,
     /// `true` when results were produced by the parallel path.
     pub parallel: bool,
 }
@@ -210,7 +210,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let response: serde_json::Value =
                     serde_json::from_str(&json_str).map_err(|e| FraiseQLError::Internal {
                         message: e.to_string(),
-                        source: None,
+                        source:  None,
                     })?;
                 let data = response["data"][field_name.as_str()].clone();
                 Ok(RootFieldResult {
@@ -305,10 +305,10 @@ mod tests {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections: 1,
-                idle_connections: 1,
+                total_connections:  1,
+                idle_connections:   1,
                 active_connections: 0,
-                waiting_requests: 0,
+                waiting_requests:   0,
             }
         }
 

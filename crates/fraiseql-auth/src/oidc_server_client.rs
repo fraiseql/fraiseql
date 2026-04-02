@@ -25,7 +25,7 @@ pub struct OidcEndpoints {
     /// The provider's `/authorize` URL.
     pub authorization_endpoint: String,
     /// The provider's `/token` URL.
-    pub token_endpoint: String,
+    pub token_endpoint:         String,
 }
 
 // ---------------------------------------------------------------------------
@@ -36,11 +36,11 @@ pub struct OidcEndpoints {
 #[derive(Debug, Deserialize)]
 pub struct OidcTokenResponse {
     /// The access token.
-    pub access_token: String,
+    pub access_token:  String,
     /// The OpenID Connect identity token (if requested).
-    pub id_token: Option<String>,
+    pub id_token:      Option<String>,
     /// Seconds until the access token expires.
-    pub expires_in: Option<u64>,
+    pub expires_in:    Option<u64>,
     /// Refresh token (if the provider issued one).
     pub refresh_token: Option<String>,
 }
@@ -55,12 +55,12 @@ pub struct OidcTokenResponse {
 /// The client secret is read from the environment at that time and
 /// held in memory — it is never written to disk or emitted in logs.
 pub struct OidcServerClient {
-    client_id: String,
+    client_id:              String,
     /// Intentionally private: the secret must never be accessible via a field.
-    client_secret: String,
-    server_redirect_uri: String,
+    client_secret:          String,
+    server_redirect_uri:    String,
     authorization_endpoint: String,
-    token_endpoint: String,
+    token_endpoint:         String,
 }
 
 /// Custom `Debug` implementation that redacts the client secret.
@@ -96,11 +96,11 @@ impl OidcServerClient {
         token_endpoint: impl Into<String>,
     ) -> Self {
         Self {
-            client_id: client_id.into(),
-            client_secret: client_secret.into(),
-            server_redirect_uri: server_redirect_uri.into(),
+            client_id:              client_id.into(),
+            client_secret:          client_secret.into(),
+            server_redirect_uri:    server_redirect_uri.into(),
             authorization_endpoint: authorization_endpoint.into(),
-            token_endpoint: token_endpoint.into(),
+            token_endpoint:         token_endpoint.into(),
         }
     }
 
@@ -117,8 +117,8 @@ impl OidcServerClient {
         // ── Load [auth] config ────────────────────────────────────────────
         #[derive(Deserialize)]
         struct AuthCfg {
-            client_id: String,
-            client_secret_env: String,
+            client_id:           String,
+            client_secret_env:   String,
             server_redirect_uri: String,
         }
 

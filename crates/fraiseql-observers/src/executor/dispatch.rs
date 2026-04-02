@@ -37,17 +37,17 @@ pub(super) struct DefaultActionDispatcher {
     /// Webhook action executor
     pub(super) webhook_action: Arc<WebhookAction>,
     /// Slack action executor
-    pub(super) slack_action: Arc<SlackAction>,
+    pub(super) slack_action:   Arc<SlackAction>,
     /// Email action executor
-    pub(super) email_action: Arc<EmailAction>,
+    pub(super) email_action:   Arc<EmailAction>,
     /// SMS action executor
-    pub(super) sms_action: Arc<SmsAction>,
+    pub(super) sms_action:     Arc<SmsAction>,
     /// Push notification action executor
-    pub(super) push_action: Arc<PushAction>,
+    pub(super) push_action:    Arc<PushAction>,
     /// Search index action executor
-    pub(super) search_action: Arc<SearchAction>,
+    pub(super) search_action:  Arc<SearchAction>,
     /// Cache action executor
-    pub(super) cache_action: Arc<CacheAction>,
+    pub(super) cache_action:   Arc<CacheAction>,
 }
 
 /// Maximum byte length accepted for a webhook URL.
@@ -212,8 +212,8 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     {
                         Ok(response) => Ok(ActionResult {
                             action_type: "webhook".to_string(),
-                            success: true,
-                            message: format!("HTTP {}", response.status_code),
+                            success:     true,
+                            message:     format!("HTTP {}", response.status_code),
                             duration_ms: response.duration_ms,
                         }),
                         Err(e) => Err(e),
@@ -235,8 +235,8 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     {
                         Ok(response) => Ok(ActionResult {
                             action_type: "slack".to_string(),
-                            success: true,
-                            message: format!("HTTP {}", response.status_code),
+                            success:     true,
+                            message:     format!("HTTP {}", response.status_code),
                             duration_ms: response.duration_ms,
                         }),
                         Err(e) => Err(e),
@@ -266,8 +266,10 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     {
                         Ok(response) => Ok(ActionResult {
                             action_type: "email".to_string(),
-                            success: response.success,
-                            message: response.message_id.unwrap_or_else(|| "queued".to_string()),
+                            success:     response.success,
+                            message:     response
+                                .message_id
+                                .unwrap_or_else(|| "queued".to_string()),
                             duration_ms: response.duration_ms,
                         }),
                         Err(e) => Err(e),
@@ -285,8 +287,8 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     match self.sms_action.execute(sms_phone, message_template.as_deref(), event) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "sms".to_string(),
-                            success: response.success,
-                            message: response.message_id.unwrap_or_else(|| "sent".to_string()),
+                            success:     response.success,
+                            message:     response.message_id.unwrap_or_else(|| "sent".to_string()),
                             duration_ms: response.duration_ms,
                         }),
                         Err(e) => Err(e),
@@ -315,8 +317,10 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     match self.push_action.execute(token, title, body) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "push".to_string(),
-                            success: response.success,
-                            message: response.notification_id.unwrap_or_else(|| "sent".to_string()),
+                            success:     response.success,
+                            message:     response
+                                .notification_id
+                                .unwrap_or_else(|| "sent".to_string()),
                             duration_ms: response.duration_ms,
                         }),
                         Err(e) => Err(e),
@@ -326,8 +330,8 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     match self.search_action.execute(index, id_template.as_deref(), event) {
                         Ok(response) => Ok(ActionResult {
                             action_type: "search".to_string(),
-                            success: response.success,
-                            message: if response.indexed {
+                            success:     response.success,
+                            message:     if response.indexed {
                                 "indexed".to_string()
                             } else {
                                 "not_indexed".to_string()
@@ -343,8 +347,8 @@ impl ActionDispatcher for DefaultActionDispatcher {
                 } => match self.cache_action.execute(key_pattern, action) {
                     Ok(response) => Ok(ActionResult {
                         action_type: "cache".to_string(),
-                        success: response.success,
-                        message: format!("affected: {}", response.keys_affected),
+                        success:     response.success,
+                        message:     format!("affected: {}", response.keys_affected),
                         duration_ms: response.duration_ms,
                     }),
                     Err(e) => Err(e),

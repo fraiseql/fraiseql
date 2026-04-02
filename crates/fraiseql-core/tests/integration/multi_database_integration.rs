@@ -775,9 +775,9 @@ mod sqlserver_relay_tests {
     async fn test_sqlserver_relay_forward_with_where_clause() {
         let a = adapter().await;
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gte,
-            value: serde_json::json!(50),
+            value:    serde_json::json!(50),
         };
         let result = a
             .execute_relay_page(
@@ -807,7 +807,7 @@ mod sqlserver_relay_tests {
 
         let a = adapter().await;
         let order_by = vec![OrderByClause {
-            field: "score".to_string(),
+            field:     "score".to_string(),
             direction: OrderDirection::Asc,
         }];
 
@@ -1021,9 +1021,9 @@ mod mysql_relay_tests {
         let a = adapter().await;
         // Filter: only items whose label is "item-1"
         let where_clause = WhereClause::Field {
-            path: vec!["label".to_string()],
+            path:     vec!["label".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("item-1"),
+            value:    json!("item-1"),
         };
         let result = a
             .execute_relay_page(

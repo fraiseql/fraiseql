@@ -21,13 +21,13 @@ use crate::output::CommandResult;
 #[derive(Debug, Clone, Default)]
 pub struct LintCategoryFilter {
     /// Include only federation audit results
-    pub federation: bool,
+    pub federation:  bool,
     /// Include only cost audit results
-    pub cost: bool,
+    pub cost:        bool,
     /// Include only cache audit results
-    pub cache: bool,
+    pub cache:       bool,
     /// Include only auth audit results
-    pub auth: bool,
+    pub auth:        bool,
     /// Include only compilation audit results
     pub compilation: bool,
 }
@@ -45,20 +45,20 @@ pub struct LintOptions {
     /// Exit with error if any critical issues found
     pub fail_on_critical: bool,
     /// Exit with error if any warning or critical issues found
-    pub fail_on_warning: bool,
+    pub fail_on_warning:  bool,
     /// Category filter (empty = show all)
-    pub filter: LintCategoryFilter,
+    pub filter:           LintCategoryFilter,
 }
 
 /// Lint output response
 #[derive(Debug, Serialize)]
 pub struct LintResponse {
     /// Overall design score (0-100)
-    pub overall_score: u8,
+    pub overall_score:   u8,
     /// Severity counts
     pub severity_counts: SeverityCounts,
     /// Category scores
-    pub categories: CategoryScores,
+    pub categories:      CategoryScores,
 }
 
 /// Severity counts in audit
@@ -67,24 +67,24 @@ pub struct SeverityCounts {
     /// Critical issues
     pub critical: usize,
     /// Warning issues
-    pub warning: usize,
+    pub warning:  usize,
     /// Info issues
-    pub info: usize,
+    pub info:     usize,
 }
 
 /// Category scores
 #[derive(Debug, Serialize)]
 pub struct CategoryScores {
     /// Federation audit score
-    pub federation: u8,
+    pub federation:    u8,
     /// Cost audit score
-    pub cost: u8,
+    pub cost:          u8,
     /// Cache audit score
-    pub cache: u8,
+    pub cache:         u8,
     /// Authorization audit score
     pub authorization: u8,
     /// Compilation audit score
-    pub compilation: u8,
+    pub compilation:   u8,
 }
 
 /// Run lint command on a schema
@@ -282,8 +282,8 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
 
     let severity_counts = SeverityCounts {
         critical: visible_critical,
-        warning: visible_warning,
-        info: if show_all {
+        warning:  visible_warning,
+        info:     if show_all {
             audit.severity_count(fraiseql_core::design::IssueSeverity::Info)
         } else {
             0 // approximate; info counts not filtered per-category in this pass
@@ -294,11 +294,11 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
         overall_score: audit.score(),
         severity_counts,
         categories: CategoryScores {
-            federation: fed_score,
-            cost: cost_score,
-            cache: cache_score,
+            federation:    fed_score,
+            cost:          cost_score,
+            cache:         cache_score,
             authorization: auth_score,
-            compilation: comp_score,
+            compilation:   comp_score,
         },
     };
 
@@ -317,8 +317,8 @@ mod tests {
     fn default_opts() -> LintOptions {
         LintOptions {
             fail_on_critical: false,
-            fail_on_warning: false,
-            filter: LintCategoryFilter::default(),
+            fail_on_warning:  false,
+            filter:           LintCategoryFilter::default(),
         }
     }
 

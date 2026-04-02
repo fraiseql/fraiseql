@@ -70,11 +70,11 @@ pub struct SubscriptionFilter {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StaticFilterCondition {
     /// JSONB path in event data.
-    pub path: String,
+    pub path:     String,
     /// Comparison operator.
     pub operator: FilterOperator,
     /// Value to compare against.
-    pub value: serde_json::Value,
+    pub value:    serde_json::Value,
 }
 
 /// Filter comparison operators.
@@ -107,15 +107,15 @@ impl SubscriptionDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            return_type: return_type.into(),
-            arguments: Vec::new(),
-            description: None,
-            topic: None,
-            filter: None,
-            fields: Vec::new(),
+            name:          name.into(),
+            return_type:   return_type.into(),
+            arguments:     Vec::new(),
+            description:   None,
+            topic:         None,
+            filter:        None,
+            fields:        Vec::new(),
             filter_fields: Vec::new(),
-            deprecation: None,
+            deprecation:   None,
         }
     }
 

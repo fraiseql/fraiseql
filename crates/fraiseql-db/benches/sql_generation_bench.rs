@@ -26,23 +26,23 @@ use serde_json::json;
 
 fn simple_eq_clause() -> WhereClause {
     WhereClause::Field {
-        path: vec!["status".to_string()],
+        path:     vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("active"),
+        value:    json!("active"),
     }
 }
 
 fn and_clause() -> WhereClause {
     WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("active"),
+            value:    json!("active"),
         },
         WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Gte,
-            value: json!(18),
+            value:    json!(18),
         },
     ])
 }
@@ -50,26 +50,26 @@ fn and_clause() -> WhereClause {
 fn complex_and_or_clause() -> WhereClause {
     WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["type".to_string()],
+            path:     vec!["type".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("article"),
+            value:    json!("article"),
         },
         WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("published"),
+                value:    json!("published"),
             },
             WhereClause::And(vec![
                 WhereClause::Field {
-                    path: vec!["status".to_string()],
+                    path:     vec!["status".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("draft"),
+                    value:    json!("draft"),
                 },
                 WhereClause::Field {
-                    path: vec!["author".to_string(), "role".to_string()],
+                    path:     vec!["author".to_string(), "role".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("admin"),
+                    value:    json!("admin"),
                 },
             ]),
         ]),
@@ -79,9 +79,9 @@ fn complex_and_or_clause() -> WhereClause {
 fn in_clause(count: usize) -> WhereClause {
     let values: Vec<serde_json::Value> = (0..count).map(|i| json!(format!("val_{i}"))).collect();
     WhereClause::Field {
-        path: vec!["tag".to_string()],
+        path:     vec!["tag".to_string()],
         operator: WhereOperator::In,
-        value: serde_json::Value::Array(values),
+        value:    serde_json::Value::Array(values),
     }
 }
 

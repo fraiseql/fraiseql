@@ -32,9 +32,9 @@ const fn pg() -> PostgresWhereGenerator {
 #[test]
 fn where_eq_operator() {
     let clause = WhereClause::Field {
-        path: vec!["email".to_string()],
+        path:     vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("alice@example.com"),
+        value:    json!("alice@example.com"),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert_eq!(sql, "data->>'email' = $1");
@@ -47,9 +47,9 @@ fn where_eq_operator() {
 #[test]
 fn where_gt_operator() {
     let clause = WhereClause::Field {
-        path: vec!["score".to_string()],
+        path:     vec!["score".to_string()],
         operator: WhereOperator::Gt,
-        value: json!(100),
+        value:    json!(100),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     // The WHERE fragment must contain the > comparator.
@@ -64,9 +64,9 @@ fn where_gt_operator() {
 #[test]
 fn where_gt_with_cast() {
     let clause = WhereClause::Field {
-        path: vec!["created_at".to_string()],
+        path:     vec!["created_at".to_string()],
         operator: WhereOperator::Gt,
-        value: json!("2024-01-01T00:00:00Z"),
+        value:    json!("2024-01-01T00:00:00Z"),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert!(sql.contains("created_at"), "Expected field name in: {sql}");
@@ -84,9 +84,9 @@ fn where_gt_with_cast() {
 #[test]
 fn where_ilike_operator() {
     let clause = WhereClause::Field {
-        path: vec!["name".to_string()],
+        path:     vec!["name".to_string()],
         operator: WhereOperator::Ilike,
-        value: json!("%alice%"),
+        value:    json!("%alice%"),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert!(sql.to_uppercase().contains("ILIKE"), "Expected ILIKE in: {sql}");
@@ -101,9 +101,9 @@ fn where_ilike_operator() {
 #[test]
 fn special_chars_ilike_clause() {
     let clause = WhereClause::Field {
-        path: vec!["title".to_string()],
+        path:     vec!["title".to_string()],
         operator: WhereOperator::Ilike,
-        value: json!("%rust_lang%"),
+        value:    json!("%rust_lang%"),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert!(sql.to_uppercase().contains("ILIKE"), "Expected ILIKE in: {sql}");
@@ -125,9 +125,9 @@ fn special_chars_ilike_clause() {
 #[test]
 fn where_in_operator() {
     let clause = WhereClause::Field {
-        path: vec!["status".to_string()],
+        path:     vec!["status".to_string()],
         operator: WhereOperator::In,
-        value: json!(["active", "pending", "review"]),
+        value:    json!(["active", "pending", "review"]),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert!(sql.contains("ANY") || sql.contains("IN"), "Expected ANY or IN in: {sql}");
@@ -146,9 +146,9 @@ fn where_in_operator() {
 #[test]
 fn where_is_null() {
     let clause = WhereClause::Field {
-        path: vec!["deleted_at".to_string()],
+        path:     vec!["deleted_at".to_string()],
         operator: WhereOperator::IsNull,
-        value: json!(true),
+        value:    json!(true),
     };
     let (sql, _params) = pg().generate(&clause).expect("generate");
     assert!(sql.to_uppercase().contains("IS NULL"), "Expected IS NULL in: {sql}");
@@ -159,9 +159,9 @@ fn where_is_null() {
 #[test]
 fn where_is_not_null() {
     let clause = WhereClause::Field {
-        path: vec!["published_at".to_string()],
+        path:     vec!["published_at".to_string()],
         operator: WhereOperator::IsNull,
-        value: json!(false),
+        value:    json!(false),
     };
     let (sql, _params) = pg().generate(&clause).expect("generate");
     assert!(sql.to_uppercase().contains("IS NOT NULL"), "Expected IS NOT NULL in: {sql}");
@@ -180,14 +180,14 @@ fn where_is_not_null() {
 fn multiple_where_clauses_and() {
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["published".to_string()],
+            path:     vec!["published".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         },
         WhereClause::Field {
-            path: vec!["author_id".to_string()],
+            path:     vec!["author_id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("00000000-0000-0000-0000-000000000001"),
+            value:    json!("00000000-0000-0000-0000-000000000001"),
         },
     ]);
     let (sql, params) = pg().generate(&clause).expect("generate");
@@ -208,9 +208,9 @@ fn multiple_where_clauses_and() {
 #[test]
 fn boolean_literal_eq_clause() {
     let clause = WhereClause::Field {
-        path: vec!["published".to_string()],
+        path:     vec!["published".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(true),
+        value:    json!(true),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert!(sql.contains("published"), "Expected field name in: {sql}");
@@ -232,9 +232,9 @@ fn boolean_literal_eq_clause() {
 #[test]
 fn keyset_pagination_where_clause() {
     let clause = WhereClause::Field {
-        path: vec!["id".to_string()],
+        path:     vec!["id".to_string()],
         operator: WhereOperator::Gt,
-        value: json!("cursor-value-here"),
+        value:    json!("cursor-value-here"),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert!(sql.contains('>'), "Keyset pagination must use > not OFFSET: {sql}");
@@ -294,33 +294,33 @@ fn aggregate_sum_produces_correct_sql() {
     };
 
     let metadata = FactTableMetadata {
-        table_name: "tf_sales".to_string(),
-        measures: vec![MeasureColumn {
-            name: "amount".to_string(),
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "amount".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![],
         },
         denormalized_filters: vec![],
-        calendar_dimensions: vec![],
+        calendar_dimensions:  vec![],
     };
 
     let request = AggregationRequest {
-        table_name: "tf_sales".to_string(),
+        table_name:   "tf_sales".to_string(),
         where_clause: None,
-        group_by: vec![],
-        aggregates: vec![AggregateSelection::MeasureAggregate {
-            measure: "amount".to_string(),
+        group_by:     vec![],
+        aggregates:   vec![AggregateSelection::MeasureAggregate {
+            measure:  "amount".to_string(),
             function: AggregateFunction::Sum,
-            alias: "total".to_string(),
+            alias:    "total".to_string(),
         }],
-        having: vec![],
-        order_by: vec![],
-        limit: None,
-        offset: None,
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
     };
 
     let plan = AggregationPlanner::plan(request, metadata).expect("plan");
@@ -358,40 +358,40 @@ fn aggregate_group_by_produces_correct_sql() {
     };
 
     let metadata = FactTableMetadata {
-        table_name: "tf_sales".to_string(),
-        measures: vec![MeasureColumn {
-            name: "amount".to_string(),
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "amount".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![DimensionPath {
-                name: "category".to_string(),
+                name:      "category".to_string(),
                 json_path: "data->>'category'".to_string(),
                 data_type: "text".to_string(),
             }],
         },
         denormalized_filters: vec![],
-        calendar_dimensions: vec![],
+        calendar_dimensions:  vec![],
     };
 
     let request = AggregationRequest {
-        table_name: "tf_sales".to_string(),
+        table_name:   "tf_sales".to_string(),
         where_clause: None,
-        group_by: vec![GroupBySelection::Dimension {
-            path: "category".to_string(),
+        group_by:     vec![GroupBySelection::Dimension {
+            path:  "category".to_string(),
             alias: "category".to_string(),
         }],
-        aggregates: vec![AggregateSelection::MeasureAggregate {
-            measure: "amount".to_string(),
+        aggregates:   vec![AggregateSelection::MeasureAggregate {
+            measure:  "amount".to_string(),
             function: AggregateFunction::Sum,
-            alias: "total".to_string(),
+            alias:    "total".to_string(),
         }],
-        having: vec![],
-        order_by: vec![],
-        limit: None,
-        offset: None,
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
     };
 
     let plan = AggregationPlanner::plan(request, metadata).expect("plan");
@@ -487,14 +487,14 @@ fn mutation_zero_arg_sql_shape() {
 fn rls_combined_where_clause() {
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["published".to_string()],
+            path:     vec!["published".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(true),
+            value:    json!(true),
         },
         WhereClause::Field {
-            path: vec!["tenant_id".to_string()],
+            path:     vec!["tenant_id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("tenant-abc"),
+            value:    json!("tenant-abc"),
         },
     ]);
     let (sql, params) = pg().generate(&clause).expect("generate");
@@ -511,9 +511,9 @@ fn rls_combined_where_clause() {
 #[test]
 fn rls_only_clause() {
     let clause = WhereClause::Field {
-        path: vec!["tenant_id".to_string()],
+        path:     vec!["tenant_id".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("tenant-abc"),
+        value:    json!("tenant-abc"),
     };
     let (sql, params) = pg().generate(&clause).expect("generate");
     assert!(sql.contains("tenant_id"), "Expected RLS field in: {sql}");

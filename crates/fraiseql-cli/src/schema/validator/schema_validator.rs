@@ -45,9 +45,9 @@ impl SchemaValidator {
         for type_def in &schema.types {
             if type_names.contains(&type_def.name) {
                 report.errors.push(ValidationError {
-                    message: format!("Duplicate type name: '{}'", type_def.name),
-                    path: format!("types[{}].name", type_names.len()),
-                    severity: ErrorSeverity::Error,
+                    message:    format!("Duplicate type name: '{}'", type_def.name),
+                    path:       format!("types[{}].name", type_names.len()),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some("Type names must be unique".to_string()),
                 });
             }
@@ -69,9 +69,9 @@ impl SchemaValidator {
             // Check for duplicate query names
             if query_names.contains(&query.name) {
                 report.errors.push(ValidationError {
-                    message: format!("Duplicate query name: '{}'", query.name),
-                    path: format!("queries[{idx}].name"),
-                    severity: ErrorSeverity::Error,
+                    message:    format!("Duplicate query name: '{}'", query.name),
+                    path:       format!("queries[{idx}].name"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some("Query names must be unique".to_string()),
                 });
             }
@@ -81,12 +81,12 @@ impl SchemaValidator {
             let base_return = extract_base_type(&query.return_type);
             if !type_names.contains(base_return) {
                 report.errors.push(ValidationError {
-                    message: format!(
+                    message:    format!(
                         "Query '{}' references unknown type '{}'",
                         query.name, base_return
                     ),
-                    path: format!("queries[{idx}].return_type"),
-                    severity: ErrorSeverity::Error,
+                    path:       format!("queries[{idx}].return_type"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
                         Self::suggest_similar_type(base_return, &type_names)
@@ -99,12 +99,12 @@ impl SchemaValidator {
                 let base_arg = extract_base_type(&arg.arg_type);
                 if !type_names.contains(base_arg) {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Query '{}' argument '{}' references unknown type '{}'",
                             query.name, arg.name, base_arg
                         ),
-                        path: format!("queries[{idx}].arguments[{arg_idx}].type"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("queries[{idx}].arguments[{arg_idx}].type"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(base_arg, &type_names)
@@ -127,9 +127,12 @@ impl SchemaValidator {
             // Warning for queries without SQL source
             if query.sql_source.is_none() && query.returns_list {
                 report.errors.push(ValidationError {
-                    message: format!("Query '{}' returns a list but has no sql_source", query.name),
-                    path: format!("queries[{idx}]"),
-                    severity: ErrorSeverity::Warning,
+                    message:    format!(
+                        "Query '{}' returns a list but has no sql_source",
+                        query.name
+                    ),
+                    path:       format!("queries[{idx}]"),
+                    severity:   ErrorSeverity::Warning,
                     suggestion: Some("Add sql_source for SQL-backed queries".to_string()),
                 });
             }
@@ -143,9 +146,9 @@ impl SchemaValidator {
             // Check for duplicate mutation names
             if mutation_names.contains(&mutation.name) {
                 report.errors.push(ValidationError {
-                    message: format!("Duplicate mutation name: '{}'", mutation.name),
-                    path: format!("mutations[{idx}].name"),
-                    severity: ErrorSeverity::Error,
+                    message:    format!("Duplicate mutation name: '{}'", mutation.name),
+                    path:       format!("mutations[{idx}].name"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some("Mutation names must be unique".to_string()),
                 });
             }
@@ -155,12 +158,12 @@ impl SchemaValidator {
             let base_return = extract_base_type(&mutation.return_type);
             if !type_names.contains(base_return) {
                 report.errors.push(ValidationError {
-                    message: format!(
+                    message:    format!(
                         "Mutation '{}' references unknown type '{}'",
                         mutation.name, base_return
                     ),
-                    path: format!("mutations[{idx}].return_type"),
-                    severity: ErrorSeverity::Error,
+                    path:       format!("mutations[{idx}].return_type"),
+                    severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "Available types: {}",
                         Self::suggest_similar_type(base_return, &type_names)
@@ -173,12 +176,12 @@ impl SchemaValidator {
                 let base_arg = extract_base_type(&arg.arg_type);
                 if !type_names.contains(base_arg) {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Mutation '{}' argument '{}' references unknown type '{}'",
                             mutation.name, arg.name, base_arg
                         ),
-                        path: format!("mutations[{idx}].arguments[{arg_idx}].type"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("mutations[{idx}].arguments[{arg_idx}].type"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(base_arg, &type_names)
@@ -203,15 +206,15 @@ impl SchemaValidator {
                 let inject_names: Vec<&str> = mutation.inject.keys().map(String::as_str).collect();
                 let fn_name = mutation.sql_source.as_deref().unwrap_or("<unknown>");
                 report.errors.push(ValidationError {
-                    message: format!(
+                    message:    format!(
                         "Mutation '{}' has inject params {:?}. \
                          These are appended as the LAST positional arguments to \
                          `{fn_name}`. Your SQL function MUST declare injected \
                          parameters last, after all client-provided arguments.",
                         mutation.name, inject_names,
                     ),
-                    path: format!("Mutation.{}", mutation.name),
-                    severity: ErrorSeverity::Warning,
+                    path:       format!("Mutation.{}", mutation.name),
+                    severity:   ErrorSeverity::Warning,
                     suggestion: None,
                 });
             }
@@ -226,9 +229,9 @@ impl SchemaValidator {
                 // Check for duplicate observer names
                 if observer_names.contains(&observer.name) {
                     report.errors.push(ValidationError {
-                        message: format!("Duplicate observer name: '{}'", observer.name),
-                        path: format!("observers[{idx}].name"),
-                        severity: ErrorSeverity::Error,
+                        message:    format!("Duplicate observer name: '{}'", observer.name),
+                        path:       format!("observers[{idx}].name"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some("Observer names must be unique".to_string()),
                     });
                 }
@@ -237,12 +240,12 @@ impl SchemaValidator {
                 // Validate entity type exists
                 if !type_names.contains(&observer.entity) {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Observer '{}' references unknown entity '{}'",
                             observer.name, observer.entity
                         ),
-                        path: format!("observers[{idx}].entity"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("observers[{idx}].entity"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some(format!(
                             "Available types: {}",
                             Self::suggest_similar_type(&observer.entity, &type_names)
@@ -267,12 +270,12 @@ impl SchemaValidator {
                 // Validate at least one action exists
                 if observer.actions.is_empty() {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Observer '{}' must have at least one action",
                             observer.name
                         ),
-                        path: format!("observers[{idx}].actions"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("observers[{idx}].actions"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some("Add a webhook, slack, or email action".to_string()),
                     });
                 }
@@ -285,12 +288,14 @@ impl SchemaValidator {
                             let valid_action_types = ["webhook", "slack", "email"];
                             if !valid_action_types.contains(&action_type) {
                                 report.errors.push(ValidationError {
-                                    message: format!(
+                                    message:    format!(
                                         "Observer '{}' action {} has invalid type '{}'",
                                         observer.name, action_idx, action_type
                                     ),
-                                    path: format!("observers[{idx}].actions[{action_idx}].type"),
-                                    severity: ErrorSeverity::Error,
+                                    path:       format!(
+                                        "observers[{idx}].actions[{action_idx}].type"
+                                    ),
+                                    severity:   ErrorSeverity::Error,
                                     suggestion: Some(
                                         "Valid action types: webhook, slack, email".to_string(),
                                     ),
@@ -358,12 +363,12 @@ impl SchemaValidator {
                             }
                         } else {
                             report.errors.push(ValidationError {
-                                message: format!(
+                                message:    format!(
                                     "Observer '{}' action {} missing 'type' field",
                                     observer.name, action_idx
                                 ),
-                                path: format!("observers[{idx}].actions[{action_idx}]"),
-                                severity: ErrorSeverity::Error,
+                                path:       format!("observers[{idx}].actions[{action_idx}]"),
+                                severity:   ErrorSeverity::Error,
                                 suggestion: Some(
                                     "Add 'type' field (webhook, slack, or email)".to_string(),
                                 ),
@@ -371,12 +376,12 @@ impl SchemaValidator {
                         }
                     } else {
                         report.errors.push(ValidationError {
-                            message: format!(
+                            message:    format!(
                                 "Observer '{}' action {} must be an object",
                                 observer.name, action_idx
                             ),
-                            path: format!("observers[{idx}].actions[{action_idx}]"),
-                            severity: ErrorSeverity::Error,
+                            path:       format!("observers[{idx}].actions[{action_idx}]"),
+                            severity:   ErrorSeverity::Error,
                             suggestion: None,
                         });
                     }
@@ -386,12 +391,12 @@ impl SchemaValidator {
                 let valid_backoff_strategies = ["exponential", "linear", "fixed"];
                 if !valid_backoff_strategies.contains(&observer.retry.backoff_strategy.as_str()) {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Observer '{}' has invalid backoff_strategy '{}'",
                             observer.name, observer.retry.backoff_strategy
                         ),
-                        path: format!("observers[{idx}].retry.backoff_strategy"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("observers[{idx}].retry.backoff_strategy"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some(
                             "Valid strategies: exponential, linear, fixed".to_string(),
                         ),
@@ -400,36 +405,36 @@ impl SchemaValidator {
 
                 if observer.retry.max_attempts == 0 {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Observer '{}' has max_attempts=0, actions will never execute",
                             observer.name
                         ),
-                        path: format!("observers[{idx}].retry.max_attempts"),
-                        severity: ErrorSeverity::Warning,
+                        path:       format!("observers[{idx}].retry.max_attempts"),
+                        severity:   ErrorSeverity::Warning,
                         suggestion: Some("Set max_attempts >= 1".to_string()),
                     });
                 }
 
                 if observer.retry.initial_delay_ms == 0 {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Observer '{}' has initial_delay_ms=0, retries will be immediate",
                             observer.name
                         ),
-                        path: format!("observers[{idx}].retry.initial_delay_ms"),
-                        severity: ErrorSeverity::Warning,
+                        path:       format!("observers[{idx}].retry.initial_delay_ms"),
+                        severity:   ErrorSeverity::Warning,
                         suggestion: Some("Consider setting initial_delay_ms > 0".to_string()),
                     });
                 }
 
                 if observer.retry.max_delay_ms < observer.retry.initial_delay_ms {
                     report.errors.push(ValidationError {
-                        message: format!(
+                        message:    format!(
                             "Observer '{}' has max_delay_ms < initial_delay_ms",
                             observer.name
                         ),
-                        path: format!("observers[{idx}].retry.max_delay_ms"),
-                        severity: ErrorSeverity::Error,
+                        path:       format!("observers[{idx}].retry.max_delay_ms"),
+                        severity:   ErrorSeverity::Error,
                         suggestion: Some("max_delay_ms must be >= initial_delay_ms".to_string()),
                     });
                 }
@@ -483,22 +488,22 @@ mod tests {
 
     fn field(name: &str, ty: &str) -> IntermediateField {
         IntermediateField {
-            name: name.to_string(),
-            field_type: ty.to_string(),
-            nullable: false,
-            description: None,
-            directives: None,
+            name:           name.to_string(),
+            field_type:     ty.to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     None,
             requires_scope: None,
-            on_deny: None,
+            on_deny:        None,
         }
     }
 
     fn arg(name: &str, ty: &str) -> IntermediateArgument {
         IntermediateArgument {
-            name: name.to_string(),
-            arg_type: ty.to_string(),
-            nullable: false,
-            default: None,
+            name:       name.to_string(),
+            arg_type:   ty.to_string(),
+            nullable:   false,
+            default:    None,
             deprecated: None,
         }
     }

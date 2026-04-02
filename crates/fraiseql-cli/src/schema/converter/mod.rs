@@ -333,24 +333,24 @@ impl SchemaConverter {
     /// Convert `IntermediateFactTable` to `FactTableMetadata`.
     fn convert_fact_table(ft: IntermediateFactTable) -> FactTableMetadata {
         FactTableMetadata {
-            table_name: ft.table_name,
-            measures: ft
+            table_name:           ft.table_name,
+            measures:             ft
                 .measures
                 .into_iter()
                 .map(|m| MeasureColumn {
-                    name: m.name,
+                    name:     m.name,
                     sql_type: Self::parse_sql_type(&m.sql_type),
                     nullable: m.nullable,
                 })
                 .collect(),
-            dimensions: DimensionColumn {
-                name: ft.dimensions.name,
+            dimensions:           DimensionColumn {
+                name:  ft.dimensions.name,
                 paths: ft
                     .dimensions
                     .paths
                     .into_iter()
                     .map(|p| DimensionPath {
-                        name: p.name,
+                        name:      p.name,
                         json_path: p.json_path,
                         data_type: p.data_type,
                     })
@@ -360,12 +360,12 @@ impl SchemaConverter {
                 .denormalized_filters
                 .into_iter()
                 .map(|f| FilterColumn {
-                    name: f.name,
+                    name:     f.name,
                     sql_type: Self::parse_sql_type(&f.sql_type),
-                    indexed: f.indexed,
+                    indexed:  f.indexed,
                 })
                 .collect(),
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         }
     }
 

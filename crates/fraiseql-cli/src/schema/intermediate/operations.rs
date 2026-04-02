@@ -167,16 +167,16 @@ pub struct IntermediateMutation {
 pub struct IntermediateAutoParams {
     /// Enable automatic limit parameter (None = inherit from query_defaults)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub limit: Option<bool>,
+    pub limit:        Option<bool>,
     /// Enable automatic offset parameter (None = inherit from query_defaults)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub offset: Option<bool>,
+    pub offset:       Option<bool>,
     /// Enable automatic where clause parameter (None = inherit from query_defaults)
     #[serde(rename = "where", default, skip_serializing_if = "Option::is_none")]
     pub where_clause: Option<bool>,
     /// Enable automatic order_by parameter (None = inherit from query_defaults)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub order_by: Option<bool>,
+    pub order_by:     Option<bool>,
 }
 
 /// Global auto-param defaults for list queries (injected from TOML by the merger).
@@ -191,20 +191,20 @@ pub struct IntermediateQueryDefaults {
     /// Default for `where` parameter
     pub where_clause: bool,
     /// Default for `order_by` parameter
-    pub order_by: bool,
+    pub order_by:     bool,
     /// Default for `limit` parameter
-    pub limit: bool,
+    pub limit:        bool,
     /// Default for `offset` parameter
-    pub offset: bool,
+    pub offset:       bool,
 }
 
 impl Default for IntermediateQueryDefaults {
     fn default() -> Self {
         Self {
             where_clause: true,
-            order_by: true,
-            limit: true,
-            offset: true,
+            order_by:     true,
+            limit:        true,
+            offset:       true,
         }
     }
 }

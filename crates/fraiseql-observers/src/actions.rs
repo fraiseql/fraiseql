@@ -317,7 +317,7 @@ pub struct WebhookResponse {
     /// HTTP status code
     pub status_code: u16,
     /// Whether execution was successful
-    pub success: bool,
+    pub success:     bool,
     /// Duration in milliseconds
     pub duration_ms: f64,
 }
@@ -442,7 +442,7 @@ pub struct SlackResponse {
     /// HTTP status code
     pub status_code: u16,
     /// Whether execution was successful
-    pub success: bool,
+    pub success:     bool,
     /// Duration in milliseconds
     pub duration_ms: f64,
 }
@@ -474,8 +474,8 @@ impl EmailAction {
     ) -> Result<EmailResponse> {
         // Stub implementation
         Ok(EmailResponse {
-            success: true,
-            message_id: Some(uuid::Uuid::new_v4().to_string()),
+            success:     true,
+            message_id:  Some(uuid::Uuid::new_v4().to_string()),
             duration_ms: 10.0,
         })
     }
@@ -491,9 +491,9 @@ impl Default for EmailAction {
 #[derive(Debug, Clone)]
 pub struct EmailResponse {
     /// Whether execution was successful
-    pub success: bool,
+    pub success:     bool,
     /// Message ID from provider (if available)
-    pub message_id: Option<String>,
+    pub message_id:  Option<String>,
     /// Duration in milliseconds
     pub duration_ms: f64,
 }
@@ -504,7 +504,7 @@ pub struct ActionExecutionResult {
     /// Action type (webhook, slack, email, etc.)
     pub action_type: String,
     /// Success status
-    pub success: bool,
+    pub success:     bool,
     /// Duration in milliseconds
     pub duration_ms: f64,
     /// Optional message ID or tracking info
@@ -586,7 +586,7 @@ mod tests {
     fn test_action_execution_result() {
         let result = ActionExecutionResult {
             action_type: "webhook".to_string(),
-            success: true,
+            success:     true,
             duration_ms: 42.5,
             tracking_id: Some("abc123".to_string()),
         };

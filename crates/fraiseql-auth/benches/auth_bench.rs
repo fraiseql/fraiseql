@@ -30,11 +30,11 @@ fn jwt_benchmarks(c: &mut Criterion) {
         .as_secs();
 
     let claims = Claims {
-        sub: "user-bench-42".to_string(),
-        iat: now,
-        exp: now + 3600,
-        iss: "https://bench.fraiseql.dev".to_string(),
-        aud: vec!["api".to_string()],
+        sub:   "user-bench-42".to_string(),
+        iat:   now,
+        exp:   now + 3600,
+        iss:   "https://bench.fraiseql.dev".to_string(),
+        aud:   vec!["api".to_string()],
         extra: HashMap::new(),
     };
 
@@ -128,9 +128,9 @@ fn constant_time_benchmarks(c: &mut Criterion) {
 fn rate_limiter_benchmarks(c: &mut Criterion) {
     // Use a deterministic clock to keep benchmarks stable
     let config_allow = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 1_000_000, // effectively unlimited for the benchmark
-        window_secs: 60,
+        window_secs:  60,
     };
 
     let limiter_allow = KeyedRateLimiter::with_clock(config_allow, || 1_000);
@@ -143,9 +143,9 @@ fn rate_limiter_benchmarks(c: &mut Criterion) {
 
     // Benchmark the reject path: fill the limiter first, then measure rejection speed
     let config_reject = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 1,
-        window_secs: 3600,
+        window_secs:  3600,
     };
     let limiter_reject = KeyedRateLimiter::with_clock(config_reject, || 1_000);
     limiter_reject.check("192.168.1.1").unwrap(); // consume the single allowed request
@@ -158,9 +158,9 @@ fn rate_limiter_benchmarks(c: &mut Criterion) {
 
     // Benchmark with many distinct keys to stress the HashMap
     let config_many = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 1_000_000,
-        window_secs: 60,
+        window_secs:  60,
     };
     let limiter_many = KeyedRateLimiter::with_clock(config_many, || 1_000);
 

@@ -132,14 +132,14 @@ async fn test_cache_does_not_leak_across_tenant_boundaries() {
     // entries (the RLS policy manifests as different WHERE clauses in the query planner).
 
     let where_a = WhereClause::Field {
-        path: vec!["tenant_id".to_string()],
+        path:     vec!["tenant_id".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(TENANT_A),
+        value:    json!(TENANT_A),
     };
     let where_b = WhereClause::Field {
-        path: vec!["tenant_id".to_string()],
+        path:     vec!["tenant_id".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(TENANT_B),
+        value:    json!(TENANT_B),
     };
 
     // Query tenant A.

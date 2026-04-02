@@ -4,11 +4,11 @@
 #[derive(Debug, Clone)]
 pub struct ValidationError {
     /// Error message
-    pub message: String,
+    pub message:    String,
     /// JSON path to the error (e.g., `"queries[0].return_type"`)
-    pub path: String,
+    pub path:       String,
     /// Severity level
-    pub severity: ErrorSeverity,
+    pub severity:   ErrorSeverity,
     /// Suggested fix
     pub suggestion: Option<String>,
 }

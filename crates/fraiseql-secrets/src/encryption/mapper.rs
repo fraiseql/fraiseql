@@ -57,11 +57,11 @@ use crate::secrets_manager::SecretsError;
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// Field name
-    field_name: String,
+    field_name:   String,
     /// Whether field is encrypted
     is_encrypted: bool,
     /// Field value (plaintext for encrypted fields)
-    value: Vec<u8>,
+    value:        Vec<u8>,
 }
 
 impl FieldMapping {
@@ -109,7 +109,7 @@ impl FieldMapping {
 /// Transparently encrypts/decrypts fields during read/write operations.
 pub struct FieldMapper {
     /// Field adapter for encryption/decryption
-    adapter: Arc<DatabaseFieldAdapter>,
+    adapter:              Arc<DatabaseFieldAdapter>,
     /// Field encryption configuration
     field_encryption_map: HashMap<String, bool>,
 }

@@ -111,12 +111,12 @@ async fn test_list_tenant_isolation() {
 
     let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
-        page: 1,
-        page_size: 50,
+        page:            1,
+        page_size:       50,
         include_deleted: false,
-        entity_type: None,
-        event_type: None,
-        enabled: None,
+        entity_type:     None,
+        event_type:      None,
+        enabled:         None,
     };
 
     let (observers, count) = repo.list(&query, Some(1)).await.unwrap();
@@ -139,13 +139,13 @@ async fn test_list_injection_payload_returns_no_rows() {
 
     let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
-        page: 1,
-        page_size: 50,
+        page:            1,
+        page_size:       50,
         include_deleted: false,
         // Classic injection payload
-        entity_type: Some("' OR 1=1 --".to_string()),
-        event_type: None,
-        enabled: None,
+        entity_type:     Some("' OR 1=1 --".to_string()),
+        event_type:      None,
+        enabled:         None,
     };
 
     // Must return 0 rows: the payload is a literal string, not SQL.
@@ -174,12 +174,12 @@ async fn test_list_all_filters() {
 
     let repo = ObserverRepository::new(pool);
     let query = ListObserversQuery {
-        page: 1,
-        page_size: 50,
+        page:            1,
+        page_size:       50,
         include_deleted: false,
-        entity_type: Some("Invoice".to_string()),
-        event_type: Some("UPDATE".to_string()),
-        enabled: Some(true),
+        entity_type:     Some("Invoice".to_string()),
+        event_type:      Some("UPDATE".to_string()),
+        enabled:         Some(true),
     };
 
     let (observers, count) = repo.list(&query, Some(10)).await.unwrap();
@@ -202,12 +202,12 @@ async fn test_list_pagination_correctness() {
 
     let repo = ObserverRepository::new(pool);
     let base = ListObserversQuery {
-        page: 1,
-        page_size: 2,
+        page:            1,
+        page_size:       2,
         include_deleted: false,
-        entity_type: Some("Widget".to_string()),
-        event_type: Some("INSERT".to_string()),
-        enabled: None,
+        entity_type:     Some("Widget".to_string()),
+        event_type:      Some("INSERT".to_string()),
+        enabled:         None,
     };
 
     let (page1, total) = repo.list(&base, Some(99)).await.unwrap();
@@ -245,12 +245,12 @@ async fn test_list_logs_filters() {
 
     // Filter by status — all returned rows must be "success"
     let q_status = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: Some(obs_uuid.0),
-        status: Some("success".to_string()),
-        event_id: None,
-        trace_id: None,
+        status:      Some("success".to_string()),
+        event_id:    None,
+        trace_id:    None,
     };
     let (logs, _) = repo.list_logs(&q_status, None).await.unwrap();
     assert!(logs.iter().all(|l| l.status == "success"));
@@ -258,12 +258,12 @@ async fn test_list_logs_filters() {
 
     // Filter by trace_id — exactly one match
     let q_trace = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: None,
-        status: None,
-        event_id: None,
-        trace_id: Some(trace.clone()),
+        status:      None,
+        event_id:    None,
+        trace_id:    Some(trace.clone()),
     };
     let (logs, count) = repo.list_logs(&q_trace, None).await.unwrap();
     assert_eq!(count, 1);
@@ -271,12 +271,12 @@ async fn test_list_logs_filters() {
 
     // Malicious trace_id must return 0 rows
     let q_inject = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: None,
-        status: None,
-        event_id: None,
-        trace_id: Some("x' OR 1=1 --".to_string()),
+        status:      None,
+        event_id:    None,
+        trace_id:    Some("x' OR 1=1 --".to_string()),
     };
     let (logs_inject, cnt_inject) = repo.list_logs(&q_inject, None).await.unwrap();
     assert_eq!(logs_inject.len(), 0, "injection payload must not match rows");
@@ -284,12 +284,12 @@ async fn test_list_logs_filters() {
 
     // Filter by observer_id — both rows visible
     let q_obs = ListObserverLogsQuery {
-        page: 1,
-        page_size: 50,
+        page:        1,
+        page_size:   50,
         observer_id: Some(obs_uuid.0),
-        status: None,
-        event_id: None,
-        trace_id: None,
+        status:      None,
+        event_id:    None,
+        trace_id:    None,
     };
     let (logs_obs, cnt_obs) = repo.list_logs(&q_obs, None).await.unwrap();
     assert_eq!(cnt_obs, 2);

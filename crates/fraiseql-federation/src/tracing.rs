@@ -26,10 +26,10 @@ impl FederationTraceContext {
     /// Create new trace context with random IDs.
     pub fn new() -> Self {
         Self {
-            trace_id: format!("{:032x}", Uuid::new_v4().as_u128()),
+            trace_id:       format!("{:032x}", Uuid::new_v4().as_u128()),
             parent_span_id: format!("{:016x}", Uuid::new_v4().as_u64_pair().0),
-            trace_flags: "01".to_string(), // sampled
-            query_id: Uuid::new_v4().to_string(),
+            trace_flags:    "01".to_string(), // sampled
+            query_id:       Uuid::new_v4().to_string(),
         }
     }
 
@@ -49,10 +49,10 @@ impl FederationTraceContext {
         }
 
         Some(Self {
-            trace_id: parts[1].to_string(),
+            trace_id:       parts[1].to_string(),
             parent_span_id: parts[2].to_string(),
-            trace_flags: parts[3].to_string(),
-            query_id: Uuid::new_v4().to_string(),
+            trace_flags:    parts[3].to_string(),
+            query_id:       Uuid::new_v4().to_string(),
         })
     }
 

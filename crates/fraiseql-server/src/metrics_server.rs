@@ -243,18 +243,18 @@ const HISTOGRAM_LE_LABELS: [&str; 11] = [
 /// Per-operation metrics: count, total duration, error count, and histogram buckets.
 #[derive(Debug)]
 pub struct OperationMetrics {
-    count: AtomicU64,
-    duration_us: AtomicU64,
-    error_count: AtomicU64,
+    count:         AtomicU64,
+    duration_us:   AtomicU64,
+    error_count:   AtomicU64,
     bucket_counts: [AtomicU64; 11],
 }
 
 impl OperationMetrics {
     fn new() -> Self {
         Self {
-            count: AtomicU64::new(0),
-            duration_us: AtomicU64::new(0),
-            error_count: AtomicU64::new(0),
+            count:         AtomicU64::new(0),
+            duration_us:   AtomicU64::new(0),
+            error_count:   AtomicU64::new(0),
             bucket_counts: std::array::from_fn(|_| AtomicU64::new(0)),
         }
     }
@@ -283,9 +283,9 @@ impl OperationMetrics {
 /// to prevent unbounded label cardinality.
 #[derive(Debug)]
 pub struct OperationMetricsRegistry {
-    operations: DashMap<String, OperationMetrics>,
+    operations:     DashMap<String, OperationMetrics>,
     max_operations: usize,
-    overflow: OperationMetrics,
+    overflow:       OperationMetrics,
 }
 
 impl OperationMetricsRegistry {
@@ -425,8 +425,8 @@ impl Default for OperationMetricsRegistry {
 /// General-purpose histogram using the standard 11-bucket scheme.
 #[derive(Debug)]
 pub struct Histogram {
-    count: AtomicU64,
-    sum_us: AtomicU64,
+    count:         AtomicU64,
+    sum_us:        AtomicU64,
     bucket_counts: [AtomicU64; 11],
 }
 
@@ -435,8 +435,8 @@ impl Histogram {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            count: AtomicU64::new(0),
-            sum_us: AtomicU64::new(0),
+            count:         AtomicU64::new(0),
+            sum_us:        AtomicU64::new(0),
             bucket_counts: std::array::from_fn(|_| AtomicU64::new(0)),
         }
     }
@@ -484,7 +484,7 @@ impl Default for Histogram {
 
 /// Guard for timing metrics.
 pub struct TimingGuard {
-    start: Instant,
+    start:           Instant,
     duration_atomic: Arc<AtomicU64>,
 }
 
@@ -510,37 +510,37 @@ impl TimingGuard {
 #[derive(Debug)]
 pub struct PrometheusMetrics {
     /// Total GraphQL queries executed
-    pub queries_total: u64,
+    pub queries_total:              u64,
     /// Successful GraphQL queries
-    pub queries_success: u64,
+    pub queries_success:            u64,
     /// Failed GraphQL queries
-    pub queries_error: u64,
+    pub queries_error:              u64,
     /// Average query duration in milliseconds
-    pub queries_avg_duration_ms: f64,
+    pub queries_avg_duration_ms:    f64,
     /// Total database queries executed
-    pub db_queries_total: u64,
+    pub db_queries_total:           u64,
     /// Average database query duration in milliseconds
     pub db_queries_avg_duration_ms: f64,
     /// Total validation errors
-    pub validation_errors_total: u64,
+    pub validation_errors_total:    u64,
     /// Total parse errors
-    pub parse_errors_total: u64,
+    pub parse_errors_total:         u64,
     /// Total execution errors
-    pub execution_errors_total: u64,
+    pub execution_errors_total:     u64,
     /// Total HTTP requests processed
-    pub http_requests_total: u64,
+    pub http_requests_total:        u64,
     /// HTTP 2xx responses
-    pub http_responses_2xx: u64,
+    pub http_responses_2xx:         u64,
     /// HTTP 4xx responses
-    pub http_responses_4xx: u64,
+    pub http_responses_4xx:         u64,
     /// HTTP 5xx responses
-    pub http_responses_5xx: u64,
+    pub http_responses_5xx:         u64,
     /// Cache hit count
-    pub cache_hits: u64,
+    pub cache_hits:                 u64,
     /// Cache miss count
-    pub cache_misses: u64,
+    pub cache_misses:               u64,
     /// Cache hit ratio (0.0 to 1.0)
-    pub cache_hit_ratio: f64,
+    pub cache_hit_ratio:            f64,
 }
 
 impl PrometheusMetrics {
