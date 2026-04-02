@@ -21,7 +21,7 @@ use fraiseql_core::cache::{CacheConfig, QueryResultCache};
 use fraiseql_db::JsonbValue;
 
 fn make_result() -> Vec<JsonbValue> {
-    vec![serde_json::from_str(r#"{"id": 1, "name": "bench"}"#).unwrap()]
+    vec![serde_json::from_str(r#"{"data": {"id": 1, "name": "bench"}}"#).unwrap()]
 }
 
 fn bench_cache_put_get(c: &mut Criterion) {

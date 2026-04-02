@@ -40,7 +40,7 @@ fn make_cache() -> Arc<QueryResultCache> {
 }
 
 fn make_result() -> Vec<JsonbValue> {
-    vec![serde_json::from_str(r#"{"id": 1, "name": "test"}"#).unwrap()]
+    vec![serde_json::from_str(r#"{"data": {"id": 1, "name": "test"}}"#).unwrap()]
 }
 
 /// Pre-populate the cache with `KEY_COUNT` entries.

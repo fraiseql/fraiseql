@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
-#[cfg(all(feature = "arrow", feature = "auth"))]
+#[cfg(feature = "arrow")]
 use fraiseql_core::security::OidcValidator;
 use fraiseql_core::{
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
@@ -196,6 +196,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Initialize OIDC validator if auth is configured
+        #[cfg(feature = "auth")]
         let oidc_validator = if let Some(ref auth_config) = config.auth {
             info!(
                 issuer = %auth_config.issuer,
@@ -208,6 +209,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         } else {
             None
         };
+        #[cfg(not(feature = "auth"))]
+        let oidc_validator = None;
 
         // Initialize rate limiter: compiled schema config takes priority over server config.
         let rate_limiter = if let Some(rl) = schema_rate_limiter {

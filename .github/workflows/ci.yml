@@ -170,7 +170,7 @@ jobs:
               --all-features --verbose
             # Test crates with explicit feature lists (no test-* infra features)
             # SYNC:CORE_FEATURES — keep in sync with other SYNC:CORE_FEATURES locations
-            cargo test -p fraiseql-core --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --verbose
+            cargo test -p fraiseql-core --features "arrow,federation,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --verbose
             # SYNC:DB_FEATURES — keep in sync with other SYNC:DB_FEATURES locations
             cargo test -p fraiseql-db --features "grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --verbose
             # Server lib tests only (integration tests need PostgreSQL)
@@ -239,7 +239,7 @@ jobs:
         # MySQL and SQL Server tests run in their own integration jobs.
         run: |
           # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
-          cargo test -p fraiseql-core --features "test-postgres,arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --test '*' -- --test-threads=1
+          cargo test -p fraiseql-core --features "test-postgres,arrow,federation,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" --test '*' -- --test-threads=1
           # SYNC:DB_TEST_FEATURES — keep in sync with other SYNC:DB_TEST_FEATURES locations
           cargo test -p fraiseql-db --features "test-postgres,grpc,mysql,postgres,rich-filters,sqlite,sqlserver,wire-backend" --test '*' -- --test-threads=1
           # fraiseql-arrow Tier 3 (DB-backed) flight tests — these skip gracefully

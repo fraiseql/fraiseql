@@ -50,6 +50,7 @@ fn test_api_query_response_types_defined() {
 }
 
 /// Test API federation endpoint types are correctly defined.
+#[cfg(feature = "federation")]
 #[test]
 fn test_api_federation_response_types_defined() {
     use fraiseql_server::routes::api::federation::{GraphResponse, SubgraphsResponse};

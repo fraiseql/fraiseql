@@ -151,6 +151,86 @@ test-sqlserver = ["sqlserver", "fraiseql-db/test-sqlserver"]
 test-utils = []
 wire-backend = ["fraiseql-db/wire-backend"]
 
+[[test]]
+name = "federation"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_compliance"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_composition_validation"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_dependency_graph"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_directives"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_entity_resolver"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_field_directives"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_http_requires_runtime"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_multi_subgraph"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_mutation_http"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_observability_integration"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_observability_perf"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_provides_enforcement"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_requires_provides_enforcement"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_saga_observability"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_saga_real"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_scenarios"
+required-features = ["federation"]
+
+[[test]]
+name = "e2e_cross_database_chain"
+required-features = ["federation"]
+
+[[test]]
+name = "e2e_python_authoring"
+required-features = ["federation"]
+
+[[test]]
+name = "e2e_typescript_authoring"
+required-features = ["federation"]
+
 [lints]
 workspace = true
 

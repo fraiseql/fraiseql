@@ -176,7 +176,7 @@ impl RedisStateStore {
     /// ```
     /// # Errors
     ///
-    /// Returns [`AuthError::ConfigError`] if the Redis URL is invalid or if the
+    /// Returns [`AuthError::ConfigError`](crate::error::AuthError::ConfigError) if the Redis URL is invalid or if the
     /// connection manager cannot be established.
     pub async fn new(redis_url: &str) -> Result<Self> {
         let client =

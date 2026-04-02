@@ -190,3 +190,15 @@ version.workspace = true
 [[test]]
 name = "secrets_manager_integration_test"
 required-features = ["secrets"]
+
+[[test]]
+name = "api_federation_tests"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_integration_test"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_saga_validation_test"
+required-features = ["federation"]

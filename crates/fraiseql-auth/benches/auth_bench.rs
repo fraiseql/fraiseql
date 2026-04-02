@@ -129,7 +129,7 @@ fn rate_limiter_benchmarks(c: &mut Criterion) {
     // Use a deterministic clock to keep benchmarks stable
     let config_allow = AuthRateLimitConfig {
         enabled:      true,
-        max_requests: 1_000_000, // effectively unlimited for the benchmark
+        max_requests: u32::MAX, // must be truly unlimited: fixed clock means window never resets
         window_secs:  60,
     };
 
@@ -159,7 +159,7 @@ fn rate_limiter_benchmarks(c: &mut Criterion) {
     // Benchmark with many distinct keys to stress the HashMap
     let config_many = AuthRateLimitConfig {
         enabled:      true,
-        max_requests: 1_000_000,
+        max_requests: u32::MAX,
         window_secs:  60,
     };
     let limiter_many = KeyedRateLimiter::with_clock(config_many, || 1_000);

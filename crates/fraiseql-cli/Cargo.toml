@@ -47,6 +47,7 @@ tower = {workspace = true}
 
 [features]
 default = []
+federation = ["fraiseql-core/federation"]
 run-server = ["dep:fraiseql-server", "dep:axum"]
 
 [lints]
@@ -65,6 +66,46 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+
+[[test]]
+name = "cli_federation_validation"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_cli_advanced"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_cli_compose"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_composition_advanced"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_composition_validator"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_cross_subgraph_validation"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_cross_subgraph_validation_advanced"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_edge_cases"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_graph_tests"
+required-features = ["federation"]
+
+[[test]]
+name = "federation_validation"
+required-features = ["federation"]
 
 [package.metadata.binstall]
 bin-dir = "fraiseql{ binary-ext }"
