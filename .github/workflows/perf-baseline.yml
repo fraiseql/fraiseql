@@ -57,9 +57,7 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build release binary
-        run: cargo build --release -p fraiseql-cli
-        env:
-          RUSTFLAGS: "-C target-cpu=native"
+        run: cargo build --release -p fraiseql-cli -p fraiseql-server
 
       - name: Wait for PostgreSQL
         run: |
