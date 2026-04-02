@@ -151,6 +151,7 @@ fn extract_empty_traceparent_returns_none() {
 
 // --- Trace context round-trip ---
 
+#[cfg(feature = "federation")]
 #[test]
 fn trace_context_to_traceparent_roundtrip() {
     use fraiseql_core::federation::FederationTraceContext;
