@@ -202,7 +202,7 @@ jobs:
 
     - name: Audit Rust dependencies
       run: |
-        cargo deny check advisories --format json > audit-results.json || true
+        cargo deny check advisories --format json > audit-results.json
         echo "✅ Rust dependency audit complete"
         cat audit-results.json
 

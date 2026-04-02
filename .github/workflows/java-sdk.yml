@@ -37,7 +37,7 @@ jobs:
         run: mvn -B verify
 
       - name: Check style
-        run: mvn -B checkstyle:check --if-present || true
+        run: mvn -B checkstyle:check --if-present
 
   publish:
     name: Publish to Maven Central

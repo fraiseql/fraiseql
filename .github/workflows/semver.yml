@@ -42,4 +42,5 @@ jobs:
         run: |
           cargo semver-checks check-release \
             --workspace \
-            --exclude fraiseql-test-utils
+            --exclude fraiseql-test-utils \
+            --baseline-rev HEAD~1

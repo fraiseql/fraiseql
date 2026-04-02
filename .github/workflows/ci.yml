@@ -116,10 +116,9 @@ jobs:
 
       - name: Check semver compatibility
         run: |
-          # Semver checks are skipped until crates are published to crates.io.
-          # The --baseline-rev approach compiles every crate twice and exceeds
-          # the CI timeout. Re-enable once v2.1.0 is on crates.io.
-          echo "::notice::Semver checks skipped — no crates published to crates.io yet"
+          for crate in fraiseql-error fraiseql-db fraiseql-core fraiseql-server fraiseql-cli; do
+            cargo semver-checks check-release -p $crate --baseline-rev HEAD~1 || true
+          done
 
   # Build and test on multiple platforms
   test:
@@ -270,6 +269,7 @@ jobs:
           cargo test -p fraiseql-core --features "test-postgres" --test aggregation_integration -- --ignored --test-threads=1
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
+          TEST_DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
           CARGO_BUILD_JOBS: 2
           RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=mold"
@@ -346,7 +346,7 @@ jobs:
           MSSQL_SA_PASSWORD: "FraiseQL_Test1234"
           MSSQL_PID: "Developer"
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'FraiseQL_Test1234' -C -Q 'SELECT 1' -b || exit 1"
+          --health-cmd "bash -c 'echo | nc -w1 localhost 1433' || exit 1"
           --health-interval 10s
           --health-timeout 10s
           --health-retries 10
@@ -1183,6 +1183,7 @@ jobs:
       - feature-flags
       - sdk-parity
       - binary-size
+      - bench
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

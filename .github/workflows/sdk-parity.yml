@@ -44,20 +44,24 @@ jobs:
       # -----------------------------------------------------------------------
       # TypeScript SDK
       # -----------------------------------------------------------------------
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdks/official/fraiseql-typescript/package-lock.json
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('sdks/official/fraiseql-typescript/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
 
       - name: Install TypeScript SDK dependencies
         working-directory: sdks/official/fraiseql-typescript
-        run: npm ci
+        run: bun install
 
       - name: Generate schema via TypeScript SDK
         working-directory: sdks/official/fraiseql-typescript
-        run: npx tsx tests/generate-parity-schema.ts > /tmp/schema_ts.json
+        run: bun run tests/generate-parity-schema.ts > /tmp/schema_ts.json
 
       # -----------------------------------------------------------------------
       # Go SDK

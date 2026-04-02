@@ -44,7 +44,7 @@ jobs:
         run: uv run ruff format --check src tests
 
       - name: Type check with ty
-        run: uv run ty check src || true
+        run: uv run ty check src
 
       - name: Run tests
         run: uv run pytest tests -v

@@ -52,6 +52,13 @@ jobs:
       - name: Build release binary
         run: cargo build --release -p fraiseql-server
 
+      - name: Verify schema file exists
+        run: |
+          if [ ! -f docker/e2e/schema.compiled.json ]; then
+            echo "::error::Schema file docker/e2e/schema.compiled.json not found"
+            exit 1
+          fi
+
       - name: Initialize test database
         run: |
           psql -h localhost -p 5433 -U fraiseql_test -d test_fraiseql -f tests/sql/postgres/init.sql

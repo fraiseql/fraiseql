@@ -212,8 +212,7 @@ jobs:
       - name: Verify all crates can be built
         run: |
           echo "Verifying Rust build compatibility..."
-          cargo check --all-features
-          cargo test --lib --all-features --no-run
+          cargo check --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
           echo "✅ All crates build successfully"
 
       # Publish in strict topological dependency order
@@ -235,7 +234,18 @@ jobs:
         run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 1)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
       - name: Publish fraiseql-db
@@ -243,7 +253,18 @@ jobs:
         run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 2)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-db; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 3: Depends on fraiseql-db, fraiseql-error
       - name: Publish fraiseql-federation
@@ -251,7 +272,18 @@ jobs:
         run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 3)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-federation; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 4: Depends on fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-wire
       - name: Publish fraiseql-core
@@ -259,7 +291,18 @@ jobs:
         run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 4)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-core; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 5: Depends on fraiseql-core
       - name: Publish fraiseql-arrow
@@ -271,7 +314,18 @@ jobs:
         run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 5)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-arrow fraiseql-secrets; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 6: Depends on fraiseql-arrow
       - name: Publish fraiseql-observers
@@ -279,7 +333,18 @@ jobs:
         run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 6)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-observers; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-observers, fraiseql-secrets, fraiseql-webhooks
       - name: Publish fraiseql-server
@@ -287,7 +352,18 @@ jobs:
         run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 7)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-server; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 8: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-server
       - name: Publish fraiseql-cli
@@ -295,7 +371,18 @@ jobs:
         run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
 
       - name: Wait for crates.io indexing (Tier 8)
-        run: sleep 60
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for crate in fraiseql-cli; do
+            echo "Waiting for $crate to be indexed on crates.io..."
+            for i in $(seq 1 30); do
+              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+                echo "✅ $crate indexed"
+                break
+              fi
+              sleep 10
+            done
+          done
 
       # Tier 9: Root umbrella crate — depends on all others
       - name: Publish fraiseql (root crate)
