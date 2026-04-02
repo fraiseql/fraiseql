@@ -425,7 +425,10 @@ async fn test_get_userinfo_no_endpoint() {
 
     let client = OIDCClient::new(config, "client_id", "secret").unwrap();
     let result = client.get_userinfo("token").await;
-    assert!(result.is_err(), "expected Err when no userinfo endpoint configured, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err when no userinfo endpoint configured, got: {result:?}"
+    );
     assert!(result.unwrap_err().contains("No userinfo endpoint"));
 }
 

@@ -20,10 +20,7 @@ mod command_tests {
             OutputFormat::from_str("invalid").is_err(),
             "\"invalid\" format must return error"
         );
-        assert!(
-            OutputFormat::from_str("yaml").is_err(),
-            "\"yaml\" format must return error"
-        );
+        assert!(OutputFormat::from_str("yaml").is_err(), "\"yaml\" format must return error");
     }
 
     #[test]

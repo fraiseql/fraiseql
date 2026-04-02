@@ -39,23 +39,18 @@ module FraiseQL
     private
 
     def execute(body)
+      execute_with_retries(body)
+    end
+
+    def execute_with_retries(body)
       max_attempts = @retry_config&.max_attempts || 1
-      attempt = 0
-      last_error = nil
 
-      while attempt < max_attempts
-        begin
-          return do_request(body)
-        rescue FraiseQL::Error => e
-          last_error = e
-          attempt += 1
-          break unless @retry_config&.retryable?(e) && attempt < max_attempts
-
-          sleep(@retry_config.delay_for(attempt - 1))
-        end
+      max_attempts.times do |attempt|
+        return do_request(body)
+      rescue FraiseQL::Error => e
+        raise e if attempt == max_attempts - 1 || !@retry_config&.retryable?(e)
+        sleep(@retry_config.delay_for(attempt))
       end
-
-      raise last_error if last_error
     end
 
     def do_request(body)

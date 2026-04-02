@@ -37,7 +37,10 @@ fn test_pattern_validator_rejects_non_matching_value() {
 fn test_pattern_validator_rejects_empty_string_for_non_empty_pattern() {
     let v = PatternValidator::new("^.+$", "must not be empty").unwrap();
     let result = v.validate("", "username");
-    assert!(result.is_err(), "expected Err for empty string with non-empty pattern, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err for empty string with non-empty pattern, got: {result:?}"
+    );
     if let FraiseQLError::Validation { path, .. } = result.unwrap_err() {
         assert_eq!(path.as_deref(), Some("username"));
     }

@@ -121,7 +121,11 @@ impl KeyVersionMetadata {
         } else {
             // Reason: i64→f64 precision loss is negligible for second-granularity TTL values;
             // f64→u32 is safe because the result is clamped to [0, 100].
-            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
             let percent = ((elapsed.num_seconds() as f64 / total_ttl.num_seconds() as f64) * 100.0)
                 .min(100.0) as u32;
             percent
@@ -289,8 +293,14 @@ impl RotationMetrics {
             let successful = total - failed;
             // Reason: u64→f64 precision loss is negligible for rotation counts;
             // f64→u32 is safe because the result is in [0, 100].
-            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            { ((successful as f64 / total as f64) * 100.0) as u32 }
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
+            {
+                ((successful as f64 / total as f64) * 100.0) as u32
+            }
         }
     }
 

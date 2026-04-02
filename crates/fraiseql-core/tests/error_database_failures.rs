@@ -16,7 +16,10 @@ async fn test_query_returns_database_error_on_injected_failure() {
 
     assert!(result.is_err(), "expected Err from injected failure, got: {result:?}");
     let err = result.unwrap_err();
-    assert!(matches!(err, FraiseQLError::Database { .. }), "expected Database error, got: {err:?}");
+    assert!(
+        matches!(err, FraiseQLError::Database { .. }),
+        "expected Database error, got: {err:?}"
+    );
     assert!(err.is_server_error());
 }
 
@@ -33,7 +36,10 @@ async fn test_second_query_fails_while_first_succeeds() {
 
     // Second query fails
     let result2 = adapter.execute_where_query("v_user", None, None, None, None).await;
-    assert!(result2.is_err(), "expected Err on second query (fail_on_query(1)), got: {result2:?}");
+    assert!(
+        result2.is_err(),
+        "expected Err on second query (fail_on_query(1)), got: {result2:?}"
+    );
 }
 
 #[tokio::test]

@@ -123,9 +123,7 @@ fn validate_clickhouse_url(url: &str) -> Result<()> {
 
     let host_raw = parsed.host_str().unwrap_or("");
     if host_raw.is_empty() {
-        return Err(ArrowFlightError::Configuration(format!(
-            "ClickHouse URL has no host: {url}"
-        )));
+        return Err(ArrowFlightError::Configuration(format!("ClickHouse URL has no host: {url}")));
     }
 
     // The `url` crate wraps IPv6 literals in brackets in `host_str()` (e.g. "[::1]").
@@ -176,7 +174,6 @@ const fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
     let [a, b, ..] = addr.octets();
     a == 100 && (b & 0xC0) == 64
 }
-
 
 impl Default for ClickHouseSinkConfig {
     fn default() -> Self {
@@ -651,7 +648,9 @@ mod tests {
             url: TEST_URL.to_string(),
             ..Default::default()
         };
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
     }
 
     #[test]

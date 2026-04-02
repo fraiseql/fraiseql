@@ -1,8 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use super::*;
-use crate::error::FraiseQLError;
-use crate::validation::ValidationRule;
+use crate::{error::FraiseQLError, validation::ValidationRule};
 
 #[test]
 fn test_custom_type_def_new() {
@@ -19,12 +18,12 @@ fn test_custom_type_def_new() {
 #[test]
 fn test_custom_type_def_with_all_fields() {
     let def = CustomTypeDef {
-        name: "ISBN".to_string(),
-        description: Some("International Standard Book Number".to_string()),
+        name:             "ISBN".to_string(),
+        description:      Some("International Standard Book Number".to_string()),
         specified_by_url: Some("https://www.isbn-international.org/".to_string()),
         validation_rules: vec![],
-        elo_expression: Some("matches(value, /^[0-9-]{10,17}$/)".to_string()),
-        base_type: Some("String".to_string()),
+        elo_expression:   Some("matches(value, /^[0-9-]{10,17}$/)".to_string()),
+        base_type:        Some("String".to_string()),
     };
 
     assert_eq!(def.name, "ISBN");
@@ -136,7 +135,7 @@ fn test_registry_clear() {
 #[test]
 fn test_registry_max_scalars_limit() {
     let config = CustomTypeRegistryConfig {
-        max_scalars: Some(2),
+        max_scalars:    Some(2),
         enable_caching: false,
     };
     let registry = CustomTypeRegistry::new(config);

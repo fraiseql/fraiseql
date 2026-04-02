@@ -36,13 +36,7 @@ fn bench_cache_put_get(c: &mut Criterion) {
             let key = i;
             i = i.wrapping_add(1);
             cache
-                .put(
-                    key,
-                    result.clone(),
-                    vec!["v_user".to_string()],
-                    None,
-                    Some("User"),
-                )
+                .put(key, result.clone(), vec!["v_user".to_string()], None, Some("User"))
                 .unwrap();
             let _ = cache.get(key).unwrap();
         });
@@ -62,15 +56,7 @@ fn bench_cache_put_get(c: &mut Criterion) {
         let result = make_result();
         // Warm up 100 entries
         for i in 0..100_u64 {
-            cache
-                .put(
-                    i,
-                    result.clone(),
-                    vec!["v_user".to_string()],
-                    None,
-                    None,
-                )
-                .unwrap();
+            cache.put(i, result.clone(), vec!["v_user".to_string()], None, None).unwrap();
         }
         let mut i: u64 = 0;
         b.iter(|| {
@@ -86,15 +72,7 @@ fn bench_cache_put_get(c: &mut Criterion) {
         b.iter(|| {
             let cache = QueryResultCache::new(CacheConfig::with_max_entries(10_000));
             for i in 0..100_u64 {
-                cache
-                    .put(
-                        i,
-                        result.clone(),
-                        vec!["v_user".to_string()],
-                        None,
-                        None,
-                    )
-                    .unwrap();
+                cache.put(i, result.clone(), vec!["v_user".to_string()], None, None).unwrap();
             }
             cache.invalidate_views(&["v_user".to_string()]).unwrap();
         });

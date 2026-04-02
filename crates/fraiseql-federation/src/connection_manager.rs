@@ -275,9 +275,9 @@ mod tests {
     #[test]
     fn test_validate_accepts_valid_defaults() {
         let config = RemoteDatabaseConfig::new("postgresql://host/db");
-        config.validate().unwrap_or_else(|e| {
-            panic!("expected Ok for default config (no explicit values): {e}")
-        });
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for default config (no explicit values): {e}"));
     }
 
     #[cfg(feature = "unstable")]

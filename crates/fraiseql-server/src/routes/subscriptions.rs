@@ -66,8 +66,8 @@ static WS_SUBSCRIPTIONS_REJECTED: AtomicU64 = AtomicU64::new(0);
 #[must_use]
 pub fn subscription_metrics() -> SubscriptionMetrics {
     SubscriptionMetrics {
-        connections_accepted: WS_CONNECTIONS_ACCEPTED.load(Ordering::Relaxed),
-        connections_rejected: WS_CONNECTIONS_REJECTED.load(Ordering::Relaxed),
+        connections_accepted:   WS_CONNECTIONS_ACCEPTED.load(Ordering::Relaxed),
+        connections_rejected:   WS_CONNECTIONS_REJECTED.load(Ordering::Relaxed),
         subscriptions_accepted: WS_SUBSCRIPTIONS_ACCEPTED.load(Ordering::Relaxed),
         subscriptions_rejected: WS_SUBSCRIPTIONS_REJECTED.load(Ordering::Relaxed),
     }
@@ -88,9 +88,9 @@ pub fn reset_metrics_for_test() {
 /// Snapshot of subscription counters.
 pub struct SubscriptionMetrics {
     /// Total `WebSocket` connections accepted (after `on_connect`).
-    pub connections_accepted: u64,
+    pub connections_accepted:   u64,
     /// Total `WebSocket` connections rejected by lifecycle hook.
-    pub connections_rejected: u64,
+    pub connections_rejected:   u64,
     /// Total subscriptions accepted (after `on_subscribe`).
     pub subscriptions_accepted: u64,
     /// Total subscriptions rejected (by hook or limit).
@@ -224,7 +224,7 @@ async fn handle_subscription_connection(
                 // Best-effort: connection is already being terminated.
                 let _ = sender
                     .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-                        code: 4400,
+                        code:   4400,
                         reason: reason.into(),
                     })))
                     .await;
@@ -250,7 +250,7 @@ async fn handle_subscription_connection(
             // Best-effort: connection is already being terminated.
             let _ = sender
                 .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-                    code: CloseCode::ConnectionInitTimeout.code(),
+                    code:   CloseCode::ConnectionInitTimeout.code(),
                     reason: CloseCode::ConnectionInitTimeout.reason().into(),
                 })))
                 .await;

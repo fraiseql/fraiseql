@@ -217,12 +217,16 @@ mod constant_time_comparison {
         for (i, t) in token1.iter_mut().enumerate() {
             #[allow(clippy::cast_possible_truncation)]
             // Reason: vec length is 256 so `i` is always 0..=255 — no truncation possible
-            { *t = i as u8; }
+            {
+                *t = i as u8;
+            }
         }
         for (i, t) in token2.iter_mut().enumerate() {
             #[allow(clippy::cast_possible_truncation)]
             // Reason: vec length is 256 so `i` is always 0..=255 — no truncation possible
-            { *t = i as u8; }
+            {
+                *t = i as u8;
+            }
         }
 
         assert!(ConstantTimeOps::compare(&token1, &token2));

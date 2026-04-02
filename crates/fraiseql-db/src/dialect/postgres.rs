@@ -1,7 +1,6 @@
 //! PostgreSQL SQL dialect implementation.
 
-use std::borrow::Cow;
-use std::fmt::Write;
+use std::{borrow::Cow, fmt::Write};
 
 use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
 

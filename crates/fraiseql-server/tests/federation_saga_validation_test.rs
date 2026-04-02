@@ -45,7 +45,8 @@ use std::collections::HashMap;
 
 // Common test utilities
 mod common;
-#[allow(unused_imports)] // Reason: shared harness re-exports many symbols; saga tests use a subset
+#[allow(unused_imports)]
+// Reason: shared harness re-exports many symbols; saga tests use a subset
 use common::{SagaStepDef, SagaStepResult, TestSagaExecutor};
 
 // ============================================================================
@@ -567,7 +568,9 @@ async fn test_saga_forward_phase_execution() {
         .with_compensation("release_inventory"),
     ];
 
-    let results = executor.execute_saga("saga-123", steps.clone()).await
+    let results = executor
+        .execute_saga("saga-123", steps.clone())
+        .await
         .unwrap_or_else(|e| panic!("Saga execution should succeed: {e}"));
     assert_eq!(results.len(), 2, "Should have executed 2 steps");
     assert!(results[0].success, "First step should succeed");
@@ -625,7 +628,9 @@ async fn test_multi_step_saga_execution() {
         SagaStepDef::new(3, "payment-service", "payments", serde_json::json!({"amount": 100.00})),
     ];
 
-    let results = executor.execute_saga("multi-saga", steps).await
+    let results = executor
+        .execute_saga("multi-saga", steps)
+        .await
         .unwrap_or_else(|e| panic!("expected Ok executing multi-step saga: {e}"));
     assert_eq!(results.len(), 3);
 

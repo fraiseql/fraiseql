@@ -61,11 +61,8 @@ pub(crate) use self::convert::{
     encode_json_to_arrow_batch, record_batch_to_flight_data, schema_to_flight_data,
 };
 use crate::{
-    cache::QueryCache,
-    db::ArrowDatabaseAdapter,
-    event_storage::ArrowEventStorage,
-    metadata::SchemaRegistry,
-    subscription::SubscriptionManager,
+    cache::QueryCache, db::ArrowDatabaseAdapter, event_storage::ArrowEventStorage,
+    metadata::SchemaRegistry, subscription::SubscriptionManager,
 };
 
 /// Trait for executing GraphQL queries with security context (RLS filtering).

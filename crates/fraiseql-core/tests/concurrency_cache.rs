@@ -139,7 +139,10 @@ async fn test_concurrent_queries_different_views_independent() {
     }
 
     for handle in handles {
-        handle.await.unwrap().unwrap_or_else(|e| panic!("expected Ok from concurrent view query: {e}"));
+        handle
+            .await
+            .unwrap()
+            .unwrap_or_else(|e| panic!("expected Ok from concurrent view query: {e}"));
     }
 
     // Invalidate v_user only
@@ -190,7 +193,8 @@ async fn test_concurrent_cache_hits_return_consistent_data() {
         let expected_json = expected_json.clone();
         let wc = where_clause.clone();
         handles.push(tokio::spawn(async move {
-            let result = cached.execute_where_query("v_user", Some(&wc), None, None, None).await.unwrap();
+            let result =
+                cached.execute_where_query("v_user", Some(&wc), None, None, None).await.unwrap();
             let result_json: Vec<String> =
                 result.iter().map(|v| serde_json::to_string(v.as_value()).unwrap()).collect();
             assert_eq!(result_json, expected_json, "cached data must be consistent");

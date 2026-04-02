@@ -192,10 +192,10 @@ fn is_scalar_field_type(field_type: &FieldType) -> bool {
 
 fn error_result(message: &str) -> CallToolResult {
     CallToolResult {
-        content: vec![Content::text(message.to_string())],
+        content:            vec![Content::text(message.to_string())],
         structured_content: None,
-        is_error: Some(true),
-        meta: None,
+        is_error:           Some(true),
+        meta:               None,
     }
 }
 

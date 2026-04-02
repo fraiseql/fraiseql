@@ -7,9 +7,11 @@ use serde_json::json;
 use sqlx::Executor as _;
 
 use super::*;
-use crate::traits::{DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationStrategy};
-use crate::types::DatabaseType;
-use crate::where_clause::WhereClause;
+use crate::{
+    traits::{DatabaseAdapter, DirectMutationContext, DirectMutationOp, MutationStrategy},
+    types::DatabaseType,
+    where_clause::WhereClause,
+};
 
 /// Create an in-memory adapter and seed a `v_user` table with N rows.
 async fn setup_user_table(n: usize) -> SqliteAdapter {
@@ -409,8 +411,10 @@ async fn test_where_eq_operator() {
         operator: crate::where_clause::WhereOperator::Eq,
         value:    json!("user3"),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].as_value()["name"], "user3");
 }
@@ -423,8 +427,10 @@ async fn test_where_neq_operator() {
         operator: crate::where_clause::WhereOperator::Neq,
         value:    json!("user1"),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -437,8 +443,10 @@ async fn test_where_gt_operator() {
         operator: crate::where_clause::WhereOperator::Gt,
         value:    json!(23),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -451,8 +459,10 @@ async fn test_where_gte_operator() {
         operator: crate::where_clause::WhereOperator::Gte,
         value:    json!(23),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -465,8 +475,10 @@ async fn test_where_lt_operator() {
         operator: crate::where_clause::WhereOperator::Lt,
         value:    json!(23),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -479,8 +491,10 @@ async fn test_where_lte_operator() {
         operator: crate::where_clause::WhereOperator::Lte,
         value:    json!(23),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -492,8 +506,10 @@ async fn test_where_in_operator() {
         operator: crate::where_clause::WhereOperator::In,
         value:    json!(["user1", "user3", "user5"]),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -505,8 +521,10 @@ async fn test_where_not_in_operator() {
         operator: crate::where_clause::WhereOperator::Nin,
         value:    json!(["user1", "user2"]),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -519,8 +537,10 @@ async fn test_where_like_operator() {
         operator: crate::where_clause::WhereOperator::Like,
         value:    json!("user%"),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 5);
 }
 
@@ -533,8 +553,10 @@ async fn test_where_is_null_operator() {
         operator: crate::where_clause::WhereOperator::IsNull,
         value:    json!(true),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 3);
 }
 
@@ -547,8 +569,10 @@ async fn test_where_is_not_null_operator() {
         operator: crate::where_clause::WhereOperator::IsNull,
         value:    json!(false),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 0);
 }
 
@@ -568,8 +592,10 @@ async fn test_where_multiple_conditions_and() {
             value:    json!(22),
         },
     ]);
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].as_value()["name"], "user2");
 }
@@ -590,8 +616,10 @@ async fn test_where_multiple_conditions_or() {
             value:    json!("user5"),
         },
     ]);
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(results.len(), 2);
 }
 
@@ -605,8 +633,10 @@ async fn test_empty_result_set() {
         operator: crate::where_clause::WhereOperator::Eq,
         value:    json!("nonexistent"),
     };
-    let results =
-        adapter.execute_where_query("v_user", Some(&clause), None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("v_user", Some(&clause), None, None, None)
+        .await
+        .unwrap();
     assert!(results.is_empty());
 }
 
@@ -653,8 +683,8 @@ async fn test_projection_filters_fields() {
     let adapter = setup_user_table(3).await;
     let projection = SqlProjectionHint {
         database:                    crate::DatabaseType::SQLite,
-        projection_template:
-            "json_object('name', json_extract(data, '$.name')) AS data".to_string(),
+        projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
+            .to_string(),
         estimated_reduction_percent: 50,
     };
     let results = adapter

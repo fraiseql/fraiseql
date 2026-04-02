@@ -251,7 +251,8 @@ mod tests {
     /// 4. Wildcard origin is not used in production
     #[test]
     fn test_cors_configuration() {
-        #[allow(clippy::useless_vec)] // Reason: vec! provides clearer test data setup than slice literal
+        #[allow(clippy::useless_vec)]
+        // Reason: vec! provides clearer test data setup than slice literal
         let allowed_origins = vec!["https://example.com"];
 
         // Test allowed origin

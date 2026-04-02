@@ -34,7 +34,8 @@ fn test_compose_two_subgraphs_basic() {
     };
 
     let result = compose_federation_schemas(&[users_metadata, orders_metadata]);
-    let composed = result.unwrap_or_else(|e| panic!("Should compose two subgraphs successfully: {e}"));
+    let composed =
+        result.unwrap_or_else(|e| panic!("Should compose two subgraphs successfully: {e}"));
     assert_eq!(composed.types.len(), 2, "Should have 2 types in composed schema");
     assert!(composed.types.iter().any(|t| t.name == "User"), "Should include User type");
     assert!(composed.types.iter().any(|t| t.name == "Order"), "Should include Order type");
@@ -133,7 +134,8 @@ fn test_compose_preserves_key_directives() {
     };
 
     let result = compose_federation_schemas(&[users, orders]);
-    let composed = result.unwrap_or_else(|e| panic!("Should compose when preserving key directives: {e}"));
+    let composed =
+        result.unwrap_or_else(|e| panic!("Should compose when preserving key directives: {e}"));
     let user_type = composed.types.iter().find(|t| t.name == "User").unwrap();
     assert!(!user_type.keys.is_empty(), "Should preserve @key directives");
     assert!(
@@ -234,7 +236,8 @@ fn test_composed_schema_federation_enabled() {
     };
 
     let result = compose_federation_schemas(&[users, orders]);
-    let composed = result.unwrap_or_else(|e| panic!("Should compose for federation-enabled check: {e}"));
+    let composed =
+        result.unwrap_or_else(|e| panic!("Should compose for federation-enabled check: {e}"));
     assert!(composed.enabled, "Composed schema should have federation enabled");
     assert_eq!(composed.version, "v2", "Should maintain federation v2");
 }
@@ -291,7 +294,8 @@ fn test_compose_preserves_external_fields() {
     orders.types[0].external_fields.push("user_email".to_string());
 
     let result = compose_federation_schemas(&[users, orders.clone()]);
-    let composed = result.unwrap_or_else(|e| panic!("Should compose preserving external fields: {e}"));
+    let composed =
+        result.unwrap_or_else(|e| panic!("Should compose preserving external fields: {e}"));
     let order_type = composed.types.iter().find(|t| t.name == "Order").unwrap();
     assert!(!order_type.external_fields.is_empty(), "Should preserve @external fields");
 }
@@ -322,7 +326,8 @@ fn test_compose_preserves_shareable_fields() {
     };
 
     let result = compose_federation_schemas(&[users, orders]);
-    let composed = result.unwrap_or_else(|e| panic!("Should compose preserving shareable fields: {e}"));
+    let composed =
+        result.unwrap_or_else(|e| panic!("Should compose preserving shareable fields: {e}"));
     let user_type = composed.types.iter().find(|t| t.name == "User").unwrap();
     assert!(!user_type.shareable_fields.is_empty(), "Should preserve @shareable fields");
 }

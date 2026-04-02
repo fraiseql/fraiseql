@@ -3,10 +3,10 @@
 use super::connection_string::{ConnectionInfo, TransportType};
 use super::query_builder::QueryBuilder;
 use crate::connection::{Connection, ConnectionConfig, Transport};
-use crate::stream::JsonStream;
-use crate::Result;
 #[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
 use crate::error::WireError;
+use crate::stream::JsonStream;
+use crate::Result;
 use serde::de::DeserializeOwned;
 
 /// FraiseQL wire protocol client
@@ -49,13 +49,12 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info
-                    .host
-                    .as_ref()
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
-                let port = info
-                    .port
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
+                let host = info.host.as_ref().ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a host".into())
+                })?;
+                let port = info.port.ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a port".into())
+                })?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
@@ -110,13 +109,12 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info
-                    .host
-                    .as_ref()
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
-                let port = info
-                    .port
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
+                let host = info.host.as_ref().ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a host".into())
+                })?;
+                let port = info.port.ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a port".into())
+                })?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {
@@ -174,13 +172,12 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info
-                    .host
-                    .as_ref()
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
-                let port = info
-                    .port
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
+                let host = info.host.as_ref().ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a host".into())
+                })?;
+                let port = info.port.ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a port".into())
+                })?;
                 Transport::connect_tcp(host, port).await?
             }
             TransportType::Unix => {
@@ -252,13 +249,12 @@ impl FraiseClient {
 
         let transport = match info.transport {
             TransportType::Tcp => {
-                let host = info
-                    .host
-                    .as_ref()
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a host".into()))?;
-                let port = info
-                    .port
-                    .ok_or_else(|| crate::WireError::Config("TCP transport requires a port".into()))?;
+                let host = info.host.as_ref().ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a host".into())
+                })?;
+                let port = info.port.ok_or_else(|| {
+                    crate::WireError::Config("TCP transport requires a port".into())
+                })?;
                 Transport::connect_tcp_tls(host, port, &tls_config).await?
             }
             TransportType::Unix => {

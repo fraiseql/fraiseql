@@ -15,9 +15,7 @@ use crate::{
 ///
 /// Order matters: `\` is escaped first to avoid double-escaping.
 pub(crate) fn escape_like_literal(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
 }
 
 /// Maximum allowed length for user-supplied regex patterns.
@@ -39,7 +37,7 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
             message: format!(
                 "Regex pattern exceeds maximum length of {MAX_REGEX_PATTERN_LEN} bytes"
             ),
-            path: None,
+            path:    None,
         });
     }
 
@@ -72,7 +70,7 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
                                       ReDoS). Simplify the pattern to avoid `(…+)+`, \
                                       `(…*)*`, or similar constructs."
                                 .to_string(),
-                            path: None,
+                            path:    None,
                         });
                     }
                 }
@@ -677,7 +675,8 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             // This arm is only reachable if WhereOperator gains new variants
             // (it is #[non_exhaustive]).  Suppress the lint that fires when all
             // current variants are already matched above.
-            #[allow(unreachable_patterns)]  // Reason: defensive catch-all for future non_exhaustive variants
+            #[allow(unreachable_patterns)]
+            // Reason: defensive catch-all for future non_exhaustive variants
             _ => Err(FraiseQLError::Validation {
                 message: format!(
                     "Operator {operator:?} is not supported by the {} dialect",

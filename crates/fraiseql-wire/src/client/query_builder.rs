@@ -14,10 +14,10 @@
 //! - Error messages (type name included)
 
 use crate::client::FraiseClient;
-use crate::stream::QueryStream;
-use crate::Result;
 #[allow(unused_imports)] // Reason: used only in doc links for `# Errors` sections
 use crate::error::WireError;
+use crate::stream::QueryStream;
+use crate::Result;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::marker::PhantomData;
@@ -709,7 +709,7 @@ mod tests {
 
         #[derive(Deserialize, Debug)]
         // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+        #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
         struct TestUser {
             id: String,
             active: bool,

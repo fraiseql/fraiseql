@@ -26,7 +26,7 @@ use sqlx::postgres::PgPoolOptions;
 /// Test database setup and teardown.
 struct TestDb {
     #[allow(dead_code)] // Reason: pool held alive to keep connection open; not read directly
-    pool:          sqlx::PgPool,
+    pool: sqlx::PgPool,
     database_name: String,
 }
 
@@ -156,13 +156,12 @@ impl TestDb {
     /// Panics if `DATABASE_URL` is not set. This is safe because `setup()`
     /// already verified its presence.
     fn connection_string(&self) -> String {
-        let db_url = std::env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set — setup() checks this");
-        db_url.rsplit_once('/')
-            .map_or_else(
-                || format!("{}/{}", db_url, self.database_name),
-                |(base, _)| format!("{}/{}", base, self.database_name),
-            )
+        let db_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL must be set — setup() checks this");
+        db_url.rsplit_once('/').map_or_else(
+            || format!("{}/{}", db_url, self.database_name),
+            |(base, _)| format!("{}/{}", base, self.database_name),
+        )
     }
 }
 
@@ -170,8 +169,10 @@ impl Drop for TestDb {
     fn drop(&mut self) {
         // Clean up test database (non-blocking)
         let db_name = self.database_name.clone();
-        let default_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string());
+        let default_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
+                .to_string()
+        });
 
         // Spawn async task to clean up database
         std::thread::spawn(move || {
@@ -244,7 +245,9 @@ mod tests {
     /// Test that Flight database adapter can connect and execute queries
     #[tokio::test]
     async fn test_flight_adapter_executes_query() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create and wrap adapter
@@ -276,7 +279,9 @@ mod tests {
     /// Test querying ta_users table with Flight service
     #[tokio::test]
     async fn test_query_ta_users() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapters
@@ -298,7 +303,9 @@ mod tests {
     /// Test querying ta_orders table with Flight service
     #[tokio::test]
     async fn test_query_ta_orders() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapters
@@ -320,7 +327,9 @@ mod tests {
     /// Test that adapter correctly handles pagination with LIMIT
     #[tokio::test]
     async fn test_query_with_limit() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -343,7 +352,9 @@ mod tests {
     /// Test that adapter correctly handles OFFSET for pagination
     #[tokio::test]
     async fn test_query_with_offset() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -373,7 +384,9 @@ mod tests {
     /// Test that adapter can handle WHERE clauses
     #[tokio::test]
     async fn test_query_with_filter() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -400,7 +413,9 @@ mod tests {
     /// Test that adapter returns data in correct JSON format
     #[tokio::test]
     async fn test_query_returns_json_format() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -433,7 +448,9 @@ mod tests {
     /// Test that ta_orders data is correctly persisted
     #[tokio::test]
     async fn test_orders_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -458,7 +475,9 @@ mod tests {
     /// Test that ta_users data is correctly persisted
     #[tokio::test]
     async fn test_users_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapter
@@ -578,7 +597,9 @@ mod tests {
     async fn test_flight_service_with_cache() -> Result<(), Box<dyn std::error::Error>> {
         use fraiseql_arrow::FraiseQLFlightService;
 
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         // Create adapter with cache (60-second TTL)

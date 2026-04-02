@@ -274,13 +274,10 @@ impl KeyedRateLimiter {
         // CRITICAL: Acquire lock - this ensures all operations below are atomic.
         // On poison, recover the inner data — the HashMap is still valid even if the
         // thread that held the lock panicked mid-update (worst case: a stale entry).
-        let mut records = self
-            .records
-            .lock()
-            .unwrap_or_else(|poisoned| {
-                tracing::warn!("rate limiter mutex was poisoned, recovering");
-                poisoned.into_inner()
-            });
+        let mut records = self.records.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("rate limiter mutex was poisoned, recovering");
+            poisoned.into_inner()
+        });
         let now = (self.clock)();
 
         // Periodic expiry sweep to bound HashMap growth.
@@ -336,25 +333,19 @@ impl KeyedRateLimiter {
 
     /// Get the number of active rate limiters (for monitoring).
     pub fn active_limiters(&self) -> usize {
-        let records = self
-            .records
-            .lock()
-            .unwrap_or_else(|poisoned| {
-                tracing::warn!("rate limiter mutex was poisoned, recovering");
-                poisoned.into_inner()
-            });
+        let records = self.records.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("rate limiter mutex was poisoned, recovering");
+            poisoned.into_inner()
+        });
         records.len()
     }
 
     /// Clear all rate limiters (for testing or reset).
     pub fn clear(&self) {
-        let mut records = self
-            .records
-            .lock()
-            .unwrap_or_else(|poisoned| {
-                tracing::warn!("rate limiter mutex was poisoned, recovering");
-                poisoned.into_inner()
-            });
+        let mut records = self.records.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("rate limiter mutex was poisoned, recovering");
+            poisoned.into_inner()
+        });
         records.clear();
     }
 
@@ -440,7 +431,8 @@ impl Default for RateLimiters {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
@@ -590,7 +582,10 @@ mod tests {
         // Should allow 5 failed attempts
         for _ in 0..5 {
             let result = limiter.check(user);
-            assert!(result.is_ok(), "failed login attempt within limit should be allowed: {result:?}");
+            assert!(
+                result.is_ok(),
+                "failed login attempt within limit should be allowed: {result:?}"
+            );
         }
 
         // 6th should fail
@@ -882,11 +877,17 @@ mod tests {
 
         // 4th request should be rejected
         let r = limiter.check(key);
-        assert!(matches!(r, Err(AuthError::RateLimited { .. })), "request 4 should be rate-limited: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::RateLimited { .. })),
+            "request 4 should be rate-limited: {r:?}"
+        );
 
         // 5th request should also be rejected (counter didn't change)
         let r = limiter.check(key);
-        assert!(matches!(r, Err(AuthError::RateLimited { .. })), "request 5 should be rate-limited: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::RateLimited { .. })),
+            "request 5 should be rate-limited: {r:?}"
+        );
 
         // Counter should still be at 3 (not decremented on rejection)
         // This verifies that rejected requests didn't partially update state
@@ -912,7 +913,10 @@ mod tests {
         let r = limiter.check(key);
         assert!(matches!(r, Err(AuthError::RateLimited { .. })), "should be rate-limited: {r:?}");
         let r = limiter.check(key);
-        assert!(matches!(r, Err(AuthError::RateLimited { .. })), "should still be rate-limited: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::RateLimited { .. })),
+            "should still be rate-limited: {r:?}"
+        );
 
         // Verify state is consistent by clearing and re-checking
         limiter.clear();

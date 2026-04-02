@@ -152,14 +152,12 @@ impl FederatedType {
 
     /// Check if a field has the @requires directive
     pub fn field_has_requires(&self, field_name: &str) -> bool {
-        self.get_field_directives(field_name)
-            .is_some_and(|d| !d.requires.is_empty())
+        self.get_field_directives(field_name).is_some_and(|d| !d.requires.is_empty())
     }
 
     /// Check if a field has the @provides directive
     pub fn field_has_provides(&self, field_name: &str) -> bool {
-        self.get_field_directives(field_name)
-            .is_some_and(|d| !d.provides.is_empty())
+        self.get_field_directives(field_name).is_some_and(|d| !d.provides.is_empty())
     }
 
     /// Check if a field is marked as @shareable

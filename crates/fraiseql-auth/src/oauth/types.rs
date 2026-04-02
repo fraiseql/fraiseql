@@ -171,10 +171,7 @@ mod tests {
         let token: TokenResponse = serde_json::from_str(json)
             .expect("token response without optional fields must still deserialize");
 
-        assert!(
-            token.refresh_token.is_none(),
-            "missing refresh_token must deserialize to None"
-        );
+        assert!(token.refresh_token.is_none(), "missing refresh_token must deserialize to None");
         assert!(token.id_token.is_none(), "missing id_token must deserialize to None");
         assert!(token.scope.is_none(), "missing scope must deserialize to None");
     }
@@ -187,10 +184,7 @@ mod tests {
         }"#;
 
         let result: Result<TokenResponse, _> = serde_json::from_str(json);
-        assert!(
-            result.is_err(),
-            "token response without access_token must fail to deserialize"
-        );
+        assert!(result.is_err(), "token response without access_token must fail to deserialize");
     }
 
     #[test]

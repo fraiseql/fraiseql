@@ -82,9 +82,9 @@ pub struct QueryExecutionTrace {
 #[must_use = "call .finish() to construct the final value"]
 pub struct QueryTraceBuilder {
     query_id: String,
-    query: String,
-    phases: Vec<QueryPhaseSpan>,
-    start: Instant,
+    query:    String,
+    phases:   Vec<QueryPhaseSpan>,
+    start:    Instant,
 }
 
 impl QueryTraceBuilder {
@@ -103,9 +103,9 @@ impl QueryTraceBuilder {
 
         Self {
             query_id: query_id.to_string(),
-            query: query_str,
-            phases: Vec::new(),
-            start: Instant::now(),
+            query:    query_str,
+            phases:   Vec::new(),
+            start:    Instant::now(),
         }
     }
 
@@ -427,10 +427,10 @@ mod tests {
     #[test]
     fn test_query_phase_span_serialize() {
         let span = QueryPhaseSpan {
-            phase: "parse".to_string(),
+            phase:       "parse".to_string(),
             duration_us: 100,
-            success: true,
-            error: None,
+            success:     true,
+            error:       None,
         };
 
         let json = serde_json::to_string(&span).expect("serialize should work");

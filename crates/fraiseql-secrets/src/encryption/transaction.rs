@@ -101,10 +101,7 @@ impl TransactionContext {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or(std::time::Duration::ZERO)
             .as_micros();
-        let transaction_id = format!(
-            "txn_{micros}_{}",
-            &uuid::Uuid::new_v4().to_string()[..8]
-        );
+        let transaction_id = format!("txn_{micros}_{}", &uuid::Uuid::new_v4().to_string()[..8]);
 
         Self {
             transaction_id,
@@ -239,7 +236,8 @@ impl TransactionManager {
     ///
     /// # Errors
     ///
-    /// Returns [`SecretsError::ValidationError`] if a transaction with the same ID is already active.
+    /// Returns [`SecretsError::ValidationError`] if a transaction with the same ID is already
+    /// active.
     pub fn begin(&mut self, context: TransactionContext) -> Result<String, SecretsError> {
         let txn_id = context.transaction_id.clone();
 

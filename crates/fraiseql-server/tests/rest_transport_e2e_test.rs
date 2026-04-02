@@ -1,6 +1,5 @@
 //! End-to-end integration tests for the REST transport (Cycle 9).
 #![cfg(feature = "rest")]
-//!
 //! Tests the full stack: compile schema → build REST router → exercise CRUD
 //! operations via `tower::ServiceExt::oneshot` against a `FailingAdapter` with
 //! canned responses.

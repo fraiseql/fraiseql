@@ -13,8 +13,7 @@
 //! This enables the Axum server to handle requests without any
 //! interaction with the authoring-language runtime.
 
-use std::collections::HashMap;
-use std::fmt::Write as _;
+use std::{collections::HashMap, fmt::Write as _};
 
 use serde::{Deserialize, Serialize};
 
@@ -527,7 +526,7 @@ impl CompiledSchema {
     /// Stub federation metadata when federation feature is disabled.
     #[cfg(not(feature = "federation"))]
     #[must_use]
-    pub fn federation_metadata(&self) -> Option<()> {
+    pub const fn federation_metadata(&self) -> Option<()> {
         None
     }
 

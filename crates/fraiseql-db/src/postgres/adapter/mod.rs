@@ -77,11 +77,11 @@ pub(super) fn escape_jsonb_key(key: &str) -> String {
 /// ```
 #[derive(Clone)]
 pub struct PostgresAdapter {
-    pub(super) pool: Pool,
+    pub(super) pool:         Pool,
     /// Whether mutation timing injection is enabled.
     mutation_timing_enabled: bool,
     /// The PostgreSQL session variable name for timing.
-    timing_variable_name: String,
+    timing_variable_name:    String,
 }
 
 impl std::fmt::Debug for PostgresAdapter {

@@ -73,7 +73,8 @@ impl ProviderFailoverManager {
         let mut unavailable = self.unavailable.lock().map_err(|_| AuthError::Internal {
             message: "failover manager mutex poisoned".to_string(),
         })?;
-        unavailable.push((provider, Utc::now() + Duration::seconds(duration_seconds.cast_signed())));
+        unavailable
+            .push((provider, Utc::now() + Duration::seconds(duration_seconds.cast_signed())));
         Ok(())
     }
 
@@ -113,12 +114,9 @@ mod tests {
 
     #[test]
     fn test_all_unavailable_returns_error() {
-        let mgr =
-            ProviderFailoverManager::new("primary".to_string(), vec!["fallback".to_string()]);
-        mgr.mark_unavailable("primary".to_string(), 300)
-            .expect("must succeed");
-        mgr.mark_unavailable("fallback".to_string(), 300)
-            .expect("must succeed");
+        let mgr = ProviderFailoverManager::new("primary".to_string(), vec!["fallback".to_string()]);
+        mgr.mark_unavailable("primary".to_string(), 300).expect("must succeed");
+        mgr.mark_unavailable("fallback".to_string(), 300).expect("must succeed");
         let result = mgr.get_available_provider();
         assert!(result.is_err(), "must return error when no providers are available");
     }
@@ -126,8 +124,7 @@ mod tests {
     #[test]
     fn test_mark_available_restores_provider() {
         let mgr = ProviderFailoverManager::new("primary".to_string(), vec!["fallback".to_string()]);
-        mgr.mark_unavailable("primary".to_string(), 300)
-            .expect("must succeed");
+        mgr.mark_unavailable("primary".to_string(), 300).expect("must succeed");
         mgr.mark_available("primary").expect("must succeed");
         let available = mgr.get_available_provider().expect("must succeed");
         assert_eq!(available, "primary", "primary must be available after mark_available");
@@ -143,8 +140,7 @@ mod tests {
     #[test]
     fn test_no_fallbacks_primary_unavailable_returns_error() {
         let mgr = ProviderFailoverManager::new("only".to_string(), vec![]);
-        mgr.mark_unavailable("only".to_string(), 300)
-            .expect("must succeed");
+        mgr.mark_unavailable("only".to_string(), 300).expect("must succeed");
         let result = mgr.get_available_provider();
         assert!(result.is_err());
     }
@@ -155,13 +151,11 @@ mod tests {
             "primary".to_string(),
             vec!["fb1".to_string(), "fb2".to_string()],
         );
-        mgr.mark_unavailable("primary".to_string(), 300)
-            .expect("must succeed");
+        mgr.mark_unavailable("primary".to_string(), 300).expect("must succeed");
         let available = mgr.get_available_provider().expect("must succeed");
         assert_eq!(available, "fb1", "first fallback must be selected");
 
-        mgr.mark_unavailable("fb1".to_string(), 300)
-            .expect("must succeed");
+        mgr.mark_unavailable("fb1".to_string(), 300).expect("must succeed");
         let available = mgr.get_available_provider().expect("must succeed");
         assert_eq!(available, "fb2", "second fallback must be selected when first is unavailable");
     }

@@ -365,8 +365,7 @@ mod tests {
     fn test_valid_socket_dir_accepted() {
         validate_socket_dir("/run/postgresql")
             .unwrap_or_else(|e| panic!("expected Ok for /run/postgresql: {e}"));
-        validate_socket_dir("/tmp")
-            .unwrap_or_else(|e| panic!("expected Ok for /tmp: {e}"));
+        validate_socket_dir("/tmp").unwrap_or_else(|e| panic!("expected Ok for /tmp: {e}"));
         validate_socket_dir("/var/run/postgresql")
             .unwrap_or_else(|e| panic!("expected Ok for /var/run/postgresql: {e}"));
     }

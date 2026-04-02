@@ -15,7 +15,7 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        CursorValue, DatabaseAdapter, DatabaseType, SupportsMutations, RelayDatabaseAdapter,
+        CursorValue, DatabaseAdapter, DatabaseType, RelayDatabaseAdapter, SupportsMutations,
         WhereClause,
         traits::RelayPageResult,
         types::{ColumnSpec, ColumnValue, JsonbValue, OrderByClause, PoolMetrics},
@@ -164,10 +164,7 @@ impl FailingAdapter {
         function_name: &str,
         data: Vec<HashMap<String, serde_json::Value>>,
     ) -> Self {
-        self.function_responses
-            .lock()
-            .unwrap()
-            .insert(function_name.to_string(), data);
+        self.function_responses.lock().unwrap().insert(function_name.to_string(), data);
         self
     }
 
@@ -427,10 +424,7 @@ impl DatabaseAdapter for FailingAdapter {
         _offset: Option<u32>,
     ) -> Result<Vec<Vec<ColumnValue>>> {
         self.check_failure(view_name)?;
-        self.where_clause_log
-            .lock()
-            .unwrap()
-            .push(where_sql.map(String::from));
+        self.where_clause_log.lock().unwrap().push(where_sql.map(String::from));
         let responses = self.row_responses.lock().unwrap();
         if let Some(data) = responses.get(view_name) {
             return Ok(data.clone());

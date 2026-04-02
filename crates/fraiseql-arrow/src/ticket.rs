@@ -476,7 +476,10 @@ mod tests {
         // The error must be an InvalidTicket (parse error), not a size error.
         match result {
             Err(ArrowFlightError::InvalidTicket(ref msg)) => {
-                assert!(!msg.contains("too large"), "Should fail JSON parsing, not size limit: {msg}");
+                assert!(
+                    !msg.contains("too large"),
+                    "Should fail JSON parsing, not size limit: {msg}"
+                );
             },
             other => panic!("expected InvalidTicket parse error, got: {other:?}"),
         }

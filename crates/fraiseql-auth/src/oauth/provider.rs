@@ -358,11 +358,8 @@ mod tests {
     #[test]
     fn test_registry_register_and_get() {
         let registry = ProviderRegistry::new();
-        let provider =
-            ExternalAuthProvider::new(ProviderType::OIDC, "auth0", "id", "vault/path");
-        registry
-            .register(provider.clone())
-            .expect("register must succeed");
+        let provider = ExternalAuthProvider::new(ProviderType::OIDC, "auth0", "id", "vault/path");
+        registry.register(provider.clone()).expect("register must succeed");
         let retrieved = registry.get("auth0").expect("get must succeed");
         assert_eq!(retrieved, Some(provider));
     }
@@ -391,8 +388,7 @@ mod tests {
     #[test]
     fn test_registry_disable_and_enable() {
         let registry = ProviderRegistry::new();
-        let provider =
-            ExternalAuthProvider::new(ProviderType::OIDC, "auth0", "id", "path");
+        let provider = ExternalAuthProvider::new(ProviderType::OIDC, "auth0", "id", "path");
         registry.register(provider).expect("register must succeed");
 
         assert!(registry.disable("auth0").expect("disable must succeed"));

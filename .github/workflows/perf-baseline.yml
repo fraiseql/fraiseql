@@ -89,6 +89,7 @@ jobs:
       - name: Start FraiseQL server
         env:
           DATABASE_URL: postgres://fraiseql:fraiseql@localhost:5432/fraiseql_test
+          FRAISEQL_ENV: development
         run: |
           ./target/release/fraiseql-cli run \
             benchmarks/load/test_schema.compiled.json \

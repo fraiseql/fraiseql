@@ -183,7 +183,10 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
 
-    assert!(result.is_err(), "expected Err for fact table without tf_ prefix, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err for fact table without tf_ prefix, got: {result:?}"
+    );
     if let Err(e) = result {
         let error_msg = format!("{}", e);
         assert!(error_msg.contains("must start with 'tf_' prefix"));
@@ -240,7 +243,10 @@ fn test_validator_rejects_aggregate_type_without_count() {
     let validator = SchemaValidator::new();
     let result = validator.validate(ir);
 
-    assert!(result.is_err(), "expected Err for aggregate type without count field, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err for aggregate type without count field, got: {result:?}"
+    );
     if let Err(e) = result {
         let error_msg = format!("{}", e);
         assert!(error_msg.contains("must have a 'count' field"));

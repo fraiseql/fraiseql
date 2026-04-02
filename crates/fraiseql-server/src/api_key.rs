@@ -67,9 +67,9 @@ pub struct StaticApiKeyConfig {
     pub key_hash: String,
     /// OAuth-style scopes granted by this key.
     #[serde(default)]
-    pub scopes: Vec<String>,
+    pub scopes:   Vec<String>,
     /// Human-readable key name (for audit logging).
-    pub name: String,
+    pub name:     String,
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -79,9 +79,9 @@ pub struct StaticApiKeyConfig {
 /// Resolved static key (with parsed hash bytes).
 #[derive(Debug, Clone)]
 struct ResolvedStaticKey {
-    hash: [u8; 32],
+    hash:   [u8; 32],
     scopes: Vec<String>,
-    name: String,
+    name:   String,
 }
 
 /// API key authentication result.
@@ -223,8 +223,8 @@ fn sha256_hash(input: &[u8]) -> [u8; 32] {
 /// Build a `SecurityContext` for an API key identity.
 fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext {
     let user = AuthenticatedUser {
-        user_id: format!("apikey:{key_name}"),
-        scopes: scopes.to_vec(),
+        user_id:    format!("apikey:{key_name}"),
+        scopes:     scopes.to_vec(),
         expires_at: Utc::now() + chrono::Duration::hours(24),
     };
     SecurityContext::from_user(&user, format!("apikey-{}", uuid::Uuid::new_v4()))
@@ -260,14 +260,14 @@ mod tests {
 
     fn test_config(key: &str) -> ApiKeyConfig {
         ApiKeyConfig {
-            enabled: true,
-            header: "x-api-key".into(),
+            enabled:        true,
+            header:         "x-api-key".into(),
             hash_algorithm: "sha256".into(),
-            storage: "env".into(),
-            static_keys: vec![StaticApiKeyConfig {
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
                 key_hash: format!("sha256:{}", sha256_hex(key)),
-                scopes: vec!["read:*".into()],
-                name: "test-key".into(),
+                scopes:   vec!["read:*".into()],
+                name:     "test-key".into(),
             }],
         }
     }
@@ -330,14 +330,14 @@ mod tests {
     #[test]
     fn invalid_hash_hex_is_skipped() {
         let config = ApiKeyConfig {
-            enabled: true,
-            header: "x-api-key".into(),
+            enabled:        true,
+            header:         "x-api-key".into(),
             hash_algorithm: "sha256".into(),
-            storage: "env".into(),
-            static_keys: vec![StaticApiKeyConfig {
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
                 key_hash: "not-valid-hex".into(),
-                scopes: vec![],
-                name: "bad-key".into(),
+                scopes:   vec![],
+                name:     "bad-key".into(),
             }],
         };
         let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
@@ -348,14 +348,14 @@ mod tests {
     fn hash_without_prefix_works() {
         let hash = sha256_hex("test");
         let config = ApiKeyConfig {
-            enabled: true,
-            header: "x-api-key".into(),
+            enabled:        true,
+            header:         "x-api-key".into(),
             hash_algorithm: "sha256".into(),
-            storage: "env".into(),
-            static_keys: vec![StaticApiKeyConfig {
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
                 key_hash: hash, // no "sha256:" prefix
-                scopes: vec![],
-                name: "no-prefix".into(),
+                scopes:   vec![],
+                name:     "no-prefix".into(),
             }],
         };
         let auth = ApiKeyAuthenticator::from_config(&config).unwrap();

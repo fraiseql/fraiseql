@@ -149,8 +149,8 @@ fn test_concurrent_entity_resolution() {
             &selection,
         ));
 
-        let entities = result
-            .unwrap_or_else(|e| panic!("expected Ok from resolve_entities_from_db: {e:?}"));
+        let entities =
+            result.unwrap_or_else(|e| panic!("expected Ok from resolve_entities_from_db: {e:?}"));
         assert_eq!(entities.len(), 1);
         assert!(entities[0].is_some());
     }

@@ -458,7 +458,8 @@ mod relay_aggregation {
 // ============================================================================
 
 mod generated_sql {
-    #[allow(unused_imports)] // Reason: WhereSqlGenerator imported for future snapshot tests; not yet used
+    #[allow(unused_imports)]
+    // Reason: WhereSqlGenerator imported for future snapshot tests; not yet used
     use fraiseql_core::db::where_sql_generator::WhereSqlGenerator;
     use fraiseql_core::db::{
         PostgresDialect, WhereClause, WhereOperator, postgres::PostgresWhereGenerator,
@@ -1618,7 +1619,8 @@ mod json_access_parity {
 
     #[test]
     fn snapshot_postgres_json_nested() {
-        let sql = r#"SELECT data->'address'->>'city' FROM "v_user" WHERE data->'address'->>'city' = $1"#;
+        let sql =
+            r#"SELECT data->'address'->>'city' FROM "v_user" WHERE data->'address'->>'city' = $1"#;
         assert_snapshot!(sql);
     }
 
@@ -1652,7 +1654,8 @@ mod json_access_parity {
 
     #[test]
     fn snapshot_mysql_json_deep_nested() {
-        let sql = "SELECT JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.profile.social.twitter')) FROM `v_user`";
+        let sql =
+            "SELECT JSON_UNQUOTE(JSON_EXTRACT(`data`, '$.profile.social.twitter')) FROM `v_user`";
         assert_snapshot!(sql);
     }
 
@@ -1700,7 +1703,8 @@ mod fts_parity {
 
     #[test]
     fn snapshot_postgres_fts_matches() {
-        let sql = r#"SELECT data FROM "v_post" WHERE to_tsvector(data->>'content') @@ to_tsquery($1)"#;
+        let sql =
+            r#"SELECT data FROM "v_post" WHERE to_tsvector(data->>'content') @@ to_tsquery($1)"#;
         assert_snapshot!(sql);
     }
 
@@ -1742,13 +1746,15 @@ mod fts_parity {
 
     #[test]
     fn snapshot_sqlserver_fts_contains() {
-        let sql = "SELECT [data] FROM [v_post] WHERE CONTAINS(JSON_VALUE([data], '$.content'), @p1)";
+        let sql =
+            "SELECT [data] FROM [v_post] WHERE CONTAINS(JSON_VALUE([data], '$.content'), @p1)";
         assert_snapshot!(sql);
     }
 
     #[test]
     fn snapshot_sqlserver_fts_freetext() {
-        let sql = "SELECT [data] FROM [v_post] WHERE FREETEXT(JSON_VALUE([data], '$.content'), @p1)";
+        let sql =
+            "SELECT [data] FROM [v_post] WHERE FREETEXT(JSON_VALUE([data], '$.content'), @p1)";
         assert_snapshot!(sql);
     }
 }
@@ -1780,7 +1786,8 @@ mod aggregate_dialect_variants {
     #[test]
     fn snapshot_sqlite_stddev_unsupported() {
         // SQLite has no built-in STDDEV
-        let sql = "SELECT NULL /* STDDEV not supported in SQLite */ AS stddev_revenue FROM \"tf_sales\"";
+        let sql =
+            "SELECT NULL /* STDDEV not supported in SQLite */ AS stddev_revenue FROM \"tf_sales\"";
         assert_snapshot!(sql);
     }
 
@@ -1807,7 +1814,8 @@ mod aggregate_dialect_variants {
 
     #[test]
     fn snapshot_sqlite_variance_unsupported() {
-        let sql = "SELECT NULL /* VARIANCE not supported in SQLite */ AS var_revenue FROM \"tf_sales\"";
+        let sql =
+            "SELECT NULL /* VARIANCE not supported in SQLite */ AS var_revenue FROM \"tf_sales\"";
         assert_snapshot!(sql);
     }
 
@@ -1861,7 +1869,8 @@ mod aggregate_dialect_variants {
     #[test]
     fn snapshot_sqlite_array_agg_emulated() {
         // SQLite emulates via GROUP_CONCAT wrapped in JSON array syntax
-        let sql = "SELECT '[' || GROUP_CONCAT('\"' || tag || '\"', ',') || ']' AS tags FROM \"v_post\"";
+        let sql =
+            "SELECT '[' || GROUP_CONCAT('\"' || tag || '\"', ',') || ']' AS tags FROM \"v_post\"";
         assert_snapshot!(sql);
     }
 

@@ -125,7 +125,7 @@ mod tests {
 
         #[derive(serde::Deserialize, Debug)]
         // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+        #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
         struct TestType {
             id: String,
         }
@@ -143,7 +143,7 @@ mod tests {
 
         #[derive(serde::Deserialize)]
         // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+        #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
         struct TestType {
             id: String,
             name: String,
@@ -164,7 +164,7 @@ mod tests {
 
         #[derive(Debug, serde::Deserialize)]
         // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+        #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
         struct TestType {
             id: String,
             name: String,
@@ -189,7 +189,7 @@ mod tests {
 
         #[derive(Debug, serde::Deserialize)]
         // Reason: test fixture struct used only for deserialization verification
-        #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+        #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
         struct TestType {
             id: String,
             count: i32,
@@ -214,7 +214,8 @@ mod tests {
 
         // Test that Value (escape hatch) works
         let result = TypedJsonStream::<serde_json::Value>::deserialize_value(json.clone());
-        let value = result.unwrap_or_else(|e| panic!("expected Ok for Value escape hatch, got: {e}"));
+        let value =
+            result.unwrap_or_else(|e| panic!("expected Ok for Value escape hatch, got: {e}"));
         assert_eq!(value, json);
     }
 

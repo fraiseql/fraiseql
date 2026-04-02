@@ -42,7 +42,8 @@ type HmacSha256 = Hmac<Sha256>;
 ///
 /// A 32-byte raw HMAC-SHA256 output.
 fn compute_chain_hash(prev_hash: &[u8; 32], entry_json: &str) -> [u8; 32] {
-    #[allow(clippy::unwrap_used)]  // Reason: HmacSha256::new_from_slice only fails on empty keys; 32-byte array is always valid
+    #[allow(clippy::unwrap_used)]
+    // Reason: HmacSha256::new_from_slice only fails on empty keys; 32-byte array is always valid
     let mut mac = HmacSha256::new_from_slice(prev_hash)
         .expect("HMAC-SHA256 accepts any non-empty key length");
     mac.update(entry_json.as_bytes());
@@ -106,16 +107,14 @@ impl ChainHasher {
 #[non_exhaustive]
 pub enum ChainVerifyError {
     /// A computed hash does not match the stored `chain_hash` at this entry.
-    #[error(
-        "Chain broken at entry {entry_index}: expected {expected_hash}, got {stored_hash}"
-    )]
+    #[error("Chain broken at entry {entry_index}: expected {expected_hash}, got {stored_hash}")]
     BrokenLink {
         /// Zero-based index of the first broken entry.
-        entry_index: usize,
+        entry_index:   usize,
         /// The hash we computed from the chain.
         expected_hash: String,
         /// The `chain_hash` stored in the entry.
-        stored_hash: String,
+        stored_hash:   String,
     },
     /// An entry could not be parsed (missing or invalid `chain_hash` field).
     #[error("Entry {entry_index} is missing or has an invalid `chain_hash` field")]
@@ -212,9 +211,7 @@ mod tests {
 
     fn generate_chained_entries(n: usize, seed: [u8; 32]) -> Vec<serde_json::Value> {
         let mut hasher = ChainHasher::new(seed);
-        (0..n)
-            .map(|i| make_entry(&format!("action-{i}"), &mut hasher))
-            .collect()
+        (0..n).map(|i| make_entry(&format!("action-{i}"), &mut hasher)).collect()
     }
 
     #[test]
@@ -270,7 +267,13 @@ mod tests {
         entries[50]["action"] = serde_json::Value::String("TAMPERED".to_string());
         let result = verify_chain(entries, TEST_SEED);
         assert!(
-            matches!(result, Err(ChainVerifyError::BrokenLink { entry_index: 50, .. })),
+            matches!(
+                result,
+                Err(ChainVerifyError::BrokenLink {
+                    entry_index: 50,
+                    ..
+                })
+            ),
             "modified entry must break chain at that index"
         );
     }
@@ -281,7 +284,13 @@ mod tests {
         entries.remove(50);
         let result = verify_chain(entries, TEST_SEED);
         assert!(
-            matches!(result, Err(ChainVerifyError::BrokenLink { entry_index: 50, .. })),
+            matches!(
+                result,
+                Err(ChainVerifyError::BrokenLink {
+                    entry_index: 50,
+                    ..
+                })
+            ),
             "deleted entry must break chain at the deletion point"
         );
     }
@@ -296,8 +305,6 @@ mod tests {
     fn test_verify_detects_missing_chain_hash() {
         let entries = vec![serde_json::json!({ "action": "query" })]; // no chain_hash
         let result = verify_chain(entries, TEST_SEED);
-        assert!(
-            matches!(result, Err(ChainVerifyError::MissingChainHash { entry_index: 0 }))
-        );
+        assert!(matches!(result, Err(ChainVerifyError::MissingChainHash { entry_index: 0 })));
     }
 }

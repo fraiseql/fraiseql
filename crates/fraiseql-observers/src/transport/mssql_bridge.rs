@@ -426,7 +426,8 @@ impl MSSQLNatsBridge {
             reason: format!("MSSQL pool get failed: {e}"),
         })?;
 
-        #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: value is non-negative; wrap cannot occur in practice
         // Reason: batch_size is a small positive config value, well within i64 range
         let batch_size = self.config.batch_size as i64;
 

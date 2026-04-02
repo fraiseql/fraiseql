@@ -85,7 +85,9 @@ pub async fn execute(
             println!("{}", "Observer Metrics".bold().underline());
             println!();
 
-            for (metric_name, metric_data) in metrics.as_object().unwrap_or(&serde_json::Map::default()) {
+            for (metric_name, metric_data) in
+                metrics.as_object().unwrap_or(&serde_json::Map::default())
+            {
                 let metric_type = metric_data["type"].as_str().unwrap_or("unknown");
                 let help = metric_data["help"].as_str().unwrap_or("no help");
 
@@ -128,14 +130,13 @@ pub async fn execute(
                 metrics["observer_events_matched_total"]["value"].as_u64().unwrap_or(0)
             );
             {
-                #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics display
-                let match_rate = metrics["observer_events_matched_total"]["value"]
-                    .as_u64()
-                    .unwrap_or(0) as f64
-                    / metrics["observer_events_processed_total"]["value"]
-                        .as_u64()
-                        .unwrap_or(1) as f64
-                    * 100.0;
+                #[allow(clippy::cast_precision_loss)]
+                // Reason: f64 precision is acceptable for metrics display
+                let match_rate =
+                    metrics["observer_events_matched_total"]["value"].as_u64().unwrap_or(0) as f64
+                        / metrics["observer_events_processed_total"]["value"].as_u64().unwrap_or(1)
+                            as f64
+                        * 100.0;
                 println!("{}: {:.1}%", "Match Rate".cyan(), match_rate);
             }
             println!(
@@ -148,14 +149,13 @@ pub async fn execute(
                     .red()
             );
             {
-                #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics display
-                let failure_rate = metrics["observer_actions_failed_total"]["value"]
-                    .as_u64()
-                    .unwrap_or(0) as f64
-                    / metrics["observer_actions_executed_total"]["value"]
-                        .as_u64()
-                        .unwrap_or(1) as f64
-                    * 100.0;
+                #[allow(clippy::cast_precision_loss)]
+                // Reason: f64 precision is acceptable for metrics display
+                let failure_rate =
+                    metrics["observer_actions_failed_total"]["value"].as_u64().unwrap_or(0) as f64
+                        / metrics["observer_actions_executed_total"]["value"].as_u64().unwrap_or(1)
+                            as f64
+                        * 100.0;
                 println!("{}: {:.1}%", "Failure Rate".cyan(), failure_rate);
             }
             println!(

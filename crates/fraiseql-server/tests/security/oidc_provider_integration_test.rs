@@ -127,7 +127,8 @@ async fn test_oidc_provider_discovery() {
     )
     .await;
 
-    let provider = provider.unwrap_or_else(|e| panic!("Provider should be created successfully: {e}"));
+    let provider =
+        provider.unwrap_or_else(|e| panic!("Provider should be created successfully: {e}"));
     assert_eq!(provider.name(), "test-provider");
 }
 

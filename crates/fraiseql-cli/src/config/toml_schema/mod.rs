@@ -398,9 +398,7 @@ sql_source = "v_user"
     #[test]
     fn test_validate_schema() {
         let schema = TomlSchema::default();
-        schema
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
+        schema.validate().unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
     }
 
     // --- Issue #38: nats_url ---
@@ -592,9 +590,7 @@ failure_threshold = 3
 recovery_timeout_secs = 15
 "#;
         let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
-        schema
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
+        schema.validate().unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
         let cb = schema.federation.circuit_breaker.as_ref().unwrap();
         assert_eq!(cb.per_database.len(), 1);
         assert_eq!(cb.per_database[0].database, "Product");

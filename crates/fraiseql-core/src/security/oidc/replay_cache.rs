@@ -8,20 +8,21 @@
 //! # Backends
 //!
 //! - **Redis** (`jwt-replay` feature): distributed, survives server restarts.
-//! - **Memory** (always available): single-process, resets on restart; suitable
-//!   for testing or single-instance deployments.
+//! - **Memory** (always available): single-process, resets on restart; suitable for testing or
+//!   single-instance deployments.
 //!
 //! # Failure policy
 //!
 //! When Redis is unavailable, behavior is controlled by [`FailurePolicy`]:
-//! - [`FailurePolicy::FailOpen`] (default): accept the token and log a warning.
-//!   Prevents auth outages during Redis downtime at the cost of reduced replay
-//!   protection.
-//! - [`FailurePolicy::FailClosed`]: reject the token. Maximum security, but any
-//!   Redis hiccup will cause auth failures.
+//! - [`FailurePolicy::FailOpen`] (default): accept the token and log a warning. Prevents auth
+//!   outages during Redis downtime at the cost of reduced replay protection.
+//! - [`FailurePolicy::FailClosed`]: reject the token. Maximum security, but any Redis hiccup will
+//!   cause auth failures.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use tracing::warn;
@@ -108,7 +109,7 @@ pub fn jwt_replay_cache_errors_total() -> u64 {
 /// Prometheus-compatible counters.
 pub struct ReplayCache {
     backend: Box<dyn ReplayCacheBackend>,
-    policy: FailurePolicy,
+    policy:  FailurePolicy,
 }
 
 impl ReplayCache {
@@ -117,7 +118,7 @@ impl ReplayCache {
     pub fn new(backend: impl ReplayCacheBackend + 'static) -> Self {
         Self {
             backend: Box::new(backend),
-            policy: FailurePolicy::FailOpen,
+            policy:  FailurePolicy::FailOpen,
         }
     }
 
@@ -222,7 +223,7 @@ impl ReplayCacheBackend for MemoryReplayCache {
 /// the token is a replay.
 #[cfg(feature = "jwt-replay")]
 pub struct RedisReplayCache {
-    pool: redis::aio::ConnectionManager,
+    pool:       redis::aio::ConnectionManager,
     key_prefix: String,
 }
 

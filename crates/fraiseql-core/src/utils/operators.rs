@@ -40,11 +40,11 @@ pub enum OperatorCategory {
 #[derive(Debug, Clone)]
 pub struct OperatorInfo {
     /// GraphQL operator name (e.g., "eq", "contains")
-    pub name: &'static str,
+    pub name:           &'static str,
     /// SQL operator or function (e.g., "=", "LIKE", "@>")
-    pub sql_op: &'static str,
+    pub sql_op:         &'static str,
     /// Category of operator
-    pub category: OperatorCategory,
+    pub category:       OperatorCategory,
     /// Whether this operator expects an array value
     pub requires_array: bool,
     /// Whether this operator needs special JSONB handling
@@ -59,9 +59,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "eq",
         OperatorInfo {
-            name: "eq",
-            sql_op: "=",
-            category: OperatorCategory::Comparison,
+            name:           "eq",
+            sql_op:         "=",
+            category:       OperatorCategory::Comparison,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -70,9 +70,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "ne",
         OperatorInfo {
-            name: "ne",
-            sql_op: "!=",
-            category: OperatorCategory::Comparison,
+            name:           "ne",
+            sql_op:         "!=",
+            category:       OperatorCategory::Comparison,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -81,9 +81,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "gt",
         OperatorInfo {
-            name: "gt",
-            sql_op: ">",
-            category: OperatorCategory::Comparison,
+            name:           "gt",
+            sql_op:         ">",
+            category:       OperatorCategory::Comparison,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -92,9 +92,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "gte",
         OperatorInfo {
-            name: "gte",
-            sql_op: ">=",
-            category: OperatorCategory::Comparison,
+            name:           "gte",
+            sql_op:         ">=",
+            category:       OperatorCategory::Comparison,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -103,9 +103,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "lt",
         OperatorInfo {
-            name: "lt",
-            sql_op: "<",
-            category: OperatorCategory::Comparison,
+            name:           "lt",
+            sql_op:         "<",
+            category:       OperatorCategory::Comparison,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -114,9 +114,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "lte",
         OperatorInfo {
-            name: "lte",
-            sql_op: "<=",
-            category: OperatorCategory::Comparison,
+            name:           "lte",
+            sql_op:         "<=",
+            category:       OperatorCategory::Comparison,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -125,9 +125,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "in",
         OperatorInfo {
-            name: "in",
-            sql_op: "IN",
-            category: OperatorCategory::Comparison,
+            name:           "in",
+            sql_op:         "IN",
+            category:       OperatorCategory::Comparison,
             requires_array: true,
             jsonb_operator: false,
         },
@@ -136,9 +136,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "nin",
         OperatorInfo {
-            name: "nin",
-            sql_op: "NOT IN",
-            category: OperatorCategory::Comparison,
+            name:           "nin",
+            sql_op:         "NOT IN",
+            category:       OperatorCategory::Comparison,
             requires_array: true,
             jsonb_operator: false,
         },
@@ -148,9 +148,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "like",
         OperatorInfo {
-            name: "like",
-            sql_op: "LIKE",
-            category: OperatorCategory::String,
+            name:           "like",
+            sql_op:         "LIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -159,9 +159,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "ilike",
         OperatorInfo {
-            name: "ilike",
-            sql_op: "ILIKE",
-            category: OperatorCategory::String,
+            name:           "ilike",
+            sql_op:         "ILIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -170,9 +170,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "nlike",
         OperatorInfo {
-            name: "nlike",
-            sql_op: "NOT LIKE",
-            category: OperatorCategory::String,
+            name:           "nlike",
+            sql_op:         "NOT LIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -181,9 +181,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "nilike",
         OperatorInfo {
-            name: "nilike",
-            sql_op: "NOT ILIKE",
-            category: OperatorCategory::String,
+            name:           "nilike",
+            sql_op:         "NOT ILIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -192,9 +192,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "regex",
         OperatorInfo {
-            name: "regex",
-            sql_op: "~",
-            category: OperatorCategory::String,
+            name:           "regex",
+            sql_op:         "~",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -203,9 +203,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "iregex",
         OperatorInfo {
-            name: "iregex",
-            sql_op: "~*",
-            category: OperatorCategory::String,
+            name:           "iregex",
+            sql_op:         "~*",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -214,9 +214,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "nregex",
         OperatorInfo {
-            name: "nregex",
-            sql_op: "!~",
-            category: OperatorCategory::String,
+            name:           "nregex",
+            sql_op:         "!~",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -225,9 +225,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "niregex",
         OperatorInfo {
-            name: "niregex",
-            sql_op: "!~*",
-            category: OperatorCategory::String,
+            name:           "niregex",
+            sql_op:         "!~*",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -237,9 +237,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "is_null",
         OperatorInfo {
-            name: "is_null",
-            sql_op: "IS NULL",
-            category: OperatorCategory::Null,
+            name:           "is_null",
+            sql_op:         "IS NULL",
+            category:       OperatorCategory::Null,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -248,9 +248,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "is_not_null",
         OperatorInfo {
-            name: "is_not_null",
-            sql_op: "IS NOT NULL",
-            category: OperatorCategory::Null,
+            name:           "is_not_null",
+            sql_op:         "IS NOT NULL",
+            category:       OperatorCategory::Null,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -260,9 +260,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "contains",
         OperatorInfo {
-            name: "contains",
-            sql_op: "@>",
-            category: OperatorCategory::Containment,
+            name:           "contains",
+            sql_op:         "@>",
+            category:       OperatorCategory::Containment,
             requires_array: false,
             jsonb_operator: true,
         },
@@ -271,9 +271,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "contained_in",
         OperatorInfo {
-            name: "contained_in",
-            sql_op: "<@",
-            category: OperatorCategory::Containment,
+            name:           "contained_in",
+            sql_op:         "<@",
+            category:       OperatorCategory::Containment,
             requires_array: false,
             jsonb_operator: true,
         },
@@ -282,9 +282,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "has_key",
         OperatorInfo {
-            name: "has_key",
-            sql_op: "?",
-            category: OperatorCategory::Containment,
+            name:           "has_key",
+            sql_op:         "?",
+            category:       OperatorCategory::Containment,
             requires_array: false,
             jsonb_operator: true,
         },
@@ -293,9 +293,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "has_any_keys",
         OperatorInfo {
-            name: "has_any_keys",
-            sql_op: "?|",
-            category: OperatorCategory::Containment,
+            name:           "has_any_keys",
+            sql_op:         "?|",
+            category:       OperatorCategory::Containment,
             requires_array: true,
             jsonb_operator: true,
         },
@@ -304,9 +304,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "has_all_keys",
         OperatorInfo {
-            name: "has_all_keys",
-            sql_op: "?&",
-            category: OperatorCategory::Containment,
+            name:           "has_all_keys",
+            sql_op:         "?&",
+            category:       OperatorCategory::Containment,
             requires_array: true,
             jsonb_operator: true,
         },
@@ -316,9 +316,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "array_contains",
         OperatorInfo {
-            name: "array_contains",
-            sql_op: "@>",
-            category: OperatorCategory::Array,
+            name:           "array_contains",
+            sql_op:         "@>",
+            category:       OperatorCategory::Array,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -327,9 +327,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "array_contained_in",
         OperatorInfo {
-            name: "array_contained_in",
-            sql_op: "<@",
-            category: OperatorCategory::Array,
+            name:           "array_contained_in",
+            sql_op:         "<@",
+            category:       OperatorCategory::Array,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -338,9 +338,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "array_overlaps",
         OperatorInfo {
-            name: "array_overlaps",
-            sql_op: "&&",
-            category: OperatorCategory::Array,
+            name:           "array_overlaps",
+            sql_op:         "&&",
+            category:       OperatorCategory::Array,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -350,9 +350,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "cosine_distance",
         OperatorInfo {
-            name: "cosine_distance",
-            sql_op: "<=>",
-            category: OperatorCategory::Vector,
+            name:           "cosine_distance",
+            sql_op:         "<=>",
+            category:       OperatorCategory::Vector,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -361,9 +361,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "l2_distance",
         OperatorInfo {
-            name: "l2_distance",
-            sql_op: "<->",
-            category: OperatorCategory::Vector,
+            name:           "l2_distance",
+            sql_op:         "<->",
+            category:       OperatorCategory::Vector,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -372,9 +372,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "inner_product",
         OperatorInfo {
-            name: "inner_product",
-            sql_op: "<#>",
-            category: OperatorCategory::Vector,
+            name:           "inner_product",
+            sql_op:         "<#>",
+            category:       OperatorCategory::Vector,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -383,9 +383,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "l1_distance",
         OperatorInfo {
-            name: "l1_distance",
-            sql_op: "<+>",
-            category: OperatorCategory::Vector,
+            name:           "l1_distance",
+            sql_op:         "<+>",
+            category:       OperatorCategory::Vector,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -394,9 +394,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "hamming_distance",
         OperatorInfo {
-            name: "hamming_distance",
-            sql_op: "<~>",
-            category: OperatorCategory::Vector,
+            name:           "hamming_distance",
+            sql_op:         "<~>",
+            category:       OperatorCategory::Vector,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -405,9 +405,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "jaccard_distance",
         OperatorInfo {
-            name: "jaccard_distance",
-            sql_op: "<%>",
-            category: OperatorCategory::Vector,
+            name:           "jaccard_distance",
+            sql_op:         "<%>",
+            category:       OperatorCategory::Vector,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -417,9 +417,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "search",
         OperatorInfo {
-            name: "search",
-            sql_op: "@@",
-            category: OperatorCategory::Fulltext,
+            name:           "search",
+            sql_op:         "@@",
+            category:       OperatorCategory::Fulltext,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -428,9 +428,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "plainto_tsquery",
         OperatorInfo {
-            name: "plainto_tsquery",
-            sql_op: "@@",
-            category: OperatorCategory::Fulltext,
+            name:           "plainto_tsquery",
+            sql_op:         "@@",
+            category:       OperatorCategory::Fulltext,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -439,9 +439,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "phraseto_tsquery",
         OperatorInfo {
-            name: "phraseto_tsquery",
-            sql_op: "@@",
-            category: OperatorCategory::Fulltext,
+            name:           "phraseto_tsquery",
+            sql_op:         "@@",
+            category:       OperatorCategory::Fulltext,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -450,9 +450,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "websearch_to_tsquery",
         OperatorInfo {
-            name: "websearch_to_tsquery",
-            sql_op: "@@",
-            category: OperatorCategory::Fulltext,
+            name:           "websearch_to_tsquery",
+            sql_op:         "@@",
+            category:       OperatorCategory::Fulltext,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -462,9 +462,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "startswith",
         OperatorInfo {
-            name: "startswith",
-            sql_op: "LIKE",
-            category: OperatorCategory::String,
+            name:           "startswith",
+            sql_op:         "LIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -473,9 +473,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "istartswith",
         OperatorInfo {
-            name: "istartswith",
-            sql_op: "ILIKE",
-            category: OperatorCategory::String,
+            name:           "istartswith",
+            sql_op:         "ILIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -484,9 +484,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "endswith",
         OperatorInfo {
-            name: "endswith",
-            sql_op: "LIKE",
-            category: OperatorCategory::String,
+            name:           "endswith",
+            sql_op:         "LIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -495,9 +495,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "iendswith",
         OperatorInfo {
-            name: "iendswith",
-            sql_op: "ILIKE",
-            category: OperatorCategory::String,
+            name:           "iendswith",
+            sql_op:         "ILIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -506,9 +506,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "icontains",
         OperatorInfo {
-            name: "icontains",
-            sql_op: "ILIKE",
-            category: OperatorCategory::String,
+            name:           "icontains",
+            sql_op:         "ILIKE",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -517,9 +517,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "imatches",
         OperatorInfo {
-            name: "imatches",
-            sql_op: "~*",
-            category: OperatorCategory::String,
+            name:           "imatches",
+            sql_op:         "~*",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -528,9 +528,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "not_matches",
         OperatorInfo {
-            name: "not_matches",
-            sql_op: "!~",
-            category: OperatorCategory::String,
+            name:           "not_matches",
+            sql_op:         "!~",
+            category:       OperatorCategory::String,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -540,9 +540,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "isIPv4",
         OperatorInfo {
-            name: "isIPv4",
-            sql_op: "family({}) = 4",
-            category: OperatorCategory::Network,
+            name:           "isIPv4",
+            sql_op:         "family({}) = 4",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -551,9 +551,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "isIPv6",
         OperatorInfo {
-            name: "isIPv6",
-            sql_op: "family({}) = 6",
-            category: OperatorCategory::Network,
+            name:           "isIPv6",
+            sql_op:         "family({}) = 6",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -562,9 +562,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "isPrivate",
         OperatorInfo {
-            name: "isPrivate",
-            sql_op: "CIDR_RANGE_CHECK",
-            category: OperatorCategory::Network,
+            name:           "isPrivate",
+            sql_op:         "CIDR_RANGE_CHECK",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -573,9 +573,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "isPublic",
         OperatorInfo {
-            name: "isPublic",
-            sql_op: "NOT_CIDR_RANGE_CHECK",
-            category: OperatorCategory::Network,
+            name:           "isPublic",
+            sql_op:         "NOT_CIDR_RANGE_CHECK",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -584,9 +584,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "inSubnet",
         OperatorInfo {
-            name: "inSubnet",
-            sql_op: "{} <<= {}",
-            category: OperatorCategory::Network,
+            name:           "inSubnet",
+            sql_op:         "{} <<= {}",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -595,9 +595,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "notInSubnet",
         OperatorInfo {
-            name: "notInSubnet",
-            sql_op: "NOT ({} <<= {})",
-            category: OperatorCategory::Network,
+            name:           "notInSubnet",
+            sql_op:         "NOT ({} <<= {})",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -606,9 +606,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "subnet_contains",
         OperatorInfo {
-            name: "subnet_contains",
-            sql_op: ">>",
-            category: OperatorCategory::Network,
+            name:           "subnet_contains",
+            sql_op:         ">>",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -617,9 +617,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "subnet_overlaps",
         OperatorInfo {
-            name: "subnet_overlaps",
-            sql_op: "&&",
-            category: OperatorCategory::Network,
+            name:           "subnet_overlaps",
+            sql_op:         "&&",
+            category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -629,9 +629,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "contains_date",
         OperatorInfo {
-            name: "contains_date",
-            sql_op: "@>",
-            category: OperatorCategory::DateRange,
+            name:           "contains_date",
+            sql_op:         "@>",
+            category:       OperatorCategory::DateRange,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -640,9 +640,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "adjacent",
         OperatorInfo {
-            name: "adjacent",
-            sql_op: "-|-",
-            category: OperatorCategory::DateRange,
+            name:           "adjacent",
+            sql_op:         "-|-",
+            category:       OperatorCategory::DateRange,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -651,9 +651,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "strictly_left",
         OperatorInfo {
-            name: "strictly_left",
-            sql_op: "<<",
-            category: OperatorCategory::DateRange,
+            name:           "strictly_left",
+            sql_op:         "<<",
+            category:       OperatorCategory::DateRange,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -662,9 +662,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "strictly_right",
         OperatorInfo {
-            name: "strictly_right",
-            sql_op: ">>",
-            category: OperatorCategory::DateRange,
+            name:           "strictly_right",
+            sql_op:         ">>",
+            category:       OperatorCategory::DateRange,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -673,9 +673,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "not_left",
         OperatorInfo {
-            name: "not_left",
-            sql_op: "&>",
-            category: OperatorCategory::DateRange,
+            name:           "not_left",
+            sql_op:         "&>",
+            category:       OperatorCategory::DateRange,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -684,9 +684,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "not_right",
         OperatorInfo {
-            name: "not_right",
-            sql_op: "&<",
-            category: OperatorCategory::DateRange,
+            name:           "not_right",
+            sql_op:         "&<",
+            category:       OperatorCategory::DateRange,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -695,9 +695,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "overlaps",
         OperatorInfo {
-            name: "overlaps",
-            sql_op: "&&",
-            category: OperatorCategory::DateRange,
+            name:           "overlaps",
+            sql_op:         "&&",
+            category:       OperatorCategory::DateRange,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -707,9 +707,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "ancestor_of",
         OperatorInfo {
-            name: "ancestor_of",
-            sql_op: "@>",
-            category: OperatorCategory::Ltree,
+            name:           "ancestor_of",
+            sql_op:         "@>",
+            category:       OperatorCategory::Ltree,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -718,9 +718,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "descendant_of",
         OperatorInfo {
-            name: "descendant_of",
-            sql_op: "<@",
-            category: OperatorCategory::Ltree,
+            name:           "descendant_of",
+            sql_op:         "<@",
+            category:       OperatorCategory::Ltree,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -729,9 +729,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "matches_lquery",
         OperatorInfo {
-            name: "matches_lquery",
-            sql_op: "~",
-            category: OperatorCategory::Ltree,
+            name:           "matches_lquery",
+            sql_op:         "~",
+            category:       OperatorCategory::Ltree,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -740,9 +740,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "matches_ltxtquery",
         OperatorInfo {
-            name: "matches_ltxtquery",
-            sql_op: "@",
-            category: OperatorCategory::Ltree,
+            name:           "matches_ltxtquery",
+            sql_op:         "@",
+            category:       OperatorCategory::Ltree,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -751,9 +751,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "matches_any_lquery",
         OperatorInfo {
-            name: "matches_any_lquery",
-            sql_op: "?",
-            category: OperatorCategory::Ltree,
+            name:           "matches_any_lquery",
+            sql_op:         "?",
+            category:       OperatorCategory::Ltree,
             requires_array: true,
             jsonb_operator: false,
         },
@@ -763,9 +763,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "depth_eq",
         OperatorInfo {
-            name: "depth_eq",
-            sql_op: "nlevel({}) =",
-            category: OperatorCategory::Path,
+            name:           "depth_eq",
+            sql_op:         "nlevel({}) =",
+            category:       OperatorCategory::Path,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -774,9 +774,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "depth_gt",
         OperatorInfo {
-            name: "depth_gt",
-            sql_op: "nlevel({}) >",
-            category: OperatorCategory::Path,
+            name:           "depth_gt",
+            sql_op:         "nlevel({}) >",
+            category:       OperatorCategory::Path,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -785,9 +785,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "depth_lt",
         OperatorInfo {
-            name: "depth_lt",
-            sql_op: "nlevel({}) <",
-            category: OperatorCategory::Path,
+            name:           "depth_lt",
+            sql_op:         "nlevel({}) <",
+            category:       OperatorCategory::Path,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -796,9 +796,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "isdescendant",
         OperatorInfo {
-            name: "isdescendant",
-            sql_op: "<@",
-            category: OperatorCategory::Path,
+            name:           "isdescendant",
+            sql_op:         "<@",
+            category:       OperatorCategory::Path,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -808,9 +808,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "distance_within",
         OperatorInfo {
-            name: "distance_within",
-            sql_op: "distance_within",
-            category: OperatorCategory::Spatial,
+            name:           "distance_within",
+            sql_op:         "distance_within",
+            category:       OperatorCategory::Spatial,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -820,9 +820,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "strictly_contains",
         OperatorInfo {
-            name: "strictly_contains",
-            sql_op: "@>",
-            category: OperatorCategory::Containment,
+            name:           "strictly_contains",
+            sql_op:         "@>",
+            category:       OperatorCategory::Containment,
             requires_array: false,
             jsonb_operator: true,
         },
@@ -832,9 +832,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "neq",
         OperatorInfo {
-            name: "neq",
-            sql_op: "!=",
-            category: OperatorCategory::Comparison,
+            name:           "neq",
+            sql_op:         "!=",
+            category:       OperatorCategory::Comparison,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -843,9 +843,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "isnull",
         OperatorInfo {
-            name: "isnull",
-            sql_op: "IS NULL",
-            category: OperatorCategory::Null,
+            name:           "isnull",
+            sql_op:         "IS NULL",
+            category:       OperatorCategory::Null,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -854,9 +854,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "array_eq",
         OperatorInfo {
-            name: "array_eq",
-            sql_op: "=",
-            category: OperatorCategory::Array,
+            name:           "array_eq",
+            sql_op:         "=",
+            category:       OperatorCategory::Array,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -865,9 +865,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "array_neq",
         OperatorInfo {
-            name: "array_neq",
-            sql_op: "!=",
-            category: OperatorCategory::Array,
+            name:           "array_neq",
+            sql_op:         "!=",
+            category:       OperatorCategory::Array,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -876,9 +876,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "array_contained_by",
         OperatorInfo {
-            name: "array_contained_by",
-            sql_op: "<@",
-            category: OperatorCategory::Array,
+            name:           "array_contained_by",
+            sql_op:         "<@",
+            category:       OperatorCategory::Array,
             requires_array: false,
             jsonb_operator: false,
         },
@@ -887,9 +887,9 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     m.insert(
         "notin",
         OperatorInfo {
-            name: "notin",
-            sql_op: "NOT IN",
-            category: OperatorCategory::Comparison,
+            name:           "notin",
+            sql_op:         "NOT IN",
+            category:       OperatorCategory::Comparison,
             requires_array: true,
             jsonb_operator: false,
         },

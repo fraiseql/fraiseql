@@ -43,13 +43,9 @@ fn field_encryption_benchmarks(c: &mut Criterion) {
     {
         let mut group = c.benchmark_group("field_encrypt");
         for (size, plaintext) in &payloads {
-            group.bench_with_input(
-                BenchmarkId::new("bytes", size),
-                plaintext,
-                |b, pt| {
-                    b.iter(|| fe.encrypt(black_box(pt)).unwrap());
-                },
-            );
+            group.bench_with_input(BenchmarkId::new("bytes", size), plaintext, |b, pt| {
+                b.iter(|| fe.encrypt(black_box(pt)).unwrap());
+            });
         }
         group.finish();
     }
@@ -58,13 +54,9 @@ fn field_encryption_benchmarks(c: &mut Criterion) {
         let mut group = c.benchmark_group("field_decrypt");
         for (size, plaintext) in &payloads {
             let ciphertext = fe.encrypt(plaintext).unwrap();
-            group.bench_with_input(
-                BenchmarkId::new("bytes", size),
-                &ciphertext,
-                |b, ct| {
-                    b.iter(|| fe.decrypt(black_box(ct)).unwrap());
-                },
-            );
+            group.bench_with_input(BenchmarkId::new("bytes", size), &ciphertext, |b, ct| {
+                b.iter(|| fe.decrypt(black_box(ct)).unwrap());
+            });
         }
         group.finish();
     }
@@ -77,18 +69,12 @@ fn field_encryption_with_context(c: &mut Criterion) {
     let context = "users.email.42";
 
     c.bench_function("encrypt_with_context", |b| {
-        b.iter(|| {
-            fe.encrypt_with_context(black_box(plaintext), black_box(context))
-                .unwrap()
-        });
+        b.iter(|| fe.encrypt_with_context(black_box(plaintext), black_box(context)).unwrap());
     });
 
     let ciphertext = fe.encrypt_with_context(plaintext, context).unwrap();
     c.bench_function("decrypt_with_context", |b| {
-        b.iter(|| {
-            fe.decrypt_with_context(black_box(&ciphertext), black_box(context))
-                .unwrap()
-        });
+        b.iter(|| fe.decrypt_with_context(black_box(&ciphertext), black_box(context)).unwrap());
     });
 }
 
@@ -127,9 +113,7 @@ fn versioned_encryption_benchmarks(c: &mut Criterion) {
     });
 
     c.bench_function("versioned_extract_version", |b| {
-        b.iter(|| {
-            VersionedFieldEncryption::extract_version(black_box(&current_ct)).unwrap()
-        });
+        b.iter(|| VersionedFieldEncryption::extract_version(black_box(&current_ct)).unwrap());
     });
 }
 

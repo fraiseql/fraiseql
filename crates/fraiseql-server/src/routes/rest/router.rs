@@ -309,12 +309,12 @@ where
 /// Shared state for REST handlers.
 #[derive(Clone)]
 struct RestState<A: DatabaseAdapter> {
-    executor: Arc<Executor<A>>,
-    route_table: Arc<RestRouteTable>,
+    executor:          Arc<Executor<A>>,
+    route_table:       Arc<RestRouteTable>,
     idempotency_store: Arc<dyn super::idempotency::IdempotencyStore>,
     /// Optional event transport for SSE streaming (requires `observers` feature).
     #[cfg(feature = "observers")]
-    event_transport: Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
+    event_transport:   Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -544,8 +544,8 @@ where
     if let Some(config) = &schema.rest_config {
         if config.require_auth && security_ctx.is_none() {
             return rest_result_to_response(Err(super::handler::RestError {
-                status: StatusCode::UNAUTHORIZED,
-                code: "UNAUTHENTICATED",
+                status:  StatusCode::UNAUTHORIZED,
+                code:    "UNAUTHENTICATED",
                 message: "Authentication required".to_string(),
                 details: None,
             }));
@@ -622,8 +622,8 @@ where
                 Err(e) => {
                     tracing::warn!(error = %e, resource = %resource_name, "Failed to subscribe to event stream");
                     return rest_result_to_response(Err(super::handler::RestError {
-                        status: StatusCode::SERVICE_UNAVAILABLE,
-                        code: "EVENT_STREAM_UNAVAILABLE",
+                        status:  StatusCode::SERVICE_UNAVAILABLE,
+                        code:    "EVENT_STREAM_UNAVAILABLE",
                         message: "Could not connect to event stream".to_string(),
                         details: None,
                     }));

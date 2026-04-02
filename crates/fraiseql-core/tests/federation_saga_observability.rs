@@ -258,7 +258,8 @@ async fn test_compensator_step_context_includes_subgraph() {
         .await;
 
     // Then: Compensation step reflects correct step number
-    let step_result = result.unwrap_or_else(|e| panic!("compensate_step (subgraph context) failed: {e}"));
+    let step_result =
+        result.unwrap_or_else(|e| panic!("compensate_step (subgraph context) failed: {e}"));
     assert_eq!(step_result.step_number, 1);
     assert!(step_result.success);
 }

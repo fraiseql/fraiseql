@@ -58,7 +58,7 @@ impl AggregationSqlGenerator {
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => Err(crate::FraiseQLError::Validation {
                 message: "Unknown WhereClause variant".to_string(),
-                path: None,
+                path:    None,
             }),
         }
     }

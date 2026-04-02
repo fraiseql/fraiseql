@@ -3,7 +3,8 @@
 
 //! Memory profiling benchmarks using dhat.
 //!
-//! Run with: `cargo test --bench memory_profile -p fraiseql-core --features dhat-heap -- --nocapture --test-threads=1`
+//! Run with: `cargo test --bench memory_profile -p fraiseql-core --features dhat-heap --
+//! --nocapture --test-threads=1`
 //!
 //! All dhat tests MUST live in this single file (one `#[global_allocator]` per binary).
 //! Each `Profiler::builder().testing().build()` resets counters for its scope.
@@ -14,8 +15,10 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-use fraiseql_core::cache::{CacheConfig, QueryResultCache};
-use fraiseql_core::runtime::ResultProjector;
+use fraiseql_core::{
+    cache::{CacheConfig, QueryResultCache},
+    runtime::ResultProjector,
+};
 use fraiseql_db::JsonbValue;
 use serde_json::json;
 
@@ -74,13 +77,7 @@ fn profile_cache_put_get() {
     // 1000 put + get cycles
     for i in 0_u64..1000 {
         cache
-            .put(
-                i,
-                result.clone(),
-                vec!["view_a".to_string()],
-                None,
-                Some("User"),
-            )
+            .put(i, result.clone(), vec!["view_a".to_string()], None, Some("User"))
             .unwrap();
     }
     for i in 0_u64..1000 {

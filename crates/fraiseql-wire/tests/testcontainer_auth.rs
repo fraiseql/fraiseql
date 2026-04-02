@@ -18,7 +18,8 @@ use fraiseql_wire::client::FraiseClient;
 
 /// Shared container info for all auth tests.
 struct AuthContainer {
-    #[allow(dead_code)] // Reason: container held alive to keep Docker container running for test duration
+    #[allow(dead_code)]
+    // Reason: container held alive to keep Docker container running for test duration
     container: ContainerAsync<Postgres>,
     port: u16,
 }
@@ -53,7 +54,10 @@ async fn get_auth_container() -> Arc<AuthContainer> {
 #[tokio::test]
 async fn test_auth_correct_credentials() {
     let c = get_auth_container().await;
-    let conn_string = format!("postgres://testuser:testpassword@127.0.0.1:{}/testdb", c.port);
+    let conn_string = format!(
+        "postgres://testuser:testpassword@127.0.0.1:{}/testdb",
+        c.port
+    );
 
     let result = FraiseClient::connect(&conn_string).await;
 
@@ -124,7 +128,10 @@ async fn test_auth_empty_password_rejected() {
 #[tokio::test]
 async fn test_auth_multiple_connections() {
     let c = get_auth_container().await;
-    let conn_string = format!("postgres://testuser:testpassword@127.0.0.1:{}/testdb", c.port);
+    let conn_string = format!(
+        "postgres://testuser:testpassword@127.0.0.1:{}/testdb",
+        c.port
+    );
 
     // Connect multiple times sequentially
     for i in 0..5 {
@@ -154,7 +161,10 @@ async fn test_auth_success_after_failure() {
     assert!(result1.is_err(), "wrong password should fail");
 
     // Second attempt with correct password
-    let correct_conn = format!("postgres://testuser:testpassword@127.0.0.1:{}/testdb", c.port);
+    let correct_conn = format!(
+        "postgres://testuser:testpassword@127.0.0.1:{}/testdb",
+        c.port
+    );
     let result2 = FraiseClient::connect(&correct_conn).await;
     assert!(
         result2.is_ok(),

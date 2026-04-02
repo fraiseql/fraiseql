@@ -105,7 +105,10 @@ async fn duplicate_primary_key_returns_sql_state_23505() {
 
     // Second insert with the same PK must fail
     let result = adapter.execute_raw_query(&insert).await;
-    assert!(result.is_err(), "expected Err for duplicate primary key insert, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err for duplicate primary key insert, got: {result:?}"
+    );
 
     let err = result.unwrap_err();
     if let FraiseQLError::Database { sql_state, .. } = &err {
@@ -147,7 +150,10 @@ async fn pool_size_one_with_concurrent_queries_does_not_hang() {
 #[tokio::test]
 async fn health_check_succeeds_with_running_database() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    adapter.health_check().await.unwrap_or_else(|e| panic!("expected health check to succeed: {e}"));
+    adapter
+        .health_check()
+        .await
+        .unwrap_or_else(|e| panic!("expected health check to succeed: {e}"));
 }
 
 #[tokio::test]
@@ -168,7 +174,10 @@ async fn pool_metrics_reflect_real_state() {
 #[tokio::test]
 async fn query_seeded_view_returns_data() {
     let adapter = common::testcontainer::get_test_adapter().await;
-    let results = adapter.execute_where_query("test.v_user", None, None, None, None).await.unwrap();
+    let results = adapter
+        .execute_where_query("test.v_user", None, None, None, None)
+        .await
+        .unwrap();
     assert!(!results.is_empty(), "seeded v_user should return rows");
 }
 

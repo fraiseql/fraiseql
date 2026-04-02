@@ -121,8 +121,5 @@ fn test_mismatched_format_version_is_rejected() {
         "schema with future format version 9999 must be rejected"
     );
     let err = version_check.unwrap_err();
-    assert!(
-        err.contains("9999"),
-        "error message must mention the mismatched version: {err}"
-    );
+    assert!(err.contains("9999"), "error message must mention the mismatched version: {err}");
 }

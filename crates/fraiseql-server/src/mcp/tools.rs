@@ -46,15 +46,15 @@ fn query_to_tool(query: &QueryDefinition) -> Tool {
     let description = query.description.clone().unwrap_or_else(|| format!("Query: {}", query.name));
 
     Tool {
-        name: Cow::Owned(query.name.clone()),
-        title: None,
-        description: Some(Cow::Owned(description)),
-        input_schema: Arc::new(arguments_to_json_schema(&query.arguments)),
-        annotations: None,
+        name:          Cow::Owned(query.name.clone()),
+        title:         None,
+        description:   Some(Cow::Owned(description)),
+        input_schema:  Arc::new(arguments_to_json_schema(&query.arguments)),
+        annotations:   None,
         output_schema: None,
-        execution: None,
-        icons: None,
-        meta: None,
+        execution:     None,
+        icons:         None,
+        meta:          None,
     }
 }
 
@@ -66,15 +66,15 @@ fn mutation_to_tool(mutation: &MutationDefinition) -> Tool {
         .unwrap_or_else(|| format!("Mutation: {}", mutation.name));
 
     Tool {
-        name: Cow::Owned(mutation.name.clone()),
-        title: None,
-        description: Some(Cow::Owned(description)),
-        input_schema: Arc::new(arguments_to_json_schema(&mutation.arguments)),
-        annotations: None,
+        name:          Cow::Owned(mutation.name.clone()),
+        title:         None,
+        description:   Some(Cow::Owned(description)),
+        input_schema:  Arc::new(arguments_to_json_schema(&mutation.arguments)),
+        annotations:   None,
         output_schema: None,
-        execution: None,
-        icons: None,
-        meta: None,
+        execution:     None,
+        icons:         None,
+        meta:          None,
     }
 }
 
@@ -122,7 +122,8 @@ fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
         FieldType::List(inner) => {
             serde_json::json!({ "type": "array", "items": field_type_to_json_schema(inner) })
         },
-        // Reason: FieldType is #[non_exhaustive]; all other variants (including future ones) map to string
+        // Reason: FieldType is #[non_exhaustive]; all other variants (including future ones) map to
+        // string
         FieldType::String
         | FieldType::Id
         | FieldType::Uuid

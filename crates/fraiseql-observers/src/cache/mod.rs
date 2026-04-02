@@ -181,7 +181,8 @@ impl CachedActionResult {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs()
-                .cast_signed(), // Reason: Unix timestamp won't exceed i64::MAX until year 292 billion
+                .cast_signed(), /* Reason: Unix timestamp won't exceed i64::MAX until year 292
+                                 * billion */
         }
     }
 

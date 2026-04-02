@@ -40,16 +40,16 @@ fn grpc_frame(msg_bytes: &[u8]) -> Bytes {
 
 /// Internal state for the streaming unfold loop.
 struct StreamState<A: DatabaseAdapter> {
-    adapter: Arc<A>,
-    view_name: String,
-    columns: Vec<ColumnSpec>,
+    adapter:        Arc<A>,
+    view_name:      String,
+    columns:        Vec<ColumnSpec>,
     row_descriptor: MessageDescriptor,
-    where_sql: Option<String>,
-    order_by: Option<String>,
-    batch_size: u32,
-    offset: u32,
-    done: bool,
-    sent_trailers: bool,
+    where_sql:      Option<String>,
+    order_by:       Option<String>,
+    batch_size:     u32,
+    offset:         u32,
+    done:           bool,
+    sent_trailers:  bool,
 }
 
 /// Build a gRPC server-streaming response body for a list query.

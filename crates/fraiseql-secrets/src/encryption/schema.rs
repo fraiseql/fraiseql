@@ -234,7 +234,8 @@ impl SchemaRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`SecretsError::ValidationError`] if the schema fails validation (see [`StructSchema::validate`]).
+    /// Returns [`SecretsError::ValidationError`] if the schema fails validation (see
+    /// [`StructSchema::validate`]).
     pub fn register(&mut self, schema: StructSchema) -> Result<(), SecretsError> {
         schema.validate()?;
         self.schemas.insert(schema.type_name.clone(), schema);
@@ -264,8 +265,7 @@ impl SchemaRegistry {
 
     /// Check if type has encrypted fields
     pub fn has_encrypted_fields(&self, type_name: &str) -> bool {
-        self.get(type_name)
-            .is_some_and(|schema| !schema.encrypted_fields.is_empty())
+        self.get(type_name).is_some_and(|schema| !schema.encrypted_fields.is_empty())
     }
 
     /// Get list of all registered types
@@ -489,7 +489,9 @@ mod tests {
         let mut schema = StructSchema::new("User");
         let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
         schema.add_field(email);
-        registry.register(schema).unwrap_or_else(|e| panic!("expected Ok from register: {e}"));
+        registry
+            .register(schema)
+            .unwrap_or_else(|e| panic!("expected Ok from register: {e}"));
         assert_eq!(registry.count(), 1);
     }
 
@@ -656,7 +658,9 @@ mod tests {
         let email = SchemaFieldInfo::new("email", "String", true, "encryption/email");
         schema.add_field(email);
         registry.register(schema).unwrap();
-        registry.validate_all().unwrap_or_else(|e| panic!("expected Ok from validate_all: {e}"));
+        registry
+            .validate_all()
+            .unwrap_or_else(|e| panic!("expected Ok from validate_all: {e}"));
     }
 
     #[test]

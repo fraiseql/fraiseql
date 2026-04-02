@@ -334,10 +334,16 @@ mod tests {
             .unwrap_or_else(|e| panic!("expected Ok for 'valid_name': {e}"));
 
         let result = OrderByClause::jsonb_field("123invalid", SortOrder::Asc).validate();
-        assert!(result.is_err(), "expected Err for '123invalid', got: {result:?}");
+        assert!(
+            result.is_err(),
+            "expected Err for '123invalid', got: {result:?}"
+        );
 
         let result = OrderByClause::jsonb_field("bad-name", SortOrder::Asc).validate();
-        assert!(result.is_err(), "expected Err for 'bad-name', got: {result:?}");
+        assert!(
+            result.is_err(),
+            "expected Err for 'bad-name', got: {result:?}"
+        );
     }
 
     #[test]
@@ -355,7 +361,10 @@ mod tests {
         let clause =
             OrderByClause::jsonb_field("name", SortOrder::Asc).with_collation("invalid!!!special");
         let result = clause.validate();
-        assert!(result.is_err(), "expected Err for collation 'invalid!!!special', got: {result:?}");
+        assert!(
+            result.is_err(),
+            "expected Err for collation 'invalid!!!special', got: {result:?}"
+        );
     }
 
     #[test]

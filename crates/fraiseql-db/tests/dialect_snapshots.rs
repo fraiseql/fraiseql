@@ -574,7 +574,11 @@ mod pg_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            path:     vec![
+                "profile".to_string(),
+                "social".to_string(),
+                "twitter".to_string(),
+            ],
             operator: WhereOperator::Eq,
             value:    json!("@alice"),
         };
@@ -598,7 +602,11 @@ mod mysql_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            path:     vec![
+                "profile".to_string(),
+                "social".to_string(),
+                "twitter".to_string(),
+            ],
             operator: WhereOperator::Eq,
             value:    json!("@alice"),
         };
@@ -622,7 +630,11 @@ mod sqlite_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            path:     vec![
+                "profile".to_string(),
+                "social".to_string(),
+                "twitter".to_string(),
+            ],
             operator: WhereOperator::Eq,
             value:    json!("@alice"),
         };
@@ -646,7 +658,11 @@ mod sqlserver_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path:     vec!["profile".to_string(), "social".to_string(), "twitter".to_string()],
+            path:     vec![
+                "profile".to_string(),
+                "social".to_string(),
+                "twitter".to_string(),
+            ],
             operator: WhereOperator::Eq,
             value:    json!("@alice"),
         };

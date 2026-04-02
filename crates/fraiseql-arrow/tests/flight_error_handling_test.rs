@@ -16,7 +16,7 @@ use sqlx::postgres::PgPoolOptions;
 /// Test database setup and teardown.
 struct TestDb {
     #[allow(dead_code)] // Reason: pool held alive to keep connection open; not read directly
-    pool:          sqlx::PgPool,
+    pool: sqlx::PgPool,
     database_name: String,
 }
 
@@ -104,21 +104,22 @@ impl TestDb {
     /// Panics if `DATABASE_URL` is not set. This is safe because `setup()`
     /// already verified its presence.
     fn connection_string(&self) -> String {
-        let db_url = std::env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set — setup() checks this");
-        db_url.rsplit_once('/')
-            .map_or_else(
-                || format!("{}/{}", db_url, self.database_name),
-                |(base, _)| format!("{}/{}", base, self.database_name),
-            )
+        let db_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL must be set — setup() checks this");
+        db_url.rsplit_once('/').map_or_else(
+            || format!("{}/{}", db_url, self.database_name),
+            |(base, _)| format!("{}/{}", base, self.database_name),
+        )
     }
 }
 
 impl Drop for TestDb {
     fn drop(&mut self) {
         let db_name = self.database_name.clone();
-        let default_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string());
+        let default_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql"
+                .to_string()
+        });
 
         std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -191,7 +192,9 @@ mod tests {
     /// 3. Service remains functional after error
     #[tokio::test]
     async fn test_invalid_view_name_error() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -236,7 +239,9 @@ mod tests {
     /// 3. Streaming can continue or fails gracefully
     #[tokio::test]
     async fn test_arrow_conversion_error() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -262,7 +267,9 @@ mod tests {
     /// 3. Service recovers and can handle subsequent requests
     #[tokio::test]
     async fn test_ipc_encoding_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -285,7 +292,9 @@ mod tests {
     /// 3. Service is ready for next request
     #[tokio::test]
     async fn test_batched_queries_empty_error() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;
@@ -312,7 +321,9 @@ mod tests {
     /// 4. Error doesn't break the entire batch
     #[tokio::test]
     async fn test_batched_queries_partial_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let Some(test_db) = TestDb::setup().await? else { return Ok(()) };
+        let Some(test_db) = TestDb::setup().await? else {
+            return Ok(());
+        };
         let conn_string = test_db.connection_string();
 
         let flight_adapter = create_flight_adapter(&conn_string).await?;

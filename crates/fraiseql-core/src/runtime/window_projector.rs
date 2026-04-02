@@ -146,28 +146,28 @@ mod tests {
 
     fn create_test_plan() -> WindowExecutionPlan {
         WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![
                 SelectColumn {
                     expression: "revenue".to_string(),
-                    alias: "revenue".to_string(),
+                    alias:      "revenue".to_string(),
                 },
                 SelectColumn {
                     expression: "category".to_string(),
-                    alias: "category".to_string(),
+                    alias:      "category".to_string(),
                 },
             ],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec!["category".to_string()],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         }
     }
 

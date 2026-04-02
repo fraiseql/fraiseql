@@ -65,7 +65,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
         #[cfg(not(feature = "federation"))]
-        let circuit_breaker: Option<()> = None;
+        let _circuit_breaker: Option<()> = None;
         #[cfg(not(feature = "federation"))]
         let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
@@ -158,7 +158,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         schema: CompiledSchema,
         adapter: Arc<A>,
         #[allow(unused_variables)]
-        // Reason: used inside #[cfg(feature = "observers")] block; unused when observers feature is off
+        // Reason: used inside #[cfg(feature = "observers")] block; unused when observers feature
+        // is off
         db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
@@ -168,7 +169,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
         #[cfg(not(feature = "federation"))]
-        let circuit_breaker: Option<()> = None;
+        let _circuit_breaker: Option<()> = None;
         #[cfg(not(feature = "federation"))]
         let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);

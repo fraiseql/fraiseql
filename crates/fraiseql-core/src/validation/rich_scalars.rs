@@ -13,7 +13,8 @@ use crate::validation::patterns;
 static EMAIL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(patterns::EMAIL).expect("email regex is valid"));
 
-// International phone: +1-999-999-9999 or +999999999999, etc. — lenient pattern from `patterns::PHONE_LENIENT`
+// International phone: +1-999-999-9999 or +999999999999, etc. — lenient pattern from
+// `patterns::PHONE_LENIENT`
 static PHONE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(patterns::PHONE_LENIENT).expect("phone regex is valid"));
 

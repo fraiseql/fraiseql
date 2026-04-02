@@ -15,7 +15,7 @@ use crate::secrets_manager::{SecretsBackend, SecretsError};
 /// At 80% of TTL elapsed, renewal is triggered before the token expires.
 // Reason: referenced in the renew_token() doc comment; the actual scheduling logic
 // uses this constant to avoid a magic literal at the call site.
-#[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+#[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
 const TOKEN_RENEWAL_THRESHOLD: f64 = 0.8;
 
 const VAULT_API_VERSION: &str = "v1";
@@ -142,10 +142,7 @@ impl SecretsBackend for VaultBackend {
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(SecretsError::ConnectionError(format!(
-                "Vault unhealthy: {}",
-                resp.status()
-            )))
+            Err(SecretsError::ConnectionError(format!("Vault unhealthy: {}", resp.status())))
         }
     }
 
@@ -177,7 +174,8 @@ impl SecretsBackend for VaultBackend {
         // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic to
         // avoid the f64→i64 precision loss that occurs for large TTLs (> 2^53 seconds).
         // Saturating multiplication prevents overflow if Vault returns an extreme TTL.
-        #[allow(clippy::cast_possible_truncation)] // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
         let cache_ttl_secs =
             response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
         let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
@@ -366,7 +364,8 @@ impl VaultBackend {
 
         let elapsed_secs = (Utc::now() - obtained_at).num_seconds();
         // Use integer arithmetic to avoid f64 precision loss for large TTL values.
-        #[allow(clippy::cast_possible_truncation)] // Reason: TOKEN_RENEWAL_THRESHOLD * 100.0 is 80.0, fits in i64
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: TOKEN_RENEWAL_THRESHOLD * 100.0 is 80.0, fits in i64
         let renewal_threshold_secs =
             ttl_secs.saturating_mul((TOKEN_RENEWAL_THRESHOLD * 100.0) as i64) / 100;
         elapsed_secs >= renewal_threshold_secs
@@ -533,11 +532,7 @@ impl VaultBackend {
     }
 
     /// Build HTTP request to Vault with standard headers.
-    fn build_vault_request(
-        &self,
-        client: &reqwest::Client,
-        url: &str,
-    ) -> reqwest::RequestBuilder {
+    fn build_vault_request(&self, client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
         client
             .post(url)
             .header("X-Vault-Token", (*self.token).clone())

@@ -252,9 +252,7 @@ mod projection_sql_tests {
 
 #[cfg(feature = "test-sqlserver")]
 mod integration_tests {
-    use crate::sqlserver::SqlServerAdapter;
-    use crate::traits::DatabaseAdapter;
-    use crate::types::DatabaseType;
+    use crate::{sqlserver::SqlServerAdapter, traits::DatabaseAdapter, types::DatabaseType};
 
     // Note: These tests require a running SQL Server instance with test data.
     // Run with: cargo test --features test-sqlserver -p fraiseql-core db::sqlserver::adapter

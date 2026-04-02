@@ -897,10 +897,9 @@ mod tests {
         let compensator = SagaCompensator::new();
         let saga_id = Uuid::new_v4();
 
-        let comp_result = compensator
-            .compensate_saga(saga_id)
-            .await
-            .unwrap_or_else(|e| panic!("expected Ok from compensate_saga (continues on failure): {e}"));
+        let comp_result = compensator.compensate_saga(saga_id).await.unwrap_or_else(|e| {
+            panic!("expected Ok from compensate_saga (continues on failure): {e}")
+        });
         // Without store, compensation succeeds
         assert_eq!(comp_result.status, CompensationStatus::Compensated);
     }

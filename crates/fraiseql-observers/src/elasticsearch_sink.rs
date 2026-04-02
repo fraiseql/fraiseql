@@ -279,7 +279,8 @@ impl ElasticsearchSink {
                         last_error = Some(e);
 
                         if attempt < self.config.max_retries {
-                            #[allow(clippy::cast_possible_truncation)] // Reason: attempt count is small, fits in u32
+                            #[allow(clippy::cast_possible_truncation)]
+                            // Reason: attempt count is small, fits in u32
                             let backoff = std::time::Duration::from_millis(
                                 100_u64
                                     .saturating_mul(2_u64.saturating_pow(attempt as u32))
@@ -483,7 +484,9 @@ mod tests {
             url: "https://es.example.com:9200".to_string(),
             ..ElasticsearchSinkConfig::default()
         };
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
     }
 
     #[test]
@@ -532,7 +535,9 @@ mod tests {
             bulk_size: 100_000,
             ..Default::default()
         };
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for bulk_size=100_000: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for bulk_size=100_000: {e}"));
     }
 
     #[test]
@@ -545,9 +550,9 @@ mod tests {
             ..ElasticsearchSinkConfig::default()
         };
         let after = base.with_env_overrides();
-        after.validate().unwrap_or_else(|e| {
-            panic!("config after with_env_overrides must still be valid: {e}")
-        });
+        after
+            .validate()
+            .unwrap_or_else(|e| panic!("config after with_env_overrides must still be valid: {e}"));
     }
 
     #[test]
@@ -559,7 +564,9 @@ mod tests {
             flush_interval_secs: 30,
             max_retries:         5,
         };
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for custom valid config: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for custom valid config: {e}"));
     }
 
     // ── S23-H4: Elasticsearch sink timeout + bulk response cap ────────────────

@@ -7,7 +7,8 @@
 //! 4. Error handling
 //!
 //! Tests skip automatically when `DATABASE_URL` is not set.
-//! Run with: `DATABASE_URL=postgresql://... cargo test -p fraiseql-server --test database_query_test`
+//! Run with: `DATABASE_URL=postgresql://... cargo test -p fraiseql-server --test
+//! database_query_test`
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** PostgreSQL

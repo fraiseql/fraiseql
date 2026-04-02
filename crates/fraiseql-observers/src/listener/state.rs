@@ -228,12 +228,9 @@ mod tests {
             .await
             .unwrap_or_else(|e| panic!("expected Ok for Initializing→Connecting: {e}"));
         // Connecting → Recovering (connection failure at startup — must not require restart)
-        state_machine
-            .transition(ListenerState::Recovering)
-            .await
-            .unwrap_or_else(|e| {
-                panic!("Connecting → Recovering must be a valid transition, got: {e}")
-            });
+        state_machine.transition(ListenerState::Recovering).await.unwrap_or_else(|e| {
+            panic!("Connecting → Recovering must be a valid transition, got: {e}")
+        });
         assert_eq!(state_machine.get_state().await, ListenerState::Recovering);
 
         // Recovering → Connecting (retry connection)

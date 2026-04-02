@@ -489,7 +489,8 @@ mod tests {
         {
             // Without features, should succeed (ignores config)
             let result = ExecutorFactory::build(&config, dlq).await;
-            result.unwrap_or_else(|e| panic!("expected Ok when dedup/caching features absent: {e}"));
+            result
+                .unwrap_or_else(|e| panic!("expected Ok when dedup/caching features absent: {e}"));
         }
     }
 
@@ -552,7 +553,9 @@ mod tests {
 
         // Valid config
         let config = JobQueueConfig::default();
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         // Invalid: empty URL
         let config = JobQueueConfig {

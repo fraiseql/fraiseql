@@ -169,8 +169,9 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
                 // Date32 is days since Unix epoch (1970-01-01)
                 NaiveDate::parse_from_str(s, "%Y-%m-%d")
                     .map(|date| {
-                        let epoch = NaiveDate::from_ymd_opt(1970, 1, 1)
-                            .unwrap_or_else(|| unreachable!("1970-01-01 is a valid Gregorian calendar date"));
+                        let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_else(|| {
+                            unreachable!("1970-01-01 is a valid Gregorian calendar date")
+                        });
                         let days = (date - epoch).num_days() as i32;
                         Value::Date(days)
                     })

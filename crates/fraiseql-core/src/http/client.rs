@@ -12,13 +12,13 @@ use reqwest::{Client, ClientBuilder, redirect};
 ///
 /// # Policy
 ///
-/// - **Redirects disabled**: a redirect response (`3xx`) is treated as an error,
-///   preventing redirect-chain attacks that bypass URL-validation guards applied
-///   to the initial URL (e.g. a subgraph redirecting to `169.254.169.254`).
-/// - **HTTPS only**: plain HTTP connections are rejected, preventing
-///   protocol-downgrade via redirect.
-/// - **Caller-supplied timeout**: applied to all requests; prevents slow-loris
-///   hangs on malicious or misconfigured endpoints.
+/// - **Redirects disabled**: a redirect response (`3xx`) is treated as an error, preventing
+///   redirect-chain attacks that bypass URL-validation guards applied to the initial URL (e.g. a
+///   subgraph redirecting to `169.254.169.254`).
+/// - **HTTPS only**: plain HTTP connections are rejected, preventing protocol-downgrade via
+///   redirect.
+/// - **Caller-supplied timeout**: applied to all requests; prevents slow-loris hangs on malicious
+///   or misconfigured endpoints.
 ///
 /// # Errors
 ///

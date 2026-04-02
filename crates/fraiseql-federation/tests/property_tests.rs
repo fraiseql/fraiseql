@@ -6,13 +6,12 @@
 //! - URL parsing stability (no panics on arbitrary input)
 
 #![allow(clippy::doc_markdown)] // Reason: doc comments in test helpers are informal
-#![allow(clippy::unwrap_used)]  // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use fraiseql_federation::{
-    is_ssrf_blocked_ip, parse_representations, validate_subgraph_url,
-    types::FederationMetadata,
+    is_ssrf_blocked_ip, parse_representations, types::FederationMetadata, validate_subgraph_url,
 };
 use proptest::prelude::*;
 use serde_json::{Value, json};

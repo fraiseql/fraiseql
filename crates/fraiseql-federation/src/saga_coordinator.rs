@@ -683,8 +683,7 @@ mod tests {
         let saga_id = Uuid::new_v4();
         let status = coordinator.get_saga_status(saga_id).await;
 
-        let status = status
-            .unwrap_or_else(|e| panic!("get_saga_status should succeed: {e}"));
+        let status = status.unwrap_or_else(|e| panic!("get_saga_status should succeed: {e}"));
         assert_eq!(status.saga_id, saga_id);
     }
 
@@ -697,8 +696,7 @@ mod tests {
         let saga_id = Uuid::new_v4();
         let result = coordinator.cancel_saga(saga_id).await;
 
-        let result = result
-            .unwrap_or_else(|e| panic!("cancel_saga should succeed: {e}"));
+        let result = result.unwrap_or_else(|e| panic!("cancel_saga should succeed: {e}"));
         assert_eq!(result.saga_id, saga_id);
         assert_eq!(result.state, SagaState::Failed);
     }
@@ -723,8 +721,7 @@ mod tests {
 
         let result = coordinator.list_in_flight_sagas().await;
 
-        let sagas = result
-            .unwrap_or_else(|e| panic!("list_in_flight_sagas should succeed: {e}"));
+        let sagas = result.unwrap_or_else(|e| panic!("list_in_flight_sagas should succeed: {e}"));
         // Verify it returns a (possibly empty) list
         assert!(sagas.is_empty(), "stub should return empty list");
     }

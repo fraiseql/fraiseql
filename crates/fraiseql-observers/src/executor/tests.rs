@@ -1407,7 +1407,8 @@ fn test_compile_condition_returns_ast_for_valid_condition() {
         retry:      crate::config::RetryConfig::default(),
         on_failure: crate::config::FailurePolicy::Log,
     };
-    let ast = observer.compile_condition()
+    let ast = observer
+        .compile_condition()
         .unwrap_or_else(|e| panic!("valid condition must compile without error: {e}"));
     assert!(ast.is_some(), "compile_condition must return Some(ast)");
 }
@@ -1423,12 +1424,10 @@ fn test_compile_condition_returns_none_when_no_condition() {
         retry:      crate::config::RetryConfig::default(),
         on_failure: crate::config::FailurePolicy::Log,
     };
-    let ast = observer.compile_condition()
+    let ast = observer
+        .compile_condition()
         .unwrap_or_else(|e| panic!("no-condition case must not error: {e}"));
-    assert!(
-        ast.is_none(),
-        "compile_condition must return None when no condition"
-    );
+    assert!(ast.is_none(), "compile_condition must return None when no condition");
 }
 
 #[test]

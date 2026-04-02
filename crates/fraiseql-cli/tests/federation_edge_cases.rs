@@ -20,7 +20,10 @@ fn test_requires_on_external_field_conflict() {
     // THEN: Should detect directive conflict
 
     let result = validate_directive_conflict("Order", "user_id", &["external", "requires"]);
-    assert!(result.is_err(), "Should detect @external and @requires conflict, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "Should detect @external and @requires conflict, got: {result:?}"
+    );
 }
 
 #[test]
@@ -31,7 +34,10 @@ fn test_provides_on_external_field_conflict() {
     // THEN: Should detect contradiction (can't provide what you don't own)
 
     let result = validate_directive_conflict("Order", "user", &["external", "provides"]);
-    assert!(result.is_err(), "Should detect @external and @provides contradiction, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "Should detect @external and @provides contradiction, got: {result:?}"
+    );
 }
 
 #[test]
@@ -91,7 +97,10 @@ fn test_owner_has_key_extension_has_different_key() {
     let extension_key = vec!["email"];
 
     let result = validate_key_consistency("User", &owner_key, &extension_key);
-    assert!(result.is_err(), "Should detect different @key in owner vs extension, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "Should detect different @key in owner vs extension, got: {result:?}"
+    );
 }
 
 #[test]
@@ -110,7 +119,10 @@ fn test_multiple_extensions_different_keys() {
     ];
 
     let result = validate_extension_key_consistency(&keys);
-    assert!(result.is_err(), "Should detect inconsistent @key in extensions, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "Should detect inconsistent @key in extensions, got: {result:?}"
+    );
 }
 
 #[test]
@@ -201,7 +213,10 @@ composition
 ";
 
     let result = parse_federation_config(yaml_content);
-    assert!(result.is_err(), "Should reject malformed YAML with missing colons, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "Should reject malformed YAML with missing colons, got: {result:?}"
+    );
 }
 
 #[test]

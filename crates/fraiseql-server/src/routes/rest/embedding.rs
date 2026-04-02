@@ -27,9 +27,9 @@ use super::{
 
 /// Shared context for embedding execution, reducing argument count.
 struct EmbedCtx<'a, A: DatabaseAdapter> {
-    executor: &'a Arc<Executor<A>>,
-    schema: &'a CompiledSchema,
-    config: &'a RestConfig,
+    executor:         &'a Arc<Executor<A>>,
+    schema:           &'a CompiledSchema,
+    config:           &'a RestConfig,
     security_context: Option<&'a SecurityContext>,
 }
 
@@ -40,11 +40,11 @@ struct EmbedCtx<'a, A: DatabaseAdapter> {
 /// Parameters for embedding execution, grouping shared context.
 pub struct EmbeddingRequest<'a, A: DatabaseAdapter> {
     /// Query executor.
-    pub executor: &'a Arc<Executor<A>>,
+    pub executor:         &'a Arc<Executor<A>>,
     /// Compiled schema for type/query lookup.
-    pub schema: &'a CompiledSchema,
+    pub schema:           &'a CompiledSchema,
     /// REST configuration (page size limits, etc.).
-    pub config: &'a RestConfig,
+    pub config:           &'a RestConfig,
     /// Parent type name for relationship lookup.
     pub parent_type_name: &'a str,
     /// Security context for RLS enforcement.
@@ -77,9 +77,9 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
     })?;
 
     let ctx = EmbedCtx {
-        executor: req.executor,
-        schema: req.schema,
-        config: req.config,
+        executor:         req.executor,
+        schema:           req.schema,
+        config:           req.config,
         security_context: req.security_context,
     };
 
@@ -432,11 +432,11 @@ mod tests {
     #[test]
     fn extract_join_key_one_to_many() {
         let rel = Relationship {
-            name: "posts".to_string(),
-            target_type: "Post".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "posts".to_string(),
+            target_type:    "Post".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::OneToMany,
+            cardinality:    Cardinality::OneToMany,
         };
         let row = serde_json::json!({"pk_user": 42, "name": "Alice"});
         let key = extract_join_key(&row, &rel);
@@ -446,11 +446,11 @@ mod tests {
     #[test]
     fn extract_join_key_many_to_one() {
         let rel = Relationship {
-            name: "author".to_string(),
-            target_type: "User".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "author".to_string(),
+            target_type:    "User".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::ManyToOne,
+            cardinality:    Cardinality::ManyToOne,
         };
         let row = serde_json::json!({"fk_user": 7, "title": "Hello"});
         let key = extract_join_key(&row, &rel);
@@ -460,11 +460,11 @@ mod tests {
     #[test]
     fn extract_join_key_null_returns_none() {
         let rel = Relationship {
-            name: "author".to_string(),
-            target_type: "User".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "author".to_string(),
+            target_type:    "User".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::ManyToOne,
+            cardinality:    Cardinality::ManyToOne,
         };
         let row = serde_json::json!({"fk_user": null, "title": "Hello"});
         assert!(extract_join_key(&row, &rel).is_none());
@@ -473,11 +473,11 @@ mod tests {
     #[test]
     fn extract_join_key_missing_field_returns_none() {
         let rel = Relationship {
-            name: "posts".to_string(),
-            target_type: "Post".to_string(),
-            foreign_key: "fk_user".to_string(),
+            name:           "posts".to_string(),
+            target_type:    "Post".to_string(),
+            foreign_key:    "fk_user".to_string(),
             referenced_key: "pk_user".to_string(),
-            cardinality: Cardinality::OneToMany,
+            cardinality:    Cardinality::OneToMany,
         };
         let row = serde_json::json!({"name": "Alice"});
         assert!(extract_join_key(&row, &rel).is_none());

@@ -5,9 +5,8 @@ use std::collections::HashMap;
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_federation::{
-    FederatedType, FederationMetadata, KeyDirective,
-    construct_where_in_clause, parse_field_selection, parse_representations,
-    validate_representations, validate_subgraph_url,
+    FederatedType, FederationMetadata, KeyDirective, construct_where_in_clause,
+    parse_field_selection, parse_representations, validate_representations, validate_subgraph_url,
 };
 use serde_json::json;
 
@@ -20,8 +19,8 @@ fn make_metadata(type_count: usize) -> FederationMetadata {
         .map(|i| FederatedType {
             name:             format!("Type{i}"),
             keys:             vec![KeyDirective {
-                fields:      vec!["id".to_string()],
-                resolvable:  true,
+                fields:     vec!["id".to_string()],
+                resolvable: true,
             }],
             is_extends:       false,
             external_fields:  vec![],
@@ -38,9 +37,7 @@ fn make_metadata(type_count: usize) -> FederationMetadata {
 }
 
 fn make_representations_json(count: usize) -> serde_json::Value {
-    let reps: Vec<_> = (0..count)
-        .map(|i| json!({"__typename": "Type0", "id": i}))
-        .collect();
+    let reps: Vec<_> = (0..count).map(|i| json!({"__typename": "Type0", "id": i})).collect();
     json!(reps)
 }
 
@@ -55,9 +52,7 @@ fn representation_parsing(c: &mut Criterion) {
     for count in [1, 10, 100, 500, 1000] {
         let input = make_representations_json(count);
         group.bench_with_input(BenchmarkId::from_parameter(count), &input, |b, input| {
-            b.iter(|| {
-                parse_representations(black_box(input), black_box(&metadata)).unwrap()
-            });
+            b.iter(|| parse_representations(black_box(input), black_box(&metadata)).unwrap());
         });
     }
     group.finish();
@@ -84,12 +79,8 @@ fn where_in_clause(c: &mut Criterion) {
         let reps = parse_representations(&input, &metadata).unwrap();
         group.bench_with_input(BenchmarkId::from_parameter(count), &reps, |b, reps| {
             b.iter(|| {
-                construct_where_in_clause(
-                    black_box("Type0"),
-                    black_box(reps),
-                    black_box(&metadata),
-                )
-                .unwrap()
+                construct_where_in_clause(black_box("Type0"), black_box(reps), black_box(&metadata))
+                    .unwrap()
             });
         });
     }

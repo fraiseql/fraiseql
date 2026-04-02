@@ -448,7 +448,9 @@ mod tests {
     #[test]
     fn test_error_sanitization_validation() {
         let mut config = ErrorSanitizationConfig::default();
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         config.leak_sensitive_details = true;
         assert!(
@@ -460,13 +462,12 @@ mod tests {
     #[test]
     fn test_rate_limiting_validation() {
         let mut config = RateLimitConfig::default();
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         config.auth_start_window_secs = 0;
-        assert!(
-            config.validate().is_err(),
-            "expected Err when auth_start_window_secs=0, got Ok"
-        );
+        assert!(config.validate().is_err(), "expected Err when auth_start_window_secs=0, got Ok");
     }
 
     #[test]
@@ -488,7 +489,9 @@ mod tests {
     fn test_rate_limiting_one_max_requests_accepted() {
         let mut config = RateLimitConfig::default();
         config.auth_start_max_requests = 1;
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for max_requests=1: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for max_requests=1: {e}"));
     }
 
     #[test]
@@ -504,7 +507,9 @@ mod tests {
     #[test]
     fn test_state_encryption_validation() {
         let mut config = StateEncryptionConfig::default();
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
 
         config.key_size = 20;
         assert!(config.validate().is_err(), "expected Err when key_size=20, got Ok");
@@ -537,7 +542,9 @@ mod tests {
     fn test_state_encryption_chacha20_poly1305_accepted() {
         let config = StateEncryptionConfig::default();
         // default is "chacha20-poly1305"
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for default chacha20-poly1305: {e}"));
+        config
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for default chacha20-poly1305: {e}"));
     }
 
     #[test]

@@ -39,7 +39,8 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use fraiseql_core::db::types::DatabaseType;
 // Note: WhereClause and WhereOperator available for future WHERE tests
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
-#[allow(unused_imports)] // Reason: WhereClause/WhereOperator reserved for future WHERE-clause tests; feature-gated
+#[allow(unused_imports)]
+// Reason: WhereClause/WhereOperator reserved for future WHERE-clause tests; feature-gated
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 
 // ============================================================================
@@ -50,12 +51,15 @@ use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 mod mysql_tests {
     use super::*;
 
-    const MYSQL_URL: &str =
-        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+    fn mysql_url() -> String {
+        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
+            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
+        })
+    }
 
     #[tokio::test]
     async fn test_mysql_adapter_creation() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         assert_eq!(adapter.database_type(), DatabaseType::MySQL);
 
@@ -65,14 +69,14 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_health_check() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         adapter.health_check().await.expect("Health check should pass");
     }
 
     #[tokio::test]
     async fn test_mysql_execute_raw_query() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_raw_query("SELECT 1 as value")
@@ -85,7 +89,7 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_v_user_view() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(10), None, None)
@@ -103,7 +107,7 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_with_limit() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(2), None, None)
@@ -115,7 +119,7 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_with_offset() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         // Get all users first
         let all_results = adapter
@@ -136,7 +140,7 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_v_post_with_nested_author() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_post", None, Some(5), None, None)
@@ -158,7 +162,7 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_pool_metrics() {
-        let adapter = MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter");
+        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let metrics = adapter.pool_metrics();
 
@@ -172,7 +176,7 @@ mod mysql_tests {
     #[tokio::test]
     async fn test_mysql_concurrent_queries() {
         let adapter =
-            Arc::new(MySqlAdapter::new(MYSQL_URL).await.expect("Failed to create MySQL adapter"));
+            Arc::new(MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter"));
 
         let mut handles = Vec::new();
 
@@ -762,9 +766,9 @@ mod sqlserver_relay_tests {
     async fn test_sqlserver_relay_forward_with_where_clause() {
         let a = adapter().await;
         let clause = WhereClause::Field {
-            path:     vec!["score".to_string()],
+            path: vec!["score".to_string()],
             operator: WhereOperator::Gte,
-            value:    serde_json::json!(50),
+            value: serde_json::json!(50),
         };
         let result = a
             .execute_relay_page(
@@ -794,7 +798,7 @@ mod sqlserver_relay_tests {
 
         let a = adapter().await;
         let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
+            field: "score".to_string(),
             direction: OrderDirection::Asc,
         }];
 
@@ -897,11 +901,14 @@ mod mysql_relay_tests {
         where_clause::{WhereClause, WhereOperator},
     };
 
-    const MYSQL_URL: &str =
-        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+    fn mysql_url() -> String {
+        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
+            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
+        })
+    }
 
     async fn adapter() -> MySqlAdapter {
-        MySqlAdapter::new(MYSQL_URL).await.expect("Failed to connect to MySQL")
+        MySqlAdapter::new(&mysql_url()).await.expect("Failed to connect to MySQL")
     }
 
     fn extract_label(row: &fraiseql_core::db::types::JsonbValue) -> String {
@@ -937,7 +944,9 @@ mod mysql_relay_tests {
         assert_eq!(first.rows.len(), 3);
 
         // Extract cursor from the last row's id field
-        let last_id = first.rows.last()
+        let last_id = first
+            .rows
+            .last()
             .and_then(|row| row.as_value().get("id"))
             .and_then(|v| v.as_i64())
             .expect("last row must have integer id for cursor");
@@ -956,10 +965,7 @@ mod mysql_relay_tests {
             )
             .await
             .expect("second page");
-        assert!(
-            !second.rows.is_empty(),
-            "second page must have rows after cursor"
-        );
+        assert!(!second.rows.is_empty(), "second page must have rows after cursor");
     }
 
     /// Requesting more rows than exist returns no further pages.
@@ -1006,9 +1012,9 @@ mod mysql_relay_tests {
         let a = adapter().await;
         // Filter: only items whose label is "item-1"
         let where_clause = WhereClause::Field {
-            path:     vec!["label".to_string()],
+            path: vec!["label".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("item-1"),
+            value: json!("item-1"),
         };
         let result = a
             .execute_relay_page(
@@ -1035,17 +1041,7 @@ mod mysql_relay_tests {
         use fraiseql_core::error::FraiseQLError;
         let a = adapter().await;
         let err = a
-            .execute_relay_page(
-                "v_nonexistent_view",
-                "id",
-                None,
-                None,
-                3,
-                true,
-                None,
-                None,
-                false,
-            )
+            .execute_relay_page("v_nonexistent_view", "id", None, None, 3, true, None, None, false)
             .await
             .expect_err("missing view must return Err");
         assert!(
@@ -1064,11 +1060,14 @@ mod mysql_advanced_tests {
     use fraiseql_core::db::mysql::MySqlAdapter;
     use fraiseql_db::DatabaseAdapter;
 
-    const MYSQL_URL: &str =
-        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+    fn mysql_url() -> String {
+        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
+            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
+        })
+    }
 
     async fn adapter() -> MySqlAdapter {
-        MySqlAdapter::new(MYSQL_URL).await.expect("Failed to connect to MySQL")
+        MySqlAdapter::new(&mysql_url()).await.expect("Failed to connect to MySQL")
     }
 
     /// MySQL 8+ `RANK()` window function partitioned by category.
@@ -1209,18 +1208,18 @@ mod mysql_mutation_tests {
     use fraiseql_core::db::mysql::MySqlAdapter;
     use fraiseql_db::DatabaseAdapter;
 
-    const MYSQL_URL: &str =
-        "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql";
+    fn mysql_url() -> String {
+        std::env::var("MYSQL_URL").unwrap_or_else(|_| {
+            "mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql".to_string()
+        })
+    }
 
     /// MySQL mutation via stored procedure: insert returns the new row.
     #[tokio::test]
     async fn test_mysql_mutation_insert_via_procedure() {
-        let a = MySqlAdapter::new(MYSQL_URL).await.expect("connect");
+        let a = MySqlAdapter::new(&mysql_url()).await.expect("connect");
         let result = a
-            .execute_function_call(
-                "fn_create_tag",
-                &[serde_json::json!("test-tag-plan03")],
-            )
+            .execute_function_call("fn_create_tag", &[serde_json::json!("test-tag-plan03")])
             .await
             .expect("stored procedure call must succeed");
         // Procedure returns one row with id and name
@@ -1235,7 +1234,7 @@ mod mysql_mutation_tests {
     #[tokio::test]
     async fn test_mysql_mutation_nonexistent_procedure_returns_error() {
         use fraiseql_core::error::FraiseQLError;
-        let a = MySqlAdapter::new(MYSQL_URL).await.expect("connect");
+        let a = MySqlAdapter::new(&mysql_url()).await.expect("connect");
         let err = a
             .execute_function_call("fn_does_not_exist", &[])
             .await
@@ -1262,10 +1261,7 @@ mod mysql_error_tests {
         // Port 1 is almost certainly closed; connection attempt must fail.
         let result =
             MySqlAdapter::new("mysql://bad_user:bad_pass@127.0.0.1:1/nonexistent_db").await;
-        assert!(
-            result.is_err(),
-            "connection to bad URL must fail"
-        );
+        assert!(result.is_err(), "connection to bad URL must fail");
         if let Err(err) = result {
             assert!(
                 matches!(err, FraiseQLError::Database { .. }),
@@ -1302,11 +1298,12 @@ mod sqlserver_advanced_tests {
     use fraiseql_core::db::sqlserver::SqlServerAdapter;
     use fraiseql_db::DatabaseAdapter;
 
-    const SQLSERVER_URL: &str =
-        "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    const SQLSERVER_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
 
     async fn adapter() -> SqlServerAdapter {
-        SqlServerAdapter::new(SQLSERVER_URL).await.expect("Failed to connect to SQL Server")
+        SqlServerAdapter::new(SQLSERVER_URL)
+            .await
+            .expect("Failed to connect to SQL Server")
     }
 
     /// SQL Server `RANK()` window function partitioned by category.
@@ -1410,18 +1407,14 @@ mod sqlserver_mutation_tests {
     use fraiseql_core::db::sqlserver::SqlServerAdapter;
     use fraiseql_db::DatabaseAdapter;
 
-    const SQLSERVER_URL: &str =
-        "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
+    const SQLSERVER_URL: &str = "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true";
 
     /// SQL Server mutation via stored procedure using OUTPUT INSERTED.*.
     #[tokio::test]
     async fn test_sqlserver_mutation_insert_via_procedure() {
         let a = SqlServerAdapter::new(SQLSERVER_URL).await.expect("connect");
         let result = a
-            .execute_function_call(
-                "fn_create_tag",
-                &[serde_json::json!("test-tag-sqlserver")],
-            )
+            .execute_function_call("fn_create_tag", &[serde_json::json!("test-tag-sqlserver")])
             .await
             .expect("stored procedure call must succeed");
         assert!(!result.is_empty(), "INSERT must return the new row");
@@ -1453,8 +1446,7 @@ mod sqlserver_mutation_tests {
 
 #[cfg(any(feature = "mysql", feature = "sqlserver"))]
 mod dialect_guard_error_tests {
-    use fraiseql_db::{DialectCapabilityGuard, Feature};
-    use fraiseql_db::types::DatabaseType;
+    use fraiseql_db::{DialectCapabilityGuard, Feature, types::DatabaseType};
     use fraiseql_error::FraiseQLError;
 
     /// JSONB path ops are unsupported on MySQL — guard returns Unsupported.
@@ -1472,8 +1464,7 @@ mod dialect_guard_error_tests {
     #[cfg(feature = "mysql")]
     #[test]
     fn test_mysql_subscriptions_returns_unsupported() {
-        let result =
-            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::Subscriptions);
+        let result = DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::Subscriptions);
         assert!(
             matches!(result, Err(FraiseQLError::Unsupported { .. })),
             "Subscriptions on MySQL must return Unsupported"
@@ -1484,8 +1475,7 @@ mod dialect_guard_error_tests {
     #[cfg(feature = "sqlserver")]
     #[test]
     fn test_sqlserver_jsonb_returns_unsupported() {
-        let result =
-            DialectCapabilityGuard::check(DatabaseType::SQLServer, Feature::JsonbPathOps);
+        let result = DialectCapabilityGuard::check(DatabaseType::SQLServer, Feature::JsonbPathOps);
         assert!(
             matches!(result, Err(FraiseQLError::Unsupported { .. })),
             "JSONB ops on SQL Server must return Unsupported"

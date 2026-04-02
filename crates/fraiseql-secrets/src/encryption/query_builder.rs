@@ -189,7 +189,8 @@ impl QueryBuilderIntegration {
     ///
     /// # Errors
     ///
-    /// This function currently never returns an error; IS NULL is always permitted on encrypted fields.
+    /// This function currently never returns an error; IS NULL is always permitted on encrypted
+    /// fields.
     pub const fn validate_is_null_on_encrypted(&self, _field: &str) -> Result<(), SecretsError> {
         // IS NULL is always allowed on encrypted fields
         // NULL is stored at database level, not encrypted
@@ -286,7 +287,10 @@ mod tests {
     fn test_validate_where_clause_encrypted_field_rejects() {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
         let result = qbi.validate_where_clause(&["email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "encrypted field in WHERE should be rejected: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "encrypted field in WHERE should be rejected: {result:?}"
+        );
     }
 
     #[test]
@@ -300,7 +304,10 @@ mod tests {
     fn test_validate_order_by_encrypted_field_rejects() {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
         let result = qbi.validate_order_by_clause(&["email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "encrypted field in ORDER BY should be rejected: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "encrypted field in ORDER BY should be rejected: {result:?}"
+        );
     }
 
     #[test]
@@ -314,7 +321,10 @@ mod tests {
     fn test_validate_join_encrypted_field_rejects() {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
         let result = qbi.validate_join_condition(&["email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "encrypted field in JOIN should be rejected: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "encrypted field in JOIN should be rejected: {result:?}"
+        );
     }
 
     #[test]
@@ -328,7 +338,10 @@ mod tests {
     fn test_validate_group_by_encrypted_field_rejects() {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
         let result = qbi.validate_group_by_clause(&["email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "encrypted field in GROUP BY should be rejected: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "encrypted field in GROUP BY should be rejected: {result:?}"
+        );
     }
 
     #[test]
@@ -343,20 +356,32 @@ mod tests {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string(), "phone".to_string()]);
         // Should reject if any field is encrypted
         let result = qbi.validate_where_clause(&["name", "email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "mixed fields with encrypted should be rejected: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "mixed fields with encrypted should be rejected: {result:?}"
+        );
     }
 
     #[test]
     fn test_validate_clause_with_type() {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
         let result = qbi.validate_clause(ClauseType::Where, &["email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "WHERE clause should reject encrypted: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "WHERE clause should reject encrypted: {result:?}"
+        );
 
         let result = qbi.validate_clause(ClauseType::OrderBy, &["email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "ORDER BY clause should reject encrypted: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "ORDER BY clause should reject encrypted: {result:?}"
+        );
 
         let result = qbi.validate_clause(ClauseType::Join, &["email"]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "JOIN clause should reject encrypted: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "JOIN clause should reject encrypted: {result:?}"
+        );
     }
 
     #[test]
@@ -395,7 +420,10 @@ mod tests {
     fn test_validate_query_select_rejects_encrypted_where() {
         let qbi = QueryBuilderIntegration::new(vec!["email".to_string()]);
         let result = qbi.validate_query(QueryType::Select, &["email"], &[], &[]);
-        assert!(matches!(result, Err(SecretsError::ValidationError(_))), "SELECT with encrypted WHERE should be rejected: {result:?}");
+        assert!(
+            matches!(result, Err(SecretsError::ValidationError(_))),
+            "SELECT with encrypted WHERE should be rejected: {result:?}"
+        );
     }
 
     #[test]

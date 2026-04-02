@@ -157,12 +157,12 @@ pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,
 };
+#[cfg(feature = "postgres")]
+pub use transport::PostgresNotifyTransport;
 pub use transport::{
     EventFilter, EventStream, EventTransport, HealthStatus, InMemoryTransport, TransportHealth,
     TransportType,
 };
-#[cfg(feature = "postgres")]
-pub use transport::PostgresNotifyTransport;
 
 #[cfg(test)]
 mod integration_tests {
@@ -217,7 +217,9 @@ mod integration_tests {
             body_template: Some("{}".to_string()),
         };
 
-        valid.validate().unwrap_or_else(|e| panic!("expected Ok for valid webhook config: {e}"));
+        valid
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok for valid webhook config: {e}"));
     }
 
     #[test]
@@ -522,9 +524,6 @@ mod e2e_tests {
         };
 
         let result = entry.to_entity_event();
-        assert!(
-            result.is_err(),
-            "invalid UUID in object_id must return error, got: {result:?}"
-        );
+        assert!(result.is_err(), "invalid UUID in object_id must return error, got: {result:?}");
     }
 }

@@ -14,8 +14,7 @@
 //! Export failures are logged but never block the primary PostgreSQL write path.
 //! Failed batches are retried with exponential backoff (max 3 attempts).
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -150,19 +149,19 @@ mod tests {
 
     fn test_entry() -> AuditEntry {
         AuditEntry {
-            id: Some(1),
-            timestamp: Utc::now(),
-            level: AuditLevel::INFO,
-            user_id: 123,
-            tenant_id: 456,
-            operation: "query".to_string(),
-            query: "{ users { id name } }".to_string(),
-            variables: serde_json::json!({}),
-            ip_address: "192.168.1.1".to_string(),
-            user_agent: "Mozilla/5.0".to_string(),
-            error: None,
-            duration_ms: Some(42),
-            previous_hash: None,
+            id:             Some(1),
+            timestamp:      Utc::now(),
+            level:          AuditLevel::INFO,
+            user_id:        123,
+            tenant_id:      456,
+            operation:      "query".to_string(),
+            query:          "{ users { id name } }".to_string(),
+            variables:      serde_json::json!({}),
+            ip_address:     "192.168.1.1".to_string(),
+            user_agent:     "Mozilla/5.0".to_string(),
+            error:          None,
+            duration_ms:    Some(42),
+            previous_hash:  None,
             integrity_hash: None,
         }
     }
@@ -170,9 +169,9 @@ mod tests {
     #[test]
     fn test_buffer_accumulates_entries() {
         let config = WebhookExportConfig {
-            url: "https://example.com/audit".to_string(),
-            headers: std::collections::HashMap::new(),
-            batch_size: 10,
+            url:                 "https://example.com/audit".to_string(),
+            headers:             std::collections::HashMap::new(),
+            batch_size:          10,
             flush_interval_secs: 30,
         };
 
@@ -192,9 +191,9 @@ mod tests {
     #[test]
     fn test_flush_empties_buffer() {
         let config = WebhookExportConfig {
-            url: "https://example.com/audit".to_string(),
-            headers: std::collections::HashMap::new(),
-            batch_size: 100,
+            url:                 "https://example.com/audit".to_string(),
+            headers:             std::collections::HashMap::new(),
+            batch_size:          100,
             flush_interval_secs: 30,
         };
 

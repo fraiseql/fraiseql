@@ -351,7 +351,8 @@ impl RBACPolicy {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
     use crate::jwt::Claims;
@@ -415,9 +416,15 @@ mod tests {
         let r = policy.authorize(&user, OperationPermission::ManageWebhooks);
         assert!(r.is_ok(), "operator should have ManageWebhooks: {r:?}");
         let r = policy.authorize(&user, OperationPermission::ManageUsers);
-        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "operator should not have ManageUsers: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::Forbidden { .. })),
+            "operator should not have ManageUsers: {r:?}"
+        );
         let r = policy.authorize(&user, OperationPermission::ManageTenants);
-        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "operator should not have ManageTenants: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::Forbidden { .. })),
+            "operator should not have ManageTenants: {r:?}"
+        );
     }
 
     #[test]
@@ -430,9 +437,15 @@ mod tests {
         let r = policy.authorize(&user, OperationPermission::ViewAuditLogs);
         assert!(r.is_ok(), "viewer should have ViewAuditLogs: {r:?}");
         let r = policy.authorize(&user, OperationPermission::CreateRule);
-        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "viewer should not have CreateRule: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::Forbidden { .. })),
+            "viewer should not have CreateRule: {r:?}"
+        );
         let r = policy.authorize(&user, OperationPermission::ManageWebhooks);
-        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "viewer should not have ManageWebhooks: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::Forbidden { .. })),
+            "viewer should not have ManageWebhooks: {r:?}"
+        );
     }
 
     #[test]
@@ -448,7 +461,10 @@ mod tests {
 
         // Should not have admin permissions
         let r = policy.authorize(&user, OperationPermission::ManageTenants);
-        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "viewer+operator should not have ManageTenants: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::Forbidden { .. })),
+            "viewer+operator should not have ManageTenants: {r:?}"
+        );
     }
 
     #[test]
@@ -490,7 +506,10 @@ mod tests {
         ];
 
         let r = policy.authorize_all(&user, &permissions);
-        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "operator missing ManageTenants should fail authorize_all: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::Forbidden { .. })),
+            "operator missing ManageTenants should fail authorize_all: {r:?}"
+        );
     }
 
     #[test]
@@ -522,7 +541,10 @@ mod tests {
         let r = policy.authorize(&user, OperationPermission::ViewAuditLogs);
         assert!(r.is_ok(), "auditor should have ViewAuditLogs: {r:?}");
         let r = policy.authorize(&user, OperationPermission::CreateRule);
-        assert!(matches!(r, Err(AuthError::Forbidden { .. })), "auditor should not have CreateRule: {r:?}");
+        assert!(
+            matches!(r, Err(AuthError::Forbidden { .. })),
+            "auditor should not have CreateRule: {r:?}"
+        );
     }
 
     #[test]

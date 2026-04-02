@@ -92,7 +92,9 @@ fn test_cors_with_origins_passes_validation() {
         ..ServerConfig::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("expected Ok for CORS config with origins: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for CORS config with origins: {e}"));
 }
 
 #[test]
@@ -103,7 +105,9 @@ fn test_cors_disabled_passes_validation() {
         ..ServerConfig::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("expected Ok for CORS disabled config: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for CORS disabled config: {e}"));
 }
 
 #[test]
@@ -118,7 +122,9 @@ fn test_cors_multiple_origins_passes_validation() {
         ..ServerConfig::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("expected Ok for CORS multiple origins: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for CORS multiple origins: {e}"));
 }
 
 // =============================================================================
@@ -138,9 +144,9 @@ fn test_development_allows_playground_and_empty_cors() {
         ..ServerConfig::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!(
-        "in development mode, playground + empty cors_origins must pass validation: {e}"
-    ));
+    config.validate().unwrap_or_else(|e| {
+        panic!("in development mode, playground + empty cors_origins must pass validation: {e}")
+    });
 
     match original {
         Some(v) => std::env::set_var("FRAISEQL_ENV", v),
@@ -165,7 +171,9 @@ fn test_typical_development_config() {
         ..ServerConfig::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("expected Ok for typical development config: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for typical development config: {e}"));
 }
 
 #[test]
@@ -180,7 +188,9 @@ fn test_minimal_production_config() {
 
     // Should pass even without FRAISEQL_ENV because playground is disabled
     // and CORS is disabled
-    config.validate().unwrap_or_else(|e| panic!("expected Ok for minimal production config: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for minimal production config: {e}"));
 }
 
 #[test]
@@ -192,7 +202,9 @@ fn test_production_config_with_configured_cors() {
         ..ServerConfig::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("expected Ok for production config with CORS: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for production config with CORS: {e}"));
 }
 
 // =============================================================================
@@ -230,7 +242,9 @@ fn test_all_security_settings_can_be_configured() {
         ..ServerConfig::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("expected Ok for all security settings configured: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("expected Ok for all security settings configured: {e}"));
 }
 
 // =============================================================================

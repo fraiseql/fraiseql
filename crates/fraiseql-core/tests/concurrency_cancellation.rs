@@ -43,10 +43,9 @@ async fn test_aborted_task_doesnt_corrupt_adapter_state() {
 
     // Spawn and immediately abort a task
     let adapter_clone = Arc::clone(&adapter);
-    let handle =
-        tokio::spawn(
-            async move { adapter_clone.execute_where_query("v_user", None, None, None, None).await },
-        );
+    let handle = tokio::spawn(async move {
+        adapter_clone.execute_where_query("v_user", None, None, None, None).await
+    });
     handle.abort();
     let _ = handle.await; // Ignore result (JoinError if aborted)
 
@@ -91,10 +90,9 @@ async fn test_rapid_spawn_and_cancel_cycle() {
 
     for _ in 0..100 {
         let adapter = Arc::clone(&adapter);
-        let handle =
-            tokio::spawn(
-                async move { adapter.execute_where_query("v_user", None, None, None, None).await },
-            );
+        let handle = tokio::spawn(async move {
+            adapter.execute_where_query("v_user", None, None, None, None).await
+        });
         handle.abort();
         let _ = handle.await;
     }

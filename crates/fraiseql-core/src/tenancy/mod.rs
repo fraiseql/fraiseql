@@ -68,9 +68,9 @@ impl TenantContext {
     #[must_use]
     pub fn new(id: impl Into<String>) -> Self {
         Self {
-            id: id.into(),
+            id:         id.into(),
             created_at: Utc::now().to_rfc3339(),
-            metadata: HashMap::new(),
+            metadata:   HashMap::new(),
         }
     }
 

@@ -243,7 +243,8 @@ fn predicate_benchmarks(c: &mut Criterion) {
     ];
 
     for (name, total, ratio) in scenarios {
-        #[allow(clippy::cast_possible_truncation)] // Reason: ratio is 0.0–1.0 × 100_000, result fits in i64
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: ratio is 0.0–1.0 × 100_000, result fits in i64
         let filtered = (f64::from(total) * ratio) as i64;
         group.throughput(Throughput::Elements(filtered.cast_unsigned()));
 

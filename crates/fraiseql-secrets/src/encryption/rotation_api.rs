@@ -711,7 +711,11 @@ mod tests {
             quiet_hours_start:            None,
             quiet_hours_end:              None,
         };
-        assert!(update.validate().is_err(), "expected Err for invalid threshold, got: {:?}", update.validate());
+        assert!(
+            update.validate().is_err(),
+            "expected Err for invalid threshold, got: {:?}",
+            update.validate()
+        );
     }
 
     #[test]
@@ -724,7 +728,11 @@ mod tests {
             quiet_hours_start:            None,
             quiet_hours_end:              None,
         };
-        assert!(update.validate().is_err(), "expected Err for invalid TTL, got: {:?}", update.validate());
+        assert!(
+            update.validate().is_err(),
+            "expected Err for invalid TTL, got: {:?}",
+            update.validate()
+        );
     }
 
     #[test]
@@ -853,7 +861,11 @@ mod tests {
             quiet_hours_start:            None,
             quiet_hours_end:              None,
         };
-        assert!(update.validate().is_err(), "expected Err for zero threshold, got: {:?}", update.validate());
+        assert!(
+            update.validate().is_err(),
+            "expected Err for zero threshold, got: {:?}",
+            update.validate()
+        );
     }
 
     #[test]
@@ -866,7 +878,11 @@ mod tests {
             quiet_hours_start:            None,
             quiet_hours_end:              None,
         };
-        assert!(update.validate().is_err(), "expected Err for zero TTL, got: {:?}", update.validate());
+        assert!(
+            update.validate().is_err(),
+            "expected Err for zero TTL, got: {:?}",
+            update.validate()
+        );
     }
 
     #[test]
@@ -879,7 +895,11 @@ mod tests {
             quiet_hours_start:            None,
             quiet_hours_end:              None,
         };
-        assert!(update.validate().is_err(), "expected Err for zero interval, got: {:?}", update.validate());
+        assert!(
+            update.validate().is_err(),
+            "expected Err for zero interval, got: {:?}",
+            update.validate()
+        );
     }
 
     #[test]
@@ -893,7 +913,9 @@ mod tests {
             quiet_hours_start:            None,
             quiet_hours_end:              None,
         };
-        update.validate().unwrap_or_else(|e| panic!("expected Ok from validate with boundary values: {e}"));
+        update
+            .validate()
+            .unwrap_or_else(|e| panic!("expected Ok from validate with boundary values: {e}"));
     }
 
     #[test]

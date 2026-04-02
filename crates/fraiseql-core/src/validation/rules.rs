@@ -62,7 +62,7 @@ pub enum ValidationRule {
     #[serde(rename = "cross_field")]
     CrossField {
         /// Reference to another field to compare against.
-        field: String,
+        field:    String,
         /// Comparison operator ("lt", "lte", "eq", "gte", "gt").
         operator: String,
     },
@@ -71,7 +71,7 @@ pub enum ValidationRule {
     #[serde(rename = "conditional")]
     Conditional {
         /// The condition expression.
-        condition: String,
+        condition:  String,
         /// Rules to apply if condition is true.
         then_rules: Vec<Box<ValidationRule>>,
     },
@@ -136,7 +136,7 @@ pub enum ValidationRule {
         /// If this field is present (not null/missing)
         if_field_present: String,
         /// Then these fields are required
-        then_required: Vec<String>,
+        then_required:    Vec<String>,
     },
 
     /// If a field is absent/null, then other fields are required.
@@ -155,7 +155,7 @@ pub enum ValidationRule {
     #[serde(rename = "required_if_absent")]
     RequiredIfAbsent {
         /// If this field is absent/null
-        absent_field: String,
+        absent_field:  String,
         /// Then these fields are required
         then_required: Vec<String>,
     },
@@ -320,7 +320,7 @@ mod tests {
     fn test_conditional_required_rule() {
         let rule = ValidationRule::ConditionalRequired {
             if_field_present: "entityId".to_string(),
-            then_required: vec!["createdAt".to_string(), "updatedAt".to_string()],
+            then_required:    vec!["createdAt".to_string(), "updatedAt".to_string()],
         };
         let desc = rule.description();
         assert!(desc.contains("If"));
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn test_required_if_absent_rule() {
         let rule = ValidationRule::RequiredIfAbsent {
-            absent_field: "addressId".to_string(),
+            absent_field:  "addressId".to_string(),
             then_required: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         };
         let desc = rule.description();
@@ -357,7 +357,7 @@ mod tests {
     fn test_conditional_required_serialization() {
         let rule = ValidationRule::ConditionalRequired {
             if_field_present: "isPremium".to_string(),
-            then_required: vec!["paymentMethod".to_string()],
+            then_required:    vec!["paymentMethod".to_string()],
         };
         let json = serde_json::to_string(&rule).expect("serialization failed");
         let deserialized: ValidationRule =
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn test_required_if_absent_serialization() {
         let rule = ValidationRule::RequiredIfAbsent {
-            absent_field: "presetId".to_string(),
+            absent_field:  "presetId".to_string(),
             then_required: vec!["settings".to_string()],
         };
         let json = serde_json::to_string(&rule).expect("serialization failed");

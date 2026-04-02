@@ -114,7 +114,10 @@ fn test_unsubscribe_removes_subscription() {
     let result = manager.unsubscribe(sub_id);
 
     // Should fail: subscription not found
-    assert!(result.is_err(), "expected Err when unsubscribing non-existent id, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err when unsubscribing non-existent id, got: {result:?}"
+    );
 }
 
 /// Test 6: Unsubscribe connection removes all subscriptions
@@ -226,7 +229,9 @@ fn test_event_bridge_initialization() {
 
     // Verify bridge is created and sender is available
     let sender = bridge.get_sender();
-    sender.try_reserve().unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
+    sender
+        .try_reserve()
+        .unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
 }
 
 /// Test 12: Entity event conversion
@@ -287,7 +292,9 @@ async fn test_multiple_subscriptions_fanout() {
 
     // Verify sender is created
     let sender = bridge.get_sender();
-    sender.try_reserve().unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
+    sender
+        .try_reserve()
+        .unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
 }
 
 /// Test 15: Filtering by entity type
@@ -307,8 +314,12 @@ fn test_filtering_by_entity_type() {
     let user_event = EntityEvent::new("User", "user_123", "INSERT", json!({"id": "user_123"}));
 
     // Both should send successfully through the bridge
-    sender.try_send(order_event).unwrap_or_else(|e| panic!("expected Ok sending order event: {e}"));
-    sender.try_send(user_event).unwrap_or_else(|e| panic!("expected Ok sending user event: {e}"));
+    sender
+        .try_send(order_event)
+        .unwrap_or_else(|e| panic!("expected Ok sending order event: {e}"));
+    sender
+        .try_send(user_event)
+        .unwrap_or_else(|e| panic!("expected Ok sending user event: {e}"));
 }
 
 // ============================================================================
@@ -329,7 +340,9 @@ fn test_listener_error_handling() {
     let sender = bridge.get_sender();
 
     // Verify sender is created
-    sender.try_reserve().unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
+    sender
+        .try_reserve()
+        .unwrap_or_else(|e| panic!("expected Ok from try_reserve: {e}"));
 }
 
 /// Test 17: Handle subscription manager errors
@@ -467,7 +480,9 @@ fn test_subscription_projection_filters() {
         }),
     );
 
-    sender.try_send(event).unwrap_or_else(|e| panic!("expected Ok from try_send: {e}"));
+    sender
+        .try_send(event)
+        .unwrap_or_else(|e| panic!("expected Ok from try_send: {e}"));
 }
 
 /// Test 24: Concurrent client subscriptions

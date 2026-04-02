@@ -269,8 +269,9 @@ pub struct OIDCClient {
     pub client_id:  String,
     /// Client secret — retained for token revocation and introspection endpoints.
     // Reason: needed for token revocation and introspection
-    #[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
-    client_secret:  String,
+    #[allow(dead_code)]
+    // Reason: field kept for API completeness; may be used in future features
+    client_secret: String,
     /// JWKS key cache for ID token signature verification.
     pub jwks_cache: Arc<JwksCache>,
     /// HTTP client for userinfo requests.
@@ -602,7 +603,10 @@ mod tests {
 
         let result = client.get_userinfo("dummy_token").await;
         // Must fail at JSON parse (missing required fields), not at size gate
-        assert!(result.is_err(), "expected Err when userinfo JSON is missing required fields, got: {result:?}");
+        assert!(
+            result.is_err(),
+            "expected Err when userinfo JSON is missing required fields, got: {result:?}"
+        );
         let msg = result.unwrap_err();
         assert!(
             !msg.contains("too large"),

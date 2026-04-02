@@ -9,14 +9,13 @@
 //! - Constant-time comparison (equal, unequal, padded)
 //! - Rate limiter check (allow and reject paths)
 
+use std::collections::HashMap;
+
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_auth::{
-    Claims, ConstantTimeOps, KeyedRateLimiter,
-    jwt::generate_hs256_token,
-    pkce::PkceStateStore,
+    Claims, ConstantTimeOps, KeyedRateLimiter, jwt::generate_hs256_token, pkce::PkceStateStore,
     rate_limiting::AuthRateLimitConfig,
 };
-use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
 // JWT benchmarks
@@ -48,10 +47,13 @@ fn jwt_benchmarks(c: &mut Criterion) {
     // Pre-generate a token for validation benchmarks
     let token = generate_hs256_token(&claims, secret).unwrap();
 
-    let validator = fraiseql_auth::JwtValidator::new("https://bench.fraiseql.dev", jsonwebtoken::Algorithm::HS256)
-        .unwrap()
-        .with_audiences(&["api"])
-        .unwrap();
+    let validator = fraiseql_auth::JwtValidator::new(
+        "https://bench.fraiseql.dev",
+        jsonwebtoken::Algorithm::HS256,
+    )
+    .unwrap()
+    .with_audiences(&["api"])
+    .unwrap();
 
     c.bench_function("jwt_validate_hmac", |b| {
         b.iter(|| {

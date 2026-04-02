@@ -162,7 +162,9 @@ fn test_mutation_return_all_requested_fields() {
     let result =
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
-    let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) multi-field failed: {e}"));
+    let response = result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(User/updateUser) multi-field failed: {e}")
+    });
 
     // All requested fields should be in response
     assert_eq!(response["__typename"], "User");
@@ -190,7 +192,9 @@ fn test_mutation_return_computed_fields() {
     let result =
         runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
 
-    let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(Order/updateOrder) computed fields failed: {e}"));
+    let response = result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(Order/updateOrder) computed fields failed: {e}")
+    });
 
     // Computed fields should be in response
     assert_eq!(response["total"], 110.00);
@@ -214,7 +218,9 @@ fn test_mutation_return_related_entities() {
     let result =
         runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
 
-    let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(Order/updateOrder) related entities failed: {e}"));
+    let response = result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(Order/updateOrder) related entities failed: {e}")
+    });
 
     // Response includes related entity references
     assert_eq!(response["__typename"], "Order");

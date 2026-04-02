@@ -356,8 +356,7 @@ pub async fn run() {
             db_url,
             json: json_flag,
         } => {
-            let all_passed =
-                commands::doctor::run(&config, &schema, db_url.as_deref(), json_flag);
+            let all_passed = commands::doctor::run(&config, &schema, db_url.as_deref(), json_flag);
             if all_passed {
                 Ok(())
             } else {

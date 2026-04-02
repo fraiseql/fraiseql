@@ -123,19 +123,19 @@ impl DatabaseType {
         match (self, feature) {
             (Self::MySQL, Feature::JsonbPathOps) => {
                 Some("Use `json_extract(column, '$.key')` syntax instead of JSONB path operators.")
-            }
+            },
             (Self::MySQL, Feature::StddevVariance) => {
                 Some("MySQL does not provide STDDEV/VARIANCE; compute them in application code.")
-            }
-            (Self::SQLite, Feature::Mutations) => {
-                Some("SQLite mutations are not supported. Use PostgreSQL or MySQL for mutation support.")
-            }
-            (Self::SQLite, Feature::WindowFunctions) => {
-                Some("SQLite 3.25+ supports basic window functions; upgrade your SQLite version or use PostgreSQL.")
-            }
+            },
+            (Self::SQLite, Feature::Mutations) => Some(
+                "SQLite mutations are not supported. Use PostgreSQL or MySQL for mutation support.",
+            ),
+            (Self::SQLite, Feature::WindowFunctions) => Some(
+                "SQLite 3.25+ supports basic window functions; upgrade your SQLite version or use PostgreSQL.",
+            ),
             (Self::SQLite, Feature::Subscriptions) => {
                 Some("Subscriptions require a database with LISTEN/NOTIFY. Use PostgreSQL.")
-            }
+            },
             _ => None,
         }
     }
@@ -167,10 +167,8 @@ impl DialectCapabilityGuard {
             return Ok(());
         }
 
-        let suggestion = dialect
-            .suggestion_for(feature)
-            .map(|s| format!(" {s}"))
-            .unwrap_or_default();
+        let suggestion =
+            dialect.suggestion_for(feature).map(|s| format!(" {s}")).unwrap_or_default();
 
         Err(FraiseQLError::Unsupported {
             message: format!(
@@ -193,19 +191,14 @@ impl DialectCapabilityGuard {
     /// if any are unsupported.
     ///
     /// [`check`]: Self::check
-    pub fn check_all(
-        dialect: DatabaseType,
-        features: &[Feature],
-    ) -> Result<(), FraiseQLError> {
+    pub fn check_all(dialect: DatabaseType, features: &[Feature]) -> Result<(), FraiseQLError> {
         let failures: Vec<String> = features
             .iter()
             .copied()
             .filter(|&f| !dialect.supports(f))
             .map(|f| {
-                let suggestion = dialect
-                    .suggestion_for(f)
-                    .map(|s| format!(" {s}"))
-                    .unwrap_or_default();
+                let suggestion =
+                    dialect.suggestion_for(f).map(|s| format!(" {s}")).unwrap_or_default();
                 format!("- {}{suggestion}", f.display_name())
             })
             .collect();
@@ -301,9 +294,7 @@ mod tests {
 
     #[test]
     fn test_guard_ok_when_supported() {
-        assert!(
-            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::Mutations).is_ok()
-        );
+        assert!(DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::Mutations).is_ok());
     }
 
     #[test]
@@ -314,8 +305,8 @@ mod tests {
 
     #[test]
     fn test_guard_error_mentions_feature_and_dialect() {
-        let err = DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps)
-            .unwrap_err();
+        let err =
+            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("JSONB"), "message should mention feature: {msg}");
         assert!(msg.contains("mysql"), "message should mention dialect: {msg}");
@@ -323,13 +314,10 @@ mod tests {
 
     #[test]
     fn test_guard_error_includes_suggestion() {
-        let err = DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps)
-            .unwrap_err();
+        let err =
+            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps).unwrap_err();
         let msg = err.to_string();
-        assert!(
-            msg.contains("json_extract"),
-            "message should include suggestion: {msg}"
-        );
+        assert!(msg.contains("json_extract"), "message should include suggestion: {msg}");
     }
 
     #[test]
@@ -355,7 +343,11 @@ mod tests {
         assert!(
             DialectCapabilityGuard::check_all(
                 DatabaseType::PostgreSQL,
-                &[Feature::JsonbPathOps, Feature::Subscriptions, Feature::Mutations],
+                &[
+                    Feature::JsonbPathOps,
+                    Feature::Subscriptions,
+                    Feature::Mutations
+                ],
             )
             .is_ok()
         );
@@ -363,8 +355,8 @@ mod tests {
 
     #[test]
     fn test_guard_error_links_to_compatibility_docs() {
-        let err = DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps)
-            .unwrap_err();
+        let err =
+            DialectCapabilityGuard::check(DatabaseType::MySQL, Feature::JsonbPathOps).unwrap_err();
         let msg = err.to_string();
         assert!(
             msg.contains("docs/database-compatibility.md"),

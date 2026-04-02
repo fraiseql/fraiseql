@@ -839,17 +839,17 @@ pub enum DirectMutationOp {
 #[derive(Debug)]
 pub struct DirectMutationContext<'a> {
     /// The mutation operation to perform.
-    pub operation: DirectMutationOp,
+    pub operation:      DirectMutationOp,
     /// Target table name (e.g., `"users"`).
-    pub table: &'a str,
+    pub table:          &'a str,
     /// Client-supplied column names (in bind order).
-    pub columns: &'a [String],
+    pub columns:        &'a [String],
     /// All bind values: client values first, then injected values.
-    pub values: &'a [serde_json::Value],
+    pub values:         &'a [serde_json::Value],
     /// Server-injected column names (e.g., RLS tenant columns), appended after client columns.
     pub inject_columns: &'a [String],
     /// GraphQL return type name (e.g., `"User"`), used in the mutation response envelope.
-    pub return_type: &'a str,
+    pub return_type:    &'a str,
 }
 
 /// A typed cursor value for keyset (relay) pagination.

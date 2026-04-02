@@ -174,10 +174,11 @@ pub use validation::{ComplexityValidationError, RequestValidator};
 /// use fraiseql_server::prelude::*;
 /// ```
 pub mod prelude {
+    pub use fraiseql_core::schema::CompiledSchema;
+
     pub use crate::{
         ComplexityValidationError, RequestValidator, Server, ServerConfig, ServerError, TlsSetup,
     };
-    pub use fraiseql_core::schema::CompiledSchema;
 }
 
 /// Server error type.

@@ -161,7 +161,7 @@ pub enum WindowSelectColumn {
     /// Select a measure column (e.g., "revenue")
     Measure {
         /// Measure name from `FactTableMetadata`
-        name: String,
+        name:  String,
         /// Result alias
         alias: String,
     },
@@ -169,7 +169,7 @@ pub enum WindowSelectColumn {
     /// Select a dimension from JSONB (e.g., "category")
     Dimension {
         /// Dimension path in JSONB
-        path: String,
+        path:  String,
         /// Result alias
         alias: String,
     },
@@ -177,7 +177,7 @@ pub enum WindowSelectColumn {
     /// Select a denormalized filter column (e.g., "`customer_id`", "`occurred_at`")
     Filter {
         /// Filter column name
-        name: String,
+        name:  String,
         /// Result alias
         alias: String,
     },
@@ -252,9 +252,9 @@ pub enum WindowFunctionSpec {
     /// LAG(field, offset, default) - Value from previous row
     Lag {
         /// Measure or dimension name
-        field: String,
+        field:   String,
         /// Row offset (default: 1)
-        offset: i32,
+        offset:  i32,
         /// Default value when no previous row
         default: Option<serde_json::Value>,
     },
@@ -262,9 +262,9 @@ pub enum WindowFunctionSpec {
     /// LEAD(field, offset, default) - Value from next row
     Lead {
         /// Measure or dimension name
-        field: String,
+        field:   String,
         /// Row offset (default: 1)
-        offset: i32,
+        offset:  i32,
         /// Default value when no next row
         default: Option<serde_json::Value>,
     },
@@ -286,7 +286,7 @@ pub enum WindowFunctionSpec {
         /// Measure or dimension name
         field: String,
         /// Position (1-indexed)
-        n: u32,
+        n:     u32,
     },
 
     // =========================================================================
@@ -461,9 +461,9 @@ pub enum WindowFunctionType {
     /// LAG(field, offset, default) - Value from previous row
     Lag {
         /// Field name
-        field: String,
+        field:   String,
         /// Row offset
-        offset: i32,
+        offset:  i32,
         /// Default value
         default: Option<serde_json::Value>,
     },
@@ -471,9 +471,9 @@ pub enum WindowFunctionType {
     /// LEAD(field, offset, default) - Value from next row
     Lead {
         /// Field name
-        field: String,
+        field:   String,
         /// Row offset
-        offset: i32,
+        offset:  i32,
         /// Default value
         default: Option<serde_json::Value>,
     },
@@ -495,7 +495,7 @@ pub enum WindowFunctionType {
         /// Field name
         field: String,
         /// Position
-        n: u32,
+        n:     u32,
     },
 
     // Aggregate as window functions

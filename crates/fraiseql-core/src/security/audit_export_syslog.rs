@@ -10,8 +10,10 @@
 //!   operation="query" level="INFO"] { users { id name } }
 //! ```
 
-use std::io::Write;
-use std::net::{TcpStream, UdpSocket};
+use std::{
+    io::Write,
+    net::{TcpStream, UdpSocket},
+};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -51,7 +53,7 @@ impl Transport {
 /// RFC 5424 syslog audit exporter for GraphQL operation audit entries.
 pub struct SyslogAuditExporter {
     transport: Mutex<Transport>,
-    hostname: String,
+    hostname:  String,
 }
 
 impl SyslogAuditExporter {
@@ -154,8 +156,7 @@ fn escape_sd_value(s: &str) -> String {
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use std::io::Read;
-    use std::net::UdpSocket;
+    use std::{io::Read, net::UdpSocket};
 
     use chrono::Utc;
 
@@ -163,19 +164,19 @@ mod tests {
 
     fn test_entry() -> AuditEntry {
         AuditEntry {
-            id: Some(1),
-            timestamp: Utc::now(),
-            level: AuditLevel::INFO,
-            user_id: 123,
-            tenant_id: 456,
-            operation: "query".to_string(),
-            query: "{ users { id name } }".to_string(),
-            variables: serde_json::json!({}),
-            ip_address: "192.168.1.1".to_string(),
-            user_agent: "Mozilla/5.0".to_string(),
-            error: None,
-            duration_ms: Some(42),
-            previous_hash: None,
+            id:             Some(1),
+            timestamp:      Utc::now(),
+            level:          AuditLevel::INFO,
+            user_id:        123,
+            tenant_id:      456,
+            operation:      "query".to_string(),
+            query:          "{ users { id name } }".to_string(),
+            variables:      serde_json::json!({}),
+            ip_address:     "192.168.1.1".to_string(),
+            user_agent:     "Mozilla/5.0".to_string(),
+            error:          None,
+            duration_ms:    Some(42),
+            previous_hash:  None,
             integrity_hash: None,
         }
     }
@@ -184,7 +185,7 @@ mod tests {
     fn test_format_message_rfc5424() {
         let exporter = SyslogAuditExporter {
             transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname: "test-host".to_string(),
+            hostname:  "test-host".to_string(),
         };
 
         let msg = exporter.format_message(&test_entry());
@@ -205,7 +206,7 @@ mod tests {
     fn test_format_message_with_error() {
         let exporter = SyslogAuditExporter {
             transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname: "test-host".to_string(),
+            hostname:  "test-host".to_string(),
         };
 
         let mut entry = test_entry();
@@ -234,8 +235,8 @@ mod tests {
         receiver.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
 
         let config = SyslogExportConfig {
-            address: "127.0.0.1".to_string(),
-            port: recv_addr.port(),
+            address:  "127.0.0.1".to_string(),
+            port:     recv_addr.port(),
             protocol: "udp".to_string(),
         };
 
@@ -257,8 +258,8 @@ mod tests {
         let listen_addr = listener.local_addr().unwrap();
 
         let config = SyslogExportConfig {
-            address: "127.0.0.1".to_string(),
-            port: listen_addr.port(),
+            address:  "127.0.0.1".to_string(),
+            port:     listen_addr.port(),
             protocol: "tcp".to_string(),
         };
 
@@ -288,7 +289,7 @@ mod tests {
     fn test_long_query_truncated() {
         let exporter = SyslogAuditExporter {
             transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname: "test-host".to_string(),
+            hostname:  "test-host".to_string(),
         };
 
         let mut entry = test_entry();

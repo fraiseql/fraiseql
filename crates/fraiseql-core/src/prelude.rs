@@ -2,7 +2,7 @@
 //!
 //! Import with: `use fraiseql_core::prelude::*;`
 
-pub use crate::config::FraiseQLConfig;
-pub use crate::schema::CompiledSchema;
 pub use fraiseql_db::DatabaseAdapter;
 pub use fraiseql_error::{FraiseQLError, Result};
+
+pub use crate::{config::FraiseQLConfig, schema::CompiledSchema};

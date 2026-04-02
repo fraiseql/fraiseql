@@ -81,10 +81,10 @@ impl QueryValidatorConfig {
     #[must_use]
     pub const fn permissive() -> Self {
         Self {
-            max_depth: 20,
+            max_depth:      20,
             max_complexity: 5000,
             max_size_bytes: 1_000_000, // 1 MB
-            max_aliases: 100,
+            max_aliases:    100,
         }
     }
 
@@ -97,10 +97,10 @@ impl QueryValidatorConfig {
     #[must_use]
     pub const fn standard() -> Self {
         Self {
-            max_depth: 10,
+            max_depth:      10,
             max_complexity: 1000,
             max_size_bytes: 256_000, // 256 KB
-            max_aliases: 30,
+            max_aliases:    30,
         }
     }
 
@@ -113,10 +113,10 @@ impl QueryValidatorConfig {
     #[must_use]
     pub const fn strict() -> Self {
         Self {
-            max_depth: 5,
+            max_depth:      5,
             max_complexity: 500,
             max_size_bytes: 64_000, // 64 KB
-            max_aliases: 10,
+            max_aliases:    10,
         }
     }
 }
@@ -183,16 +183,16 @@ impl QueryValidator {
         let size_bytes = query.len();
         if size_bytes > self.config.max_size_bytes {
             return Err(SecurityError::QueryTooLarge {
-                size: size_bytes,
+                size:     size_bytes,
                 max_size: self.config.max_size_bytes,
             });
         }
 
         // Checks 2–5: AST-based analysis via RequestValidator
         let rv = RequestValidator::from_config(&ComplexityConfig {
-            max_depth: self.config.max_depth,
+            max_depth:      self.config.max_depth,
             max_complexity: self.config.max_complexity,
-            max_aliases: self.config.max_aliases,
+            max_aliases:    self.config.max_aliases,
         });
 
         let metrics =
@@ -201,7 +201,7 @@ impl QueryValidator {
         // Check 3: Query depth
         if metrics.depth > self.config.max_depth {
             return Err(SecurityError::QueryTooDeep {
-                depth: metrics.depth,
+                depth:     metrics.depth,
                 max_depth: self.config.max_depth,
             });
         }
@@ -209,7 +209,7 @@ impl QueryValidator {
         // Check 4: Query complexity
         if metrics.complexity > self.config.max_complexity {
             return Err(SecurityError::QueryTooComplex {
-                complexity: metrics.complexity,
+                complexity:     metrics.complexity,
                 max_complexity: self.config.max_complexity,
             });
         }

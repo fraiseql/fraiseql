@@ -24,8 +24,7 @@ async fn test_step_execution_result() {
         .execute_step(saga_id, 1, "testMutation", &serde_json::json!({}), "test-service")
         .await;
 
-    let step_result = result
-        .unwrap_or_else(|e| panic!("execute_step should succeed: {e}"));
+    let step_result = result.unwrap_or_else(|e| panic!("execute_step should succeed: {e}"));
     assert_eq!(step_result.step_number, 1);
     assert!(step_result.success);
 }
@@ -56,8 +55,8 @@ async fn test_execute_step_without_store() {
         .execute_step(saga_id, 1, "testMutation", &serde_json::json!({}), "test-service")
         .await;
 
-    let step_result = result
-        .unwrap_or_else(|e| panic!("execute_step without store should succeed: {e}"));
+    let step_result =
+        result.unwrap_or_else(|e| panic!("execute_step without store should succeed: {e}"));
     assert_eq!(step_result.step_number, 1);
     assert!(step_result.success);
     assert!(step_result.error.is_none());
@@ -70,8 +69,8 @@ async fn test_execute_saga_without_store() {
     let saga_id = Uuid::new_v4();
     let results = executor.execute_saga(saga_id).await;
 
-    let step_results = results
-        .unwrap_or_else(|e| panic!("execute_saga without store should succeed: {e}"));
+    let step_results =
+        results.unwrap_or_else(|e| panic!("execute_saga without store should succeed: {e}"));
     assert_eq!(step_results.len(), 0);
 }
 
@@ -99,8 +98,8 @@ async fn test_execute_all_steps_sequentially() {
             .execute_step(saga_id, step_num, "testMutation", &serde_json::json!({}), "test-service")
             .await;
 
-        let step_result = result
-            .unwrap_or_else(|e| panic!("execute_step {step_num} should succeed: {e}"));
+        let step_result =
+            result.unwrap_or_else(|e| panic!("execute_step {step_num} should succeed: {e}"));
         assert_eq!(step_result.step_number, step_num);
         assert!(step_result.success);
     }
@@ -139,8 +138,8 @@ async fn test_get_execution_state_without_store() {
     let saga_id = Uuid::new_v4();
     let state = executor.get_execution_state(saga_id).await;
 
-    let execution_state = state
-        .unwrap_or_else(|e| panic!("get_execution_state without store should succeed: {e}"));
+    let execution_state =
+        state.unwrap_or_else(|e| panic!("get_execution_state without store should succeed: {e}"));
     assert_eq!(execution_state.saga_id, saga_id);
     assert_eq!(execution_state.total_steps, 0);
     assert_eq!(execution_state.completed_steps, 0);
@@ -175,8 +174,7 @@ async fn test_step_execution_captures_success_in_result() {
         .execute_step(saga_id, 1, "createOrder", &serde_json::json!({}), "orders-service")
         .await;
 
-    let step_result = result
-        .unwrap_or_else(|e| panic!("execute_step should capture success: {e}"));
+    let step_result = result.unwrap_or_else(|e| panic!("execute_step should capture success: {e}"));
     assert!(step_result.success);
     assert!(step_result.data.is_some());
     assert!(step_result.error.is_none());
@@ -209,8 +207,8 @@ async fn test_execution_result_includes_metrics() {
         .execute_step(saga_id, 1, "mutation", &serde_json::json!({}), "service")
         .await;
 
-    let step_result = result
-        .unwrap_or_else(|e| panic!("execute_step should succeed for metrics test: {e}"));
+    let step_result =
+        result.unwrap_or_else(|e| panic!("execute_step should succeed for metrics test: {e}"));
     // Verify that duration is measured
     let _ = step_result.duration_ms;
 }
@@ -222,8 +220,8 @@ async fn test_pre_fetch_requires_fields() {
 
     let requires_fields = executor.pre_fetch_requires_fields(saga_id, 1).await;
 
-    let fields = requires_fields
-        .unwrap_or_else(|e| panic!("pre_fetch_requires_fields should succeed: {e}"));
+    let fields =
+        requires_fields.unwrap_or_else(|e| panic!("pre_fetch_requires_fields should succeed: {e}"));
     assert_eq!(fields, serde_json::json!({}));
 }
 

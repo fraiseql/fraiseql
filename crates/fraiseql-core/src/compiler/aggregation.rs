@@ -65,21 +65,21 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregationRequest {
     /// Fact table name
-    pub table_name: String,
+    pub table_name:   String,
     /// WHERE clause filters (applied before GROUP BY)
     pub where_clause: Option<WhereClause>,
     /// GROUP BY selections
-    pub group_by: Vec<GroupBySelection>,
+    pub group_by:     Vec<GroupBySelection>,
     /// Aggregate selections (what to compute)
-    pub aggregates: Vec<AggregateSelection>,
+    pub aggregates:   Vec<AggregateSelection>,
     /// HAVING clause filters (applied after GROUP BY)
-    pub having: Vec<HavingCondition>,
+    pub having:       Vec<HavingCondition>,
     /// ORDER BY clauses
-    pub order_by: Vec<OrderByClause>,
+    pub order_by:     Vec<OrderByClause>,
     /// LIMIT
-    pub limit: Option<u32>,
+    pub limit:        Option<u32>,
     /// OFFSET
-    pub offset: Option<u32>,
+    pub offset:       Option<u32>,
 }
 
 /// GROUP BY selection
@@ -89,7 +89,7 @@ pub enum GroupBySelection {
     /// Group by JSONB dimension
     Dimension {
         /// JSONB path (e.g., "category")
-        path: String,
+        path:  String,
         /// Alias for result
         alias: String,
     },
@@ -100,20 +100,20 @@ pub enum GroupBySelection {
         /// Bucket type
         bucket: TemporalBucket,
         /// Alias for result
-        alias: String,
+        alias:  String,
     },
     /// Group by pre-computed calendar dimension
     CalendarDimension {
         /// Source timestamp column (e.g., "`occurred_at`")
-        source_column: String,
+        source_column:   String,
         /// Calendar JSONB column (e.g., "`date_info`")
         calendar_column: String,
         /// JSON key within calendar column (e.g., "month")
-        json_key: String,
+        json_key:        String,
         /// Temporal bucket type
-        bucket: TemporalBucket,
+        bucket:          TemporalBucket,
         /// Alias for result
-        alias: String,
+        alias:           String,
     },
 }
 
@@ -148,20 +148,20 @@ pub enum AggregateSelection {
     /// Aggregate function on a measure
     MeasureAggregate {
         /// Measure column name
-        measure: String,
+        measure:  String,
         /// Aggregate function
         function: AggregateFunction,
         /// Alias for result
-        alias: String,
+        alias:    String,
     },
     /// Boolean aggregate
     BoolAggregate {
         /// Field to aggregate
-        field: String,
+        field:    String,
         /// Boolean aggregate function
         function: crate::compiler::aggregate_types::BoolAggregateFunction,
         /// Alias for result
-        alias: String,
+        alias:    String,
     },
 }
 
@@ -184,24 +184,24 @@ pub struct HavingCondition {
     /// Aggregate to filter on
     pub aggregate: AggregateSelection,
     /// Comparison operator
-    pub operator: HavingOperator,
+    pub operator:  HavingOperator,
     /// Value to compare against
-    pub value: serde_json::Value,
+    pub value:     serde_json::Value,
 }
 
 /// Validated and optimized aggregation execution plan
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregationPlan {
     /// Fact table metadata
-    pub metadata: FactTableMetadata,
+    pub metadata:              FactTableMetadata,
     /// Original request
-    pub request: AggregationRequest,
+    pub request:               AggregationRequest,
     /// Validated GROUP BY expressions
-    pub group_by_expressions: Vec<GroupByExpression>,
+    pub group_by_expressions:  Vec<GroupByExpression>,
     /// Validated aggregate expressions
     pub aggregate_expressions: Vec<AggregateExpression>,
     /// Validated HAVING conditions
-    pub having_conditions: Vec<ValidatedHavingCondition>,
+    pub having_conditions:     Vec<ValidatedHavingCondition>,
 }
 
 /// Validated GROUP BY expression
@@ -213,9 +213,9 @@ pub enum GroupByExpression {
         /// JSONB column name (usually "data")
         jsonb_column: String,
         /// Path to extract (e.g., "category")
-        path: String,
+        path:         String,
         /// Result alias
-        alias: String,
+        alias:        String,
     },
     /// Temporal bucket with `DATE_TRUNC`
     TemporalBucket {
@@ -224,16 +224,16 @@ pub enum GroupByExpression {
         /// Bucket type
         bucket: TemporalBucket,
         /// Result alias
-        alias: String,
+        alias:  String,
     },
     /// Pre-computed calendar dimension extraction
     CalendarPath {
         /// Calendar JSONB column (e.g., "`date_info`")
         calendar_column: String,
         /// JSON key within calendar column (e.g., "month")
-        json_key: String,
+        json_key:        String,
         /// Result alias
-        alias: String,
+        alias:           String,
     },
 }
 
@@ -251,38 +251,38 @@ pub enum AggregateExpression {
         /// Column to count
         column: String,
         /// Result alias
-        alias: String,
+        alias:  String,
     },
     /// Aggregate function on measure column
     MeasureAggregate {
         /// Measure column name
-        column: String,
+        column:   String,
         /// Aggregate function
         function: AggregateFunction,
         /// Result alias
-        alias: String,
+        alias:    String,
     },
     /// Advanced aggregate with optional parameters
     AdvancedAggregate {
         /// Column to aggregate
-        column: String,
+        column:    String,
         /// Aggregate function
-        function: AggregateFunction,
+        function:  AggregateFunction,
         /// Result alias
-        alias: String,
+        alias:     String,
         /// Optional delimiter for `STRING_AGG`
         delimiter: Option<String>,
         /// Optional ORDER BY for `ARRAY_AGG/STRING_AGG`
-        order_by: Option<Vec<OrderByClause>>,
+        order_by:  Option<Vec<OrderByClause>>,
     },
     /// Boolean aggregate (`BOOL_AND/BOOL_OR`)
     BoolAggregate {
         /// Column to aggregate (boolean expression)
-        column: String,
+        column:   String,
         /// Boolean aggregate function
         function: crate::compiler::aggregate_types::BoolAggregateFunction,
         /// Result alias
-        alias: String,
+        alias:    String,
     },
 }
 
@@ -292,9 +292,9 @@ pub struct ValidatedHavingCondition {
     /// Aggregate expression to filter on
     pub aggregate: AggregateExpression,
     /// Comparison operator
-    pub operator: HavingOperator,
+    pub operator:  HavingOperator,
     /// Value to compare against
-    pub value: serde_json::Value,
+    pub value:     serde_json::Value,
 }
 
 /// Aggregation plan generator
@@ -357,13 +357,13 @@ impl AggregationPlanner {
                                 "Dimension '{}' not found in fact table '{}'",
                                 path, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
                     expressions.push(GroupByExpression::JsonbPath {
                         jsonb_column: metadata.dimensions.name.clone(),
-                        path: path.clone(),
-                        alias: alias.clone(),
+                        path:         path.clone(),
+                        alias:        alias.clone(),
                     });
                 },
                 GroupBySelection::TemporalBucket {
@@ -381,14 +381,14 @@ impl AggregationPlanner {
                                 "Column '{}' not found in fact table '{}'",
                                 column, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
                     expressions.push(GroupByExpression::TemporalBucket {
                         column: column.clone(),
                         bucket: *bucket,
-                        alias: alias.clone(),
+                        alias:  alias.clone(),
                     });
                 },
                 GroupBySelection::CalendarDimension {
@@ -400,8 +400,8 @@ impl AggregationPlanner {
                     // Calendar dimension - use pre-computed JSONB field
                     expressions.push(GroupByExpression::CalendarPath {
                         calendar_column: calendar_column.clone(),
-                        json_key: json_key.clone(),
-                        alias: alias.clone(),
+                        json_key:        json_key.clone(),
+                        alias:           alias.clone(),
                     });
                 },
             }
@@ -434,13 +434,13 @@ impl AggregationPlanner {
                                 "Measure '{}' not found in fact table '{}'",
                                 field, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
                     expressions.push(AggregateExpression::CountDistinct {
                         column: field.clone(),
-                        alias: alias.clone(),
+                        alias:  alias.clone(),
                     });
                 },
                 AggregateSelection::MeasureAggregate {
@@ -460,7 +460,7 @@ impl AggregationPlanner {
                                 "Measure or field '{}' not found in fact table '{}'",
                                 measure, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
@@ -473,21 +473,21 @@ impl AggregationPlanner {
                             | AggregateFunction::StringAgg
                     ) {
                         expressions.push(AggregateExpression::AdvancedAggregate {
-                            column: measure.clone(),
-                            function: *function,
-                            alias: alias.clone(),
+                            column:    measure.clone(),
+                            function:  *function,
+                            alias:     alias.clone(),
                             delimiter: if *function == AggregateFunction::StringAgg {
                                 Some(", ".to_string())
                             } else {
                                 None
                             },
-                            order_by: None,
+                            order_by:  None,
                         });
                     } else {
                         expressions.push(AggregateExpression::MeasureAggregate {
-                            column: measure.clone(),
+                            column:   measure.clone(),
                             function: *function,
-                            alias: alias.clone(),
+                            alias:    alias.clone(),
                         });
                     }
                 },
@@ -506,14 +506,14 @@ impl AggregationPlanner {
                                 "Boolean field '{}' not found in fact table '{}'",
                                 field, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
                     expressions.push(AggregateExpression::BoolAggregate {
-                        column: field.clone(),
+                        column:   field.clone(),
                         function: *function,
-                        alias: alias.clone(),
+                        alias:    alias.clone(),
                     });
                 },
             }
@@ -538,7 +538,7 @@ impl AggregationPlanner {
                 AggregateSelection::CountDistinct { field, alias } => {
                     AggregateExpression::CountDistinct {
                         column: field.clone(),
-                        alias: alias.clone(),
+                        alias:  alias.clone(),
                     }
                 },
                 AggregateSelection::MeasureAggregate {
@@ -555,21 +555,21 @@ impl AggregationPlanner {
                             | AggregateFunction::StringAgg
                     ) {
                         AggregateExpression::AdvancedAggregate {
-                            column: measure.clone(),
-                            function: *function,
-                            alias: alias.clone(),
+                            column:    measure.clone(),
+                            function:  *function,
+                            alias:     alias.clone(),
                             delimiter: if *function == AggregateFunction::StringAgg {
                                 Some(", ".to_string())
                             } else {
                                 None
                             },
-                            order_by: None,
+                            order_by:  None,
                         }
                     } else {
                         AggregateExpression::MeasureAggregate {
-                            column: measure.clone(),
+                            column:   measure.clone(),
                             function: *function,
-                            alias: alias.clone(),
+                            alias:    alias.clone(),
                         }
                     }
                 },
@@ -578,9 +578,9 @@ impl AggregationPlanner {
                     function,
                     alias,
                 } => AggregateExpression::BoolAggregate {
-                    column: field.clone(),
+                    column:   field.clone(),
                     function: *function,
-                    alias: alias.clone(),
+                    alias:    alias.clone(),
                 },
             };
 
@@ -589,8 +589,8 @@ impl AggregationPlanner {
 
             validated.push(ValidatedHavingCondition {
                 aggregate: aggregate_expr,
-                operator: condition.operator,
-                value: condition.value.clone(),
+                operator:  condition.operator,
+                value:     condition.value.clone(),
             });
         }
 
@@ -607,36 +607,36 @@ mod tests {
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![
+            table_name:           "tf_sales".to_string(),
+            measures:             vec![
                 MeasureColumn {
-                    name: "revenue".to_string(),
+                    name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name: "quantity".to_string(),
+                    name:     "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:           DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![
                 FilterColumn {
-                    name: "customer_id".to_string(),
+                    name:     "customer_id".to_string(),
                     sql_type: SqlType::Uuid,
-                    indexed: true,
+                    indexed:  true,
                 },
                 FilterColumn {
-                    name: "occurred_at".to_string(),
+                    name:     "occurred_at".to_string(),
                     sql_type: SqlType::Timestamp,
-                    indexed: true,
+                    indexed:  true,
                 },
             ],
-            calendar_dimensions: vec![],
+            calendar_dimensions:  vec![],
         }
     }
 
@@ -644,23 +644,23 @@ mod tests {
     fn test_plan_simple_aggregation() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![],
-            aggregates: vec![
+            group_by:     vec![],
+            aggregates:   vec![
                 AggregateSelection::Count {
                     alias: "count".to_string(),
                 },
                 AggregateSelection::MeasureAggregate {
-                    measure: "revenue".to_string(),
+                    measure:  "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias: "revenue_sum".to_string(),
+                    alias:    "revenue_sum".to_string(),
                 },
             ],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -677,26 +677,26 @@ mod tests {
     fn test_plan_with_group_by() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![
+            group_by:     vec![
                 GroupBySelection::Dimension {
-                    path: "category".to_string(),
+                    path:  "category".to_string(),
                     alias: "category".to_string(),
                 },
                 GroupBySelection::TemporalBucket {
                     column: "occurred_at".to_string(),
                     bucket: TemporalBucket::Day,
-                    alias: "occurred_at_day".to_string(),
+                    alias:  "occurred_at_day".to_string(),
                 },
             ],
-            aggregates: vec![AggregateSelection::Count {
+            aggregates:   vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -710,29 +710,29 @@ mod tests {
     fn test_plan_with_having() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![GroupBySelection::Dimension {
-                path: "category".to_string(),
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "category".to_string(),
                 alias: "category".to_string(),
             }],
-            aggregates: vec![AggregateSelection::MeasureAggregate {
-                measure: "revenue".to_string(),
+            aggregates:   vec![AggregateSelection::MeasureAggregate {
+                measure:  "revenue".to_string(),
                 function: AggregateFunction::Sum,
-                alias: "revenue_sum".to_string(),
+                alias:    "revenue_sum".to_string(),
             }],
-            having: vec![HavingCondition {
+            having:       vec![HavingCondition {
                 aggregate: AggregateSelection::MeasureAggregate {
-                    measure: "revenue".to_string(),
+                    measure:  "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias: "revenue_sum".to_string(),
+                    alias:    "revenue_sum".to_string(),
                 },
-                operator: HavingOperator::Gt,
-                value: serde_json::json!(1000),
+                operator:  HavingOperator::Gt,
+                value:     serde_json::json!(1000),
             }],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -745,18 +745,18 @@ mod tests {
     fn test_validate_invalid_measure() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![],
-            aggregates: vec![AggregateSelection::MeasureAggregate {
-                measure: "nonexistent".to_string(),
+            group_by:     vec![],
+            aggregates:   vec![AggregateSelection::MeasureAggregate {
+                measure:  "nonexistent".to_string(),
                 function: AggregateFunction::Sum,
-                alias: "nonexistent_sum".to_string(),
+                alias:    "nonexistent_sum".to_string(),
             }],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let result = AggregationPlanner::plan(request, metadata);
@@ -770,20 +770,20 @@ mod tests {
     fn test_validate_invalid_temporal_column() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![GroupBySelection::TemporalBucket {
+            group_by:     vec![GroupBySelection::TemporalBucket {
                 column: "nonexistent".to_string(),
                 bucket: TemporalBucket::Day,
-                alias: "day".to_string(),
+                alias:  "day".to_string(),
             }],
-            aggregates: vec![AggregateSelection::Count {
+            aggregates:   vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let result = AggregationPlanner::plan(request, metadata);
@@ -882,7 +882,7 @@ mod tests {
         use crate::compiler::fact_table::DimensionPath;
         let mut meta = create_test_metadata();
         meta.dimensions.paths = vec![DimensionPath {
-            name: "category".to_string(),
+            name:      "category".to_string(),
             json_path: "dimensions->>'category'".to_string(),
             data_type: "text".to_string(),
         }];
@@ -893,19 +893,19 @@ mod tests {
     fn test_dimension_allowlist_accepts_declared_path() {
         let metadata = create_metadata_with_paths();
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![GroupBySelection::Dimension {
-                path: "category".to_string(),
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "category".to_string(),
                 alias: "category".to_string(),
             }],
-            aggregates: vec![AggregateSelection::Count {
+            aggregates:   vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
         AggregationPlanner::plan(request, metadata)
             .unwrap_or_else(|e| panic!("declared dimension path should be accepted: {e}"));
@@ -915,19 +915,19 @@ mod tests {
     fn test_dimension_allowlist_rejects_unknown_path() {
         let metadata = create_metadata_with_paths();
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![GroupBySelection::Dimension {
-                path: "undeclared_path".to_string(),
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "undeclared_path".to_string(),
                 alias: "x".to_string(),
             }],
-            aggregates: vec![AggregateSelection::Count {
+            aggregates:   vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
         let result = AggregationPlanner::plan(request, metadata);
         assert!(
@@ -942,19 +942,19 @@ mod tests {
         // (schema did not declare a dimension allowlist).
         let metadata = create_test_metadata(); // paths: vec![]
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![GroupBySelection::Dimension {
-                path: "any_undeclared_path".to_string(),
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "any_undeclared_path".to_string(),
                 alias: "x".to_string(),
             }],
-            aggregates: vec![AggregateSelection::Count {
+            aggregates:   vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
         AggregationPlanner::plan(request, metadata)
             .unwrap_or_else(|e| panic!("any path should be accepted when paths empty: {e}"));

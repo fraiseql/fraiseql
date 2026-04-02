@@ -1,4 +1,8 @@
-#![allow(clippy::unwrap_used, clippy::missing_docs_in_private_items, missing_docs)] // Reason: benchmark code
+#![allow(
+    clippy::unwrap_used,
+    clippy::missing_docs_in_private_items,
+    missing_docs
+)] // Reason: benchmark code
 
 //! Cache concurrency benchmark.
 //!
@@ -42,13 +46,7 @@ fn make_result() -> Vec<JsonbValue> {
 /// Pre-populate the cache with `KEY_COUNT` entries.
 fn populate(cache: &QueryResultCache) {
     for i in 0..KEY_COUNT {
-        let _ = cache.put(
-            i as u64,
-            make_result(),
-            vec!["users".to_string()],
-            None,
-            Some("users"),
-        );
+        let _ = cache.put(i as u64, make_result(), vec!["users".to_string()], None, Some("users"));
     }
 }
 

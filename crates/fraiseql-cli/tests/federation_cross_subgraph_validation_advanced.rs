@@ -50,7 +50,9 @@ fn test_four_subgraph_federation_consistency() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users, orders, products, payments]);
-    result.unwrap_or_else(|e| panic!("Should validate 4-subgraph hierarchy with proper ownership: {e}"));
+    result.unwrap_or_else(|e| {
+        panic!("Should validate 4-subgraph hierarchy with proper ownership: {e}")
+    });
 }
 
 #[test]
@@ -74,7 +76,9 @@ fn test_multiple_external_fields_same_type() {
         create_subgraph_metadata("orders", vec![create_federated_type_extends("User", true)]);
 
     let result = validate_cross_subgraph_consistency(&[users, orders]);
-    result.unwrap_or_else(|e| panic!("Should validate multiple @external fields from single owner: {e}"));
+    result.unwrap_or_else(|e| {
+        panic!("Should validate multiple @external fields from single owner: {e}")
+    });
 }
 
 #[test]
@@ -115,7 +119,8 @@ fn test_external_fields_from_different_owners_error() {
     );
 
     let result = validate_cross_subgraph_consistency(&[users, products, orders]);
-    result.unwrap_or_else(|e| panic!("Should validate @external fields from different owners: {e}"));
+    result
+        .unwrap_or_else(|e| panic!("Should validate @external fields from different owners: {e}"));
 }
 
 // ============================================================================

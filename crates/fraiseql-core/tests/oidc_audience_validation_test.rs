@@ -83,7 +83,9 @@ fn test_oidc_config_auth0_pattern() {
         ..Default::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("Auth0 config should pass validation: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Auth0 config should pass validation: {e}"));
 }
 
 #[test]
@@ -95,7 +97,9 @@ fn test_oidc_config_keycloak_pattern() {
         ..Default::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("Keycloak config should pass validation: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Keycloak config should pass validation: {e}"));
 }
 
 #[test]
@@ -107,7 +111,9 @@ fn test_oidc_config_okta_pattern() {
         ..Default::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("Okta config should pass validation: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("Okta config should pass validation: {e}"));
 }
 
 #[test]
@@ -123,7 +129,9 @@ fn test_oidc_config_multiple_audiences() {
         ..Default::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("multiple audiences config should pass validation: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("multiple audiences config should pass validation: {e}"));
 }
 
 #[test]
@@ -163,5 +171,7 @@ fn test_oidc_config_localhost_exception_still_works() {
         ..Default::default()
     };
 
-    config.validate().unwrap_or_else(|e| panic!("localhost OIDC config should pass validation: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("localhost OIDC config should pass validation: {e}"));
 }

@@ -26,6 +26,7 @@ pub use types::{ApiError, ApiResponse};
 pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: crate::routes::graphql::AppState<A>,
 ) -> Router {
+    #[allow(unused_mut)]
     let mut router = Router::new()
         // Query intelligence endpoints
         // NOTE: /query/explain is intentionally omitted here — it is mounted

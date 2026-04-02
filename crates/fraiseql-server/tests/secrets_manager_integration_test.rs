@@ -99,8 +99,10 @@ async fn test_vault_namespace_configuration() {
 
     let manager = create_secrets_manager(config).await.unwrap();
     // Verify manager was created successfully with namespace
-    assert!(manager.get_secret("nonexistent").await.is_err(),
-        "expected Err getting nonexistent secret, got Ok");
+    assert!(
+        manager.get_secret("nonexistent").await.is_err(),
+        "expected Err getting nonexistent secret, got Ok"
+    );
 }
 
 /// Test that TLS verification can be disabled
@@ -115,8 +117,10 @@ async fn test_vault_tls_verification_disabled() {
 
     let manager = create_secrets_manager(config).await.unwrap();
     // Verify manager was created successfully with TLS verification disabled
-    assert!(manager.get_secret("nonexistent").await.is_err(),
-        "expected Err getting nonexistent secret, got Ok");
+    assert!(
+        manager.get_secret("nonexistent").await.is_err(),
+        "expected Err getting nonexistent secret, got Ok"
+    );
 }
 
 /// Test multiple backends can be created in sequence

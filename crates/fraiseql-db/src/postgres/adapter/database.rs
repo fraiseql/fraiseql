@@ -56,7 +56,8 @@ impl DatabaseAdapter for PostgresAdapter {
         offset: Option<u32>,
         _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection(view, projection, where_clause, limit, offset).await
+        self.execute_with_projection(view, projection, where_clause, limit, offset)
+            .await
     }
 
     async fn execute_where_query(
@@ -135,7 +136,7 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
+    #[allow(clippy::cast_possible_truncation)] // Reason: value is bounded; truncation cannot occur in practice
     // Reason: Connection pool counts are bounded by `max_pool_size` which defaults to 50 and
     // is configured via `fraiseql.toml` (typically ≤1000). Truncation from usize to u32 cannot
     // occur in practice; u32::MAX (4 billion) far exceeds any realistic pool size.
@@ -221,11 +222,8 @@ impl DatabaseAdapter for PostgresAdapter {
             // Wrap in a transaction so SET LOCAL scopes the variable to this call only.
             // `set_config(name, value, is_local)` with is_local=true is equivalent to
             // SET LOCAL and is parameterized to avoid SQL injection.
-            let txn = client
-                .build_transaction()
-                .start()
-                .await
-                .map_err(|e| FraiseQLError::Database {
+            let txn =
+                client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
                     message:   format!("Failed to start mutation timing transaction: {e}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
@@ -240,13 +238,12 @@ impl DatabaseAdapter for PostgresAdapter {
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
-            let rows: Vec<Row> =
-                txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
-                    FraiseQLError::Database {
-                        message:   format!("Function call {function_name} failed: {e}"),
-                        sql_state: e.code().map(|c| c.code().to_string()),
-                    }
-                })?;
+            let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+                FraiseQLError::Database {
+                    message:   format!("Function call {function_name} failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                }
+            })?;
 
             txn.commit().await.map_err(|e| FraiseQLError::Database {
                 message:   format!("Failed to commit mutation timing transaction: {e}"),

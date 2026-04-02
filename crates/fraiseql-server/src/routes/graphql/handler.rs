@@ -459,7 +459,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         vec![]
     };
     #[cfg(not(feature = "federation"))]
-    let cb_entity_types: Vec<String> = vec![];
+    let _cb_entity_types: Vec<String> = vec![];
 
     // Execute query (defer error propagation to record circuit breaker outcome first)
     let executor = state.executor();

@@ -33,12 +33,12 @@ pub struct ObserverManagementConfig {
 impl Default for ObserverManagementConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            base_path: "/api/observers".to_string(),
-            max_page_size: 100,
-            log_payloads: false,
+            enabled:            true,
+            base_path:          "/api/observers".to_string(),
+            max_page_size:      100,
+            log_payloads:       false,
             log_retention_days: 30,
-            require_auth: true,
+            require_auth:       true,
         }
     }
 }

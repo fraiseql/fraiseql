@@ -1,6 +1,5 @@
 //! Generic OIDC provider implementation using RFC 8414 discovery.
-use std::fmt::Write as _;
-use std::time::Duration;
+use std::{fmt::Write as _, time::Duration};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -376,7 +375,8 @@ impl std::fmt::Debug for OidcProvider {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
@@ -459,7 +459,10 @@ mod tests {
         .await;
 
         // Should fail at JSON parse (missing fields), not at the size gate
-        assert!(result.is_err(), "expected Err when discovery doc has missing fields, got: {result:?}");
+        assert!(
+            result.is_err(),
+            "expected Err when discovery doc has missing fields, got: {result:?}"
+        );
         let msg = result.err().unwrap().to_string();
         assert!(
             !msg.contains("too large"),

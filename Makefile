@@ -745,7 +745,7 @@ parity-generate:
 	    JAVA_HOME="$${JAVA_HOME:-$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1)}" \
 	    mvn -q test -Dtest=GenerateParitySchema "-DschemaOutputFile=/tmp/parity-java.json"
 	@echo "  [4/5] Java done"
-	@cd fraiseql-php && php tests/GenerateParitySchema.php \
+	@cd sdks/official/fraiseql-php && php tests/GenerateParitySchema.php \
 	    > /tmp/parity-php.json
 	@echo "  [5/5] PHP done"
 

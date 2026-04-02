@@ -37,7 +37,7 @@ impl ProxyConfig {
     /// Cannot panic — the IP literal `"127.0.0.1"` is always valid.
     pub fn localhost_only() -> Self {
         Self {
-            trusted_proxies:       vec!["127.0.0.1".parse().expect("valid IP")], // Reason: "127.0.0.1" is a compile-time literal and always parses successfully
+            trusted_proxies:       vec!["127.0.0.1".parse().expect("valid IP")], /* Reason: "127.0.0.1" is a compile-time literal and always parses successfully */
             require_trusted_proxy: true,
         }
     }
@@ -127,7 +127,8 @@ impl ProxyConfig {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 

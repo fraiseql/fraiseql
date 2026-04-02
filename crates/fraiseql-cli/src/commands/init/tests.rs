@@ -20,7 +20,10 @@ fn test_language_from_str() {
     assert_eq!(Language::from_str("swift").expect("test"), Language::Swift);
     assert_eq!(Language::from_str("scala").expect("test"), Language::Scala);
     assert_eq!(Language::from_str("sc").expect("test"), Language::Scala);
-    assert!(Language::from_str("haskell").is_err(), "expected Err for unsupported language 'haskell'");
+    assert!(
+        Language::from_str("haskell").is_err(),
+        "expected Err for unsupported language 'haskell'"
+    );
 }
 
 #[test]
@@ -50,7 +53,10 @@ fn test_database_from_str() {
     assert_eq!(Database::from_str("sqlite").expect("test"), Database::Sqlite);
     assert_eq!(Database::from_str("sqlserver").expect("test"), Database::SqlServer);
     assert_eq!(Database::from_str("mssql").expect("test"), Database::SqlServer);
-    assert!(Database::from_str("oracle").is_err(), "expected Err for unsupported database 'oracle'");
+    assert!(
+        Database::from_str("oracle").is_err(),
+        "expected Err for unsupported database 'oracle'"
+    );
 }
 
 #[test]

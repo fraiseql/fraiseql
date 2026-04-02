@@ -217,7 +217,8 @@ impl SchemaRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`ArrowFlightError::SchemaNotFound`] if the sample query fails or returns no columns.
+    /// Returns [`ArrowFlightError::SchemaNotFound`] if the sample query fails or returns no
+    /// columns.
     ///
     /// # Copy-on-Write Safety
     ///
@@ -430,7 +431,10 @@ impl SchemaRegistry {
     /// logged at debug level and skipped; default schemas are registered as a
     /// fallback if no views could be preloaded.
     #[allow(clippy::cognitive_complexity)] // Reason: iterates over multiple view types with per-view error handling and fallback logic
-    pub async fn preload_all_schemas(&self, db_adapter: &dyn ArrowDatabaseAdapter) -> Result<usize> {
+    pub async fn preload_all_schemas(
+        &self,
+        db_adapter: &dyn ArrowDatabaseAdapter,
+    ) -> Result<usize> {
         use tracing::info;
 
         // List of known view patterns to check

@@ -209,7 +209,8 @@ impl ValidationRule {
                 // Length rule
                 if let Some(Value::Number(n)) = map.get("length") {
                     if let Some(length) = n.as_u64() {
-                        #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
+                        #[allow(clippy::cast_possible_truncation)]
+                        // Reason: value is bounded; truncation cannot occur in practice
                         // Reason: length comes from user schema config; values exceeding
                         // usize::MAX are not meaningful as string-length limits and are
                         // silently saturated here (32-bit platforms only).
@@ -223,7 +224,8 @@ impl ValidationRule {
                     (map.get("min_length"), map.get("max_length"))
                 {
                     if let (Some(min_val), Some(max_val)) = (min.as_u64(), max.as_u64()) {
-                        #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
+                        #[allow(clippy::cast_possible_truncation)]
+                        // Reason: value is bounded; truncation cannot occur in practice
                         // Reason: min/max length limits from schema config; values exceeding
                         // usize::MAX are not meaningful for string-length validation.
                         let (min, max) = (
@@ -364,14 +366,16 @@ mod tests {
     #[test]
     fn test_pattern_validation() {
         let rule = ValidationRule::Pattern(Regex::new("^[a-z]+$").expect("valid regex"));
-        rule.validate("hello").unwrap_or_else(|e| panic!("expected Ok for 'hello': {e}"));
+        rule.validate("hello")
+            .unwrap_or_else(|e| panic!("expected Ok for 'hello': {e}"));
         assert!(rule.validate("Hello").is_err(), "expected Err for 'Hello' (uppercase)");
     }
 
     #[test]
     fn test_length_validation() {
         let rule = ValidationRule::Length(3);
-        rule.validate("abc").unwrap_or_else(|e| panic!("expected Ok for len=3 string: {e}"));
+        rule.validate("abc")
+            .unwrap_or_else(|e| panic!("expected Ok for len=3 string: {e}"));
         assert!(rule.validate("ab").is_err(), "expected Err for len=2 string");
         assert!(rule.validate("abcd").is_err(), "expected Err for len=4 string");
     }

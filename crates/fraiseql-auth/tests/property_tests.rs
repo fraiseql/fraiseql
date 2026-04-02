@@ -1,15 +1,18 @@
 //! Property-based tests for fraiseql-auth security invariants.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::HashMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
+use fraiseql_auth::{
+    constant_time::ConstantTimeOps,
+    jwt::Claims,
+    pkce::PkceStateStore,
+    rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter},
+};
 use proptest::prelude::*;
-
-use fraiseql_auth::constant_time::ConstantTimeOps;
-use fraiseql_auth::jwt::Claims;
-use fraiseql_auth::pkce::PkceStateStore;
-use fraiseql_auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 
 // ── JWT Claims Expiry Properties ──────────────────────────────────────────────
 

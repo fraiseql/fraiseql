@@ -629,7 +629,10 @@ mod tests {
             Value::String("John".to_string()),
         );
         let result = op.validate();
-        assert!(result.is_err(), "expected Err for invalid field 'bad-name', got: {result:?}");
+        assert!(
+            result.is_err(),
+            "expected Err for invalid field 'bad-name', got: {result:?}"
+        );
     }
 
     #[test]

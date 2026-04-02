@@ -246,8 +246,14 @@ impl RefreshTrigger {
             let successful = total - failed;
             // Reason: computing a percentage (0–100) from counters; precision loss and
             // truncation are acceptable for a human-readable success-rate metric.
-            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            { ((successful as f64 / total as f64) * 100.0) as u32 }
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
+            {
+                ((successful as f64 / total as f64) * 100.0) as u32
+            }
         }
     }
 
@@ -846,7 +852,9 @@ mod tests {
         assert!(manager.refresh_pending());
 
         // Start the job
-        manager.start_job().unwrap_or_else(|e| panic!("expected Ok from start_job: {e}"));
+        manager
+            .start_job()
+            .unwrap_or_else(|e| panic!("expected Ok from start_job: {e}"));
         assert!(manager.job_running());
 
         // Complete successfully: clears pending and transitions job to Success state
@@ -869,7 +877,9 @@ mod tests {
         let manager = RefreshManager::new(RefreshConfig::default());
 
         assert!(manager.check_and_trigger(85));
-        manager.start_job().unwrap_or_else(|e| panic!("expected Ok from start_job: {e}"));
+        manager
+            .start_job()
+            .unwrap_or_else(|e| panic!("expected Ok from start_job: {e}"));
         // complete_job_failure keeps pending so the coordinator can retry
         manager
             .complete_job_failure("vault timeout")

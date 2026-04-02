@@ -347,8 +347,7 @@ mod tests {
         let path = file.path().to_str().unwrap();
 
         let result = run(path, default_opts());
-        let cmd_result =
-            result.unwrap_or_else(|e| panic!("expected Ok from lint run: {e:?}"));
+        let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok from lint run: {e:?}"));
         assert_eq!(cmd_result.status, "success");
         assert_eq!(cmd_result.command, "lint");
         assert!(cmd_result.data.is_some());
@@ -369,8 +368,7 @@ mod tests {
         let path = file.path().to_str().unwrap();
 
         let result = run(path, default_opts());
-        let cmd_result =
-            result.unwrap_or_else(|e| panic!("expected Ok from lint run: {e:?}"));
+        let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok from lint run: {e:?}"));
         if let Some(data) = &cmd_result.data {
             assert!(data.get("overall_score").is_some());
             assert!(data.get("severity_counts").is_some());

@@ -224,7 +224,10 @@ impl Connection {
         let server_first_data = match server_first_msg {
             BackendMessage::Authentication(AuthenticationMessage::SaslContinue { data }) => data,
             BackendMessage::ErrorResponse(err) => {
-                return Err(WireError::Authentication(format!("SASL server error: {}", err)));
+                return Err(WireError::Authentication(format!(
+                    "SASL server error: {}",
+                    err
+                )));
             }
             _ => {
                 return Err(WireError::Protocol(
@@ -255,7 +258,10 @@ impl Connection {
         let server_final_data = match server_final_msg {
             BackendMessage::Authentication(AuthenticationMessage::SaslFinal { data }) => data,
             BackendMessage::ErrorResponse(err) => {
-                return Err(WireError::Authentication(format!("SASL server error: {}", err)));
+                return Err(WireError::Authentication(format!(
+                    "SASL server error: {}",
+                    err
+                )));
             }
             _ => {
                 return Err(WireError::Protocol(

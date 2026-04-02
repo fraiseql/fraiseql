@@ -31,7 +31,7 @@ pub enum JwksError {
     #[error("Invalid jwks_uri '{uri}': {source}")]
     InvalidUrl {
         /// The URI that failed to parse.
-        uri: String,
+        uri:    String,
         /// The underlying parse error.
         source: url::ParseError,
     },
@@ -86,8 +86,7 @@ fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
             let s = v6.segments();
             *v6 == std::net::Ipv6Addr::LOCALHOST
                 || *v6 == std::net::Ipv6Addr::UNSPECIFIED
-                || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0
-                    && s[4] == 0 && s[5] == 0xffff)
+                || (s[0] == 0 && s[1] == 0 && s[2] == 0 && s[3] == 0 && s[4] == 0 && s[5] == 0xffff)
                 || (s[0] & 0xfe00) == 0xfc00
                 || (s[0] & 0xffc0) == 0xfe80
         },
@@ -145,7 +144,7 @@ impl JwksCache {
     pub fn new(jwks_uri: &str, ttl: Duration) -> Result<Self, JwksError> {
         // Validate the URI at construction time (SSRF prevention pattern).
         let parsed = reqwest::Url::parse(jwks_uri).map_err(|e| JwksError::InvalidUrl {
-            uri: jwks_uri.to_string(),
+            uri:    jwks_uri.to_string(),
             source: e,
         })?;
 
@@ -164,9 +163,7 @@ impl JwksCache {
             });
         }
 
-        let client = reqwest::Client::builder()
-            .timeout(JWKS_FETCH_TIMEOUT)
-            .build()?;
+        let client = reqwest::Client::builder().timeout(JWKS_FETCH_TIMEOUT).build()?;
 
         Ok(Self {
             keys: RwLock::new(HashMap::new()),
@@ -319,7 +316,8 @@ mod tests {
         matchers::{method, path},
     };
 
-    #[allow(clippy::wildcard_imports)]  // Reason: test module wildcard import; brings all items into test scope
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module wildcard import; brings all items into test scope
     // Reason: test modules use wildcard imports for conciseness
     use super::*;
 
@@ -340,7 +338,8 @@ mod tests {
     #[tokio::test]
     async fn test_jwks_cache_empty() {
         let cache =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600)).unwrap();
+            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600))
+                .unwrap();
         assert!(cache.get_key_from_cache("nonexistent_kid").is_none());
     }
 
@@ -356,7 +355,8 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        ).unwrap();
+        )
+        .unwrap();
 
         let key = cache.get_key("test-key-1").await.unwrap();
         assert!(key.is_some());
@@ -374,7 +374,8 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        ).unwrap();
+        )
+        .unwrap();
 
         let key = cache.get_key("nonexistent-kid").await.unwrap();
         assert!(key.is_none());
@@ -394,7 +395,8 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(0),
-        ).unwrap();
+        )
+        .unwrap();
 
         // First fetch
         let _ = cache.get_key("test-key-1").await.unwrap();
@@ -414,7 +416,8 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        ).unwrap();
+        )
+        .unwrap();
 
         cache.force_refresh().await.unwrap();
         assert!(cache.get_key_from_cache("test-key-1").is_some());
@@ -422,7 +425,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_jwks_cache_network_error() {
-        let cache = JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_secs(3600)).unwrap();
+        let cache =
+            JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_secs(3600)).unwrap();
         let result = cache.get_key("any-kid").await;
         assert!(result.is_err(), "expected Err for network error (connection refused)");
     }
@@ -448,7 +452,8 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        ).unwrap();
+        )
+        .unwrap();
         let result = cache.get_key("any-kid").await;
         assert!(result.is_err(), "oversized JWKS response must be rejected");
         let msg = result.err().unwrap();
@@ -467,7 +472,8 @@ mod tests {
         let cache = JwksCache::new(
             &format!("{}/.well-known/jwks.json", mock_server.uri()),
             Duration::from_secs(3600),
-        ).unwrap();
+        )
+        .unwrap();
         let key = cache
             .get_key("test-key-1")
             .await
@@ -498,10 +504,8 @@ mod tests {
 
     #[test]
     fn test_jwks_cache_accepts_https() {
-        let result = JwksCache::new(
-            "https://example.com/.well-known/jwks.json",
-            Duration::from_secs(3600),
-        );
+        let result =
+            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600));
         assert!(result.is_ok(), "valid https:// URL should be accepted");
     }
 
@@ -637,10 +641,9 @@ mod tests {
 
     #[test]
     fn test_jwks_cache_debug_format() {
-        let cache = JwksCache::new(
-            "https://example.com/.well-known/jwks.json",
-            Duration::from_secs(3600),
-        ).unwrap();
+        let cache =
+            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_secs(3600))
+                .unwrap();
         let dbg = format!("{cache:?}");
         assert!(dbg.contains("JwksCache"), "Debug output must contain struct name");
         assert!(dbg.contains("example.com"), "Debug output must contain jwks_uri");

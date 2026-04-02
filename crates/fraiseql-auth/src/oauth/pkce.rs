@@ -141,10 +141,7 @@ mod tests {
     #[test]
     fn test_pkce_challenge_method_is_s256() {
         let challenge = PKCEChallenge::new();
-        assert_eq!(
-            challenge.code_challenge_method, "S256",
-            "PKCE challenge method must be S256"
-        );
+        assert_eq!(challenge.code_challenge_method, "S256", "PKCE challenge method must be S256");
     }
 
     #[test]
@@ -160,10 +157,7 @@ mod tests {
     #[test]
     fn test_pkce_challenge_is_not_empty() {
         let challenge = PKCEChallenge::new();
-        assert!(
-            !challenge.code_challenge.is_empty(),
-            "PKCE code_challenge must not be empty"
-        );
+        assert!(!challenge.code_challenge.is_empty(), "PKCE code_challenge must not be empty");
     }
 
     #[test]
@@ -204,10 +198,7 @@ mod tests {
     #[test]
     fn test_state_parameter_not_expired_on_creation() {
         let state = StateParameter::new();
-        assert!(
-            !state.is_expired(),
-            "freshly created StateParameter must not be expired"
-        );
+        assert!(!state.is_expired(), "freshly created StateParameter must not be expired");
     }
 
     #[test]
@@ -233,10 +224,7 @@ mod tests {
     fn test_state_parameters_are_unique() {
         let s1 = StateParameter::new();
         let s2 = StateParameter::new();
-        assert_ne!(
-            s1.state, s2.state,
-            "consecutive StateParameter values must be unique"
-        );
+        assert_ne!(s1.state, s2.state, "consecutive StateParameter values must be unique");
     }
 
     // --- NonceParameter tests ---
@@ -244,10 +232,7 @@ mod tests {
     #[test]
     fn test_nonce_not_expired_on_creation() {
         let nonce = NonceParameter::new();
-        assert!(
-            !nonce.is_expired(),
-            "freshly created NonceParameter must not be expired"
-        );
+        assert!(!nonce.is_expired(), "freshly created NonceParameter must not be expired");
     }
 
     #[test]
@@ -273,9 +258,6 @@ mod tests {
     fn test_nonce_parameters_are_unique() {
         let n1 = NonceParameter::new();
         let n2 = NonceParameter::new();
-        assert_ne!(
-            n1.nonce, n2.nonce,
-            "consecutive NonceParameter values must be unique"
-        );
+        assert_ne!(n1.nonce, n2.nonce, "consecutive NonceParameter values must be unique");
     }
 }

@@ -204,7 +204,7 @@ final class IntegrationTest extends TestCase
         $formatter = new SchemaFormatter();
         $schema = $formatter->formatRegistry($registry);
 
-        $this->assertCount(2, $schema->getTypeCount());
+        $this->assertEquals(2, $schema->getTypeCount());
     }
 
     public function testComplexNestedSchema(): void

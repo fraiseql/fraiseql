@@ -51,7 +51,8 @@ fn test_cross_database_postgres_to_mysql() {
     let result =
         runtime.block_on(resolver.resolve_entities_from_db("User", &[representation], &selection));
 
-    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (postgres→mysql) failed: {e}"));
+    let entities =
+        result.unwrap_or_else(|e| panic!("resolve_entities_from_db (postgres→mysql) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
     assert_eq!(entities[0].as_ref().unwrap()["username"], "alice");
@@ -96,7 +97,8 @@ fn test_cross_database_postgres_to_sqlserver() {
         &selection,
     ));
 
-    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (postgres→sqlserver) failed: {e}"));
+    let entities = result
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db (postgres→sqlserver) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
     assert_eq!(entities[0].as_ref().unwrap()["product_name"], "Widget");
@@ -138,7 +140,8 @@ fn test_cross_database_type_coercion_numeric() {
     let result =
         runtime.block_on(resolver.resolve_entities_from_db("Order", &[representation], &selection));
 
-    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (numeric coercion) failed: {e}"));
+    let entities = result
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db (numeric coercion) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
 
@@ -186,7 +189,8 @@ fn test_cross_database_type_coercion_string() {
         &selection,
     ));
 
-    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (string coercion) failed: {e}"));
+    let entities =
+        result.unwrap_or_else(|e| panic!("resolve_entities_from_db (string coercion) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
 
@@ -231,7 +235,8 @@ fn test_cross_database_type_coercion_datetime() {
     let result =
         runtime.block_on(resolver.resolve_entities_from_db("Event", &[representation], &selection));
 
-    let entities = result.unwrap_or_else(|e| panic!("resolve_entities_from_db (datetime coercion) failed: {e}"));
+    let entities = result
+        .unwrap_or_else(|e| panic!("resolve_entities_from_db (datetime coercion) failed: {e}"));
     assert_eq!(entities.len(), 1);
     assert!(entities[0].is_some());
 

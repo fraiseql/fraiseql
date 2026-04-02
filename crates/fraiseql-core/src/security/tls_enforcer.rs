@@ -108,9 +108,9 @@ impl TlsConnection {
     #[must_use]
     pub const fn new_http() -> Self {
         Self {
-            is_secure: false,
-            version: TlsVersion::V1_2, // Irrelevant for HTTP
-            has_client_cert: false,
+            is_secure:         false,
+            version:           TlsVersion::V1_2, // Irrelevant for HTTP
+            has_client_cert:   false,
             client_cert_valid: false,
         }
     }
@@ -163,9 +163,9 @@ impl TlsConfig {
     #[must_use]
     pub const fn permissive() -> Self {
         Self {
-            tls_required: false,
+            tls_required:  false,
             mtls_required: false,
-            min_version: TlsVersion::V1_2,
+            min_version:   TlsVersion::V1_2,
         }
     }
 
@@ -177,9 +177,9 @@ impl TlsConfig {
     #[must_use]
     pub const fn standard() -> Self {
         Self {
-            tls_required: true,
+            tls_required:  true,
             mtls_required: false,
-            min_version: TlsVersion::V1_2,
+            min_version:   TlsVersion::V1_2,
         }
     }
 
@@ -191,9 +191,9 @@ impl TlsConfig {
     #[must_use]
     pub const fn strict() -> Self {
         Self {
-            tls_required: true,
+            tls_required:  true,
             mtls_required: true,
-            min_version: TlsVersion::V1_3,
+            min_version:   TlsVersion::V1_3,
         }
     }
 }
@@ -257,7 +257,7 @@ impl TlsEnforcer {
         // Check 2: TLS version minimum (only check if connection is secure)
         if conn.is_secure && conn.version < self.config.min_version {
             return Err(SecurityError::TlsVersionTooOld {
-                current: conn.version,
+                current:  conn.version,
                 required: self.config.min_version,
             });
         }
@@ -418,9 +418,9 @@ mod tests {
     fn test_invalid_cert_rejected() {
         let enforcer = TlsEnforcer::strict();
         let conn = TlsConnection {
-            is_secure: true,
-            version: TlsVersion::V1_3,
-            has_client_cert: true,
+            is_secure:         true,
+            version:           TlsVersion::V1_3,
+            has_client_cert:   true,
             client_cert_valid: false, // Invalid!
         };
 
@@ -583,9 +583,9 @@ mod tests {
     #[test]
     fn test_custom_config_from_individual_settings() {
         let config = TlsConfig {
-            tls_required: true,
+            tls_required:  true,
             mtls_required: false,
-            min_version: TlsVersion::V1_2,
+            min_version:   TlsVersion::V1_2,
         };
 
         let enforcer = TlsEnforcer::from_config(config);
@@ -616,9 +616,9 @@ mod tests {
 
         // Even with client cert info, HTTP should fail
         let http_with_cert_info = TlsConnection {
-            is_secure: false, // Still HTTP
-            version: TlsVersion::V1_2,
-            has_client_cert: true,
+            is_secure:         false, // Still HTTP
+            version:           TlsVersion::V1_2,
+            has_client_cert:   true,
             client_cert_valid: true,
         };
 

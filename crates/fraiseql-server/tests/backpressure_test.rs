@@ -63,14 +63,10 @@ fn simulate_concurrent_requests(
 fn test_admission_controller_allows_up_to_limit() {
     let limit = 5;
     // max_queue_depth must be > 0 for try_acquire to not immediately reject
-    let (acquired, _rejected) =
-        simulate_concurrent_requests(limit, limit as u64, limit);
+    let (acquired, _rejected) = simulate_concurrent_requests(limit, limit as u64, limit);
 
     // All requests within the limit must be admitted
-    assert_eq!(
-        acquired, limit,
-        "all {limit} requests within the limit must be admitted"
-    );
+    assert_eq!(acquired, limit, "all {limit} requests within the limit must be admitted");
 }
 
 /// `AdmissionController` rejects requests that exceed the semaphore capacity.
@@ -80,19 +76,14 @@ fn test_admission_controller_rejects_over_limit() {
     let extra = 5;
     let total = limit + extra;
 
-    let (acquired, rejected) =
-        simulate_concurrent_requests(limit, total as u64, total);
+    let (acquired, rejected) = simulate_concurrent_requests(limit, total as u64, total);
 
     assert!(
         rejected > 0,
         "expected some rejections when {total} requests exceed limit {limit}, \
         got acquired={acquired} rejected={rejected}"
     );
-    assert_eq!(
-        acquired + rejected,
-        total,
-        "every request must be either admitted or rejected"
-    );
+    assert_eq!(acquired + rejected, total, "every request must be either admitted or rejected");
 }
 
 /// After an overload spike, the controller recovers and admits new requests.
@@ -109,10 +100,7 @@ async fn test_admission_controller_recovers_after_spike() {
     }
 
     // At capacity — next request must be rejected
-    assert!(
-        controller.try_acquire().is_none(),
-        "must reject when at capacity"
-    );
+    assert!(controller.try_acquire().is_none(), "must reject when at capacity");
 
     // Release all permits
     drop(permits);
@@ -130,10 +118,7 @@ async fn test_admission_controller_recovers_after_spike() {
 async fn test_zero_queue_depth_rejects_all() {
     let controller = Arc::new(AdmissionController::new(10, 0));
     let result = controller.try_acquire();
-    assert!(
-        result.is_none(),
-        "max_queue_depth=0 must reject all requests unconditionally"
-    );
+    assert!(result.is_none(), "max_queue_depth=0 must reject all requests unconditionally");
 }
 
 /// `acquire_timeout` admits a request when permits are available.
@@ -156,11 +141,7 @@ async fn test_acquire_timeout_cleans_up_queue_depth_on_expiry() {
     assert!(permit.is_none(), "must return None on timeout");
 
     // Queue depth must be restored to 0 after cleanup
-    assert_eq!(
-        controller.queue_depth(),
-        0,
-        "queue depth must return to 0 after timeout expiry"
-    );
+    assert_eq!(controller.queue_depth(), 0, "queue depth must return to 0 after timeout expiry");
 }
 
 /// N+1 concurrent threads — at most N succeed, at least 1 is rejected.

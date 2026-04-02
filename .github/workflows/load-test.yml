@@ -84,6 +84,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           FRAISEQL_SCHEMA_PATH: docker/e2e/schema.compiled.json
+          FRAISEQL_ENV: development
 
       - name: Install k6
         uses: grafana/setup-k6-action@v1

@@ -3,7 +3,8 @@
 //! Provides connection pooling and query execution for MySQL.
 
 mod adapter;
-#[allow(dead_code)] // Reason: relay pagination helpers wired for upcoming MySqlAdapter relay support
+#[allow(dead_code)]
+// Reason: relay pagination helpers wired for upcoming MySqlAdapter relay support
 mod helpers;
 pub mod introspector;
 mod where_generator;

@@ -97,12 +97,7 @@ impl PushAction {
     /// # Errors
     ///
     /// Returns `ObserverError` if push notification fails.
-    pub fn execute(
-        &self,
-        device_token: &str,
-        title: &str,
-        body: &str,
-    ) -> Result<PushResponse> {
+    pub fn execute(&self, device_token: &str, title: &str, body: &str) -> Result<PushResponse> {
         let start = std::time::Instant::now();
 
         // Stub implementation - will be replaced with actual push provider (FCM, APNs)
@@ -304,9 +299,7 @@ mod tests {
     fn test_sms_action_execute() {
         let action = SmsAction::new();
         let event = create_test_event();
-        let response = action
-            .execute("+1234567890", Some("Test notification"), &event)
-            .unwrap();
+        let response = action.execute("+1234567890", Some("Test notification"), &event).unwrap();
 
         assert!(response.success);
         assert!(response.duration_ms >= 0.0);
@@ -322,13 +315,7 @@ mod tests {
     #[test]
     fn test_push_action_execute() {
         let action = PushAction::new();
-        let response = action
-            .execute(
-                "device_token_123",
-                "Test Title",
-                "Test Body",
-            )
-            .unwrap();
+        let response = action.execute("device_token_123", "Test Title", "Test Body").unwrap();
 
         assert!(response.success);
         assert!(response.duration_ms >= 0.0);

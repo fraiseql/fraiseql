@@ -331,25 +331,25 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![SelectColumn {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
                 expression: "revenue".to_string(),
-                alias: "revenue".to_string(),
+                alias:      "revenue".to_string(),
             }],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec!["data->>'category'".to_string()],
-                order_by: vec![OrderByClause {
-                    field: "revenue".to_string(),
+                order_by:     vec![OrderByClause {
+                    field:     "revenue".to_string(),
                     direction: OrderDirection::Desc,
                 }],
-                frame: None,
+                frame:        None,
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -364,38 +364,38 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![
                 SelectColumn {
                     expression: "occurred_at".to_string(),
-                    alias: "date".to_string(),
+                    alias:      "date".to_string(),
                 },
                 SelectColumn {
                     expression: "revenue".to_string(),
-                    alias: "revenue".to_string(),
+                    alias:      "revenue".to_string(),
                 },
             ],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::Sum {
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::Sum {
                     field: "revenue".to_string(),
                 },
-                alias: "running_total".to_string(),
+                alias:        "running_total".to_string(),
                 partition_by: vec![],
-                order_by: vec![OrderByClause {
-                    field: "occurred_at".to_string(),
+                order_by:     vec![OrderByClause {
+                    field:     "occurred_at".to_string(),
                     direction: OrderDirection::Asc,
                 }],
-                frame: Some(WindowFrame {
+                frame:        Some(WindowFrame {
                     frame_type: FrameType::Rows,
-                    start: FrameBoundary::UnboundedPreceding,
-                    end: FrameBoundary::CurrentRow,
-                    exclusion: None,
+                    start:      FrameBoundary::UnboundedPreceding,
+                    end:        FrameBoundary::CurrentRow,
+                    exclusion:  None,
                 }),
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -409,42 +409,42 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![
                 WindowFunction {
-                    function: WindowFunctionType::Lag {
-                        field: "revenue".to_string(),
-                        offset: 1,
+                    function:     WindowFunctionType::Lag {
+                        field:   "revenue".to_string(),
+                        offset:  1,
                         default: Some(serde_json::json!(0)),
                     },
-                    alias: "prev_revenue".to_string(),
+                    alias:        "prev_revenue".to_string(),
                     partition_by: vec![],
-                    order_by: vec![OrderByClause {
-                        field: "occurred_at".to_string(),
+                    order_by:     vec![OrderByClause {
+                        field:     "occurred_at".to_string(),
                         direction: OrderDirection::Asc,
                     }],
-                    frame: None,
+                    frame:        None,
                 },
                 WindowFunction {
-                    function: WindowFunctionType::Lead {
-                        field: "revenue".to_string(),
-                        offset: 1,
+                    function:     WindowFunctionType::Lead {
+                        field:   "revenue".to_string(),
+                        offset:  1,
                         default: None,
                     },
-                    alias: "next_revenue".to_string(),
+                    alias:        "next_revenue".to_string(),
                     partition_by: vec![],
-                    order_by: vec![OrderByClause {
-                        field: "occurred_at".to_string(),
+                    order_by:     vec![OrderByClause {
+                        field:     "occurred_at".to_string(),
                         direction: OrderDirection::Asc,
                     }],
-                    frame: None,
+                    frame:        None,
                 },
             ],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -481,29 +481,29 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::Avg {
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::Avg {
                     field: "revenue".to_string(),
                 },
-                alias: "moving_avg_7d".to_string(),
+                alias:        "moving_avg_7d".to_string(),
                 partition_by: vec![],
-                order_by: vec![OrderByClause {
-                    field: "occurred_at".to_string(),
+                order_by:     vec![OrderByClause {
+                    field:     "occurred_at".to_string(),
                     direction: OrderDirection::Asc,
                 }],
-                frame: Some(WindowFrame {
+                frame:        Some(WindowFrame {
                     frame_type: FrameType::Rows,
-                    start: FrameBoundary::NPreceding { n: 6 },
-                    end: FrameBoundary::CurrentRow,
-                    exclusion: None,
+                    start:      FrameBoundary::NPreceding { n: 6 },
+                    end:        FrameBoundary::CurrentRow,
+                    exclusion:  None,
                 }),
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -517,32 +517,32 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::SQLServer);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![
                 WindowFunction {
-                    function: WindowFunctionType::Stddev {
+                    function:     WindowFunctionType::Stddev {
                         field: "revenue".to_string(),
                     },
-                    alias: "stddev".to_string(),
+                    alias:        "stddev".to_string(),
                     partition_by: vec![],
-                    order_by: vec![],
-                    frame: None,
+                    order_by:     vec![],
+                    frame:        None,
                 },
                 WindowFunction {
-                    function: WindowFunctionType::Variance {
+                    function:     WindowFunctionType::Variance {
                         field: "revenue".to_string(),
                     },
-                    alias: "variance".to_string(),
+                    alias:        "variance".to_string(),
                     partition_by: vec![],
-                    order_by: vec![],
-                    frame: None,
+                    order_by:     vec![],
+                    frame:        None,
                 },
             ],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -560,26 +560,26 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![SelectColumn {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
                 expression: "revenue".to_string(),
-                alias: "revenue".to_string(),
+                alias:      "revenue".to_string(),
             }],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec![],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: Some(WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: serde_json::json!("active"),
+                value:    serde_json::json!("active"),
             }),
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -599,26 +599,26 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![SelectColumn {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
                 expression: "revenue".to_string(),
-                alias: "revenue".to_string(),
+                alias:      "revenue".to_string(),
             }],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec![],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: Some(WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: serde_json::json!("active"),
+                value:    serde_json::json!("active"),
             }),
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -633,19 +633,19 @@ mod tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec![],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();

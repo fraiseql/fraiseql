@@ -110,7 +110,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
             },
-            QueryType::Federation(query_name) => {
+            QueryType::Federation(_query_name) => {
                 #[cfg(feature = "federation")]
                 {
                     self.execute_federation_query(&query_name, query, variables).await
@@ -157,8 +157,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Errors
     ///
-    /// * [`FraiseQLError::Validation`] — query validation fails, or the user's scopes
-    ///   do not include a field required by the `field_filter` policy.
+    /// * [`FraiseQLError::Validation`] — query validation fails, or the user's scopes do not
+    ///   include a field required by the `field_filter` policy.
     /// * Propagates errors from query classification and execution.
     ///
     /// # Example

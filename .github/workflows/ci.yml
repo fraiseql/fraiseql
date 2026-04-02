@@ -601,7 +601,7 @@ jobs:
         run: cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
         env:
           RUST_LOG: debug
-          FRAISEQL_ALLOW_LOCALHOST: "1"
+          FRAISEQL_OBSERVERS_ALLOW_INSECURE: "true"
 
       - name: Show NATS logs on failure
         if: failure()
@@ -681,7 +681,7 @@ jobs:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
           RUST_LOG: debug
           FRAISEQL_ALLOW_PRIVATE_WEBHOOKS: "true"
-          FRAISEQL_ALLOW_LOCALHOST: "true"
+          FRAISEQL_OBSERVERS_ALLOW_INSECURE: "true"
 
   # Integration tests for TLS wire protocol (PostgreSQL with TLS)
   integration-tls:
@@ -780,7 +780,7 @@ jobs:
           done
 
       - name: Run Vault secrets manager tests
-        run: cargo test -p fraiseql-server --test secrets_manager_integration_test -- --ignored --test-threads=1
+        run: cargo test -p fraiseql-server --features secrets --test secrets_manager_integration_test -- --ignored --test-threads=1
         env:
           VAULT_ADDR: http://localhost:8200
           VAULT_TOKEN: fraiseql-test-token

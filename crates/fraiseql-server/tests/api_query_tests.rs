@@ -158,7 +158,10 @@ async fn validate_rejects_mismatched_braces() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["data"]["valid"], false);
     let errors = json["data"]["errors"].as_array().unwrap();
-    assert!(!errors.is_empty(), "parser should report at least one error for mismatched braces");
+    assert!(
+        !errors.is_empty(),
+        "parser should report at least one error for mismatched braces"
+    );
 }
 
 #[tokio::test]

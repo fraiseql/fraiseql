@@ -151,9 +151,12 @@ mod query_optimization_tests {
         let sqlite_sql = sqlite_gen.generate_projection_sql(&fields);
         let elapsed_sqlite = start_sqlite.elapsed();
 
-        let _pg = pg_sql.unwrap_or_else(|e| panic!("PostgreSQL should generate projection SQL: {e}"));
-        let _mysql = mysql_sql.unwrap_or_else(|e| panic!("MySQL should generate projection SQL: {e}"));
-        let _sqlite = sqlite_sql.unwrap_or_else(|e| panic!("SQLite should generate projection SQL: {e}"));
+        let _pg =
+            pg_sql.unwrap_or_else(|e| panic!("PostgreSQL should generate projection SQL: {e}"));
+        let _mysql =
+            mysql_sql.unwrap_or_else(|e| panic!("MySQL should generate projection SQL: {e}"));
+        let _sqlite =
+            sqlite_sql.unwrap_or_else(|e| panic!("SQLite should generate projection SQL: {e}"));
 
         // All should be reasonably fast (50ms allows for debug builds and CI load)
         assert!(
@@ -192,7 +195,8 @@ mod query_optimization_tests {
         let result = projector.project_results(&rows, true);
         let elapsed = start.elapsed();
 
-        let projected = result.unwrap_or_else(|e| panic!("Should project 100 rows successfully: {e}"));
+        let projected =
+            result.unwrap_or_else(|e| panic!("Should project 100 rows successfully: {e}"));
         if let JsonValue::Array(arr) = &projected {
             assert_eq!(arr.len(), 100, "Should project all 100 rows");
         } else {
@@ -223,7 +227,8 @@ mod query_optimization_tests {
         let result = projector.project_results(&rows, true);
         let elapsed = start.elapsed();
 
-        let projected = result.unwrap_or_else(|e| panic!("Should project 1000 rows successfully: {e}"));
+        let projected =
+            result.unwrap_or_else(|e| panic!("Should project 1000 rows successfully: {e}"));
         if let JsonValue::Array(arr) = &projected {
             assert_eq!(arr.len(), 1000, "Should project all 1000 rows");
         } else {
@@ -252,7 +257,8 @@ mod query_optimization_tests {
         row.insert("email".to_string(), json!("alice@example.com"));
         let jsonb = JsonbValue::new(JsonValue::Object(row));
 
-        let result = projector.project_results(&[jsonb], false)
+        let result = projector
+            .project_results(&[jsonb], false)
             .unwrap_or_else(|e| panic!("Should project with aliasing: {e}"));
 
         if let JsonValue::Object(ref result_obj) = result {
@@ -288,7 +294,8 @@ mod query_optimization_tests {
         let result = projector.project_results(&rows, true);
         let elapsed = start.elapsed();
 
-        let projected = result.unwrap_or_else(|e| panic!("Should project 1000 rows with __typename: {e}"));
+        let projected =
+            result.unwrap_or_else(|e| panic!("Should project 1000 rows with __typename: {e}"));
 
         // Check length
         if let JsonValue::Array(ref arr) = projected {
@@ -325,7 +332,8 @@ mod query_optimization_tests {
         row.insert("name".to_string(), json!("Alice"));
 
         let jsonb = JsonbValue::new(JsonValue::Object(row));
-        let result = projector.project_results(&[jsonb], false)
+        let result = projector
+            .project_results(&[jsonb], false)
             .unwrap_or_else(|e| panic!("Should project single row with __typename: {e}"));
         if let JsonValue::Object(ref result_obj) = result {
             assert_eq!(
@@ -373,7 +381,8 @@ mod query_optimization_tests {
 
         let rows = generate_sample_rows(100, 15);
 
-        let projected = projector.project_results(&rows, true)
+        let projected = projector
+            .project_results(&rows, true)
             .unwrap_or_else(|e| panic!("Should project 100 rows with 3 fields: {e}"));
 
         let total_size = serde_json::to_string(&projected).map_or(0, |s| s.len());
@@ -413,7 +422,8 @@ mod query_optimization_tests {
         row.insert("internal_id".to_string(), json!("internal123"));
 
         let jsonb = JsonbValue::new(JsonValue::Object(row));
-        let result = projector.project_results(&[jsonb], false)
+        let result = projector
+            .project_results(&[jsonb], false)
             .unwrap_or_else(|e| panic!("Should project and filter fields: {e}"));
         if let JsonValue::Object(ref result_obj) = result {
             assert!(result_obj.get("id").is_some(), "Should include requested field id");
@@ -444,8 +454,9 @@ mod query_optimization_tests {
 
         let jsonb = JsonbValue::new(JsonValue::Object(row));
         // Should handle gracefully (either skip missing or return null)
-        let result = projector.project_results(&[jsonb], false)
-            .unwrap_or_else(|e| panic!("Should handle missing fields gracefully without error: {e}"));
+        let result = projector.project_results(&[jsonb], false).unwrap_or_else(|e| {
+            panic!("Should handle missing fields gracefully without error: {e}")
+        });
         assert!(
             matches!(result, JsonValue::Object(_)),
             "Expected JSON object from single-row projection, got: {result}"
@@ -467,16 +478,26 @@ mod query_optimization_tests {
         row.insert("email_address".to_string(), json!("bob@example.com"));
 
         let jsonb = JsonbValue::new(JsonValue::Object(row));
-        let result = projector.project_results(&[jsonb], false)
+        let result = projector
+            .project_results(&[jsonb], false)
             .unwrap_or_else(|e| panic!("Should project with multiple aliases: {e}"));
         if let JsonValue::Object(ref result_obj) = result {
             assert_eq!(result_obj.get("id").and_then(|v| v.as_str()), Some("u1"));
             assert_eq!(result_obj.get("name").and_then(|v| v.as_str()), Some("Bob"));
             assert_eq!(result_obj.get("email").and_then(|v| v.as_str()), Some("bob@example.com"));
             // Original names should not appear
-            assert!(result_obj.get("user_id").is_none(), "Original key user_id should not appear after aliasing");
-            assert!(result_obj.get("full_name").is_none(), "Original key full_name should not appear after aliasing");
-            assert!(result_obj.get("email_address").is_none(), "Original key email_address should not appear after aliasing");
+            assert!(
+                result_obj.get("user_id").is_none(),
+                "Original key user_id should not appear after aliasing"
+            );
+            assert!(
+                result_obj.get("full_name").is_none(),
+                "Original key full_name should not appear after aliasing"
+            );
+            assert!(
+                result_obj.get("email_address").is_none(),
+                "Original key email_address should not appear after aliasing"
+            );
         } else {
             panic!("Expected JSON object from single-row projection, got: {result}");
         }

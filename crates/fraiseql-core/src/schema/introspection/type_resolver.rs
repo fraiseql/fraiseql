@@ -66,15 +66,15 @@ fn scalar_type_with_url(
     specified_by_url: Option<&str>,
 ) -> IntrospectionType {
     IntrospectionType {
-        kind: TypeKind::Scalar,
-        name: Some(name.to_string()),
-        description: Some(description.to_string()),
-        fields: None,
-        interfaces: None,
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Scalar,
+        name:               Some(name.to_string()),
+        description:        Some(description.to_string()),
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: specified_by_url.map(ToString::to_string),
     }
 }
@@ -95,15 +95,15 @@ pub(super) fn build_object_type(type_def: &TypeDefinition) -> IntrospectionType 
         .collect();
 
     IntrospectionType {
-        kind: TypeKind::Object,
-        name: Some(type_def.name.to_string()),
-        description: type_def.description.clone(),
-        fields: Some(fields),
-        interfaces: Some(interfaces),
-        possible_types: None,
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Object,
+        name:               Some(type_def.name.to_string()),
+        description:        type_def.description.clone(),
+        fields:             Some(fields),
+        interfaces:         Some(interfaces),
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }
@@ -114,23 +114,23 @@ pub(super) fn build_enum_type(enum_def: &EnumDefinition) -> IntrospectionType {
         .values
         .iter()
         .map(|v| IntrospectionEnumValue {
-            name: v.name.clone(),
-            description: v.description.clone(),
-            is_deprecated: v.deprecation.is_some(),
+            name:               v.name.clone(),
+            description:        v.description.clone(),
+            is_deprecated:      v.deprecation.is_some(),
             deprecation_reason: v.deprecation.as_ref().and_then(|d| d.reason.clone()),
         })
         .collect();
 
     IntrospectionType {
-        kind: TypeKind::Enum,
-        name: Some(enum_def.name.clone()),
-        description: enum_def.description.clone(),
-        fields: None,
-        interfaces: None,
-        possible_types: None,
-        enum_values: Some(enum_values),
-        input_fields: None,
-        of_type: None,
+        kind:               TypeKind::Enum,
+        name:               Some(enum_def.name.clone()),
+        description:        enum_def.description.clone(),
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        Some(enum_values),
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }
@@ -156,15 +156,15 @@ pub(super) fn build_input_object_type(input_def: &InputObjectDefinition) -> Intr
         .collect();
 
     IntrospectionType {
-        kind: TypeKind::InputObject,
-        name: Some(input_def.name.clone()),
-        description: input_def.description.clone(),
-        fields: None,
-        interfaces: None,
-        possible_types: None,
-        enum_values: None,
-        input_fields: Some(input_fields),
-        of_type: None,
+        kind:               TypeKind::InputObject,
+        name:               Some(input_def.name.clone()),
+        description:        input_def.description.clone(),
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       Some(input_fields),
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }
@@ -187,19 +187,19 @@ pub(super) fn build_interface_type(
         .collect();
 
     IntrospectionType {
-        kind: TypeKind::Interface,
-        name: Some(interface_def.name.clone()),
-        description: interface_def.description.clone(),
-        fields: Some(fields),
-        interfaces: None,
-        possible_types: if possible_types.is_empty() {
+        kind:               TypeKind::Interface,
+        name:               Some(interface_def.name.clone()),
+        description:        interface_def.description.clone(),
+        fields:             Some(fields),
+        interfaces:         None,
+        possible_types:     if possible_types.is_empty() {
             None
         } else {
             Some(possible_types)
         },
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }
@@ -214,19 +214,19 @@ pub(super) fn build_union_type(union_def: &UnionDefinition) -> IntrospectionType
         .collect();
 
     IntrospectionType {
-        kind: TypeKind::Union,
-        name: Some(union_def.name.clone()),
-        description: union_def.description.clone(),
-        fields: None, // Unions don't have fields
-        interfaces: None,
-        possible_types: if possible_types.is_empty() {
+        kind:               TypeKind::Union,
+        name:               Some(union_def.name.clone()),
+        description:        union_def.description.clone(),
+        fields:             None, // Unions don't have fields
+        interfaces:         None,
+        possible_types:     if possible_types.is_empty() {
             None
         } else {
             Some(possible_types)
         },
-        enum_values: None,
-        input_fields: None,
-        of_type: None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
         specified_by_u_r_l: None,
     }
 }

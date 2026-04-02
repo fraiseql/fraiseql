@@ -375,8 +375,9 @@ mod tests {
 
         // Should succeed with valid format
         let result = client.client_final(&server_first);
-        let (client_final, state) = result
-            .unwrap_or_else(|e| panic!("expected Ok for client_final with valid server message: {e}"));
+        let (client_final, state) = result.unwrap_or_else(|e| {
+            panic!("expected Ok for client_final with valid server message: {e}")
+        });
         assert!(client_final.starts_with("c="));
         assert!(!state.auth_message.is_empty());
     }
@@ -433,8 +434,7 @@ mod tests {
     fn test_scram_username_escaping_in_auth_message() {
         // H4: The auth message must use the RFC 5802-escaped username, not the raw one.
         // A username containing ',' or '=' must be escaped in client_first_bare.
-        let mut client =
-            ScramClient::new("user,admin=evil".to_string(), "password".to_string());
+        let mut client = ScramClient::new("user,admin=evil".to_string(), "password".to_string());
         let client_first = client.client_first();
         // client_first should have escaped username
         assert!(
@@ -444,12 +444,11 @@ mod tests {
 
         // client_final should use the same escaped username in the auth message
         let server_nonce = format!("{}server_nonce_part", client.nonce);
-        let server_first =
-            format!("r={},s={},i=4096", server_nonce, BASE64.encode(b"salty"));
+        let server_first = format!("r={},s={},i=4096", server_nonce, BASE64.encode(b"salty"));
 
         let result = client.client_final(&server_first);
-        let (_client_final, state) = result
-            .unwrap_or_else(|e| panic!("expected Ok for escaped-username client_final: {e}"));
+        let (_client_final, state) =
+            result.unwrap_or_else(|e| panic!("expected Ok for escaped-username client_final: {e}"));
 
         // The auth message must contain the escaped username, not the raw one
         let auth_message = String::from_utf8(state.auth_message).unwrap();

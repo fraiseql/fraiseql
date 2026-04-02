@@ -18,7 +18,9 @@ fn test_observer_runtime_config_defaults() {
 fn test_max_dlq_size_defaults_to_none() {
     let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
     assert!(config.max_dlq_size.is_none());
-    config.validate().unwrap_or_else(|e| panic!("default config should be valid: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("default config should be valid: {e}"));
 }
 
 #[test]
@@ -38,14 +40,18 @@ fn test_max_dlq_size_zero_is_invalid() {
 fn test_max_dlq_size_positive_is_valid() {
     let config: ObserverRuntimeConfig = serde_json::from_str(r#"{"max_dlq_size": 10000}"#).unwrap();
     assert_eq!(config.max_dlq_size, Some(10_000));
-    config.validate().unwrap_or_else(|e| panic!("max_dlq_size=10000 should be valid: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("max_dlq_size=10000 should be valid: {e}"));
 }
 
 #[test]
 fn test_max_dlq_size_one_is_valid() {
     let config: ObserverRuntimeConfig = serde_json::from_str(r#"{"max_dlq_size": 1}"#).unwrap();
     assert_eq!(config.max_dlq_size, Some(1));
-    config.validate().unwrap_or_else(|e| panic!("max_dlq_size=1 should be valid: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("max_dlq_size=1 should be valid: {e}"));
 }
 
 #[test]
@@ -66,7 +72,9 @@ fn test_transport_config_default() {
 fn test_transport_config_validation() {
     // Valid postgres config
     let config = TransportConfig::default();
-    config.validate().unwrap_or_else(|e| panic!("default transport config should be valid: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("default transport config should be valid: {e}"));
 
     // Invalid: NATS transport without URL
     let config = TransportConfig {
@@ -78,7 +86,10 @@ fn test_transport_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "NATS without URL should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "NATS without URL should fail: {result:?}"
+    );
 
     // Invalid: run_bridge=true with postgres transport
     let config = TransportConfig {
@@ -87,7 +98,10 @@ fn test_transport_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "bridge with postgres should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "bridge with postgres should fail: {result:?}"
+    );
 }
 
 #[test]
@@ -112,7 +126,9 @@ fn test_jetstream_config_default() {
 fn test_jetstream_config_validation() {
     // Valid config
     let config = JetStreamConfig::default();
-    config.validate().unwrap_or_else(|e| panic!("default jetstream config should be valid: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("default jetstream config should be valid: {e}"));
 
     // Invalid: dedup window = 0
     let config = JetStreamConfig {
@@ -120,7 +136,10 @@ fn test_jetstream_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "dedup_window=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "dedup_window=0 should fail: {result:?}"
+    );
 
     // Invalid: dedup window > 60
     let config = JetStreamConfig {
@@ -128,7 +147,10 @@ fn test_jetstream_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "dedup_window=61 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "dedup_window=61 should fail: {result:?}"
+    );
 
     // Invalid: ack_wait = 0
     let config = JetStreamConfig {
@@ -136,7 +158,10 @@ fn test_jetstream_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "ack_wait=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "ack_wait=0 should fail: {result:?}"
+    );
 }
 
 #[test]
@@ -152,7 +177,9 @@ fn test_bridge_transport_config_default() {
 fn test_bridge_transport_config_validation() {
     // Valid config
     let config = BridgeTransportConfig::default();
-    config.validate().unwrap_or_else(|e| panic!("default bridge config should be valid: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("default bridge config should be valid: {e}"));
 
     // Invalid: empty transport_name
     let config = BridgeTransportConfig {
@@ -160,7 +187,10 @@ fn test_bridge_transport_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "empty transport_name should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "empty transport_name should fail: {result:?}"
+    );
 
     // Invalid: batch_size = 0
     let config = BridgeTransportConfig {
@@ -168,7 +198,10 @@ fn test_bridge_transport_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "batch_size=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "batch_size=0 should fail: {result:?}"
+    );
 
     // Invalid: batch_size > 10000
     let config = BridgeTransportConfig {
@@ -176,7 +209,10 @@ fn test_bridge_transport_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "batch_size=10001 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "batch_size=10001 should fail: {result:?}"
+    );
 
     // Invalid: poll_interval = 0
     let config = BridgeTransportConfig {
@@ -184,7 +220,10 @@ fn test_bridge_transport_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "poll_interval=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "poll_interval=0 should fail: {result:?}"
+    );
 }
 
 #[test]
@@ -232,7 +271,10 @@ fn test_webhook_action_validation() {
     };
 
     let result = invalid.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "webhook without url should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "webhook without url should fail: {result:?}"
+    );
 
     let valid = ActionConfig::Webhook {
         url:           Some("https://example.com".to_string()),
@@ -241,7 +283,9 @@ fn test_webhook_action_validation() {
         body_template: Some("{}".to_string()),
     };
 
-    valid.validate().unwrap_or_else(|e| panic!("valid webhook config should pass: {e}"));
+    valid
+        .validate()
+        .unwrap_or_else(|e| panic!("valid webhook config should pass: {e}"));
 }
 
 #[test]
@@ -256,7 +300,10 @@ fn test_email_action_validation() {
     };
 
     let result = invalid.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidActionConfig { .. })), "email without fields should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+        "email without fields should fail: {result:?}"
+    );
 
     let valid = ActionConfig::Email {
         to:               Some("user@example.com".to_string()),
@@ -267,7 +314,9 @@ fn test_email_action_validation() {
         reply_to:         None,
     };
 
-    valid.validate().unwrap_or_else(|e| panic!("valid email config should pass: {e}"));
+    valid
+        .validate()
+        .unwrap_or_else(|e| panic!("valid email config should pass: {e}"));
 }
 
 #[test]
@@ -283,21 +332,29 @@ fn test_multi_listener_config_defaults() {
 #[test]
 fn test_multi_listener_config_validation() {
     let valid_config = MultiListenerConfig::default();
-    valid_config.validate().unwrap_or_else(|e| panic!("default multi-listener config should be valid: {e}"));
+    valid_config
+        .validate()
+        .unwrap_or_else(|e| panic!("default multi-listener config should be valid: {e}"));
 
     let invalid_lease = MultiListenerConfig {
         lease_duration_ms: 0,
         ..Default::default()
     };
     let result = invalid_lease.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "lease_duration=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "lease_duration=0 should fail: {result:?}"
+    );
 
     let invalid_health_check = MultiListenerConfig {
         health_check_interval_ms: 0,
         ..Default::default()
     };
     let result = invalid_health_check.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "health_check=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "health_check=0 should fail: {result:?}"
+    );
 
     let invalid_threshold = MultiListenerConfig {
         failover_threshold_ms: 1000,
@@ -305,14 +362,20 @@ fn test_multi_listener_config_validation() {
         ..Default::default()
     };
     let result = invalid_threshold.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "threshold < health_check should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "threshold < health_check should fail: {result:?}"
+    );
 
     let invalid_max_listeners = MultiListenerConfig {
         max_listeners: 0,
         ..Default::default()
     };
     let result = invalid_max_listeners.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "max_listeners=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "max_listeners=0 should fail: {result:?}"
+    );
 }
 
 #[test]
@@ -342,7 +405,9 @@ fn test_redis_config_defaults() {
 fn test_redis_config_validation() {
     // Valid config
     let config = RedisConfig::default();
-    config.validate().unwrap_or_else(|e| panic!("default redis config should be valid: {e}"));
+    config
+        .validate()
+        .unwrap_or_else(|e| panic!("default redis config should be valid: {e}"));
 
     // Invalid: empty URL
     let config = RedisConfig {
@@ -350,7 +415,10 @@ fn test_redis_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "empty redis URL should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "empty redis URL should fail: {result:?}"
+    );
 
     // Invalid: pool_size = 0
     let config = RedisConfig {
@@ -358,7 +426,10 @@ fn test_redis_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "pool_size=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "pool_size=0 should fail: {result:?}"
+    );
 
     // Invalid: dedup_window too large
     let config = RedisConfig {
@@ -366,7 +437,10 @@ fn test_redis_config_validation() {
         ..Default::default()
     };
     let result = config.validate();
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "dedup_window=3601 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "dedup_window=3601 should fail: {result:?}"
+    );
 }
 
 #[test]
@@ -383,7 +457,9 @@ fn test_performance_config_defaults() {
 fn test_performance_config_validation() {
     // Valid config (no Redis features enabled)
     let config = PerformanceConfig::default();
-    config.validate(false).unwrap_or_else(|e| panic!("default perf config should be valid: {e}"));
+    config
+        .validate(false)
+        .unwrap_or_else(|e| panic!("default perf config should be valid: {e}"));
 
     // Invalid: enable_dedup without Redis
     let config = PerformanceConfig {
@@ -391,8 +467,13 @@ fn test_performance_config_validation() {
         ..Default::default()
     };
     let result = config.validate(false);
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "dedup without redis should fail: {result:?}");
-    config.validate(true).unwrap_or_else(|e| panic!("dedup with redis should pass: {e}")); // OK with Redis
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "dedup without redis should fail: {result:?}"
+    );
+    config
+        .validate(true)
+        .unwrap_or_else(|e| panic!("dedup with redis should pass: {e}")); // OK with Redis
 
     // Invalid: enable_caching without Redis
     let config = PerformanceConfig {
@@ -400,8 +481,13 @@ fn test_performance_config_validation() {
         ..Default::default()
     };
     let result = config.validate(false);
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "caching without redis should fail: {result:?}");
-    config.validate(true).unwrap_or_else(|e| panic!("caching with redis should pass: {e}")); // OK with Redis
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "caching without redis should fail: {result:?}"
+    );
+    config
+        .validate(true)
+        .unwrap_or_else(|e| panic!("caching with redis should pass: {e}")); // OK with Redis
 
     // Invalid: max_concurrent_actions = 0
     let config = PerformanceConfig {
@@ -409,7 +495,10 @@ fn test_performance_config_validation() {
         ..Default::default()
     };
     let result = config.validate(false);
-    assert!(matches!(result, Err(ObserverError::InvalidConfig { .. })), "max_concurrent=0 should fail: {result:?}");
+    assert!(
+        matches!(result, Err(ObserverError::InvalidConfig { .. })),
+        "max_concurrent=0 should fail: {result:?}"
+    );
 }
 
 // ========================================================================

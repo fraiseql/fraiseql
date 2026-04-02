@@ -74,7 +74,9 @@ fn test_mutation_authorization_error() {
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Query builds successfully
-    result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) authorization check failed: {e}"));
+    result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(User/updateUser) authorization check failed: {e}")
+    });
 }
 
 #[test]
@@ -95,7 +97,9 @@ fn test_mutation_duplicate_key_error() {
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Query builds successfully
-    result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) duplicate key check failed: {e}"));
+    result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(User/updateUser) duplicate key check failed: {e}")
+    });
 }
 
 #[test]

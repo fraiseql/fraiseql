@@ -2,11 +2,12 @@
 
 use fraiseql_error::FraiseQLError;
 
-use super::adapter::map_mysql_error_code;
-use super::helpers::{build_mysql_relay_order_sql, build_mysql_relay_where};
-use super::MySqlAdapter;
-use crate::identifier::quote_mysql_identifier;
-use crate::types::DatabaseType;
+use super::{
+    MySqlAdapter,
+    adapter::map_mysql_error_code,
+    helpers::{build_mysql_relay_order_sql, build_mysql_relay_where},
+};
+use crate::{identifier::quote_mysql_identifier, types::DatabaseType};
 
 // Unit tests for MySQL adapter internals.
 // These tests do NOT require a live MySQL connection.

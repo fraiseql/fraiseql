@@ -397,7 +397,10 @@ mod tests {
             validate_view_name("invalid_view").is_err(),
             "expected Err for invalid_view prefix"
         );
-        assert!(validate_view_name("v_user").is_err(), "expected Err for v_ prefix (not va_/tv_/ta_)");
+        assert!(
+            validate_view_name("v_user").is_err(),
+            "expected Err for v_ prefix (not va_/tv_/ta_)"
+        );
     }
 
     #[test]

@@ -329,7 +329,8 @@ impl ChangeLogListener {
         // ORDER BY pk_entity_change_log ASC
         // LIMIT batch_size
 
-        #[allow(clippy::cast_possible_wrap)] // Reason: batch_size is bounded by config and won't exceed i64::MAX
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: batch_size is bounded by config and won't exceed i64::MAX
         let batch_size_i64 = self.config.batch_size as i64;
         let rows: Vec<ChangeLogRow> = sqlx::query_as(
             r"

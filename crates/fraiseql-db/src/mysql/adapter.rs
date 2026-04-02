@@ -239,15 +239,15 @@ impl DatabaseAdapter for MySqlAdapter {
         match (limit, offset) {
             (Some(lim), Some(off)) => {
                 write!(sql, " LIMIT {lim} OFFSET {off}").expect("write to String");
-            }
+            },
             (Some(lim), None) => {
                 write!(sql, " LIMIT {lim}").expect("write to String");
-            }
+            },
             (None, Some(off)) => {
                 // MySQL requires LIMIT before OFFSET; use max u64 as "unlimited"
                 write!(sql, " LIMIT 18446744073709551615 OFFSET {off}").expect("write to String");
-            }
-            (None, None) => {}
+            },
+            (None, None) => {},
         }
 
         // Execute the query
@@ -319,7 +319,7 @@ impl DatabaseAdapter for MySqlAdapter {
         Ok(())
     }
 
-    #[allow(clippy::cast_possible_truncation)]  // Reason: value is bounded; truncation cannot occur in practice
+    #[allow(clippy::cast_possible_truncation)] // Reason: value is bounded; truncation cannot occur in practice
     // Reason: pool sizes are always ≪ u32::MAX in practice
     fn pool_metrics(&self) -> PoolMetrics {
         let size = self.pool.size();

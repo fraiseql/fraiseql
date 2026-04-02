@@ -210,7 +210,9 @@ mod tests {
     fn test_create_test_client() {
         let client = create_test_client();
         // Just verify it creates without error
-        client.get("http://localhost:8080").build()
+        client
+            .get("http://localhost:8080")
+            .build()
             .unwrap_or_else(|e| panic!("expected Ok building request: {e}"));
     }
 

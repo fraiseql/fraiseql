@@ -16,7 +16,7 @@ pub(super) const DEFAULT_MAX_CACHE_ENTRIES: usize = 1_000;
 // Reason: fields populated by serde deserialization; only `data` and
 // `lease_duration` are accessed in business logic; the rest are kept for
 // completeness and potential future auditing.
-#[allow(dead_code)]  // Reason: field kept for API completeness; may be used in future features
+#[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
 pub(super) struct VaultResponse {
     pub(super) request_id:     String,
     pub(super) lease_id:       String,
@@ -77,12 +77,7 @@ impl SecretCache {
     ///
     /// The secret is wrapped in [`Zeroizing`] on insertion so the bytes are
     /// overwritten when the entry is evicted or the cache is dropped.
-    pub(super) async fn set(
-        &self,
-        key: String,
-        secret: String,
-        expires_at: chrono::DateTime<Utc>,
-    ) {
+    pub(super) async fn set(&self, key: String, secret: String, expires_at: chrono::DateTime<Utc>) {
         let mut entries = self.entries.write().await;
 
         // LRU eviction: if at capacity, remove the least-recently-accessed 10% of entries.

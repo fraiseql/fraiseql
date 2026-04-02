@@ -48,13 +48,13 @@ impl ValidationErrorCollection {
             let err = &self.errors[0];
             FraiseQLError::Validation {
                 message: err.to_string(),
-                path: Some(err.field.clone()),
+                path:    Some(err.field.clone()),
             }
         } else {
             let messages: Vec<String> = self.errors.iter().map(|e| e.to_string()).collect();
             FraiseQLError::Validation {
                 message: format!("Multiple validation errors: {}", messages.join("; ")),
-                path: None,
+                path:    None,
             }
         }
     }
@@ -145,7 +145,7 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "required", "Field is required")
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 });
             }
             Ok(())
@@ -162,7 +162,7 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "pattern", msg)
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
         },
@@ -185,7 +185,7 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "length", msg)
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
         },
@@ -202,7 +202,7 @@ fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -
                             format!("Must be one of: {}", values.join(", "))
                         )
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
         },

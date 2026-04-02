@@ -22,9 +22,8 @@ async fn test_sustained_overload_sheds_load() {
     let mut rejected = 0u64;
 
     // Phase 1: Saturate all 50 permits (RAII — held alive until explicit drop)
-    let held_permits: Vec<_> = (0..50)
-        .map(|_| controller.try_acquire().expect("should acquire"))
-        .collect();
+    let held_permits: Vec<_> =
+        (0..50).map(|_| controller.try_acquire().expect("should acquire")).collect();
 
     // Phase 2: Attempt 1000 more — all should be rejected (capacity full)
     for _ in 0..1000 {
@@ -55,9 +54,8 @@ async fn test_recovery_after_overload_spike() {
     let controller = AdmissionController::new(50, 100);
 
     // Phase 1: Saturate all permits (RAII — held alive until explicit drop)
-    let permits: Vec<_> = (0..50)
-        .map(|_| controller.try_acquire().expect("should acquire"))
-        .collect();
+    let permits: Vec<_> =
+        (0..50).map(|_| controller.try_acquire().expect("should acquire")).collect();
 
     // Phase 2: Verify rejection during saturation
     assert!(controller.try_acquire().is_none());
@@ -72,10 +70,7 @@ async fn test_recovery_after_overload_spike() {
             recovered += 1;
         }
     }
-    assert_eq!(
-        recovered, 50,
-        "must recover full capacity after permits released"
-    );
+    assert_eq!(recovered, 50, "must recover full capacity after permits released");
 }
 
 /// Queue depth tracking remains consistent under concurrent thread access.

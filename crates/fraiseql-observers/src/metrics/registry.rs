@@ -78,7 +78,9 @@ impl MetricsRegistry {
     /// (e.g., Prometheus metric name collision with another library).
     pub fn global() -> PrometheusResult<Self> {
         Ok(GLOBAL_REGISTRY
-            .get_or_init(|| Self::register_metrics().expect("Failed to initialize global metrics registry"))
+            .get_or_init(|| {
+                Self::register_metrics().expect("Failed to initialize global metrics registry")
+            })
             .clone())
     }
 
@@ -409,7 +411,6 @@ impl MetricsRegistry {
             (skipped / total_events_encountered) * 100.0
         }
     }
-
 }
 
 impl Default for MetricsRegistry {

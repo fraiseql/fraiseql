@@ -61,8 +61,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// # Errors
     ///
-    /// * [`FraiseQLError::Cancelled`] — the cancellation token was triggered before
-    ///   or during execution.
+    /// * [`FraiseQLError::Cancelled`] — the cancellation token was triggered before or during
+    ///   execution.
     /// * Propagates any error from the underlying [`execute`](Self::execute) call.
     ///
     /// # Example
@@ -192,8 +192,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
     }
 
-    /// Internal execution logic with security context (called by `execute_with_security` with timeout
-    /// wrapper).
+    /// Internal execution logic with security context (called by `execute_with_security` with
+    /// timeout wrapper).
     async fn execute_with_security_internal(
         &self,
         query: &str,
@@ -209,14 +209,15 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.execute_regular_query_with_security(query, variables, security_context)
                     .await
             },
-            // Other query types don't support RLS yet (relay is handled inside execute_regular_query_with_security)
+            // Other query types don't support RLS yet (relay is handled inside
+            // execute_regular_query_with_security)
             QueryType::Aggregate(query_name) => {
                 self.execute_aggregate_dispatch(&query_name, variables).await
             },
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
             },
-            QueryType::Federation(query_name) => {
+            QueryType::Federation(_query_name) => {
                 #[cfg(feature = "federation")]
                 {
                     self.execute_federation_query(&query_name, query, variables).await

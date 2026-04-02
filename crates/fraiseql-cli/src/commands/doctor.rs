@@ -5,11 +5,7 @@
 //!   fraiseql doctor --config fraiseql.toml --schema schema.compiled.json
 //!   fraiseql doctor --json
 
-use std::{
-    net::TcpStream,
-    path::Path,
-    time::Duration,
-};
+use std::{net::TcpStream, path::Path, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +41,12 @@ pub struct DoctorCheck {
 
 impl DoctorCheck {
     fn pass(name: &'static str, detail: impl Into<String>) -> Self {
-        Self { name, status: CheckStatus::Pass, detail: detail.into(), hint: None }
+        Self {
+            name,
+            status: CheckStatus::Pass,
+            detail: detail.into(),
+            hint: None,
+        }
     }
 
     fn warn(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
@@ -53,7 +54,7 @@ impl DoctorCheck {
             name,
             status: CheckStatus::Warn,
             detail: detail.into(),
-            hint:   Some(hint.into()),
+            hint: Some(hint.into()),
         }
     }
 
@@ -62,7 +63,7 @@ impl DoctorCheck {
             name,
             status: CheckStatus::Fail,
             detail: detail.into(),
-            hint:   Some(hint.into()),
+            hint: Some(hint.into()),
         }
     }
 }
@@ -133,7 +134,9 @@ pub fn check_schema_version(path: &Path) -> DoctorCheck {
             "no version field (older schema)",
             "Run `fraiseql compile fraiseql.toml` to get a versioned schema",
         ),
-        Some(v) if v == 1 => DoctorCheck::pass("Schema format version", format!("version={v} (current)")),
+        Some(v) if v == 1 => {
+            DoctorCheck::pass("Schema format version", format!("version={v} (current)"))
+        },
         Some(v) => DoctorCheck::warn(
             "Schema format version",
             format!("version={v} (expected 1)"),
@@ -227,10 +230,7 @@ pub fn check_db_reachable(db_url_override: Option<&str>) -> DoctorCheck {
             let addr = format!("{host}:{port}");
             // Parse the socket addr; fall back to a guaranteed-refused addr on parse failure.
             let sock_addr = addr.parse().unwrap_or_else(|_| {
-                std::net::SocketAddr::new(
-                    std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
-                    0,
-                )
+                std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0)
             });
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
                 Ok(_) => DoctorCheck::pass("DATABASE_URL reachable", addr),
@@ -275,10 +275,7 @@ pub fn check_redis_reachable() -> DoctorCheck {
         Some((host, port)) => {
             let addr = format!("{host}:{port}");
             let sock_addr = addr.parse().unwrap_or_else(|_| {
-                std::net::SocketAddr::new(
-                    std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
-                    0,
-                )
+                std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED), 0)
             });
             match TcpStream::connect_timeout(&sock_addr, Duration::from_secs(5)) {
                 Ok(_) => DoctorCheck::pass("FRAISEQL_REDIS_URL", format!("reachable ({addr})")),
@@ -339,8 +336,8 @@ pub fn check_rls_cache_coherence(config_path: &Path) -> DoctorCheck {
     };
 
     let caching_enabled = schema.caching.enabled;
-    let has_auth_policy = !schema.security.policies.is_empty()
-        || schema.security.default_policy.is_some();
+    let has_auth_policy =
+        !schema.security.policies.is_empty() || schema.security.default_policy.is_some();
 
     match (caching_enabled, has_auth_policy) {
         (false, _) => {
@@ -559,7 +556,9 @@ mod tests {
 
     #[test]
     fn test_toml_exists_pass() {
-        let f = temp_file_with("[schema]\nname = \"test\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n");
+        let f = temp_file_with(
+            "[schema]\nname = \"test\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n",
+        );
         let result = check_toml_exists(f.path());
         assert_eq!(result.status, CheckStatus::Pass);
     }
@@ -574,7 +573,8 @@ mod tests {
 
     #[test]
     fn test_toml_parses_valid() {
-        let toml = "[schema]\nname = \"myapp\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n";
+        let toml =
+            "[schema]\nname = \"myapp\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n";
         let f = temp_file_with(toml);
         let result = check_toml_parses(f.path());
         assert_eq!(result.status, CheckStatus::Pass);
@@ -722,7 +722,8 @@ mod tests {
 
     #[test]
     fn test_parse_host_port_postgres() {
-        let (host, port) = parse_host_port("postgres://user:pass@db.example.com:5432/mydb").unwrap();
+        let (host, port) =
+            parse_host_port("postgres://user:pass@db.example.com:5432/mydb").unwrap();
         assert_eq!(host, "db.example.com");
         assert_eq!(port, 5432);
     }

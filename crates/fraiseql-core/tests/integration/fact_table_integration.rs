@@ -129,7 +129,10 @@ async fn test_reject_aggregate_table() {
     // ta_sales_by_day should be rejected (not a fact table - no tf_ prefix)
     let result = FactTableDetector::introspect(&introspector, "ta_sales_by_day").await;
 
-    assert!(result.is_err(), "expected Err rejecting non-fact table ta_sales_by_day, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err rejecting non-fact table ta_sales_by_day, got: {result:?}"
+    );
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("not a fact table")
@@ -147,7 +150,10 @@ async fn test_reject_view() {
     // v_user is a view, not a fact table
     let result = FactTableDetector::introspect(&introspector, "v_user").await;
 
-    assert!(result.is_err(), "expected Err rejecting view v_user as fact table, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err rejecting view v_user as fact table, got: {result:?}"
+    );
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("not a fact table")
@@ -164,7 +170,10 @@ async fn test_reject_nonexistent_table() {
 
     let result = FactTableDetector::introspect(&introspector, "tf_nonexistent").await;
 
-    assert!(result.is_err(), "expected Err for nonexistent table tf_nonexistent, got: {result:?}");
+    assert!(
+        result.is_err(),
+        "expected Err for nonexistent table tf_nonexistent, got: {result:?}"
+    );
     let err = result.unwrap_err();
     assert!(
         err.to_string().contains("not found")

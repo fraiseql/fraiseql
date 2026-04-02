@@ -4,11 +4,13 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use chrono::Utc;
+use indexmap::IndexMap;
 
 use super::*;
 use crate::{
     db::{
-        SupportsMutations, types::JsonbValue, types::sql_hints::OrderByClause,
+        SupportsMutations,
+        types::{JsonbValue, sql_hints::OrderByClause},
         where_clause::WhereClause,
     },
     runtime::{JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig},
@@ -18,16 +20,15 @@ use crate::{
     },
     security::{DefaultRLSPolicy, SecurityContext},
 };
-use indexmap::IndexMap;
 
 // ── Shared test fixtures (accessible to all sub-modules via `use super::*`) ──
 
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
 struct CapturingMockAdapter {
-    mock_results: Vec<JsonbValue>,
-    captured_where: std::sync::Mutex<Option<WhereClause>>,
-    captured_limit: std::sync::Mutex<Option<u32>>,
+    mock_results:    Vec<JsonbValue>,
+    captured_where:  std::sync::Mutex<Option<WhereClause>>,
+    captured_limit:  std::sync::Mutex<Option<u32>>,
     captured_offset: std::sync::Mutex<Option<u32>>,
 }
 
@@ -94,10 +95,10 @@ impl DatabaseAdapter for CapturingMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -133,7 +134,7 @@ impl SupportsMutations for CapturingMockAdapter {}
 /// (`with_view()` builder) so tests can verify correct query routing.
 struct MockAdapter {
     /// Default results returned for any view that has no specific override.
-    mock_results: Vec<JsonbValue>,
+    mock_results:   Vec<JsonbValue>,
     /// Per-view result overrides. When present, `execute_where_query` returns
     /// these instead of `mock_results`, enabling routing-correctness tests.
     view_responses: std::collections::HashMap<String, Vec<JsonbValue>>,
@@ -198,10 +199,10 @@ impl DatabaseAdapter for MockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -273,10 +274,10 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -303,25 +304,25 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
 fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.queries.push(QueryDefinition {
-        name: "users".to_string(),
-        return_type: "User".to_string(),
-        returns_list: true,
-        nullable: false,
-        arguments: Vec::new(),
-        sql_source: Some("v_user".to_string()),
-        description: None,
-        auto_params: AutoParams::default(),
-        deprecation: None,
-        jsonb_column: "data".to_string(),
-        relay: false,
+        name:                "users".to_string(),
+        return_type:         "User".to_string(),
+        returns_list:        true,
+        nullable:            false,
+        arguments:           Vec::new(),
+        sql_source:          Some("v_user".to_string()),
+        description:         None,
+        auto_params:         AutoParams::default(),
+        deprecation:         None,
+        jsonb_column:        "data".to_string(),
+        relay:               false,
         relay_cursor_column: None,
-        relay_cursor_type: CursorType::default(),
-        inject_params: IndexMap::default(),
-        cache_ttl_seconds: None,
-        additional_views: vec![],
-        requires_role: None,
-        rest_path: None,
-        rest_method: None,
+        relay_cursor_type:   CursorType::default(),
+        inject_params:       IndexMap::default(),
+        cache_ttl_seconds:   None,
+        additional_views:    vec![],
+        requires_role:       None,
+        rest_path:           None,
+        rest_method:         None,
     });
     schema
 }
@@ -379,15 +380,15 @@ mod query {
         let schema = test_schema();
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let config = RuntimeConfig {
-            cache_query_plans: false,
-            max_query_depth: 5,
+            cache_query_plans:    false,
+            max_query_depth:      5,
             max_query_complexity: 500,
-            enable_tracing: true,
-            field_filter: None,
-            rls_policy: None,
-            query_timeout_ms: 30_000,
-            jsonb_optimization: JsonbOptimizationOptions::default(),
-            query_validation: None,
+            enable_tracing:       true,
+            field_filter:         None,
+            rls_policy:           None,
+            query_timeout_ms:     30_000,
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
+            query_validation:     None,
         };
         let executor = Executor::with_config(schema, adapter, config);
 
@@ -706,15 +707,15 @@ mod config {
     #[test]
     fn test_jsonb_strategy_in_runtime_config() {
         let config = RuntimeConfig {
-            cache_query_plans: false,
-            max_query_depth: 5,
+            cache_query_plans:    false,
+            max_query_depth:      5,
             max_query_complexity: 500,
-            enable_tracing: true,
-            field_filter: None,
-            rls_policy: None,
-            query_timeout_ms: 30_000,
-            jsonb_optimization: JsonbOptimizationOptions::default(),
-            query_validation: None,
+            enable_tracing:       true,
+            field_filter:         None,
+            rls_policy:           None,
+            query_timeout_ms:     30_000,
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
+            query_validation:     None,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -724,20 +725,20 @@ mod config {
     #[test]
     fn test_jsonb_strategy_custom_config() {
         let custom_options = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Stream,
+            default_strategy:       JsonbStrategy::Stream,
             auto_threshold_percent: 50,
         };
 
         let config = RuntimeConfig {
-            cache_query_plans: false,
-            max_query_depth: 5,
+            cache_query_plans:    false,
+            max_query_depth:      5,
             max_query_complexity: 500,
-            enable_tracing: true,
-            field_filter: None,
-            rls_policy: None,
-            query_timeout_ms: 30_000,
-            jsonb_optimization: custom_options,
-            query_validation: None,
+            enable_tracing:       true,
+            field_filter:         None,
+            rls_policy:           None,
+            query_timeout_ms:     30_000,
+            jsonb_optimization:   custom_options,
+            query_validation:     None,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
@@ -758,17 +759,17 @@ mod inject {
         use chrono::Utc;
         let now = Utc::now();
         SecurityContext {
-            user_id: user_id.to_string(),
-            roles: vec![],
-            tenant_id: tenant_id.map(str::to_string),
-            scopes: vec![],
-            attributes: extra.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect(),
-            request_id: "test-req".to_string(),
-            ip_address: None,
+            user_id:          user_id.to_string(),
+            roles:            vec![],
+            tenant_id:        tenant_id.map(str::to_string),
+            scopes:           vec![],
+            attributes:       extra.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect(),
+            request_id:       "test-req".to_string(),
+            ip_address:       None,
             authenticated_at: now,
-            expires_at: now + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       now + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         }
     }
 
@@ -1168,25 +1169,25 @@ mod routing {
     async fn test_per_view_mock_returns_distinct_results() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
@@ -1237,9 +1238,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_limit_threads_to_adapter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: true,
-            has_offset: false,
-            has_where: false,
+            has_limit:    true,
+            has_offset:   false,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -1254,9 +1255,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_offset_threads_to_adapter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: false,
-            has_offset: true,
-            has_where: false,
+            has_limit:    false,
+            has_offset:   true,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -1271,9 +1272,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_where_threads_user_filter_to_adapter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: false,
-            has_offset: false,
-            has_where: true,
+            has_limit:    false,
+            has_offset:   false,
+            has_where:    true,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -1292,9 +1293,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_where_false_ignores_user_filter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: false,
-            has_offset: false,
-            has_where: false,
+            has_limit:    false,
+            has_offset:   false,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -1313,9 +1314,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_limit_and_offset_together() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: true,
-            has_offset: true,
-            has_where: false,
+            has_limit:    true,
+            has_offset:   true,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -1332,8 +1333,9 @@ mod auto_params {
 // ── mod rls_composition: C13+C19 — WHERE composition through executor ────
 
 mod rls_composition {
-    use super::*;
     use indexmap::IndexMap;
+
+    use super::*;
 
     fn schema_with_inject_params(
         inject_params: IndexMap<String, InjectedParamSource>,
@@ -1368,17 +1370,17 @@ mod rls_composition {
 
     fn tenant_security_context() -> SecurityContext {
         SecurityContext {
-            user_id: "user-42".to_string(),
-            roles: vec!["viewer".to_string()],
-            tenant_id: Some("tenant-abc".to_string()),
-            scopes: vec!["read:User".to_string()],
-            attributes: HashMap::default(),
-            request_id: "req-001".to_string(),
-            ip_address: None,
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        Some("tenant-abc".to_string()),
+            scopes:           vec!["read:User".to_string()],
+            attributes:       HashMap::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
             authenticated_at: Utc::now(),
-            issuer: None,
-            audience: None,
+            issuer:           None,
+            audience:         None,
         }
     }
 
@@ -1496,81 +1498,81 @@ mod field_rbac {
     fn schema_with_rbac_fields() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
         });
         let mut user_type = TypeDefinition::new("User", "v_user");
         user_type.fields = vec![
             FieldDefinition {
-                name: "id".into(),
-                field_type: FieldType::Int,
-                nullable: false,
-                description: None,
-                default_value: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "id".into(),
+                field_type:     FieldType::Int,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: None,
-                on_deny: FieldDenyPolicy::Reject,
-                encryption: None,
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
             },
             FieldDefinition {
-                name: "name".into(),
-                field_type: FieldType::String,
-                nullable: false,
-                description: None,
-                default_value: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "name".into(),
+                field_type:     FieldType::String,
+                nullable:       false,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: None,
-                on_deny: FieldDenyPolicy::Reject,
-                encryption: None,
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
             },
             // Protected field: reject when unauthorized
             FieldDefinition {
-                name: "salary".into(),
-                field_type: FieldType::Int,
-                nullable: true,
-                description: None,
-                default_value: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "salary".into(),
+                field_type:     FieldType::Int,
+                nullable:       true,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: Some("admin:*".to_string()),
-                on_deny: FieldDenyPolicy::Reject,
-                encryption: None,
+                on_deny:        FieldDenyPolicy::Reject,
+                encryption:     None,
             },
             // Protected field: mask when unauthorized
             FieldDefinition {
-                name: "email".into(),
-                field_type: FieldType::String,
-                nullable: true,
-                description: None,
-                default_value: None,
-                vector_config: None,
-                alias: None,
-                deprecation: None,
+                name:           "email".into(),
+                field_type:     FieldType::String,
+                nullable:       true,
+                description:    None,
+                default_value:  None,
+                vector_config:  None,
+                alias:          None,
+                deprecation:    None,
                 requires_scope: Some("read:User.email".to_string()),
-                on_deny: FieldDenyPolicy::Mask,
-                encryption: None,
+                on_deny:        FieldDenyPolicy::Mask,
+                encryption:     None,
             },
         ];
 
@@ -1578,19 +1580,19 @@ mod field_rbac {
         schema.security = Some(SecurityConfig {
             role_definitions: vec![
                 RoleDefinition {
-                    name: "viewer".into(),
+                    name:        "viewer".into(),
                     description: None,
-                    scopes: vec!["read:User".into()],
+                    scopes:      vec!["read:User".into()],
                 },
                 RoleDefinition {
-                    name: "admin".into(),
+                    name:        "admin".into(),
                     description: None,
-                    scopes: vec!["admin:*".into(), "read:User.email".into()],
+                    scopes:      vec!["admin:*".into(), "read:User.email".into()],
                 },
             ],
-            default_role: None,
-            multi_tenant: false,
-            additional: HashMap::default(),
+            default_role:     None,
+            multi_tenant:     false,
+            additional:       HashMap::default(),
         });
 
         schema.types.push(user_type);
@@ -1599,33 +1601,33 @@ mod field_rbac {
 
     fn viewer_context() -> SecurityContext {
         SecurityContext {
-            user_id: "user-42".to_string(),
-            roles: vec!["viewer".to_string()],
-            tenant_id: None,
-            scopes: vec!["read:User".to_string()],
-            attributes: HashMap::default(),
-            request_id: "req-001".to_string(),
-            ip_address: None,
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec!["read:User".to_string()],
+            attributes:       HashMap::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
             authenticated_at: Utc::now(),
-            issuer: None,
-            audience: None,
+            issuer:           None,
+            audience:         None,
         }
     }
 
     fn admin_context() -> SecurityContext {
         SecurityContext {
-            user_id: "admin-1".to_string(),
-            roles: vec!["admin".to_string()],
-            tenant_id: None,
-            scopes: vec!["admin:*".to_string(), "read:User.email".to_string()],
-            attributes: HashMap::default(),
-            request_id: "req-002".to_string(),
-            ip_address: None,
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:          "admin-1".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        None,
+            scopes:           vec!["admin:*".to_string(), "read:User.email".to_string()],
+            attributes:       HashMap::default(),
+            request_id:       "req-002".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
             authenticated_at: Utc::now(),
-            issuer: None,
-            audience: None,
+            issuer:           None,
+            audience:         None,
         }
     }
 
@@ -1781,17 +1783,17 @@ mod executor_paths {
         let executor = Executor::new(schema, adapter);
 
         let ctx = SecurityContext {
-            user_id: "user-42".to_string(),
-            roles: vec!["viewer".to_string()],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: HashMap::default(),
-            request_id: "req-001".to_string(),
-            ip_address: None,
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:          "user-42".to_string(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
             authenticated_at: Utc::now(),
-            issuer: None,
-            audience: None,
+            issuer:           None,
+            audience:         None,
         };
         let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
         assert!(result.is_err());
@@ -1811,17 +1813,17 @@ mod executor_paths {
         let executor = Executor::new(schema, adapter);
 
         let ctx = SecurityContext {
-            user_id: "admin-1".to_string(),
-            roles: vec!["admin".to_string()],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: HashMap::default(),
-            request_id: "req-002".to_string(),
-            ip_address: None,
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:          "admin-1".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-002".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
             authenticated_at: Utc::now(),
-            issuer: None,
-            audience: None,
+            issuer:           None,
+            audience:         None,
         };
         let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
         assert!(result.is_ok(), "correct role should succeed: {:?}", result.err());

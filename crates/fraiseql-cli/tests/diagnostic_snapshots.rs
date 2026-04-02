@@ -11,13 +11,16 @@
 //! INSTA_UPDATE=always cargo test -p fraiseql-cli --test diagnostic_snapshots
 //! ```
 
-use fraiseql_cli::config::toml_schema::{
-    AuthorizationPolicy, FederationCircuitBreakerConfig, FederationEntity,
-    FieldAuthRule, MutationDefinition, PerDatabaseCircuitBreakerOverride, QueryDefinition,
-    TomlSchema, TypeDefinition,
-};
-use fraiseql_cli::config::SecurityConfig;
 use std::collections::BTreeMap;
+
+use fraiseql_cli::config::{
+    SecurityConfig,
+    toml_schema::{
+        AuthorizationPolicy, FederationCircuitBreakerConfig, FederationEntity, FieldAuthRule,
+        MutationDefinition, PerDatabaseCircuitBreakerOverride, QueryDefinition, TomlSchema,
+        TypeDefinition,
+    },
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -188,8 +191,8 @@ name = "broken"
 }
 
 // ---------------------------------------------------------------------------
-// 8. Empty schema with queries — queries reference default return_type "String"
-//    which is not a defined type, so validation should fail
+// 8. Empty schema with queries — queries reference default return_type "String" which is not a
+//    defined type, so validation should fail
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -536,11 +539,13 @@ fn diagnostic_security_invalid_nonce_size() {
 #[test]
 fn diagnostic_security_role_empty_name() {
     let mut config = SecurityConfig::default();
-    config.role_definitions.push(fraiseql_cli::config::security::RoleDefinitionConfig {
-        name:        String::new(),
-        description: None,
-        scopes:      vec!["read:*".to_string()],
-    });
+    config
+        .role_definitions
+        .push(fraiseql_cli::config::security::RoleDefinitionConfig {
+            name:        String::new(),
+            description: None,
+            scopes:      vec!["read:*".to_string()],
+        });
 
     let err = config.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());
@@ -553,11 +558,13 @@ fn diagnostic_security_role_empty_name() {
 #[test]
 fn diagnostic_security_role_no_scopes() {
     let mut config = SecurityConfig::default();
-    config.role_definitions.push(fraiseql_cli::config::security::RoleDefinitionConfig {
-        name:        "viewer".to_string(),
-        description: None,
-        scopes:      vec![],
-    });
+    config
+        .role_definitions
+        .push(fraiseql_cli::config::security::RoleDefinitionConfig {
+            name:        "viewer".to_string(),
+            description: None,
+            scopes:      vec![],
+        });
 
     let err = config.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());

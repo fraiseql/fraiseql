@@ -1,10 +1,8 @@
 //! Property-based tests for fraiseql-secrets encryption invariants.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use fraiseql_secrets::{FieldEncryption, VersionedFieldEncryption};
 use proptest::prelude::*;
-
-use fraiseql_secrets::FieldEncryption;
-use fraiseql_secrets::VersionedFieldEncryption;
 
 // ── FieldEncryption Roundtrip Properties ──────────────────────────────────────
 

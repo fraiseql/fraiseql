@@ -678,8 +678,8 @@ mod tests {
                 .resolve_entities("https://example.com/graphql", &[], &FieldSelection::default())
                 .await;
 
-            let entities = result
-                .unwrap_or_else(|e| panic!("empty representations should succeed: {e}"));
+            let entities =
+                result.unwrap_or_else(|e| panic!("empty representations should succeed: {e}"));
             assert_eq!(entities.len(), 0);
         });
     }

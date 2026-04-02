@@ -59,7 +59,10 @@ async fn test_recovery_health_check_after_failure() {
     adapter.reset();
 
     // Health check succeeds
-    adapter.health_check().await.unwrap_or_else(|e| panic!("expected health check to succeed after reset: {e}"));
+    adapter
+        .health_check()
+        .await
+        .unwrap_or_else(|e| panic!("expected health check to succeed after reset: {e}"));
 }
 
 #[tokio::test]

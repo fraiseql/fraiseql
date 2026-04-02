@@ -14,8 +14,8 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use fraiseql_db::{
     CollationConfig, CollationMapper, DatabaseType, GenericWhereGenerator,
-    MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator,
-    WhereClause, WhereOperator, WhereSqlGenerator,
+    MySqlProjectionGenerator, PostgresProjectionGenerator, SqliteProjectionGenerator, WhereClause,
+    WhereOperator, WhereSqlGenerator,
     dialect::{MySqlDialect, PostgresDialect, SqlServerDialect, SqliteDialect},
 };
 use serde_json::json;
@@ -162,15 +162,11 @@ fn generic_where_generator_benchmarks(c: &mut Criterion) {
 
     // IN clause scaling (PostgreSQL dialect)
     for count in [3, 10, 50, 100] {
-        group.bench_with_input(
-            BenchmarkId::new("postgres_in_clause", count),
-            &count,
-            |b, &n| {
-                let gen = GenericWhereGenerator::new(PostgresDialect);
-                let clause = in_clause(n);
-                b.iter(|| gen.generate(black_box(&clause)).unwrap());
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("postgres_in_clause", count), &count, |b, &n| {
+            let gen = GenericWhereGenerator::new(PostgresDialect);
+            let clause = in_clause(n);
+            b.iter(|| gen.generate(black_box(&clause)).unwrap());
+        });
     }
 
     group.finish();
@@ -233,46 +229,31 @@ fn projection_benchmarks(c: &mut Criterion) {
                 "createdAt".to_string(),
             ],
         ),
-        (
-            15,
-            (0..15).map(|i| format!("field{i}")).collect(),
-        ),
+        (15, (0..15).map(|i| format!("field{i}")).collect()),
     ];
 
     // PostgreSQL projection
     let pg = PostgresProjectionGenerator::new();
     for (count, fields) in &field_sets {
-        group.bench_with_input(
-            BenchmarkId::new("postgres", count),
-            fields,
-            |b, fields| {
-                b.iter(|| pg.generate_projection_sql(black_box(fields)).unwrap());
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("postgres", count), fields, |b, fields| {
+            b.iter(|| pg.generate_projection_sql(black_box(fields)).unwrap());
+        });
     }
 
     // MySQL projection
     let mysql = MySqlProjectionGenerator::new();
     for (count, fields) in &field_sets {
-        group.bench_with_input(
-            BenchmarkId::new("mysql", count),
-            fields,
-            |b, fields| {
-                b.iter(|| mysql.generate_projection_sql(black_box(fields)).unwrap());
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("mysql", count), fields, |b, fields| {
+            b.iter(|| mysql.generate_projection_sql(black_box(fields)).unwrap());
+        });
     }
 
     // SQLite projection
     let sqlite = SqliteProjectionGenerator::new();
     for (count, fields) in &field_sets {
-        group.bench_with_input(
-            BenchmarkId::new("sqlite", count),
-            fields,
-            |b, fields| {
-                b.iter(|| sqlite.generate_projection_sql(black_box(fields)).unwrap());
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("sqlite", count), fields, |b, fields| {
+            b.iter(|| sqlite.generate_projection_sql(black_box(fields)).unwrap());
+        });
     }
 
     group.finish();

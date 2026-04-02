@@ -49,35 +49,59 @@ fn test_vault_backend_clone() {
 #[test]
 fn test_secret_name_empty_rejected() {
     let result = validate_vault_secret_name("");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "empty name should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "empty name should be rejected: {result:?}"
+    );
 }
 
 #[test]
 fn test_secret_name_valid_paths() {
-    validate_vault_secret_name("db/creds").unwrap_or_else(|e| panic!("db/creds should be valid: {e}"));
-    validate_vault_secret_name("secret/app_name/db-password").unwrap_or_else(|e| panic!("nested path should be valid: {e}"));
-    validate_vault_secret_name("kv/prod/postgres").unwrap_or_else(|e| panic!("kv path should be valid: {e}"));
+    validate_vault_secret_name("db/creds")
+        .unwrap_or_else(|e| panic!("db/creds should be valid: {e}"));
+    validate_vault_secret_name("secret/app_name/db-password")
+        .unwrap_or_else(|e| panic!("nested path should be valid: {e}"));
+    validate_vault_secret_name("kv/prod/postgres")
+        .unwrap_or_else(|e| panic!("kv path should be valid: {e}"));
 }
 
 #[test]
 fn test_secret_name_dot_rejected() {
     // `.` is not in the allowed character set — prevents `../` path traversal.
     let result = validate_vault_secret_name("../etc/passwd");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "path traversal should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "path traversal should be rejected: {result:?}"
+    );
     let result = validate_vault_secret_name("secret/../../etc");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "double traversal should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "double traversal should be rejected: {result:?}"
+    );
     let result = validate_vault_secret_name("secret/app.name");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "dot in name should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "dot in name should be rejected: {result:?}"
+    );
 }
 
 #[test]
 fn test_secret_name_special_chars_rejected() {
     let result = validate_vault_secret_name("secret/app name");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "space should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "space should be rejected: {result:?}"
+    );
     let result = validate_vault_secret_name("secret/app\0name");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "null byte should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "null byte should be rejected: {result:?}"
+    );
     let result = validate_vault_secret_name("secret/app;name");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "semicolon should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "semicolon should be rejected: {result:?}"
+    );
 }
 
 // ── Length-guard tests ─────────────────────────────────────────────────────
@@ -86,7 +110,8 @@ fn test_secret_name_special_chars_rejected() {
 fn test_secret_name_exactly_max_length_accepted() {
     // MAX_VAULT_SECRET_NAME_BYTES exactly — must be accepted.
     let name = "a".repeat(MAX_VAULT_SECRET_NAME_BYTES);
-    validate_vault_secret_name(&name).unwrap_or_else(|e| panic!("name at max length must be accepted: {e}"));
+    validate_vault_secret_name(&name)
+        .unwrap_or_else(|e| panic!("name at max length must be accepted: {e}"));
 }
 
 #[test]
@@ -106,7 +131,10 @@ fn test_secret_name_very_long_rejected_before_char_scan() {
     // A 1 MiB string — length guard must fire without scanning every character.
     let name = "a/".repeat(512 * 1024); // 1 MiB of valid-char data
     let result = validate_vault_secret_name(&name);
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "1 MiB name must be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "1 MiB name must be rejected: {result:?}"
+    );
 }
 
 // --- extract_secret_from_response unit tests (S10-3) ---
@@ -324,42 +352,78 @@ async fn test_renew_token_403_returns_connection_error() {
 #[test]
 fn test_vault_addr_scheme_must_be_http() {
     let result = validate_vault_addr("file:///etc/passwd");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "file scheme should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "file scheme should be rejected: {result:?}"
+    );
     let result = validate_vault_addr("ftp://vault.example.com:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "ftp scheme should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "ftp scheme should be rejected: {result:?}"
+    );
     let result = validate_vault_addr("vault.example.com:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "no scheme should be rejected: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "no scheme should be rejected: {result:?}"
+    );
 }
 
 #[test]
 fn test_vault_addr_blocks_loopback() {
     let result = validate_vault_addr("http://localhost:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "localhost should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "localhost should be blocked: {result:?}"
+    );
     let result = validate_vault_addr("http://127.0.0.1:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "127.0.0.1 should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "127.0.0.1 should be blocked: {result:?}"
+    );
     let result = validate_vault_addr("http://[::1]:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "::1 should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "::1 should be blocked: {result:?}"
+    );
 }
 
 #[test]
 fn test_vault_addr_blocks_private_ranges() {
     let result = validate_vault_addr("http://10.0.0.1:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "10.x should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "10.x should be blocked: {result:?}"
+    );
     let result = validate_vault_addr("http://172.16.0.1:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "172.16.x should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "172.16.x should be blocked: {result:?}"
+    );
     let result = validate_vault_addr("http://192.168.1.1:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "192.168.x should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "192.168.x should be blocked: {result:?}"
+    );
     // AWS metadata service
     let result = validate_vault_addr("http://169.254.169.254:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "169.254.x should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "169.254.x should be blocked: {result:?}"
+    );
     // CGNAT range
     let result = validate_vault_addr("http://100.64.0.1:8200");
-    assert!(matches!(result, Err(SecretsError::ValidationError(_))), "100.64.x should be blocked: {result:?}");
+    assert!(
+        matches!(result, Err(SecretsError::ValidationError(_))),
+        "100.64.x should be blocked: {result:?}"
+    );
 }
 
 #[test]
 fn test_vault_addr_allows_public_addresses() {
-    validate_vault_addr("https://vault.example.com:8200").unwrap_or_else(|e| panic!("public vault addr should pass: {e}"));
-    validate_vault_addr("https://203.0.113.10:8200").unwrap_or_else(|e| panic!("public IP vault addr should pass: {e}"));
-    validate_vault_addr("http://vault.local:8200").unwrap_or_else(|e| panic!("vault.local should pass: {e}"));
+    validate_vault_addr("https://vault.example.com:8200")
+        .unwrap_or_else(|e| panic!("public vault addr should pass: {e}"));
+    validate_vault_addr("https://203.0.113.10:8200")
+        .unwrap_or_else(|e| panic!("public IP vault addr should pass: {e}"));
+    validate_vault_addr("http://vault.local:8200")
+        .unwrap_or_else(|e| panic!("vault.local should pass: {e}"));
 }

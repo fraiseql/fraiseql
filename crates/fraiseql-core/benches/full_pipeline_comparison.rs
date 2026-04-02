@@ -36,7 +36,10 @@ async fn verify_benchmark_data(conn_str: &str) -> bool {
     {
         match PostgresAdapter::new(conn_str).await {
             Ok(adapter) => {
-                match adapter.execute_where_query("v_benchmark_data", None, Some(1), None, None).await {
+                match adapter
+                    .execute_where_query("v_benchmark_data", None, Some(1), None, None)
+                    .await
+                {
                     Ok(results) => !results.is_empty(),
                     Err(_) => false,
                 }

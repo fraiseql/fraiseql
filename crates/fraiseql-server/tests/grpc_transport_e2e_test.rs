@@ -1,6 +1,5 @@
 //! End-to-end integration tests for the gRPC transport (Cycle 7).
 #![cfg(feature = "grpc")]
-//!
 //! Tests the full stack: compile schema → build descriptor → build
 //! `DynamicGrpcService` → exercise gRPC requests via `tower::ServiceExt::oneshot`
 //! against a `FailingAdapter` with canned row-shaped responses.

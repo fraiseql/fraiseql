@@ -45,7 +45,8 @@ impl EventMatcher {
     ///
     /// # Errors
     ///
-    /// Returns [`ObserverError::InvalidConfig`] if any observer definition contains an invalid entity type pattern.
+    /// Returns [`ObserverError::InvalidConfig`] if any observer definition contains an invalid
+    /// entity type pattern.
     pub fn build(observers: HashMap<String, ObserverDefinition>) -> Result<Self> {
         let mut matcher = Self::new();
 

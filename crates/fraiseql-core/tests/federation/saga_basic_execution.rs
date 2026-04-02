@@ -123,7 +123,8 @@ async fn test_saga_result_contains_all_step_data() {
             )
             .await;
 
-        step_results.push(result.unwrap_or_else(|e| panic!("execute_step({step_number}) failed: {e}")));
+        step_results
+            .push(result.unwrap_or_else(|e| panic!("execute_step({step_number}) failed: {e}")));
     }
 
     // Then: All step results should be collected

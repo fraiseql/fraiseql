@@ -154,7 +154,8 @@ impl TokenRefreshWorker {
                     // Re-schedule at 80% of the remaining time
                     let remaining = new_expiry - Utc::now();
                     #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-                    // Reason: intentional 80% scaling via f64; sub-second precision loss is acceptable for a scheduling heuristic
+                    // Reason: intentional 80% scaling via f64; sub-second precision loss is
+                    // acceptable for a scheduling heuristic
                     let next_refresh_secs = (remaining.num_seconds() as f64 * 0.8) as i64;
                     let next_refresh = Utc::now() + Duration::seconds(next_refresh_secs);
                     if let Err(e) =
@@ -187,8 +188,9 @@ impl TokenRefreshWorker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use chrono::Duration;
+
+    use super::*;
 
     #[test]
     fn test_scheduler_schedule_and_get_due_refresh() {
@@ -242,23 +244,17 @@ mod tests {
             .schedule_refresh("session_c".to_string(), future)
             .expect("schedule must succeed");
 
-        let cancelled = scheduler
-            .cancel_refresh("session_c")
-            .expect("cancel must succeed");
+        let cancelled = scheduler.cancel_refresh("session_c").expect("cancel must succeed");
         assert!(cancelled, "cancel_refresh must return true for existing session");
 
-        let cancelled_again = scheduler
-            .cancel_refresh("session_c")
-            .expect("cancel must succeed");
+        let cancelled_again = scheduler.cancel_refresh("session_c").expect("cancel must succeed");
         assert!(!cancelled_again, "cancel_refresh must return false for already-removed session");
     }
 
     #[test]
     fn test_scheduler_cancel_nonexistent_returns_false() {
         let scheduler = TokenRefreshScheduler::new();
-        let cancelled = scheduler
-            .cancel_refresh("nonexistent")
-            .expect("cancel must succeed");
+        let cancelled = scheduler.cancel_refresh("nonexistent").expect("cancel must succeed");
         assert!(!cancelled);
     }
 

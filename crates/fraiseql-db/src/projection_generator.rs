@@ -82,10 +82,7 @@ impl From<String> for ProjectionField {
 /// Returns `FraiseQLError::Validation` if `field` contains a character outside
 /// `[a-zA-Z0-9_]`.
 fn validate_field_name(field: &str) -> Result<()> {
-    if field
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
+    if field.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         Ok(())
     } else {
         Err(FraiseQLError::Validation {

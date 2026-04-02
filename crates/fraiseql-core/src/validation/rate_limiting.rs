@@ -29,7 +29,7 @@ pub struct RateLimitDimension {
     /// Maximum number of errors allowed in the window
     pub max_requests: u32,
     /// Window duration in seconds
-    pub window_secs: u64,
+    pub window_secs:  u64,
 }
 
 impl RateLimitDimension {
@@ -87,16 +87,16 @@ impl Default for ValidationRateLimitingConfig {
 #[derive(Debug, Clone)]
 struct RequestRecord {
     /// Number of errors in current window
-    count: u32,
+    count:        u32,
     /// Unix timestamp of window start
     window_start: u64,
 }
 
 /// Single dimension rate limiter
 struct DimensionRateLimiter {
-    records: Arc<Mutex<LruCache<String, RequestRecord>>>,
+    records:   Arc<Mutex<LruCache<String, RequestRecord>>>,
     dimension: RateLimitDimension,
-    clock: Arc<dyn Clock>,
+    clock:     Arc<dyn Clock>,
 }
 
 impl DimensionRateLimiter {
@@ -132,7 +132,7 @@ impl DimensionRateLimiter {
         // `get_or_insert` promotes the entry to most-recently-used, evicting the
         // least-recently-used entry when the cache is at capacity.
         let record = records.get_or_insert_mut(key.to_string(), || RequestRecord {
-            count: 0,
+            count:        0,
             window_start: now,
         });
 
@@ -149,7 +149,7 @@ impl DimensionRateLimiter {
         } else {
             // Rate limited
             Err(FraiseQLError::RateLimited {
-                message: "Rate limit exceeded for validation errors".to_string(),
+                message:          "Rate limit exceeded for validation errors".to_string(),
                 retry_after_secs: self.dimension.window_secs,
             })
         }
@@ -164,9 +164,9 @@ impl DimensionRateLimiter {
 impl Clone for DimensionRateLimiter {
     fn clone(&self) -> Self {
         Self {
-            records: Arc::clone(&self.records),
+            records:   Arc::clone(&self.records),
             dimension: self.dimension.clone(),
-            clock: Arc::clone(&self.clock),
+            clock:     Arc::clone(&self.clock),
         }
     }
 }
@@ -175,10 +175,10 @@ impl Clone for DimensionRateLimiter {
 #[derive(Clone)]
 #[allow(clippy::module_name_repetitions, clippy::struct_field_names)] // Reason: RateLimiting prefix provides clarity at call sites
 pub struct ValidationRateLimiter {
-    validation_errors: DimensionRateLimiter,
-    depth_errors: DimensionRateLimiter,
-    complexity_errors: DimensionRateLimiter,
-    malformed_errors: DimensionRateLimiter,
+    validation_errors:       DimensionRateLimiter,
+    depth_errors:            DimensionRateLimiter,
+    complexity_errors:       DimensionRateLimiter,
+    malformed_errors:        DimensionRateLimiter,
     async_validation_errors: DimensionRateLimiter,
 }
 
@@ -191,22 +191,22 @@ impl ValidationRateLimiter {
     /// Create a validation rate limiter with a custom clock (for testing).
     pub fn new_with_clock(config: &ValidationRateLimitingConfig, clock: Arc<dyn Clock>) -> Self {
         Self {
-            validation_errors: DimensionRateLimiter::new_with_clock(
+            validation_errors:       DimensionRateLimiter::new_with_clock(
                 config.validation_errors_max_requests,
                 config.validation_errors_window_secs,
                 Arc::clone(&clock),
             ),
-            depth_errors: DimensionRateLimiter::new_with_clock(
+            depth_errors:            DimensionRateLimiter::new_with_clock(
                 config.depth_errors_max_requests,
                 config.depth_errors_window_secs,
                 Arc::clone(&clock),
             ),
-            complexity_errors: DimensionRateLimiter::new_with_clock(
+            complexity_errors:       DimensionRateLimiter::new_with_clock(
                 config.complexity_errors_max_requests,
                 config.complexity_errors_window_secs,
                 Arc::clone(&clock),
             ),
-            malformed_errors: DimensionRateLimiter::new_with_clock(
+            malformed_errors:        DimensionRateLimiter::new_with_clock(
                 config.malformed_errors_max_requests,
                 config.malformed_errors_window_secs,
                 Arc::clone(&clock),

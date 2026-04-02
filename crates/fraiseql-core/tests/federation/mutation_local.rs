@@ -24,7 +24,8 @@ fn test_mutation_create_owned_entity() {
     let result =
         runtime.block_on(executor.execute_local_mutation("User", "createUser", &variables));
 
-    let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(User/createUser) failed: {e}"));
+    let response =
+        result.unwrap_or_else(|e| panic!("execute_local_mutation(User/createUser) failed: {e}"));
     assert_eq!(response["__typename"], "User");
     assert_eq!(response["id"], "user_new");
     assert_eq!(response["name"], "New User");
@@ -46,7 +47,8 @@ fn test_mutation_update_owned_entity() {
     let result =
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
-    let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) failed: {e}"));
+    let response =
+        result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) failed: {e}"));
     assert_eq!(response["__typename"], "User");
     assert_eq!(response["id"], "user123");
     assert_eq!(response["email"], "updated@example.com");
@@ -67,7 +69,8 @@ fn test_mutation_delete_owned_entity() {
     let result =
         runtime.block_on(executor.execute_local_mutation("User", "deleteUser", &variables));
 
-    let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(User/deleteUser) failed: {e}"));
+    let response =
+        result.unwrap_or_else(|e| panic!("execute_local_mutation(User/deleteUser) failed: {e}"));
     assert_eq!(response["__typename"], "User");
     assert_eq!(response["id"], "user_to_delete");
 }
@@ -89,7 +92,8 @@ fn test_mutation_owned_entity_returns_updated_representation() {
     let result =
         runtime.block_on(executor.execute_local_mutation("Product", "updateProduct", &variables));
 
-    let entity = result.unwrap_or_else(|e| panic!("execute_local_mutation(Product/updateProduct) failed: {e}"));
+    let entity = result
+        .unwrap_or_else(|e| panic!("execute_local_mutation(Product/updateProduct) failed: {e}"));
 
     // Verify response is a proper entity representation
     assert!(entity.is_object());
@@ -116,7 +120,9 @@ fn test_mutation_owned_entity_batch_updates() {
         let result =
             runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
-        let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) batch iteration {i} failed: {e}"));
+        let response = result.unwrap_or_else(|e| {
+            panic!("execute_local_mutation(User/updateUser) batch iteration {i} failed: {e}")
+        });
         assert_eq!(response["id"], format!("user{}", i));
     }
 }
@@ -137,7 +143,8 @@ fn test_mutation_composite_key_update() {
     let result =
         runtime.block_on(executor.execute_local_mutation("Order", "updateOrder", &variables));
 
-    let response = result.unwrap_or_else(|e| panic!("execute_local_mutation(Order/updateOrder) failed: {e}"));
+    let response =
+        result.unwrap_or_else(|e| panic!("execute_local_mutation(Order/updateOrder) failed: {e}"));
     assert_eq!(response["__typename"], "Order");
     assert_eq!(response["tenant_id"], "tenant_123");
     assert_eq!(response["order_id"], "order_456");
@@ -184,7 +191,9 @@ fn test_mutation_constraint_violation() {
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // Should succeed in building query, DB would handle constraint
-    result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) constraint check failed: {e}"));
+    result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(User/updateUser) constraint check failed: {e}")
+    });
 }
 
 #[test]
@@ -206,7 +215,9 @@ fn test_mutation_concurrent_updates() {
         let result =
             runtime.block_on(exec.execute_local_mutation("User", "updateUser", &variables));
 
-        result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) concurrent iteration failed: {e}"));
+        result.unwrap_or_else(|e| {
+            panic!("execute_local_mutation(User/updateUser) concurrent iteration failed: {e}")
+        });
     }
 }
 
@@ -227,5 +238,7 @@ fn test_mutation_transaction_rollback() {
         runtime.block_on(executor.execute_local_mutation("User", "updateUser", &variables));
 
     // In real scenario with DB transaction, would test rollback
-    result.unwrap_or_else(|e| panic!("execute_local_mutation(User/updateUser) transaction rollback check failed: {e}"));
+    result.unwrap_or_else(|e| {
+        panic!("execute_local_mutation(User/updateUser) transaction rollback check failed: {e}")
+    });
 }

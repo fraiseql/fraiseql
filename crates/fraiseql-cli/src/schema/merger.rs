@@ -726,7 +726,9 @@ mutations = []
 
         // Should succeed but with no files loaded (glob matches nothing)
         let result = SchemaMerger::merge_with_includes(toml_path.to_str().unwrap());
-        let schema = result.unwrap_or_else(|e| panic!("expected Ok from merge_with_includes (missing files): {e}"));
+        let schema = result.unwrap_or_else(|e| {
+            panic!("expected Ok from merge_with_includes (missing files): {e}")
+        });
         assert_eq!(schema.types.len(), 0);
 
         Ok(())

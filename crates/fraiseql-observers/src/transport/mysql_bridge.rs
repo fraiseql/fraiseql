@@ -350,7 +350,8 @@ impl MySQLNatsBridge {
 
     /// Fetch batch from cursor.
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<MySQLChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)]  // Reason: value is non-negative; wrap cannot occur in practice
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: value is non-negative; wrap cannot occur in practice
         // Reason: batch_size is a small positive config value, well within i64 range
         let entries: Vec<MySQLChangeLogEntry> = sqlx::query_as(
             r"

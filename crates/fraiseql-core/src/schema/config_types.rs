@@ -10,19 +10,19 @@ use serde::{Deserialize, Serialize};
 pub struct FederationConfig {
     /// Enable Apollo federation.
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled:         bool,
     /// Federation specification version (e.g., "v2").
     #[serde(default)]
-    pub version: Option<String>,
+    pub version:         Option<String>,
     /// Subgraph service name (used in Apollo Studio).
     #[serde(default)]
-    pub service_name: Option<String>,
+    pub service_name:    Option<String>,
     /// Subgraph SDL URL (exposed at `/__subgraph_schema`).
     #[serde(default)]
-    pub schema_url: Option<String>,
+    pub schema_url:      Option<String>,
     /// Federated entities defined in this subgraph.
     #[serde(default)]
-    pub entities: Vec<FederationEntity>,
+    pub entities:        Vec<FederationEntity>,
     /// Circuit breaker configuration for federation fan-out requests.
     #[serde(default)]
     pub circuit_breaker: Option<CircuitBreakerConfig>,
@@ -32,7 +32,7 @@ pub struct FederationConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FederationEntity {
     /// Entity type name (e.g., "User", "Product").
-    pub name: String,
+    pub name:       String,
     /// Key fields that uniquely identify this entity.
     pub key_fields: Vec<String>,
 }
@@ -42,19 +42,19 @@ pub struct FederationEntity {
 pub struct CircuitBreakerConfig {
     /// Enable circuit breaker protection.
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled:               bool,
     /// Consecutive failures required to trip the circuit open.
     #[serde(default = "default_failure_threshold")]
-    pub failure_threshold: u32,
+    pub failure_threshold:     u32,
     /// Seconds to hold the circuit open before transitioning to `HalfOpen`.
     #[serde(default = "default_recovery_timeout")]
     pub recovery_timeout_secs: u64,
     /// Consecutive successes in `HalfOpen` required to close the circuit.
     #[serde(default = "default_success_threshold")]
-    pub success_threshold: u32,
+    pub success_threshold:     u32,
     /// Per-entity overrides (e.g., Product has different thresholds than User).
     #[serde(default)]
-    pub per_entity: Vec<EntityCircuitBreakerOverride>,
+    pub per_entity:            Vec<EntityCircuitBreakerOverride>,
 }
 
 const fn default_failure_threshold() -> u32 {
@@ -72,11 +72,11 @@ const fn default_success_threshold() -> u32 {
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            failure_threshold: default_failure_threshold(),
+            enabled:               false,
+            failure_threshold:     default_failure_threshold(),
             recovery_timeout_secs: default_recovery_timeout(),
-            success_threshold: default_success_threshold(),
-            per_entity: Vec::new(),
+            success_threshold:     default_success_threshold(),
+            per_entity:            Vec::new(),
         }
     }
 }
@@ -85,11 +85,11 @@ impl Default for CircuitBreakerConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntityCircuitBreakerOverride {
     /// Entity type name to apply override to.
-    pub entity: String,
+    pub entity:            String,
     /// Custom failure threshold (optional).
     pub failure_threshold: Option<u32>,
     /// Custom recovery timeout (optional).
-    pub recovery_timeout: Option<u64>,
+    pub recovery_timeout:  Option<u64>,
     /// Custom success threshold (optional).
     pub success_threshold: Option<u32>,
 }
@@ -101,30 +101,30 @@ pub struct CompiledSecurityConfig {
     pub default_policy: Option<String>,
     /// Custom authorization rules.
     #[serde(default)]
-    pub rules: Vec<AuthorizationRule>,
+    pub rules:          Vec<AuthorizationRule>,
     /// Authorization policies (RBAC/ABAC).
     #[serde(default)]
-    pub policies: Vec<AuthorizationPolicy>,
+    pub policies:       Vec<AuthorizationPolicy>,
     /// Field-level authorization.
     #[serde(default)]
-    pub field_auth: Vec<FieldAuthRule>,
+    pub field_auth:     Vec<FieldAuthRule>,
     /// Enterprise security features.
     #[serde(default)]
-    pub enterprise: EnterpriseSecurityConfig,
+    pub enterprise:     EnterpriseSecurityConfig,
 }
 
 /// Custom authorization rule.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthorizationRule {
     /// Rule name.
-    pub name: String,
+    pub name:              String,
     /// Rule expression.
-    pub rule: String,
+    pub rule:              String,
     /// Optional description.
-    pub description: Option<String>,
+    pub description:       Option<String>,
     /// Whether result can be cached.
     #[serde(default)]
-    pub cacheable: bool,
+    pub cacheable:         bool,
     /// Cache TTL in seconds.
     pub cache_ttl_seconds: Option<u32>,
 }
@@ -133,22 +133,22 @@ pub struct AuthorizationRule {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthorizationPolicy {
     /// Policy name.
-    pub name: String,
+    pub name:              String,
     /// Policy type: RBAC, ABAC, CUSTOM, HYBRID.
     #[serde(rename = "type")]
-    pub policy_type: String,
+    pub policy_type:       String,
     /// Optional rule expression.
-    pub rule: Option<String>,
+    pub rule:              Option<String>,
     /// Roles this policy applies to.
     #[serde(default)]
-    pub roles: Vec<String>,
+    pub roles:             Vec<String>,
     /// Combination strategy: ANY, ALL, EXACTLY.
-    pub strategy: Option<String>,
+    pub strategy:          Option<String>,
     /// Attributes for ABAC.
     #[serde(default)]
-    pub attributes: Vec<String>,
+    pub attributes:        Vec<String>,
     /// Optional description.
-    pub description: Option<String>,
+    pub description:       Option<String>,
     /// Cache TTL in seconds.
     pub cache_ttl_seconds: Option<u32>,
 }
@@ -157,11 +157,11 @@ pub struct AuthorizationPolicy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldAuthRule {
     /// Type name.
-    pub type_name: String,
+    pub type_name:  String,
     /// Field name.
     pub field_name: String,
     /// Policy to enforce.
-    pub policy: String,
+    pub policy:     String,
 }
 
 /// Enterprise security features.
@@ -169,34 +169,34 @@ pub struct FieldAuthRule {
 pub struct EnterpriseSecurityConfig {
     /// Enable rate limiting.
     #[serde(default = "default_true")]
-    pub rate_limiting_enabled: bool,
+    pub rate_limiting_enabled:        bool,
     /// Max requests per window.
     #[serde(default = "default_auth_max_requests")]
-    pub auth_endpoint_max_requests: u32,
+    pub auth_endpoint_max_requests:   u32,
     /// Rate limit window in seconds.
     #[serde(default = "default_auth_window")]
     pub auth_endpoint_window_seconds: u64,
     /// Enable audit logging.
     #[serde(default = "default_true")]
-    pub audit_logging_enabled: bool,
+    pub audit_logging_enabled:        bool,
     /// Audit log backend: postgresql, file, syslog.
     #[serde(default = "default_audit_backend")]
-    pub audit_log_backend: String,
+    pub audit_log_backend:            String,
     /// Audit log retention in days.
     #[serde(default = "default_audit_retention")]
-    pub audit_retention_days: u32,
+    pub audit_retention_days:         u32,
     /// Enable error sanitization.
     #[serde(default = "default_true")]
-    pub error_sanitization: bool,
+    pub error_sanitization:           bool,
     /// Hide implementation details.
     #[serde(default = "default_true")]
-    pub hide_implementation_details: bool,
+    pub hide_implementation_details:  bool,
     /// Enable constant-time comparison.
     #[serde(default = "default_true")]
-    pub constant_time_comparison: bool,
+    pub constant_time_comparison:     bool,
     /// Enable PKCE for OAuth.
     #[serde(default = "default_true")]
-    pub pkce_enabled: bool,
+    pub pkce_enabled:                 bool,
 }
 
 const fn default_true() -> bool {
@@ -222,16 +222,16 @@ const fn default_audit_retention() -> u32 {
 impl Default for EnterpriseSecurityConfig {
     fn default() -> Self {
         Self {
-            rate_limiting_enabled: default_true(),
-            auth_endpoint_max_requests: default_auth_max_requests(),
+            rate_limiting_enabled:        default_true(),
+            auth_endpoint_max_requests:   default_auth_max_requests(),
             auth_endpoint_window_seconds: default_auth_window(),
-            audit_logging_enabled: default_true(),
-            audit_log_backend: default_audit_backend(),
-            audit_retention_days: default_audit_retention(),
-            error_sanitization: default_true(),
-            hide_implementation_details: default_true(),
-            constant_time_comparison: default_true(),
-            pkce_enabled: default_true(),
+            audit_logging_enabled:        default_true(),
+            audit_log_backend:            default_audit_backend(),
+            audit_retention_days:         default_audit_retention(),
+            error_sanitization:           default_true(),
+            hide_implementation_details:  default_true(),
+            constant_time_comparison:     default_true(),
+            pkce_enabled:                 default_true(),
         }
     }
 }
@@ -241,17 +241,17 @@ impl Default for EnterpriseSecurityConfig {
 pub struct ObserversConfig {
     /// Enable observers system.
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled:   bool,
     /// Backend service: redis, nats, postgresql, mysql, in-memory.
     #[serde(default = "default_backend")]
-    pub backend: String,
+    pub backend:   String,
     /// Redis connection URL.
     pub redis_url: Option<String>,
     /// NATS connection URL.
-    pub nats_url: Option<String>,
+    pub nats_url:  Option<String>,
     /// Event handlers.
     #[serde(default)]
-    pub handlers: Vec<EventHandler>,
+    pub handlers:  Vec<EventHandler>,
 }
 
 fn default_backend() -> String {
@@ -261,11 +261,11 @@ fn default_backend() -> String {
 impl Default for ObserversConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            backend: default_backend(),
+            enabled:   false,
+            backend:   default_backend(),
             redis_url: None,
-            nats_url: None,
-            handlers: Vec::new(),
+            nats_url:  None,
+            handlers:  Vec::new(),
         }
     }
 }
@@ -274,23 +274,23 @@ impl Default for ObserversConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventHandler {
     /// Handler name.
-    pub name: String,
+    pub name:             String,
     /// Event type (e.g., "User.created", "Order.updated").
-    pub event: String,
+    pub event:            String,
     /// Action: slack, email, sms, webhook, push, log.
-    pub action: String,
+    pub action:           String,
     /// Webhook URL (for webhook action).
-    pub webhook_url: Option<String>,
+    pub webhook_url:      Option<String>,
     /// Slack channel (for slack action).
-    pub slack_channel: Option<String>,
+    pub slack_channel:    Option<String>,
     /// Email recipients (for email action).
     pub email_recipients: Option<Vec<String>>,
     /// Phone numbers (for sms action).
-    pub phone_numbers: Option<Vec<String>>,
+    pub phone_numbers:    Option<Vec<String>>,
     /// Push notification target (for push action).
-    pub push_target: Option<String>,
+    pub push_target:      Option<String>,
     /// Rate limit in seconds between notifications.
-    pub rate_limit: Option<u32>,
+    pub rate_limit:       Option<u32>,
 }
 
 /// Debug/development configuration (compiled from `[debug]` in `fraiseql.toml`).
@@ -298,19 +298,19 @@ pub struct EventHandler {
 #[serde(default)]
 pub struct DebugConfig {
     /// Master switch — all debug features require this to be `true`.
-    pub enabled: bool,
+    pub enabled:          bool,
     /// When `true`, the explain endpoint also runs `EXPLAIN` against the database.
     pub database_explain: bool,
     /// When `true`, the explain endpoint includes the generated SQL in the response.
-    pub expose_sql: bool,
+    pub expose_sql:       bool,
 }
 
 impl Default for DebugConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled:          false,
             database_explain: false,
-            expose_sql: true,
+            expose_sql:       true,
         }
     }
 }
@@ -321,7 +321,7 @@ impl Default for DebugConfig {
 pub struct ValidationConfig {
     /// Maximum allowed query nesting depth.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_query_depth: Option<u32>,
+    pub max_query_depth:      Option<u32>,
     /// Maximum allowed query complexity score.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_query_complexity: Option<u32>,
@@ -332,28 +332,28 @@ pub struct ValidationConfig {
 #[serde(default)]
 pub struct McpConfig {
     /// Whether MCP is enabled.
-    pub enabled: bool,
+    pub enabled:      bool,
     /// Transport mode: "http", "stdio", or "both".
-    pub transport: String,
+    pub transport:    String,
     /// HTTP path for MCP endpoint (e.g., "/mcp").
-    pub path: String,
+    pub path:         String,
     /// Require authentication for MCP requests.
     pub require_auth: bool,
     /// Whitelist of query/mutation names to expose (empty = all).
-    pub include: Vec<String>,
+    pub include:      Vec<String>,
     /// Blacklist of query/mutation names to hide.
-    pub exclude: Vec<String>,
+    pub exclude:      Vec<String>,
 }
 
 impl Default for McpConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            transport: "http".to_string(),
-            path: "/mcp".to_string(),
+            enabled:      false,
+            transport:    "http".to_string(),
+            path:         "/mcp".to_string(),
             require_auth: true,
-            include: Vec::new(),
-            exclude: Vec::new(),
+            include:      Vec::new(),
+            exclude:      Vec::new(),
         }
     }
 }
@@ -376,28 +376,28 @@ pub struct SubscriptionsConfig {
 pub struct SubscriptionHooksConfig {
     /// URL to POST on `WebSocket` `connection_init` (fail-closed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_connect: Option<String>,
+    pub on_connect:     Option<String>,
     /// URL to POST on `WebSocket` disconnect (fire-and-forget).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_disconnect: Option<String>,
+    pub on_disconnect:  Option<String>,
     /// URL to POST before a subscription is registered (fail-closed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub on_subscribe: Option<String>,
+    pub on_subscribe:   Option<String>,
     /// URL to POST when a subscription is removed (fire-and-forget).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_unsubscribe: Option<String>,
     /// Timeout in milliseconds for fail-closed hooks (default: 500).
-    pub timeout_ms: u64,
+    pub timeout_ms:     u64,
 }
 
 impl Default for SubscriptionHooksConfig {
     fn default() -> Self {
         Self {
-            on_connect: None,
-            on_disconnect: None,
-            on_subscribe: None,
+            on_connect:     None,
+            on_disconnect:  None,
+            on_subscribe:   None,
             on_unsubscribe: None,
-            timeout_ms: 500,
+            timeout_ms:     500,
         }
     }
 }
@@ -474,9 +474,9 @@ mod tests {
     fn test_entity_override() {
         let config = CircuitBreakerConfig {
             per_entity: vec![EntityCircuitBreakerOverride {
-                entity: "Product".to_string(),
+                entity:            "Product".to_string(),
                 failure_threshold: Some(2),
-                recovery_timeout: None,
+                recovery_timeout:  None,
                 success_threshold: None,
             }],
             ..Default::default()
@@ -489,12 +489,12 @@ mod tests {
     #[test]
     fn test_roundtrip_serialization() {
         let config = FederationConfig {
-            enabled: true,
-            version: Some("v2".to_string()),
-            service_name: Some("my-service".to_string()),
-            schema_url: None,
-            entities: vec![FederationEntity {
-                name: "User".to_string(),
+            enabled:         true,
+            version:         Some("v2".to_string()),
+            service_name:    Some("my-service".to_string()),
+            schema_url:      None,
+            entities:        vec![FederationEntity {
+                name:       "User".to_string(),
                 key_fields: vec!["id".to_string()],
             }],
             circuit_breaker: Some(CircuitBreakerConfig::default()),
@@ -534,14 +534,14 @@ pub enum Cardinality {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Relationship {
     /// Relationship name (used in `?select=posts` embedding syntax).
-    pub name: String,
+    pub name:           String,
     /// Target GraphQL type name (e.g., "Post").
-    pub target_type: String,
+    pub target_type:    String,
     /// Cardinality of the relationship.
-    pub cardinality: Cardinality,
+    pub cardinality:    Cardinality,
     /// Foreign key column on the child table (e.g., `fk_author`).
     #[serde(default)]
-    pub foreign_key: String,
+    pub foreign_key:    String,
     /// Referenced key column on the parent table (e.g., `id`).
     #[serde(default)]
     pub referenced_key: String,
@@ -552,38 +552,38 @@ pub struct Relationship {
 #[serde(default)]
 pub struct RestConfig {
     /// Whether the REST transport is enabled.
-    pub enabled: bool,
+    pub enabled:                 bool,
     /// Base path for REST endpoints (e.g., `"/rest/v1"`).
-    pub path: String,
+    pub path:                    String,
     /// Maximum rows per page (clamps `?limit=` and `?first=`).
-    pub max_page_size: u64,
+    pub max_page_size:           u64,
     /// Default page size when no `?limit=` is specified.
-    pub default_page_size: u64,
+    pub default_page_size:       u64,
     /// Batch size for NDJSON streaming responses.
-    pub ndjson_batch_size: u64,
+    pub ndjson_batch_size:       u64,
     /// Maximum affected rows for bulk PATCH/DELETE.
-    pub max_bulk_affected: u64,
+    pub max_bulk_affected:       u64,
     /// Maximum byte length for `?filter=` JSON values.
-    pub max_filter_bytes: u64,
+    pub max_filter_bytes:        u64,
     /// How DELETE endpoints report success.
-    pub delete_response: DeleteResponse,
+    pub delete_response:         DeleteResponse,
     /// Default result cache TTL in seconds (0 = no caching).
-    pub default_cache_ttl: u64,
+    pub default_cache_ttl:       u64,
     /// CDN `s-maxage` value in seconds for `Cache-Control` headers (`None` = omit).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cdn_max_age: Option<u64>,
+    pub cdn_max_age:             Option<u64>,
     /// Whether REST endpoints require authentication by default.
-    pub require_auth: bool,
+    pub require_auth:            bool,
     /// SSE heartbeat interval in seconds.
-    pub sse_heartbeat_seconds: u64,
+    pub sse_heartbeat_seconds:   u64,
     /// Maximum depth for resource embedding (`?select=posts(comments)`).
-    pub max_embedding_depth: u32,
+    pub max_embedding_depth:     u32,
     /// Whitelist of type names to expose as REST resources (empty = all).
-    pub include: Vec<String>,
+    pub include:                 Vec<String>,
     /// Blacklist of type names to exclude from REST resources.
-    pub exclude: Vec<String>,
+    pub exclude:                 Vec<String>,
     /// Whether to enable `ETag` / `If-None-Match` conditional response support.
-    pub etag: bool,
+    pub etag:                    bool,
     /// TTL in seconds for idempotency key deduplication.
     pub idempotency_ttl_seconds: u64,
 }
@@ -591,22 +591,22 @@ pub struct RestConfig {
 impl Default for RestConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            path: "/rest/v1".to_string(),
-            max_page_size: 1_000,
-            default_page_size: 100,
-            ndjson_batch_size: 500,
-            max_bulk_affected: 10_000,
-            max_filter_bytes: 4_096,
-            delete_response: DeleteResponse::NoContent,
-            default_cache_ttl: 0,
-            cdn_max_age: None,
-            require_auth: false,
-            sse_heartbeat_seconds: 30,
-            max_embedding_depth: 3,
-            include: Vec::new(),
-            exclude: Vec::new(),
-            etag: true,
+            enabled:                 false,
+            path:                    "/rest/v1".to_string(),
+            max_page_size:           1_000,
+            default_page_size:       100,
+            ndjson_batch_size:       500,
+            max_bulk_affected:       10_000,
+            max_filter_bytes:        4_096,
+            delete_response:         DeleteResponse::NoContent,
+            default_cache_ttl:       0,
+            cdn_max_age:             None,
+            require_auth:            false,
+            sse_heartbeat_seconds:   30,
+            max_embedding_depth:     3,
+            include:                 Vec::new(),
+            exclude:                 Vec::new(),
+            etag:                    true,
             idempotency_ttl_seconds: 300,
         }
     }
@@ -617,15 +617,15 @@ impl Default for RestConfig {
 #[serde(default)]
 pub struct GrpcConfig {
     /// Whether the gRPC transport is enabled.
-    pub enabled: bool,
+    pub enabled:           bool,
     /// Whitelist of type names to include (empty = all).
-    pub include_types: Vec<String>,
+    pub include_types:     Vec<String>,
     /// Blacklist of type names to exclude.
-    pub exclude_types: Vec<String>,
+    pub exclude_types:     Vec<String>,
     /// Path to the `FileDescriptorSet` binary (`.binpb`).
-    pub descriptor_path: String,
+    pub descriptor_path:   String,
     /// Whether to enable gRPC Server Reflection.
-    pub reflection: bool,
+    pub reflection:        bool,
     /// Batch size for server-streaming responses.
     pub stream_batch_size: u32,
 }
@@ -633,11 +633,11 @@ pub struct GrpcConfig {
 impl Default for GrpcConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            include_types: Vec::new(),
-            exclude_types: Vec::new(),
-            descriptor_path: String::new(),
-            reflection: true,
+            enabled:           false,
+            include_types:     Vec::new(),
+            exclude_types:     Vec::new(),
+            descriptor_path:   String::new(),
+            reflection:        true,
             stream_batch_size: 500,
         }
     }

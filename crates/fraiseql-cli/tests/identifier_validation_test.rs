@@ -58,7 +58,6 @@ fn invalid_identifiers_rejected() {
         ("v user", "space"),
         ("v-user", "dash"),
         ("", "empty string"),
-
         (".v_user", "leading dot"),
         ("v_user.", "trailing dot"),
     ];

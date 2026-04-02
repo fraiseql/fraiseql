@@ -209,7 +209,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "federation")] circuit_breaker: Option<
             Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>,
         >,
-        #[cfg(not(feature = "federation"))] circuit_breaker: Option<()>,
+        #[cfg(not(feature = "federation"))] _circuit_breaker: Option<()>,
         error_sanitizer: Arc<crate::config::error_sanitization::ErrorSanitizer>,
         state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
         pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
