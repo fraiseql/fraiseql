@@ -75,11 +75,10 @@ jobs:
 
       - name: Generate schema via Go SDK
         working-directory: sdks/official/fraiseql-go
+        env:
+          SCHEMA_OUTPUT_FILE: /tmp/schema_go.json
         run: |
-          go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 \
-            | grep '^{' \
-            | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin), indent=2))" \
-            > /tmp/schema_go.json
+          go test -run TestGenerateParitySchema -v ./fraiseql/
 
       # -----------------------------------------------------------------------
       # Deep structural comparison

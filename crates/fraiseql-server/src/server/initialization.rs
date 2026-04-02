@@ -6,9 +6,9 @@ use std::sync::Arc;
 use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
 use tracing::{info, warn};
 
-use super::{RateLimiter, Server};
 #[cfg(feature = "auth")]
 use super::ServerError;
+use super::{RateLimiter, Server};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[cfg(feature = "auth")]

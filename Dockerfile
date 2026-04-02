@@ -29,6 +29,7 @@ ARG CARGO_FEATURES=""
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+COPY vendor ./vendor
 
 RUN TARGET=$(cat /tmp/rust_target.txt) && \
     if [ -n "$CARGO_FEATURES" ]; then \

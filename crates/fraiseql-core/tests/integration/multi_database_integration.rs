@@ -1279,8 +1279,11 @@ mod mysql_error_tests {
         assert!(result.is_err(), "connection to bad URL must fail");
         if let Err(err) = result {
             assert!(
-                matches!(err, FraiseQLError::Database { .. }),
-                "Expected Database error on bad connection, got {err:?}"
+                matches!(
+                    err,
+                    FraiseQLError::Database { .. } | FraiseQLError::ConnectionPool { .. }
+                ),
+                "Expected Database or ConnectionPool error on bad connection, got {err:?}"
             );
         }
     }

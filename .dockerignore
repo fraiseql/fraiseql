@@ -26,7 +26,6 @@ build/
 
 # Dependencies
 node_modules/
-vendor/
 
 # Documentation
 docs/

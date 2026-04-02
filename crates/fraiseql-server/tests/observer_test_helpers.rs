@@ -53,8 +53,8 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // 1. Create core schema
     sqlx::query("CREATE SCHEMA IF NOT EXISTS core").execute(pool).await?;
 
-    // 2. Create tb_entity_change_log (with Debezium envelope)
-    //    DROP first to avoid stale schema from prior runs (e.g. object_id UUID→TEXT migration).
+    // 2. Create tb_entity_change_log (with Debezium envelope) DROP first to avoid stale schema from
+    //    prior runs (e.g. object_id UUID→TEXT migration).
     sqlx::query("DROP TABLE IF EXISTS core.tb_entity_change_log CASCADE")
         .execute(pool)
         .await?;

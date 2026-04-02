@@ -117,6 +117,9 @@ async fn test_runtime_start_stop_lifecycle() {
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
+    // Allow background polling task to fully initialise before inserting events
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     // Insert initial change log entry with matching entity type
     let order_id = Uuid::new_v4();
     let _ = insert_change_log_entry(
@@ -211,6 +214,9 @@ async fn test_checkpoint_recovery_after_restart() {
     let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
+
+    // Allow background polling task to fully initialise before inserting events
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Insert first batch of events with matching entity type
     for i in 0..5 {
@@ -341,6 +347,9 @@ async fn test_hot_reload_observers() {
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
+    // Allow background polling task to fully initialise before inserting events
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     // Insert event that should trigger observer 1
     let order_id_1 = Uuid::new_v4();
     let _ = insert_change_log_entry(
@@ -460,6 +469,9 @@ async fn test_graceful_shutdown_mid_processing() {
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
 
+    // Allow background polling task to fully initialise before inserting events
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     // Insert events for processing
     let order_ids: Vec<_> = (0..5)
         .map(|i| {
@@ -557,6 +569,9 @@ async fn test_runtime_continues_after_errors() {
     let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
+
+    // Allow background polling task to fully initialise before inserting events
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Insert event that will fail initially
     let order_id_1 = Uuid::new_v4();
@@ -671,6 +686,9 @@ async fn test_high_throughput_processing() {
     let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
+
+    // Allow background polling task to fully initialise before inserting events
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Insert high volume of events with matching entity type
     let event_count = 100;
@@ -825,6 +843,9 @@ async fn test_debug_event_processing() {
     let mut runtime = ObserverRuntime::new(config);
     runtime.start().await.expect("Failed to start runtime");
     println!("✓ Runtime started");
+
+    // Allow background polling task to fully initialise before inserting events
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Insert change log entry
     let order_id = uuid::Uuid::new_v4();
@@ -1134,7 +1155,7 @@ async fn test_with_longer_polling() {
 
     // Wait for runtime to fully initialize (background task)
     println!("Waiting for runtime initialization...");
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
     println!("Runtime initialized");
 
     // Now insert event

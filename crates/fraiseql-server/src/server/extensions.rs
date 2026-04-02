@@ -18,12 +18,12 @@ use tracing::info;
 #[cfg(feature = "observers")]
 use tracing::warn;
 
-#[cfg(feature = "observers")]
-use super::{ObserverRuntime, ObserverRuntimeConfig};
 #[cfg(feature = "arrow")]
 use super::RateLimiter;
 #[cfg(all(feature = "arrow", feature = "auth"))]
 use super::ServerError;
+#[cfg(feature = "observers")]
+use super::{ObserverRuntime, ObserverRuntimeConfig};
 use super::{Result, Server, ServerConfig};
 
 impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {

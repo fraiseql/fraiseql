@@ -769,8 +769,10 @@ fn is_builtin_type(name: &str) -> bool {
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
     use super::*;
+    #[cfg(feature = "federation")]
+    use crate::schema::config_types::FederationEntity;
     use crate::schema::{
-        config_types::{FederationConfig, FederationEntity},
+        config_types::FederationConfig,
         graphql_type_defs::TypeDefinition,
         observer_types::ObserverDefinition,
         security_config::{RoleDefinition, SecurityConfig},
