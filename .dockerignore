@@ -32,9 +32,8 @@ vendor/
 docs/
 *.md
 
-# Tests
+# Tests (top-level only; crate test files must remain for Cargo manifest validation)
 tests/
-**/*_test.rs
 
 # CI/CD
 .github/

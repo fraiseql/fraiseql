@@ -14,8 +14,11 @@
 #![allow(clippy::missing_errors_doc)] // Reason: test helpers
 #![allow(missing_docs)] // Reason: test code
 
+#[cfg(feature = "federation")]
 use axum::http::HeaderMap;
-use fraiseql_server::{config::tracing::TracingConfig, tracing_utils::extract_trace_context};
+use fraiseql_server::config::tracing::TracingConfig;
+#[cfg(feature = "federation")]
+use fraiseql_server::tracing_utils::extract_trace_context;
 
 // --- TracingConfig deserialization ---
 
@@ -77,7 +80,10 @@ fn tracing_config_disabled() {
 }
 
 // --- W3C Trace Context extraction ---
+// These tests require the `federation` feature because without it
+// `extract_trace_context` returns `Option<()>` (no trace fields).
 
+#[cfg(feature = "federation")]
 #[test]
 fn extract_valid_traceparent() {
     let mut headers = HeaderMap::new();
@@ -92,6 +98,7 @@ fn extract_valid_traceparent() {
     assert_eq!(ctx.trace_flags, "01");
 }
 
+#[cfg(feature = "federation")]
 #[test]
 fn extract_traceparent_unsampled() {
     let mut headers = HeaderMap::new();
@@ -106,12 +113,14 @@ fn extract_traceparent_unsampled() {
     assert_eq!(ctx.trace_flags, "00");
 }
 
+#[cfg(feature = "federation")]
 #[test]
 fn extract_missing_traceparent_returns_none() {
     let headers = HeaderMap::new();
     assert!(extract_trace_context(&headers).is_none());
 }
 
+#[cfg(feature = "federation")]
 #[test]
 fn extract_invalid_traceparent_returns_none() {
     let mut headers = HeaderMap::new();
@@ -119,6 +128,7 @@ fn extract_invalid_traceparent_returns_none() {
     assert!(extract_trace_context(&headers).is_none());
 }
 
+#[cfg(feature = "federation")]
 #[test]
 fn extract_short_traceparent_still_parses() {
     // The parser only checks for 4 dash-separated parts and version "00".
@@ -131,6 +141,7 @@ fn extract_short_traceparent_still_parses() {
     assert_eq!(ctx.trace_flags, "01");
 }
 
+#[cfg(feature = "federation")]
 #[test]
 fn extract_wrong_version_traceparent_returns_none() {
     let mut headers = HeaderMap::new();
@@ -142,6 +153,7 @@ fn extract_wrong_version_traceparent_returns_none() {
     assert!(extract_trace_context(&headers).is_none());
 }
 
+#[cfg(feature = "federation")]
 #[test]
 fn extract_empty_traceparent_returns_none() {
     let mut headers = HeaderMap::new();

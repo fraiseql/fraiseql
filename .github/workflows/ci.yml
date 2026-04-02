@@ -310,7 +310,7 @@ jobs:
           mysql -h 127.0.0.1 -P 3307 -u fraiseql_test -pfraiseql_test_password test_fraiseql < tests/sql/mysql/init.sql
 
       - name: Run MySQL integration tests
-        run: cargo test -p fraiseql-core --features "test-mysql" --test multi_database_integration -- --test-threads=1
+        run: cargo test -p fraiseql-core --features "test-mysql" --test integration -- multi_database_integration --test-threads=1
         env:
           MYSQL_URL: mysql://fraiseql_test:fraiseql_test_password@localhost:3307/test_fraiseql
           RUST_LOG: debug
@@ -328,7 +328,7 @@ jobs:
         uses: ./.github/actions/setup-rust
 
       - name: Run SQLite integration tests
-        run: cargo test -p fraiseql-core --features "sqlite" --test multi_database_integration sqlite
+        run: cargo test -p fraiseql-core --features "sqlite" --test integration -- multi_database_integration::sqlite
         env:
           RUST_LOG: debug
 
@@ -371,7 +371,7 @@ jobs:
         run: /opt/mssql-tools18/bin/sqlcmd -S localhost,1434 -U sa -P 'FraiseQL_Test1234' -C -i tests/sql/sqlserver/init.sql
 
       - name: Run SQL Server integration tests
-        run: cargo test -p fraiseql-core --features "test-sqlserver" --test multi_database_integration -- --test-threads=1
+        run: cargo test -p fraiseql-core --features "test-sqlserver" --test integration -- multi_database_integration --test-threads=1
         env:
           SQLSERVER_URL: "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true"
           RUST_LOG: debug
@@ -508,7 +508,8 @@ jobs:
       - name: Run cross-database parity tests
         run: |
           cargo nextest run \
-            --test cross_database_test \
+            --test integration \
+            -E 'test(cross_database_test)' \
             --run-ignored all \
             --features test-mysql,test-postgres \
             -p fraiseql-core
@@ -784,6 +785,7 @@ jobs:
         env:
           VAULT_ADDR: http://localhost:8200
           VAULT_TOKEN: fraiseql-test-token
+          FRAISEQL_VAULT_ALLOW_INSECURE: "true"
           RUST_LOG: debug
 
       - name: Show Vault logs on failure
