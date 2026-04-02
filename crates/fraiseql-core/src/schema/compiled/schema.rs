@@ -1216,6 +1216,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "federation")]
     fn federation_metadata_some_when_enabled() {
         let mut schema = CompiledSchema::new();
         schema.federation = Some(FederationConfig {

@@ -110,19 +110,17 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Window(query_name) => {
                 self.execute_window_dispatch(&query_name, variables).await
             },
-            QueryType::Federation(_query_name) => {
-                #[cfg(feature = "federation")]
-                {
-                    self.execute_federation_query(&query_name, query, variables).await
-                }
-                #[cfg(not(feature = "federation"))]
-                {
-                    let _ = (query, variables);
-                    Err(FraiseQLError::Validation {
-                        message: "Federation is not enabled in this build".to_string(),
-                        path: None,
-                    })
-                }
+            #[cfg(feature = "federation")]
+            QueryType::Federation(query_name) => {
+                self.execute_federation_query(&query_name, query, variables).await
+            },
+            #[cfg(not(feature = "federation"))]
+            QueryType::Federation(_) => {
+                let _ = (query, variables);
+                Err(FraiseQLError::Validation {
+                    message: "Federation is not enabled in this build".to_string(),
+                    path: None,
+                })
             },
             QueryType::IntrospectionSchema => {
                 // Return pre-built __schema response (zero-cost at runtime)

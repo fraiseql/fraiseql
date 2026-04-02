@@ -65,7 +65,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
         #[cfg(not(feature = "federation"))]
-        let _circuit_breaker: Option<()> = None;
+        let circuit_breaker: Option<()> = None;
         #[cfg(not(feature = "federation"))]
         let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
@@ -169,7 +169,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
         #[cfg(not(feature = "federation"))]
-        let _circuit_breaker: Option<()> = None;
+        let circuit_breaker: Option<()> = None;
         #[cfg(not(feature = "federation"))]
         let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
