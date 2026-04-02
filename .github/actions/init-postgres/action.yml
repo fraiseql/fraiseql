@@ -9,6 +9,10 @@ inputs:
 runs:
   using: composite
   steps:
+    # NOTE: These are test-only credentials, not used in production.
+    # Username: fraiseql_test
+    # Password: fraiseql_test_password
+    # Database: test_fraiseql
     - name: Initialize test database schema
       shell: bash
       run: |

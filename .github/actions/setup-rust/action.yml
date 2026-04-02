@@ -23,7 +23,7 @@ runs:
         sudo apt-get install -y mold ${{ inputs.extra-packages }}
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: ${{ inputs.toolchain }}
         components: ${{ inputs.components }}

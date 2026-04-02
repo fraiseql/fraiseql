@@ -2,12 +2,12 @@ name: Changelog Check
 
 on:
   pull_request:
-    branches: [dev]
+    branches: [dev, main]
+    types: [opened, synchronize, reopened]
 
 jobs:
   changelog-check:
     name: Changelog Up-to-Date
-    if: startsWith(github.head_ref, 'chore/release')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
