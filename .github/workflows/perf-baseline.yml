@@ -78,7 +78,7 @@ jobs:
       - name: Compile test schema (if available)
         run: |
           if [ -f benchmarks/load/test_schema.json ]; then
-            ./target/release/fraiseql compile benchmarks/load/test_schema.json \
+            ./target/release/fraiseql-cli compile benchmarks/load/test_schema.json \
               -o benchmarks/load/test_schema.compiled.json
           else
             echo "No test_schema.json found — creating minimal schema"
@@ -90,7 +90,7 @@ jobs:
         env:
           DATABASE_URL: postgres://fraiseql:fraiseql@localhost:5432/fraiseql_test
         run: |
-          ./target/release/fraiseql run \
+          ./target/release/fraiseql-cli run \
             benchmarks/load/test_schema.compiled.json \
             --port 8000 &
           echo $! > /tmp/fraiseql.pid

@@ -30,11 +30,29 @@ jobs:
         run: |
           echo "## 🔐 Secrets Validation" >> $GITHUB_STEP_SUMMARY
 
-          if [ -z "${{ secrets.CARGO_TOKEN }}" ]; then
-            echo "❌ CARGO_TOKEN missing" >> $GITHUB_STEP_SUMMARY
+          MISSING=0
+          for secret in CARGO_TOKEN PYPI_TOKEN NPM_TOKEN; do
+            if [ -z "${{ secrets[secret] }}" ]; then
+              echo "❌ $secret missing" >> $GITHUB_STEP_SUMMARY
+              MISSING=1
+            else
+              echo "✅ $secret present" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          # Docker Hub secrets (needed for docker-build.yml, not release.yml directly)
+          for secret in DOCKER_HUB_USERNAME DOCKER_HUB_PASSWORD GHCR_PAT; do
+            if [ -z "${{ secrets[secret] }}" ]; then
+              echo "⚠️ $secret missing (needed for Docker Hub push)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ $secret present" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          if [ "$MISSING" -eq 1 ]; then
+            echo "::error::Required secrets missing — cannot proceed with release"
             exit 1
           fi
-          echo "✅ All required secrets configured" >> $GITHUB_STEP_SUMMARY
 
       - uses: actions/checkout@v4
 
@@ -203,22 +221,18 @@ jobs:
       - name: Publish fraiseql-error
         id: publish-error
         run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Publish fraiseql-auth
         id: publish-auth
         run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Publish fraiseql-webhooks
         id: publish-webhooks
         run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Publish fraiseql-wire
         id: publish-wire
         run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 1)
         run: sleep 60
@@ -227,7 +241,6 @@ jobs:
       - name: Publish fraiseql-db
         id: publish-db
         run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 2)
         run: sleep 60
@@ -236,7 +249,6 @@ jobs:
       - name: Publish fraiseql-federation
         id: publish-federation
         run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 3)
         run: sleep 60
@@ -245,7 +257,6 @@ jobs:
       - name: Publish fraiseql-core
         id: publish-core
         run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 4)
         run: sleep 60
@@ -254,12 +265,10 @@ jobs:
       - name: Publish fraiseql-arrow
         id: publish-arrow
         run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Publish fraiseql-secrets
         id: publish-secrets
         run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 5)
         run: sleep 60
@@ -268,7 +277,6 @@ jobs:
       - name: Publish fraiseql-observers
         id: publish-observers
         run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 6)
         run: sleep 60
@@ -277,7 +285,6 @@ jobs:
       - name: Publish fraiseql-server
         id: publish-server
         run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 7)
         run: sleep 60
@@ -286,7 +293,6 @@ jobs:
       - name: Publish fraiseql-cli
         id: publish-cli
         run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
 
       - name: Wait for crates.io indexing (Tier 8)
         run: sleep 60
@@ -295,7 +301,23 @@ jobs:
       - name: Publish fraiseql (root crate)
         id: publish-root
         run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
-        continue-on-error: true
+
+      - name: Verify all crates published
+        if: always()
+        run: |
+          FAILED=0
+          for step in publish-error publish-auth publish-webhooks publish-wire publish-db publish-federation publish-core publish-arrow publish-secrets publish-observers publish-server publish-cli publish-root; do
+            outcome=$(echo "${{ steps[$step].outcome }}")
+            if [ "$outcome" != "success" ]; then
+              echo "❌ $step: $outcome"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::One or more crates failed to publish"
+            exit 1
+          fi
+          echo "✅ All crates published successfully"
 
       - name: Report crates.io publishing results
         if: always()
@@ -349,7 +371,6 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: twine upload dist/* --skip-existing
-        continue-on-error: true
 
       - name: Validate PyPI package
         id: validate-pypi
@@ -401,7 +422,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
-        continue-on-error: true
 
       - name: Validate npm package
         id: validate-npm

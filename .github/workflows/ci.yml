@@ -302,6 +302,9 @@ jobs:
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
 
+      - name: Install MySQL client
+        run: sudo apt-get update && sudo apt-get install -y default-mysql-client
+
       - name: Initialize MySQL test database schema
         run: |
           mysql -h 127.0.0.1 -P 3307 -u fraiseql_test -pfraiseql_test_password test_fraiseql < tests/sql/mysql/init.sql
@@ -510,6 +513,8 @@ jobs:
             --features test-mysql,test-postgres \
             -p fraiseql-core
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          MYSQL_URL: mysql://root:@localhost:3306/test
           RUST_LOG: warn
 
   # Integration tests for Redis (APQ storage, observer queue and lease)

@@ -24,7 +24,7 @@ jobs:
           docker pull gcr.io/distroless/python3-debian12:nonroot
 
       - name: Scan python:3.13-slim
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           scan-type: 'image'
           scan-ref: 'python:3.13-slim'
@@ -35,7 +35,7 @@ jobs:
         continue-on-error: true
 
       - name: Scan gcr.io/distroless/python3-debian12:nonroot
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           scan-type: 'image'
           scan-ref: 'gcr.io/distroless/python3-debian12:nonroot'
