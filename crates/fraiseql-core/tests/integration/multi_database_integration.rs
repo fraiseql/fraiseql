@@ -28,10 +28,13 @@
 use std::sync::Arc;
 
 #[cfg(feature = "mysql")]
+#[allow(unused_imports)] // Reason: imported by conditional feature gate; used when test-mysql is enabled
 use fraiseql_core::db::mysql::MySqlAdapter;
 #[cfg(feature = "sqlite")]
+#[allow(unused_imports)] // Reason: imported by conditional feature gate; used when test-sqlite is enabled
 use fraiseql_core::db::sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]
+#[allow(unused_imports)] // Reason: imported by conditional feature gate; used when test-sqlserver is enabled
 use fraiseql_core::db::sqlserver::SqlServerAdapter;
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 use fraiseql_core::db::traits::DatabaseAdapter;

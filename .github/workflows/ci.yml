@@ -72,7 +72,7 @@ jobs:
         # compile database integration test code that requires infrastructure not
         # available on CI lint runners.
         # SYNC:CORE_FEATURES — keep in sync with other SYNC:CORE_FEATURES locations
-        run: cargo clippy --all-targets --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" -- -D warnings
+        run: cargo clippy --all-targets --features "arrow,federation,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend" -- -D warnings
 
       - name: Check unwrap allow drift
         run: make lint-unwrap UNWRAP_ALLOW_LIMIT=3
