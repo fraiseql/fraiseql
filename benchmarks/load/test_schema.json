@@ -1,0 +1,62 @@
+{
+  "$schema": "https://fraiseql.dev/schema/v2.json",
+  "version": "2.0",
+  "types": [
+    {
+      "name": "User",
+      "description": "A user in the system.",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "name", "type": "String", "nullable": false},
+        {"name": "email", "type": "String", "nullable": false},
+        {"name": "roles", "type": "String", "nullable": true, "list": true}
+      ]
+    },
+    {
+      "name": "Post",
+      "description": "A blog post.",
+      "fields": [
+        {"name": "id", "type": "String", "nullable": false},
+        {"name": "title", "type": "String", "nullable": false},
+        {"name": "author", "type": "User", "nullable": true},
+        {"name": "published", "type": "Boolean", "nullable": false}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "users",
+      "description": "Get all users.",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "first", "type": "Int", "nullable": true, "default": 10}
+      ],
+      "sql_source": "v_user"
+    },
+    {
+      "name": "user",
+      "description": "Get a user by ID.",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {"name": "id", "type": "String", "nullable": false}
+      ],
+      "sql_source": "v_user"
+    },
+    {
+      "name": "posts",
+      "description": "Get all posts.",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {"name": "first", "type": "Int", "nullable": true, "default": 10}
+      ],
+      "sql_source": "v_post"
+    }
+  ],
+  "mutations": []
+}
