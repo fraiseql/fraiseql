@@ -1,5 +1,6 @@
 //! Application router construction and route registration.
 
+#[cfg(any(feature = "auth", feature = "mcp", feature = "observers"))]
 use std::sync::Arc;
 
 use axum::{

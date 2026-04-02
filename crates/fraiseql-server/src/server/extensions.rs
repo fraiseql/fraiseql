@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
-#[cfg(feature = "arrow")]
+#[cfg(all(feature = "arrow", feature = "auth"))]
 use fraiseql_core::security::OidcValidator;
 use fraiseql_core::{
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
@@ -21,7 +21,9 @@ use tracing::warn;
 #[cfg(feature = "observers")]
 use super::{ObserverRuntime, ObserverRuntimeConfig};
 #[cfg(feature = "arrow")]
-use super::{RateLimiter, ServerError};
+use super::RateLimiter;
+#[cfg(all(feature = "arrow", feature = "auth"))]
+use super::ServerError;
 use super::{Result, Server, ServerConfig};
 
 impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -169,24 +171,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             crate::federation::circuit_breaker::FederationCircuitBreakerManager::from_config,
         );
         #[cfg(not(feature = "federation"))]
-        let circuit_breaker: Option<()> = None;
+        let _circuit_breaker: Option<()> = None;
         #[cfg(not(feature = "federation"))]
         let _ = &schema.federation;
         let error_sanitizer = Self::error_sanitizer_from_schema(&schema);
         #[cfg(feature = "auth")]
         let state_encryption = Self::state_encryption_from_schema(&schema)?;
         #[cfg(not(feature = "auth"))]
-        let state_encryption: Option<
+        let _state_encryption: Option<
             std::sync::Arc<crate::auth::state_encryption::StateEncryptionService>,
         > = None;
         #[cfg(feature = "auth")]
         let pkce_store = Self::pkce_store_from_schema(&schema, state_encryption.as_ref()).await;
         #[cfg(not(feature = "auth"))]
-        let pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
+        let _pkce_store: Option<std::sync::Arc<crate::auth::PkceStateStore>> = None;
         #[cfg(feature = "auth")]
         let oidc_server_client = Self::oidc_server_client_from_schema(&schema);
         #[cfg(not(feature = "auth"))]
-        let oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
+        let _oidc_server_client: Option<std::sync::Arc<crate::auth::OidcServerClient>> = None;
         let schema_rate_limiter = Self::rate_limiter_from_schema(&schema).await;
         let api_key_authenticator = crate::api_key::api_key_authenticator_from_schema(&schema);
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
@@ -210,7 +212,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
         #[cfg(not(feature = "auth"))]
-        let oidc_validator = None;
+        let oidc_validator: Option<Arc<fraiseql_core::security::OidcValidator>> = None;
 
         // Initialize rate limiter: compiled schema config takes priority over server config.
         let rate_limiter = if let Some(rl) = schema_rate_limiter {
