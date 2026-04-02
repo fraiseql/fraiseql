@@ -18,7 +18,7 @@ pub enum NotificationError {
         /// Name of the notification provider (e.g. `"sendgrid"`, `"twilio"`).
         provider: String,
         /// Error message from the provider (kept server-side; not forwarded to clients).
-        message:  String,
+        message: String,
     },
 
     /// The notification provider is temporarily unreachable or returning
@@ -26,7 +26,7 @@ pub enum NotificationError {
     #[error("Provider unavailable: {provider}")]
     ProviderUnavailable {
         /// Name of the provider that is unavailable.
-        provider:    String,
+        provider: String,
         /// How long to wait before retrying, if the provider indicated a backoff.
         retry_after: Option<Duration>,
     },
@@ -52,7 +52,7 @@ pub enum NotificationError {
         /// Name of the provider that applied the rate limit.
         provider: String,
         /// Number of seconds to wait before retrying.
-        seconds:  u64,
+        seconds: u64,
     },
 
     /// The circuit breaker for this provider is open because too many recent
@@ -63,7 +63,7 @@ pub enum NotificationError {
     #[error("Circuit breaker open for provider: {provider}")]
     CircuitOpen {
         /// Name of the provider whose circuit is open.
-        provider:    String,
+        provider: String,
         /// How long to wait before the circuit transitions to half-open.
         retry_after: Duration,
     },

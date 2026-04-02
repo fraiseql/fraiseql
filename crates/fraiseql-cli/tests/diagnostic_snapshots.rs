@@ -46,7 +46,7 @@ fn schema_with_federation_entity() -> TomlSchema {
         ..TomlSchema::default()
     };
     schema.federation.entities.push(FederationEntity {
-        name:       "Product".to_string(),
+        name: "Product".to_string(),
         key_fields: vec!["id".to_string()],
     });
     schema
@@ -122,9 +122,9 @@ fn diagnostic_query_type_typo_suggests_correction() {
 fn diagnostic_field_auth_undefined_policy() {
     let mut schema = base_schema_with_user();
     schema.security.field_auth.push(FieldAuthRule {
-        type_name:  "User".to_string(),
+        type_name: "User".to_string(),
         field_name: "email".to_string(),
-        policy:     "admin_only".to_string(),
+        policy: "admin_only".to_string(),
     });
     // No policies defined — should fail
 
@@ -140,20 +140,20 @@ fn diagnostic_field_auth_undefined_policy() {
 fn diagnostic_field_auth_policy_typo_suggests_correction() {
     let mut schema = base_schema_with_user();
     schema.security.policies.push(AuthorizationPolicy {
-        name:              "admin_only".to_string(),
-        policy_type:       "RBAC".to_string(),
-        rule:              None,
-        roles:             vec!["admin".to_string()],
-        strategy:          None,
-        attributes:        vec![],
-        description:       None,
+        name: "admin_only".to_string(),
+        policy_type: "RBAC".to_string(),
+        rule: None,
+        roles: vec!["admin".to_string()],
+        strategy: None,
+        attributes: vec![],
+        description: None,
         cache_ttl_seconds: None,
     });
     // Typo: "admin_onyl" — edit distance 2 from "admin_only"
     schema.security.field_auth.push(FieldAuthRule {
-        type_name:  "User".to_string(),
+        type_name: "User".to_string(),
         field_name: "email".to_string(),
-        policy:     "admin_onyl".to_string(),
+        policy: "admin_onyl".to_string(),
     });
 
     let err = schema.validate().unwrap_err();
@@ -168,7 +168,7 @@ fn diagnostic_field_auth_policy_typo_suggests_correction() {
 fn diagnostic_federation_entity_undefined_type() {
     let mut schema = base_schema_with_user();
     schema.federation.entities.push(FederationEntity {
-        name:       "Product".to_string(),
+        name: "Product".to_string(),
         key_fields: vec!["id".to_string()],
     });
 
@@ -375,10 +375,10 @@ fn diagnostic_circuit_breaker_per_database_unknown_entity() {
     let mut schema = schema_with_federation_entity();
     schema.federation.circuit_breaker = Some(FederationCircuitBreakerConfig {
         per_database: vec![PerDatabaseCircuitBreakerOverride {
-            database:              "NonExistent".to_string(),
-            failure_threshold:     Some(3),
+            database: "NonExistent".to_string(),
+            failure_threshold: Some(3),
             recovery_timeout_secs: None,
-            success_threshold:     None,
+            success_threshold: None,
         }],
         ..FederationCircuitBreakerConfig::default()
     });
@@ -396,10 +396,10 @@ fn diagnostic_circuit_breaker_per_database_zero_failure_threshold() {
     let mut schema = schema_with_federation_entity();
     schema.federation.circuit_breaker = Some(FederationCircuitBreakerConfig {
         per_database: vec![PerDatabaseCircuitBreakerOverride {
-            database:              "Product".to_string(),
-            failure_threshold:     Some(0),
+            database: "Product".to_string(),
+            failure_threshold: Some(0),
             recovery_timeout_secs: None,
-            success_threshold:     None,
+            success_threshold: None,
         }],
         ..FederationCircuitBreakerConfig::default()
     });
@@ -417,10 +417,10 @@ fn diagnostic_circuit_breaker_per_database_zero_recovery_timeout() {
     let mut schema = schema_with_federation_entity();
     schema.federation.circuit_breaker = Some(FederationCircuitBreakerConfig {
         per_database: vec![PerDatabaseCircuitBreakerOverride {
-            database:              "Product".to_string(),
-            failure_threshold:     None,
+            database: "Product".to_string(),
+            failure_threshold: None,
             recovery_timeout_secs: Some(0),
-            success_threshold:     None,
+            success_threshold: None,
         }],
         ..FederationCircuitBreakerConfig::default()
     });
@@ -438,10 +438,10 @@ fn diagnostic_circuit_breaker_per_database_zero_success_threshold() {
     let mut schema = schema_with_federation_entity();
     schema.federation.circuit_breaker = Some(FederationCircuitBreakerConfig {
         per_database: vec![PerDatabaseCircuitBreakerOverride {
-            database:              "Product".to_string(),
-            failure_threshold:     None,
+            database: "Product".to_string(),
+            failure_threshold: None,
             recovery_timeout_secs: None,
-            success_threshold:     Some(0),
+            success_threshold: Some(0),
         }],
         ..FederationCircuitBreakerConfig::default()
     });
@@ -542,9 +542,9 @@ fn diagnostic_security_role_empty_name() {
     config
         .role_definitions
         .push(fraiseql_cli::config::security::RoleDefinitionConfig {
-            name:        String::new(),
+            name: String::new(),
             description: None,
-            scopes:      vec!["read:*".to_string()],
+            scopes: vec!["read:*".to_string()],
         });
 
     let err = config.validate().unwrap_err();
@@ -561,9 +561,9 @@ fn diagnostic_security_role_no_scopes() {
     config
         .role_definitions
         .push(fraiseql_cli::config::security::RoleDefinitionConfig {
-            name:        "viewer".to_string(),
+            name: "viewer".to_string(),
             description: None,
-            scopes:      vec![],
+            scopes: vec![],
         });
 
     let err = config.validate().unwrap_err();
@@ -603,7 +603,7 @@ fn diagnostic_federation_entity_typo_suggests_correction() {
     let mut schema = base_schema_with_user();
     // "Usar" is close to "User"
     schema.federation.entities.push(FederationEntity {
-        name:       "Usar".to_string(),
+        name: "Usar".to_string(),
         key_fields: vec!["id".to_string()],
     });
 

@@ -115,12 +115,12 @@ fn check_missing_auth_directives(schema: &Value, audit: &mut DesignAudit) {
                                 field.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
 
                             audit.auth_issues.push(AuthIssue {
-                                severity:       IssueSeverity::Warning,
-                                message:        format!(
+                                severity: IssueSeverity::Warning,
+                                message: format!(
                                     "{}.{} is not protected by auth directive",
                                     type_name, field_name
                                 ),
-                                suggestion:     "Add @auth directive or authentication requirement"
+                                suggestion: "Add @auth directive or authentication requirement"
                                     .to_string(),
                                 affected_field: Some(field_name.to_string()),
                             });

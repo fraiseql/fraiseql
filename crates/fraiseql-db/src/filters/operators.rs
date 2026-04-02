@@ -111,9 +111,9 @@ pub enum ExtendedOperator {
     /// Coordinates: Distance within radius (km)
     CoordinatesDistanceWithin {
         /// Center point latitude in degrees (-90.0 to 90.0).
-        lat:       f64,
+        lat: f64,
         /// Center point longitude in degrees (-180.0 to 180.0).
-        lng:       f64,
+        lng: f64,
         /// Search radius in kilometers.
         radius_km: f64,
     },
@@ -124,9 +124,9 @@ pub enum ExtendedOperator {
         /// Southern boundary latitude in degrees.
         south: f64,
         /// Eastern boundary longitude in degrees.
-        east:  f64,
+        east: f64,
         /// Western boundary longitude in degrees.
-        west:  f64,
+        west: f64,
     },
     /// Coordinates: Within polygon (list of lat/lng pairs)
     CoordinatesWithinPolygon(Vec<(f64, f64)>),

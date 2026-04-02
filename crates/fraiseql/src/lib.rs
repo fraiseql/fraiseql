@@ -66,11 +66,11 @@ pub use fraiseql_arrow as arrow;
 pub use fraiseql_cli as cli;
 pub use fraiseql_core::{CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext};
 // Re-export core modules for namespaced access
+#[cfg(feature = "federation")]
+pub use fraiseql_core::federation;
 pub use fraiseql_core::{
     apq, cache, compiler, db, graphql, runtime, schema, security, tenancy, validation,
 };
-#[cfg(feature = "federation")]
-pub use fraiseql_core::federation;
 // Re-export error types
 pub use fraiseql_error::{AuthError, ConfigError, FileError, RuntimeError, WebhookError};
 #[cfg(feature = "observers")]

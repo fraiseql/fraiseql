@@ -17,9 +17,9 @@ use tokio::{net::TcpListener, sync::oneshot};
 /// An in-process HTTP server bound to an ephemeral port for integration testing.
 pub struct TestServer {
     /// Base URL of the running server (e.g., `"http://127.0.0.1:12345"`).
-    pub url:   String,
+    pub url: String,
     /// Bound port.
-    pub port:  u16,
+    pub port: u16,
     // Dropping this sender triggers graceful shutdown via the oneshot channel.
     _shutdown: oneshot::Sender<()>,
 }

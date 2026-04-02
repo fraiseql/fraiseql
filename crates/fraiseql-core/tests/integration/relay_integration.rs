@@ -127,10 +127,10 @@ impl DatabaseAdapter for RelayMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  3,
+            total_connections: 3,
             active_connections: 1,
-            idle_connections:   2,
-            waiting_requests:   0,
+            idle_connections: 2,
+            waiting_requests: 0,
         }
     }
 
@@ -725,10 +725,10 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  1,
-            idle_connections:   1,
+            total_connections: 1,
+            idle_connections: 1,
             active_connections: 0,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -1048,14 +1048,14 @@ mod relay_security {
     /// A relay mock adapter that records the WHERE clause passed to
     /// `execute_relay_page`, so tests can assert RLS/inject composition.
     struct RecordingRelayAdapter {
-        rows:           Vec<JsonbValue>,
+        rows: Vec<JsonbValue>,
         recorded_where: Mutex<Vec<Option<String>>>,
     }
 
     impl RecordingRelayAdapter {
         fn new() -> Self {
             Self {
-                rows:           vec![alice(), bob(), carol()],
+                rows: vec![alice(), bob(), carol()],
                 recorded_where: Mutex::new(Vec::new()),
             }
         }
@@ -1102,10 +1102,10 @@ mod relay_security {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections:  1,
+                total_connections: 1,
                 active_connections: 1,
-                idle_connections:   0,
-                waiting_requests:   0,
+                idle_connections: 0,
+                waiting_requests: 0,
             }
         }
 
@@ -1190,33 +1190,33 @@ mod relay_security {
 
     fn security_context(user_id: &str, tenant_id: &str) -> SecurityContext {
         SecurityContext {
-            user_id:          user_id.to_string(),
-            roles:            vec!["user".to_string()],
-            tenant_id:        Some(tenant_id.to_string()),
-            scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "test-req".to_string(),
-            ip_address:       None,
+            user_id: user_id.to_string(),
+            roles: vec!["user".to_string()],
+            tenant_id: Some(tenant_id.to_string()),
+            scopes: vec![],
+            attributes: HashMap::new(),
+            request_id: "test-req".to_string(),
+            ip_address: None,
             authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
         }
     }
 
     fn admin_context() -> SecurityContext {
         SecurityContext {
-            user_id:          "admin-1".to_string(),
-            roles:            vec!["admin".to_string()],
-            tenant_id:        Some("tenant-abc".to_string()),
-            scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "test-admin-req".to_string(),
-            ip_address:       None,
+            user_id: "admin-1".to_string(),
+            roles: vec!["admin".to_string()],
+            tenant_id: Some("tenant-abc".to_string()),
+            scopes: vec![],
+            attributes: HashMap::new(),
+            request_id: "test-admin-req".to_string(),
+            ip_address: None,
             authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
         }
     }
 

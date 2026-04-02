@@ -15,7 +15,7 @@ use crate::{
 /// Supports both Auth0 rules and custom claim mapping.
 #[derive(Debug)]
 pub struct Auth0OAuth {
-    oidc:   OidcProvider,
+    oidc: OidcProvider,
     domain: String,
 }
 
@@ -23,19 +23,19 @@ pub struct Auth0OAuth {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Auth0User {
     /// Subject — unique user identifier (`sub` claim)
-    pub sub:            String,
+    pub sub: String,
     /// User's primary email address
-    pub email:          String,
+    pub email: String,
     /// Whether the email address has been verified
     pub email_verified: Option<bool>,
     /// User's full display name
-    pub name:           Option<String>,
+    pub name: Option<String>,
     /// URL of the user's profile picture
-    pub picture:        Option<String>,
+    pub picture: Option<String>,
     /// User's locale (e.g., `"en-US"`)
-    pub locale:         Option<String>,
+    pub locale: Option<String>,
     /// Auth0 nickname (usually the part before `@` in the email)
-    pub nickname:       Option<String>,
+    pub nickname: Option<String>,
 }
 
 /// Auth0 roles claim

@@ -192,10 +192,10 @@ pub trait BaseKmsProvider: Send + Sync {
             })?;
 
         Ok(RotationPolicy {
-            enabled:              policy.enabled,
+            enabled: policy.enabled,
             rotation_period_days: policy.rotation_period_days,
-            last_rotation:        policy.last_rotation,
-            next_rotation:        policy.next_rotation,
+            last_rotation: policy.last_rotation,
+            next_rotation: policy.next_rotation,
         })
     }
 
@@ -270,7 +270,7 @@ pub type ArcKmsProvider = std::sync::Arc<dyn BaseKmsProvider>;
 #[derive(Debug, Clone)]
 pub struct KeyInfo {
     /// Human-readable alias for the key, if one is configured in the provider.
-    pub alias:      Option<String>,
+    pub alias: Option<String>,
     /// Unix timestamp (seconds) when the key was created.
     pub created_at: i64,
 }
@@ -279,13 +279,13 @@ pub struct KeyInfo {
 #[derive(Debug, Clone)]
 pub struct RotationPolicyInfo {
     /// Whether automatic rotation is enabled for this key.
-    pub enabled:              bool,
+    pub enabled: bool,
     /// How often the key is rotated, expressed in days.
     pub rotation_period_days: u32,
     /// Unix timestamp (seconds) of the most recent rotation, if any.
-    pub last_rotation:        Option<i64>,
+    pub last_rotation: Option<i64>,
     /// Unix timestamp (seconds) when the next rotation is scheduled, if known.
-    pub next_rotation:        Option<i64>,
+    pub next_rotation: Option<i64>,
 }
 
 #[cfg(test)]

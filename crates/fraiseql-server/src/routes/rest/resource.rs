@@ -70,15 +70,15 @@ pub enum RouteSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestRoute {
     /// HTTP method.
-    pub method:          HttpMethod,
+    pub method: HttpMethod,
     /// Path relative to the REST base (e.g., `/users` or `/users/{id}`).
-    pub path:            String,
+    pub path: String,
     /// The operation backing this route.
-    pub source:          RouteSource,
+    pub source: RouteSource,
     /// For Update mutations, the coverage classification.
     pub update_coverage: Option<UpdateCoverage>,
     /// Expected successful HTTP status code.
-    pub success_status:  u16,
+    pub success_status: u16,
 }
 
 /// A REST resource groups routes under a common base path derived from a
@@ -86,22 +86,22 @@ pub struct RestRoute {
 #[derive(Debug, Clone)]
 pub struct RestResource {
     /// Resource base name (e.g., `users`).
-    pub name:      String,
+    pub name: String,
     /// GraphQL return type name (e.g., `User`).
     pub type_name: String,
     /// Name of the ID argument for single-resource routes (e.g., `id`).
-    pub id_arg:    Option<String>,
+    pub id_arg: Option<String>,
     /// Routes for this resource.
-    pub routes:    Vec<RestRoute>,
+    pub routes: Vec<RestRoute>,
 }
 
 /// Complete route table derived from a compiled schema.
 #[derive(Debug, Clone)]
 pub struct RestRouteTable {
     /// REST base path (e.g., `/rest/v1`).
-    pub base_path:   String,
+    pub base_path: String,
     /// Resources keyed by resource name.
-    pub resources:   Vec<RestResource>,
+    pub resources: Vec<RestResource>,
     /// Diagnostics emitted during derivation.
     pub diagnostics: Vec<Diagnostic>,
 }
@@ -110,7 +110,7 @@ pub struct RestRouteTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Severity level.
-    pub level:   DiagnosticLevel,
+    pub level: DiagnosticLevel,
     /// Human-readable diagnostic message.
     pub message: String,
 }
@@ -271,7 +271,7 @@ fn derive_resource_name(
     let base = type_name_to_snake(type_name);
     let name = simple_pluralize(&base);
     diagnostics.push(Diagnostic {
-        level:   DiagnosticLevel::Info,
+        level: DiagnosticLevel::Info,
         message: format!(
             "No list query for type '{type_name}'; derived resource name '{name}' from type name"
         ),
@@ -350,7 +350,7 @@ fn detect_id_arg(
     {
         let type_name = type_def.name.as_str();
         diagnostics.push(Diagnostic {
-            level:   DiagnosticLevel::Info,
+            level: DiagnosticLevel::Info,
             message: format!(
                 "No `id` field found on '{type_name}'; using `{}` as path parameter",
                 arg.name
@@ -366,7 +366,7 @@ fn detect_id_arg(
     if let Some(pk) = type_def.fields.iter().find(|f| f.name.as_str().starts_with("pk_")) {
         let type_name = type_def.name.as_str();
         diagnostics.push(Diagnostic {
-            level:   DiagnosticLevel::Info,
+            level: DiagnosticLevel::Info,
             message: format!(
                 "No `id` field found on '{type_name}'; using `{}` as path parameter",
                 pk.name
@@ -431,23 +431,23 @@ fn derive_resource(
 
         if q.returns_list {
             routes.push(RestRoute {
-                method:          HttpMethod::Get,
-                path:            format!("/{resource_name}"),
-                source:          RouteSource::Query {
+                method: HttpMethod::Get,
+                path: format!("/{resource_name}"),
+                source: RouteSource::Query {
                     name: q.name.clone(),
                 },
                 update_coverage: None,
-                success_status:  200,
+                success_status: 200,
             });
         } else if let Some(ref id) = id_arg {
             routes.push(RestRoute {
-                method:          HttpMethod::Get,
-                path:            format!("/{resource_name}/{{{id}}}"),
-                source:          RouteSource::Query {
+                method: HttpMethod::Get,
+                path: format!("/{resource_name}/{{{id}}}"),
+                source: RouteSource::Query {
                     name: q.name.clone(),
                 },
                 update_coverage: None,
-                success_status:  200,
+                success_status: 200,
             });
         }
     }
@@ -511,19 +511,19 @@ fn derive_mutation_routes(
     match &m.operation {
         MutationOperation::Insert { .. } => {
             routes.push(RestRoute {
-                method:          HttpMethod::Post,
-                path:            format!("/{resource_name}"),
-                source:          RouteSource::Mutation {
+                method: HttpMethod::Post,
+                path: format!("/{resource_name}"),
+                source: RouteSource::Mutation {
                     name: m.name.clone(),
                 },
                 update_coverage: None,
-                success_status:  201,
+                success_status: 201,
             });
         },
         MutationOperation::Update { .. } => {
             let coverage = classify_update_coverage(m, writable_names);
             diagnostics.push(Diagnostic {
-                level:   DiagnosticLevel::Info,
+                level: DiagnosticLevel::Info,
                 message: format!(
                     "Mutation '{}' classified as {:?} coverage update for type '{type_name}'",
                     m.name, coverage
@@ -534,22 +534,22 @@ fn derive_mutation_routes(
                 UpdateCoverage::Full => {
                     if let Some(id) = id_arg {
                         routes.push(RestRoute {
-                            method:          HttpMethod::Put,
-                            path:            format!("/{resource_name}/{{{id}}}"),
-                            source:          RouteSource::Mutation {
+                            method: HttpMethod::Put,
+                            path: format!("/{resource_name}/{{{id}}}"),
+                            source: RouteSource::Mutation {
                                 name: m.name.clone(),
                             },
                             update_coverage: Some(UpdateCoverage::Full),
-                            success_status:  200,
+                            success_status: 200,
                         });
                         routes.push(RestRoute {
-                            method:          HttpMethod::Patch,
-                            path:            format!("/{resource_name}/{{{id}}}"),
-                            source:          RouteSource::Mutation {
+                            method: HttpMethod::Patch,
+                            path: format!("/{resource_name}/{{{id}}}"),
+                            source: RouteSource::Mutation {
                                 name: m.name.clone(),
                             },
                             update_coverage: Some(UpdateCoverage::Full),
-                            success_status:  200,
+                            success_status: 200,
                         });
                     }
                 },
@@ -557,13 +557,13 @@ fn derive_mutation_routes(
                     let action = derive_action_name(&m.name, type_name);
                     if let Some(id) = id_arg {
                         routes.push(RestRoute {
-                            method:          HttpMethod::Patch,
-                            path:            format!("/{resource_name}/{{{id}}}/{action}"),
-                            source:          RouteSource::Mutation {
+                            method: HttpMethod::Patch,
+                            path: format!("/{resource_name}/{{{id}}}/{action}"),
+                            source: RouteSource::Mutation {
                                 name: m.name.clone(),
                             },
                             update_coverage: Some(UpdateCoverage::Partial),
-                            success_status:  200,
+                            success_status: 200,
                         });
                     }
                 },
@@ -577,13 +577,13 @@ fn derive_mutation_routes(
             };
             if let Some(id) = id_arg {
                 routes.push(RestRoute {
-                    method:          HttpMethod::Delete,
-                    path:            format!("/{resource_name}/{{{id}}}"),
-                    source:          RouteSource::Mutation {
+                    method: HttpMethod::Delete,
+                    path: format!("/{resource_name}/{{{id}}}"),
+                    source: RouteSource::Mutation {
                         name: m.name.clone(),
                     },
                     update_coverage: None,
-                    success_status:  status,
+                    success_status: status,
                 });
             }
         },
@@ -591,23 +591,23 @@ fn derive_mutation_routes(
             let action = derive_action_name(&m.name, type_name);
             if let Some(id) = id_arg {
                 routes.push(RestRoute {
-                    method:          HttpMethod::Post,
-                    path:            format!("/{resource_name}/{{{id}}}/{action}"),
-                    source:          RouteSource::Mutation {
+                    method: HttpMethod::Post,
+                    path: format!("/{resource_name}/{{{id}}}/{action}"),
+                    source: RouteSource::Mutation {
                         name: m.name.clone(),
                     },
                     update_coverage: None,
-                    success_status:  200,
+                    success_status: 200,
                 });
             } else {
                 routes.push(RestRoute {
-                    method:          HttpMethod::Post,
-                    path:            format!("/{resource_name}/{action}"),
-                    source:          RouteSource::Mutation {
+                    method: HttpMethod::Post,
+                    path: format!("/{resource_name}/{action}"),
+                    source: RouteSource::Mutation {
                         name: m.name.clone(),
                     },
                     update_coverage: None,
-                    success_status:  200,
+                    success_status: 200,
                 });
             }
         },
@@ -683,7 +683,7 @@ fn camel_to_kebab(s: &str) -> String {
 fn validate_cqrs_query(sql_source: &str, query_name: &str, diagnostics: &mut Vec<Diagnostic>) {
     if sql_source.starts_with("tb_") {
         diagnostics.push(Diagnostic {
-            level:   DiagnosticLevel::Warning,
+            level: DiagnosticLevel::Warning,
             message: format!(
                 "Query '{query_name}' reads from write table '{sql_source}' \
                  — expected `v_` or `tv_` prefix. This may indicate a CQRS violation."
@@ -708,7 +708,7 @@ fn validate_cqrs_mutation(
 
     if table.starts_with("v_") || table.starts_with("tv_") {
         diagnostics.push(Diagnostic {
-            level:   DiagnosticLevel::Warning,
+            level: DiagnosticLevel::Warning,
             message: format!(
                 "Mutation '{mutation_name}' writes to view '{table}' — expected `tb_` prefix"
             ),
@@ -723,7 +723,7 @@ fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut Vec<Diagnos
         if name.starts_with("pk_") || name.starts_with("fk_") {
             if !matches!(field.field_type, FieldType::Int | FieldType::Id) {
                 diagnostics.push(Diagnostic {
-                    level:   DiagnosticLevel::Warning,
+                    level: DiagnosticLevel::Warning,
                     message: format!(
                         "pk_/fk_ field '{name}' is {:?}, expected Int or BigInt",
                         field.field_type
@@ -732,7 +732,7 @@ fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut Vec<Diagnos
             }
         } else if name == "id" && matches!(field.field_type, FieldType::Int) {
             diagnostics.push(Diagnostic {
-                level:   DiagnosticLevel::Warning,
+                level: DiagnosticLevel::Warning,
                 message: format!(
                     "id field on '{}' is Int, expected UUID or ID",
                     type_def.name.as_str()
@@ -762,7 +762,7 @@ fn detect_conflicts(
                     route.method, route.path, prev_op, current_op
                 );
                 diagnostics.push(Diagnostic {
-                    level:   DiagnosticLevel::Error,
+                    level: DiagnosticLevel::Error,
                     message: err.clone(),
                 });
                 return Err(err);

@@ -23,13 +23,13 @@ fn base_schema_with_query(
     IntermediateSchema {
         version: "2.0.0".to_string(),
         types: vec![IntermediateType {
-            name:          query.return_type.clone(),
-            fields:        vec![],
-            description:   None,
-            implements:    vec![],
+            name: query.return_type.clone(),
+            fields: vec![],
+            description: None,
+            implements: vec![],
             requires_role: None,
-            is_error:      false,
-            relay:         false,
+            is_error: false,
+            relay: false,
         }],
         enums: vec![],
         input_types: vec![],
@@ -78,42 +78,42 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
 
 fn single_query(name: &str) -> IntermediateQuery {
     IntermediateQuery {
-        name:              name.to_string(),
-        return_type:       "Item".to_string(),
-        returns_list:      false,
-        nullable:          true,
-        arguments:         vec![],
-        description:       None,
-        sql_source:        Some("v_item".to_string()),
-        auto_params:       None,
-        deprecated:        None,
-        jsonb_column:      None,
-        relay:             false,
-        inject:            indexmap::IndexMap::default(),
+        name: name.to_string(),
+        return_type: "Item".to_string(),
+        returns_list: false,
+        nullable: true,
+        arguments: vec![],
+        description: None,
+        sql_source: Some("v_item".to_string()),
+        auto_params: None,
+        deprecated: None,
+        jsonb_column: None,
+        relay: false,
+        inject: indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
-        additional_views:  vec![],
-        requires_role:     None,
+        additional_views: vec![],
+        requires_role: None,
         relay_cursor_type: None,
     }
 }
 
 fn relay_query(name: &str) -> IntermediateQuery {
     IntermediateQuery {
-        name:              name.to_string(),
-        return_type:       "Item".to_string(),
-        returns_list:      true,
-        nullable:          false,
-        arguments:         vec![],
-        description:       None,
-        sql_source:        Some("v_item".to_string()),
-        auto_params:       None,
-        deprecated:        None,
-        jsonb_column:      None,
-        relay:             true,
-        inject:            indexmap::IndexMap::default(),
+        name: name.to_string(),
+        return_type: "Item".to_string(),
+        returns_list: true,
+        nullable: false,
+        arguments: vec![],
+        description: None,
+        sql_source: Some("v_item".to_string()),
+        auto_params: None,
+        deprecated: None,
+        jsonb_column: None,
+        relay: true,
+        inject: indexmap::IndexMap::default(),
         cache_ttl_seconds: None,
-        additional_views:  vec![],
-        requires_role:     None,
+        additional_views: vec![],
+        requires_role: None,
         relay_cursor_type: None,
     }
 }
@@ -139,9 +139,9 @@ fn test_toml_defaults_applied_to_list_query() {
     // TOML: {where:false, limit:false}; no per-query override
     let defaults = IntermediateQueryDefaults {
         where_clause: false,
-        order_by:     true,
-        limit:        false,
-        offset:       true,
+        order_by: true,
+        limit: false,
+        offset: true,
     };
     let schema = base_schema_with_query(list_query("items", None), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -158,15 +158,15 @@ fn test_per_query_partial_overrides_toml() {
     // Per-query: {where: Some(true)} — only `where` is overridden
     let defaults = IntermediateQueryDefaults {
         where_clause: false,
-        order_by:     true,
-        limit:        false,
-        offset:       true,
+        order_by: true,
+        limit: false,
+        offset: true,
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(true),
-        order_by:     None,
-        limit:        None,
-        offset:       None,
+        order_by: None,
+        limit: None,
+        offset: None,
     };
     let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -182,15 +182,15 @@ fn test_per_query_full_override_ignores_toml() {
     // All 4 flags explicitly set per-query → TOML completely bypassed
     let defaults = IntermediateQueryDefaults {
         where_clause: false,
-        order_by:     false,
-        limit:        false,
-        offset:       false,
+        order_by: false,
+        limit: false,
+        offset: false,
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(true),
-        order_by:     Some(true),
-        limit:        Some(true),
-        offset:       Some(true),
+        order_by: Some(true),
+        limit: Some(true),
+        offset: Some(true),
     };
     let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -206,9 +206,9 @@ fn test_single_item_always_none_regardless_of_toml() {
     // Single-item query with TOML defaults all-true → still all-false
     let defaults = IntermediateQueryDefaults {
         where_clause: true,
-        order_by:     true,
-        limit:        true,
-        offset:       true,
+        order_by: true,
+        limit: true,
+        offset: true,
     };
     let schema = base_schema_with_query(single_query("item"), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -224,9 +224,9 @@ fn test_relay_hardcoded_regardless_of_toml() {
     // Relay query with TOML limit=true, offset=true → still limit:false, offset:false
     let defaults = IntermediateQueryDefaults {
         where_clause: false,
-        order_by:     false,
-        limit:        true,
-        offset:       true,
+        order_by: false,
+        limit: true,
+        offset: true,
     };
     let schema = base_schema_with_query(relay_query("itemsConnection"), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -242,15 +242,15 @@ fn test_empty_auto_params_dict_inherits_toml() {
     // Empty per_query (all None) → TOML defaults apply for every field
     let defaults = IntermediateQueryDefaults {
         where_clause: false,
-        order_by:     false,
-        limit:        false,
-        offset:       false,
+        order_by: false,
+        limit: false,
+        offset: false,
     };
     let per_query = IntermediateAutoParams {
         where_clause: None,
-        order_by:     None,
-        limit:        None,
-        offset:       None,
+        order_by: None,
+        limit: None,
+        offset: None,
     };
     let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -279,15 +279,15 @@ fn test_cross_concern_per_query_some_true_wins_over_project_false() {
     // while inheriting the limit=false default from the project.
     let defaults = IntermediateQueryDefaults {
         where_clause: false,
-        order_by:     false,
-        limit:        false,
-        offset:       true,
+        order_by: false,
+        limit: false,
+        offset: true,
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(true), // explicit per-query enable
-        order_by:     None,       // inherits project false
-        limit:        None,       // inherits project false
-        offset:       None,       // inherits project true
+        order_by: None,           // inherits project false
+        limit: None,              // inherits project false
+        offset: None,             // inherits project true
     };
     let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -305,15 +305,15 @@ fn test_cross_concern_per_query_none_inherits_project_default() {
     // the outcome for every field independently.
     let defaults = IntermediateQueryDefaults {
         where_clause: true,
-        order_by:     false,
-        limit:        true,
-        offset:       false,
+        order_by: false,
+        limit: true,
+        offset: false,
     };
     let per_query = IntermediateAutoParams {
         where_clause: None,
-        order_by:     None,
-        limit:        None,
-        offset:       None,
+        order_by: None,
+        limit: None,
+        offset: None,
     };
     let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -348,15 +348,15 @@ fn test_cross_concern_per_query_some_false_wins_over_project_true() {
     // opts out of automatic where/limit while inheriting the rest.
     let defaults = IntermediateQueryDefaults {
         where_clause: true,
-        order_by:     true,
-        limit:        true,
-        offset:       true,
+        order_by: true,
+        limit: true,
+        offset: true,
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(false), // explicit disable
-        order_by:     Some(false), // explicit disable
-        limit:        None,        // inherits project true
-        offset:       None,        // inherits project true
+        order_by: Some(false),     // explicit disable
+        limit: None,               // inherits project true
+        offset: None,              // inherits project true
     };
     let schema = base_schema_with_query(list_query("items", Some(per_query)), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();

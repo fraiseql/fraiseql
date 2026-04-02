@@ -31,9 +31,9 @@ pub struct CollationConfig {
 impl Default for CollationConfig {
     fn default() -> Self {
         Self {
-            enabled:            true,
-            fallback_locale:    "en-US".to_string(),
-            allowed_locales:    vec![
+            enabled: true,
+            fallback_locale: "en-US".to_string(),
+            allowed_locales: vec![
                 "en-US".into(),
                 "en-GB".into(),
                 "fr-FR".into(),
@@ -44,7 +44,7 @@ impl Default for CollationConfig {
                 "pt-BR".into(),
                 "it-IT".into(),
             ],
-            on_invalid_locale:  InvalidLocaleStrategy::Fallback,
+            on_invalid_locale: InvalidLocaleStrategy::Fallback,
             database_overrides: None,
         }
     }
@@ -97,7 +97,7 @@ pub struct PostgresCollationConfig {
 impl Default for PostgresCollationConfig {
     fn default() -> Self {
         Self {
-            use_icu:  true,
+            use_icu: true,
             provider: "icu".to_string(),
         }
     }
@@ -117,7 +117,7 @@ impl Default for MySqlCollationConfig {
     fn default() -> Self {
         Self {
             charset: "utf8mb4".to_string(),
-            suffix:  "_unicode_ci".to_string(),
+            suffix: "_unicode_ci".to_string(),
         }
     }
 }
@@ -148,7 +148,7 @@ pub struct SqlServerCollationConfig {
 impl Default for SqlServerCollationConfig {
     fn default() -> Self {
         Self {
-            case_insensitive:   true,
+            case_insensitive: true,
             accent_insensitive: true,
         }
     }

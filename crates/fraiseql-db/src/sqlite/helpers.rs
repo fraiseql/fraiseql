@@ -87,7 +87,7 @@ pub(super) fn build_direct_mutation_sql<'a>(
             if ctx.columns.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "UPDATE mutation requires at least one argument (primary key)".into(),
-                    path:    None,
+                    path: None,
                 });
             }
             let pk_col = quote_sqlite_identifier(&ctx.columns[0]);
@@ -102,7 +102,7 @@ pub(super) fn build_direct_mutation_sql<'a>(
             if set_columns.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "UPDATE mutation requires at least one column to update".into(),
-                    path:    None,
+                    path: None,
                 });
             }
 
@@ -132,7 +132,7 @@ pub(super) fn build_direct_mutation_sql<'a>(
             if ctx.columns.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "DELETE mutation requires at least one argument (primary key)".into(),
-                    path:    None,
+                    path: None,
                 });
             }
             let pk_col = quote_sqlite_identifier(&ctx.columns[0]);

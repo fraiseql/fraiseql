@@ -26,7 +26,7 @@ fn validate_sql_expression(value: &str, context: &str) -> Result<()> {
                 "Unsafe characters in window function {context}: {value:?}. \
                  Only identifiers, JSONB path operators (-> ->>), and quoted keys are allowed."
             ),
-            path:    None,
+            path: None,
         })
     }
 }
@@ -130,7 +130,7 @@ impl WindowFunctionPlanner {
             .filter_map(|col| {
                 col.as_str().map(|col_str| SelectColumn {
                     expression: col_str.to_string(),
-                    alias:      col_str.to_string(),
+                    alias: col_str.to_string(),
                 })
             })
             .collect();

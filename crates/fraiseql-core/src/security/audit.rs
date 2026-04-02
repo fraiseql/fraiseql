@@ -72,31 +72,31 @@ impl AuditLevel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     /// Entry ID (None for new entries)
-    pub id:             Option<i64>,
+    pub id: Option<i64>,
     /// Timestamp
-    pub timestamp:      DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Log level
-    pub level:          AuditLevel,
+    pub level: AuditLevel,
     /// User ID
-    pub user_id:        i64,
+    pub user_id: i64,
     /// Tenant ID
-    pub tenant_id:      i64,
+    pub tenant_id: i64,
     /// Operation type (query, mutation)
-    pub operation:      String,
+    pub operation: String,
     /// GraphQL query string
-    pub query:          String,
+    pub query: String,
     /// Query variables (JSONB)
-    pub variables:      serde_json::Value,
+    pub variables: serde_json::Value,
     /// Client IP address
-    pub ip_address:     String,
+    pub ip_address: String,
     /// Client user agent
-    pub user_agent:     String,
+    pub user_agent: String,
     /// Error message (if any)
-    pub error:          Option<String>,
+    pub error: Option<String>,
     /// Query duration in milliseconds (optional)
-    pub duration_ms:    Option<i32>,
+    pub duration_ms: Option<i32>,
     /// SHA256 hash of previous entry (for integrity chain)
-    pub previous_hash:  Option<String>,
+    pub previous_hash: Option<String>,
     /// SHA256 hash of this entry (for integrity verification)
     pub integrity_hash: Option<String>,
 }
@@ -182,7 +182,7 @@ pub trait AuditExporter: Send + Sync {
 pub struct AuditExportConfig {
     /// Syslog export configuration (requires `audit-syslog` feature).
     #[serde(default)]
-    pub syslog:  Option<SyslogExportConfig>,
+    pub syslog: Option<SyslogExportConfig>,
     /// Webhook export configuration (requires `audit-webhook` feature).
     #[serde(default)]
     pub webhook: Option<WebhookExportConfig>,
@@ -192,10 +192,10 @@ pub struct AuditExportConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyslogExportConfig {
     /// Syslog server hostname or IP.
-    pub address:  String,
+    pub address: String,
     /// Syslog server port (default: 514).
     #[serde(default = "default_syslog_port")]
-    pub port:     u16,
+    pub port: u16,
     /// Transport protocol: "tcp" or "udp" (default: "udp").
     #[serde(default = "default_syslog_protocol")]
     pub protocol: String,
@@ -205,13 +205,13 @@ pub struct SyslogExportConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebhookExportConfig {
     /// Webhook URL (must be HTTPS).
-    pub url:                 String,
+    pub url: String,
     /// Additional HTTP headers (e.g. `Authorization: Bearer ...`).
     #[serde(default)]
-    pub headers:             std::collections::HashMap<String, String>,
+    pub headers: std::collections::HashMap<String, String>,
     /// Number of entries to accumulate before flushing (default: 100).
     #[serde(default = "default_batch_size")]
-    pub batch_size:          usize,
+    pub batch_size: usize,
     /// Flush interval in seconds (default: 30).
     #[serde(default = "default_flush_interval_secs")]
     pub flush_interval_secs: u64,
@@ -237,7 +237,7 @@ const fn default_flush_interval_secs() -> u64 {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuditStats {
     /// Total number of audit events recorded
-    pub total_events:  u64,
+    pub total_events: u64,
     /// Number of recent events (last 24 hours or recent window)
     pub recent_events: u64,
 }
@@ -245,7 +245,7 @@ pub struct AuditStats {
 /// Audit logger with `PostgreSQL` backend and optional export sinks.
 #[derive(Clone)]
 pub struct AuditLogger {
-    pool:      Arc<Pool>,
+    pool: Arc<Pool>,
     exporters: Arc<Vec<Box<dyn AuditExporter>>>,
 }
 
@@ -477,19 +477,19 @@ mod tests {
     #[test]
     fn test_audit_entry_integrity_hash() {
         let entry = AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(100),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
             integrity_hash: None,
         };
 
@@ -501,19 +501,19 @@ mod tests {
     #[test]
     fn test_audit_integrity_verification() {
         let mut entry = AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(100),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
             integrity_hash: None,
         };
 

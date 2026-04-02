@@ -8,7 +8,7 @@ mod error_sanitization {
     #[derive(Debug, Clone)]
     pub struct SanitizableError {
         /// User-facing message (safe to expose)
-        pub user_message:     String,
+        pub user_message: String,
         /// Internal message (details for logs only)
         pub internal_message: String,
     }
@@ -17,7 +17,7 @@ mod error_sanitization {
         /// Create a new sanitizable error
         pub fn new(user_message: &str, internal_message: &str) -> Self {
             Self {
-                user_message:     user_message.to_string(),
+                user_message: user_message.to_string(),
                 internal_message: internal_message.to_string(),
             }
         }

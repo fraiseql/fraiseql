@@ -124,7 +124,7 @@ pub(super) async fn handshake(
     // Create response with session token
     let response = HandshakeResponse {
         protocol_version: 0,
-        payload:          session_token.as_bytes().to_vec().into(),
+        payload: session_token.as_bytes().to_vec().into(),
     };
 
     let stream = futures::stream::once(async move { Ok(response) });
@@ -144,18 +144,18 @@ pub(super) async fn list_flights(
         if let Ok(schema) = svc.schema_registry.get(view_name) {
             let descriptor = FlightDescriptor {
                 r#type: 1, // PATH
-                path:   vec![(*view_name).to_string()],
-                cmd:    b"".to_vec().into(),
+                path: vec![(*view_name).to_string()],
+                cmd: b"".to_vec().into(),
             };
 
             let flight_info = FlightInfo {
-                schema:            schema_to_ipc_bytes(&schema),
+                schema: schema_to_ipc_bytes(&schema),
                 flight_descriptor: Some(descriptor),
-                endpoint:          vec![],
-                total_records:     -1, // Unknown until executed
-                total_bytes:       -1,
-                ordered:           false,
-                app_metadata:      vec![].into(),
+                endpoint: vec![],
+                total_records: -1, // Unknown until executed
+                total_bytes: -1,
+                ordered: false,
+                app_metadata: vec![].into(),
             };
 
             flight_infos.push(Ok(flight_info));
@@ -208,13 +208,13 @@ pub(super) async fn get_flight_info(
     let schema = ticket_to_schema(svc, ticket)?;
 
     let flight_info = FlightInfo {
-        schema:            schema_to_ipc_bytes(&schema),
+        schema: schema_to_ipc_bytes(&schema),
         flight_descriptor: Some(descriptor),
-        endpoint:          vec![], // Data retrieved via DoGet with same descriptor
-        total_records:     -1,     // Unknown until executed
-        total_bytes:       -1,     // Unknown until executed
-        ordered:           false,
-        app_metadata:      vec![].into(),
+        endpoint: vec![],  // Data retrieved via DoGet with same descriptor
+        total_records: -1, // Unknown until executed
+        total_bytes: -1,   // Unknown until executed
+        ordered: false,
+        app_metadata: vec![].into(),
     };
 
     info!("GetFlightInfo returning schema for ticket");
@@ -238,9 +238,9 @@ pub(super) async fn poll_flight_info(
     // flight_descriptor = None signals "complete — no need to poll again".
     // progress = 1.0 confirms 100 % complete.
     Ok(Response::new(PollInfo {
-        info:              Some(flight_info),
+        info: Some(flight_info),
         flight_descriptor: None,
-        progress:          Some(1.0),
-        expiration_time:   None,
+        progress: Some(1.0),
+        expiration_time: None,
     }))
 }

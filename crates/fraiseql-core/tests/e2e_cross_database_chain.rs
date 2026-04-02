@@ -39,20 +39,20 @@ fn test_single_database_federation_postgresql() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type],
+        types: vec![user_type, order_type],
     };
 
     assert_eq!(metadata.types.len(), 2);
@@ -76,20 +76,20 @@ fn test_postgres_to_mysql_entity_chain() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type],
+        types: vec![user_type, order_type],
     };
 
     // Simulate: User resolved from PostgreSQL
@@ -98,7 +98,7 @@ fn test_postgres_to_mysql_entity_chain() {
     pg_user_fields.insert("name".to_string(), json!("Alice"));
 
     let pg_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-pg-123"));
@@ -114,7 +114,7 @@ fn test_postgres_to_mysql_entity_chain() {
     mysql_order_fields.insert("total".to_string(), json!(99.99));
 
     let mysql_order = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("order-mysql-456"));
@@ -141,14 +141,14 @@ fn test_postgres_sqlite_entity_chain() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     // PostgreSQL source
@@ -157,7 +157,7 @@ fn test_postgres_sqlite_entity_chain() {
     pg_user_fields.insert("email".to_string(), json!("alice@example.com"));
 
     let pg_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -172,7 +172,7 @@ fn test_postgres_sqlite_entity_chain() {
     sqlite_user_fields.insert("email".to_string(), json!("alice@example.com"));
 
     let sqlite_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -207,26 +207,26 @@ fn test_three_database_chain_mysql_postgres_sqlite() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let mut inventory_type = FederatedType::new("Inventory".to_string());
     inventory_type.keys.push(KeyDirective {
-        fields:     vec!["order_id".to_string()],
+        fields: vec!["order_id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type, inventory_type],
+        types: vec![user_type, order_type, inventory_type],
     };
 
     // MySQL User
@@ -234,7 +234,7 @@ fn test_three_database_chain_mysql_postgres_sqlite() {
     mysql_user_fields.insert("id".to_string(), json!("user-mysql-1"));
 
     let _mysql_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-mysql-1"));
@@ -249,7 +249,7 @@ fn test_three_database_chain_mysql_postgres_sqlite() {
     pg_order_fields.insert("user_id".to_string(), json!("user-mysql-1"));
 
     let pg_order = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("order-pg-100"));
@@ -264,7 +264,7 @@ fn test_three_database_chain_mysql_postgres_sqlite() {
     sqlite_inventory_fields.insert("status".to_string(), json!("in_stock"));
 
     let sqlite_inventory = EntityRepresentation {
-        typename:   "Inventory".to_string(),
+        typename: "Inventory".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("order_id".to_string(), json!("order-pg-100"));
@@ -295,14 +295,14 @@ fn test_key_field_type_conversion_string_int() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     // PostgreSQL: TEXT id
@@ -310,7 +310,7 @@ fn test_key_field_type_conversion_string_int() {
     pg_user_fields.insert("id".to_string(), json!("12345"));
 
     let pg_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("12345"));
@@ -324,7 +324,7 @@ fn test_key_field_type_conversion_string_int() {
     mysql_user_fields.insert("id".to_string(), json!(12345));
 
     let mysql_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!(12345));
@@ -354,14 +354,14 @@ fn test_field_selection_across_databases() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let _metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     // PostgreSQL provides: id, created_at
@@ -370,7 +370,7 @@ fn test_field_selection_across_databases() {
     pg_user_fields.insert("created_at".to_string(), json!("2024-01-01"));
 
     let pg_partial_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -385,7 +385,7 @@ fn test_field_selection_across_databases() {
     mysql_user_fields.insert("profile".to_string(), json!({"bio": "Engineer"}));
 
     let mysql_partial_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -422,7 +422,7 @@ fn test_entity_consistency_across_databases() {
     pg_fields.insert("name".to_string(), json!("Alice Smith"));
 
     let pg_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -438,7 +438,7 @@ fn test_entity_consistency_across_databases() {
     mysql_fields.insert("name".to_string(), json!("Alice Smith"));
 
     let mysql_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -471,7 +471,7 @@ fn test_missing_entity_in_secondary_database() {
     let _metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     // PostgreSQL has this user
@@ -479,7 +479,7 @@ fn test_missing_entity_in_secondary_database() {
     pg_fields.insert("id".to_string(), json!("user-999"));
 
     let _pg_user = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-999"));
@@ -541,20 +541,20 @@ fn test_batch_entity_resolution_multiple_databases() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let _metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
     };
 
     // Simulate 50 orders from PostgreSQL
     let _pg_orders: Vec<EntityRepresentation> = (0..50)
         .map(|i| EntityRepresentation {
-            typename:   "Order".to_string(),
+            typename: "Order".to_string(),
             key_fields: {
                 let mut m = HashMap::new();
                 m.insert("id".to_string(), json!(format!("pg-order-{}", i)));
@@ -572,7 +572,7 @@ fn test_batch_entity_resolution_multiple_databases() {
     // Simulate 50 orders from MySQL
     let _mysql_orders: Vec<EntityRepresentation> = (50..100)
         .map(|i| EntityRepresentation {
-            typename:   "Order".to_string(),
+            typename: "Order".to_string(),
             key_fields: {
                 let mut m = HashMap::new();
                 m.insert("id".to_string(), json!(format!("mysql-order-{}", i)));

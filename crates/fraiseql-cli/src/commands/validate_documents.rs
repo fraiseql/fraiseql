@@ -15,7 +15,7 @@ use crate::output::OutputFormatter;
 
 /// Validation result for a single document entry.
 struct EntryResult {
-    key:   String,
+    key: String,
     valid: bool,
     error: Option<String>,
 }
@@ -30,7 +30,7 @@ const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024;
 
 #[derive(Deserialize)]
 struct Manifest {
-    version:   u32,
+    version: u32,
     documents: HashMap<String, String>,
 }
 
@@ -78,7 +78,7 @@ pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
         // Validate hex string length (SHA-256 = 64 hex chars)
         if hash_hex.len() != 64 || !hash_hex.chars().all(|c| c.is_ascii_hexdigit()) {
             results.push(EntryResult {
-                key:   key.clone(),
+                key: key.clone(),
                 valid: false,
                 error: Some(format!(
                     "Invalid SHA-256 hash: expected 64 hex characters, got {} chars",
@@ -92,13 +92,13 @@ pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
         let computed = format!("{:x}", Sha256::digest(body.as_bytes()));
         if computed == hash_hex {
             results.push(EntryResult {
-                key:   key.clone(),
+                key: key.clone(),
                 valid: true,
                 error: None,
             });
         } else {
             results.push(EntryResult {
-                key:   key.clone(),
+                key: key.clone(),
                 valid: false,
                 error: Some(format!("Hash mismatch: computed {computed}")),
             });

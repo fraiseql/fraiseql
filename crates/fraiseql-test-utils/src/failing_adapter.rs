@@ -30,11 +30,11 @@ use fraiseql_core::{
 #[derive(Debug, Clone, Default)]
 pub struct FailConfig {
     /// Fail on the Nth query (0-indexed).
-    pub fail_on_query:     Option<u64>,
+    pub fail_on_query: Option<u64>,
     /// Return a `Timeout` error with this duration in milliseconds.
-    pub timeout_ms:        Option<u64>,
+    pub timeout_ms: Option<u64>,
     /// Return this specific error on failure.
-    pub error:             Option<FailError>,
+    pub error: Option<FailError>,
     /// Make `health_check` return an error.
     pub fail_health_check: bool,
 }
@@ -49,7 +49,7 @@ pub enum FailError {
     /// Database error with message and optional SQL state.
     Database {
         /// Error message.
-        message:   String,
+        message: String,
         /// SQL state code.
         sql_state: Option<String>,
     },
@@ -68,7 +68,7 @@ pub enum FailError {
         /// Query identifier.
         query_id: String,
         /// Reason for cancellation.
-        reason:   String,
+        reason: String,
     },
     /// Internal error.
     Internal {
@@ -101,19 +101,19 @@ impl FailError {
 #[derive(Clone)]
 pub struct FailingAdapter {
     /// Canned responses per view name.
-    responses:          Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
+    responses: Arc<Mutex<HashMap<String, Vec<JsonbValue>>>>,
     /// Canned row-shaped responses per view name (for gRPC transport).
-    row_responses:      Arc<Mutex<HashMap<String, Vec<Vec<ColumnValue>>>>>,
+    row_responses: Arc<Mutex<HashMap<String, Vec<Vec<ColumnValue>>>>>,
     /// Canned function call responses per function name.
     function_responses: Arc<Mutex<HashMap<String, Vec<HashMap<String, serde_json::Value>>>>>,
     /// Failure injection configuration.
-    fail_config:        Arc<Mutex<FailConfig>>,
+    fail_config: Arc<Mutex<FailConfig>>,
     /// Query counter (increments on every query attempt).
-    query_count:        Arc<AtomicU64>,
+    query_count: Arc<AtomicU64>,
     /// Log of all query view names for assertion.
-    query_log:          Arc<Mutex<Vec<String>>>,
+    query_log: Arc<Mutex<Vec<String>>>,
     /// Log of WHERE clauses passed to row queries.
-    where_clause_log:   Arc<Mutex<Vec<Option<String>>>>,
+    where_clause_log: Arc<Mutex<Vec<Option<String>>>>,
 }
 
 impl FailingAdapter {
@@ -121,13 +121,13 @@ impl FailingAdapter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            responses:          Arc::new(Mutex::new(HashMap::new())),
-            row_responses:      Arc::new(Mutex::new(HashMap::new())),
+            responses: Arc::new(Mutex::new(HashMap::new())),
+            row_responses: Arc::new(Mutex::new(HashMap::new())),
             function_responses: Arc::new(Mutex::new(HashMap::new())),
-            fail_config:        Arc::new(Mutex::new(FailConfig::default())),
-            query_count:        Arc::new(AtomicU64::new(0)),
-            query_log:          Arc::new(Mutex::new(Vec::new())),
-            where_clause_log:   Arc::new(Mutex::new(Vec::new())),
+            fail_config: Arc::new(Mutex::new(FailConfig::default())),
+            query_count: Arc::new(AtomicU64::new(0)),
+            query_log: Arc::new(Mutex::new(Vec::new())),
+            where_clause_log: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -294,11 +294,11 @@ impl FailingAdapter {
                 if let Some(ms) = config.timeout_ms {
                     return Err(FraiseQLError::Timeout {
                         timeout_ms: ms,
-                        query:      Some(view.to_string()),
+                        query: Some(view.to_string()),
                     });
                 }
                 return Err(FraiseQLError::Database {
-                    message:   format!("injected failure on query {current}"),
+                    message: format!("injected failure on query {current}"),
                     sql_state: None,
                 });
             }
@@ -312,7 +312,7 @@ impl FailingAdapter {
         if let Some(ms) = config.timeout_ms {
             return Err(FraiseQLError::Timeout {
                 timeout_ms: ms,
-                query:      Some(view.to_string()),
+                query: Some(view.to_string()),
             });
         }
 
@@ -368,7 +368,7 @@ impl DatabaseAdapter for FailingAdapter {
     async fn health_check(&self) -> Result<()> {
         if self.fail_config.lock().unwrap().fail_health_check {
             return Err(FraiseQLError::Database {
-                message:   "health check failed (injected)".to_string(),
+                message: "health check failed (injected)".to_string(),
                 sql_state: None,
             });
         }
@@ -377,10 +377,10 @@ impl DatabaseAdapter for FailingAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  10,
-            idle_connections:   5,
+            total_connections: 10,
+            idle_connections: 5,
             active_connections: 3,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 

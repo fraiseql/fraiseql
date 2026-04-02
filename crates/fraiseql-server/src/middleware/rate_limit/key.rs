@@ -45,11 +45,11 @@ pub(super) fn path_matches_rule(path: &str, prefix: &str) -> bool {
 #[derive(Debug, Clone)]
 pub(super) struct PathRateLimit {
     /// Path prefix to match (exact prefix, e.g., `/auth/start`).
-    pub(super) path_prefix:    String,
+    pub(super) path_prefix: String,
     /// Token refill rate (tokens per second = `max_requests` / `window_secs`).
     pub(super) tokens_per_sec: f64,
     /// Maximum burst (= `max_requests`).
-    pub(super) burst:          f64,
+    pub(super) burst: f64,
 }
 
 #[cfg(test)]

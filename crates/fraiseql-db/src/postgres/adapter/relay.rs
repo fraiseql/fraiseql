@@ -183,7 +183,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 
         let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   e.to_string(),
+                message: e.to_string(),
                 sql_state: e.code().map(|c| c.code().to_string()),
             }
         })?;
@@ -220,7 +220,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
 
             let count_row = client.query_one(&count_sql, &count_param_refs).await.map_err(|e| {
                 FraiseQLError::Database {
-                    message:   e.to_string(),
+                    message: e.to_string(),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 }
             })?;

@@ -657,8 +657,8 @@ fn test_field_type_vector_sql_type() {
 #[test]
 fn test_vector_config_serialization() {
     let config = VectorConfig {
-        dimensions:      1536,
-        index_type:      VectorIndexType::Hnsw,
+        dimensions: 1536,
+        index_type: VectorIndexType::Hnsw,
         distance_metric: DistanceMetric::Cosine,
     };
 

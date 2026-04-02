@@ -292,12 +292,12 @@ fn build_config_from(
 /// Convert `TlsRuntimeConfig` → `TlsServerConfig`.
 fn build_tls_config(tls: &TlsRuntimeConfig) -> TlsServerConfig {
     TlsServerConfig {
-        enabled:             true,
-        cert_path:           tls.cert_file.clone().into(),
-        key_path:            tls.key_file.clone().into(),
-        min_version:         tls.min_version.clone(),
+        enabled: true,
+        cert_path: tls.cert_file.clone().into(),
+        key_path: tls.key_file.clone().into(),
+        min_version: tls.min_version.clone(),
         require_client_cert: false,
-        client_ca_path:      None,
+        client_ca_path: None,
     }
 }
 
@@ -532,7 +532,7 @@ mod tests {
         let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
         let server_cfg = ServerRuntimeConfig {
             cors: crate::config::runtime::CorsRuntimeConfig {
-                origins:     vec!["https://example.com".to_string()],
+                origins: vec!["https://example.com".to_string()],
                 credentials: false,
             },
             ..Default::default()

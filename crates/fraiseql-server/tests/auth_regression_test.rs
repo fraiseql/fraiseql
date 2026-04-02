@@ -47,16 +47,16 @@ use tower::ServiceExt;
 /// safe for tests because the 401 is returned before the JWKS endpoint is hit.
 fn required_oidc_state() -> OidcAuthState {
     let config = OidcConfig {
-        issuer:               "https://test.fraiseql.dev".to_string(),
-        audience:             Some("https://api.test.fraiseql.dev".to_string()),
-        required:             true, // THE CRITICAL FLAG — the E1 fix enforces this
+        issuer: "https://test.fraiseql.dev".to_string(),
+        audience: Some("https://api.test.fraiseql.dev".to_string()),
+        required: true, // THE CRITICAL FLAG — the E1 fix enforces this
         additional_audiences: vec![],
-        jwks_cache_ttl_secs:  3600,
-        allowed_algorithms:   vec!["RS256".to_string()],
-        clock_skew_secs:      60,
-        jwks_uri:             None,
-        scope_claim:          "scope".to_string(),
-        require_jti:          false,
+        jwks_cache_ttl_secs: 3600,
+        allowed_algorithms: vec!["RS256".to_string()],
+        clock_skew_secs: 60,
+        jwks_uri: None,
+        scope_claim: "scope".to_string(),
+        require_jti: false,
     };
     // with_jwks_uri bypasses async OIDC discovery; 401 is returned before
     // any real JWKS request is made.
@@ -67,16 +67,16 @@ fn required_oidc_state() -> OidcAuthState {
 /// Build an `OidcAuthState` where authentication is *optional* (`required=false`).
 fn optional_oidc_state() -> OidcAuthState {
     let config = OidcConfig {
-        issuer:               "https://test.fraiseql.dev".to_string(),
-        audience:             Some("https://api.test.fraiseql.dev".to_string()),
-        required:             false, // optional auth
+        issuer: "https://test.fraiseql.dev".to_string(),
+        audience: Some("https://api.test.fraiseql.dev".to_string()),
+        required: false, // optional auth
         additional_audiences: vec![],
-        jwks_cache_ttl_secs:  3600,
-        allowed_algorithms:   vec!["RS256".to_string()],
-        clock_skew_secs:      60,
-        jwks_uri:             None,
-        scope_claim:          "scope".to_string(),
-        require_jti:          false,
+        jwks_cache_ttl_secs: 3600,
+        allowed_algorithms: vec!["RS256".to_string()],
+        clock_skew_secs: 60,
+        jwks_uri: None,
+        scope_claim: "scope".to_string(),
+        require_jti: false,
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
     OidcAuthState::new(Arc::new(validator))

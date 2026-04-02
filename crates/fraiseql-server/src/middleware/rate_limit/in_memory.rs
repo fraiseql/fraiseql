@@ -13,13 +13,13 @@ use super::{
 
 /// In-memory token-bucket rate limiter.
 pub struct InMemoryRateLimiter {
-    pub(super) config:          RateLimitConfig,
+    pub(super) config: RateLimitConfig,
     // IP -> TokenBucket (global limit)
-    pub(super) ip_buckets:      Arc<RwLock<HashMap<String, TokenBucket>>>,
+    pub(super) ip_buckets: Arc<RwLock<HashMap<String, TokenBucket>>>,
     // User ID -> TokenBucket
-    pub(super) user_buckets:    Arc<RwLock<HashMap<String, TokenBucket>>>,
+    pub(super) user_buckets: Arc<RwLock<HashMap<String, TokenBucket>>>,
     // Per-path rules (from [security.rate_limiting] auth endpoint fields)
-    pub(super) path_rules:      Vec<PathRateLimit>,
+    pub(super) path_rules: Vec<PathRateLimit>,
     // (path_prefix, ip) -> TokenBucket
     pub(super) path_ip_buckets: Arc<RwLock<HashMap<(String, String), TokenBucket>>>,
 }
@@ -50,26 +50,26 @@ impl InMemoryRateLimiter {
 
         if sec.auth_start_max_requests > 0 && sec.auth_start_window_secs > 0 {
             rules.push(PathRateLimit {
-                path_prefix:    "/auth/start".to_string(),
+                path_prefix: "/auth/start".to_string(),
                 tokens_per_sec: f64::from(sec.auth_start_max_requests)
                     / sec.auth_start_window_secs as f64,
-                burst:          f64::from(sec.auth_start_max_requests),
+                burst: f64::from(sec.auth_start_max_requests),
             });
         }
         if sec.auth_callback_max_requests > 0 && sec.auth_callback_window_secs > 0 {
             rules.push(PathRateLimit {
-                path_prefix:    "/auth/callback".to_string(),
+                path_prefix: "/auth/callback".to_string(),
                 tokens_per_sec: f64::from(sec.auth_callback_max_requests)
                     / sec.auth_callback_window_secs as f64,
-                burst:          f64::from(sec.auth_callback_max_requests),
+                burst: f64::from(sec.auth_callback_max_requests),
             });
         }
         if sec.auth_refresh_max_requests > 0 && sec.auth_refresh_window_secs > 0 {
             rules.push(PathRateLimit {
-                path_prefix:    "/auth/refresh".to_string(),
+                path_prefix: "/auth/refresh".to_string(),
                 tokens_per_sec: f64::from(sec.auth_refresh_max_requests)
                     / sec.auth_refresh_window_secs as f64,
-                burst:          f64::from(sec.auth_refresh_max_requests),
+                burst: f64::from(sec.auth_refresh_max_requests),
             });
         }
 

@@ -71,11 +71,11 @@ use std::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldAccessError {
     /// The GraphQL type containing the field
-    pub type_name:  String,
+    pub type_name: String,
     /// The field that was denied
     pub field_name: String,
     /// Human-readable message
-    pub message:    String,
+    pub message: String,
 }
 
 impl fmt::Display for FieldAccessError {
@@ -108,9 +108,9 @@ impl FieldAccessError {
         message: impl Into<String>,
     ) -> Self {
         Self {
-            type_name:  type_name.into(),
+            type_name: type_name.into(),
             field_name: field_name.into(),
-            message:    message.into(),
+            message: message.into(),
         }
     }
 }
@@ -141,9 +141,9 @@ impl FieldFilterConfig {
     pub fn new() -> Self {
         Self {
             protected_fields: HashMap::new(),
-            explicit_scopes:  HashMap::new(),
-            admin_scopes:     HashSet::from(["admin".to_string()]),
-            default_action:   "read".to_string(),
+            explicit_scopes: HashMap::new(),
+            admin_scopes: HashSet::from(["admin".to_string()]),
+            default_action: "read".to_string(),
         }
     }
 

@@ -8,14 +8,14 @@ pub enum FileError {
         /// Actual size of the uploaded file in bytes.
         size: usize,
         /// Maximum allowed file size in bytes.
-        max:  usize,
+        max: usize,
     },
 
     /// The file's extension or declared MIME type is not on the allow-list.
     #[error("Invalid file type: {got} (allowed: {allowed:?})")]
     InvalidType {
         /// The MIME type or extension that was supplied.
-        got:     String,
+        got: String,
         /// The set of allowed MIME types or extensions.
         allowed: Vec<String>,
     },
@@ -39,7 +39,7 @@ pub enum FileError {
         message: String,
         /// Optional chained error from the storage backend.
         #[source]
-        source:  Option<Box<dyn std::error::Error + Send + Sync>>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 
     /// An error occurred while processing the file contents (e.g. image

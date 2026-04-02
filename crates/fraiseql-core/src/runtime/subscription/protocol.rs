@@ -196,8 +196,8 @@ impl ServerMessage {
     pub fn next(id: impl Into<String>, data: serde_json::Value) -> Self {
         Self {
             message_type: ServerMessageType::Next.as_str().to_string(),
-            id:           Some(id.into()),
-            payload:      Some(serde_json::json!({ "data": data })),
+            id: Some(id.into()),
+            payload: Some(serde_json::json!({ "data": data })),
         }
     }
 
@@ -208,8 +208,8 @@ impl ServerMessage {
     pub fn error(id: impl Into<String>, errors: Vec<GraphQLError>) -> Self {
         Self {
             message_type: ServerMessageType::Error.as_str().to_string(),
-            id:           Some(id.into()),
-            payload:      Some(serde_json::to_value(errors).unwrap_or_default()),
+            id: Some(id.into()),
+            payload: Some(serde_json::to_value(errors).unwrap_or_default()),
         }
     }
 
@@ -218,8 +218,8 @@ impl ServerMessage {
     pub fn complete(id: impl Into<String>) -> Self {
         Self {
             message_type: ServerMessageType::Complete.as_str().to_string(),
-            id:           Some(id.into()),
-            payload:      None,
+            id: Some(id.into()),
+            payload: None,
         }
     }
 
@@ -240,19 +240,19 @@ pub use fraiseql_error::{GraphQLError, GraphQLErrorLocation as ErrorLocation};
 #[non_exhaustive]
 pub enum CloseCode {
     /// Normal closure.
-    Normal               = 1000,
+    Normal = 1000,
     /// Client violated protocol.
-    ProtocolError        = 1002,
+    ProtocolError = 1002,
     /// Internal server error.
-    InternalError        = 1011,
+    InternalError = 1011,
     /// Connection initialization timeout.
     ConnectionInitTimeout = 4408,
     /// Too many initialization requests.
-    TooManyInitRequests  = 4429,
+    TooManyInitRequests = 4429,
     /// Subscriber already exists (duplicate ID).
     SubscriberAlreadyExists = 4409,
     /// Unauthorized.
-    Unauthorized         = 4401,
+    Unauthorized = 4401,
     /// Subscription not found (invalid ID on complete).
     SubscriptionNotFound = 4404,
 }

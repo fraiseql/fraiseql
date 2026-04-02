@@ -27,11 +27,11 @@ use crate::output::OutputFormatter;
 #[derive(Debug)]
 pub struct ValidationIssue {
     /// Issue type (error or warning)
-    pub severity:   IssueSeverity,
+    pub severity: IssueSeverity,
     /// Fact table name
     pub table_name: String,
     /// Issue description
-    pub message:    String,
+    pub message: String,
 }
 
 /// Issue severity level.
@@ -346,7 +346,7 @@ mod tests {
             table_name: "tf_sales".to_string(),
             measures,
             dimensions: DimensionColumn {
-                name:  dim_name.to_string(),
+                name: dim_name.to_string(),
                 paths: vec![],
             },
             denormalized_filters: filters,
@@ -359,21 +359,21 @@ mod tests {
         let declared = make_metadata(
             vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
             "data",
             vec![FilterColumn {
-                name:     "customer_id".to_string(),
+                name: "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed:  true,
+                indexed: true,
             }],
         );
         let actual = declared.clone();
@@ -388,12 +388,12 @@ mod tests {
         let declared = make_metadata(
             vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "profit".to_string(),
+                    name: "profit".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
@@ -403,7 +403,7 @@ mod tests {
         );
         let actual = make_metadata(
             vec![MeasureColumn {
-                name:     "revenue".to_string(),
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],

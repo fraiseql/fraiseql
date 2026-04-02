@@ -22,60 +22,60 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
     /// Query executor (atomically swappable for schema hot-reload).
-    pub executor:              Arc<ArcSwap<Executor<A>>>,
+    pub executor: Arc<ArcSwap<Executor<A>>>,
     /// Metrics collector.
-    pub metrics:               Arc<MetricsCollector>,
+    pub metrics: Arc<MetricsCollector>,
     /// Query result cache (optional).
     #[cfg(feature = "arrow")]
-    pub cache:                 Option<Arc<fraiseql_arrow::cache::QueryCache>>,
+    pub cache: Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
-    pub config:                Option<Arc<crate::config::HttpServerConfig>>,
+    pub config: Option<Arc<crate::config::HttpServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
     #[cfg(feature = "auth")]
-    pub graphql_rate_limiter:  Arc<KeyedRateLimiter>,
+    pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
     /// Secrets manager (optional, configured via `[fraiseql.secrets]`).
     #[cfg(feature = "secrets")]
-    pub secrets_manager:       Option<Arc<crate::secrets_manager::SecretsManager>>,
+    pub secrets_manager: Option<Arc<crate::secrets_manager::SecretsManager>>,
     /// Field encryption service for transparent encrypt/decrypt of marked fields.
     #[cfg(feature = "secrets")]
-    pub field_encryption:      Option<Arc<crate::encryption::middleware::FieldEncryptionService>>,
+    pub field_encryption: Option<Arc<crate::encryption::middleware::FieldEncryptionService>>,
     /// Federation circuit breaker manager (optional, enabled via `fraiseql.toml`).
     #[cfg(feature = "federation")]
     pub circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
     /// Error sanitizer — strips internal details before sending responses to clients.
-    pub error_sanitizer:       Arc<ErrorSanitizer>,
+    pub error_sanitizer: Arc<ErrorSanitizer>,
     /// State encryption service (optional, enabled via `[security.state_encryption]`).
     #[cfg(feature = "auth")]
-    pub state_encryption:      Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
+    pub state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
     /// API key authenticator (optional, enabled via `[security.api_keys]`).
     pub api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     /// APQ persistent query store (optional, enabled via compiled schema config).
-    pub apq_store:             Option<ArcApqStorage>,
+    pub apq_store: Option<ArcApqStorage>,
     /// Trusted document store (optional, enabled via `[security.trusted_documents]`).
-    pub trusted_docs:          Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
+    pub trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
     /// APQ metrics tracker.
-    pub apq_metrics:           Arc<ApqMetrics>,
+    pub apq_metrics: Arc<ApqMetrics>,
     /// Request validator (depth/complexity limits, configured from compiled schema).
-    pub validator:             crate::validation::RequestValidator,
+    pub validator: crate::validation::RequestValidator,
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
-    pub debug_config:          Option<fraiseql_core::schema::DebugConfig>,
+    pub debug_config: Option<fraiseql_core::schema::DebugConfig>,
     /// Maximum byte length for a query string delivered via HTTP GET.
     ///
     /// Defaults to `100_000` (100 `KiB`).  Configurable via
     /// `ServerConfig::max_get_query_bytes`.
-    pub max_get_query_bytes:   usize,
+    pub max_get_query_bytes: usize,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
-    pub pool_tuner:            Option<Arc<crate::pool::PoolSizingAdvisor>>,
+    pub pool_tuner: Option<Arc<crate::pool::PoolSizingAdvisor>>,
     /// Observer runtime handle for health probes (optional, requires `observers` feature).
     #[cfg(feature = "observers")]
-    pub observer_runtime:      Option<Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>>,
+    pub observer_runtime: Option<Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>>,
     /// Schema file path for reload operations.
-    pub schema_path:           Option<PathBuf>,
+    pub schema_path: Option<PathBuf>,
     /// Database adapter reference for constructing new executors on reload.
     pub(crate) reload_adapter: Option<Arc<A>>,
     /// Reload mutex to serialize concurrent reload attempts.
-    pub(crate) reload_lock:    Arc<tokio::sync::Mutex<()>>,
+    pub(crate) reload_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {

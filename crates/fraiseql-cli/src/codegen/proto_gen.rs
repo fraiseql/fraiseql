@@ -106,21 +106,21 @@ fn field_type_to_proto(ft: &FieldType) -> ProtoFieldType {
 /// Intermediate representation of a protobuf field type.
 struct ProtoFieldType {
     type_name: String,
-    repeated:  bool,
+    repeated: bool,
 }
 
 impl ProtoFieldType {
     fn scalar(name: &str) -> Self {
         Self {
             type_name: name.to_string(),
-            repeated:  false,
+            repeated: false,
         }
     }
 
     fn repeated(name: &str) -> Self {
         Self {
             type_name: name.to_string(),
-            repeated:  true,
+            repeated: true,
         }
     }
 }
@@ -746,15 +746,15 @@ mod tests {
     fn test_generate_proto_with_enum() {
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name:        "OrderStatus".to_string(),
-            values:      vec![
+            name: "OrderStatus".to_string(),
+            values: vec![
                 EnumValueDefinition {
-                    name:        "PENDING".to_string(),
+                    name: "PENDING".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name:        "SHIPPED".to_string(),
+                    name: "SHIPPED".to_string(),
                     description: None,
                     deprecation: None,
                 },

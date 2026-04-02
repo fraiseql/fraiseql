@@ -124,7 +124,7 @@ pub enum RuntimeError {
     #[error("Service unavailable: {reason}")]
     ServiceUnavailable {
         /// Human-readable reason for the outage (server-side logs only).
-        reason:      String,
+        reason: String,
         /// Number of seconds to wait before retrying, if known.
         retry_after: Option<u64>,
     },
@@ -146,7 +146,7 @@ pub enum RuntimeError {
         message: String,
         /// Optional chained error for structured logging.
         #[source]
-        source:  Option<Box<dyn std::error::Error + Send + Sync>>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 }
 

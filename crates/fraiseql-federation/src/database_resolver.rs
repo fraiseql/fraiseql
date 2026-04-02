@@ -23,7 +23,7 @@ use crate::{
 /// Resolves federation entities from local databases.
 pub struct DatabaseEntityResolver<A: DatabaseAdapter> {
     /// Database adapter for executing queries
-    adapter:  Arc<A>,
+    adapter: Arc<A>,
     /// Federation metadata
     metadata: FederationMetadata,
 }
@@ -96,7 +96,7 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
                     "Federation entity type '{}' contains unsafe characters for SQL interpolation",
                     typename
                 ),
-                path:    None,
+                path: None,
             });
         }
 
@@ -160,7 +160,7 @@ fn project_results(
             .first()
             .ok_or_else(|| fraiseql_error::FraiseQLError::Validation {
                 message: format!("Type '{}' has no key fields", typename),
-                path:    None,
+                path: None,
             })?
             .fields
             .iter()
@@ -170,7 +170,7 @@ fn project_results(
                     .or_else(|| row.get(field).map(|v| v.to_string()))
                     .ok_or_else(|| fraiseql_error::FraiseQLError::Validation {
                         message: format!("Key field '{}' not found in row", field),
-                        path:    None,
+                        path: None,
                     })
             })
             .collect();

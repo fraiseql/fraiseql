@@ -97,30 +97,30 @@ pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
     let graph = FederationGraph {
         subgraphs: vec![
             Subgraph {
-                name:     "users".to_string(),
-                url:      "http://users.service/graphql".to_string(),
+                name: "users".to_string(),
+                url: "http://users.service/graphql".to_string(),
                 entities: vec!["User".to_string()],
             },
             Subgraph {
-                name:     "posts".to_string(),
-                url:      "http://posts.service/graphql".to_string(),
+                name: "posts".to_string(),
+                url: "http://posts.service/graphql".to_string(),
                 entities: vec!["Post".to_string()],
             },
             Subgraph {
-                name:     "comments".to_string(),
-                url:      "http://comments.service/graphql".to_string(),
+                name: "comments".to_string(),
+                url: "http://comments.service/graphql".to_string(),
                 entities: vec!["Comment".to_string()],
             },
         ],
-        edges:     vec![
+        edges: vec![
             Edge {
-                from:   "users".to_string(),
-                to:     "posts".to_string(),
+                from: "users".to_string(),
+                to: "posts".to_string(),
                 entity: "User".to_string(),
             },
             Edge {
-                from:   "posts".to_string(),
-                to:     "comments".to_string(),
+                from: "posts".to_string(),
+                to: "comments".to_string(),
                 entity: "Post".to_string(),
             },
         ],
@@ -209,11 +209,11 @@ mod tests {
     fn test_to_dot_format() {
         let graph = FederationGraph {
             subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
+                name: "a".to_string(),
+                url: "http://a".to_string(),
                 entities: vec!["A".to_string()],
             }],
-            edges:     vec![],
+            edges: vec![],
         };
 
         let dot = to_dot(&graph);
@@ -225,11 +225,11 @@ mod tests {
     fn test_to_mermaid_format() {
         let graph = FederationGraph {
             subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
+                name: "a".to_string(),
+                url: "http://a".to_string(),
                 entities: vec!["A".to_string()],
             }],
-            edges:     vec![],
+            edges: vec![],
         };
 
         let mermaid = to_mermaid(&graph);

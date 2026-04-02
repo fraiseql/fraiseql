@@ -219,12 +219,12 @@ async fn test_direct_mutation_insert() {
     let values = vec![json!("Alice"), json!("alice@example.com")];
 
     let ctx = DirectMutationContext {
-        operation:      DirectMutationOp::Insert,
-        table:          "users",
-        columns:        &columns,
-        values:         &values,
+        operation: DirectMutationOp::Insert,
+        table: "users",
+        columns: &columns,
+        values: &values,
         inject_columns: &[],
-        return_type:    "User",
+        return_type: "User",
     };
 
     let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
@@ -247,12 +247,12 @@ async fn test_direct_mutation_insert_with_inject_params() {
     let values = vec![json!("Bob"), json!("bob@example.com"), json!("tenant-42")];
 
     let ctx = DirectMutationContext {
-        operation:      DirectMutationOp::Insert,
-        table:          "users",
-        columns:        &columns,
-        values:         &values,
+        operation: DirectMutationOp::Insert,
+        table: "users",
+        columns: &columns,
+        values: &values,
         inject_columns: &inject_columns,
-        return_type:    "User",
+        return_type: "User",
     };
 
     let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
@@ -274,12 +274,12 @@ async fn test_direct_mutation_update() {
     let values = vec![json!(1), json!("Alice Updated")];
 
     let ctx = DirectMutationContext {
-        operation:      DirectMutationOp::Update,
-        table:          "users",
-        columns:        &columns,
-        values:         &values,
+        operation: DirectMutationOp::Update,
+        table: "users",
+        columns: &columns,
+        values: &values,
         inject_columns: &[],
-        return_type:    "User",
+        return_type: "User",
     };
 
     let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
@@ -304,12 +304,12 @@ async fn test_direct_mutation_delete() {
     let values = vec![json!(1)];
 
     let ctx = DirectMutationContext {
-        operation:      DirectMutationOp::Delete,
-        table:          "users",
-        columns:        &columns,
-        values:         &values,
+        operation: DirectMutationOp::Delete,
+        table: "users",
+        columns: &columns,
+        values: &values,
         inject_columns: &[],
-        return_type:    "User",
+        return_type: "User",
     };
 
     let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
@@ -330,12 +330,12 @@ async fn test_direct_mutation_delete_nonexistent_row() {
     let values = vec![json!(999)];
 
     let ctx = DirectMutationContext {
-        operation:      DirectMutationOp::Delete,
-        table:          "users",
-        columns:        &columns,
-        values:         &values,
+        operation: DirectMutationOp::Delete,
+        table: "users",
+        columns: &columns,
+        values: &values,
         inject_columns: &[],
-        return_type:    "User",
+        return_type: "User",
     };
 
     let err = adapter
@@ -360,12 +360,12 @@ async fn test_direct_mutation_constraint_violation() {
     let values = vec![json!("Bob"), json!("alice@example.com")];
 
     let ctx = DirectMutationContext {
-        operation:      DirectMutationOp::Insert,
-        table:          "users",
-        columns:        &columns,
-        values:         &values,
+        operation: DirectMutationOp::Insert,
+        table: "users",
+        columns: &columns,
+        values: &values,
         inject_columns: &[],
-        return_type:    "User",
+        return_type: "User",
     };
 
     let err = adapter
@@ -389,12 +389,12 @@ async fn test_direct_mutation_null_handling() {
     let values = vec![json!(1), serde_json::Value::Null];
 
     let ctx = DirectMutationContext {
-        operation:      DirectMutationOp::Update,
-        table:          "users",
-        columns:        &columns,
-        values:         &values,
+        operation: DirectMutationOp::Update,
+        table: "users",
+        columns: &columns,
+        values: &values,
         inject_columns: &[],
-        return_type:    "User",
+        return_type: "User",
     };
 
     let rows = adapter.execute_direct_mutation(&ctx).await.unwrap();
@@ -407,9 +407,9 @@ async fn test_direct_mutation_null_handling() {
 async fn test_where_eq_operator() {
     let adapter = setup_user_table(5).await;
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: crate::where_clause::WhereOperator::Eq,
-        value:    json!("user3"),
+        value: json!("user3"),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -423,9 +423,9 @@ async fn test_where_eq_operator() {
 async fn test_where_neq_operator() {
     let adapter = setup_user_table(3).await;
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: crate::where_clause::WhereOperator::Neq,
-        value:    json!("user1"),
+        value: json!("user1"),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -439,9 +439,9 @@ async fn test_where_gt_operator() {
     let adapter = setup_user_table(5).await;
     // age = 20+i, so age > 23 → users 4 and 5
     let clause = WhereClause::Field {
-        path:     vec!["age".to_string()],
+        path: vec!["age".to_string()],
         operator: crate::where_clause::WhereOperator::Gt,
-        value:    json!(23),
+        value: json!(23),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -455,9 +455,9 @@ async fn test_where_gte_operator() {
     let adapter = setup_user_table(5).await;
     // age >= 23 → users 3, 4, 5
     let clause = WhereClause::Field {
-        path:     vec!["age".to_string()],
+        path: vec!["age".to_string()],
         operator: crate::where_clause::WhereOperator::Gte,
-        value:    json!(23),
+        value: json!(23),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -471,9 +471,9 @@ async fn test_where_lt_operator() {
     let adapter = setup_user_table(5).await;
     // age < 23 → users 1 and 2
     let clause = WhereClause::Field {
-        path:     vec!["age".to_string()],
+        path: vec!["age".to_string()],
         operator: crate::where_clause::WhereOperator::Lt,
-        value:    json!(23),
+        value: json!(23),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -487,9 +487,9 @@ async fn test_where_lte_operator() {
     let adapter = setup_user_table(5).await;
     // age <= 23 → users 1, 2, 3
     let clause = WhereClause::Field {
-        path:     vec!["age".to_string()],
+        path: vec!["age".to_string()],
         operator: crate::where_clause::WhereOperator::Lte,
-        value:    json!(23),
+        value: json!(23),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -502,9 +502,9 @@ async fn test_where_lte_operator() {
 async fn test_where_in_operator() {
     let adapter = setup_user_table(5).await;
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: crate::where_clause::WhereOperator::In,
-        value:    json!(["user1", "user3", "user5"]),
+        value: json!(["user1", "user3", "user5"]),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -517,9 +517,9 @@ async fn test_where_in_operator() {
 async fn test_where_not_in_operator() {
     let adapter = setup_user_table(5).await;
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: crate::where_clause::WhereOperator::Nin,
-        value:    json!(["user1", "user2"]),
+        value: json!(["user1", "user2"]),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -533,9 +533,9 @@ async fn test_where_like_operator() {
     let adapter = setup_user_table(5).await;
     // name LIKE 'user%' matches all 5
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: crate::where_clause::WhereOperator::Like,
-        value:    json!("user%"),
+        value: json!("user%"),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -549,9 +549,9 @@ async fn test_where_is_null_operator() {
     let adapter = setup_user_table(3).await;
     // deleted_at is null for all rows (seeded as null)
     let clause = WhereClause::Field {
-        path:     vec!["deleted_at".to_string()],
+        path: vec!["deleted_at".to_string()],
         operator: crate::where_clause::WhereOperator::IsNull,
-        value:    json!(true),
+        value: json!(true),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -565,9 +565,9 @@ async fn test_where_is_not_null_operator() {
     let adapter = setup_user_table(3).await;
     // deleted_at is null → IS NOT NULL returns 0 rows
     let clause = WhereClause::Field {
-        path:     vec!["deleted_at".to_string()],
+        path: vec!["deleted_at".to_string()],
         operator: crate::where_clause::WhereOperator::IsNull,
-        value:    json!(false),
+        value: json!(false),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -582,14 +582,14 @@ async fn test_where_multiple_conditions_and() {
     // name = "user2" AND age = 22
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["name".to_string()],
+            path: vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Eq,
-            value:    json!("user2"),
+            value: json!("user2"),
         },
         WhereClause::Field {
-            path:     vec!["age".to_string()],
+            path: vec!["age".to_string()],
             operator: crate::where_clause::WhereOperator::Eq,
-            value:    json!(22),
+            value: json!(22),
         },
     ]);
     let results = adapter
@@ -606,14 +606,14 @@ async fn test_where_multiple_conditions_or() {
     // name = "user1" OR name = "user5"
     let clause = WhereClause::Or(vec![
         WhereClause::Field {
-            path:     vec!["name".to_string()],
+            path: vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Eq,
-            value:    json!("user1"),
+            value: json!("user1"),
         },
         WhereClause::Field {
-            path:     vec!["name".to_string()],
+            path: vec!["name".to_string()],
             operator: crate::where_clause::WhereOperator::Eq,
-            value:    json!("user5"),
+            value: json!("user5"),
         },
     ]);
     let results = adapter
@@ -629,9 +629,9 @@ async fn test_where_multiple_conditions_or() {
 async fn test_empty_result_set() {
     let adapter = setup_user_table(3).await;
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: crate::where_clause::WhereOperator::Eq,
-        value:    json!("nonexistent"),
+        value: json!("nonexistent"),
     };
     let results = adapter
         .execute_where_query("v_user", Some(&clause), None, None, None)
@@ -682,8 +682,8 @@ async fn test_projection_filters_fields() {
 
     let adapter = setup_user_table(3).await;
     let projection = SqlProjectionHint {
-        database:                    crate::DatabaseType::SQLite,
-        projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
+        database: crate::DatabaseType::SQLite,
+        projection_template: "json_object('name', json_extract(data, '$.name')) AS data"
             .to_string(),
         estimated_reduction_percent: 50,
     };

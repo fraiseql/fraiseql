@@ -376,7 +376,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action:      "invalidate".to_string(),
+            action: "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 

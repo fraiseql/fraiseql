@@ -299,11 +299,11 @@ fn test_disabling_complexity_validation() {
 fn test_graphql_request_structure_with_profiles() {
     // Verify GraphQLRequest can be created and validated with profile limits
     let request = GraphQLRequest {
-        query:          Some("{ posts { id title author { id name } } }".to_string()),
-        variables:      None,
+        query: Some("{ posts { id title author { id name } } }".to_string()),
+        variables: None,
         operation_name: None,
-        extensions:     None,
-        document_id:    None,
+        extensions: None,
+        document_id: None,
     };
 
     let validator = regulated_profile_validator();

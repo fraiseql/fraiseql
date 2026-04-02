@@ -68,14 +68,14 @@ fn collation_config_serde_round_trip() {
 #[test]
 fn collation_config_serde_with_overrides() {
     let cfg = CollationConfig {
-        enabled:            true,
-        fallback_locale:    "de-DE".to_string(),
-        allowed_locales:    vec!["de-DE".to_string(), "en-US".to_string()],
-        on_invalid_locale:  InvalidLocaleStrategy::DatabaseDefault,
+        enabled: true,
+        fallback_locale: "de-DE".to_string(),
+        allowed_locales: vec!["de-DE".to_string(), "en-US".to_string()],
+        on_invalid_locale: InvalidLocaleStrategy::DatabaseDefault,
         database_overrides: Some(DatabaseCollationOverrides {
-            postgres:  Some(PostgresCollationConfig::default()),
-            mysql:     None,
-            sqlite:    None,
+            postgres: Some(PostgresCollationConfig::default()),
+            mysql: None,
+            sqlite: None,
             sqlserver: None,
         }),
     };
@@ -127,7 +127,7 @@ fn postgres_collation_default_uses_icu() {
 #[test]
 fn postgres_collation_serde_round_trip() {
     let original = PostgresCollationConfig {
-        use_icu:  false,
+        use_icu: false,
         provider: "libc".to_string(),
     };
     let json = serde_json::to_string(&original).unwrap();
@@ -160,7 +160,7 @@ fn mysql_collation_default_suffix_unicode() {
 fn mysql_collation_serde_round_trip() {
     let original = MySqlCollationConfig {
         charset: "utf8mb4".to_string(),
-        suffix:  "_0900_ai_ci".to_string(),
+        suffix: "_0900_ai_ci".to_string(),
     };
     let json = serde_json::to_string(&original).unwrap();
     let restored: MySqlCollationConfig = serde_json::from_str(&json).unwrap();
@@ -200,7 +200,7 @@ fn sqlserver_collation_defaults_ci_ai() {
 #[test]
 fn sqlserver_collation_serde_round_trip() {
     let original = SqlServerCollationConfig {
-        case_insensitive:   false,
+        case_insensitive: false,
         accent_insensitive: true,
     };
     let json = serde_json::to_string(&original).unwrap();
@@ -216,9 +216,9 @@ fn sqlserver_collation_serde_round_trip() {
 #[test]
 fn database_overrides_all_none_by_default_construction() {
     let ov = DatabaseCollationOverrides {
-        postgres:  None,
-        mysql:     None,
-        sqlite:    None,
+        postgres: None,
+        mysql: None,
+        sqlite: None,
         sqlserver: None,
     };
     assert!(ov.postgres.is_none());
@@ -231,9 +231,9 @@ fn database_overrides_all_none_by_default_construction() {
 fn database_overrides_partial_serde() {
     // Only SQLite override set — others must serialize as absent (skip_serializing_if)
     let ov = DatabaseCollationOverrides {
-        postgres:  None,
-        mysql:     None,
-        sqlite:    Some(SqliteCollationConfig::default()),
+        postgres: None,
+        mysql: None,
+        sqlite: Some(SqliteCollationConfig::default()),
         sqlserver: None,
     };
     let json = serde_json::to_string(&ov).unwrap();

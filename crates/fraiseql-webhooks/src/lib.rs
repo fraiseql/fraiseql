@@ -97,9 +97,9 @@ pub enum WebhookError {
     #[error("Timestamp expired (received: {received}, now: {now}, tolerance: {tolerance}s)")]
     TimestampExpired {
         /// Unix timestamp (seconds) extracted from the request.
-        received:  i64,
+        received: i64,
         /// Unix timestamp (seconds) at the time of verification.
-        now:       i64,
+        now: i64,
         /// Maximum allowed age of a request in seconds before it is rejected.
         tolerance: u64,
     },

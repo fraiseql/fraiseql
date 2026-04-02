@@ -43,9 +43,9 @@ impl FromStr for SbomFormat {
 /// Parsed Cargo.lock package entry
 #[derive(Debug, Deserialize)]
 struct CargoLockPackage {
-    name:    String,
+    name: String,
     version: String,
-    source:  Option<String>,
+    source: Option<String>,
 }
 
 /// Parsed Cargo.lock file
@@ -305,14 +305,14 @@ mod tests {
     fn test_generate_cyclonedx() {
         let packages = vec![
             CargoLockPackage {
-                name:    "serde".to_string(),
+                name: "serde".to_string(),
                 version: "1.0.200".to_string(),
-                source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
+                source: Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
             },
             CargoLockPackage {
-                name:    "tokio".to_string(),
+                name: "tokio".to_string(),
                 version: "1.42.0".to_string(),
-                source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
+                source: Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
             },
         ];
 
@@ -335,9 +335,9 @@ mod tests {
     #[test]
     fn test_generate_spdx() {
         let packages = vec![CargoLockPackage {
-            name:    "anyhow".to_string(),
+            name: "anyhow".to_string(),
             version: "1.0.0".to_string(),
-            source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
+            source: Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
         }];
 
         let result = generate_spdx("test-app", "0.1.0", &packages).unwrap();

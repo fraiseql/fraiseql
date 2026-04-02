@@ -15,7 +15,7 @@ use crate::{
 /// Supports Okta custom claims and group-based authorization.
 #[derive(Debug)]
 pub struct OktaOAuth {
-    oidc:   OidcProvider,
+    oidc: OidcProvider,
     domain: String,
 }
 
@@ -23,21 +23,21 @@ pub struct OktaOAuth {
 #[derive(Debug, Clone, Deserialize)]
 pub struct OktaUser {
     /// Subject — Okta's stable user ID
-    pub sub:            String,
+    pub sub: String,
     /// User's email address
-    pub email:          String,
+    pub email: String,
     /// Whether Okta has verified the email address
     pub email_verified: Option<bool>,
     /// User's full display name
-    pub name:           Option<String>,
+    pub name: Option<String>,
     /// Given (first) name
-    pub given_name:     Option<String>,
+    pub given_name: Option<String>,
     /// Family (last) name
-    pub family_name:    Option<String>,
+    pub family_name: Option<String>,
     /// URL of the user's profile picture
-    pub picture:        Option<String>,
+    pub picture: Option<String>,
     /// User's locale (e.g., `"en_US"`)
-    pub locale:         Option<String>,
+    pub locale: Option<String>,
 }
 
 /// Okta groups claim

@@ -27,17 +27,17 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
     let has_node_interface = schema.interfaces.iter().any(|i| i.name == "Node");
     if !has_node_interface {
         let node_id_field = FieldDefinition {
-            name:           "id".into(),
-            field_type:     FieldType::Id,
-            nullable:       false,
-            description:    Some("Globally unique identifier (UUID).".to_string()),
-            default_value:  None,
-            vector_config:  None,
-            alias:          None,
-            deprecation:    None,
+            name: "id".into(),
+            field_type: FieldType::Id,
+            nullable: false,
+            description: Some("Globally unique identifier (UUID).".to_string()),
+            default_value: None,
+            vector_config: None,
+            alias: None,
+            deprecation: None,
             requires_scope: None,
-            on_deny:        FieldDenyPolicy::default(),
-            encryption:     None,
+            on_deny: FieldDenyPolicy::default(),
+            encryption: None,
         };
         schema.interfaces.push(
             InterfaceDefinition::new("Node")
@@ -63,10 +63,10 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
             encryption: None,
         };
         let page_info = TypeDefinition {
-            name:                "PageInfo".into(),
-            sql_source:          String::new().into(), // synthetic — no DB source
-            jsonb_column:        String::new(),
-            fields:              vec![
+            name: "PageInfo".into(),
+            sql_source: String::new().into(), // synthetic — no DB source
+            jsonb_column: String::new(),
+            fields: vec![
                 make_field(
                     "hasNextPage",
                     FieldType::Boolean,
@@ -92,13 +92,13 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
                     "Cursor for the last item in the current page.",
                 ),
             ],
-            description:         Some("Relay pagination info.".to_string()),
+            description: Some("Relay pagination info.".to_string()),
             sql_projection_hint: None,
-            implements:          Vec::new(),
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       Vec::new(),
+            implements: Vec::new(),
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: Vec::new(),
         };
         schema.types.push(page_info);
     }
@@ -135,10 +135,10 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
         let has_edge = schema.types.iter().any(|t| t.name == edge_name);
         if !has_edge {
             new_types.push(TypeDefinition {
-                name:                edge_name.clone().into(),
-                sql_source:          String::new().into(),
-                jsonb_column:        String::new(),
-                fields:              vec![
+                name: edge_name.clone().into(),
+                sql_source: String::new().into(),
+                jsonb_column: String::new(),
+                fields: vec![
                     make_field(
                         "cursor",
                         FieldType::String,
@@ -154,23 +154,23 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
                         "The item at this edge.",
                     ),
                 ],
-                description:         Some(format!("An edge in the {type_name} Relay connection.")),
+                description: Some(format!("An edge in the {type_name} Relay connection.")),
                 sql_projection_hint: None,
-                implements:          Vec::new(),
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       Vec::new(),
+                implements: Vec::new(),
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: Vec::new(),
             });
         }
 
         let has_conn = schema.types.iter().any(|t| t.name == conn_name);
         if !has_conn {
             new_types.push(TypeDefinition {
-                name:                conn_name.into(),
-                sql_source:          String::new().into(),
-                jsonb_column:        String::new(),
-                fields:              vec![
+                name: conn_name.into(),
+                sql_source: String::new().into(),
+                jsonb_column: String::new(),
+                fields: vec![
                     make_field(
                         "edges",
                         FieldType::List(Box::new(FieldType::Object(edge_name))),
@@ -190,15 +190,15 @@ pub(super) fn inject_relay_types(schema: &mut CompiledSchema) {
                         "Total number of items matching the filter.",
                     ),
                 ],
-                description:         Some(format!(
+                description: Some(format!(
                     "A Relay connection for paginating {type_name} records."
                 )),
                 sql_projection_hint: None,
-                implements:          Vec::new(),
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       Vec::new(),
+                implements: Vec::new(),
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: Vec::new(),
             });
         }
     }

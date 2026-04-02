@@ -94,16 +94,16 @@ impl AuthoringIR {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            types:         Vec::new(),
-            enums:         Vec::new(),
-            interfaces:    Vec::new(),
-            unions:        Vec::new(),
-            input_types:   Vec::new(),
-            scalars:       Vec::new(),
-            queries:       Vec::new(),
-            mutations:     Vec::new(),
+            types: Vec::new(),
+            enums: Vec::new(),
+            interfaces: Vec::new(),
+            unions: Vec::new(),
+            input_types: Vec::new(),
+            scalars: Vec::new(),
+            queries: Vec::new(),
+            mutations: Vec::new(),
             subscriptions: Vec::new(),
-            fact_tables:   HashMap::new(),
+            fact_tables: HashMap::new(),
         }
     }
 }
@@ -423,15 +423,15 @@ mod tests {
     #[test]
     fn test_ir_type() {
         let ir_type = IRType {
-            name:        "User".to_string(),
-            fields:      vec![IRField {
-                name:        "id".to_string(),
-                field_type:  "Int!".to_string(),
-                nullable:    false,
+            name: "User".to_string(),
+            fields: vec![IRField {
+                name: "id".to_string(),
+                field_type: "Int!".to_string(),
+                nullable: false,
                 description: None,
-                sql_column:  Some("id".to_string()),
+                sql_column: Some("id".to_string()),
             }],
-            sql_source:  Some("v_user".to_string()),
+            sql_source: Some("v_user".to_string()),
             description: Some("User type".to_string()),
         };
 
@@ -443,14 +443,14 @@ mod tests {
     #[test]
     fn test_ir_query() {
         let query = IRQuery {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
+            name: "users".to_string(),
+            return_type: "User".to_string(),
             returns_list: true,
-            nullable:     false,
-            arguments:    vec![],
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  AutoParams {
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams {
                 has_where: true,
                 has_limit: true,
                 ..Default::default()
@@ -466,18 +466,18 @@ mod tests {
     #[test]
     fn test_ir_mutation() {
         let mutation = IRMutation {
-            name:        "createUser".to_string(),
+            name: "createUser".to_string(),
             return_type: "User".to_string(),
-            nullable:    false,
-            arguments:   vec![IRArgument {
-                name:          "input".to_string(),
-                arg_type:      "CreateUserInput!".to_string(),
-                nullable:      false,
+            nullable: false,
+            arguments: vec![IRArgument {
+                name: "input".to_string(),
+                arg_type: "CreateUserInput!".to_string(),
+                nullable: false,
                 default_value: None,
-                description:   None,
+                description: None,
             }],
             description: None,
-            operation:   MutationOperation::Create,
+            operation: MutationOperation::Create,
         };
 
         assert_eq!(mutation.name, "createUser");
@@ -514,14 +514,14 @@ mod tests {
     #[test]
     fn test_ir_scalar_with_all_fields() {
         let scalar = IRScalar {
-            name:             "Email".to_string(),
-            description:      Some("Valid email address".to_string()),
+            name: "Email".to_string(),
+            description: Some("Valid email address".to_string()),
             specified_by_url: Some("https://html.spec.whatwg.org/".to_string()),
             validation_rules: vec![ValidationRule::Pattern {
                 pattern: r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
                 message: Some("Invalid email format".to_string()),
             }],
-            base_type:        Some("String".to_string()),
+            base_type: Some("String".to_string()),
         };
 
         assert_eq!(scalar.name, "Email");
@@ -534,11 +534,11 @@ mod tests {
     #[test]
     fn test_ir_scalar_serialization() {
         let scalar = IRScalar {
-            name:             "ISBN".to_string(),
-            description:      Some("International Standard Book Number".to_string()),
+            name: "ISBN".to_string(),
+            description: Some("International Standard Book Number".to_string()),
             specified_by_url: Some("https://www.isbn-international.org/".to_string()),
             validation_rules: vec![],
-            base_type:        None,
+            base_type: None,
         };
 
         // Serialize to JSON
@@ -573,19 +573,19 @@ mod tests {
     #[test]
     fn test_ir_scalar_equality() {
         let scalar1 = IRScalar {
-            name:             "UUID".to_string(),
-            description:      Some("Universal Unique Identifier".to_string()),
+            name: "UUID".to_string(),
+            description: Some("Universal Unique Identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type:        None,
+            base_type: None,
         };
 
         let scalar2 = IRScalar {
-            name:             "UUID".to_string(),
-            description:      Some("Universal Unique Identifier".to_string()),
+            name: "UUID".to_string(),
+            description: Some("Universal Unique Identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type:        None,
+            base_type: None,
         };
 
         assert_eq!(scalar1, scalar2);

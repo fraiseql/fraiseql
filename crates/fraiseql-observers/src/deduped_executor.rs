@@ -137,14 +137,14 @@ use crate::{
 #[cfg(feature = "dedup")]
 pub struct DedupedObserverExecutor<D: DeduplicationStore> {
     /// Inner executor that performs actual event processing
-    inner:        Arc<ObserverExecutor>,
+    inner: Arc<ObserverExecutor>,
     /// Deduplication store (typically Redis-backed)
-    dedup_store:  D,
+    dedup_store: D,
     /// Tenant scope policy applied before dedup check
     tenant_scope: TenantScope,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    metrics:      MetricsRegistry,
+    metrics: MetricsRegistry,
 }
 
 #[cfg(feature = "dedup")]
@@ -251,7 +251,7 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
         if !self.tenant_allowed(event.tenant_id.as_deref()) {
             let scope = self.scope_description();
             let violation = crate::error::ObserverError::TenantViolation {
-                event_tenant:   event.tenant_id.clone(),
+                event_tenant: event.tenant_id.clone(),
                 required_scope: scope.clone(),
             };
             error!(
@@ -313,15 +313,15 @@ impl<D: DeduplicationStore> DedupedObserverExecutor<D> {
 
             return Ok(ExecutionSummary {
                 successful_actions: 0,
-                failed_actions:     0,
+                failed_actions: 0,
                 conditions_skipped: 0,
-                total_duration_ms:  0.0,
-                dlq_errors:         0,
-                errors:             Vec::new(),
-                duplicate_skipped:  true,
-                tenant_rejected:    false,
-                cache_hits:         0,
-                cache_misses:       0,
+                total_duration_ms: 0.0,
+                dlq_errors: 0,
+                errors: Vec::new(),
+                duplicate_skipped: true,
+                tenant_rejected: false,
+                cache_hits: 0,
+                cache_misses: 0,
             });
         }
 
@@ -377,7 +377,7 @@ mod tests {
     // the shard level, matching the SET NX semantics of the Redis backend.
     #[derive(Clone)]
     struct InMemoryDedupStore {
-        store:          Arc<dashmap::DashMap<String, bool>>,
+        store: Arc<dashmap::DashMap<String, bool>>,
         window_seconds: u64,
     }
 

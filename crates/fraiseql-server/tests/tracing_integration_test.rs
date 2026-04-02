@@ -156,10 +156,10 @@ fn trace_context_to_traceparent_roundtrip() {
     use fraiseql_core::federation::FederationTraceContext;
 
     let original = FederationTraceContext {
-        trace_id:       "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
+        trace_id: "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
         parent_span_id: "00f067aa0ba902b7".to_string(),
-        trace_flags:    "01".to_string(),
-        query_id:       "test-query-id".to_string(),
+        trace_flags: "01".to_string(),
+        query_id: "test-query-id".to_string(),
     };
 
     let header_value = original.to_traceparent();

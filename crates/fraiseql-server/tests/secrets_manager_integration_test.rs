@@ -56,9 +56,9 @@ async fn test_env_backend_initialization() {
 #[ignore = "requires vault"]
 async fn test_vault_backend_token_initialization() {
     let config = SecretsBackendConfig::Vault {
-        addr:       "http://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string().into()),
-        namespace:  None,
+        addr: "http://127.0.0.1:8200".to_string(),
+        auth: VaultAuth::Token("test-token".to_string().into()),
+        namespace: None,
         tls_verify: true,
     };
 
@@ -73,12 +73,12 @@ async fn test_vault_backend_token_initialization() {
 #[ignore = "requires vault"]
 async fn test_vault_backend_approle_initialization() {
     let config = SecretsBackendConfig::Vault {
-        addr:       "http://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::AppRole {
-            role_id:   "test-role-id".to_string(),
+        addr: "http://127.0.0.1:8200".to_string(),
+        auth: VaultAuth::AppRole {
+            role_id: "test-role-id".to_string(),
             secret_id: "test-secret-id".to_string().into(),
         },
-        namespace:  None,
+        namespace: None,
         tls_verify: true,
     };
 
@@ -91,9 +91,9 @@ async fn test_vault_backend_approle_initialization() {
 #[tokio::test]
 async fn test_vault_namespace_configuration() {
     let config = SecretsBackendConfig::Vault {
-        addr:       "http://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string().into()),
-        namespace:  Some("fraiseql/prod".to_string()),
+        addr: "http://127.0.0.1:8200".to_string(),
+        auth: VaultAuth::Token("test-token".to_string().into()),
+        namespace: Some("fraiseql/prod".to_string()),
         tls_verify: true,
     };
 
@@ -109,9 +109,9 @@ async fn test_vault_namespace_configuration() {
 #[tokio::test]
 async fn test_vault_tls_verification_disabled() {
     let config = SecretsBackendConfig::Vault {
-        addr:       "https://127.0.0.1:8200".to_string(),
-        auth:       VaultAuth::Token("test-token".to_string().into()),
-        namespace:  None,
+        addr: "https://127.0.0.1:8200".to_string(),
+        auth: VaultAuth::Token("test-token".to_string().into()),
+        namespace: None,
         tls_verify: false,
     };
 

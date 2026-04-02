@@ -21,26 +21,26 @@ fn test_dependency_graph_build() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             typename: "User".to_string(),
         }),
     );
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "items".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["total".to_string()],
+            path: vec!["total".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -48,7 +48,7 @@ fn test_dependency_graph_build() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type],
+        types: vec![user_type, order_type],
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -68,7 +68,7 @@ fn test_dependency_graph_with_no_requires() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType::new("User".to_string()),
             FederatedType::new("Order".to_string()),
         ],
@@ -92,13 +92,13 @@ fn test_cycle_detection_no_cycles() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -106,7 +106,7 @@ fn test_cycle_detection_no_cycles() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -124,20 +124,20 @@ fn test_cycle_detection_simple_cycle() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             typename: "User".to_string(),
         }),
     );
     user_type.set_field_directives(
         "email".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["orders".to_string()],
+            path: vec!["orders".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -145,7 +145,7 @@ fn test_cycle_detection_simple_cycle() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -163,39 +163,39 @@ fn test_cycle_detection_longer_cycle() {
 
     let mut type_a = FederatedType::new("A".to_string());
     type_a.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     type_a.set_field_directives(
         "f1".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["f2".to_string()],
+            path: vec!["f2".to_string()],
             typename: "B".to_string(),
         }),
     );
 
     let mut type_b = FederatedType::new("B".to_string());
     type_b.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     type_b.set_field_directives(
         "f2".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["f3".to_string()],
+            path: vec!["f3".to_string()],
             typename: "C".to_string(),
         }),
     );
 
     let mut type_c = FederatedType::new("C".to_string());
     type_c.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     type_c.set_field_directives(
         "f3".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["f1".to_string()],
+            path: vec!["f1".to_string()],
             typename: "A".to_string(),
         }),
     );
@@ -203,7 +203,7 @@ fn test_cycle_detection_longer_cycle() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![type_a, type_b, type_c],
+        types: vec![type_a, type_b, type_c],
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -225,13 +225,13 @@ fn test_topological_sort_valid_graph() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -239,7 +239,7 @@ fn test_topological_sort_valid_graph() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -257,26 +257,26 @@ fn test_topological_sort_fails_on_cycle() {
 
     let mut type_a = FederatedType::new("A".to_string());
     type_a.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     type_a.set_field_directives(
         "f".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["g".to_string()],
+            path: vec!["g".to_string()],
             typename: "B".to_string(),
         }),
     );
 
     let mut type_b = FederatedType::new("B".to_string());
     type_b.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     type_b.set_field_directives(
         "g".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["f".to_string()],
+            path: vec!["f".to_string()],
             typename: "A".to_string(),
         }),
     );
@@ -284,7 +284,7 @@ fn test_topological_sort_fails_on_cycle() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![type_a, type_b],
+        types: vec![type_a, type_b],
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");

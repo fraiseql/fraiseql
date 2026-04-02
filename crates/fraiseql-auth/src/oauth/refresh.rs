@@ -98,9 +98,9 @@ pub trait TokenRefresher: Send + Sync {
 /// Background worker that polls the `TokenRefreshScheduler` and refreshes
 /// expiring OAuth tokens.
 pub struct TokenRefreshWorker {
-    scheduler:     Arc<TokenRefreshScheduler>,
-    refresher:     Arc<dyn TokenRefresher>,
-    cancel_rx:     tokio::sync::watch::Receiver<bool>,
+    scheduler: Arc<TokenRefreshScheduler>,
+    refresher: Arc<dyn TokenRefresher>,
+    cancel_rx: tokio::sync::watch::Receiver<bool>,
     poll_interval: StdDuration,
 }
 

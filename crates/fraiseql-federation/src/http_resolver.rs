@@ -25,9 +25,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct HttpClientConfig {
     /// Request timeout in milliseconds
-    pub timeout_ms:     u64,
+    pub timeout_ms: u64,
     /// Maximum number of retry attempts
-    pub max_retries:    u32,
+    pub max_retries: u32,
     /// Initial delay between retries in milliseconds (exponential backoff)
     pub retry_delay_ms: u64,
 }
@@ -35,8 +35,8 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            timeout_ms:     5000,
-            max_retries:    3,
+            timeout_ms: 5000,
+            max_retries: 3,
             retry_delay_ms: 100,
         }
     }
@@ -45,8 +45,8 @@ impl Default for HttpClientConfig {
 /// HTTP entity resolver
 #[derive(Clone)]
 pub struct HttpEntityResolver {
-    client:    reqwest::Client,
-    config:    HttpClientConfig,
+    client: reqwest::Client,
+    config: HttpClientConfig,
     /// When `true`, URL validation is skipped. Only settable in test code.
     #[cfg(any(test, feature = "test-utils"))]
     skip_ssrf: bool,
@@ -54,13 +54,13 @@ pub struct HttpEntityResolver {
 
 #[derive(serde::Serialize)]
 struct GraphQLRequest {
-    query:     String,
+    query: String,
     variables: Value,
 }
 
 #[derive(serde::Deserialize, Debug)]
 struct GraphQLResponse {
-    data:   Option<Value>,
+    data: Option<Value>,
     errors: Option<Vec<GraphQLError>>,
 }
 
@@ -97,13 +97,13 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
                           Set FRAISEQL_FEDERATION_ALLOW_INSECURE=true to permit plain HTTP \
                           in development environments."
                     .to_string(),
-                source:  None,
+                source: None,
             });
         }
     } else {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL must use https:// scheme (got: {url})"),
-            source:  None,
+            source: None,
         });
     }
 
@@ -116,7 +116,7 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     // is fragile in the presence of IPv6 literals and non-standard authority forms.
     let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
         message: format!("Subgraph URL is not a valid URL ({url}): {e}"),
-        source:  None,
+        source: None,
     })?;
 
     let host_raw = parsed.host_str().unwrap_or("");
@@ -124,7 +124,7 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     if host_raw.is_empty() {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL has no host: {url}"),
-            source:  None,
+            source: None,
         });
     }
 
@@ -141,7 +141,7 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     if lower_host == "localhost" || lower_host.ends_with(".localhost") {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("Subgraph URL targets a loopback host: {host}"),
-            source:  None,
+            source: None,
         });
     }
 
@@ -153,7 +153,7 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
                     "Subgraph URL targets a private or reserved IP address ({ip}) — \
                      SSRF protection blocked the request"
                 ),
-                source:  None,
+                source: None,
             });
         }
     }
@@ -202,24 +202,24 @@ pub fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
 async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
     let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
         message: format!("Invalid URL '{url}': {e}"),
-        source:  None,
+        source: None,
     })?;
     let host = parsed.host_str().ok_or_else(|| fraiseql_error::FraiseQLError::Internal {
         message: format!("URL has no host: {url}"),
-        source:  None,
+        source: None,
     })?;
     let port = parsed.port_or_known_default().unwrap_or(443);
     let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
         .await
         .map_err(|e| fraiseql_error::FraiseQLError::Internal {
             message: format!("DNS resolution failed for host '{host}': {e}"),
-            source:  None,
+            source: None,
         })?
         .collect();
     if addrs.is_empty() {
         return Err(fraiseql_error::FraiseQLError::Internal {
             message: format!("DNS resolved to no addresses for host '{host}'"),
-            source:  None,
+            source: None,
         });
     }
     for addr in &addrs {
@@ -229,7 +229,7 @@ async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
                     "DNS rebinding attack blocked: host '{host}' resolved to private/reserved IP {}",
                     addr.ip()
                 ),
-                source:  None,
+                source: None,
             });
         }
     }
@@ -254,7 +254,7 @@ impl HttpEntityResolver {
             .build()
             .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("HTTP client initialisation failed for federation resolver: {e}"),
-                source:  None,
+                source: None,
             })?;
 
         let allow_insecure = std::env::var("FRAISEQL_FEDERATION_ALLOW_INSECURE")
@@ -295,7 +295,7 @@ impl HttpEntityResolver {
             .build()
             .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("HTTP client init failed: {e}"),
-                source:  None,
+                source: None,
             })?;
         Ok(Self {
             client,
@@ -453,7 +453,7 @@ impl HttpEntityResolver {
                 attempts,
                 last_error.unwrap_or_else(|| "unknown error".to_string())
             ),
-            source:  None,
+            source: None,
         })
     }
 
@@ -467,7 +467,7 @@ impl HttpEntityResolver {
             let error_messages: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
             return Err(fraiseql_error::FraiseQLError::Internal {
                 message: format!("GraphQL errors: {}", error_messages.join("; ")),
-                source:  None,
+                source: None,
             });
         }
 
@@ -487,7 +487,7 @@ impl HttpEntityResolver {
                     representations.len(),
                     entities.len()
                 ),
-                source:  None,
+                source: None,
             });
         }
 
@@ -724,7 +724,7 @@ mod tests {
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
-            data:   Some(json!({
+            data: Some(json!({
                 "_entities": [
                     { "id": "123", "email": "user@example.com" }
                 ]
@@ -745,7 +745,7 @@ mod tests {
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
-            data:   None,
+            data: None,
             errors: Some(vec![GraphQLError::new("Entity not found")]),
         };
 
@@ -765,7 +765,7 @@ mod tests {
         ];
 
         let response = GraphQLResponse {
-            data:   Some(json!({
+            data: Some(json!({
                 "_entities": [
                     { "id": "123" }
                 ]
@@ -791,8 +791,8 @@ mod tests {
     #[test]
     fn test_config_custom() {
         let config = HttpClientConfig {
-            timeout_ms:     10000,
-            max_retries:    5,
+            timeout_ms: 10000,
+            max_retries: 5,
             retry_delay_ms: 200,
         };
         assert_eq!(config.timeout_ms, 10000);
@@ -860,15 +860,15 @@ mod tests {
             .await;
 
         let config = HttpClientConfig {
-            timeout_ms:     5000,
-            max_retries:    1,
+            timeout_ms: 5000,
+            max_retries: 1,
             retry_delay_ms: 0,
         };
         // new_for_test bypasses SSRF guard so we can reach the loopback mock server.
         let resolver = HttpEntityResolver::new_for_test(config).unwrap();
         let url = format!("{}/_entities", mock.uri());
         let repr = EntityRepresentation {
-            typename:   "Order".to_string(),
+            typename: "Order".to_string(),
             key_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
             all_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
         };
@@ -902,14 +902,14 @@ mod tests {
             .await;
 
         let config = HttpClientConfig {
-            timeout_ms:     5000,
-            max_retries:    1,
+            timeout_ms: 5000,
+            max_retries: 1,
             retry_delay_ms: 0,
         };
         let resolver = HttpEntityResolver::new_for_test(config).unwrap();
         let url = format!("{}/_entities", mock.uri());
         let repr = EntityRepresentation {
-            typename:   "Order".to_string(),
+            typename: "Order".to_string(),
             key_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
             all_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
         };

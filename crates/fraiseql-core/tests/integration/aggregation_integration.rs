@@ -32,53 +32,53 @@ use serde_json::json;
 /// Helper to create test fact table metadata for `tf_sales`
 fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![
+        table_name: "tf_sales".to_string(),
+        measures: vec![
             MeasureColumn {
-                name:     "revenue".to_string(),
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             },
             MeasureColumn {
-                name:     "quantity".to_string(),
+                name: "quantity".to_string(),
                 sql_type: SqlType::Int,
                 nullable: false,
             },
         ],
-        dimensions:           DimensionColumn {
-            name:  "data".to_string(),
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![
                 DimensionPath {
-                    name:      "category".to_string(),
+                    name: "category".to_string(),
                     json_path: "data->>'category'".to_string(),
                     data_type: "text".to_string(),
                 },
                 DimensionPath {
-                    name:      "product".to_string(),
+                    name: "product".to_string(),
                     json_path: "data->>'product'".to_string(),
                     data_type: "text".to_string(),
                 },
             ],
         },
         denormalized_filters: vec![FilterColumn {
-            name:     "occurred_at".to_string(),
+            name: "occurred_at".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:  vec![CalendarDimension {
+        calendar_dimensions: vec![CalendarDimension {
             source_column: "occurred_at".to_string(),
             granularities: vec![CalendarGranularity {
                 column_name: "date_info".to_string(),
-                buckets:     vec![
+                buckets: vec![
                     CalendarBucket {
-                        json_key:    "day".to_string(),
+                        json_key: "day".to_string(),
                         bucket_type: TemporalBucket::Day,
-                        data_type:   "date".to_string(),
+                        data_type: "date".to_string(),
                     },
                     CalendarBucket {
-                        json_key:    "month".to_string(),
+                        json_key: "month".to_string(),
                         bucket_type: TemporalBucket::Month,
-                        data_type:   "integer".to_string(),
+                        data_type: "integer".to_string(),
                     },
                 ],
             }],
@@ -176,26 +176,26 @@ fn test_sql_generation_postgres() {
 
     let metadata = create_test_metadata();
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: None,
-        group_by:     vec![GroupBySelection::Dimension {
-            path:  "category".to_string(),
+        group_by: vec![GroupBySelection::Dimension {
+            path: "category".to_string(),
             alias: "category".to_string(),
         }],
-        aggregates:   vec![
+        aggregates: vec![
             AggregateSelection::Count {
                 alias: "count".to_string(),
             },
             AggregateSelection::MeasureAggregate {
-                measure:  "revenue".to_string(),
+                measure: "revenue".to_string(),
                 function: AggregateFunction::Sum,
-                alias:    "revenue_sum".to_string(),
+                alias: "revenue_sum".to_string(),
             },
         ],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     // Generate execution plan
@@ -219,20 +219,20 @@ fn test_temporal_bucket_sql_generation() {
 
     let metadata = create_test_metadata();
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: None,
-        group_by:     vec![GroupBySelection::TemporalBucket {
+        group_by: vec![GroupBySelection::TemporalBucket {
             column: "occurred_at".to_string(),
             bucket: TemporalBucket::Day,
-            alias:  "day".to_string(),
+            alias: "day".to_string(),
         }],
-        aggregates:   vec![AggregateSelection::Count {
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -272,19 +272,19 @@ fn test_result_projection() {
 
     let metadata = create_test_metadata();
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: None,
-        group_by:     vec![GroupBySelection::Dimension {
-            path:  "category".to_string(),
+        group_by: vec![GroupBySelection::Dimension {
+            path: "category".to_string(),
             alias: "category".to_string(),
         }],
-        aggregates:   vec![AggregateSelection::Count {
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = AggregationPlan {
@@ -292,8 +292,8 @@ fn test_result_projection() {
         request,
         group_by_expressions: vec![GroupByExpression::JsonbPath {
             jsonb_column: "data".to_string(),
-            path:         "category".to_string(),
-            alias:        "category".to_string(),
+            path: "category".to_string(),
+            alias: "category".to_string(),
         }],
         aggregate_expressions: vec![AggregateExpression::Count {
             alias: "count".to_string(),

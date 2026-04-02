@@ -9,7 +9,7 @@ pub enum IntegrationError {
         /// Name of the search provider.
         provider: String,
         /// Error message from the provider.
-        message:  String,
+        message: String,
     },
 
     /// An error occurred while reading from or writing to an external cache

@@ -14,7 +14,7 @@ use crate::error::Result;
 /// and if the key exists, the event is a duplicate. TTL automatically expires keys.
 #[derive(Clone)]
 pub struct RedisDeduplicationStore {
-    conn:           ConnectionManager,
+    conn: ConnectionManager,
     window_seconds: u64,
 }
 

@@ -33,9 +33,9 @@ pub struct FieldEncryptionService {
     /// Map: `type_name` -> list of encrypted field names
     encrypted_fields: HashMap<String, Vec<String>>,
     /// Map: operation name (query/mutation) -> return type name
-    operation_types:  HashMap<String, String>,
+    operation_types: HashMap<String, String>,
     /// Adapter for encrypt/decrypt operations (fetches keys from `SecretsManager`)
-    adapter:          Arc<DatabaseFieldAdapter>,
+    adapter: Arc<DatabaseFieldAdapter>,
     /// Optional key rotation manager for versioned encryption
     rotation_manager: Option<Arc<CredentialRotationManager>>,
 }

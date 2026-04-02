@@ -133,9 +133,9 @@ pub trait JobQueue: Send + Sync {
 
 /// Mock job queue for testing
 pub struct MockJobQueue {
-    jobs:    Arc<dashmap::DashMap<Uuid, Job>>,
+    jobs: Arc<dashmap::DashMap<Uuid, Job>>,
     pending: Arc<dashmap::DashMap<Uuid, ()>>,
-    dlq:     Arc<dashmap::DashMap<Uuid, Job>>,
+    dlq: Arc<dashmap::DashMap<Uuid, Job>>,
 }
 
 impl MockJobQueue {
@@ -143,9 +143,9 @@ impl MockJobQueue {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            jobs:    Arc::new(dashmap::DashMap::new()),
+            jobs: Arc::new(dashmap::DashMap::new()),
             pending: Arc::new(dashmap::DashMap::new()),
-            dlq:     Arc::new(dashmap::DashMap::new()),
+            dlq: Arc::new(dashmap::DashMap::new()),
         }
     }
 
@@ -249,7 +249,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action:      "invalidate".to_string(),
+            action: "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
         let job_id = job.id;
@@ -269,7 +269,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action:      "invalidate".to_string(),
+            action: "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -286,7 +286,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action:      "invalidate".to_string(),
+            action: "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -309,7 +309,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action:      "invalidate".to_string(),
+            action: "invalidate".to_string(),
         };
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -330,7 +330,7 @@ mod tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action:      "invalidate".to_string(),
+            action: "invalidate".to_string(),
         };
         let mut job = Job::new(event_id, action, 1, crate::config::BackoffStrategy::Exponential);
 

@@ -48,7 +48,7 @@ pub enum InputObjectRule {
     /// If one field is present, others must be present
     ConditionalRequired {
         /// The trigger field whose presence activates the requirement.
-        if_field:    String,
+        if_field: String,
         /// Fields that must be present when `if_field` is provided.
         then_fields: Vec<String>,
     },
@@ -57,7 +57,7 @@ pub enum InputObjectRule {
         /// The field whose absence activates the requirement.
         absent_field: String,
         /// Fields that must be present when `absent_field` is missing.
-        then_fields:  Vec<String>,
+        then_fields: Vec<String>,
     },
     /// Custom validator function name to invoke
     Custom {
@@ -70,7 +70,7 @@ pub enum InputObjectRule {
 #[derive(Debug, Clone, Default)]
 pub struct InputObjectValidationResult {
     /// All validation errors
-    pub errors:      Vec<String>,
+    pub errors: Vec<String>,
     /// Count of errors
     pub error_count: usize,
 }
@@ -79,7 +79,7 @@ impl InputObjectValidationResult {
     /// Create a new empty result.
     pub const fn new() -> Self {
         Self {
-            errors:      Vec::new(),
+            errors: Vec::new(),
             error_count: 0,
         }
     }
@@ -121,7 +121,7 @@ impl InputObjectValidationResult {
         if self.has_errors() {
             Err(FraiseQLError::Validation {
                 message: format!("Input object validation failed: {}", self.errors.join("; ")),
-                path:    Some(path.to_string()),
+                path: Some(path.to_string()),
             })
         } else {
             Ok(())
@@ -152,7 +152,7 @@ pub fn validate_input_object(
     if !matches!(input, Value::Object(_)) {
         return Err(FraiseQLError::Validation {
             message: "Input must be an object".to_string(),
-            path:    Some(path.to_string()),
+            path: Some(path.to_string()),
         });
     }
 
@@ -183,7 +183,7 @@ fn validate_rule(input: &Value, rule: &InputObjectRule, path: &str) -> Result<()
                 "Custom validator '{name}' is not registered. \
                  Register validators via InputValidatorRegistry before executing queries."
             ),
-            path:    Some(path.to_string()),
+            path: Some(path.to_string()),
         }),
     }
 }
@@ -198,7 +198,7 @@ fn validate_any_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
         if !has_any {
             return Err(FraiseQLError::Validation {
                 message: format!("At least one of [{}] must be provided", fields.join(", ")),
-                path:    Some(path.to_string()),
+                path: Some(path.to_string()),
             });
         }
     }
@@ -222,7 +222,7 @@ fn validate_one_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
                     present_count,
                     if present_count == 1 { "was" } else { "were" }
                 ),
-                path:    Some(path.to_string()),
+                path: Some(path.to_string()),
             });
         }
     }
@@ -257,7 +257,7 @@ fn validate_conditional_required(
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
-                    path:    Some(path.to_string()),
+                    path: Some(path.to_string()),
                 });
             }
         }
@@ -293,7 +293,7 @@ fn validate_required_if_absent(
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
-                    path:    Some(path.to_string()),
+                    path: Some(path.to_string()),
                 });
             }
         }
@@ -403,7 +403,7 @@ mod tests {
             "paymentMethod": "credit_card"
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isPremium".to_string(),
+            if_field: "isPremium".to_string(),
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -419,7 +419,7 @@ mod tests {
             "paymentMethod": null
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isPremium".to_string(),
+            if_field: "isPremium".to_string(),
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -436,7 +436,7 @@ mod tests {
             "paymentMethod": null
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isPremium".to_string(),
+            if_field: "isPremium".to_string(),
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -455,7 +455,7 @@ mod tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         result.unwrap_or_else(|e| {
@@ -473,7 +473,7 @@ mod tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         assert!(
@@ -492,7 +492,7 @@ mod tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         result.unwrap_or_else(|e| {
@@ -513,7 +513,7 @@ mod tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -534,7 +534,7 @@ mod tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -558,7 +558,7 @@ mod tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -583,7 +583,7 @@ mod tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -609,7 +609,7 @@ mod tests {
             "importDuties": "50.00"
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isInternational".to_string(),
+            if_field: "isInternational".to_string(),
             then_fields: vec!["customsCode".to_string(), "importDuties".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -626,7 +626,7 @@ mod tests {
             "importDuties": null
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isInternational".to_string(),
+            if_field: "isInternational".to_string(),
             then_fields: vec!["customsCode".to_string(), "importDuties".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -742,7 +742,7 @@ mod tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         result.unwrap_or_else(|e| {

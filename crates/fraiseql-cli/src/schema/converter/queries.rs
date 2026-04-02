@@ -97,10 +97,10 @@ impl SchemaConverter {
         //   3. List:        resolve per-query override on top of TOML defaults
         let auto_params = if intermediate.relay {
             AutoParams {
-                has_where:    true,
+                has_where: true,
                 has_order_by: true,
-                has_limit:    false,
-                has_offset:   false,
+                has_limit: false,
+                has_offset: false,
             }
         } else if intermediate.returns_list {
             let resolved = Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults);
@@ -203,16 +203,16 @@ impl SchemaConverter {
     ) -> AutoParams {
         match per_query {
             None => AutoParams {
-                has_where:    defaults.where_clause,
+                has_where: defaults.where_clause,
                 has_order_by: defaults.order_by,
-                has_limit:    defaults.limit,
-                has_offset:   defaults.offset,
+                has_limit: defaults.limit,
+                has_offset: defaults.offset,
             },
             Some(p) => AutoParams {
-                has_where:    p.where_clause.unwrap_or(defaults.where_clause),
+                has_where: p.where_clause.unwrap_or(defaults.where_clause),
                 has_order_by: p.order_by.unwrap_or(defaults.order_by),
-                has_limit:    p.limit.unwrap_or(defaults.limit),
-                has_offset:   p.offset.unwrap_or(defaults.offset),
+                has_limit: p.limit.unwrap_or(defaults.limit),
+                has_offset: p.offset.unwrap_or(defaults.offset),
             },
         }
     }

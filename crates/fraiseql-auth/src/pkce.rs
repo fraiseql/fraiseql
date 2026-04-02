@@ -66,7 +66,7 @@ pub enum PkceError {
 pub struct ConsumedPkceState {
     /// The `code_verifier` generated during `create_state`, needed for the
     /// PKCE code exchange at `/token`.
-    pub verifier:     String,
+    pub verifier: String,
     /// The `redirect_uri` the client specified at `/auth/start`.
     pub redirect_uri: String,
 }
@@ -76,12 +76,12 @@ pub struct ConsumedPkceState {
 // ---------------------------------------------------------------------------
 
 struct PkceEntry {
-    verifier:     String,
+    verifier: String,
     redirect_uri: String,
     /// Creation time as a Tokio instant so `tokio::time::pause()` +
     /// `tokio::time::advance()` can control TTL expiry in tests.
-    created_at:   tokio::time::Instant,
-    ttl:          Duration,
+    created_at: tokio::time::Instant,
+    ttl: Duration,
 }
 
 /// In-memory PKCE state store backed by a [`DashMap`].
@@ -91,8 +91,8 @@ struct PkceEntry {
 /// (requires the `redis-pkce` Cargo feature).
 pub struct InMemoryPkceStateStore {
     state_ttl_secs: u64,
-    entries:        DashMap<String, PkceEntry>,
-    encryptor:      Option<Arc<StateEncryptionService>>,
+    entries: DashMap<String, PkceEntry>,
+    encryptor: Option<Arc<StateEncryptionService>>,
 }
 
 impl InMemoryPkceStateStore {
@@ -118,10 +118,10 @@ impl InMemoryPkceStateStore {
         self.entries.insert(
             internal_key.clone(),
             PkceEntry {
-                verifier:     verifier.clone(),
+                verifier: verifier.clone(),
                 redirect_uri: redirect_uri.to_owned(),
-                created_at:   tokio::time::Instant::now(),
-                ttl:          Duration::from_secs(self.state_ttl_secs),
+                created_at: tokio::time::Instant::now(),
+                ttl: Duration::from_secs(self.state_ttl_secs),
             },
         );
 
@@ -149,7 +149,7 @@ impl InMemoryPkceStateStore {
         }
 
         Ok(ConsumedPkceState {
-            verifier:     entry.verifier,
+            verifier: entry.verifier,
             redirect_uri: entry.redirect_uri,
         })
     }
@@ -189,9 +189,9 @@ pub fn redis_pkce_error_count_total() -> u64 {
 /// Value format: `{"verifier":"...","redirect_uri":"..."}`
 #[cfg(feature = "redis-pkce")]
 pub struct RedisPkceStateStore {
-    pool:           redis::aio::ConnectionManager,
+    pool: redis::aio::ConnectionManager,
     state_ttl_secs: u64,
-    encryptor:      Option<Arc<StateEncryptionService>>,
+    encryptor: Option<Arc<StateEncryptionService>>,
 }
 
 #[cfg(feature = "redis-pkce")]
@@ -260,7 +260,7 @@ impl RedisPkceStateStore {
     ) -> Result<ConsumedPkceState, PkceError> {
         #[derive(serde::Deserialize)]
         struct StoredEntry {
-            verifier:     String,
+            verifier: String,
             redirect_uri: String,
         }
 
@@ -294,7 +294,7 @@ impl RedisPkceStateStore {
         // The Redis backend therefore never returns `PkceError::StateExpired`;
         // callers receive `StateNotFound` for both absent and expired tokens.
         Ok(ConsumedPkceState {
-            verifier:     entry.verifier,
+            verifier: entry.verifier,
             redirect_uri: entry.redirect_uri,
         })
     }

@@ -17,26 +17,26 @@ fn test_mutation_coordinate_two_subgraph_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "Order".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["order_id".to_string()],
+                name: "Order".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["order_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
+                is_extends: false,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name:             "OrderItem".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["item_id".to_string()],
+                name: "OrderItem".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["item_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec![],
+                is_extends: true,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -73,37 +73,37 @@ fn test_mutation_coordinate_three_subgraph_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "User".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+                name: "User".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
+                is_extends: false,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name:             "Order".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["order_id".to_string()],
+                name: "Order".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["order_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec![],
+                is_extends: true,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name:             "Payment".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["payment_id".to_string()],
+                name: "Payment".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["payment_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec![],
+                is_extends: true,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
@@ -162,26 +162,26 @@ fn test_mutation_circular_reference_handling() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "Author".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["author_id".to_string()],
+                name: "Author".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["author_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
+                is_extends: false,
+                external_fields: vec![],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
-                name:             "Book".to_string(),
-                keys:             vec![KeyDirective {
-                    fields:     vec!["book_id".to_string()],
+                name: "Book".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["book_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec!["author_id".to_string()],
+                is_extends: true,
+                external_fields: vec!["author_id".to_string()],
                 shareable_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },

@@ -21,10 +21,10 @@ const MAX_WEBHOOK_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
 
 /// Subscription lifecycle hooks that call external HTTP endpoints.
 pub struct WebhookLifecycle {
-    client:             reqwest::Client,
-    on_connect_url:     Option<String>,
-    on_disconnect_url:  Option<String>,
-    on_subscribe_url:   Option<String>,
+    client: reqwest::Client,
+    on_connect_url: Option<String>,
+    on_disconnect_url: Option<String>,
+    on_subscribe_url: Option<String>,
     on_unsubscribe_url: Option<String>,
     #[allow(dead_code)] // Reason: kept for future use in fail-closed unsubscribe logic.
     timeout: Duration,

@@ -331,7 +331,7 @@ fn resolve_inject_value(
                 message: format!(
                     "Inject param '{param_name}': JWT claim '{claim}' not present in token"
                 ),
-                path:    None,
+                path: None,
             })
         },
     }

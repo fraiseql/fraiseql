@@ -128,20 +128,20 @@ impl StructuredLogger {
 /// Builder for structured log fields
 #[must_use = "call .debug(), .info(), .warn(), or .error() to emit the log entry"]
 pub struct LogBuilder {
-    service:  String,
-    fields:   Vec<(String, String)>,
+    service: String,
+    fields: Vec<(String, String)>,
     trace_id: Option<String>,
-    span_id:  Option<String>,
+    span_id: Option<String>,
 }
 
 impl LogBuilder {
     /// Create new log builder
     pub fn new(service: &str) -> Self {
         Self {
-            service:  service.to_string(),
-            fields:   Vec::new(),
+            service: service.to_string(),
+            fields: Vec::new(),
             trace_id: None,
-            span_id:  None,
+            span_id: None,
         }
     }
 

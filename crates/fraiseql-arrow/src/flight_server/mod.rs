@@ -138,22 +138,22 @@ pub(crate) type ActionTypeStream =
 /// ```
 pub struct FraiseQLFlightService {
     /// Schema registry for pre-compiled Arrow views (Arc for safe sharing in async contexts)
-    pub(crate) schema_registry:      Arc<SchemaRegistry>,
+    pub(crate) schema_registry: Arc<SchemaRegistry>,
     /// Optional database adapter for executing real queries.
     /// If None, placeholder queries are used (for testing/development).
-    pub(crate) db_adapter:           Option<Arc<dyn ArrowDatabaseAdapter>>,
+    pub(crate) db_adapter: Option<Arc<dyn ArrowDatabaseAdapter>>,
     /// Optional query executor for executing GraphQL queries with RLS.
     /// Uses trait object to abstract over generic `Executor<A>` type.
-    pub(crate) executor:             Option<Arc<dyn QueryExecutor>>,
+    pub(crate) executor: Option<Arc<dyn QueryExecutor>>,
     /// Optional query result cache for improving throughput on repeated queries
-    pub(crate) cache:                Option<Arc<QueryCache>>,
+    pub(crate) cache: Option<Arc<QueryCache>>,
     /// Optional security context for authenticated requests.
     /// Stores session information from successful handshake.
-    pub(crate) security_context:     Option<SecurityContext>,
+    pub(crate) security_context: Option<SecurityContext>,
     /// OIDC validator for JWT authentication during handshake
-    pub(crate) oidc_validator:       Option<Arc<OidcValidator>>,
+    pub(crate) oidc_validator: Option<Arc<OidcValidator>>,
     /// Optional event storage for historical observer event queries
-    pub(crate) event_storage:        Option<Arc<dyn ArrowEventStorage>>,
+    pub(crate) event_storage: Option<Arc<dyn ArrowEventStorage>>,
     /// Subscription manager for real-time event streaming
     pub(crate) subscription_manager: Arc<SubscriptionManager>,
     /// Allow clients to submit raw SQL via `BatchedQueries` tickets.
@@ -161,18 +161,18 @@ pub struct FraiseQLFlightService {
     /// **SECURITY**: Disabled by default. Enabling this allows authenticated clients
     /// to execute arbitrary SQL, which bypasses RLS and query-level authorization.
     /// Only enable for trusted internal tooling with explicit intent.
-    pub(crate) allow_raw_sql:        bool,
+    pub(crate) allow_raw_sql: bool,
     /// HMAC-SHA256 secret used to sign and verify Flight session tokens.
     ///
     /// Read once at service construction from `FLIGHT_SESSION_SECRET` environment
     /// variable, or supplied via [`FraiseQLFlightService::with_session_secret`].
-    pub(crate) session_secret:       Option<String>,
+    pub(crate) session_secret: Option<String>,
     /// Semaphore limiting the number of concurrent `do_get` streams.
     ///
     /// `try_acquire()` is used (non-blocking): when all permits are taken, new
     /// `do_get` calls immediately return `Status::resource_exhausted` instead of
     /// queuing indefinitely. Default capacity: 50.
-    pub(crate) stream_semaphore:     Arc<Semaphore>,
+    pub(crate) stream_semaphore: Arc<Semaphore>,
 }
 
 /// Security context for authenticated Flight requests.
@@ -182,22 +182,22 @@ pub struct SecurityContext {
     /// Session token returned from handshake
     pub session_token: String,
     /// User ID extracted from JWT
-    pub user_id:       String,
+    pub user_id: String,
     /// Token expiration time
-    pub expiration:    Option<u64>,
+    pub expiration: Option<u64>,
 }
 
 /// Session token claims for JWT validation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SessionTokenClaims {
     /// Subject (user ID)
-    pub(crate) sub:          String,
+    pub(crate) sub: String,
     /// Expiration time (Unix timestamp)
-    pub(crate) exp:          i64,
+    pub(crate) exp: i64,
     /// Issued at (Unix timestamp)
-    pub(crate) iat:          i64,
+    pub(crate) iat: i64,
     /// Scopes from original token
-    pub(crate) scopes:       Vec<String>,
+    pub(crate) scopes: Vec<String>,
     /// Session type marker
     pub(crate) session_type: String,
 }

@@ -77,10 +77,10 @@ pub struct InvalidationStats {
 impl Default for InvalidationStats {
     fn default() -> Self {
         Self {
-            total_cascades:    0,
+            total_cascades: 0,
             total_invalidated: 0,
-            average_affected:  0.0,
-            max_affected:      0,
+            average_affected: 0.0,
+            max_affected: 0,
         }
     }
 }
@@ -91,8 +91,8 @@ impl CascadeInvalidator {
     pub fn new() -> Self {
         Self {
             view_dependencies: HashMap::new(),
-            dependents:        HashMap::new(),
-            stats:             InvalidationStats::default(),
+            dependents: HashMap::new(),
+            stats: InvalidationStats::default(),
         }
     }
 
@@ -124,7 +124,7 @@ impl CascadeInvalidator {
         if dependent_view == dependency_view {
             return Err(crate::error::FraiseQLError::Validation {
                 message: "View cannot depend on itself".to_string(),
-                path:    Some("cascade_invalidator::add_dependency".to_string()),
+                path: Some("cascade_invalidator::add_dependency".to_string()),
             });
         }
 
@@ -138,7 +138,7 @@ impl CascadeInvalidator {
                     "Adding dependency '{}' → '{}' would create a cycle",
                     dependent_view, dependency_view
                 ),
-                path:    Some("cascade_invalidator::add_dependency".to_string()),
+                path: Some("cascade_invalidator::add_dependency".to_string()),
             });
         }
 

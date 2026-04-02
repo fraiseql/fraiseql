@@ -54,7 +54,7 @@ impl GraphQLValidationResponse {
     /// Create a new empty error response.
     pub const fn new() -> Self {
         Self {
-            errors:      Vec::new(),
+            errors: Vec::new(),
             error_count: 0,
         }
     }
@@ -74,8 +74,8 @@ impl GraphQLValidationResponse {
         };
 
         self.errors.push(GraphQLValidationError {
-            message:    format!("Validation failed: {}", field_error.message),
-            path:       Some(path),
+            message: format!("Validation failed: {}", field_error.message),
+            path: Some(path),
             extensions: Some(extensions),
         });
 
@@ -94,13 +94,13 @@ impl GraphQLValidationResponse {
         if let FraiseQLError::Validation { message, path } = error {
             let mut response = Self::new();
             response.errors.push(GraphQLValidationError {
-                message:    message.clone(),
-                path:       path.as_ref().map(|p| Self::parse_path(p)),
+                message: message.clone(),
+                path: path.as_ref().map(|p| Self::parse_path(p)),
                 extensions: Some(ValidationErrorExtensions {
-                    code:       "VALIDATION_FAILED".to_string(),
-                    rule_type:  "unknown".to_string(),
+                    code: "VALIDATION_FAILED".to_string(),
+                    rule_type: "unknown".to_string(),
                     field_path: path.clone(),
-                    context:    None,
+                    context: None,
                 }),
             });
             response.error_count = 1;
@@ -195,7 +195,7 @@ mod tests {
     fn test_from_fraiseql_error() {
         let error = FraiseQLError::Validation {
             message: "Validation failed".to_string(),
-            path:    Some("user.email".to_string()),
+            path: Some("user.email".to_string()),
         };
 
         let response = GraphQLValidationResponse::from_error(&error);

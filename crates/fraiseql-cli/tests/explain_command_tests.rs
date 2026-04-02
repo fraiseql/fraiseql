@@ -6,23 +6,23 @@ use serde_json::json;
 // Mock test data structure
 #[derive(Debug)]
 struct ExplainResult {
-    query:          String,
+    query: String,
     execution_plan: ExecutionPlanInfo,
-    complexity:     ComplexityInfo,
+    complexity: ComplexityInfo,
 }
 
 #[derive(Debug)]
 struct ExecutionPlanInfo {
-    sql:               String,
-    estimated_cost:    usize,
+    sql: String,
+    estimated_cost: usize,
     projection_fields: Vec<String>,
 }
 
 #[derive(Debug)]
 struct ComplexityInfo {
-    depth:       usize,
+    depth: usize,
     field_count: usize,
-    score:       usize,
+    score: usize,
 }
 
 // Test helpers - these would normally test against actual fraiseql-core functions
@@ -49,13 +49,13 @@ fn explain_query(query: &str) -> anyhow::Result<ExplainResult> {
     let field_count = query.split_whitespace().count();
 
     Ok(ExplainResult {
-        query:          query.to_string(),
+        query: query.to_string(),
         execution_plan: ExecutionPlanInfo {
-            sql:               "SELECT data FROM v_user LIMIT 10".to_string(),
-            estimated_cost:    max_depth * 50,
+            sql: "SELECT data FROM v_user LIMIT 10".to_string(),
+            estimated_cost: max_depth * 50,
             projection_fields: vec!["id".to_string(), "name".to_string()],
         },
-        complexity:     ComplexityInfo {
+        complexity: ComplexityInfo {
             depth: max_depth,
             field_count,
             score: max_depth * field_count.max(1),

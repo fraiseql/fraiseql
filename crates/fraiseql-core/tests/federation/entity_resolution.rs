@@ -36,7 +36,7 @@ fn test_resolve_entity_from_postgres_table() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -91,12 +91,12 @@ fn test_resolve_entities_batch_from_postgres() {
 
     let reps = vec![
         EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep1_keys,
             all_fields: rep1_all,
         },
         EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep2_keys,
             all_fields: rep2_all,
         },
@@ -143,7 +143,7 @@ fn test_resolve_entity_composite_key_from_postgres() {
     rep_all.insert("user_id".to_string(), json!("u1"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -185,7 +185,7 @@ fn test_resolve_entity_with_null_values_from_postgres() {
     rep_all.insert("id".to_string(), json!("user123"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -230,7 +230,7 @@ fn test_resolve_entity_large_result_set_from_postgres() {
         rep_all.insert("id".to_string(), json!(id));
 
         reps.push(EntityRepresentation {
-            typename:   "User".to_string(),
+            typename: "User".to_string(),
             key_fields: rep_keys,
             all_fields: rep_all,
         });

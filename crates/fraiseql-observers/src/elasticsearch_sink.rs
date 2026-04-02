@@ -43,25 +43,25 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct ElasticsearchSinkConfig {
     /// Elasticsearch base URL (e.g., `http://localhost:9200`)
-    pub url:                 String,
+    pub url: String,
     /// Index name prefix (default: "fraiseql-events")
-    pub index_prefix:        String,
+    pub index_prefix: String,
     /// Bulk request size threshold (default: 1000)
-    pub bulk_size:           usize,
+    pub bulk_size: usize,
     /// Flush timeout in seconds (default: 5)
     pub flush_interval_secs: u64,
     /// Max retries for bulk requests (default: 3)
-    pub max_retries:         usize,
+    pub max_retries: usize,
 }
 
 impl Default for ElasticsearchSinkConfig {
     fn default() -> Self {
         Self {
-            url:                 env::var("FRAISEQL_ELASTICSEARCH_URL")
+            url: env::var("FRAISEQL_ELASTICSEARCH_URL")
                 .unwrap_or_else(|_| "http://localhost:9200".to_string()),
-            index_prefix:        env::var("FRAISEQL_ELASTICSEARCH_INDEX_PREFIX")
+            index_prefix: env::var("FRAISEQL_ELASTICSEARCH_INDEX_PREFIX")
                 .unwrap_or_else(|_| "fraiseql-events".to_string()),
-            bulk_size:           env::var("FRAISEQL_ELASTICSEARCH_BULK_SIZE")
+            bulk_size: env::var("FRAISEQL_ELASTICSEARCH_BULK_SIZE")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1000),
@@ -69,7 +69,7 @@ impl Default for ElasticsearchSinkConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(5),
-            max_retries:         env::var("FRAISEQL_ELASTICSEARCH_MAX_RETRIES")
+            max_retries: env::var("FRAISEQL_ELASTICSEARCH_MAX_RETRIES")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(3),
@@ -558,11 +558,11 @@ mod tests {
     #[test]
     fn test_config_custom_values_validate() {
         let config = ElasticsearchSinkConfig {
-            url:                 "https://es.example.com:9200".to_string(),
-            index_prefix:        "my-app-events".to_string(),
-            bulk_size:           500,
+            url: "https://es.example.com:9200".to_string(),
+            index_prefix: "my-app-events".to_string(),
+            bulk_size: 500,
             flush_interval_secs: 30,
-            max_retries:         5,
+            max_retries: 5,
         };
         config
             .validate()
@@ -599,26 +599,26 @@ mod tests {
             .await;
 
         let config = ElasticsearchSinkConfig {
-            url:                 mock.uri(),
-            index_prefix:        "test".to_string(),
-            bulk_size:           10,
+            url: mock.uri(),
+            index_prefix: "test".to_string(),
+            bulk_size: 10,
             flush_interval_secs: 5,
-            max_retries:         1,
+            max_retries: 1,
         };
         let sink = ElasticsearchSink::new_unchecked(config);
 
         // Drive the private try_bulk_index path via flush_buffer through a mock event.
         // We create a minimal event buffer and call the internal path indirectly.
         let event = crate::event::EntityEvent {
-            id:          uuid::Uuid::nil(),
-            event_type:  crate::event::EventKind::Created,
+            id: uuid::Uuid::nil(),
+            event_type: crate::event::EventKind::Created,
             entity_type: "Order".to_string(),
-            entity_id:   uuid::Uuid::nil(),
-            timestamp:   chrono::Utc::now(),
-            data:        serde_json::json!({}),
-            changes:     None,
-            user_id:     None,
-            tenant_id:   Some("tenant-1".to_string()),
+            entity_id: uuid::Uuid::nil(),
+            timestamp: chrono::Utc::now(),
+            data: serde_json::json!({}),
+            changes: None,
+            user_id: None,
+            tenant_id: Some("tenant-1".to_string()),
         };
         let result = sink.try_bulk_index(&[event]).await;
         assert!(result.is_err(), "oversized bulk response must be rejected");

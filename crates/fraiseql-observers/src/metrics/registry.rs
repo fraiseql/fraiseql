@@ -26,38 +26,38 @@ static GLOBAL_REGISTRY: OnceLock<MetricsRegistry> = OnceLock::new();
 #[derive(Clone)]
 pub struct MetricsRegistry {
     // Event processing metrics
-    events_processed_total:                IntCounter,
-    events_failed_total:                   IntCounterVec,
+    events_processed_total: IntCounter,
+    events_failed_total: IntCounterVec,
     events_deserialization_failures_total: IntCounter,
-    events_tenant_violations_total:        IntCounter,
+    events_tenant_violations_total: IntCounter,
 
     // Cache metrics
-    cache_hits_total:      IntCounter,
-    cache_misses_total:    IntCounter,
+    cache_hits_total: IntCounter,
+    cache_misses_total: IntCounter,
     cache_evictions_total: IntCounter,
 
     // Deduplication metrics
-    dedup_detected_total:           IntCounter,
+    dedup_detected_total: IntCounter,
     dedup_processing_skipped_total: IntCounter,
 
     // Action execution metrics
-    action_executed_total:   IntCounterVec,
+    action_executed_total: IntCounterVec,
     action_duration_seconds: HistogramVec,
-    action_errors_total:     IntCounterVec,
+    action_errors_total: IntCounterVec,
 
     // Queue metrics
-    backlog_size:       IntGauge,
-    dlq_items:          IntGauge,
+    backlog_size: IntGauge,
+    dlq_items: IntGauge,
     dlq_overflow_total: IntCounter,
 
     // Job queue metrics
-    job_queued_total:     IntCounter,
-    job_executed_total:   IntCounterVec,
-    job_failed_total:     IntCounterVec,
+    job_queued_total: IntCounter,
+    job_executed_total: IntCounterVec,
+    job_failed_total: IntCounterVec,
     job_duration_seconds: HistogramVec,
-    job_retry_attempts:   IntCounterVec,
-    job_queue_depth:      IntGauge,
-    job_dlq_items:        IntGauge,
+    job_retry_attempts: IntCounterVec,
+    job_queue_depth: IntGauge,
+    job_dlq_items: IntGauge,
 }
 
 impl MetricsRegistry {

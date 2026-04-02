@@ -12,11 +12,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFactTable {
     /// Name of the fact table
-    pub table_name:           String,
+    pub table_name: String,
     /// Measure columns (numeric aggregates)
-    pub measures:             Vec<IntermediateMeasure>,
+    pub measures: Vec<IntermediateMeasure>,
     /// Dimension metadata
-    pub dimensions:           IntermediateDimensions,
+    pub dimensions: IntermediateDimensions,
     /// Denormalized filter columns
     pub denormalized_filters: Vec<IntermediateFilter>,
 }
@@ -25,7 +25,7 @@ pub struct IntermediateFactTable {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateMeasure {
     /// Measure column name
-    pub name:     String,
+    pub name: String,
     /// SQL data type of the measure
     pub sql_type: String,
     /// Whether the column can be NULL
@@ -36,7 +36,7 @@ pub struct IntermediateMeasure {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensions {
     /// Dimension name
-    pub name:  String,
+    pub name: String,
     /// Paths to dimension fields within JSONB
     pub paths: Vec<IntermediateDimensionPath>,
 }
@@ -45,7 +45,7 @@ pub struct IntermediateDimensions {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateDimensionPath {
     /// Path name identifier
-    pub name:      String,
+    pub name: String,
     /// JSON path (accepts both "`json_path`" and "path" for cross-language compat)
     #[serde(alias = "path")]
     pub json_path: String,
@@ -58,25 +58,25 @@ pub struct IntermediateDimensionPath {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFilter {
     /// Filter column name
-    pub name:     String,
+    pub name: String,
     /// SQL data type of the filter
     pub sql_type: String,
     /// Whether this column should be indexed
-    pub indexed:  bool,
+    pub indexed: bool,
 }
 
 /// Aggregate query definition (Analytics)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateAggregateQuery {
     /// Aggregate query name
-    pub name:            String,
+    pub name: String,
     /// Fact table to aggregate from
-    pub fact_table:      String,
+    pub fact_table: String,
     /// Automatically generate GROUP BY clauses
-    pub auto_group_by:   bool,
+    pub auto_group_by: bool,
     /// Automatically generate aggregate functions
     pub auto_aggregates: bool,
     /// Optional description
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description:     Option<String>,
+    pub description: Option<String>,
 }

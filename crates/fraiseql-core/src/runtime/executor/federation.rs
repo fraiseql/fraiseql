@@ -27,7 +27,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             "_entities" => self.execute_entities_query(query, variables).await,
             _ => Err(FraiseQLError::Validation {
                 message: format!("Unknown federation query: {}", query_name),
-                path:    None,
+                path: None,
             }),
         }
     }
@@ -38,7 +38,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fed_metadata =
             self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
-                path:    None,
+                path: None,
             })?;
 
         // Generate SDL with federation directives
@@ -67,7 +67,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fed_metadata =
             self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
-                path:    None,
+                path: None,
             })?;
 
         // Extract representations from variables
@@ -75,7 +75,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             variables.and_then(|v| v.get("representations")).ok_or_else(|| {
                 FraiseQLError::Validation {
                     message: "_entities query requires 'representations' variable".to_string(),
-                    path:    None,
+                    path: None,
                 }
             })?;
 

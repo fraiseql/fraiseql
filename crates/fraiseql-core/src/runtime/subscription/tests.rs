@@ -239,13 +239,13 @@ fn test_webhook_config_defaults() {
 #[test]
 fn test_webhook_payload_from_event() {
     let event = SubscriptionEvent {
-        event_id:        "evt_123".to_string(),
-        entity_type:     "Order".to_string(),
-        entity_id:       "ord_456".to_string(),
-        operation:       SubscriptionOperation::Create,
-        data:            serde_json::json!({"id": "ord_456", "total": 99.99}),
-        old_data:        None,
-        timestamp:       chrono::Utc::now(),
+        event_id: "evt_123".to_string(),
+        entity_type: "Order".to_string(),
+        entity_id: "ord_456".to_string(),
+        operation: SubscriptionOperation::Create,
+        data: serde_json::json!({"id": "ord_456", "total": 99.99}),
+        old_data: None,
+        timestamp: chrono::Utc::now(),
         sequence_number: 42,
     };
 
@@ -311,13 +311,13 @@ fn test_kafka_config_defaults() {
 #[test]
 fn test_kafka_message_from_event() {
     let event = SubscriptionEvent {
-        event_id:        "evt_789".to_string(),
-        entity_type:     "User".to_string(),
-        entity_id:       "usr_123".to_string(),
-        operation:       SubscriptionOperation::Update,
-        data:            serde_json::json!({"id": "usr_123", "name": "John"}),
-        old_data:        Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
-        timestamp:       chrono::Utc::now(),
+        event_id: "evt_789".to_string(),
+        entity_type: "User".to_string(),
+        entity_id: "usr_123".to_string(),
+        operation: SubscriptionOperation::Update,
+        data: serde_json::json!({"id": "usr_123", "name": "John"}),
+        old_data: Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
+        timestamp: chrono::Utc::now(),
         sequence_number: 100,
     };
 
@@ -336,13 +336,13 @@ fn test_kafka_message_from_event() {
 #[test]
 fn test_kafka_message_key() {
     let event = SubscriptionEvent {
-        event_id:        "evt_1".to_string(),
-        entity_type:     "Order".to_string(),
-        entity_id:       "ord_partition_key".to_string(),
-        operation:       SubscriptionOperation::Create,
-        data:            serde_json::json!({}),
-        old_data:        None,
-        timestamp:       chrono::Utc::now(),
+        event_id: "evt_1".to_string(),
+        entity_type: "Order".to_string(),
+        entity_id: "ord_partition_key".to_string(),
+        operation: SubscriptionOperation::Create,
+        data: serde_json::json!({}),
+        old_data: None,
+        timestamp: chrono::Utc::now(),
         sequence_number: 1,
     };
 
@@ -395,8 +395,8 @@ fn test_transport_manager_debug() {
 fn test_delivery_result_all_succeeded() {
     let result = DeliveryResult {
         successful: 3,
-        failed:     0,
-        errors:     vec![],
+        failed: 0,
+        errors: vec![],
     };
 
     assert!(result.all_succeeded());
@@ -407,8 +407,8 @@ fn test_delivery_result_all_succeeded() {
 fn test_delivery_result_partial_failure() {
     let result = DeliveryResult {
         successful: 2,
-        failed:     1,
-        errors:     vec![("webhook".to_string(), "Connection refused".to_string())],
+        failed: 1,
+        errors: vec![("webhook".to_string(), "Connection refused".to_string())],
     };
 
     assert!(!result.all_succeeded());
@@ -419,8 +419,8 @@ fn test_delivery_result_partial_failure() {
 fn test_delivery_result_all_failed() {
     let result = DeliveryResult {
         successful: 0,
-        failed:     2,
-        errors:     vec![
+        failed: 2,
+        errors: vec![
             ("webhook".to_string(), "Connection refused".to_string()),
             ("kafka".to_string(), "Broker unavailable".to_string()),
         ],
@@ -621,9 +621,9 @@ fn test_subscription_filter_matching() {
     let filter = SubscriptionFilter {
         argument_paths,
         static_filters: vec![StaticFilterCondition {
-            path:     "/status".to_string(),
+            path: "/status".to_string(),
             operator: FilterOperator::Eq,
-            value:    serde_json::json!("active"),
+            value: serde_json::json!("active"),
         }],
     };
 
@@ -957,14 +957,14 @@ fn test_extract_rls_conditions_from_where_clause() {
     // AND(tenant_id = "abc", author_id = "user-1")
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["tenant_id".to_string()],
+            path: vec!["tenant_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    serde_json::json!("abc"),
+            value: serde_json::json!("abc"),
         },
         WhereClause::Field {
-            path:     vec!["author_id".to_string()],
+            path: vec!["author_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    serde_json::json!("user-1"),
+            value: serde_json::json!("user-1"),
         },
     ]);
 
@@ -982,14 +982,14 @@ fn test_extract_rls_conditions_ignores_non_eq() {
     // Only Eq conditions are extracted; Gt is skipped.
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["tenant_id".to_string()],
+            path: vec!["tenant_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    serde_json::json!("abc"),
+            value: serde_json::json!("abc"),
         },
         WhereClause::Field {
-            path:     vec!["score".to_string()],
+            path: vec!["score".to_string()],
             operator: WhereOperator::Gt,
-            value:    serde_json::json!(100),
+            value: serde_json::json!(100),
         },
     ]);
 

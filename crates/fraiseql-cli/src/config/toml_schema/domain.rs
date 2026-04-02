@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct DomainDiscovery {
     /// Enable automatic domain discovery
-    pub enabled:  bool,
+    pub enabled: bool,
     /// Root directory containing domains
     pub root_dir: String,
 }
@@ -101,9 +101,9 @@ impl DomainDiscovery {
 #[serde(default, deny_unknown_fields)]
 pub struct SchemaIncludes {
     /// Glob patterns for type files
-    pub types:     Vec<String>,
+    pub types: Vec<String>,
     /// Glob patterns for query files
-    pub queries:   Vec<String>,
+    pub queries: Vec<String>,
     /// Glob patterns for mutation files
     pub mutations: Vec<String>,
 }
@@ -183,8 +183,8 @@ impl SchemaIncludes {
         mutation_paths.dedup();
 
         Ok(ResolvedIncludes {
-            types:     type_paths,
-            queries:   query_paths,
+            types: type_paths,
+            queries: query_paths,
             mutations: mutation_paths,
         })
     }
@@ -194,9 +194,9 @@ impl SchemaIncludes {
 #[derive(Debug, Clone)]
 pub struct ResolvedIncludes {
     /// Resolved type file paths
-    pub types:     Vec<PathBuf>,
+    pub types: Vec<PathBuf>,
     /// Resolved query file paths
-    pub queries:   Vec<PathBuf>,
+    pub queries: Vec<PathBuf>,
     /// Resolved mutation file paths
     pub mutations: Vec<PathBuf>,
 }

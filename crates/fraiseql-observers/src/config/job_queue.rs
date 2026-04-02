@@ -78,14 +78,14 @@ const fn default_job_queue_max_delay_ms() -> u64 {
 impl Default for JobQueueConfig {
     fn default() -> Self {
         Self {
-            url:                default_job_queue_url(),
-            batch_size:         default_job_queue_batch_size(),
+            url: default_job_queue_url(),
+            batch_size: default_job_queue_batch_size(),
             batch_timeout_secs: default_job_queue_batch_timeout_secs(),
-            max_retries:        default_job_queue_max_retries(),
+            max_retries: default_job_queue_max_retries(),
             worker_concurrency: default_job_queue_worker_concurrency(),
-            poll_interval_ms:   default_job_queue_poll_interval_ms(),
-            initial_delay_ms:   default_job_queue_initial_delay_ms(),
-            max_delay_ms:       default_job_queue_max_delay_ms(),
+            poll_interval_ms: default_job_queue_poll_interval_ms(),
+            initial_delay_ms: default_job_queue_initial_delay_ms(),
+            max_delay_ms: default_job_queue_max_delay_ms(),
         }
     }
 }

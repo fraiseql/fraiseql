@@ -307,9 +307,9 @@ mod tests {
         let tmp = TempDir::new().expect("temp dir");
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name:        "Status".to_string(),
-            values:      vec![EnumValueDefinition {
-                name:        "ACTIVE".to_string(),
+            name: "Status".to_string(),
+            values: vec![EnumValueDefinition {
+                name: "ACTIVE".to_string(),
                 description: None,
                 deprecation: None,
             }],

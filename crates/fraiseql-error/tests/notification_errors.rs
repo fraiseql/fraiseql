@@ -17,7 +17,7 @@ fn configuration_error_code_and_display() {
 fn provider_error_code_and_display() {
     let err = NotificationError::Provider {
         provider: "sendgrid".into(),
-        message:  "rate limited".into(),
+        message: "rate limited".into(),
     };
     assert_eq!(err.error_code(), "notification_provider_error");
     assert_eq!(err.to_string(), "Provider error: sendgrid - rate limited");
@@ -26,7 +26,7 @@ fn provider_error_code_and_display() {
 #[test]
 fn provider_unavailable_error_code_and_display() {
     let err = NotificationError::ProviderUnavailable {
-        provider:    "twilio".into(),
+        provider: "twilio".into(),
         retry_after: Some(Duration::from_secs(30)),
     };
     assert_eq!(err.error_code(), "notification_provider_unavailable");
@@ -36,7 +36,7 @@ fn provider_unavailable_error_code_and_display() {
 #[test]
 fn provider_unavailable_without_retry_after() {
     let err = NotificationError::ProviderUnavailable {
-        provider:    "twilio".into(),
+        provider: "twilio".into(),
         retry_after: None,
     };
     assert_eq!(err.error_code(), "notification_provider_unavailable");
@@ -64,7 +64,7 @@ fn template_error_code_and_display() {
 fn provider_rate_limited_error_code_and_display() {
     let err = NotificationError::ProviderRateLimited {
         provider: "sns".into(),
-        seconds:  60,
+        seconds: 60,
     };
     assert_eq!(err.error_code(), "notification_rate_limited");
     assert_eq!(err.to_string(), "Rate limited by provider: retry after 60 seconds");
@@ -73,7 +73,7 @@ fn provider_rate_limited_error_code_and_display() {
 #[test]
 fn circuit_open_error_code_and_display() {
     let err = NotificationError::CircuitOpen {
-        provider:    "ses".into(),
+        provider: "ses".into(),
         retry_after: Duration::from_secs(120),
     };
     assert_eq!(err.error_code(), "notification_circuit_open");

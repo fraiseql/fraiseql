@@ -21,8 +21,8 @@ pub struct TestContainer {
     #[allow(dead_code)]
     // Reason: container held alive to keep Docker container running for test duration
     container: ContainerAsync<Postgres>,
-    pub port:     u16,
-    pub user:     String,
+    pub port: u16,
+    pub user: String,
     pub password: String,
     pub database: String,
 }

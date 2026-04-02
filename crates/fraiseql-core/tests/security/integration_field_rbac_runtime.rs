@@ -18,70 +18,70 @@ use fraiseql_core::schema::{
 /// Helper to create a test schema with scoped fields
 fn create_schema_with_scoped_fields() -> CompiledSchema {
     let user_type = TypeDefinition {
-        name:                "User".into(),
-        fields:              vec![
+        name: "User".into(),
+        fields: vec![
             FieldDefinition {
-                name:           "id".into(),
-                field_type:     FieldType::Int,
-                nullable:       false,
-                default_value:  None,
-                description:    None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
+                name: "id".into(),
+                field_type: FieldType::Int,
+                nullable: false,
+                default_value: None,
+                description: None,
+                vector_config: None,
+                alias: None,
+                deprecation: None,
                 requires_scope: None, // Public field
-                on_deny:        FieldDenyPolicy::default(),
-                encryption:     None,
+                on_deny: FieldDenyPolicy::default(),
+                encryption: None,
             },
             FieldDefinition {
-                name:           "name".into(),
-                field_type:     FieldType::String,
-                nullable:       false,
-                default_value:  None,
-                description:    None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
+                name: "name".into(),
+                field_type: FieldType::String,
+                nullable: false,
+                default_value: None,
+                description: None,
+                vector_config: None,
+                alias: None,
+                deprecation: None,
                 requires_scope: None, // Public field
-                on_deny:        FieldDenyPolicy::default(),
-                encryption:     None,
+                on_deny: FieldDenyPolicy::default(),
+                encryption: None,
             },
             FieldDefinition {
-                name:           "email".into(),
-                field_type:     FieldType::String,
-                nullable:       false,
-                default_value:  None,
-                description:    None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
+                name: "email".into(),
+                field_type: FieldType::String,
+                nullable: false,
+                default_value: None,
+                description: None,
+                vector_config: None,
+                alias: None,
+                deprecation: None,
                 requires_scope: Some("read:User.email".to_string()), // Requires explicit scope
-                on_deny:        FieldDenyPolicy::default(),
-                encryption:     None,
+                on_deny: FieldDenyPolicy::default(),
+                encryption: None,
             },
             FieldDefinition {
-                name:           "password_hash".into(),
-                field_type:     FieldType::String,
-                nullable:       false,
-                default_value:  None,
-                description:    None,
-                vector_config:  None,
-                alias:          None,
-                deprecation:    None,
+                name: "password_hash".into(),
+                field_type: FieldType::String,
+                nullable: false,
+                default_value: None,
+                description: None,
+                vector_config: None,
+                alias: None,
+                deprecation: None,
                 requires_scope: Some("admin:*".to_string()), // Requires admin scope
-                on_deny:        FieldDenyPolicy::default(),
-                encryption:     None,
+                on_deny: FieldDenyPolicy::default(),
+                encryption: None,
             },
         ],
-        description:         None,
-        sql_source:          "users".into(),
-        jsonb_column:        String::new(),
+        description: None,
+        sql_source: "users".into(),
+        jsonb_column: String::new(),
         sql_projection_hint: None,
-        implements:          vec![],
-        requires_role:       None,
-        is_error:            false,
-        relay:               false,
-        relationships:       vec![],
+        implements: vec![],
+        requires_role: None,
+        is_error: false,
+        relay: false,
+        relationships: vec![],
     };
 
     let mut security_config = SecurityConfig::new();
@@ -233,9 +233,9 @@ fn test_scope_matching_exact_match() {
 
     // Verify this scope can be matched by a role with "read:User.*"
     let viewer_role = RoleDefinition {
-        name:        "viewer".into(),
+        name: "viewer".into(),
         description: None,
-        scopes:      vec!["read:User.*".into()],
+        scopes: vec!["read:User.*".into()],
     };
 
     // Test wildcard matching: "read:User.*" should match "read:User.email"
@@ -248,9 +248,9 @@ fn test_scope_matching_exact_match() {
 #[test]
 fn test_scope_matching_wildcard_all() {
     let admin_role = RoleDefinition {
-        name:        "admin".into(),
+        name: "admin".into(),
         description: None,
-        scopes:      vec!["*".into()],
+        scopes: vec!["*".into()],
     };
 
     assert!(admin_role.has_scope("admin:*"), "Global wildcard should match admin:*");
@@ -264,9 +264,9 @@ fn test_scope_matching_wildcard_all() {
 #[test]
 fn test_scope_matching_action_wildcard() {
     let admin_role = RoleDefinition {
-        name:        "admin".into(),
+        name: "admin".into(),
         description: None,
-        scopes:      vec!["admin:*".into()],
+        scopes: vec!["admin:*".into()],
     };
 
     assert!(admin_role.has_scope("admin:delete"), "admin:* should match admin:delete");

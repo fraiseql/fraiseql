@@ -14,7 +14,7 @@ use dashmap::DashMap;
 #[derive(Clone, Debug)]
 struct CacheEntry {
     /// Cached result as JSON rows
-    result:     Arc<Vec<std::collections::HashMap<String, serde_json::Value>>>,
+    result: Arc<Vec<std::collections::HashMap<String, serde_json::Value>>>,
     /// Unix timestamp when entry expires
     expires_at: u64,
 }
@@ -47,7 +47,7 @@ struct CacheEntry {
 /// ```
 pub struct QueryCache {
     /// Map from SQL query to cached result
-    entries:  DashMap<String, CacheEntry>,
+    entries: DashMap<String, CacheEntry>,
     /// Time-to-live in seconds for cache entries
     ttl_secs: u64,
 }

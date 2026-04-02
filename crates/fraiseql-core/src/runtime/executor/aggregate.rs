@@ -24,7 +24,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let table_name =
             query_name.strip_suffix("_aggregate").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid aggregate query name: {}", query_name),
-                path:    None,
+                path: None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);
@@ -68,7 +68,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let table_name =
             query_name.strip_suffix("_window").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid window query name: {}", query_name),
-                path:    None,
+                path: None,
             })?;
 
         let fact_table_name = format!("tf_{}", table_name);

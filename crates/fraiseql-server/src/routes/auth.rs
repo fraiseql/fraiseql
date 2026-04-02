@@ -34,11 +34,11 @@ use crate::auth::{OidcServerClient, PkceStateStore};
 /// Shared state injected into both PKCE route handlers.
 pub struct AuthPkceState {
     /// In-memory PKCE state store (encrypted when `state_encryption` is on).
-    pub pkce_store:              Arc<PkceStateStore>,
+    pub pkce_store: Arc<PkceStateStore>,
     /// Server-side OIDC client for building authorize URLs and exchanging codes.
-    pub oidc_client:             Arc<OidcServerClient>,
+    pub oidc_client: Arc<OidcServerClient>,
     /// Shared HTTP client for token-endpoint calls.
-    pub http_client:             Arc<reqwest::Client>,
+    pub http_client: Arc<reqwest::Client>,
     /// When set, the callback redirects here with the token in a
     /// `Secure; HttpOnly; SameSite=Strict` cookie instead of returning JSON.
     pub post_login_redirect_uri: Option<String>,
@@ -62,11 +62,11 @@ pub struct AuthStartQuery {
 #[derive(Deserialize)]
 pub struct AuthCallbackQuery {
     /// Authorization code to exchange for tokens.
-    code:              Option<String>,
+    code: Option<String>,
     /// State token for CSRF and PKCE state lookup.
-    state:             Option<String>,
+    state: Option<String>,
     /// OIDC provider error code (e.g. `"access_denied"`).
-    error:             Option<String>,
+    error: Option<String>,
     /// Human-readable error description from the provider.
     error_description: Option<String>,
 }
@@ -79,10 +79,10 @@ pub struct AuthCallbackQuery {
 struct TokenJson {
     access_token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    id_token:     Option<String>,
+    id_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    expires_in:   Option<u64>,
-    token_type:   &'static str,
+    expires_in: Option<u64>,
+    token_type: &'static str,
 }
 
 // ---------------------------------------------------------------------------
@@ -253,9 +253,9 @@ pub async fn auth_callback(
         // API / native app flow: return tokens as JSON.
         Json(TokenJson {
             access_token: tokens.access_token,
-            id_token:     tokens.id_token,
-            expires_in:   tokens.expires_in,
-            token_type:   "Bearer",
+            id_token: tokens.id_token,
+            expires_in: tokens.expires_in,
+            token_type: "Bearer",
         })
         .into_response()
     }
@@ -276,7 +276,7 @@ pub struct RevokeTokenRequest {
 #[derive(Serialize)]
 pub struct RevokeTokenResponse {
     /// Whether the token was successfully revoked.
-    pub revoked:    bool,
+    pub revoked: bool,
     /// ISO-8601 timestamp at which the revocation record will expire, if known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
@@ -423,9 +423,9 @@ mod tests {
 
     fn auth_router() -> Router {
         let auth_state = Arc::new(AuthPkceState {
-            pkce_store:              mock_pkce_store(),
-            oidc_client:             mock_oidc_client(),
-            http_client:             Arc::new(reqwest::Client::new()),
+            pkce_store: mock_pkce_store(),
+            oidc_client: mock_oidc_client(),
+            http_client: Arc::new(reqwest::Client::new()),
             post_login_redirect_uri: None,
         });
         Router::new()

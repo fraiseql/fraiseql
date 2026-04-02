@@ -31,7 +31,7 @@ pub enum JwksError {
     #[error("Invalid jwks_uri '{uri}': {source}")]
     InvalidUrl {
         /// The URI that failed to parse.
-        uri:    String,
+        uri: String,
         /// The underlying parse error.
         source: url::ParseError,
     },
@@ -60,13 +60,13 @@ struct JwkKey {
     /// Key type: `RSA` or `EC`.
     kty: String,
     /// RSA modulus (Base64url-encoded).
-    n:   Option<String>,
+    n: Option<String>,
     /// RSA exponent (Base64url-encoded).
-    e:   Option<String>,
+    e: Option<String>,
     /// EC x-coordinate (Base64url-encoded).
-    x:   Option<String>,
+    x: Option<String>,
     /// EC y-coordinate (Base64url-encoded).
-    y:   Option<String>,
+    y: Option<String>,
 }
 
 /// Returns `true` for IP addresses that JWKS fetches must not contact.
@@ -124,11 +124,11 @@ async fn dns_resolve_and_check(host: &str, port: u16) -> Result<(), String> {
 
 /// Cached JWKS keys with TTL-based refresh.
 pub struct JwksCache {
-    keys:         RwLock<HashMap<String, DecodingKey>>,
-    jwks_uri:     String,
+    keys: RwLock<HashMap<String, DecodingKey>>,
+    jwks_uri: String,
     last_fetched: RwLock<Option<Instant>>,
-    ttl:          Duration,
-    client:       reqwest::Client,
+    ttl: Duration,
+    client: reqwest::Client,
 }
 
 impl JwksCache {
@@ -144,7 +144,7 @@ impl JwksCache {
     pub fn new(jwks_uri: &str, ttl: Duration) -> Result<Self, JwksError> {
         // Validate the URI at construction time (SSRF prevention pattern).
         let parsed = reqwest::Url::parse(jwks_uri).map_err(|e| JwksError::InvalidUrl {
-            uri:    jwks_uri.to_string(),
+            uri: jwks_uri.to_string(),
             source: e,
         })?;
 

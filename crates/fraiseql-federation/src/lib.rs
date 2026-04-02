@@ -128,12 +128,12 @@ pub async fn handle_federation_query(
             // Will be handled at executor level with proper context
             Err(FraiseQLError::Validation {
                 message: "_entities query requires executor context".to_string(),
-                path:    None,
+                path: None,
             })
         },
         _ => Err(FraiseQLError::Validation {
             message: format!("Unknown federation query: {}", query_name),
-            path:    None,
+            path: None,
         }),
     }
 }

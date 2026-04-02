@@ -61,7 +61,7 @@ mod tests {
         // Cross-field validation
         let mut start_date_field = InputFieldDefinition::new("startDate", "String".to_string());
         start_date_field = start_date_field.with_validation_rule(ValidationRule::CrossField {
-            field:    "endDate".to_string(),
+            field: "endDate".to_string(),
             operator: "lt".to_string(),
         });
         fields.push(start_date_field);
@@ -100,7 +100,7 @@ mod tests {
         created_at_field =
             created_at_field.with_validation_rule(ValidationRule::ConditionalRequired {
                 if_field_present: "entityId".to_string(),
-                then_required:    vec!["updatedAt".to_string()],
+                then_required: vec!["updatedAt".to_string()],
             });
         fields.push(created_at_field);
 
@@ -108,7 +108,7 @@ mod tests {
         let mut address_id_field = InputFieldDefinition::new("addressId", "String".to_string());
         address_id_field =
             address_id_field.with_validation_rule(ValidationRule::RequiredIfAbsent {
-                absent_field:  "street".to_string(),
+                absent_field: "street".to_string(),
                 then_required: vec!["city".to_string(), "zip".to_string()],
             });
         fields.push(address_id_field);

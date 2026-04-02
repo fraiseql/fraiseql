@@ -79,10 +79,10 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  10,
-            idle_connections:   8,
+            total_connections: 10,
+            idle_connections: 8,
             active_connections: 2,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -175,10 +175,10 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  10,
-            idle_connections:   8,
+            total_connections: 10,
+            idle_connections: 8,
             active_connections: 2,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -214,14 +214,14 @@ pub fn metadata_single_key(type_name: &str, key_field: &str) -> FederationMetada
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             type_name.to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec![key_field.to_string()],
+        types: vec![FederatedType {
+            name: type_name.to_string(),
+            keys: vec![KeyDirective {
+                fields: vec![key_field.to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -238,14 +238,14 @@ pub fn metadata_extended_type(
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             type_name.to_string(),
-            keys:             vec![KeyDirective {
-                fields:     vec![key_field.to_string()],
+        types: vec![FederatedType {
+            name: type_name.to_string(),
+            keys: vec![KeyDirective {
+                fields: vec![key_field.to_string()],
                 resolvable: true,
             }],
-            is_extends:       true,
-            external_fields:  external_fields.iter().map(|s| (*s).to_string()).collect(),
+            is_extends: true,
+            external_fields: external_fields.iter().map(|s| (*s).to_string()).collect(),
             shareable_fields: shareable_fields.iter().map(|s| (*s).to_string()).collect(),
             field_directives: std::collections::HashMap::new(),
         }],
@@ -257,14 +257,14 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             type_name.to_string(),
-            keys:             vec![KeyDirective {
-                fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
+        types: vec![FederatedType {
+            name: type_name.to_string(),
+            keys: vec![KeyDirective {
+                fields: key_fields.iter().map(|s| (*s).to_string()).collect(),
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
+            is_extends: false,
+            external_fields: vec![],
             shareable_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
@@ -460,7 +460,7 @@ use uuid::Uuid;
 
 /// Test saga scenario builder for E2E testing.
 pub struct TestSagaScenario {
-    pub step_count:            usize,
+    pub step_count: usize,
     pub compensation_strategy: CompensationStrategy,
 }
 

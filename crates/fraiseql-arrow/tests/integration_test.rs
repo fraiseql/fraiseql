@@ -78,9 +78,9 @@ async fn test_get_schema_for_observer_events() {
         // Create ticket for observer events
         let ticket = FlightTicket::ObserverEvents {
             entity_type: "Order".to_string(),
-            start_date:  None,
-            end_date:    None,
-            limit:       None,
+            start_date: None,
+            end_date: None,
+            limit: None,
         };
 
         let ticket_bytes = ticket.encode().unwrap();
@@ -118,7 +118,7 @@ async fn test_get_schema_for_graphql_query() {
 
         // Create ticket for GraphQL query
         let ticket = FlightTicket::GraphQLQuery {
-            query:     "{ users { id name } }".to_string(),
+            query: "{ users { id name } }".to_string(),
             variables: None,
         };
 
@@ -233,10 +233,10 @@ async fn test_invalid_ticket_returns_error() {
 
         #[derive(Serialize, Deserialize)]
         struct SessionTokenClaims {
-            sub:          String,
-            exp:          i64,
-            iat:          i64,
-            scopes:       Vec<String>,
+            sub: String,
+            exp: i64,
+            iat: i64,
+            scopes: Vec<String>,
             session_type: String,
         }
 
@@ -244,10 +244,10 @@ async fn test_invalid_ticket_returns_error() {
         let exp = now + chrono::Duration::minutes(5);
 
         let claims = SessionTokenClaims {
-            sub:          "test-user".to_string(),
-            exp:          exp.timestamp(),
-            iat:          now.timestamp(),
-            scopes:       vec!["user".to_string()],
+            sub: "test-user".to_string(),
+            exp: exp.timestamp(),
+            iat: now.timestamp(),
+            scopes: vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 
@@ -292,9 +292,9 @@ async fn test_bulk_export_ticket_not_implemented() {
 
         // Create bulk export ticket (not implemented )
         let ticket = FlightTicket::BulkExport {
-            table:  "users".to_string(),
+            table: "users".to_string(),
             filter: None,
-            limit:  Some(1000),
+            limit: Some(1000),
             format: None,
         };
 

@@ -38,10 +38,10 @@ use crate::security::{
 /// JWKS fetch/cache/key-selection helpers are in `impl OidcValidator` blocks
 /// defined in the `jwks` sub-module.
 pub struct OidcValidator {
-    pub(super) config:       OidcConfig,
-    pub(super) http_client:  reqwest::Client,
-    pub(super) jwks_cache:   Arc<RwLock<Option<CachedJwks>>>,
-    pub(super) jwks_uri:     String,
+    pub(super) config: OidcConfig,
+    pub(super) http_client: reqwest::Client,
+    pub(super) jwks_cache: Arc<RwLock<Option<CachedJwks>>>,
+    pub(super) jwks_uri: String,
     /// Optional JWT replay cache. When set, each validated token's `jti` is
     /// checked against the cache and rejected if it has been seen before.
     pub(super) replay_cache: Option<Arc<ReplayCache>>,

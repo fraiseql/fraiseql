@@ -153,20 +153,20 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
 
     Ok(NdjsonResponse {
         headers: response_headers,
-        body:    NdjsonBody::Stream(Box::pin(ndjson_stream)),
+        body: NdjsonBody::Stream(Box::pin(ndjson_stream)),
     })
 }
 
 /// Internal state for the streaming unfold loop.
 struct StreamState<A: DatabaseAdapter> {
-    executor:     Arc<Executor<A>>,
-    query_name:   String,
-    query_match:  QueryMatch,
-    variables:    serde_json::Value,
+    executor: Arc<Executor<A>>,
+    query_name: String,
+    query_match: QueryMatch,
+    variables: serde_json::Value,
     security_ctx: Option<SecurityContext>,
-    batch_size:   u64,
-    offset:       u64,
-    done:         bool,
+    batch_size: u64,
+    offset: u64,
+    done: bool,
 }
 
 /// Fetch the next batch of rows, serialize as NDJSON bytes, and advance the offset.
@@ -259,7 +259,7 @@ pub struct NdjsonResponse {
     /// Response headers.
     pub headers: HeaderMap,
     /// NDJSON body — either pre-buffered bytes or a streaming body.
-    pub body:    NdjsonBody,
+    pub body: NdjsonBody,
 }
 
 /// Body of an NDJSON response.
@@ -398,9 +398,9 @@ mod tests {
     fn validate_ndjson_rejects_cursor_pagination() {
         let prefer = PreferHeader::default();
         let pagination = PaginationParams::Cursor {
-            first:  Some(10),
-            after:  None,
-            last:   None,
+            first: Some(10),
+            after: None,
+            last: None,
             before: None,
         };
         let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
@@ -412,7 +412,7 @@ mod tests {
     fn validate_ndjson_rejects_offset_pagination() {
         let prefer = PreferHeader::default();
         let pagination = PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 5,
         };
         let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
@@ -424,7 +424,7 @@ mod tests {
         // offset=0 with limit is fine — it's the default, not explicit pagination
         let prefer = PreferHeader::default();
         let pagination = PaginationParams::Offset {
-            limit:  100,
+            limit: 100,
             offset: 0,
         };
         assert!(validate_ndjson_request(&prefer, &pagination).is_ok());

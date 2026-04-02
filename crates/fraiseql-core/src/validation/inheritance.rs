@@ -59,13 +59,13 @@ impl InheritanceMode {
 #[derive(Debug, Clone)]
 pub struct RuleMetadata {
     /// The validation rule
-    pub rule:         ValidationRule,
+    pub rule: ValidationRule,
     /// Whether this rule can be overridden by child types
     pub overrideable: bool,
     /// Whether this rule is inherited from a parent type
-    pub inherited:    bool,
+    pub inherited: bool,
     /// The source type name for tracking
-    pub source:       String,
+    pub source: String,
 }
 
 impl RuleMetadata {
@@ -98,7 +98,7 @@ pub struct ValidationRuleRegistry {
     /// Rules by type name
     rules_by_type: HashMap<String, Vec<RuleMetadata>>,
     /// Parent type references
-    parent_types:  HashMap<String, String>,
+    parent_types: HashMap<String, String>,
 }
 
 impl ValidationRuleRegistry {
@@ -106,7 +106,7 @@ impl ValidationRuleRegistry {
     pub fn new() -> Self {
         Self {
             rules_by_type: HashMap::new(),
-            parent_types:  HashMap::new(),
+            parent_types: HashMap::new(),
         }
     }
 

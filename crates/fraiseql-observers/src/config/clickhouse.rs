@@ -61,12 +61,12 @@ const fn default_clickhouse_max_retries() -> usize {
 impl Default for ClickHouseConfig {
     fn default() -> Self {
         Self {
-            url:                default_clickhouse_url(),
-            database:           default_clickhouse_database(),
-            table:              default_clickhouse_table(),
-            batch_size:         default_clickhouse_batch_size(),
+            url: default_clickhouse_url(),
+            database: default_clickhouse_database(),
+            table: default_clickhouse_table(),
+            batch_size: default_clickhouse_batch_size(),
             batch_timeout_secs: default_clickhouse_batch_timeout_secs(),
-            max_retries:        default_clickhouse_max_retries(),
+            max_retries: default_clickhouse_max_retries(),
         }
     }
 }

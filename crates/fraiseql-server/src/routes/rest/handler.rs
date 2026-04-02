@@ -50,23 +50,23 @@ pub enum HandlingPreference {
 #[derive(Debug, Clone, Default)]
 pub struct PreferHeader {
     /// `count=exact` — execute a parallel COUNT query.
-    pub count_exact:           bool,
+    pub count_exact: bool,
     /// `count=planned` — EXPLAIN-based estimate (PostgreSQL).
-    pub count_planned:         bool,
+    pub count_planned: bool,
     /// `count=estimated` — `pg_stats` estimate (PostgreSQL).
-    pub count_estimated:       bool,
+    pub count_estimated: bool,
     /// `return=representation` — return entity body on mutating operations.
     pub return_representation: bool,
     /// `return=minimal` — return empty body on mutating operations.
-    pub return_minimal:        bool,
+    pub return_minimal: bool,
     /// `resolution=merge-duplicates` or `resolution=ignore-duplicates` — upsert mode.
-    pub resolution:            Option<String>,
+    pub resolution: Option<String>,
     /// `tx=rollback` — dry-run mode (execute then rollback).
-    pub tx_rollback:           bool,
+    pub tx_rollback: bool,
     /// `handling=strict` or `handling=lenient` (default: strict for Phase 1 compat).
-    pub handling:              Option<HandlingPreference>,
+    pub handling: Option<HandlingPreference>,
     /// `max-affected=N` — limit bulk operation scope.
-    pub max_affected:          Option<u64>,
+    pub max_affected: Option<u64>,
 }
 
 impl PreferHeader {
@@ -236,9 +236,9 @@ fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
 #[derive(Debug)]
 pub struct ResolvedRoute<'a> {
     /// The matched REST resource.
-    pub resource:    &'a RestResource,
+    pub resource: &'a RestResource,
     /// The matched REST route.
-    pub route:       &'a RestRoute,
+    pub route: &'a RestRoute,
     /// Path parameters extracted from the URL (e.g., `[("id", "123")]`).
     pub path_params: Vec<(String, String)>,
 }
@@ -318,13 +318,13 @@ fn match_route_path(route_path: &str, segments: &[&str]) -> Option<Vec<(String, 
 /// `handle_get` (JSON envelope) and NDJSON streaming.
 pub struct ResolvedGetQuery {
     /// Name of the matched query.
-    pub query_name:  String,
+    pub query_name: String,
     /// Pre-built query match with field selection and arguments.
     pub query_match: QueryMatch,
     /// Variables for relay pagination.
-    pub variables:   serde_json::Value,
+    pub variables: serde_json::Value,
     /// Extracted request parameters (pagination, embeddings, etc.).
-    pub params:      super::params::ExtractedParams,
+    pub params: super::params::ExtractedParams,
 }
 
 /// REST request handler — translates HTTP requests to direct executor calls.
@@ -332,10 +332,10 @@ pub struct ResolvedGetQuery {
 /// This handler does NOT construct GraphQL strings. It builds typed
 /// [`QueryMatch`] or mutation calls and executes them directly.
 pub struct RestHandler<'a, A: DatabaseAdapter> {
-    executor:          &'a Arc<Executor<A>>,
-    schema:            &'a CompiledSchema,
-    config:            &'a RestConfig,
-    route_table:       &'a RestRouteTable,
+    executor: &'a Arc<Executor<A>>,
+    schema: &'a CompiledSchema,
+    config: &'a RestConfig,
+    route_table: &'a RestRouteTable,
     idempotency_store: Option<&'a Arc<dyn IdempotencyStore>>,
 }
 
@@ -644,9 +644,9 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
         }
 
         Ok(RestResponse {
-            status:  StatusCode::OK,
+            status: StatusCode::OK,
             headers: response_headers,
-            body:    Some(body),
+            body: Some(body),
         })
     }
 }
@@ -718,8 +718,8 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 },
                 IdempotencyCheck::Conflict => {
                     return Err(RestError {
-                        status:  StatusCode::UNPROCESSABLE_ENTITY,
-                        code:    "IDEMPOTENCY_CONFLICT",
+                        status: StatusCode::UNPROCESSABLE_ENTITY,
+                        code: "IDEMPOTENCY_CONFLICT",
                         message: "Idempotency-Key reused with different request body".to_string(),
                         details: None,
                     });
@@ -766,9 +766,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
         super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::cache_control::CacheContext {
-                is_get:      false,
-                has_auth:    headers.get("authorization").is_some(),
-                query_ttl:   None,
+                is_get: false,
+                has_auth: headers.get("authorization").is_some(),
+                query_ttl: None,
                 default_ttl: self.config.default_cache_ttl,
                 cdn_max_age: self.config.cdn_max_age,
             },
@@ -791,7 +791,7 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                     key,
                     body_hash,
                     StoredResponse {
-                        status:  rest_response.status.as_u16(),
+                        status: rest_response.status.as_u16(),
                         headers: rest_response
                             .headers
                             .iter()
@@ -799,7 +799,7 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                                 (k.as_str().to_string(), v.to_str().unwrap_or("").to_string())
                             })
                             .collect(),
-                        body:    rest_response.body.clone(),
+                        body: rest_response.body.clone(),
                     },
                 )
                 .await;
@@ -857,18 +857,18 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
         super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::cache_control::CacheContext {
-                is_get:      false,
-                has_auth:    headers.get("authorization").is_some(),
-                query_ttl:   None,
+                is_get: false,
+                has_auth: headers.get("authorization").is_some(),
+                query_ttl: None,
                 default_ttl: self.config.default_cache_ttl,
                 cdn_max_age: self.config.cdn_max_age,
             },
         );
 
         Ok(RestResponse {
-            status:  StatusCode::OK,
+            status: StatusCode::OK,
             headers: response_headers,
-            body:    Some(serde_json::Value::String(result)),
+            body: Some(serde_json::Value::String(result)),
         })
     }
 
@@ -931,18 +931,18 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::cache_control::CacheContext {
-                        is_get:      false,
-                        has_auth:    headers.get("authorization").is_some(),
-                        query_ttl:   None,
+                        is_get: false,
+                        has_auth: headers.get("authorization").is_some(),
+                        query_ttl: None,
                         default_ttl: self.config.default_cache_ttl,
                         cdn_max_age: self.config.cdn_max_age,
                     },
                 );
 
                 Ok(RestResponse {
-                    status:  StatusCode::OK,
+                    status: StatusCode::OK,
                     headers: response_headers,
-                    body:    Some(serde_json::Value::String(result)),
+                    body: Some(serde_json::Value::String(result)),
                 })
             },
             _ => {
@@ -1014,9 +1014,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::cache_control::CacheContext {
-                        is_get:      false,
-                        has_auth:    headers.get("authorization").is_some(),
-                        query_ttl:   None,
+                        is_get: false,
+                        has_auth: headers.get("authorization").is_some(),
+                        query_ttl: None,
                         default_ttl: self.config.default_cache_ttl,
                         cdn_max_age: self.config.cdn_max_age,
                     },
@@ -1041,9 +1041,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                             );
                         }
                         Ok(RestResponse {
-                            status:  StatusCode::OK,
+                            status: StatusCode::OK,
                             headers: response_headers,
-                            body:    Some(entity_value),
+                            body: Some(entity_value),
                         })
                     } else {
                         if prefer.return_representation {
@@ -1054,9 +1054,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                             );
                         }
                         Ok(RestResponse {
-                            status:  StatusCode::NO_CONTENT,
+                            status: StatusCode::NO_CONTENT,
                             headers: response_headers,
-                            body:    None,
+                            body: None,
                         })
                     }
                 } else {
@@ -1064,9 +1064,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                         set_preference_applied(&mut response_headers, &["return=minimal"]);
                     }
                     Ok(RestResponse {
-                        status:  StatusCode::NO_CONTENT,
+                        status: StatusCode::NO_CONTENT,
                         headers: response_headers,
-                        body:    None,
+                        body: None,
                     })
                 }
             },
@@ -1094,11 +1094,11 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
 #[derive(Debug)]
 pub struct RestResponse {
     /// HTTP status code.
-    pub status:  StatusCode,
+    pub status: StatusCode,
     /// Response headers.
     pub headers: HeaderMap,
     /// Response body (None for 204 No Content).
-    pub body:    Option<serde_json::Value>,
+    pub body: Option<serde_json::Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1109,9 +1109,9 @@ pub struct RestResponse {
 #[derive(Debug)]
 pub struct RestError {
     /// HTTP status code.
-    pub status:  StatusCode,
+    pub status: StatusCode,
     /// Error code string.
-    pub code:    &'static str,
+    pub code: &'static str,
     /// Human-readable error message.
     pub message: String,
     /// Structured details for field-level errors.
@@ -1122,8 +1122,8 @@ impl RestError {
     /// 400 Bad Request.
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {
-            status:  StatusCode::BAD_REQUEST,
-            code:    "BAD_REQUEST",
+            status: StatusCode::BAD_REQUEST,
+            code: "BAD_REQUEST",
             message: message.into(),
             details: None,
         }
@@ -1133,8 +1133,8 @@ impl RestError {
     #[must_use]
     pub fn forbidden() -> Self {
         Self {
-            status:  StatusCode::FORBIDDEN,
-            code:    "FORBIDDEN",
+            status: StatusCode::FORBIDDEN,
+            code: "FORBIDDEN",
             message: "Access denied".to_string(),
             details: None,
         }
@@ -1143,8 +1143,8 @@ impl RestError {
     /// 404 Not Found.
     pub fn not_found(message: impl Into<String>) -> Self {
         Self {
-            status:  StatusCode::NOT_FOUND,
-            code:    "NOT_FOUND",
+            status: StatusCode::NOT_FOUND,
+            code: "NOT_FOUND",
             message: message.into(),
             details: None,
         }
@@ -1153,8 +1153,8 @@ impl RestError {
     /// 422 Unprocessable Entity.
     pub fn unprocessable_entity(message: impl Into<String>, details: serde_json::Value) -> Self {
         Self {
-            status:  StatusCode::UNPROCESSABLE_ENTITY,
-            code:    "UNPROCESSABLE_ENTITY",
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "UNPROCESSABLE_ENTITY",
             message: message.into(),
             details: Some(details),
         }
@@ -1163,8 +1163,8 @@ impl RestError {
     /// 500 Internal Server Error.
     pub fn internal(message: impl Into<String>) -> Self {
         Self {
-            status:  StatusCode::INTERNAL_SERVER_ERROR,
-            code:    "INTERNAL_SERVER_ERROR",
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "INTERNAL_SERVER_ERROR",
             message: message.into(),
             details: None,
         }
@@ -1195,8 +1195,8 @@ impl From<FraiseQLError> for RestError {
             | FraiseQLError::UnknownType { .. } => Self::bad_request(err.to_string()),
             FraiseQLError::Authorization { .. } => Self::forbidden(),
             FraiseQLError::Authentication { .. } => Self {
-                status:  StatusCode::UNAUTHORIZED,
-                code:    "UNAUTHENTICATED",
+                status: StatusCode::UNAUTHORIZED,
+                code: "UNAUTHENTICATED",
                 message: "Authentication required".to_string(),
                 details: None,
             },
@@ -1773,9 +1773,9 @@ mod tests {
     #[test]
     fn stored_response_replay() {
         let stored = StoredResponse {
-            status:  201,
+            status: 201,
             headers: vec![("x-rows-affected".to_string(), "1".to_string())],
-            body:    Some(json!({"id": 1})),
+            body: Some(json!({"id": 1})),
         };
         let request_headers = HeaderMap::new();
         let rest = stored_response_to_rest(stored, &request_headers);
@@ -1790,83 +1790,83 @@ mod tests {
 
     fn make_test_route_table() -> RestRouteTable {
         RestRouteTable {
-            base_path:   "/rest/v1".to_string(),
-            resources:   vec![RestResource {
-                name:      "users".to_string(),
+            base_path: "/rest/v1".to_string(),
+            resources: vec![RestResource {
+                name: "users".to_string(),
                 type_name: "User".to_string(),
-                id_arg:    Some("id".to_string()),
-                routes:    vec![
+                id_arg: Some("id".to_string()),
+                routes: vec![
                     RestRoute {
-                        method:          HttpMethod::Get,
-                        path:            "/users".to_string(),
-                        source:          RouteSource::Query {
+                        method: HttpMethod::Get,
+                        path: "/users".to_string(),
+                        source: RouteSource::Query {
                             name: "users".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  200,
+                        success_status: 200,
                     },
                     RestRoute {
-                        method:          HttpMethod::Get,
-                        path:            "/users/{id}".to_string(),
-                        source:          RouteSource::Query {
+                        method: HttpMethod::Get,
+                        path: "/users/{id}".to_string(),
+                        source: RouteSource::Query {
                             name: "user".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  200,
+                        success_status: 200,
                     },
                     RestRoute {
-                        method:          HttpMethod::Post,
-                        path:            "/users".to_string(),
-                        source:          RouteSource::Mutation {
+                        method: HttpMethod::Post,
+                        path: "/users".to_string(),
+                        source: RouteSource::Mutation {
                             name: "createUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  201,
+                        success_status: 201,
                     },
                     RestRoute {
-                        method:          HttpMethod::Put,
-                        path:            "/users/{id}".to_string(),
-                        source:          RouteSource::Mutation {
+                        method: HttpMethod::Put,
+                        path: "/users/{id}".to_string(),
+                        source: RouteSource::Mutation {
                             name: "updateUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  200,
+                        success_status: 200,
                     },
                     RestRoute {
-                        method:          HttpMethod::Patch,
-                        path:            "/users/{id}".to_string(),
-                        source:          RouteSource::Mutation {
+                        method: HttpMethod::Patch,
+                        path: "/users/{id}".to_string(),
+                        source: RouteSource::Mutation {
                             name: "updateUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  200,
+                        success_status: 200,
                     },
                     RestRoute {
-                        method:          HttpMethod::Patch,
-                        path:            "/users/{id}/update-email".to_string(),
-                        source:          RouteSource::Mutation {
+                        method: HttpMethod::Patch,
+                        path: "/users/{id}/update-email".to_string(),
+                        source: RouteSource::Mutation {
                             name: "updateUserEmail".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  200,
+                        success_status: 200,
                     },
                     RestRoute {
-                        method:          HttpMethod::Delete,
-                        path:            "/users/{id}".to_string(),
-                        source:          RouteSource::Mutation {
+                        method: HttpMethod::Delete,
+                        path: "/users/{id}".to_string(),
+                        source: RouteSource::Mutation {
                             name: "deleteUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  204,
+                        success_status: 204,
                     },
                     RestRoute {
-                        method:          HttpMethod::Post,
-                        path:            "/users/{id}/archive".to_string(),
-                        source:          RouteSource::Mutation {
+                        method: HttpMethod::Post,
+                        path: "/users/{id}/archive".to_string(),
+                        source: RouteSource::Mutation {
                             name: "archiveUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status:  200,
+                        success_status: 200,
                     },
                 ],
             }],
@@ -2157,7 +2157,7 @@ mod tests {
             result,
             Some(100),
             &PaginationParams::Offset {
-                limit:  10,
+                limit: 10,
                 offset: 0,
             },
         )
@@ -2175,7 +2175,7 @@ mod tests {
             result,
             None,
             &PaginationParams::Offset {
-                limit:  10,
+                limit: 10,
                 offset: 0,
             },
         )
@@ -2190,9 +2190,9 @@ mod tests {
             result,
             None,
             &PaginationParams::Cursor {
-                first:  Some(5),
-                after:  None,
-                last:   None,
+                first: Some(5),
+                after: None,
+                last: None,
                 before: None,
             },
         )
@@ -2274,7 +2274,7 @@ mod tests {
     fn rest_error_from_fraiseql_validation() {
         let err = FraiseQLError::Validation {
             message: "Invalid field".to_string(),
-            path:    None,
+            path: None,
         };
         let rest_err = RestError::from(err);
         assert_eq!(rest_err.status, StatusCode::BAD_REQUEST);
@@ -2283,8 +2283,8 @@ mod tests {
     #[test]
     fn rest_error_from_fraiseql_auth() {
         let err = FraiseQLError::Authorization {
-            message:  "Denied".to_string(),
-            action:   None,
+            message: "Denied".to_string(),
+            action: None,
             resource: None,
         };
         let rest_err = RestError::from(err);

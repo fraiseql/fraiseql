@@ -46,7 +46,7 @@ pub(super) fn bind_json_params<'a>(
                 } else {
                     return Err(FraiseQLError::Validation {
                         message: format!("Cannot bind numeric value {n}: out of i64 and f64 range"),
-                        path:    None,
+                        path: None,
                     });
                 }
             },

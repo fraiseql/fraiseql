@@ -23,17 +23,17 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
 
     // Admin user should bypass RLS
     let admin_context = SecurityContext {
-        user_id:          "admin1".to_string(),
-        roles:            vec!["admin".to_string()],
-        tenant_id:        None,
-        scopes:           vec![],
-        attributes:       HashMap::new(),
-        request_id:       "req-admin".to_string(),
-        ip_address:       None,
+        user_id: "admin1".to_string(),
+        roles: vec!["admin".to_string()],
+        tenant_id: None,
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-admin".to_string(),
+        ip_address: None,
         authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     };
 
     let admin_result = policy.evaluate(&admin_context, "Post").unwrap();
@@ -41,17 +41,17 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
 
     // Non-admin user should have RLS filter applied
     let user_context = SecurityContext {
-        user_id:          "user1".to_string(),
-        roles:            vec!["user".to_string()],
-        tenant_id:        None,
-        scopes:           vec![],
-        attributes:       HashMap::new(),
-        request_id:       "req-user".to_string(),
-        ip_address:       None,
+        user_id: "user1".to_string(),
+        roles: vec!["user".to_string()],
+        tenant_id: None,
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-user".to_string(),
+        ip_address: None,
         authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     };
 
     let user_result = policy.evaluate(&user_context, "Post").unwrap();
@@ -83,17 +83,17 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
 
     // User in tenant1
     let tenant1_context = SecurityContext {
-        user_id:          "user1".to_string(),
-        roles:            vec!["user".to_string()],
-        tenant_id:        Some("tenant1".to_string()),
-        scopes:           vec![],
-        attributes:       HashMap::new(),
-        request_id:       "req-1".to_string(),
-        ip_address:       None,
+        user_id: "user1".to_string(),
+        roles: vec!["user".to_string()],
+        tenant_id: Some("tenant1".to_string()),
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-1".to_string(),
+        ip_address: None,
         authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     };
 
     let result = policy.evaluate(&tenant1_context, "Post").unwrap();
@@ -117,17 +117,17 @@ fn test_rls_allows_access_when_no_policy_matches() {
     let policy = DefaultRLSPolicy::new();
 
     let context = SecurityContext {
-        user_id:          "user1".to_string(),
-        roles:            vec!["user".to_string()],
-        tenant_id:        None,
-        scopes:           vec![],
-        attributes:       HashMap::new(),
-        request_id:       "req-1".to_string(),
-        ip_address:       None,
+        user_id: "user1".to_string(),
+        roles: vec!["user".to_string()],
+        tenant_id: None,
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-1".to_string(),
+        ip_address: None,
         authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     };
 
     // Any type should get a filter (not None)
@@ -142,16 +142,16 @@ fn test_where_clause_composition_for_rls() {
 
     // User-provided WHERE clause: published = true
     let user_where = WhereClause::Field {
-        path:     vec!["published".to_string()],
+        path: vec!["published".to_string()],
         operator: WhereOperator::Eq,
-        value:    serde_json::json!(true),
+        value: serde_json::json!(true),
     };
 
     // RLS filter: author_id = user1
     let rls_where = WhereClause::Field {
-        path:     vec!["author_id".to_string()],
+        path: vec!["author_id".to_string()],
         operator: WhereOperator::Eq,
-        value:    serde_json::json!("user1"),
+        value: serde_json::json!("user1"),
     };
 
     // Composed: published = true AND author_id = user1
@@ -171,17 +171,17 @@ fn test_security_context_carries_all_metadata() {
     attrs.insert("region".to_string(), serde_json::json!("us-west-2"));
 
     let context = SecurityContext {
-        user_id:          "user123".to_string(),
-        roles:            vec!["user".to_string(), "moderator".to_string()],
-        tenant_id:        Some("acme-corp".to_string()),
-        scopes:           vec!["read:post".to_string(), "write:comment".to_string()],
-        attributes:       attrs,
-        request_id:       "req-xyz".to_string(),
-        ip_address:       Some("192.0.2.1".to_string()),
+        user_id: "user123".to_string(),
+        roles: vec!["user".to_string(), "moderator".to_string()],
+        tenant_id: Some("acme-corp".to_string()),
+        scopes: vec!["read:post".to_string(), "write:comment".to_string()],
+        attributes: attrs,
+        request_id: "req-xyz".to_string(),
+        ip_address: Some("192.0.2.1".to_string()),
         authenticated_at: now,
-        expires_at:       expires,
-        issuer:           Some("https://auth.example.com".to_string()),
-        audience:         Some("api.example.com".to_string()),
+        expires_at: expires,
+        issuer: Some("https://auth.example.com".to_string()),
+        audience: Some("api.example.com".to_string()),
     };
 
     assert_eq!(context.user_id, "user123");
@@ -220,17 +220,17 @@ fn test_rls_policy_produces_correct_where_clauses() {
 
     // Non-admin user should get owner-based filter
     let user_context = SecurityContext {
-        user_id:          "user456".to_string(),
-        roles:            vec!["user".to_string()],
-        tenant_id:        None,
-        scopes:           vec![],
-        attributes:       HashMap::new(),
-        request_id:       "req-test".to_string(),
-        ip_address:       None,
+        user_id: "user456".to_string(),
+        roles: vec!["user".to_string()],
+        tenant_id: None,
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-test".to_string(),
+        ip_address: None,
         authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     };
 
     let result = policy.evaluate(&user_context, "Post").unwrap();
@@ -260,17 +260,17 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
 
     // User in a tenant
     let user_context = SecurityContext {
-        user_id:          "user789".to_string(),
-        roles:            vec!["user".to_string()],
-        tenant_id:        Some("tenant-acme".to_string()),
-        scopes:           vec![],
-        attributes:       HashMap::new(),
-        request_id:       "req-test".to_string(),
-        ip_address:       None,
+        user_id: "user789".to_string(),
+        roles: vec!["user".to_string()],
+        tenant_id: Some("tenant-acme".to_string()),
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "req-test".to_string(),
+        ip_address: None,
         authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     };
 
     let result = policy.evaluate(&user_context, "Post").unwrap();

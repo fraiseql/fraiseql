@@ -605,7 +605,7 @@ impl FraiseQLFlightService {
 
         let config = ConvertConfig {
             batch_size: 10_000,
-            max_rows:   None,
+            max_rows: None,
         };
         let converter = RowToArrowConverter::new(schema, config);
         arrow_rows
@@ -702,7 +702,7 @@ impl FraiseQLFlightService {
         // 5. Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: limit.unwrap_or(10_000).min(10_000),
-            max_rows:   limit,
+            max_rows: limit,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
@@ -838,7 +838,7 @@ impl FraiseQLFlightService {
             // Convert to RecordBatches
             let config = ConvertConfig {
                 batch_size: 10_000,
-                max_rows:   None,
+                max_rows: None,
             };
             let converter = RowToArrowConverter::new(inferred_schema.clone(), config);
 
@@ -1019,7 +1019,7 @@ impl FraiseQLFlightService {
         // Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: 10_000,
-            max_rows:   None,
+            max_rows: None,
         };
         let converter = RowToArrowConverter::new(schema, config);
 

@@ -118,7 +118,7 @@ impl OperationPermission {
 #[derive(Debug, Clone)]
 pub struct Role {
     /// Role name (e.g., `"admin"`, `"viewer"`)
-    pub name:        String,
+    pub name: String,
     /// Set of operations this role is allowed to perform
     pub permissions: Vec<OperationPermission>,
 }
@@ -363,7 +363,7 @@ mod tests {
 
         AuthenticatedUser {
             user_id: "test-user".to_string(),
-            claims:  Claims {
+            claims: Claims {
                 sub: "test-user".to_string(),
                 iat: 1_000_000,
                 exp: 2_000_000,
@@ -380,7 +380,7 @@ mod tests {
 
         AuthenticatedUser {
             user_id: "test-user".to_string(),
-            claims:  Claims {
+            claims: Claims {
                 sub: "test-user".to_string(),
                 iat: 1_000_000,
                 exp: 2_000_000,

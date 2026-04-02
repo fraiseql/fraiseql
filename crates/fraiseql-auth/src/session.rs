@@ -14,11 +14,11 @@ use crate::error::Result;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionData {
     /// User ID (unique per user)
-    pub user_id:            String,
+    pub user_id: String,
     /// Session issued timestamp (Unix seconds)
-    pub issued_at:          u64,
+    pub issued_at: u64,
     /// Session expiration timestamp (Unix seconds)
-    pub expires_at:         u64,
+    pub expires_at: u64,
     /// Hash of the refresh token (stored securely)
     pub refresh_token_hash: String,
 }
@@ -38,11 +38,11 @@ impl SessionData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenPair {
     /// JWT access token (short-lived, typically 15 min - 1 hour)
-    pub access_token:  String,
+    pub access_token: String,
     /// Refresh token (long-lived, typically 7-30 days)
     pub refresh_token: String,
     /// Time in seconds until access token expires
-    pub expires_in:    u64,
+    pub expires_in: u64,
 }
 
 /// SessionStore trait - implement this for your storage backend
@@ -321,9 +321,9 @@ mod tests {
             .as_secs();
 
         let session = SessionData {
-            user_id:            "user123".to_string(),
-            issued_at:          now,
-            expires_at:         now + 3600,
+            user_id: "user123".to_string(),
+            issued_at: now,
+            expires_at: now + 3600,
             refresh_token_hash: "hash".to_string(),
         };
 
@@ -338,9 +338,9 @@ mod tests {
             .as_secs();
 
         let session = SessionData {
-            user_id:            "user123".to_string(),
-            issued_at:          now - 3600,
-            expires_at:         now - 100,
+            user_id: "user123".to_string(),
+            issued_at: now - 3600,
+            expires_at: now - 100,
             refresh_token_hash: "hash".to_string(),
         };
 

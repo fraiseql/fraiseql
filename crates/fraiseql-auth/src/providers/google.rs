@@ -20,28 +20,28 @@ pub struct GoogleOAuth {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoogleUser {
     /// Subject — stable, unique Google account identifier
-    pub sub:            String,
+    pub sub: String,
     /// Verified email address associated with the Google account
-    pub email:          String,
+    pub email: String,
     /// Whether Google has verified the email address
     pub email_verified: bool,
     /// User's full display name
-    pub name:           Option<String>,
+    pub name: Option<String>,
     /// URL of the user's profile picture
-    pub picture:        Option<String>,
+    pub picture: Option<String>,
     /// User's locale (e.g., `"en"`)
-    pub locale:         Option<String>,
+    pub locale: Option<String>,
 }
 
 /// Google Workspace group
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoogleWorkspaceGroup {
     /// Stable group ID in the Google Workspace directory
-    pub id:          String,
+    pub id: String,
     /// Group email address (used as the primary identifier for role mapping)
-    pub email:       String,
+    pub email: String,
     /// Human-readable group name
-    pub name:        Option<String>,
+    pub name: Option<String>,
     /// Optional group description
     pub description: Option<String>,
 }

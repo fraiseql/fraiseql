@@ -50,12 +50,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[derive(serde::Deserialize)]
         struct PkceCfgMinimal {
             #[serde(default)]
-            enabled:               bool,
+            enabled: bool,
             #[serde(default = "default_ttl")]
-            state_ttl_secs:        u64,
+            state_ttl_secs: u64,
             #[serde(default = "default_method")]
             code_challenge_method: String,
-            redis_url:             Option<String>,
+            redis_url: Option<String>,
         }
         #[allow(clippy::items_after_statements)] // Reason: serde default fn for PkceCfgMinimal above
         const fn default_ttl() -> u64 {
@@ -292,10 +292,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[derive(serde::Deserialize)]
         struct TdCfgMinimal {
             #[serde(default)]
-            enabled:              bool,
+            enabled: bool,
             #[serde(default)]
-            mode:                 String,
-            manifest_path:        Option<String>,
+            mode: String,
+            manifest_path: Option<String>,
             // Reason: serde deserialization target — `manifest_url` is a valid config field
             // used for hot-reload path detection; this minimal struct only reads `manifest_path`.
             #[allow(dead_code)]

@@ -8,22 +8,22 @@ use serde::{Deserialize, Serialize};
 pub struct CachingConfig {
     /// Enable caching
     #[serde(default)]
-    pub enabled:   bool,
+    pub enabled: bool,
     /// Cache backend (redis, memory, postgresql)
-    pub backend:   String,
+    pub backend: String,
     /// Redis connection URL
     pub redis_url: Option<String>,
     /// Cache invalidation rules
-    pub rules:     Vec<CacheRule>,
+    pub rules: Vec<CacheRule>,
 }
 
 impl Default for CachingConfig {
     fn default() -> Self {
         Self {
-            enabled:   false,
-            backend:   "redis".to_string(),
+            enabled: false,
+            backend: "redis".to_string(),
             redis_url: None,
-            rules:     vec![],
+            rules: vec![],
         }
     }
 }
@@ -33,9 +33,9 @@ impl Default for CachingConfig {
 #[serde(deny_unknown_fields)]
 pub struct CacheRule {
     /// Query pattern to cache
-    pub query:                 String,
+    pub query: String,
     /// Time-to-live in seconds
-    pub ttl_seconds:           u32,
+    pub ttl_seconds: u32,
     /// Events that trigger cache invalidation
     pub invalidation_triggers: Vec<String>,
 }
@@ -56,9 +56,9 @@ pub struct AnalyticsConfig {
 #[serde(deny_unknown_fields)]
 pub struct AnalyticsQuery {
     /// Query name
-    pub name:        String,
+    pub name: String,
     /// SQL source for the query
-    pub sql_source:  String,
+    pub sql_source: String,
     /// Query description
     pub description: Option<String>,
 }

@@ -59,7 +59,8 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_adapter_creation() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         assert_eq!(adapter.database_type(), DatabaseType::MySQL);
 
@@ -69,14 +70,16 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_health_check() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         adapter.health_check().await.expect("Health check should pass");
     }
 
     #[tokio::test]
     async fn test_mysql_execute_raw_query() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_raw_query("SELECT 1 as value")
@@ -89,7 +92,8 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_v_user_view() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(10), None, None)
@@ -107,7 +111,8 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_with_limit() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_user", None, Some(2), None, None)
@@ -119,7 +124,8 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_with_offset() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         // Get all users first
         let all_results = adapter
@@ -140,7 +146,8 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_query_v_post_with_nested_author() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let results = adapter
             .execute_where_query("v_post", None, Some(5), None, None)
@@ -162,7 +169,8 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_pool_metrics() {
-        let adapter = MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
+        let adapter =
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter");
 
         let metrics = adapter.pool_metrics();
 
@@ -175,8 +183,9 @@ mod mysql_tests {
 
     #[tokio::test]
     async fn test_mysql_concurrent_queries() {
-        let adapter =
-            Arc::new(MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter"));
+        let adapter = Arc::new(
+            MySqlAdapter::new(&mysql_url()).await.expect("Failed to create MySQL adapter"),
+        );
 
         let mut handles = Vec::new();
 

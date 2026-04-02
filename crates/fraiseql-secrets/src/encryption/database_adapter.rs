@@ -80,11 +80,11 @@ pub trait EncryptedFieldAdapter: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct EncryptionContext {
     /// User ID performing the operation
-    pub user_id:    String,
+    pub user_id: String,
     /// Field name being encrypted
     pub field_name: String,
     /// Operation type (insert, update, select)
-    pub operation:  String,
+    pub operation: String,
 }
 
 impl EncryptionContext {
@@ -98,9 +98,9 @@ impl EncryptionContext {
         operation: impl Into<String>,
     ) -> Self {
         Self {
-            user_id:    user_id.into(),
+            user_id: user_id.into(),
             field_name: field_name.into(),
-            operation:  operation.into(),
+            operation: operation.into(),
         }
     }
 
@@ -131,9 +131,9 @@ pub struct DatabaseFieldAdapter {
     /// Secrets manager for fetching encryption keys
     secrets_manager: Arc<SecretsManager>,
     /// Mapping of field names to encryption key names in Vault
-    field_keys:      HashMap<String, String>,
+    field_keys: HashMap<String, String>,
     /// Cached cipher instances per field
-    ciphers:         Arc<RwLock<HashMap<String, CachedEncryption>>>,
+    ciphers: Arc<RwLock<HashMap<String, CachedEncryption>>>,
 }
 
 impl DatabaseFieldAdapter {

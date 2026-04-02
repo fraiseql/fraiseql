@@ -16,7 +16,7 @@ use crate::dialect::RowViewColumnType;
 #[derive(Debug, Clone)]
 pub struct ColumnSpec {
     /// Column name.
-    pub name:        String,
+    pub name: String,
     /// Column type for SQL casting.
     pub column_type: RowViewColumnType,
 }

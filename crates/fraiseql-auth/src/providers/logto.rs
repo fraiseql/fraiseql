@@ -30,7 +30,7 @@ use crate::{
 /// ```
 #[derive(Debug)]
 pub struct LogtoOAuth {
-    oidc:     OidcProvider,
+    oidc: OidcProvider,
     endpoint: String,
 }
 

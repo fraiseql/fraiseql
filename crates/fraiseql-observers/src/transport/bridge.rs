@@ -249,10 +249,10 @@ pub struct BridgeConfig {
 impl Default for BridgeConfig {
     fn default() -> Self {
         Self {
-            transport_name:     "pg_to_nats".to_string(),
-            batch_size:         100,
+            transport_name: "pg_to_nats".to_string(),
+            batch_size: 100,
             poll_interval_secs: 1,
-            notify_channel:     "fraiseql_events".to_string(),
+            notify_channel: "fraiseql_events".to_string(),
         }
     }
 }
@@ -281,10 +281,10 @@ impl Default for BridgeConfig {
 ///    - Safe against accidental multi-bridge races
 #[cfg(feature = "nats")]
 pub struct PostgresNatsBridge {
-    pool:             PgPool,
-    nats_transport:   Arc<NatsTransport>,
+    pool: PgPool,
+    nats_transport: Arc<NatsTransport>,
     checkpoint_store: Arc<dyn CheckpointStore>,
-    config:           BridgeConfig,
+    config: BridgeConfig,
 }
 
 #[cfg(feature = "nats")]
@@ -629,18 +629,18 @@ mod tests {
 
         let entry = ChangeLogEntry {
             pk_entity_change_log: 1,
-            id:                   Uuid::new_v4(),
-            fk_customer_org:      Some(123),
-            fk_contact:           Some(456),
-            object_type:          "Order".to_string(),
-            object_id:            Uuid::new_v4(),
-            modification_type:    "INSERT".to_string(),
-            change_status:        None,
-            object_data:          Some(serde_json::json!({"total": 100})),
-            extra_metadata:       None,
-            created_at:           Utc::now(),
-            nats_published_at:    None,
-            nats_event_id:        None,
+            id: Uuid::new_v4(),
+            fk_customer_org: Some(123),
+            fk_contact: Some(456),
+            object_type: "Order".to_string(),
+            object_id: Uuid::new_v4(),
+            modification_type: "INSERT".to_string(),
+            change_status: None,
+            object_data: Some(serde_json::json!({"total": 100})),
+            extra_metadata: None,
+            created_at: Utc::now(),
+            nats_published_at: None,
+            nats_event_id: None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -655,18 +655,18 @@ mod tests {
 
         let entry = ChangeLogEntry {
             pk_entity_change_log: 2,
-            id:                   Uuid::new_v4(),
-            fk_customer_org:      None,
-            fk_contact:           None,
-            object_type:          "User".to_string(),
-            object_id:            Uuid::new_v4(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        None,
-            object_data:          None,
-            extra_metadata:       None,
-            created_at:           Utc::now(),
-            nats_published_at:    None,
-            nats_event_id:        None,
+            id: Uuid::new_v4(),
+            fk_customer_org: None,
+            fk_contact: None,
+            object_type: "User".to_string(),
+            object_id: Uuid::new_v4(),
+            modification_type: "UPDATE".to_string(),
+            change_status: None,
+            object_data: None,
+            extra_metadata: None,
+            created_at: Utc::now(),
+            nats_published_at: None,
+            nats_event_id: None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -679,18 +679,18 @@ mod tests {
 
         let entry = ChangeLogEntry {
             pk_entity_change_log: 3,
-            id:                   Uuid::new_v4(),
-            fk_customer_org:      None,
-            fk_contact:           None,
-            object_type:          "Product".to_string(),
-            object_id:            Uuid::new_v4(),
-            modification_type:    "DELETE".to_string(),
-            change_status:        None,
-            object_data:          None,
-            extra_metadata:       None,
-            created_at:           Utc::now(),
-            nats_published_at:    None,
-            nats_event_id:        None,
+            id: Uuid::new_v4(),
+            fk_customer_org: None,
+            fk_contact: None,
+            object_type: "Product".to_string(),
+            object_id: Uuid::new_v4(),
+            modification_type: "DELETE".to_string(),
+            change_status: None,
+            object_data: None,
+            extra_metadata: None,
+            created_at: Utc::now(),
+            nats_published_at: None,
+            nats_event_id: None,
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -701,18 +701,18 @@ mod tests {
     fn test_change_log_entry_invalid_modification_type() {
         let entry = ChangeLogEntry {
             pk_entity_change_log: 4,
-            id:                   Uuid::new_v4(),
-            fk_customer_org:      None,
-            fk_contact:           None,
-            object_type:          "Test".to_string(),
-            object_id:            Uuid::new_v4(),
-            modification_type:    "INVALID".to_string(),
-            change_status:        None,
-            object_data:          None,
-            extra_metadata:       None,
-            created_at:           Utc::now(),
-            nats_published_at:    None,
-            nats_event_id:        None,
+            id: Uuid::new_v4(),
+            fk_customer_org: None,
+            fk_contact: None,
+            object_type: "Test".to_string(),
+            object_id: Uuid::new_v4(),
+            modification_type: "INVALID".to_string(),
+            change_status: None,
+            object_data: None,
+            extra_metadata: None,
+            created_at: Utc::now(),
+            nats_published_at: None,
+            nats_event_id: None,
         };
 
         let result = entry.to_entity_event();

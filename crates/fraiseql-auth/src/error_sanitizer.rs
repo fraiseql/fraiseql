@@ -12,7 +12,7 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct SanitizedError {
     /// User-facing message (safe for API responses)
-    user_message:     String,
+    user_message: String,
     /// Internal message (for logging only)
     internal_message: String,
 }
@@ -21,7 +21,7 @@ impl SanitizedError {
     /// Create a new sanitized error
     pub fn new(user_message: impl Into<String>, internal_message: impl Into<String>) -> Self {
         Self {
-            user_message:     user_message.into(),
+            user_message: user_message.into(),
             internal_message: internal_message.into(),
         }
     }

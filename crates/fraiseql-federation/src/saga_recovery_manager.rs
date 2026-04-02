@@ -86,7 +86,7 @@ pub struct RecoveryConfig {
     ///
     /// Determines how frequently the background loop checks for pending/executing sagas.
     /// Smaller values detect and recover sagas faster but consume more resources.
-    pub check_interval:          Duration,
+    pub check_interval: Duration,
     /// Maximum sagas to process per iteration
     ///
     /// Limits the number of sagas transitioned per iteration to avoid overwhelming
@@ -95,15 +95,15 @@ pub struct RecoveryConfig {
     /// Grace period before marking sagas as stale (hours)
     ///
     /// Sagas older than this duration are considered stale and eligible for cleanup.
-    pub stale_age_hours:         i64,
+    pub stale_age_hours: i64,
 }
 
 impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
-            check_interval:          Duration::from_secs(5),
+            check_interval: Duration::from_secs(5),
             max_sagas_per_iteration: 50,
-            stale_age_hours:         24,
+            stale_age_hours: 24,
         }
     }
 }
@@ -114,15 +114,15 @@ impl Default for RecoveryConfig {
 #[derive(Debug, Clone, Default)]
 pub struct RecoveryStats {
     /// Total iterations executed
-    pub iterations:            u64,
+    pub iterations: u64,
     /// Total pending sagas processed
-    pub sagas_processed:       u64,
+    pub sagas_processed: u64,
     /// Total executing sagas detected
     pub executing_sagas_found: u64,
     /// Total stale sagas cleaned up
-    pub sagas_cleaned:         u64,
+    pub sagas_cleaned: u64,
     /// Total errors encountered
-    pub errors:                u64,
+    pub errors: u64,
 }
 
 /// Saga Recovery Manager
@@ -145,10 +145,10 @@ pub struct RecoveryStats {
 /// - Database errors are logged but don't prevent cleanup
 /// - The background loop continues despite transient failures
 pub struct SagaRecoveryManager {
-    store:   Arc<PostgresSagaStore>,
-    config:  RecoveryConfig,
+    store: Arc<PostgresSagaStore>,
+    config: RecoveryConfig,
     running: Arc<AtomicBool>,
-    stats:   Arc<Mutex<RecoveryStats>>,
+    stats: Arc<Mutex<RecoveryStats>>,
 }
 
 impl SagaRecoveryManager {

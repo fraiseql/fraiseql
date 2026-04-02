@@ -85,13 +85,13 @@ impl WindowPlanner {
                             "Measure '{}' not found in fact table '{}'",
                             name, metadata.table_name
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
                 // Measure columns are direct SQL columns
                 Ok(SelectColumn {
                     expression: name.clone(),
-                    alias:      alias.clone(),
+                    alias: alias.clone(),
                 })
             },
             WindowSelectColumn::Dimension { path, alias } => {
@@ -110,13 +110,13 @@ impl WindowPlanner {
                             "Filter column '{}' not found in fact table '{}'",
                             name, metadata.table_name
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
                 // Filter columns are direct SQL columns
                 Ok(SelectColumn {
                     expression: name.clone(),
-                    alias:      alias.clone(),
+                    alias: alias.clone(),
                 })
             },
         }
@@ -185,8 +185,8 @@ impl WindowPlanner {
             } => {
                 let sql_field = Self::resolve_field_to_sql(field, metadata)?;
                 Ok(WindowFunctionType::Lag {
-                    field:   sql_field,
-                    offset:  *offset,
+                    field: sql_field,
+                    offset: *offset,
                     default: default.clone(),
                 })
             },
@@ -197,8 +197,8 @@ impl WindowPlanner {
             } => {
                 let sql_field = Self::resolve_field_to_sql(field, metadata)?;
                 Ok(WindowFunctionType::Lead {
-                    field:   sql_field,
-                    offset:  *offset,
+                    field: sql_field,
+                    offset: *offset,
                     default: default.clone(),
                 })
             },
@@ -214,7 +214,7 @@ impl WindowPlanner {
                 let sql_field = Self::resolve_field_to_sql(field, metadata)?;
                 Ok(WindowFunctionType::NthValue {
                     field: sql_field,
-                    n:     *n,
+                    n: *n,
                 })
             },
 
@@ -281,7 +281,7 @@ impl WindowPlanner {
                             "Filter column '{}' not found in fact table '{}'",
                             name, metadata.table_name
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
                 Ok(name.clone())
@@ -357,7 +357,7 @@ impl WindowPlanner {
                     "window field '{field}' contains invalid characters; \
                      only [_A-Za-z][_0-9A-Za-z]* is allowed"
                 ),
-                path:    None,
+                path: None,
             })
         }
     }
@@ -370,7 +370,7 @@ impl WindowPlanner {
                     "Measure '{}' not found in fact table '{}'",
                     measure, metadata.table_name
                 ),
-                path:    None,
+                path: None,
             });
         }
         Ok(())

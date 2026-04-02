@@ -56,8 +56,8 @@ impl VectorConfig {
     #[must_use]
     pub const fn openai() -> Self {
         Self {
-            dimensions:      1536,
-            index_type:      VectorIndexType::Hnsw,
+            dimensions: 1536,
+            index_type: VectorIndexType::Hnsw,
             distance_metric: DistanceMetric::Cosine,
         }
     }
@@ -66,8 +66,8 @@ impl VectorConfig {
     #[must_use]
     pub const fn openai_small() -> Self {
         Self {
-            dimensions:      512,
-            index_type:      VectorIndexType::Hnsw,
+            dimensions: 512,
+            index_type: VectorIndexType::Hnsw,
             distance_metric: DistanceMetric::Cosine,
         }
     }
@@ -352,7 +352,7 @@ pub struct FieldEncryptionConfig {
     pub key_reference: String,
     /// Encryption algorithm identifier.
     #[serde(default = "default_encryption_algorithm")]
-    pub algorithm:     String,
+    pub algorithm: String,
 }
 
 fn default_encryption_algorithm() -> String {
@@ -429,17 +429,17 @@ impl FieldDefinition {
     #[must_use]
     pub fn vector(name: impl Into<String>, config: VectorConfig) -> Self {
         Self {
-            name:           FieldName::new(name),
-            field_type:     FieldType::Vector,
-            nullable:       false,
-            description:    None,
-            default_value:  None,
-            vector_config:  Some(config),
-            alias:          None,
-            deprecation:    None,
+            name: FieldName::new(name),
+            field_type: FieldType::Vector,
+            nullable: false,
+            description: None,
+            default_value: None,
+            vector_config: Some(config),
+            alias: None,
+            deprecation: None,
             requires_scope: None,
-            on_deny:        FieldDenyPolicy::default(),
-            encryption:     None,
+            on_deny: FieldDenyPolicy::default(),
+            encryption: None,
         }
     }
 
@@ -1150,7 +1150,7 @@ mod tests {
         let field = FieldDefinition::new("email", FieldType::String).with_encryption(
             FieldEncryptionConfig {
                 key_reference: "keys/email".to_string(),
-                algorithm:     "AES-256-GCM".to_string(),
+                algorithm: "AES-256-GCM".to_string(),
             },
         );
         assert!(field.is_encrypted());
@@ -1162,7 +1162,7 @@ mod tests {
         let field = FieldDefinition::new("email", FieldType::String).with_encryption(
             FieldEncryptionConfig {
                 key_reference: "keys/email".to_string(),
-                algorithm:     "AES-256-GCM".to_string(),
+                algorithm: "AES-256-GCM".to_string(),
             },
         );
         let json = serde_json::to_string(&field).unwrap();

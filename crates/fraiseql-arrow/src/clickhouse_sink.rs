@@ -178,12 +178,12 @@ const fn is_cgnat_v4(addr: std::net::Ipv4Addr) -> bool {
 impl Default for ClickHouseSinkConfig {
     fn default() -> Self {
         Self {
-            url:                default_clickhouse_url(),
-            database:           default_clickhouse_database(),
-            table:              default_clickhouse_table(),
-            batch_size:         default_clickhouse_batch_size(),
+            url: default_clickhouse_url(),
+            database: default_clickhouse_database(),
+            table: default_clickhouse_table(),
+            batch_size: default_clickhouse_batch_size(),
             batch_timeout_secs: default_clickhouse_batch_timeout_secs(),
-            max_retries:        default_clickhouse_max_retries(),
+            max_retries: default_clickhouse_max_retries(),
         }
     }
 }
@@ -261,21 +261,21 @@ impl ClickHouseSinkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, clickhouse::Row)]
 pub struct EventRow {
     /// Unique event identifier
-    pub event_id:    String,
+    pub event_id: String,
     /// Type of event (e.g., "created", "updated", "deleted")
-    pub event_type:  String,
+    pub event_type: String,
     /// Type of entity that was affected (e.g., "User", "Product")
     pub entity_type: String,
     /// ID of the entity that was affected
-    pub entity_id:   String,
+    pub entity_id: String,
     /// Timestamp in microseconds since UTC epoch
-    pub timestamp:   i64,
+    pub timestamp: i64,
     /// Event data as JSON string
-    pub data:        String,
+    pub data: String,
     /// Optional user ID associated with the event
-    pub user_id:     Option<String>,
+    pub user_id: Option<String>,
     /// Optional organization ID associated with the event
-    pub org_id:      Option<String>,
+    pub org_id: Option<String>,
 }
 
 /// `ClickHouse` sink for consuming Arrow `RecordBatches`
@@ -451,18 +451,18 @@ impl ClickHouseSink {
         let mut rows = Vec::with_capacity(num_rows);
         for i in 0..num_rows {
             let row = EventRow {
-                event_id:    event_id.value(i).to_string(),
-                event_type:  event_type.value(i).to_string(),
+                event_id: event_id.value(i).to_string(),
+                event_type: event_type.value(i).to_string(),
                 entity_type: entity_type.value(i).to_string(),
-                entity_id:   entity_id.value(i).to_string(),
-                timestamp:   timestamp.value(i),
-                data:        data.value(i).to_string(),
-                user_id:     if user_id.is_null(i) {
+                entity_id: entity_id.value(i).to_string(),
+                timestamp: timestamp.value(i),
+                data: data.value(i).to_string(),
+                user_id: if user_id.is_null(i) {
                     None
                 } else {
                     Some(user_id.value(i).to_string())
                 },
-                org_id:      if org_id.is_null(i) {
+                org_id: if org_id.is_null(i) {
                     None
                 } else {
                     Some(org_id.value(i).to_string())

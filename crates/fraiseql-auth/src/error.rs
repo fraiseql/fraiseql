@@ -43,7 +43,7 @@ pub enum AuthError {
     #[error("Invalid claim: {claim} - {reason}")]
     InvalidClaimValue {
         /// Name of the claim that failed validation.
-        claim:  String,
+        claim: String,
         /// Internal description of the validation failure (not forwarded to callers).
         reason: String,
     },
@@ -175,7 +175,7 @@ pub enum AuthError {
     #[error("Session is too old: authenticated {age}s ago, max_age is {max_age_secs}s")]
     SessionTooOld {
         /// How many seconds ago the session was authenticated.
-        age:          i64,
+        age: i64,
         /// Maximum allowed authentication age in seconds (from the authorization request).
         max_age_secs: u64,
     },

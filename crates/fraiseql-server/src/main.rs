@@ -49,13 +49,13 @@ fn apply_rate_limit_overrides(config: &mut ServerConfig) {
     }
 
     let mut rate_config = config.rate_limiting.take().unwrap_or_else(|| RateLimitConfig {
-        enabled:               true,
-        rps_per_ip:            100,
-        rps_per_user:          1000,
-        burst_size:            500,
+        enabled: true,
+        rps_per_ip: 100,
+        rps_per_user: 1000,
+        burst_size: 500,
         cleanup_interval_secs: 300,
-        trust_proxy_headers:   false,
-        trusted_proxy_cidrs:   Vec::new(),
+        trust_proxy_headers: false,
+        trusted_proxy_cidrs: Vec::new(),
     });
 
     if let Some(val) = enabled_raw {

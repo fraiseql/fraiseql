@@ -55,7 +55,7 @@ pub enum SagaStoreError {
         /// Current state of the saga.
         from: String,
         /// Attempted target state.
-        to:   String,
+        to: String,
     },
     /// Saga not found
     SagaNotFound(Uuid),
@@ -228,61 +228,61 @@ impl MutationType {
 #[derive(Debug, Clone)]
 pub struct Saga {
     /// Unique identifier for this saga.
-    pub id:           Uuid,
+    pub id: Uuid,
     /// Current lifecycle state.
-    pub state:        SagaState,
+    pub state: SagaState,
     /// Timestamp when the saga was created.
-    pub created_at:   chrono::DateTime<chrono::Utc>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     /// Timestamp when the saga reached a terminal state, if any.
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Arbitrary JSON metadata attached to the saga.
-    pub metadata:     Option<Value>,
+    pub metadata: Option<Value>,
 }
 
 /// A single step within a distributed saga.
 #[derive(Debug, Clone)]
 pub struct SagaStep {
     /// Unique identifier for this step.
-    pub id:            Uuid,
+    pub id: Uuid,
     /// Parent saga this step belongs to.
-    pub saga_id:       Uuid,
+    pub saga_id: Uuid,
     /// Zero-based execution order within the saga.
-    pub order:         usize,
+    pub order: usize,
     /// Subgraph service name that owns this step.
-    pub subgraph:      String,
+    pub subgraph: String,
     /// Kind of mutation this step performs.
     pub mutation_type: MutationType,
     /// GraphQL type name the mutation targets.
-    pub typename:      String,
+    pub typename: String,
     /// Input variables for the mutation.
-    pub variables:     Value,
+    pub variables: Value,
     /// Current lifecycle state of this step.
-    pub state:         StepState,
+    pub state: StepState,
     /// Mutation result payload, if the step has completed.
-    pub result:        Option<Value>,
+    pub result: Option<Value>,
     /// Timestamp when execution began, if started.
-    pub started_at:    Option<chrono::DateTime<chrono::Utc>>,
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Timestamp when execution finished, if finished.
-    pub completed_at:  Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// A crash-recovery record for a saga that could not complete normally.
 #[derive(Debug, Clone)]
 pub struct SagaRecovery {
     /// Unique identifier for this recovery record.
-    pub id:            Uuid,
+    pub id: Uuid,
     /// Saga being recovered.
-    pub saga_id:       Uuid,
+    pub saga_id: Uuid,
     /// Strategy used for this recovery attempt (e.g. `"retry"`, `"compensate"`).
     pub recovery_type: String,
     /// When the first recovery attempt was initiated.
-    pub attempted_at:  chrono::DateTime<chrono::Utc>,
+    pub attempted_at: chrono::DateTime<chrono::Utc>,
     /// Timestamp of the most recent attempt, if more than one.
-    pub last_attempt:  Option<chrono::DateTime<chrono::Utc>>,
+    pub last_attempt: Option<chrono::DateTime<chrono::Utc>>,
     /// Number of recovery attempts made so far.
     pub attempt_count: i32,
     /// Error message from the last failed attempt, if any.
-    pub last_error:    Option<String>,
+    pub last_error: Option<String>,
 }
 
 /// PostgreSQL-backed Saga Store
@@ -490,12 +490,12 @@ impl PostgresSagaStore {
     /// Map a database row to a Saga struct
     fn map_saga_row(row: &tokio_postgres::Row) -> Saga {
         Saga {
-            id:           row.get(0),
-            state:        SagaState::from_str(row.get::<_, String>(1).as_str())
+            id: row.get(0),
+            state: SagaState::from_str(row.get::<_, String>(1).as_str())
                 .unwrap_or(SagaState::Pending),
-            created_at:   row.get(2),
+            created_at: row.get(2),
             completed_at: row.get(3),
-            metadata:     row.get(4),
+            metadata: row.get(4),
         }
     }
 

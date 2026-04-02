@@ -51,11 +51,11 @@ pub struct SagaStepResult {
     /// Step number (1-indexed)
     pub step_number: usize,
     /// Whether execution succeeded
-    pub success:     bool,
+    pub success: bool,
     /// Result data from the step
-    pub data:        Option<Value>,
+    pub data: Option<Value>,
     /// Error message if failed
-    pub error:       Option<String>,
+    pub error: Option<String>,
 }
 
 impl SagaStepResult {
@@ -84,13 +84,13 @@ impl SagaStepResult {
 #[derive(Debug, Clone)]
 pub struct SagaStepDef {
     /// Step number (1-indexed)
-    pub step_number:  usize,
+    pub step_number: usize,
     /// Name of the service executing this step
     pub service_name: String,
     /// Database for this step
-    pub database:     String,
+    pub database: String,
     /// Input data for the step
-    pub input:        Value,
+    pub input: Value,
     /// Compensation step name (reverse of this step)
     pub compensation: Option<String>,
 }
@@ -120,7 +120,7 @@ pub struct TestSagaExecutor {
     /// In-memory saga execution history
     execution_history: HashMap<String, Vec<SagaStepResult>>,
     /// Whether steps should succeed by default
-    fail_step:         Option<usize>,
+    fail_step: Option<usize>,
 }
 
 impl TestSagaExecutor {
@@ -128,7 +128,7 @@ impl TestSagaExecutor {
     pub fn new() -> Self {
         Self {
             execution_history: HashMap::new(),
-            fail_step:         None,
+            fail_step: None,
         }
     }
 

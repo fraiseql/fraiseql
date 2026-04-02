@@ -25,11 +25,11 @@ pub struct AuthState {
     /// OAuth provider
     pub oauth_provider: Arc<dyn OAuthProvider>,
     /// Session store backend
-    pub session_store:  Arc<dyn SessionStore>,
+    pub session_store: Arc<dyn SessionStore>,
     /// CSRF state store backend (in-memory for single-instance, Redis for distributed)
-    pub state_store:    Arc<dyn StateStore>,
+    pub state_store: Arc<dyn StateStore>,
     /// Rate limiters for auth endpoints (per-IP based)
-    pub rate_limiters:  Arc<RateLimiters>,
+    pub rate_limiters: Arc<RateLimiters>,
 }
 
 /// Request body for auth/start endpoint
@@ -50,11 +50,11 @@ pub struct AuthStartResponse {
 #[derive(Debug, Deserialize)]
 pub struct AuthCallbackQuery {
     /// Authorization code from provider
-    pub code:              String,
+    pub code: String,
     /// State parameter for CSRF protection
-    pub state:             String,
+    pub state: String,
     /// Error from provider if present
-    pub error:             Option<String>,
+    pub error: Option<String>,
     /// Error description from provider
     pub error_description: Option<String>,
 }
@@ -68,13 +68,13 @@ pub struct AuthCallbackQuery {
 #[derive(Debug, Serialize)]
 pub struct AuthCallbackResponse {
     /// Access token for API requests
-    pub access_token:  String,
+    pub access_token: String,
     /// Optional refresh token
     pub refresh_token: Option<String>,
     /// Token type (usually "Bearer")
-    pub token_type:    String,
+    pub token_type: String,
     /// Time in seconds until token expires
-    pub expires_in:    u64,
+    pub expires_in: u64,
 }
 
 /// Request body for auth/refresh endpoint
@@ -90,9 +90,9 @@ pub struct AuthRefreshResponse {
     /// New access token
     pub access_token: String,
     /// Token type
-    pub token_type:   String,
+    pub token_type: String,
     /// Time in seconds until token expires
-    pub expires_in:   u64,
+    pub expires_in: u64,
 }
 
 /// Request body for auth/logout endpoint
@@ -268,10 +268,10 @@ pub async fn auth_callback(
     );
 
     let response = AuthCallbackResponse {
-        access_token:  session_tokens.access_token,
+        access_token: session_tokens.access_token,
         refresh_token: Some(session_tokens.refresh_token),
-        token_type:    "Bearer".to_string(),
-        expires_in:    session_tokens.expires_in,
+        token_type: "Bearer".to_string(),
+        expires_in: session_tokens.expires_in,
     };
 
     // In a real app, would redirect to frontend with tokens in URL fragment

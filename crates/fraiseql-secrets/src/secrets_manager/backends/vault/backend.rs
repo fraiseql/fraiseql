@@ -94,32 +94,32 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// ```
 #[derive(Debug)]
 pub struct VaultBackend {
-    addr:              String,
-    token:             Zeroizing<String>,
-    namespace:         Option<String>,
-    tls_verify:        bool,
+    addr: String,
+    token: Zeroizing<String>,
+    namespace: Option<String>,
+    tls_verify: bool,
     /// Shared HTTP client — built once to reuse TLS sessions across requests.
-    client:            reqwest::Client,
-    cache:             Arc<RwLock<SecretCache>>,
+    client: reqwest::Client,
+    cache: Arc<RwLock<SecretCache>>,
     /// When the current token was obtained (for renewal tracking).
     /// `None` when using a static long-lived token.
     token_obtained_at: Option<chrono::DateTime<Utc>>,
     /// Token TTL as reported by Vault at login time (seconds).
     /// `None` when using a static long-lived token.
-    token_ttl_secs:    Option<i64>,
+    token_ttl_secs: Option<i64>,
 }
 
 impl Clone for VaultBackend {
     fn clone(&self) -> Self {
         VaultBackend {
-            addr:              self.addr.clone(),
-            token:             Zeroizing::new((*self.token).clone()),
-            namespace:         self.namespace.clone(),
-            tls_verify:        self.tls_verify,
-            client:            self.client.clone(),
-            cache:             Arc::clone(&self.cache),
+            addr: self.addr.clone(),
+            token: Zeroizing::new((*self.token).clone()),
+            namespace: self.namespace.clone(),
+            tls_verify: self.tls_verify,
+            client: self.client.clone(),
+            cache: Arc::clone(&self.cache),
             token_obtained_at: self.token_obtained_at,
-            token_ttl_secs:    self.token_ttl_secs,
+            token_ttl_secs: self.token_ttl_secs,
         }
     }
 }

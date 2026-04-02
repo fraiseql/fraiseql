@@ -129,7 +129,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                      adapter does not support mutations. Use PostgresAdapter, MySqlAdapter, \
                      or SqlServerAdapter for mutation operations."
                 ),
-                path:    None,
+                path: None,
             });
         }
         self.execute_mutation_query_with_security(mutation_name, variables, None).await
@@ -210,7 +210,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 _ => {
                     return Err(FraiseQLError::Validation {
                         message: format!("Mutation '{mutation_name}' has no sql_source configured"),
-                        path:    None,
+                        path: None,
                     });
                 },
             }
@@ -241,7 +241,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "Mutation '{mutation_name}' is missing required argument(s): {}",
                     missing_required.join(", ")
                 ),
-                path:    None,
+                path: None,
             });
         }
 
@@ -261,7 +261,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                      (unauthenticated request)",
                     mutation_name
                 ),
-                path:    None,
+                path: None,
             })?;
             for (param_name, source) in &mutation_def.inject_params {
                 args.push(resolve_inject_value(param_name, source, ctx)?);
@@ -274,7 +274,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
             message: format!("Mutation '{mutation_name}': function returned no rows"),
-            path:    None,
+            path: None,
         })?;
 
         // 6. Parse the mutation_response row

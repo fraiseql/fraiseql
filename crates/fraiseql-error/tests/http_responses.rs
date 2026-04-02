@@ -83,11 +83,7 @@ fn webhook_payload_error_returns_400() {
 
 #[test]
 fn file_too_large_returns_413() {
-    let err: RuntimeError = FileError::TooLarge {
-        size: 100,
-        max:  50,
-    }
-    .into();
+    let err: RuntimeError = FileError::TooLarge { size: 100, max: 50 }.into();
     let resp = err.into_response();
     assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
@@ -95,7 +91,7 @@ fn file_too_large_returns_413() {
 #[test]
 fn file_invalid_type_returns_415() {
     let err: RuntimeError = FileError::InvalidType {
-        got:     "exe".into(),
+        got: "exe".into(),
         allowed: vec!["png".into()],
     }
     .into();
@@ -131,7 +127,7 @@ fn file_quota_exceeded_returns_507() {
 fn file_storage_returns_400() {
     let err: RuntimeError = FileError::Storage {
         message: "err".into(),
-        source:  None,
+        source: None,
     }
     .into();
     let resp = err.into_response();
@@ -141,7 +137,7 @@ fn file_storage_returns_400() {
 #[test]
 fn notification_circuit_open_returns_503() {
     let err: RuntimeError = NotificationError::CircuitOpen {
-        provider:    "ses".into(),
+        provider: "ses".into(),
         retry_after: std::time::Duration::from_secs(60),
     }
     .into();
@@ -153,7 +149,7 @@ fn notification_circuit_open_returns_503() {
 fn notification_rate_limited_returns_429() {
     let err: RuntimeError = NotificationError::ProviderRateLimited {
         provider: "sns".into(),
-        seconds:  30,
+        seconds: 30,
     }
     .into();
     let resp = err.into_response();
@@ -174,7 +170,7 @@ fn notification_invalid_input_returns_400() {
 fn notification_provider_returns_500() {
     let err: RuntimeError = NotificationError::Provider {
         provider: "x".into(),
-        message:  "y".into(),
+        message: "y".into(),
     }
     .into();
     let resp = err.into_response();
@@ -203,7 +199,7 @@ fn rate_limited_with_retry_after_header() {
 #[test]
 fn service_unavailable_returns_503() {
     let err = RuntimeError::ServiceUnavailable {
-        reason:      "maintenance".into(),
+        reason: "maintenance".into(),
         retry_after: None,
     };
     let resp = err.into_response();
@@ -213,7 +209,7 @@ fn service_unavailable_returns_503() {
 #[test]
 fn service_unavailable_with_retry_after_header() {
     let err = RuntimeError::ServiceUnavailable {
-        reason:      "deploying".into(),
+        reason: "deploying".into(),
         retry_after: Some(120),
     };
     let resp = err.into_response();
@@ -241,7 +237,7 @@ fn database_error_returns_500() {
 fn internal_error_returns_500() {
     let err = RuntimeError::Internal {
         message: "oops".into(),
-        source:  None,
+        source: None,
     };
     let resp = err.into_response();
     assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);

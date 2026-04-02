@@ -23,7 +23,7 @@ fn template_error_code_and_display() {
 #[test]
 fn action_failed_error_code_and_display() {
     let err = ObserverError::ActionFailed {
-        action:  "send_email".into(),
+        action: "send_email".into(),
         message: "smtp down".into(),
     };
     assert_eq!(err.error_code(), "observer_action_failed");

@@ -8,28 +8,28 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct AuditLoggingConfig {
     /// Enable audit logging
-    pub enabled:                bool,
+    pub enabled: bool,
     /// Log level threshold ("debug", "info", "warn")
-    pub log_level:              String,
+    pub log_level: String,
     /// Include sensitive data in audit logs
     pub include_sensitive_data: bool,
     /// Use asynchronous logging
-    pub async_logging:          bool,
+    pub async_logging: bool,
     /// Buffer size for async logging
-    pub buffer_size:            u32,
+    pub buffer_size: u32,
     /// Interval to flush logs in seconds
-    pub flush_interval_secs:    u32,
+    pub flush_interval_secs: u32,
 }
 
 impl Default for AuditLoggingConfig {
     fn default() -> Self {
         Self {
-            enabled:                true,
-            log_level:              "info".to_string(),
+            enabled: true,
+            log_level: "info".to_string(),
             include_sensitive_data: false,
-            async_logging:          true,
-            buffer_size:            1000,
-            flush_interval_secs:    5,
+            async_logging: true,
+            buffer_size: 1000,
+            flush_interval_secs: 5,
         }
     }
 }
@@ -53,25 +53,25 @@ impl AuditLoggingConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ErrorSanitizationConfig {
     /// Enable error sanitization
-    pub enabled:                bool,
+    pub enabled: bool,
     /// Use generic error messages for users
-    pub generic_messages:       bool,
+    pub generic_messages: bool,
     /// Log full errors internally
-    pub internal_logging:       bool,
+    pub internal_logging: bool,
     /// Never leak sensitive details (security flag)
     pub leak_sensitive_details: bool,
     /// User-facing error format ("generic", "simple", "detailed")
-    pub user_facing_format:     String,
+    pub user_facing_format: String,
 }
 
 impl Default for ErrorSanitizationConfig {
     fn default() -> Self {
         Self {
-            enabled:                true,
-            generic_messages:       true,
-            internal_logging:       true,
+            enabled: true,
+            generic_messages: true,
+            internal_logging: true,
             leak_sensitive_details: false,
-            user_facing_format:     "generic".to_string(),
+            user_facing_format: "generic".to_string(),
         }
     }
 }
@@ -114,43 +114,43 @@ pub struct RateLimitConfig {
     /// Max requests for auth start endpoint (per IP)
     pub auth_start_max_requests: u32,
     /// Time window for auth start in seconds
-    pub auth_start_window_secs:  u64,
+    pub auth_start_window_secs: u64,
 
     /// Max requests for auth callback endpoint (per IP)
     pub auth_callback_max_requests: u32,
     /// Time window for auth callback in seconds
-    pub auth_callback_window_secs:  u64,
+    pub auth_callback_window_secs: u64,
 
     /// Max requests for auth refresh endpoint (per user)
     pub auth_refresh_max_requests: u32,
     /// Time window for auth refresh in seconds
-    pub auth_refresh_window_secs:  u64,
+    pub auth_refresh_window_secs: u64,
 
     /// Max requests for auth logout endpoint (per user)
     pub auth_logout_max_requests: u32,
     /// Time window for auth logout in seconds
-    pub auth_logout_window_secs:  u64,
+    pub auth_logout_window_secs: u64,
 
     /// Max failed login attempts per IP
     pub failed_login_max_requests: u32,
     /// Time window for failed login tracking in seconds
-    pub failed_login_window_secs:  u64,
+    pub failed_login_window_secs: u64,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            enabled:                    true,
-            auth_start_max_requests:    100,
-            auth_start_window_secs:     60,
+            enabled: true,
+            auth_start_max_requests: 100,
+            auth_start_window_secs: 60,
             auth_callback_max_requests: 50,
-            auth_callback_window_secs:  60,
-            auth_refresh_max_requests:  10,
-            auth_refresh_window_secs:   60,
-            auth_logout_max_requests:   20,
-            auth_logout_window_secs:    60,
-            failed_login_max_requests:  5,
-            failed_login_window_secs:   3600,
+            auth_callback_window_secs: 60,
+            auth_refresh_max_requests: 10,
+            auth_refresh_window_secs: 60,
+            auth_logout_max_requests: 20,
+            auth_logout_window_secs: 60,
+            failed_login_max_requests: 5,
+            failed_login_window_secs: 3600,
         }
     }
 }
@@ -224,25 +224,25 @@ impl RateLimitConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct StateEncryptionConfig {
     /// Enable state encryption
-    pub enabled:              bool,
+    pub enabled: bool,
     /// Encryption algorithm ("chacha20-poly1305")
-    pub algorithm:            String,
+    pub algorithm: String,
     /// Enable automatic key rotation
     pub key_rotation_enabled: bool,
     /// Nonce size in bytes (typically 12 for 96-bit)
-    pub nonce_size:           u32,
+    pub nonce_size: u32,
     /// Key size in bytes (16, 24, or 32)
-    pub key_size:             u32,
+    pub key_size: u32,
 }
 
 impl Default for StateEncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled:              true,
-            algorithm:            "chacha20-poly1305".to_string(),
+            enabled: true,
+            algorithm: "chacha20-poly1305".to_string(),
             key_rotation_enabled: false,
-            nonce_size:           12,
-            key_size:             32,
+            nonce_size: 12,
+            key_size: 32,
         }
     }
 }
@@ -291,13 +291,13 @@ impl StateEncryptionConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ConstantTimeConfig {
     /// Enable constant-time comparisons
-    pub enabled:                 bool,
+    pub enabled: bool,
     /// Apply constant-time comparison to JWT tokens
-    pub apply_to_jwt:            bool,
+    pub apply_to_jwt: bool,
     /// Apply constant-time comparison to session tokens
     pub apply_to_session_tokens: bool,
     /// Apply constant-time comparison to CSRF tokens
-    pub apply_to_csrf_tokens:    bool,
+    pub apply_to_csrf_tokens: bool,
     /// Apply constant-time comparison to refresh tokens
     pub apply_to_refresh_tokens: bool,
 }
@@ -305,10 +305,10 @@ pub struct ConstantTimeConfig {
 impl Default for ConstantTimeConfig {
     fn default() -> Self {
         Self {
-            enabled:                 true,
-            apply_to_jwt:            true,
+            enabled: true,
+            apply_to_jwt: true,
             apply_to_session_tokens: true,
-            apply_to_csrf_tokens:    true,
+            apply_to_csrf_tokens: true,
             apply_to_refresh_tokens: true,
         }
     }
@@ -332,12 +332,12 @@ impl ConstantTimeConfig {
 #[serde(deny_unknown_fields)]
 pub struct RoleDefinitionConfig {
     /// Role name identifier
-    pub name:        String,
+    pub name: String,
     /// Role description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Permission scopes assigned to this role
-    pub scopes:      Vec<String>,
+    pub scopes: Vec<String>,
 }
 
 /// Complete security configuration from fraiseql.toml
@@ -346,25 +346,25 @@ pub struct RoleDefinitionConfig {
 pub struct SecurityConfig {
     /// Audit logging configuration
     #[serde(rename = "audit_logging")]
-    pub audit_logging:      AuditLoggingConfig,
+    pub audit_logging: AuditLoggingConfig,
     /// Error sanitization configuration
     #[serde(rename = "error_sanitization")]
     pub error_sanitization: ErrorSanitizationConfig,
     /// Rate limiting configuration
     #[serde(rename = "rate_limiting")]
-    pub rate_limiting:      RateLimitConfig,
+    pub rate_limiting: RateLimitConfig,
     /// State encryption configuration
     #[serde(rename = "state_encryption")]
-    pub state_encryption:   StateEncryptionConfig,
+    pub state_encryption: StateEncryptionConfig,
     /// Constant-time comparison configuration
     #[serde(rename = "constant_time")]
-    pub constant_time:      ConstantTimeConfig,
+    pub constant_time: ConstantTimeConfig,
     /// Field-level RBAC role definitions
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub role_definitions:   Vec<RoleDefinitionConfig>,
+    pub role_definitions: Vec<RoleDefinitionConfig>,
     /// Default role when user has no explicit role assignment
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_role:       Option<String>,
+    pub default_role: Option<String>,
 }
 
 impl SecurityConfig {

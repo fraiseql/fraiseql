@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GraphQLErrorLocation {
     /// Line number in the query document (1-indexed).
-    pub line:   u32,
+    pub line: u32,
     /// Column number in the query document (1-indexed).
     pub column: u32,
 }
@@ -65,9 +65,9 @@ impl GraphQLError {
     #[must_use]
     pub fn new(message: impl Into<String>) -> Self {
         Self {
-            message:    message.into(),
-            locations:  None,
-            path:       None,
+            message: message.into(),
+            locations: None,
+            path: None,
             extensions: None,
         }
     }
@@ -86,9 +86,9 @@ impl GraphQLError {
         let mut extensions = HashMap::new();
         extensions.insert("code".to_string(), serde_json::json!(code.into()));
         Self {
-            message:    message.into(),
-            locations:  None,
-            path:       None,
+            message: message.into(),
+            locations: None,
+            path: None,
             extensions: Some(extensions),
         }
     }

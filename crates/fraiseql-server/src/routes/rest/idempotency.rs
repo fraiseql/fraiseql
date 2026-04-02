@@ -44,17 +44,17 @@ pub enum IdempotencyCheck {
 )]
 pub struct StoredResponse {
     /// HTTP status code.
-    pub status:  u16,
+    pub status: u16,
     /// Response headers (key, value) pairs.
     pub headers: Vec<(String, String)>,
     /// Response body (if any).
-    pub body:    Option<Value>,
+    pub body: Option<Value>,
 }
 
 /// Entry in the in-memory idempotency store.
 struct Entry {
-    response:   StoredResponse,
-    body_hash:  u64,
+    response: StoredResponse,
+    body_hash: u64,
     created_at: Instant,
 }
 
@@ -96,8 +96,8 @@ pub trait IdempotencyStore: Send + Sync {
 /// Entries expire after the configured TTL.  Expired entries are lazily evicted
 /// on access and periodically during insertions.
 pub struct InMemoryIdempotencyStore {
-    entries:     DashMap<String, Entry>,
-    ttl:         Duration,
+    entries: DashMap<String, Entry>,
+    ttl: Duration,
     max_entries: usize,
 }
 
@@ -248,9 +248,9 @@ mod tests {
 
     fn make_response() -> StoredResponse {
         StoredResponse {
-            status:  201,
+            status: 201,
             headers: vec![("x-request-id".to_string(), "abc".to_string())],
-            body:    Some(json!({"id": 1, "name": "Alice"})),
+            body: Some(json!({"id": 1, "name": "Alice"})),
         }
     }
 

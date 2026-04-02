@@ -446,9 +446,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         if let (Some(store), Some(client)) = (&self.pkce_store, &self.oidc_server_client) {
             let auth_state = Arc::new(AuthPkceState {
-                pkce_store:              Arc::clone(store),
-                oidc_client:             Arc::clone(client),
-                http_client:             Arc::new(
+                pkce_store: Arc::clone(store),
+                oidc_client: Arc::clone(client),
+                http_client: Arc::new(
                     reqwest::Client::builder()
                         .timeout(std::time::Duration::from_secs(30))
                         .build()

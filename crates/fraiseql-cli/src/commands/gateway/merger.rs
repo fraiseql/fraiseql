@@ -76,7 +76,7 @@ pub fn merge_responses(responses: &[(String, SubgraphResponse)]) -> MergedRespon
     }
 
     MergedResponse {
-        data:   Value::Object(merged_data),
+        data: Value::Object(merged_data),
         errors: merged_errors,
     }
 }
@@ -128,7 +128,7 @@ mod tests {
         let responses = vec![(
             "users".to_string(),
             SubgraphResponse {
-                data:   Some(json!({"users": [{"id": 1, "name": "Alice"}]})),
+                data: Some(json!({"users": [{"id": 1, "name": "Alice"}]})),
                 errors: vec![],
             },
         )];
@@ -144,14 +144,14 @@ mod tests {
             (
                 "users".to_string(),
                 SubgraphResponse {
-                    data:   Some(json!({"users": [{"id": 1}]})),
+                    data: Some(json!({"users": [{"id": 1}]})),
                     errors: vec![],
                 },
             ),
             (
                 "products".to_string(),
                 SubgraphResponse {
-                    data:   Some(json!({"products": [{"id": 100}]})),
+                    data: Some(json!({"products": [{"id": 100}]})),
                     errors: vec![],
                 },
             ),
@@ -167,11 +167,11 @@ mod tests {
         let responses = vec![(
             "users".to_string(),
             SubgraphResponse {
-                data:   Some(json!({"users": null})),
+                data: Some(json!({"users": null})),
                 errors: vec![GraphQLError {
-                    message:    "Not found".to_string(),
-                    path:       Some(vec![json!("users")]),
-                    locations:  None,
+                    message: "Not found".to_string(),
+                    path: Some(vec![json!("users")]),
+                    locations: None,
                     extensions: None,
                 }],
             },
@@ -187,11 +187,11 @@ mod tests {
         let responses = vec![(
             "users".to_string(),
             SubgraphResponse {
-                data:   None,
+                data: None,
                 errors: vec![GraphQLError {
-                    message:    "Internal error".to_string(),
-                    path:       None,
-                    locations:  None,
+                    message: "Internal error".to_string(),
+                    path: None,
+                    locations: None,
                     extensions: None,
                 }],
             },
@@ -226,11 +226,11 @@ mod tests {
         let responses = vec![(
             "svc".to_string(),
             SubgraphResponse {
-                data:   Some(json!({})),
+                data: Some(json!({})),
                 errors: vec![GraphQLError {
-                    message:    "fail".to_string(),
-                    path:       Some(vec![json!("users"), json!(0), json!("name")]),
-                    locations:  Some(vec![json!({"line": 1, "column": 3})]),
+                    message: "fail".to_string(),
+                    path: Some(vec![json!("users"), json!(0), json!("name")]),
+                    locations: Some(vec![json!({"line": 1, "column": 3})]),
                     extensions: Some(json!({"code": "INTERNAL"})),
                 }],
             },

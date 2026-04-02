@@ -19,9 +19,9 @@ pub struct RelationInfo {
     /// Schema name (e.g. "public", "main", "dbo").
     pub schema: String,
     /// Relation name.
-    pub name:   String,
+    pub name: String,
     /// Whether the relation is a table or view.
-    pub kind:   RelationKind,
+    pub kind: RelationKind,
 }
 
 /// Database introspection trait for querying table metadata.

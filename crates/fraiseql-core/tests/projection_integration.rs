@@ -23,9 +23,9 @@ use serde_json::json;
 #[test]
 fn test_sql_projection_hint_creation() {
     let hint = SqlProjectionHint {
-        database:                    DatabaseType::PostgreSQL,
-        projection_template:
-            "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
+        database: DatabaseType::PostgreSQL,
+        projection_template: "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')"
+            .to_string(),
         estimated_reduction_percent: 65,
     };
 
@@ -288,7 +288,7 @@ fn test_result_projector_error_envelope() {
 
     let error = FraiseQLError::Validation {
         message: "Invalid field selection".to_string(),
-        path:    Some("query.users".to_string()),
+        path: Some("query.users".to_string()),
     };
 
     let wrapped = ResultProjector::wrap_error(&error);
@@ -335,9 +335,9 @@ fn test_projection_with_nested_structure() {
 fn test_complete_projection_pipeline() {
     // Step 1: Create projection hint
     let _hint = SqlProjectionHint {
-        database:                    DatabaseType::PostgreSQL,
-        projection_template:
-            "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
+        database: DatabaseType::PostgreSQL,
+        projection_template: "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')"
+            .to_string(),
         estimated_reduction_percent: 87,
     };
 

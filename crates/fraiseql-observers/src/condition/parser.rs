@@ -37,7 +37,7 @@ impl ConditionParser {
                 *pos += 1;
                 let right = self.parse_and(tokens, pos, depth)?;
                 left = ConditionAst::Or {
-                    left:  Box::new(left),
+                    left: Box::new(left),
                     right: Box::new(right),
                 };
             } else {
@@ -56,7 +56,7 @@ impl ConditionParser {
                 *pos += 1;
                 let right = self.parse_not(tokens, pos, depth)?;
                 left = ConditionAst::And {
-                    left:  Box::new(left),
+                    left: Box::new(left),
                     right: Box::new(right),
                 };
             } else {
@@ -115,7 +115,7 @@ impl ConditionParser {
             Token::Comparison { field, op, value } => {
                 let ast = ConditionAst::Comparison {
                     field: field.clone(),
-                    op:    op.clone(),
+                    op: op.clone(),
                     value: value.clone(),
                 };
                 *pos += 1;

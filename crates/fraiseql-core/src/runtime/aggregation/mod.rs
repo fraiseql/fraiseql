@@ -88,7 +88,7 @@ mod tests;
 #[derive(Debug, Clone)]
 pub struct ParameterizedAggregationSql {
     /// SQL with `$N` (PostgreSQL), `?` (MySQL / SQLite), or `@P1` (SQL Server) placeholders.
-    pub sql:    String,
+    pub sql: String,
     /// Bind parameters in placeholder order.
     pub params: Vec<serde_json::Value>,
 }

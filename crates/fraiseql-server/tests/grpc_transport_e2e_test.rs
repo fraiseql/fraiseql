@@ -1059,17 +1059,17 @@ async fn query_with_security_context_applies_rls_where_clause() {
 
     // Build a SecurityContext for user "user-42" (non-admin).
     let ctx = SecurityContext {
-        user_id:          "user-42".to_string(),
-        roles:            vec!["viewer".to_string()],
-        tenant_id:        None,
-        scopes:           vec![],
-        attributes:       HashMap::new(),
-        request_id:       "grpc-test".to_string(),
-        ip_address:       None,
+        user_id: "user-42".to_string(),
+        roles: vec!["viewer".to_string()],
+        tenant_id: None,
+        scopes: vec![],
+        attributes: HashMap::new(),
+        request_id: "grpc-test".to_string(),
+        ip_address: None,
         authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
     };
 
     // Build the request message (empty GetUserRequest).
@@ -1183,13 +1183,13 @@ async fn rate_limited_request_returns_resource_exhausted() {
 
     // Create a rate limiter that allows only 1 request per second per IP.
     let config = RateLimitConfig {
-        enabled:               true,
-        rps_per_ip:            1,
-        rps_per_user:          1,
-        burst_size:            1,
+        enabled: true,
+        rps_per_ip: 1,
+        rps_per_user: 1,
+        burst_size: 1,
         cleanup_interval_secs: 300,
-        trust_proxy_headers:   false,
-        trusted_proxy_cidrs:   Vec::new(),
+        trust_proxy_headers: false,
+        trusted_proxy_cidrs: Vec::new(),
     };
     let limiter = Arc::new(fraiseql_server::middleware::RateLimiter::new(config));
     let svc = build_service_with_rate_limiter(adapter, schema, limiter);
@@ -1227,13 +1227,13 @@ async fn rate_limiter_allows_requests_within_budget() {
 
     // Generous rate limit: 100 rps with burst of 100.
     let config = RateLimitConfig {
-        enabled:               true,
-        rps_per_ip:            100,
-        rps_per_user:          100,
-        burst_size:            100,
+        enabled: true,
+        rps_per_ip: 100,
+        rps_per_user: 100,
+        burst_size: 100,
         cleanup_interval_secs: 300,
-        trust_proxy_headers:   false,
-        trusted_proxy_cidrs:   Vec::new(),
+        trust_proxy_headers: false,
+        trusted_proxy_cidrs: Vec::new(),
     };
     let limiter = Arc::new(fraiseql_server::middleware::RateLimiter::new(config));
     let svc = build_service_with_rate_limiter(adapter, schema, limiter);

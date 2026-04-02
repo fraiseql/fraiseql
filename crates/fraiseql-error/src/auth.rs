@@ -28,7 +28,7 @@ pub enum AuthError {
         /// Name of the provider (e.g. `"google"`, `"github"`).
         provider: String,
         /// Provider-supplied error message (kept server-side; not forwarded to clients).
-        message:  String,
+        message: String,
     },
 
     /// The OAuth `state` parameter did not match the stored value, indicating a

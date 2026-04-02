@@ -56,7 +56,7 @@ use super::{
 /// ```
 #[derive(Debug, Clone)]
 pub struct FraiseWireAdapter {
-    factory:    WireClientFactory,
+    factory: WireClientFactory,
     chunk_size: usize,
 }
 
@@ -77,7 +77,7 @@ impl FraiseWireAdapter {
     #[must_use]
     pub fn new(connection_string: impl Into<String>) -> Self {
         Self {
-            factory:    WireClientFactory::new(connection_string),
+            factory: WireClientFactory::new(connection_string),
             chunk_size: 1024, // Default chunk size
         }
     }
@@ -177,7 +177,7 @@ impl FraiseWireAdapter {
         }
 
         let mut stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("fraiseql-wire query failed: {e}"),
+            message: format!("fraiseql-wire query failed: {e}"),
             sql_state: None,
         })?;
 
@@ -189,7 +189,7 @@ impl FraiseWireAdapter {
         let mut count = 0;
         while let Some(item) = stream.next().await {
             let json = item.map_err(|e| FraiseQLError::Database {
-                message:   format!("Stream error: {e}"),
+                message: format!("Stream error: {e}"),
                 sql_state: None,
             })?;
 
@@ -271,7 +271,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
 
         // Execute streaming query
         let mut stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("fraiseql-wire query failed: {e}"),
+            message: format!("fraiseql-wire query failed: {e}"),
             sql_state: None,
         })?;
 
@@ -279,7 +279,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         let mut results = Vec::new();
         while let Some(item) = stream.next().await {
             let json = item.map_err(|e| FraiseQLError::Database {
-                message:   format!("Stream error: {e}"),
+                message: format!("Stream error: {e}"),
                 sql_state: None,
             })?;
             results.push(JsonbValue::new(json));
@@ -299,7 +299,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         // Actual connectivity is verified when queries are executed.
         if self.factory.connection_string().is_empty() {
             return Err(FraiseQLError::Database {
-                message:   "Connection string is empty".to_string(),
+                message: "Connection string is empty".to_string(),
                 sql_state: None,
             });
         }
@@ -309,10 +309,10 @@ impl DatabaseAdapter for FraiseWireAdapter {
     fn pool_metrics(&self) -> PoolMetrics {
         // fraiseql-wire doesn't pool connections, so metrics are not applicable
         PoolMetrics {
-            total_connections:  0,
-            idle_connections:   0,
+            total_connections: 0,
+            idle_connections: 0,
             active_connections: 0,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -344,7 +344,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         // fraiseql-wire does not support aggregate queries with arbitrary SQL.
         Err(FraiseQLError::Database {
-            message:   "fraiseql-wire does not support aggregate SQL queries.".to_string(),
+            message: "fraiseql-wire does not support aggregate SQL queries.".to_string(),
             sql_state: None,
         })
     }

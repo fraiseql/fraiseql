@@ -28,7 +28,7 @@ pub enum ExchangeMessage {
         /// Unique identifier for this request (UUID recommended)
         correlation_id: String,
         /// The operation to perform
-        request_type:   RequestType,
+        request_type: RequestType,
     },
 
     /// Server response with correlation ID.
@@ -38,7 +38,7 @@ pub enum ExchangeMessage {
         /// Matches the `correlation_id` from the original request
         correlation_id: String,
         /// Result of the operation (error or Arrow-encoded data)
-        result:         Result<Vec<u8>, String>,
+        result: Result<Vec<u8>, String>,
     },
 
     /// Stream completion signal.
@@ -64,7 +64,7 @@ pub enum RequestType {
     /// Result is serialized as a `RecordBatch` in Arrow IPC format.
     Query {
         /// GraphQL query string
-        query:     String,
+        query: String,
         /// Optional GraphQL variables as JSON
         variables: Option<serde_json::Value>,
     },
@@ -90,7 +90,7 @@ pub enum RequestType {
         /// Entity type to subscribe to (e.g., "Order", "User")
         entity_type: String,
         /// Optional filter predicate (format TBD)
-        filter:      Option<String>,
+        filter: Option<String>,
     },
 }
 
@@ -132,8 +132,8 @@ mod tests {
     fn test_query_request_serialization() {
         let msg = ExchangeMessage::Request {
             correlation_id: "req-1".to_string(),
-            request_type:   RequestType::Query {
-                query:     "{ orders { id total } }".to_string(),
+            request_type: RequestType::Query {
+                query: "{ orders { id total } }".to_string(),
                 variables: None,
             },
         };
@@ -158,7 +158,7 @@ mod tests {
     fn test_response_serialization() {
         let msg = ExchangeMessage::Response {
             correlation_id: "req-1".to_string(),
-            result:         Ok(vec![1, 2, 3, 4]),
+            result: Ok(vec![1, 2, 3, 4]),
         };
 
         let bytes = msg.to_json_bytes().expect("Failed to serialize");
@@ -180,7 +180,7 @@ mod tests {
     fn test_error_response_serialization() {
         let msg = ExchangeMessage::Response {
             correlation_id: "req-1".to_string(),
-            result:         Err("Database error".to_string()),
+            result: Err("Database error".to_string()),
         };
 
         let bytes = msg.to_json_bytes().expect("Failed to serialize");
@@ -220,7 +220,7 @@ mod tests {
         let batch_data = vec![1, 2, 3, 4, 5];
         let msg = ExchangeMessage::Request {
             correlation_id: "upload-1".to_string(),
-            request_type:   RequestType::Upload {
+            request_type: RequestType::Upload {
                 table: "orders".to_string(),
                 batch: batch_data.clone(),
             },

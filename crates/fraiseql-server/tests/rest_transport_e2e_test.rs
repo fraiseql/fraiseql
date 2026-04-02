@@ -57,12 +57,12 @@ fn mutation_success_row_with_id(entity: Value, entity_id: &str) -> Vec<HashMap<S
 
 fn arg(name: &str, ty: FieldType) -> ArgumentDefinition {
     ArgumentDefinition {
-        name:          name.to_string(),
-        arg_type:      ty,
-        nullable:      false,
+        name: name.to_string(),
+        arg_type: ty,
+        nullable: false,
         default_value: None,
-        description:   None,
-        deprecation:   None,
+        description: None,
+        deprecation: None,
     }
 }
 
