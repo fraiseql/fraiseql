@@ -202,9 +202,8 @@ jobs:
 
     - name: Audit Rust dependencies
       run: |
-        cargo deny check advisories --format json > audit-results.json
+        cargo deny check advisories 2>&1 | tee audit-results.json
         echo "✅ Rust dependency audit complete"
-        cat audit-results.json
 
     - name: Upload audit results
       uses: actions/upload-artifact@v6
