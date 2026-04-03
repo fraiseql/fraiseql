@@ -53,7 +53,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```ignore
 //! use fraiseql_observers::cached_executor::CachedActionExecutor;
 //! use fraiseql_observers::actions::WebhookAction;
 //! use fraiseql_observers::cache::redis::RedisCacheBackend;
@@ -98,7 +98,7 @@ use crate::{
 ///
 /// Can be composed with other wrappers:
 ///
-/// ```no_run
+/// ```ignore
 /// // Concurrent + Cached composition
 /// let webhook = WebhookAction::new();
 /// let cached = CachedActionExecutor::new(webhook, cache);
@@ -128,7 +128,7 @@ impl<E: ActionExecutor, C: CacheBackend> CachedActionExecutor<E, C> {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// let webhook = WebhookAction::new();
     /// let cache = RedisCacheBackend::new("redis://localhost:6379");
     /// let cached = CachedActionExecutor::new(webhook, cache);

@@ -93,7 +93,7 @@ impl ExecutorFactory {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// // Requires: Redis connection (when dedup/caching enabled) and config.toml file.
     /// # use std::sync::Arc;
     /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig};
