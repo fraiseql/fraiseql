@@ -3,15 +3,13 @@
 
 # Exclude infrastructure glue — no logic to mutate
 exclude_globs = [
-    "crates/*/src/lib.rs",
-    "crates/*/src/main.rs",
-    "crates/**/mod.rs",
-    "crates/**/*_test*.rs",
-    "crates/**/tests.rs",
+  "crates/*/src/lib.rs",
+  "crates/*/src/main.rs",
+  "crates/**/mod.rs",
+  "crates/**/*_test*.rs",
+  "crates/**/tests.rs"
 ]
-
-# Default timeout per mutation (seconds)
-timeout = 60
-
 # Parallel jobs
 jobs = 4
+# Default timeout per mutation (seconds)
+timeout = 60

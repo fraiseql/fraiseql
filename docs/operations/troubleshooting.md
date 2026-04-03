@@ -7,6 +7,7 @@ Common operational issues and their diagnostic steps.
 **Symptom**: Server exits with `Database connection failed` or `ConnectionRefused`.
 
 **Causes**:
+
 1. Database not running
 2. Wrong `database_url` in config
 3. Firewall/network rules blocking the port
@@ -29,6 +30,7 @@ psql "$FRAISEQL_DATABASE_URL" -c "SELECT 1"
 **Symptom**: All requests return 401 after a period of working correctly.
 
 **Causes**:
+
 1. OIDC provider rotated signing keys (JWKS)
 2. Clock skew between server and OIDC provider
 3. Token audience mismatch after config change
@@ -54,6 +56,7 @@ curl -X POST http://localhost:8000/admin/reload-schema \
 **Symptom**: `fraiseql_cache_hit_ratio` metric below 0.5.
 
 **Causes**:
+
 1. Cache TTL too short for the query pattern
 2. Frequent mutations invalidating cache entries
 3. High cardinality in WHERE clauses (each unique filter = unique cache key)
@@ -72,6 +75,7 @@ journalctl -u fraiseql | grep "mutation.*invalidat" | wc -l
 ```
 
 **Fixes**:
+
 - Increase `cache_ttl_secs` for rarely-mutated views
 - Use entity-aware invalidation (mutations with `entity_id` only evict matching entries)
 - Consider `invalidates_views` on mutation definitions to limit blast radius
@@ -81,6 +85,7 @@ journalctl -u fraiseql | grep "mutation.*invalidat" | wc -l
 **Symptom**: `fraiseql_observer_backpressure_total` metric increasing.
 
 **Causes**:
+
 1. Observer action (webhook, notification) is slow or timing out
 2. Too many events for the configured channel buffer size
 3. Database LISTEN connection dropped
@@ -101,6 +106,7 @@ psql "$FRAISEQL_DATABASE_URL" -c "SELECT * FROM pg_stat_activity WHERE query LIK
 ```
 
 **Fixes**:
+
 - Increase `observer_buffer_size` in config
 - Add retry configuration with exponential backoff
 - Check network connectivity to webhook endpoints
@@ -124,6 +130,7 @@ psql "$FRAISEQL_DATABASE_URL" -c \
 ```
 
 **Fixes**:
+
 - Increase `pool_max_size` (and restart)
 - Enable `pool_tuning` for monitoring recommendations
 - Set `request_timeout_secs` to kill runaway queries
@@ -146,6 +153,7 @@ journalctl -u fraiseql | grep "rate.limit" | tail -10
 ```
 
 **Fixes**:
+
 - Increase `rps_per_ip` or `rps_per_user`
 - Configure trusted proxy headers so real client IPs are used
 - Use per-user limits (requires auth) instead of per-IP
