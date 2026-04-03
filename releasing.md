@@ -64,6 +64,7 @@ git checkout -b chore/release-prep
 ```
 
 This branch accumulates:
+
 - Version bumps across all `Cargo.toml` files
 - CHANGELOG.md updates
 - Any final quality fixes identified during pre-release review
