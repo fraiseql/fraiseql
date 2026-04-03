@@ -380,9 +380,8 @@ impl DatabaseAdapter for MySqlAdapter {
                             .try_get::<u64, _>(col.as_str())
                             .map(|v| serde_json::json!(v))
                             .unwrap_or(serde_json::Value::Null),
-                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT"
-                        | "MEDIUMINT UNSIGNED" | "SMALLINT" | "SMALLINT UNSIGNED"
-                        | "TINYINT" | "TINYINT UNSIGNED" => row
+                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT" | "MEDIUMINT UNSIGNED"
+                        | "SMALLINT" | "SMALLINT UNSIGNED" | "TINYINT" | "TINYINT UNSIGNED" => row
                             .try_get::<i64, _>(col.as_str())
                             .map(|v| serde_json::json!(v))
                             .unwrap_or(serde_json::Value::Null),
@@ -393,8 +392,7 @@ impl DatabaseAdapter for MySqlAdapter {
                         "NEWDECIMAL" | "DECIMAL" => row
                             .try_get::<String, _>(col.as_str())
                             .map(|v| {
-                                serde_json::from_str(&v)
-                                    .unwrap_or_else(|_| serde_json::json!(v))
+                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
                             })
                             .unwrap_or(serde_json::Value::Null),
                         "JSON" => row
@@ -404,8 +402,7 @@ impl DatabaseAdapter for MySqlAdapter {
                         _ => row
                             .try_get::<String, _>(col.as_str())
                             .map(|v| {
-                                serde_json::from_str(&v)
-                                    .unwrap_or_else(|_| serde_json::json!(v))
+                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
                             })
                             .unwrap_or(serde_json::Value::Null),
                     };
@@ -472,9 +469,8 @@ impl DatabaseAdapter for MySqlAdapter {
                             .try_get::<u64, _>(col.as_str())
                             .map(|v| serde_json::json!(v))
                             .unwrap_or(serde_json::Value::Null),
-                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT"
-                        | "MEDIUMINT UNSIGNED" | "SMALLINT" | "SMALLINT UNSIGNED"
-                        | "TINYINT" | "TINYINT UNSIGNED" => row
+                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT" | "MEDIUMINT UNSIGNED"
+                        | "SMALLINT" | "SMALLINT UNSIGNED" | "TINYINT" | "TINYINT UNSIGNED" => row
                             .try_get::<i64, _>(col.as_str())
                             .map(|v| serde_json::json!(v))
                             .unwrap_or(serde_json::Value::Null),
@@ -485,8 +481,7 @@ impl DatabaseAdapter for MySqlAdapter {
                         "NEWDECIMAL" | "DECIMAL" => row
                             .try_get::<String, _>(col.as_str())
                             .map(|v| {
-                                serde_json::from_str(&v)
-                                    .unwrap_or_else(|_| serde_json::json!(v))
+                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
                             })
                             .unwrap_or(serde_json::Value::Null),
                         "JSON" => row
@@ -495,8 +490,7 @@ impl DatabaseAdapter for MySqlAdapter {
                         _ => row
                             .try_get::<String, _>(col.as_str())
                             .map(|v| {
-                                serde_json::from_str(&v)
-                                    .unwrap_or_else(|_| serde_json::json!(v))
+                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
                             })
                             .unwrap_or(serde_json::Value::Null),
                     };
@@ -568,9 +562,8 @@ impl DatabaseAdapter for MySqlAdapter {
                             .try_get::<u64, _>(col.as_str())
                             .map(|v| serde_json::json!(v))
                             .unwrap_or(serde_json::Value::Null),
-                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT"
-                        | "MEDIUMINT UNSIGNED" | "SMALLINT" | "SMALLINT UNSIGNED"
-                        | "TINYINT" | "TINYINT UNSIGNED" => row
+                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT" | "MEDIUMINT UNSIGNED"
+                        | "SMALLINT" | "SMALLINT UNSIGNED" | "TINYINT" | "TINYINT UNSIGNED" => row
                             .try_get::<i64, _>(col.as_str())
                             .map(|v| serde_json::json!(v))
                             .unwrap_or(serde_json::Value::Null),
@@ -581,8 +574,7 @@ impl DatabaseAdapter for MySqlAdapter {
                         "NEWDECIMAL" | "DECIMAL" => row
                             .try_get::<String, _>(col.as_str())
                             .map(|v| {
-                                serde_json::from_str(&v)
-                                    .unwrap_or_else(|_| serde_json::json!(v))
+                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
                             })
                             .unwrap_or(serde_json::Value::Null),
                         "JSON" => row
@@ -592,8 +584,7 @@ impl DatabaseAdapter for MySqlAdapter {
                         _ => row
                             .try_get::<String, _>(col.as_str())
                             .map(|v| {
-                                serde_json::from_str(&v)
-                                    .unwrap_or_else(|_| serde_json::json!(v))
+                                serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
                             })
                             .unwrap_or(serde_json::Value::Null),
                     };

@@ -42,6 +42,15 @@ const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
 /// Returns `ObserverError::ActionPermanentlyFailed` if the URL uses a
 /// non-HTTP(S) scheme or resolves to a blocked address range.
 fn validate_outbound_url(url: &str) -> Result<()> {
+    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
+    // Intended for local development and integration testing only.
+    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    if allow_insecure {
+        return Ok(());
+    }
+
     let lower = url.to_ascii_lowercase();
     if !lower.starts_with("http://") && !lower.starts_with("https://") {
         return Err(ObserverError::ActionPermanentlyFailed {

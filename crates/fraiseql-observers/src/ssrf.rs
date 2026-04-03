@@ -70,6 +70,15 @@ pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
 /// Returns `ObserverError::InvalidConfig` if DNS resolution fails, returns no
 /// addresses, or any resolved address is in a private/reserved range.
 pub async fn dns_resolve_and_check(url: &str) -> crate::error::Result<()> {
+    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
+    // Intended for local development and integration testing only.
+    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    if allow_insecure {
+        return Ok(());
+    }
+
     let parsed = reqwest::Url::parse(url).map_err(|e| ObserverError::InvalidConfig {
         message: format!("Invalid URL '{url}': {e}"),
     })?;
