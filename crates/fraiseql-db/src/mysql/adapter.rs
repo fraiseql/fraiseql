@@ -5,7 +5,7 @@ use std::fmt::Write;
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 use sqlx::{
-    Column, Row,
+    Column, Row, TypeInfo,
     mysql::{MySqlPool, MySqlPoolOptions, MySqlRow},
 };
 
@@ -355,51 +355,59 @@ impl DatabaseAdapter for MySqlAdapter {
 
         // Convert each row to HashMap<String, Value>.
         //
-        // Type-probe order is chosen to minimise false positives:
-        //   1. serde_json::Value — MySQL JSON columns decode directly; avoids returning JSON blobs
-        //      as escaped string literals.  If the probe succeeds but yields Null, fall through to
-        //      typed probes because computed columns (window functions, aggregations) may report a
-        //      wire type that sqlx maps to JSON-null rather than the actual value.
-        //   2. bool — TINYINT(1)/BIT(1) must come before i64; otherwise MySQL returns "0"/"1" as
-        //      strings because String succeeds on TINYINT first.
-        //   3. i64 — covers BIGINT, INT, MEDIUMINT, SMALLINT, TINYINT(>1).  Using i64 throughout
-        //      avoids the asymmetry of i32 succeeding for values in [−2³¹, 2³¹) and i64 for larger
-        //      values on the same column.
-        //   4. f64 — DOUBLE, FLOAT.
-        //   5. String — TEXT, VARCHAR, CHAR, DECIMAL (rendered as decimal string by sqlx), DATE,
-        //      DATETIME, TIMESTAMP.  Attempt JSON parse so that TEXT columns storing JSON blobs
-        //      (e.g. `entity` in mutation_response) return proper objects.
+        // Use `column.type_info().name()` for deterministic extraction instead of
+        // trial-and-error probing.  This correctly handles computed columns (COUNT,
+        // SUM, window functions) whose wire type is NEWDECIMAL — `try_get::<i64>`
+        // fails for NEWDECIMAL, but `try_get::<String>` succeeds and can be parsed
+        // into a JSON number.
         let results: Vec<std::collections::HashMap<String, serde_json::Value>> = rows
             .into_iter()
             .map(|row| {
                 let mut map = std::collections::HashMap::new();
                 for column in row.columns() {
                     let col = column.name().to_string();
-                    let value: serde_json::Value =
-                        if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
-                            if v.is_null() {
-                                // Computed column — fall through to typed probes below
-                                serde_json::Value::Null
-                            } else {
-                                v
-                            }
-                        } else {
-                            serde_json::Value::Null
-                        };
-                    // If the JSON probe returned null, try typed probes for the actual value.
-                    let value = if !value.is_null() {
-                        value
-                    } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
-                        // Try to deserialise as JSON (handles DECIMAL, DATE, JSON-in-TEXT).
-                        serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
-                    } else {
-                        serde_json::Value::Null
+                    let type_name = column.type_info().name();
+                    let value = match type_name {
+                        "BOOLEAN" | "BIT" => row
+                            .try_get::<bool, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "TINYINT(1)" => row
+                            .try_get::<bool, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "BIGINT UNSIGNED" => row
+                            .try_get::<u64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT"
+                        | "MEDIUMINT UNSIGNED" | "SMALLINT" | "SMALLINT UNSIGNED"
+                        | "TINYINT" | "TINYINT UNSIGNED" => row
+                            .try_get::<i64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "DOUBLE" | "FLOAT" => row
+                            .try_get::<f64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "NEWDECIMAL" | "DECIMAL" => row
+                            .try_get::<String, _>(col.as_str())
+                            .map(|v| {
+                                serde_json::from_str(&v)
+                                    .unwrap_or_else(|_| serde_json::json!(v))
+                            })
+                            .unwrap_or(serde_json::Value::Null),
+                        "JSON" => row
+                            .try_get::<serde_json::Value, _>(col.as_str())
+                            .unwrap_or(serde_json::Value::Null),
+                        // VARCHAR, CHAR, TEXT, DATE, DATETIME, TIMESTAMP, BLOB, etc.
+                        _ => row
+                            .try_get::<String, _>(col.as_str())
+                            .map(|v| {
+                                serde_json::from_str(&v)
+                                    .unwrap_or_else(|_| serde_json::json!(v))
+                            })
+                            .unwrap_or(serde_json::Value::Null),
                     };
                     map.insert(col, value);
                 }
@@ -454,28 +462,43 @@ impl DatabaseAdapter for MySqlAdapter {
                 let mut map = std::collections::HashMap::new();
                 for column in row.columns() {
                     let col = column.name().to_string();
-                    let value: serde_json::Value =
-                        if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
-                            if v.is_null() {
-                                serde_json::Value::Null
-                            } else {
-                                v
-                            }
-                        } else {
-                            serde_json::Value::Null
-                        };
-                    let value = if !value.is_null() {
-                        value
-                    } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
-                        serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
-                    } else {
-                        serde_json::Value::Null
+                    let type_name = column.type_info().name();
+                    let value = match type_name {
+                        "BOOLEAN" | "BIT" | "TINYINT(1)" => row
+                            .try_get::<bool, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "BIGINT UNSIGNED" => row
+                            .try_get::<u64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT"
+                        | "MEDIUMINT UNSIGNED" | "SMALLINT" | "SMALLINT UNSIGNED"
+                        | "TINYINT" | "TINYINT UNSIGNED" => row
+                            .try_get::<i64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "DOUBLE" | "FLOAT" => row
+                            .try_get::<f64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "NEWDECIMAL" | "DECIMAL" => row
+                            .try_get::<String, _>(col.as_str())
+                            .map(|v| {
+                                serde_json::from_str(&v)
+                                    .unwrap_or_else(|_| serde_json::json!(v))
+                            })
+                            .unwrap_or(serde_json::Value::Null),
+                        "JSON" => row
+                            .try_get::<serde_json::Value, _>(col.as_str())
+                            .unwrap_or(serde_json::Value::Null),
+                        _ => row
+                            .try_get::<String, _>(col.as_str())
+                            .map(|v| {
+                                serde_json::from_str(&v)
+                                    .unwrap_or_else(|_| serde_json::json!(v))
+                            })
+                            .unwrap_or(serde_json::Value::Null),
                     };
                     map.insert(col, value);
                 }

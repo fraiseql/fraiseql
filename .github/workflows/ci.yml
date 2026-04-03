@@ -377,7 +377,7 @@ jobs:
       - name: Run SQL Server integration tests
         run: cargo test -p fraiseql-core --features "test-sqlserver" --test integration -- multi_database_integration --test-threads=1
         env:
-          SQLSERVER_URL: "server=localhost,1434;database=master;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true"
+          SQLSERVER_URL: "server=localhost,1434;database=fraiseql_test;user=sa;password=FraiseQL_Test1234;TrustServerCertificate=true"
           RUST_LOG: debug
 
   # Code coverage runs on a weekly schedule — see .github/workflows/coverage.yml

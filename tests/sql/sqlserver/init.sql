@@ -102,3 +102,76 @@ BEGIN
     SET IDENTITY_INSERT dbo.tb_relay_item OFF;
 END
 GO
+
+-- ============================================================================
+-- fraiseql_test: Scored items (window function + CTE + aggregation tests)
+-- ============================================================================
+
+IF OBJECT_ID('dbo.tb_score', 'U') IS NULL
+    CREATE TABLE dbo.tb_score (
+        id       NVARCHAR(36)  NOT NULL PRIMARY KEY,
+        category NVARCHAR(50)  NOT NULL,
+        score    INT           NOT NULL,
+        label    NVARCHAR(100) NOT NULL
+    );
+GO
+
+IF OBJECT_ID('dbo.v_score', 'V') IS NOT NULL
+    DROP VIEW dbo.v_score;
+GO
+
+CREATE VIEW dbo.v_score AS
+SELECT id, category, score, label FROM dbo.tb_score;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.tb_score WHERE id = 'sc-01')
+BEGIN
+    INSERT INTO dbo.tb_score (id, category, score, label) VALUES
+        ('sc-01', 'A', 95, 'alpha'),
+        ('sc-02', 'A', 80, 'beta'),
+        ('sc-03', 'A', 80, 'gamma'),
+        ('sc-04', 'B', 70, 'delta'),
+        ('sc-05', 'B', 60, 'epsilon'),
+        ('sc-06', 'B', 90, 'zeta'),
+        ('sc-07', 'C', 50, 'eta'),
+        ('sc-08', 'C', 55, 'theta');
+END
+GO
+
+-- ============================================================================
+-- fraiseql_test: Tags (mutation stored procedure tests)
+-- ============================================================================
+
+IF OBJECT_ID('dbo.tb_tag', 'U') IS NULL
+    CREATE TABLE dbo.tb_tag (
+        pk_tag INT           IDENTITY(1,1) PRIMARY KEY,
+        name   NVARCHAR(200) NOT NULL UNIQUE
+    );
+GO
+
+IF OBJECT_ID('dbo.v_tag', 'V') IS NOT NULL
+    DROP VIEW dbo.v_tag;
+GO
+
+CREATE VIEW dbo.v_tag AS
+SELECT pk_tag, name FROM dbo.tb_tag;
+GO
+
+IF OBJECT_ID('dbo.fn_create_tag', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.fn_create_tag;
+GO
+
+CREATE PROCEDURE dbo.fn_create_tag
+    @p_name NVARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    MERGE dbo.tb_tag AS target
+    USING (SELECT @p_name AS name) AS source
+    ON target.name = source.name
+    WHEN MATCHED THEN UPDATE SET name = source.name
+    WHEN NOT MATCHED THEN INSERT (name) VALUES (source.name);
+
+    SELECT pk_tag AS id, name FROM dbo.tb_tag WHERE name = @p_name;
+END
+GO

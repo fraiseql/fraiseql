@@ -120,6 +120,11 @@ async fn test_runtime_start_stop_lifecycle() {
     // start() now awaits a readiness signal from the background task,
     // so no artificial sleep is needed before inserting events.
 
+    // Verify the mock webhook server is reachable before inserting events
+    let probe_url = mock_server.webhook_url();
+    let probe = reqwest::Client::new().get(&probe_url).send().await;
+    eprintln!("[DIAG] mock server probe at {probe_url}: {probe:?}");
+
     // Insert initial change log entry with matching entity type
     let order_id = Uuid::new_v4();
     let _ = insert_change_log_entry(
@@ -133,6 +138,31 @@ async fn test_runtime_start_stop_lifecycle() {
     )
     .await
     .expect("Failed to insert change log entry");
+
+    // Verify the change log entry was persisted
+    let cl_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM core.tb_entity_change_log WHERE object_type = $1")
+            .bind(&entity_type)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to query change log");
+    eprintln!("[DIAG] change log entries for {entity_type}: {}", cl_count.0);
+    assert!(cl_count.0 > 0, "change log entry must exist in DB");
+
+    // Give the runtime a few poll cycles to pick up the event
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    // Check runtime processing counters
+    let health = runtime.health();
+    eprintln!(
+        "[DIAG] runtime health: running={}, observer_count={}, events_processed={}, errors={}",
+        health.running, health.observer_count, health.events_processed, health.errors
+    );
+    assert!(
+        health.errors == 0,
+        "runtime should have zero errors, got {}",
+        health.errors
+    );
 
     // Wait for webhook processing
     wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
