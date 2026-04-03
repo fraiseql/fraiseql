@@ -558,28 +558,44 @@ impl DatabaseAdapter for MySqlAdapter {
                 let mut map = std::collections::HashMap::new();
                 for column in row.columns() {
                     let col = column.name().to_string();
-                    let value: serde_json::Value =
-                        if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
-                            if v.is_null() {
-                                serde_json::Value::Null
-                            } else {
-                                v
-                            }
-                        } else {
-                            serde_json::Value::Null
-                        };
-                    let value = if !value.is_null() {
-                        value
-                    } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
-                        serde_json::json!(v)
-                    } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
-                        serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
-                    } else {
-                        serde_json::Value::Null
+                    let type_name = column.type_info().name();
+                    let value = match type_name {
+                        "BOOLEAN" | "BIT" | "TINYINT(1)" => row
+                            .try_get::<bool, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "BIGINT UNSIGNED" => row
+                            .try_get::<u64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "BIGINT" | "INT" | "INT UNSIGNED" | "MEDIUMINT"
+                        | "MEDIUMINT UNSIGNED" | "SMALLINT" | "SMALLINT UNSIGNED"
+                        | "TINYINT" | "TINYINT UNSIGNED" => row
+                            .try_get::<i64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "DOUBLE" | "FLOAT" => row
+                            .try_get::<f64, _>(col.as_str())
+                            .map(|v| serde_json::json!(v))
+                            .unwrap_or(serde_json::Value::Null),
+                        "NEWDECIMAL" | "DECIMAL" => row
+                            .try_get::<String, _>(col.as_str())
+                            .map(|v| {
+                                serde_json::from_str(&v)
+                                    .unwrap_or_else(|_| serde_json::json!(v))
+                            })
+                            .unwrap_or(serde_json::Value::Null),
+                        "JSON" => row
+                            .try_get::<serde_json::Value, _>(col.as_str())
+                            .unwrap_or(serde_json::Value::Null),
+                        // VARCHAR, CHAR, TEXT, DATE, DATETIME, TIMESTAMP, BLOB, etc.
+                        _ => row
+                            .try_get::<String, _>(col.as_str())
+                            .map(|v| {
+                                serde_json::from_str(&v)
+                                    .unwrap_or_else(|_| serde_json::json!(v))
+                            })
+                            .unwrap_or(serde_json::Value::Null),
                     };
                     map.insert(col, value);
                 }

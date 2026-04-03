@@ -158,11 +158,7 @@ async fn test_runtime_start_stop_lifecycle() {
         "[DIAG] runtime health: running={}, observer_count={}, events_processed={}, errors={}",
         health.running, health.observer_count, health.events_processed, health.errors
     );
-    assert!(
-        health.errors == 0,
-        "runtime should have zero errors, got {}",
-        health.errors
-    );
+    assert!(health.errors == 0, "runtime should have zero errors, got {}", health.errors);
 
     // Wait for webhook processing
     wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;

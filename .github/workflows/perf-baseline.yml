@@ -91,7 +91,7 @@ jobs:
           RUST_LOG: info
         run: |
           ./target/release/fraiseql-cli run \
-            benchmarks/load/test_schema.compiled.json \
+            benchmarks/load/test_schema.json \
             --port 8000 \
             > /tmp/fraiseql-server.log 2>&1 &
           echo $! > /tmp/fraiseql.pid

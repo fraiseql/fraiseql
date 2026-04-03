@@ -96,6 +96,15 @@ pub(super) fn resolve_url(
 /// a connect-time check at the HTTP client level and is beyond the scope of
 /// this static validation.
 fn validate_url_ssrf(url: &str) -> Result<()> {
+    // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
+    // Intended for local development and integration testing only.
+    let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    if allow_insecure {
+        return Ok(());
+    }
+
     if url.len() > MAX_WEBHOOK_URL_LEN {
         return Err(ObserverError::InvalidActionConfig {
             reason: format!(

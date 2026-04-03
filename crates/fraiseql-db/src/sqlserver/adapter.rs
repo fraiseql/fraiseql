@@ -531,12 +531,17 @@ impl DatabaseAdapter for SqlServerAdapter {
         function_name: &str,
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Build: SELECT * FROM [schema].[fn_name](@p1, @p2, ...)
+        // Build: EXEC [fn_name] @p1, @p2, ...
+        // Stored procedures in SQL Server must be called with EXEC, not SELECT FROM.
         let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("@p{i}")).collect();
         let sql = format!(
-            "SELECT * FROM {}({})",
+            "EXEC {}{}",
             quote_sqlserver_identifier(function_name),
-            placeholders.join(", ")
+            if placeholders.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", placeholders.join(", "))
+            }
         );
 
         let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {

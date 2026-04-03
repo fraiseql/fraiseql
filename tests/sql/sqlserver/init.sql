@@ -121,7 +121,10 @@ IF OBJECT_ID('dbo.v_score', 'V') IS NOT NULL
 GO
 
 CREATE VIEW dbo.v_score AS
-SELECT id, category, score, label FROM dbo.tb_score;
+SELECT
+    id,
+    (SELECT id, category, score, label FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS data
+FROM dbo.tb_score;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.tb_score WHERE id = 'sc-01')
