@@ -88,22 +88,27 @@ jobs:
         env:
           DATABASE_URL: postgres://fraiseql:fraiseql@localhost:5432/fraiseql_test
           FRAISEQL_ENV: development
+          RUST_LOG: info
         run: |
           ./target/release/fraiseql-cli run \
             benchmarks/load/test_schema.compiled.json \
-            --port 8000 &
+            --port 8000 \
+            > /tmp/fraiseql-server.log 2>&1 &
           echo $! > /tmp/fraiseql.pid
 
       - name: Wait for server to be ready
         run: |
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:8000/health; then
-              echo "Server ready"
-              break
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              exit 0
             fi
-            echo "Waiting for server... ($i/30)"
-            sleep 1
+            sleep 2
           done
+          echo "::error::Server failed to start within 120s"
+          echo "--- Server log ---"
+          cat /tmp/fraiseql-server.log 2>/dev/null || echo "(no log)"
+          exit 1
 
       - name: Set up k6
         uses: grafana/setup-k6-action@v1
@@ -170,6 +175,8 @@ jobs:
         if: always()
         run: |
           [ -f /tmp/fraiseql.pid ] && kill $(cat /tmp/fraiseql.pid) || true
+          echo "--- Server log (last 50 lines) ---"
+          tail -50 /tmp/fraiseql-server.log 2>/dev/null || true
 
       - name: Save baseline artifact
         if: github.event_name == 'push'

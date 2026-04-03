@@ -21,7 +21,7 @@ use fraiseql_observers::{
 };
 use sqlx::PgPool;
 use tokio::{
-    sync::{RwLock, mpsc},
+    sync::{RwLock, mpsc, oneshot},
     task::JoinHandle,
 };
 use tracing::{debug, error, info, warn};
@@ -323,6 +323,11 @@ impl ObserverRuntime {
         debug!("About to spawn background task");
         running.store(true, Ordering::SeqCst);
 
+        // Create a oneshot channel so callers can await readiness before
+        // inserting events — eliminates the race between `start()` returning
+        // and the background task entering its poll loop.
+        let (ready_tx, ready_rx) = oneshot::channel::<()>();
+
         // Spawn background processing task
         debug!("Calling tokio::spawn()");
         let handle = tokio::spawn(async move {
@@ -334,6 +339,9 @@ impl ObserverRuntime {
             debug!("Observer runtime background task spawned");
             debug!("Poll interval: {:?}", poll_interval);
             info!("Observer runtime started, beginning event processing loop");
+
+            // Signal that the background task is ready to process events.
+            let _ = ready_tx.send(());
 
             loop {
                 tokio::select! {
@@ -518,6 +526,14 @@ impl ObserverRuntime {
 
         debug!("tokio::spawn() returned, storing task handle");
         self.task_handle = Some(handle);
+
+        // Wait for the background task to signal readiness before returning.
+        // This ensures callers can safely insert events immediately after start().
+        ready_rx.await.map_err(|_| {
+            ServerError::ConfigError(
+                "observer background task exited before signalling readiness".to_string(),
+            )
+        })?;
 
         info!("Runtime started successfully");
         Ok(())

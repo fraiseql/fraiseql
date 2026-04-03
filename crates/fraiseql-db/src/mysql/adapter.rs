@@ -357,7 +357,9 @@ impl DatabaseAdapter for MySqlAdapter {
         //
         // Type-probe order is chosen to minimise false positives:
         //   1. serde_json::Value — MySQL JSON columns decode directly; avoids returning JSON blobs
-        //      as escaped string literals.
+        //      as escaped string literals.  If the probe succeeds but yields Null, fall through to
+        //      typed probes because computed columns (window functions, aggregations) may report a
+        //      wire type that sqlx maps to JSON-null rather than the actual value.
         //   2. bool — TINYINT(1)/BIT(1) must come before i64; otherwise MySQL returns "0"/"1" as
         //      strings because String succeeds on TINYINT first.
         //   3. i64 — covers BIGINT, INT, MEDIUMINT, SMALLINT, TINYINT(>1).  Using i64 throughout
@@ -375,19 +377,30 @@ impl DatabaseAdapter for MySqlAdapter {
                     let col = column.name().to_string();
                     let value: serde_json::Value =
                         if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
-                            v
-                        } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
-                            // Try to deserialise as JSON (handles DECIMAL, DATE, JSON-in-TEXT).
-                            serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                            if v.is_null() {
+                                // Computed column — fall through to typed probes below
+                                serde_json::Value::Null
+                            } else {
+                                v
+                            }
                         } else {
                             serde_json::Value::Null
                         };
+                    // If the JSON probe returned null, try typed probes for the actual value.
+                    let value = if !value.is_null() {
+                        value
+                    } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
+                        // Try to deserialise as JSON (handles DECIMAL, DATE, JSON-in-TEXT).
+                        serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                    } else {
+                        serde_json::Value::Null
+                    };
                     map.insert(col, value);
                 }
                 map
@@ -443,18 +456,27 @@ impl DatabaseAdapter for MySqlAdapter {
                     let col = column.name().to_string();
                     let value: serde_json::Value =
                         if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
-                            v
-                        } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
-                            serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                            if v.is_null() {
+                                serde_json::Value::Null
+                            } else {
+                                v
+                            }
                         } else {
                             serde_json::Value::Null
                         };
+                    let value = if !value.is_null() {
+                        value
+                    } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
+                        serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                    } else {
+                        serde_json::Value::Null
+                    };
                     map.insert(col, value);
                 }
                 map
@@ -515,18 +537,27 @@ impl DatabaseAdapter for MySqlAdapter {
                     let col = column.name().to_string();
                     let value: serde_json::Value =
                         if let Ok(v) = row.try_get::<serde_json::Value, _>(col.as_str()) {
-                            v
-                        } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
-                            serde_json::json!(v)
-                        } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
-                            serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                            if v.is_null() {
+                                serde_json::Value::Null
+                            } else {
+                                v
+                            }
                         } else {
                             serde_json::Value::Null
                         };
+                    let value = if !value.is_null() {
+                        value
+                    } else if let Ok(v) = row.try_get::<i64, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<f64, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<bool, _>(col.as_str()) {
+                        serde_json::json!(v)
+                    } else if let Ok(v) = row.try_get::<String, _>(col.as_str()) {
+                        serde_json::from_str(&v).unwrap_or_else(|_| serde_json::json!(v))
+                    } else {
+                        serde_json::Value::Null
+                    };
                     map.insert(col, value);
                 }
                 map

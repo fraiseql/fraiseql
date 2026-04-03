@@ -958,14 +958,14 @@ mod mysql_relay_tests {
             .expect("first page");
         assert_eq!(first.rows.len(), 3);
 
-        // Extract cursor from the last row's id field
+        // Extract cursor from the last row's id field (MySQL relay_item uses CHAR(36) UUIDs)
         let last_id = first
             .rows
             .last()
             .and_then(|row| row.as_value().get("id"))
-            .and_then(|v| v.as_i64())
-            .expect("last row must have integer id for cursor");
-        let cursor_val = CursorValue::Int64(last_id);
+            .and_then(|v| v.as_str())
+            .expect("last row must have string id for cursor");
+        let cursor_val = CursorValue::Uuid(last_id.to_string());
         let second = a
             .execute_relay_page(
                 "v_relay_item",

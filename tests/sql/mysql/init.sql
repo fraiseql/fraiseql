@@ -109,12 +109,6 @@ CREATE TABLE IF NOT EXISTS tb_tag (
 CREATE OR REPLACE VIEW v_tag AS
 SELECT pk_tag, name FROM tb_tag;
 
-DROP PROCEDURE IF EXISTS fn_create_tag;
-DELIMITER //
-CREATE PROCEDURE fn_create_tag(IN p_name VARCHAR(200))
-BEGIN
-    INSERT INTO tb_tag (name) VALUES (p_name)
-      ON DUPLICATE KEY UPDATE name = p_name;
-    SELECT pk_tag AS id, name FROM tb_tag WHERE pk_tag = LAST_INSERT_ID();
-END //
-DELIMITER ;
+-- Stored procedure is loaded separately (see procedures.sql) because
+-- DELIMITER directives are a MySQL CLI feature that may not work reliably
+-- when the script is piped via stdin in batch mode.
