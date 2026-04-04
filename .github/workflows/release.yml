@@ -28,26 +28,26 @@ jobs:
     steps:
       - name: Validate required secrets
         run: |
-          echo "## 🔐 Secrets Validation" >> $GITHUB_STEP_SUMMARY
-
+          echo "## Secrets Validation" >> $GITHUB_STEP_SUMMARY
           MISSING=0
-          for secret in CARGO_TOKEN PYPI_TOKEN NPM_TOKEN; do
-            if [ -z "${{ secrets[secret] }}" ]; then
-              echo "❌ $secret missing" >> $GITHUB_STEP_SUMMARY
-              MISSING=1
-            else
-              echo "✅ $secret present" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
 
-          # Docker Hub secrets (needed for docker-build.yml, not release.yml directly)
-          for secret in DOCKER_HUB_USERNAME DOCKER_HUB_PASSWORD GHCR_PAT; do
-            if [ -z "${{ secrets[secret] }}" ]; then
-              echo "⚠️ $secret missing (needed for Docker Hub push)" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "✅ $secret present" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
+          if [ -z "${{ secrets.CARGO_TOKEN }}" ]; then
+            echo "CARGO_TOKEN missing" >> $GITHUB_STEP_SUMMARY; MISSING=1
+          else
+            echo "CARGO_TOKEN present" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -z "${{ secrets.PYPI_TOKEN }}" ]; then
+            echo "PYPI_TOKEN missing" >> $GITHUB_STEP_SUMMARY; MISSING=1
+          else
+            echo "PYPI_TOKEN present" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -z "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "NPM_TOKEN missing" >> $GITHUB_STEP_SUMMARY; MISSING=1
+          else
+            echo "NPM_TOKEN present" >> $GITHUB_STEP_SUMMARY
+          fi
 
           if [ "$MISSING" -eq 1 ]; then
             echo "::error::Required secrets missing — cannot proceed with release"
