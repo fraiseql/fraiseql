@@ -186,6 +186,23 @@ impl MySqlAdapter {
     }
 }
 
+/// Escape a JSON value for inline use in a MySQL text-protocol query.
+///
+/// Strings are wrapped in single quotes with internal `'` doubled (`''`),
+/// which is the ANSI SQL escaping method and is safe regardless of the
+/// `NO_BACKSLASH_ESCAPES` SQL mode.
+fn mysql_escape_json_value(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => format!("'{}'", s.replace('\'', "''")),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => if *b { "1" } else { "0" }.to_string(),
+        serde_json::Value::Null => "NULL".to_string(),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            format!("'{}'", v.to_string().replace('\'', "''"))
+        },
+    }
+}
+
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
@@ -508,43 +525,24 @@ impl DatabaseAdapter for MySqlAdapter {
         function_name: &str,
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Build: CALL `schema`.`sp_name`(?, ?, ...)
-        let placeholders = vec!["?"; args.len()].join(", ");
-        let sql = format!("CALL {}({})", quote_mysql_identifier(function_name), placeholders);
-
-        let mut query = sqlx::query(&sql);
-
-        for arg in args {
-            query = match arg {
-                serde_json::Value::String(s) => query.bind(s.clone()),
-                serde_json::Value::Number(n) => {
-                    if let Some(i) = n.as_i64() {
-                        query.bind(i)
-                    } else if let Some(f) = n.as_f64() {
-                        query.bind(f)
-                    } else {
-                        query.bind(n.to_string())
-                    }
-                },
-                serde_json::Value::Bool(b) => query.bind(*b),
-                serde_json::Value::Null => query.bind(Option::<String>::None),
-                serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                    query.bind(arg.to_string())
-                },
-            };
-        }
-
-        let rows: Vec<MySqlRow> = query.fetch_all(&self.pool).await.map_err(|e| {
-            let sql_state = if let sqlx::Error::Database(ref db_err) = e {
-                db_err.code().map(|c| c.into_owned())
-            } else {
-                None
-            };
-            FraiseQLError::Database {
-                message: format!("MySQL stored procedure call failed ({function_name}): {e}"),
-                sql_state,
-            }
-        })?;
+        // MySQL's binary protocol (prepared statements) does not reliably return
+        // row data from stored procedures that use CALL.  Use text protocol
+        // (`raw_sql`) with inline-escaped parameters instead.
+        let escaped: Vec<String> = args.iter().map(mysql_escape_json_value).collect();
+        let call_sql =
+            format!("CALL {}({})", quote_mysql_identifier(function_name), escaped.join(", "));
+        let rows: Vec<MySqlRow> =
+            sqlx::raw_sql(&call_sql).fetch_all(&self.pool).await.map_err(|e| {
+                let sql_state = if let sqlx::Error::Database(ref db_err) = e {
+                    db_err.code().map(|c| c.into_owned())
+                } else {
+                    None
+                };
+                FraiseQLError::Database {
+                    message: format!("MySQL stored procedure call failed ({function_name}): {e}"),
+                    sql_state,
+                }
+            })?;
 
         let results = rows
             .into_iter()
