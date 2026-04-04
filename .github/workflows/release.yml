@@ -393,10 +393,21 @@ jobs:
         if: always()
         run: |
           FAILED=0
-          for step in publish-error publish-auth publish-webhooks publish-wire publish-db publish-federation publish-core publish-arrow publish-secrets publish-observers publish-server publish-cli publish-root; do
-            outcome=$(echo "${{ steps[$step].outcome }}")
-            if [ "$outcome" != "success" ]; then
-              echo "❌ $step: $outcome"
+          for step_outcome in \
+            "${{ steps.publish-error.outcome }}" \
+            "${{ steps.publish-auth.outcome }}" \
+            "${{ steps.publish-webhooks.outcome }}" \
+            "${{ steps.publish-wire.outcome }}" \
+            "${{ steps.publish-db.outcome }}" \
+            "${{ steps.publish-federation.outcome }}" \
+            "${{ steps.publish-core.outcome }}" \
+            "${{ steps.publish-arrow.outcome }}" \
+            "${{ steps.publish-secrets.outcome }}" \
+            "${{ steps.publish-observers.outcome }}" \
+            "${{ steps.publish-server.outcome }}" \
+            "${{ steps.publish-cli.outcome }}" \
+            "${{ steps.publish-root.outcome }}"; do
+            if [ "$step_outcome" != "success" ]; then
               FAILED=1
             fi
           done
@@ -404,7 +415,7 @@ jobs:
             echo "::error::One or more crates failed to publish"
             exit 1
           fi
-          echo "✅ All crates published successfully"
+          echo "All crates published successfully"
 
       - name: Report crates.io publishing results
         if: always()
