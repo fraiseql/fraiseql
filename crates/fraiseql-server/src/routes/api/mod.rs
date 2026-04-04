@@ -26,7 +26,8 @@ pub use types::{ApiError, ApiResponse};
 pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     state: crate::routes::graphql::AppState<A>,
 ) -> Router {
-    #[allow(unused_mut)] // Reason: mutability required when federation feature is enabled to add federation routes
+    #[allow(unused_mut)]
+    // Reason: mutability required when federation feature is enabled to add federation routes
     let mut router = Router::new()
         // Query intelligence endpoints
         // NOTE: /query/explain is intentionally omitted here — it is mounted

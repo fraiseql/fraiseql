@@ -194,10 +194,12 @@ impl RetryConfig {
 
     /// Calculate backoff delay for retry attempt
     pub fn backoff_delay_ms(&self, attempt: u32) -> u64 {
-        #[allow(clippy::cast_precision_loss)] // Reason: backoff delay does not need sub-millisecond precision
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: backoff delay does not need sub-millisecond precision
         let delay =
             self.initial_backoff_ms as f64 * self.backoff_multiplier.powi(attempt.cast_signed());
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: delay is always positive and within u64 range
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Reason: delay is always positive and within u64 range
         let delay_u64 = delay as u64;
         delay_u64.min(self.max_backoff_ms)
     }

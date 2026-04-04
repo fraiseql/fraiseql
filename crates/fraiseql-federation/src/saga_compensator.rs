@@ -339,7 +339,8 @@ impl SagaCompensator {
                 "Saga is not in Failed state - cannot compensate"
             );
             // For non-failed sagas, return empty compensation
-            #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: duration millis won't exceed u64 in practice
             let total_duration_ms = start_time.elapsed().as_millis() as u64;
             let result = CompensationResult {
                 saga_id,
@@ -382,7 +383,8 @@ impl SagaCompensator {
             );
 
             // Execute this step's compensation
-            #[allow(clippy::cast_possible_truncation)] // Reason: step count is bounded well below u32::MAX
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: step count is bounded well below u32::MAX
             let step_order = step.order as u32;
             match self
                 .compensate_step(
@@ -447,7 +449,8 @@ impl SagaCompensator {
             e
         })?;
 
-        #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: duration millis won't exceed u64 in practice
         let total_duration_ms = start_time.elapsed().as_millis() as u64;
 
         let result = CompensationResult {
@@ -539,7 +542,8 @@ impl SagaCompensator {
 
         // If no store available, return success for testing
         if self.store.is_none() {
-            #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: duration millis won't exceed u64 in practice
             let duration_ms = start_time.elapsed().as_millis() as u64;
             let result = CompensationStepResult {
                 step_number,
@@ -621,7 +625,8 @@ impl SagaCompensator {
             "Step compensation result persisted"
         );
 
-        #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: duration millis won't exceed u64 in practice
         let duration_ms = start_time.elapsed().as_millis() as u64;
 
         let result = CompensationStepResult {
@@ -718,7 +723,8 @@ impl SagaCompensator {
 
             if has_compensation {
                 let success = true;
-                #[allow(clippy::cast_possible_truncation)] // Reason: step count is bounded well below u32::MAX
+                #[allow(clippy::cast_possible_truncation)]
+                // Reason: step count is bounded well below u32::MAX
                 let step_number = step.order as u32;
                 step_results.push(CompensationStepResult {
                     step_number,
@@ -877,7 +883,8 @@ mod tests {
 
         // Verify reverse order was maintained
         for (i, result) in results.iter().enumerate() {
-            #[allow(clippy::cast_possible_truncation)] // Reason: step count is bounded well below u32::MAX
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: step count is bounded well below u32::MAX
             let expected = (3 - i) as u32;
             assert_eq!(result.step_number, expected);
         }

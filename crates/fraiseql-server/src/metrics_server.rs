@@ -389,7 +389,8 @@ impl OperationMetricsRegistry {
                 "fraiseql_query_duration_seconds_bucket{{operation=\"{name}\",le=\"+Inf\"}} \
                  {count}",
             );
-            #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics reporting
+            #[allow(clippy::cast_precision_loss)]
+            // Reason: precision loss is acceptable for metrics reporting
             let sum_secs = *duration_us as f64 / 1_000_000.0;
             let _ = writeln!(
                 out,
@@ -497,7 +498,8 @@ impl TimingGuard {
 
     /// Record duration in microseconds and consume guard.
     pub fn record(self) {
-        #[allow(clippy::cast_possible_truncation)] // Reason: microsecond counter cannot exceed u64 in any practical uptime
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: microsecond counter cannot exceed u64 in any practical uptime
         let duration_us = self.start.elapsed().as_micros() as u64;
         self.duration_atomic.fetch_add(duration_us, Ordering::Relaxed);
     }

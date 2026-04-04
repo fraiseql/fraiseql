@@ -178,7 +178,8 @@ pub async fn create_provider(
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     #[test]

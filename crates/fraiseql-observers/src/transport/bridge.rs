@@ -336,7 +336,8 @@ impl PostgresNatsBridge {
     /// - Bridge restarted mid-run
     /// - Multiple publishers existed in the past
     async fn fetch_batch_from_cursor(&self, cursor: i64) -> Result<Vec<ChangeLogEntry>> {
-        #[allow(clippy::cast_possible_wrap)] // Reason: value is non-negative; wrap cannot occur in practice
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: value is non-negative; wrap cannot occur in practice
         let entries: Vec<ChangeLogEntry> = sqlx::query_as(
             r"
             SELECT pk_entity_change_log, id, fk_customer_org, fk_contact,

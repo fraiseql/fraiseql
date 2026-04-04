@@ -84,7 +84,8 @@ impl ApqMetrics {
             0.0
         } else {
             // Small precision loss is acceptable for metrics percentages
-            #[allow(clippy::cast_precision_loss)] // Reason: APQ hit/miss counters are display metrics; f64 precision loss is acceptable
+            #[allow(clippy::cast_precision_loss)]
+            // Reason: APQ hit/miss counters are display metrics; f64 precision loss is acceptable
             {
                 hits as f64 / (hits + misses) as f64
             }

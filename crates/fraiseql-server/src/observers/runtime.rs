@@ -667,7 +667,9 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         limit: i64,
     ) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
         let items = self.items.lock().expect("items mutex poisoned");
-        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // Reason: limit is a user-supplied i64 clamped to a small positive range; negative values wrap to 0 safely
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        // Reason: limit is a user-supplied i64 clamped to a small positive range; negative values
+        // wrap to 0 safely
         let limit_usize = limit as usize;
         Ok(items.iter().take(limit_usize).cloned().collect())
     }

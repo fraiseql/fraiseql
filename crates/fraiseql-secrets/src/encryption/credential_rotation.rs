@@ -119,7 +119,13 @@ impl KeyVersionMetadata {
         if total_ttl.num_seconds() <= 0 {
             100
         } else {
-            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: i64→f64 precision loss negligible for TTL seconds; f64→u32 safe because result clamped to [0, 100]
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
+            // Reason: i64→f64 precision loss negligible for TTL seconds; f64→u32 safe because
+            // result clamped to [0, 100]
             let percent = ((elapsed.num_seconds() as f64 / total_ttl.num_seconds() as f64) * 100.0)
                 .min(100.0) as u32;
             percent
@@ -285,7 +291,13 @@ impl RotationMetrics {
         } else {
             let failed = self.failed_rotations();
             let successful = total - failed;
-            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: u64→f64 precision loss negligible for rotation counts; f64→u32 safe because result in [0, 100]
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
+            // Reason: u64→f64 precision loss negligible for rotation counts; f64→u32 safe because
+            // result in [0, 100]
             {
                 ((successful as f64 / total as f64) * 100.0) as u32
             }
@@ -422,7 +434,10 @@ impl VersionedKeyStorage {
     /// Get next version number
     pub fn next_version_number(&self) -> KeyVersion {
         let next = self.next_version.fetch_add(1, Ordering::Relaxed);
-        #[allow(clippy::cast_possible_truncation)] // Reason: version numbers are sequential starting from 1; wrapping at u16::MAX is acceptable for this metadata tracker — 65 535 rotations is far beyond any realistic deployment lifetime.
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: version numbers are sequential starting from 1; wrapping at u16::MAX is
+        // acceptable for this metadata tracker — 65 535 rotations is far beyond any realistic
+        // deployment lifetime.
         let version = next as KeyVersion;
         version
     }
@@ -503,7 +518,9 @@ impl CredentialRotationManager {
         self.storage.add_version(metadata)?;
         self.storage.set_current_version(new_version)?;
 
-        #[allow(clippy::cast_possible_truncation)] // Reason: key rotation completes in microseconds; u128→u64 truncation is impossible for any realistic elapsed time.
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: key rotation completes in microseconds; u128→u64 truncation is impossible for any
+        // realistic elapsed time.
         let duration_ms = start.elapsed().as_millis() as u64;
         self.metrics.record_rotation(duration_ms);
 

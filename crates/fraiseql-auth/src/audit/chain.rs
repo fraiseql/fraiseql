@@ -42,7 +42,8 @@ type HmacSha256 = Hmac<Sha256>;
 ///
 /// A 32-byte raw HMAC-SHA256 output.
 fn compute_chain_hash(prev_hash: &[u8; 32], entry_json: &str) -> [u8; 32] {
-    #[allow(clippy::unwrap_used)] // Reason: HmacSha256::new_from_slice only fails on empty keys; 32-byte array is always valid
+    #[allow(clippy::unwrap_used)]
+    // Reason: HmacSha256::new_from_slice only fails on empty keys; 32-byte array is always valid
     let mut mac = HmacSha256::new_from_slice(prev_hash)
         .expect("HMAC-SHA256 accepts any non-empty key length");
     mac.update(entry_json.as_bytes());

@@ -159,7 +159,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        #[allow(unused_variables)] // Reason: used inside #[cfg(feature = "observers")] block; unused when feature is off
+        #[allow(unused_variables)]
+        // Reason: used inside #[cfg(feature = "observers")] block; unused when feature is off
         db_pool: Option<sqlx::PgPool>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {

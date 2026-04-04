@@ -454,7 +454,8 @@ impl PkceStateStore {
 mod tests {
     use std::time::Duration;
 
-    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
     use crate::state_encryption::{EncryptionAlgorithm, StateEncryptionService};
 

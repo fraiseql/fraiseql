@@ -314,7 +314,8 @@ mod tests {
         matchers::{method, path},
     };
 
-    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     fn jwks_fixture() -> serde_json::Value {

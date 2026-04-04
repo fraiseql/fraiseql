@@ -18,7 +18,8 @@ use fraiseql_wire::client::FraiseClient;
 
 /// Shared container info for all auth tests.
 struct AuthContainer {
-    #[allow(dead_code)] // Reason: container held alive to keep Docker container running for test duration
+    #[allow(dead_code)]
+    // Reason: container held alive to keep Docker container running for test duration
     container: ContainerAsync<Postgres>,
     port: u16,
 }

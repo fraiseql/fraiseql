@@ -15,7 +15,8 @@ use super::key::{PathRateLimit, path_matches_rule};
 /// Clamps to a minimum of 1 second.
 #[cfg(feature = "redis-rate-limiting")]
 fn retry_after_ms_to_secs(ms: u64) -> u32 {
-    #[allow(clippy::cast_possible_truncation)] // Reason: retry-after seconds fit comfortably in u32; clamped to >=1
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: retry-after seconds fit comfortably in u32; clamped to >=1
     let secs = ms.div_ceil(1000).max(1) as u32;
     secs
 }
@@ -176,7 +177,8 @@ impl RedisRateLimiter {
             self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()))
         {
             if rule.tokens_per_sec > 0.0 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: ceil(1/tokens_per_sec) is always a small positive integer
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Reason: ceil(1/tokens_per_sec) is always a small positive integer
                 return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
             }
         }
@@ -215,7 +217,8 @@ impl RedisRateLimiter {
         rate_per_sec: f64,
     ) -> Result<RedisRateLimitResult, redis::RedisError> {
         let sha = self.load_script().await?;
-        #[allow(clippy::cast_possible_truncation)] // Reason: Unix-epoch millis won't exceed u64::MAX until year 584 million
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: Unix-epoch millis won't exceed u64::MAX until year 584 million
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -226,7 +229,8 @@ impl RedisRateLimiter {
         // Convert to milli-token precision so fractional rates (e.g. 0.167 req/s)
         // are not truncated.  Minimum rate_millis = 1 (0.001 req/s) to avoid /0.
         let capacity_millis = u64::from(capacity) * 1000;
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: rate_per_sec is a small positive config value; product fits in u64
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Reason: rate_per_sec is a small positive config value; product fits in u64
         let rate_millis = ((rate_per_sec * 1000.0) as u64).max(1);
 
         let do_evalsha = |sha: &str| {
@@ -318,7 +322,9 @@ impl RedisRateLimiter {
         };
         let key = format!("fraiseql:rl:path:{}:{ip}", rule.path_prefix);
         // Capacity must be >= 1 (milli-token precision handles sub-1 rates).
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: burst is a small positive config value; truncation/sign loss impossible in practice
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Reason: burst is a small positive config value; truncation/sign loss impossible in
+        // practice
         let capacity = (rule.burst as u32).max(1);
         let (allowed, remaining, retry_after_ms) =
             self.check_key(&key, capacity, rule.tokens_per_sec).await;

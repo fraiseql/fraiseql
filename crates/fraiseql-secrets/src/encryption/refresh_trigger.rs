@@ -244,7 +244,13 @@ impl RefreshTrigger {
         } else {
             let failed = self.failed_refreshes();
             let successful = total - failed;
-            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: computing a percentage (0–100) from counters; precision loss and truncation are acceptable for a human-readable metric
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
+            // Reason: computing a percentage (0–100) from counters; precision loss and truncation
+            // are acceptable for a human-readable metric
             {
                 ((successful as f64 / total as f64) * 100.0) as u32
             }

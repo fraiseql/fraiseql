@@ -212,7 +212,8 @@ pub async fn rate_limit_middleware(
     if let Ok(limit_value) = format!("{limit}").parse() {
         response.headers_mut().insert("X-RateLimit-Limit", limit_value);
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: remaining tokens is a small non-negative count that fits in u32
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // Reason: remaining tokens is a small non-negative count that fits in u32
     if let Ok(remaining_value) = format!("{}", remaining as u32).parse() {
         response.headers_mut().insert("X-RateLimit-Remaining", remaining_value);
     }

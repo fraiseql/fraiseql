@@ -305,7 +305,8 @@ mod integration_security {
         // All timings should be approximately equal (within variance)
         let max_time = timings.iter().map(|(_, t)| t).max().copied().unwrap_or(0);
         let min_time = timings.iter().map(|(_, t)| t).min().copied().unwrap_or(0);
-        #[allow(clippy::cast_precision_loss)] // Reason: precision loss acceptable for timing variance percentage in tests
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: precision loss acceptable for timing variance percentage in tests
         let variance = if max_time > 0 {
             ((max_time - min_time) as f64 / max_time as f64) * 100.0
         } else {

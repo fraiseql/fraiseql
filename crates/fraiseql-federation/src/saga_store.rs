@@ -713,7 +713,8 @@ impl PostgresSagaStore {
         // Note: step.order is casted to i32 for PostgreSQL storage.
         // In practice, sagas rarely exceed 2 billion steps, so this is safe.
         #[allow(clippy::cast_possible_wrap)] // Reason: value is non-negative; wrap cannot occur in practice
-        #[allow(clippy::cast_possible_truncation)] // Reason: step count bounded well below i32::MAX
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: step count bounded well below i32::MAX
         let step_number = step.order as i32;
 
         // Use subquery to convert saga natural key (UUID) to surrogate key (BIGINT) for foreign key

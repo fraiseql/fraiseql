@@ -491,7 +491,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let op_name = request.operation_name.as_deref().unwrap_or("");
     let result = exec_result.map_err(|e| {
         let elapsed = start_time.elapsed();
-        #[allow(clippy::cast_possible_truncation)] // Reason: microsecond counter cannot exceed u64 in any practical uptime
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: microsecond counter cannot exceed u64 in any practical uptime
         let elapsed_us = elapsed.as_micros() as u64;
         error!(
             error = %e,
@@ -509,7 +510,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     })?;
 
     let elapsed = start_time.elapsed();
-    #[allow(clippy::cast_possible_truncation)] // Reason: microsecond counter cannot exceed u64 in any practical uptime
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: microsecond counter cannot exceed u64 in any practical uptime
     let elapsed_us = elapsed.as_micros() as u64;
 
     // Record successful query metrics

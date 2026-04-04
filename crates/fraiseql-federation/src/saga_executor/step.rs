@@ -161,7 +161,8 @@ impl SagaExecutor {
 
             info!(saga_id = %saga_id, step = step_number, "Step transitioned to Completed");
 
-            #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: duration millis won't exceed u64 in practice
             let duration_ms = start_time.elapsed().as_millis() as u64;
 
             let result = StepExecutionResult {
@@ -184,7 +185,8 @@ impl SagaExecutor {
             // No store available - return placeholder success for testing
             debug!("No saga store available - returning placeholder result");
 
-            #[allow(clippy::cast_possible_truncation)] // Reason: duration millis won't exceed u64 in practice
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: duration millis won't exceed u64 in practice
             let duration_ms = start_time.elapsed().as_millis() as u64;
 
             let result = StepExecutionResult {

@@ -114,13 +114,15 @@ pub mod postgres {
             let mut param_index = 2;
 
             if start_date.is_some() {
-                #[allow(clippy::format_push_string)] // Reason: push_str with format! is clearer than write!() in this context
+                #[allow(clippy::format_push_string)]
+                // Reason: push_str with format! is clearer than write!() in this context
                 query_str.push_str(&format!(" AND timestamp >= ${param_index}"));
                 param_index += 1;
             }
 
             if end_date.is_some() {
-                #[allow(clippy::format_push_string)] // Reason: push_str with format! is clearer than write!() in this context
+                #[allow(clippy::format_push_string)]
+                // Reason: push_str with format! is clearer than write!() in this context
                 query_str.push_str(&format!(" AND timestamp <= ${param_index}"));
             }
 
@@ -128,7 +130,8 @@ pub mod postgres {
             query_str.push_str(" ORDER BY timestamp DESC");
 
             if let Some(lim) = limit {
-                #[allow(clippy::format_push_string)] // Reason: push_str with format! is clearer than write!() in this context
+                #[allow(clippy::format_push_string)]
+                // Reason: push_str with format! is clearer than write!() in this context
                 query_str.push_str(&format!(" LIMIT {lim}"));
             }
 
@@ -205,13 +208,15 @@ pub mod postgres {
             let mut param_index = 2;
 
             if start_date.is_some() {
-                #[allow(clippy::format_push_string)] // Reason: push_str with format! is clearer than write!() in this context
+                #[allow(clippy::format_push_string)]
+                // Reason: push_str with format! is clearer than write!() in this context
                 query_str.push_str(&format!(" AND timestamp >= ${param_index}"));
                 param_index += 1;
             }
 
             if end_date.is_some() {
-                #[allow(clippy::format_push_string)] // Reason: push_str with format! is clearer than write!() in this context
+                #[allow(clippy::format_push_string)]
+                // Reason: push_str with format! is clearer than write!() in this context
                 query_str.push_str(&format!(" AND timestamp <= ${param_index}"));
             }
 

@@ -153,7 +153,9 @@ impl TokenRefreshWorker {
                 Ok(Some(new_expiry)) => {
                     // Re-schedule at 80% of the remaining time
                     let remaining = new_expiry - Utc::now();
-                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)] // Reason: intentional 80% f64 scaling; sub-second precision loss acceptable for scheduling
+                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                    // Reason: intentional 80% f64 scaling; sub-second precision loss acceptable for
+                    // scheduling
                     let next_refresh_secs = (remaining.num_seconds() as f64 * 0.8) as i64;
                     let next_refresh = Utc::now() + Duration::seconds(next_refresh_secs);
                     if let Err(e) =

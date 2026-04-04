@@ -107,7 +107,8 @@ mod tests {
         fn require_send<T: Send>() {}
 
         // Dummy values just for type checking - never executed
-        #[allow(unreachable_code)] // Reason: closure body is intentionally unreachable; exists only for compile-time type checking
+        #[allow(unreachable_code)]
+        // Reason: closure body is intentionally unreachable; exists only for compile-time type checking
         let _ = || {
             // These would be checked at compile time if instantiated
             require_send::<

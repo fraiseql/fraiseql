@@ -45,7 +45,8 @@ use std::collections::HashMap;
 
 // Common test utilities
 mod common;
-#[allow(unused_imports)] // Reason: shared harness re-exports many symbols; saga tests use a subset
+#[allow(unused_imports)]
+// Reason: shared harness re-exports many symbols; saga tests use a subset
 use common::{SagaStepDef, SagaStepResult, TestSagaExecutor};
 
 // ============================================================================

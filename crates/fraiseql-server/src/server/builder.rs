@@ -197,7 +197,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
     /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
-    #[allow(clippy::too_many_arguments)] // Reason: internal constructor collects all pre-built subsystems; a builder struct would not reduce call-site clarity
+    #[allow(clippy::too_many_arguments)]
+    // Reason: internal constructor collects all pre-built subsystems; a builder struct would not
+    // reduce call-site clarity
     #[allow(clippy::cognitive_complexity)] // Reason: internal constructor that assembles server from pre-built subsystems
     pub(super) async fn from_executor(
         config: ServerConfig,

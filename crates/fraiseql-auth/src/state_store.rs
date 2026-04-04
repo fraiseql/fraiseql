@@ -262,7 +262,8 @@ impl StateStore for RedisStateStore {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     #[tokio::test]

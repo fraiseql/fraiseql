@@ -147,7 +147,8 @@ impl AggregationSqlGenerator {
                 column, function, ..
             } => {
                 // Handle statistical functions with database-specific SQL
-                #[allow(clippy::enum_glob_use)] // Reason: glob import reduces noise in exhaustive match arms
+                #[allow(clippy::enum_glob_use)]
+                // Reason: glob import reduces noise in exhaustive match arms
                 use AggregateFunction::*;
                 match function {
                     Stddev => Ok(self.generate_stddev_sql(column)),
@@ -181,7 +182,8 @@ impl AggregationSqlGenerator {
         delimiter: Option<&str>,
         order_by: Option<&Vec<OrderByClause>>,
     ) -> Result<String> {
-        #[allow(clippy::enum_glob_use)] // Reason: glob import reduces noise in exhaustive match arms
+        #[allow(clippy::enum_glob_use)]
+        // Reason: glob import reduces noise in exhaustive match arms
         use AggregateFunction::*;
 
         match function {
@@ -326,7 +328,8 @@ impl AggregationSqlGenerator {
         order_by
             .iter()
             .map(|clause| {
-                #[allow(clippy::match_same_arms)] // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
+                #[allow(clippy::match_same_arms)]
+                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let direction = match clause.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
@@ -436,7 +439,8 @@ impl AggregationSqlGenerator {
         let clauses: Vec<String> = order_by
             .iter()
             .map(|clause| {
-                #[allow(clippy::match_same_arms)] // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
+                #[allow(clippy::match_same_arms)]
+                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let direction = match clause.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",

@@ -622,7 +622,9 @@ impl AggregateQueryParser {
 
         if let Some(obj) = order_obj.as_object() {
             for (field, value) in obj {
-                #[allow(clippy::match_same_arms)] // Reason: explicit ASC arm documents accepted values; wildcard handles malformed input
+                #[allow(clippy::match_same_arms)]
+                // Reason: explicit ASC arm documents accepted values; wildcard handles malformed
+                // input
                 let direction = match value.as_str() {
                     Some("ASC" | "asc") => OrderDirection::Asc,
                     Some("DESC" | "desc") => OrderDirection::Desc,

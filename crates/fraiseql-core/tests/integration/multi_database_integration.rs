@@ -28,13 +28,16 @@
 use std::sync::Arc;
 
 #[cfg(feature = "mysql")]
-#[allow(unused_imports)] // Reason: imported by conditional feature gate; used when test-mysql is enabled
+#[allow(unused_imports)]
+// Reason: imported by conditional feature gate; used when test-mysql is enabled
 use fraiseql_core::db::mysql::MySqlAdapter;
 #[cfg(feature = "sqlite")]
-#[allow(unused_imports)] // Reason: imported by conditional feature gate; used when test-sqlite is enabled
+#[allow(unused_imports)]
+// Reason: imported by conditional feature gate; used when test-sqlite is enabled
 use fraiseql_core::db::sqlite::SqliteAdapter;
 #[cfg(feature = "sqlserver")]
-#[allow(unused_imports)] // Reason: imported by conditional feature gate; used when test-sqlserver is enabled
+#[allow(unused_imports)]
+// Reason: imported by conditional feature gate; used when test-sqlserver is enabled
 use fraiseql_core::db::sqlserver::SqlServerAdapter;
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
 use fraiseql_core::db::traits::DatabaseAdapter;
@@ -42,7 +45,8 @@ use fraiseql_core::db::traits::DatabaseAdapter;
 use fraiseql_core::db::types::DatabaseType;
 // Note: WhereClause and WhereOperator available for future WHERE tests
 #[cfg(any(feature = "mysql", feature = "sqlite", feature = "sqlserver"))]
-#[allow(unused_imports)] // Reason: WhereClause/WhereOperator reserved for future WHERE-clause tests; feature-gated
+#[allow(unused_imports)]
+// Reason: WhereClause/WhereOperator reserved for future WHERE-clause tests; feature-gated
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 
 // ============================================================================

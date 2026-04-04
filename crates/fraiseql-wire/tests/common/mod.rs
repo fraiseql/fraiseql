@@ -23,7 +23,8 @@ static CONTAINER: OnceCell<Arc<TestContainer>> = OnceCell::const_new();
 
 /// Wrapper around the PostgreSQL container with connection info.
 pub struct TestContainer {
-    #[allow(dead_code)] // Reason: container held alive to keep Docker container running for test duration
+    #[allow(dead_code)]
+    // Reason: container held alive to keep Docker container running for test duration
     container: ContainerAsync<Postgres>,
     pub port: u16,
     pub user: String,

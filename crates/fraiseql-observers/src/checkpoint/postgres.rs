@@ -33,7 +33,8 @@ impl PostgresCheckpointStore {
 #[async_trait::async_trait]
 impl CheckpointStore for PostgresCheckpointStore {
     async fn load(&self, listener_id: &str) -> Result<Option<CheckpointState>> {
-        #[allow(clippy::cast_possible_wrap)] // Reason: value is non-negative; wrap cannot occur in practice
+        #[allow(clippy::cast_possible_wrap)]
+        // Reason: value is non-negative; wrap cannot occur in practice
         let record = sqlx::query_as::<_, (String, i64, chrono::DateTime<Utc>, i32, i32)>(
             r"
             SELECT listener_id, last_processed_id, last_processed_at, batch_size, event_count
@@ -46,7 +47,8 @@ impl CheckpointStore for PostgresCheckpointStore {
         .await?;
 
         Ok(record.map(
-            #[allow(clippy::cast_sign_loss)] // Reason: batch_size and event_count are validated non-negative from DB
+            #[allow(clippy::cast_sign_loss)]
+            // Reason: batch_size and event_count are validated non-negative from DB
             |(listener_id, last_processed_id, last_processed_at, batch_size, event_count)| {
                 CheckpointState {
                     listener_id,

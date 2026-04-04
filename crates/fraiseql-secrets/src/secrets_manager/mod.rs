@@ -240,7 +240,8 @@ impl LeaseRenewalTask {
                     let remaining = expiry - Utc::now();
                     // Refresh if less than one full check interval remains,
                     // ensuring renewal completes before the next poll would be too late.
-                    #[allow(clippy::cast_possible_wrap)] // Reason: check_interval is always small (seconds), never exceeds i64::MAX
+                    #[allow(clippy::cast_possible_wrap)]
+                    // Reason: check_interval is always small (seconds), never exceeds i64::MAX
                     if remaining < chrono::Duration::seconds(self.check_interval.as_secs() as i64) {
                         match self.manager.rotate_secret(key).await {
                             Ok(_) => info!(key = %key, "Lease renewed"),

@@ -279,7 +279,8 @@ impl ElasticsearchSink {
                         last_error = Some(e);
 
                         if attempt < self.config.max_retries {
-                            #[allow(clippy::cast_possible_truncation)] // Reason: attempt count is small, fits in u32
+                            #[allow(clippy::cast_possible_truncation)]
+                            // Reason: attempt count is small, fits in u32
                             let backoff = std::time::Duration::from_millis(
                                 100_u64
                                     .saturating_mul(2_u64.saturating_pow(attempt as u32))

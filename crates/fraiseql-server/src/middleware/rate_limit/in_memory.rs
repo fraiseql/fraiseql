@@ -106,7 +106,8 @@ impl InMemoryRateLimiter {
             CheckResult::allow(remaining)
         } else {
             debug!(ip = ip, path = path, "Per-path rate limit exceeded");
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: ceil(1/tokens_per_sec) is always a small positive integer
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            // Reason: ceil(1/tokens_per_sec) is always a small positive integer
             let retry = if tokens_per_sec > 0.0 {
                 ((1.0_f64 / tokens_per_sec).ceil() as u32).max(1)
             } else {
@@ -141,7 +142,8 @@ impl InMemoryRateLimiter {
         } else {
             debug!(ip = ip, "Rate limit exceeded for IP");
             let rps = self.config.rps_per_ip;
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: ceil(1/rps) is always a small positive integer
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            // Reason: ceil(1/rps) is always a small positive integer
             let retry = if rps == 0 {
                 1
             } else {
@@ -171,7 +173,8 @@ impl InMemoryRateLimiter {
         } else {
             debug!(user_id = user_id, "Rate limit exceeded for user");
             let rps = self.config.rps_per_user;
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: ceil(1/rps) is always a small positive integer
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            // Reason: ceil(1/rps) is always a small positive integer
             let retry = if rps == 0 {
                 1
             } else {
@@ -241,7 +244,8 @@ impl InMemoryRateLimiter {
         if let Some(rule) = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix))
         {
             if rule.tokens_per_sec > 0.0 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: ceil(1/tokens_per_sec) is always a small positive integer
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Reason: ceil(1/tokens_per_sec) is always a small positive integer
                 return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
             }
         }

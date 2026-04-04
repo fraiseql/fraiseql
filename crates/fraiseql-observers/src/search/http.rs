@@ -475,7 +475,8 @@ mod tests {
     async fn test_search_parses_hits_from_response() {
         use uuid::Uuid;
 
-        #[allow(unused_imports)] // Reason: import is conditionally used depending on feature flags
+        #[allow(unused_imports)]
+        // Reason: import is conditionally used depending on feature flags
         use super::super::IndexedEvent;
 
         let mock = MockServer::start().await;

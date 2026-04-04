@@ -475,7 +475,8 @@ impl DashboardSnapshot {
         }
 
         let total: u32 = self.key_cards.iter().map(|c| c.urgency_score).sum();
-        #[allow(clippy::cast_possible_truncation)] // Reason: key_cards.len() is always small (number of encryption keys)
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: key_cards.len() is always small (number of encryption keys)
         let len = self.key_cards.len() as u32;
         total / len
     }

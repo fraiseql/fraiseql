@@ -215,13 +215,15 @@ mod constant_time_comparison {
         let mut token1 = vec![0u8; 256];
         let mut token2 = vec![0u8; 256];
         for (i, t) in token1.iter_mut().enumerate() {
-            #[allow(clippy::cast_possible_truncation)] // Reason: vec length is 256 so i is always 0..=255
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: vec length is 256 so i is always 0..=255
             {
                 *t = i as u8;
             }
         }
         for (i, t) in token2.iter_mut().enumerate() {
-            #[allow(clippy::cast_possible_truncation)] // Reason: vec length is 256 so i is always 0..=255
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: vec length is 256 so i is always 0..=255
             {
                 *t = i as u8;
             }
@@ -238,7 +240,8 @@ mod constant_time_comparison {
 
     #[test]
     fn test_very_long_tokens() {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: i % 256 is always 0..=255 for non-negative i32, both casts safe
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // Reason: i % 256 is always 0..=255 for non-negative i32, both casts safe
         let token1: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
         let token2 = token1.clone();
         let mut token3 = token1.clone();
