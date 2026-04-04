@@ -1239,6 +1239,10 @@ mod mysql_mutation_tests {
             .expect("stored procedure call must succeed");
         // Procedure returns one row with id and name
         assert!(!result.is_empty(), "INSERT must return the new row");
+        eprintln!("[DIAG] procedure returned {} rows", result.len());
+        for (i, r) in result.iter().enumerate() {
+            eprintln!("[DIAG] row[{i}] = {r:?}");
+        }
         let row = &result[0];
         assert!(row.contains_key("id"), "returned row must have id");
         let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
