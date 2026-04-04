@@ -147,7 +147,7 @@ impl ObserverExecutor {
     ///
     /// # async fn example() -> fraiseql_observers::Result<()> {
     /// let matcher = EventMatcher::new();
-    /// # let dlq: Arc<dyn DeadLetterQueue> = unimplemented!();
+    /// # let dlq: Arc<dyn DeadLetterQueue> = panic!("example");
     /// let executor = ObserverExecutor::new(matcher, dlq);
     ///
     /// let transport = Arc::new(InMemoryTransport::new());

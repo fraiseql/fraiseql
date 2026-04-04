@@ -176,8 +176,8 @@ export const author = query("author", {
 #[test]
 fn test_rust_extractor() {
     // This fixture represents the stub code that `fraiseql generate` emits for Rust users.
-    // The `unimplemented!()` bodies are intentional — FraiseQL Rust SDK functions are
-    // authoring constructs (compile-time decorators); their bodies are never called.
+    // The stub bodies are intentional — FraiseQL Rust SDK functions are authoring
+    // constructs (compile-time decorators); their bodies are never called.
     // The extractor must correctly parse this generated stub pattern.
     let source = r#"
 use fraiseql::{type_, query};
@@ -192,12 +192,12 @@ pub struct Author {
 
 #[query(return_type = "Author", return_array = true, sql_source = "v_author")]
 pub fn authors() -> Vec<Author> {
-    unimplemented!() // fraiseql-generated stub body — intentional
+    panic!("fraiseql-generated stub body")
 }
 
 #[query(return_type = "Author", sql_source = "v_author")]
 pub fn author(id: ID) -> Author {
-    unimplemented!() // fraiseql-generated stub body — intentional
+    panic!("fraiseql-generated stub body")
 }
 "#;
     let result = RustExtractor.extract(source).unwrap();

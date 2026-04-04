@@ -31,9 +31,9 @@
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> fraiseql_observers::Result<()> {
-//! # let config: ObserverRuntimeConfig = unimplemented!();
-//! # let dlq: Arc<dyn DeadLetterQueue> = unimplemented!();
-//! # let event: EntityEvent = unimplemented!();
+//! # let config: ObserverRuntimeConfig = panic!("example");
+//! # let dlq: Arc<dyn DeadLetterQueue> = panic!("example");
+//! # let event: EntityEvent = panic!("example");
 //!
 //! // Build executor stack (automatically wraps based on config)
 //! let executor_stack = ExecutorFactory::build(&config, dlq).await?;

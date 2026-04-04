@@ -469,7 +469,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         col_type: &RowViewColumnType,
     ) -> String {
         let _ = (json_column, field_name, col_type);
-        unimplemented!("{} dialect has not implemented row_view_column_expr", self.name())
+        panic!("{} dialect has not implemented row_view_column_expr", self.name())
     }
 
     /// Generate the full DDL statement(s) to create a row-shaped view.

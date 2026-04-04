@@ -73,7 +73,7 @@ pub type DatabaseResult<T> = Result<T, DatabaseError>;
 ///         sql: &str,
 ///     ) -> DatabaseResult<Vec<HashMap<String, serde_json::Value>>> {
 ///         // Execute SQL and return rows as JSON maps
-///         todo!("connect to database and execute: {}", sql)
+///         panic!("connect to database and execute: {}", sql)
 ///     }
 /// }
 /// ```

@@ -61,7 +61,7 @@ pub type BoxDynTransportAdapter = Box<dyn TransportAdapter>;
 /// };
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// # let event: SubscriptionEvent = unimplemented!();
+/// # let event: SubscriptionEvent = panic!("example");
 /// let mut manager = TransportManager::new();
 ///
 /// // Add webhook adapter

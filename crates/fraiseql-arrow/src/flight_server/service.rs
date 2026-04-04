@@ -99,7 +99,7 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
     /// # }
     /// // In production, create a real PostgresAdapter from fraiseql-core
     /// // and wrap it to implement the local ArrowDatabaseAdapter trait
@@ -148,7 +148,7 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
     /// # }
     /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     /// let service = FraiseQLFlightService::new_with_cache(db_adapter, 60); // 60-second cache
@@ -201,11 +201,11 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
     /// # }
     /// // Create your adapter and OIDC validator for JWT authentication
     /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
-    /// # let config: OidcConfig = unimplemented!();
+    /// # let config: OidcConfig = panic!("example stub");
     /// let validator: Arc<OidcValidator> = Arc::new(OidcValidator::new(config).await?);
     /// let service = FraiseQLFlightService::new_with_auth(
     ///     db_adapter,
@@ -274,7 +274,7 @@ impl FraiseQLFlightService {
     /// # struct MyAdapter;
     /// # #[async_trait::async_trait]
     /// # impl ArrowDatabaseAdapter for MyAdapter {
-    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { unimplemented!() }
+    /// #     async fn execute_raw_query(&self, _sql: &str) -> fraiseql_arrow::db::DatabaseResult<Vec<std::collections::HashMap<String, serde_json::Value>>> { panic!("example stub") }
     /// # }
     /// let db_adapter: Arc<dyn ArrowDatabaseAdapter> = Arc::new(MyAdapter);
     /// let mut service = FraiseQLFlightService::new_with_db(db_adapter.clone());
@@ -343,7 +343,7 @@ impl FraiseQLFlightService {
     /// # struct MyExecutor;
     /// # #[async_trait::async_trait]
     /// # impl QueryExecutor for MyExecutor {
-    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<String, String> { unimplemented!() }
+    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<String, String> { panic!("example stub") }
     /// # }
     /// let executor: Arc<dyn QueryExecutor> = Arc::new(MyExecutor);
     /// service.set_executor(executor);
@@ -382,8 +382,8 @@ impl FraiseQLFlightService {
     /// # struct MyEventStorage;
     /// # #[async_trait::async_trait]
     /// # impl ArrowEventStorage for MyEventStorage {
-    /// #     async fn query_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>, _limit: Option<usize>) -> Result<Vec<HistoricalEvent>, String> { unimplemented!() }
-    /// #     async fn count_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>) -> Result<usize, String> { unimplemented!() }
+    /// #     async fn query_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>, _limit: Option<usize>) -> Result<Vec<HistoricalEvent>, String> { panic!("example stub") }
+    /// #     async fn count_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>) -> Result<usize, String> { panic!("example stub") }
     /// # }
     /// // Provide your ArrowEventStorage implementation (e.g., backed by a database or Redis)
     /// let storage: Arc<dyn ArrowEventStorage> = Arc::new(MyEventStorage);

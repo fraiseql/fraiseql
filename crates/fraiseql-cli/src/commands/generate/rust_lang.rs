@@ -105,5 +105,5 @@ fn generate_rust_query(out: &mut String, query: &IntermediateQuery) {
     // Emit a stub body. FraiseQL Rust SDK functions are authoring constructs
     // (compile-time decorators) — their bodies are never called at runtime.
     // Users may leave the stub in place or replace it with their own logic.
-    out.push_str("    todo!(\"TODO: implement this resolver before deploying\")\n}\n\n");
+    out.push_str("    panic!(\"implement this resolver before deploying\")\n}\n\n");
 }

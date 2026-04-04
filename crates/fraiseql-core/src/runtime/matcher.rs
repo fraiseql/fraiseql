@@ -127,7 +127,7 @@ impl QueryMatcher {
     /// # use fraiseql_core::runtime::QueryMatcher;
     /// # use fraiseql_error::Result;
     /// # fn example() -> Result<()> {
-    /// # let schema: CompiledSchema = unimplemented!();
+    /// # let schema: CompiledSchema = panic!("example");
     /// let matcher = QueryMatcher::new(schema);
     /// let query = "query { users { id name } }";
     /// let matched = matcher.match_query(query, None)?;

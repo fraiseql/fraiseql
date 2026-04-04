@@ -101,7 +101,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # use fraiseql_core::runtime::Executor;
     /// # use std::sync::Arc;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let schema: CompiledSchema = unimplemented!();
+    /// # let schema: CompiledSchema = panic!("example");
     /// # let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # let executor = Executor::new(schema, Arc::new(adapter));
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });

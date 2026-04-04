@@ -141,7 +141,7 @@ impl WebhookPayload {
 /// };
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// # let event: SubscriptionEvent = unimplemented!();
+/// # let event: SubscriptionEvent = panic!("example");
 /// let config = WebhookTransportConfig::new("https://api.example.com/webhooks")
 ///     .with_secret("my_secret_key")
 ///     .with_max_retries(3);

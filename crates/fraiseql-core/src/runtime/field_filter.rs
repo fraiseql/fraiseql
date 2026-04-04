@@ -86,9 +86,9 @@ pub fn classify_field_access(
 /// # use fraiseql_core::schema::SecurityConfig;
 /// # use fraiseql_core::schema::FieldDefinition;
 /// # use fraiseql_core::runtime::field_filter::filter_fields;
-/// # let context: SecurityContext = unimplemented!();
-/// # let config: SecurityConfig = unimplemented!();
-/// # let all_fields: Vec<FieldDefinition> = unimplemented!();
+/// # let context: SecurityContext = panic!("example");
+/// # let config: SecurityConfig = panic!("example");
+/// # let all_fields: Vec<FieldDefinition> = panic!("example");
 /// let accessible = filter_fields(&context, &config, &all_fields);
 /// ```
 pub fn filter_fields<'a>(

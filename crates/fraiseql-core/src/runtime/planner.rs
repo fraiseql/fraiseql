@@ -79,7 +79,7 @@ impl QueryPlanner {
     /// # use fraiseql_core::schema::CompiledSchema;
     /// # use fraiseql_error::Result;
     /// # fn example() -> Result<()> {
-    /// # let schema: CompiledSchema = unimplemented!();
+    /// # let schema: CompiledSchema = panic!("example");
     /// # let query_match = QueryMatcher::new(schema).match_query("query{users{id}}", None)?;
     /// let planner = QueryPlanner::new(true);
     /// let plan = planner.plan(&query_match)?;

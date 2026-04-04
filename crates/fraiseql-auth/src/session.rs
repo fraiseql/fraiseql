@@ -63,16 +63,16 @@ pub struct TokenPair {
 /// #[async_trait]
 /// impl SessionStore for PostgresSessionStore {
 ///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 ///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<SessionData> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 ///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 ///     async fn revoke_all_sessions(&self, _user_id: &str) -> Result<()> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 /// }
 /// ```
@@ -91,16 +91,16 @@ pub struct TokenPair {
 /// #[async_trait]
 /// impl SessionStore for RedisSessionStore {
 ///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 ///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<SessionData> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 ///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 ///     async fn revoke_all_sessions(&self, _user_id: &str) -> Result<()> {
-///         unimplemented!()
+///         panic!("example stub")
 ///     }
 /// }
 /// ```
