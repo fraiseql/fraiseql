@@ -125,8 +125,7 @@ impl SupportsMutations for MockDatabaseAdapter {}
 
 /// Mock database adapter for mutation tests (returns empty results).
 pub struct MockMutationDatabaseAdapter {
-    #[allow(dead_code)]
-    // Reason: field held for potential state-inspection in future mutation tests
+    #[allow(dead_code)] // Reason: field held for potential state-inspection in future mutation tests
     data: HashMap<String, Vec<HashMap<String, Value>>>,
 }
 

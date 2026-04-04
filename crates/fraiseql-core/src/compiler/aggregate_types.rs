@@ -220,8 +220,7 @@ impl TemporalBucket {
     /// # Errors
     ///
     /// Returns error if bucket name is unknown
-    // Reason: returns `FraiseQLError` (schema-specific), not a `FromStr`-compatible error type.
-    #[allow(clippy::should_implement_trait)]
+    #[allow(clippy::should_implement_trait)] // Reason: returns FraiseQLError (schema-specific), not a FromStr-compatible error type
     pub fn from_str(s: &str) -> crate::error::Result<Self> {
         match s.to_lowercase().as_str() {
             "second" => Ok(Self::Second),

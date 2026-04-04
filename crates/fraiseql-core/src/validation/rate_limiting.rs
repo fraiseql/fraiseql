@@ -106,9 +106,7 @@ impl DimensionRateLimiter {
     }
 
     fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
-        #[allow(clippy::expect_used)]
-        // Reason: invariant holds at this point; panic would indicate a logic error
-        // Reason: MAX_RATE_LIMITER_ENTRIES is a non-zero compile-time constant.
+        #[allow(clippy::expect_used)] // Reason: MAX_RATE_LIMITER_ENTRIES is a non-zero compile-time constant
         let cap = NonZeroUsize::new(MAX_RATE_LIMITER_ENTRIES)
             .expect("MAX_RATE_LIMITER_ENTRIES must be > 0");
         Self {

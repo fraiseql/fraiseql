@@ -130,8 +130,7 @@ pub async fn execute(
                 metrics["observer_events_matched_total"]["value"].as_u64().unwrap_or(0)
             );
             {
-                #[allow(clippy::cast_precision_loss)]
-                // Reason: f64 precision is acceptable for metrics display
+                #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics display
                 let match_rate =
                     metrics["observer_events_matched_total"]["value"].as_u64().unwrap_or(0) as f64
                         / metrics["observer_events_processed_total"]["value"].as_u64().unwrap_or(1)
@@ -149,8 +148,7 @@ pub async fn execute(
                     .red()
             );
             {
-                #[allow(clippy::cast_precision_loss)]
-                // Reason: f64 precision is acceptable for metrics display
+                #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for metrics display
                 let failure_rate =
                     metrics["observer_actions_failed_total"]["value"].as_u64().unwrap_or(0) as f64
                         / metrics["observer_actions_executed_total"]["value"].as_u64().unwrap_or(1)

@@ -31,8 +31,7 @@ fn grpc_frame(msg_bytes: &[u8]) -> Bytes {
     let len = msg_bytes.len();
     let mut framed = Vec::with_capacity(5 + len);
     framed.push(0); // no compression
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: individual protobuf messages won't exceed u32::MAX
+    #[allow(clippy::cast_possible_truncation)] // Reason: individual protobuf messages won't exceed u32::MAX
     framed.extend_from_slice(&(len as u32).to_be_bytes());
     framed.extend_from_slice(msg_bytes);
     Bytes::from(framed)

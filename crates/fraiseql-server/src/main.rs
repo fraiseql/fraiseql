@@ -369,9 +369,7 @@ async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAd
 #[cfg(feature = "observers")]
 async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
     use sqlx::postgres::PgPoolOptions;
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: value is bounded; truncation cannot occur in practice
-    // Reason: pool sizes are always ≪ u32::MAX in practice
+    #[allow(clippy::cast_possible_truncation)] // Reason: pool sizes are always far below u32::MAX in practice
     let pool = PgPoolOptions::new()
         .min_connections(config.pool_min_size as u32)
         .max_connections(config.pool_max_size as u32)

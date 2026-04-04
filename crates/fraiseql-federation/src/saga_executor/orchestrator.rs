@@ -78,8 +78,7 @@ impl SagaExecutor {
             match self
                 .execute_step(
                     saga_id,
-                    #[allow(clippy::cast_possible_truncation)]
-                    // Reason: step count is bounded well below u32::MAX
+                    #[allow(clippy::cast_possible_truncation)] // Reason: step count is bounded well below u32::MAX
                     {
                         step.order as u32
                     },
@@ -185,16 +184,13 @@ impl SagaExecutor {
                     e
                 })?;
 
-                #[allow(clippy::cast_possible_truncation)]
-                // Reason: step count is bounded well below u32::MAX
+                #[allow(clippy::cast_possible_truncation)] // Reason: step count is bounded well below u32::MAX
                 let total = steps.len() as u32;
-                #[allow(clippy::cast_possible_truncation)]
-                // Reason: step count is bounded well below u32::MAX
+                #[allow(clippy::cast_possible_truncation)] // Reason: step count is bounded well below u32::MAX
                 let completed =
                     steps.iter().filter(|s| s.state == StepState::Completed).count() as u32;
                 let current = steps.iter().find(|s| s.state != StepState::Completed).map(|s| {
-                    #[allow(clippy::cast_possible_truncation)]
-                    // Reason: step count is bounded well below u32::MAX
+                    #[allow(clippy::cast_possible_truncation)] // Reason: step count is bounded well below u32::MAX
                     {
                         s.order as u32
                     }

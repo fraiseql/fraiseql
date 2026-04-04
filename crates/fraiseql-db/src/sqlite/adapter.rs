@@ -415,7 +415,6 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     #[allow(clippy::cast_possible_truncation)] // Reason: value is bounded; truncation cannot occur in practice
-    // Reason: pool sizes are always ≪ u32::MAX in practice
     fn pool_metrics(&self) -> PoolMetrics {
         let size = self.pool.size();
         let idle = self.pool.num_idle();

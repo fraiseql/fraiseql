@@ -261,9 +261,7 @@ fn build_output(
 
     // Calculate stats
     let total_deps: usize = nodes.iter().map(|n| n.dependency_count).sum();
-    #[allow(clippy::cast_precision_loss)]
-    // Reason: precision loss acceptable for metric/ratio calculations
-    // Reason: schema type counts won't exceed f64 mantissa precision
+    #[allow(clippy::cast_precision_loss)] // Reason: precision loss acceptable for metric/ratio calculations
     let avg_deps = if nodes.is_empty() {
         0.0
     } else {

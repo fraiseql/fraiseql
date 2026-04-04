@@ -291,9 +291,7 @@ impl JwksCache {
     }
 }
 
-#[allow(clippy::missing_fields_in_debug)]
-// Reason: `last_fetched` and `client` are intentionally omitted — they contain
-// no useful diagnostic info and exposing the reqwest::Client handle is noisy.
+#[allow(clippy::missing_fields_in_debug)] // Reason: last_fetched and client omitted — no diagnostic value, reqwest::Client is noisy
 impl std::fmt::Debug for JwksCache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Reason: poisoned lock during Debug formatting → degrade gracefully to 0.
@@ -316,9 +314,7 @@ mod tests {
         matchers::{method, path},
     };
 
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module wildcard import; brings all items into test scope
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     fn jwks_fixture() -> serde_json::Value {

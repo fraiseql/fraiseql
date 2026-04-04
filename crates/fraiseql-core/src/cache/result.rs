@@ -260,8 +260,7 @@ impl QueryResultCache {
     /// The key is already a hash (u64), so we just modulo into `shard_count`
     /// directly — no need to rehash.
     #[inline]
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: truncation is intentional; we only need a uniform index into shard_count
+    #[allow(clippy::cast_possible_truncation)] // Reason: truncation is intentional; we only need a uniform index into shard_count
     fn shard_for(&self, key: u64) -> &Mutex<LruCache<u64, CachedResult>> {
         let idx = (key as usize) % self.shards.len();
         &self.shards[idx]
@@ -474,8 +473,7 @@ impl QueryResultCache {
                 cache.pop(key);
             }
 
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: key count within a shard never exceeds u64
+            #[allow(clippy::cast_possible_truncation)] // Reason: key count within a shard never exceeds u64
             let count = keys_to_remove.len() as u64;
             total_invalidated += count;
             total_freed += freed_bytes;
@@ -530,8 +528,7 @@ impl QueryResultCache {
                 cache.pop(key);
             }
 
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: key count within a shard never exceeds u64
+            #[allow(clippy::cast_possible_truncation)] // Reason: key count within a shard never exceeds u64
             let count = keys_to_remove.len() as u64;
             total_invalidated += count;
             total_freed += freed_bytes;
@@ -650,10 +647,7 @@ impl CacheMetrics {
         if total == 0 {
             return 0.0;
         }
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: precision loss acceptable for metric/ratio calculations
-        // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable
-        // here.
+        #[allow(clippy::cast_precision_loss)] // Reason: hit-rate is a display metric; f64 precision loss on u64 counters is acceptable
         {
             self.hits as f64 / total as f64
         }

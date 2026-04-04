@@ -23,9 +23,7 @@ use crate::{
 };
 
 pub(super) trait RelayDispatch: Send + Sync {
-    // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural
-    // grouping.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural grouping
     fn execute_relay_page<'a>(
         &'a self,
         view: &'a str,
@@ -43,9 +41,7 @@ pub(super) trait RelayDispatch: Send + Sync {
 pub(super) struct RelayDispatchImpl<A: RelayDatabaseAdapter>(pub(super) Arc<A>);
 
 impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDispatchImpl<A> {
-    // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural
-    // grouping.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural grouping
     fn execute_relay_page<'a>(
         &'a self,
         view: &'a str,

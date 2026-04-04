@@ -190,8 +190,7 @@ impl CircuitBreaker {
         if current_state == CircuitState::Open {
             let last_failure = *self.last_failure_time.lock().await;
             if let Some(failure_time) = last_failure {
-                #[allow(clippy::cast_possible_truncation)]
-                // Reason: circuit breaker timeouts are short, millis fit in u64
+                #[allow(clippy::cast_possible_truncation)] // Reason: circuit breaker timeouts are short, millis fit in u64
                 let elapsed = failure_time.elapsed().as_millis() as u64;
                 if elapsed >= self.config.open_timeout_ms {
                     // Transition to HalfOpen for recovery attempt

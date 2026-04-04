@@ -374,8 +374,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
     // Keep span alive until function returns
     drop(span);
 
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: elapsed micros for a single request won't exceed u64::MAX
+    #[allow(clippy::cast_possible_truncation)] // Reason: elapsed micros for a single request won't exceed u64::MAX
     let duration_us = start_time.elapsed().as_micros() as u64;
     let duration_ms = start_time.elapsed().as_secs_f64() * 1000.0;
     let entities = all_results.into_iter().map(|(_, e)| e).collect();

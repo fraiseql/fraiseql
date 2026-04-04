@@ -276,13 +276,7 @@ impl RetryPolicy for ExponentialBackoffPolicy {
         attempt < self.max_attempts
     }
 
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_possible_wrap
-    )]
-    // Reason: f64 precision acceptable for backoff calculation; result is bounded by max_delay_ms
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_possible_wrap)] // Reason: f64 precision acceptable for backoff calculation; result bounded by max_delay_ms
     fn get_backoff_ms(&self, attempt: u32) -> u64 {
         let delay =
             (self.initial_delay_ms as f64 * self.multiplier.powi((attempt - 1) as i32)) as u64;

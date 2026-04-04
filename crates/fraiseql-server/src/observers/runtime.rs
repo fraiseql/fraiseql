@@ -414,9 +414,7 @@ impl ObserverRuntime {
                                                 let duration_ms = if matching_observers.is_empty() {
                                                     0
                                                 } else {
-                                                    // Reason: observer count is small (< thousands) so no precision loss;
-                                                    // duration_ms fits comfortably in i32 range for per-observer averages.
-                                                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                                                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)] // Reason: observer count is small; average duration fits in i32
                                                     { (summary.total_duration_ms / matching_observers.len() as f64) as i32 }
                                                 };
 
@@ -669,9 +667,7 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         limit: i64,
     ) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
         let items = self.items.lock().expect("items mutex poisoned");
-        // Reason: limit comes from a user-supplied i64 clamped to a small positive range;
-        // negative values saturate to 0 via wrapping, which is safe (take(0) returns nothing).
-        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // Reason: limit is a user-supplied i64 clamped to a small positive range; negative values wrap to 0 safely
         let limit_usize = limit as usize;
         Ok(items.iter().take(limit_usize).cloned().collect())
     }

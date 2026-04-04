@@ -268,9 +268,7 @@ pub struct OIDCClient {
     /// Client ID.
     pub client_id:  String,
     /// Client secret — retained for token revocation and introspection endpoints.
-    // Reason: needed for token revocation and introspection
-    #[allow(dead_code)]
-    // Reason: field kept for API completeness; may be used in future features
+    #[allow(dead_code)] // Reason: retained for token revocation and introspection endpoints
     client_secret: String,
     /// JWKS key cache for ID token signature verification.
     pub jwks_cache: Arc<JwksCache>,

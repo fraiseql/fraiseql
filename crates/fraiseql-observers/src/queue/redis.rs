@@ -95,8 +95,7 @@ impl JobQueue for RedisJobQueue {
         })?;
 
         // Add to pending queue (score = current timestamp for FIFO)
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: f64 precision is acceptable for Redis sorted set scores
+        #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for Redis sorted set scores
         let now = chrono::Utc::now().timestamp() as f64;
         conn.zadd::<_, _, _, ()>(&self.pending_key, &job_id, now).await.map_err(|e| {
             ObserverError::DatabaseError {
@@ -210,8 +209,7 @@ impl JobQueue for RedisJobQueue {
         })?;
 
         // Add to retry queue with next_retry_at as score
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: f64 precision is acceptable for Redis sorted set scores
+        #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for Redis sorted set scores
         conn.zadd::<_, _, _, ()>(&self.retry_key, job_id, next_retry_at as f64)
             .await
             .map_err(|e| ObserverError::DatabaseError {
@@ -239,8 +237,7 @@ impl JobQueue for RedisJobQueue {
         })?;
 
         // Store deadletter entry with reason
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: f64 precision is acceptable for Redis sorted set scores
+        #[allow(clippy::cast_precision_loss)] // Reason: f64 precision is acceptable for Redis sorted set scores
         let now = chrono::Utc::now().timestamp() as f64;
         let entry = format!("{}|{}", reason, chrono::Utc::now().timestamp());
 

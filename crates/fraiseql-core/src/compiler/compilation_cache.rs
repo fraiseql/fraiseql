@@ -264,10 +264,7 @@ impl CompilationCache {
         if metrics.total_compilations == 0 {
             return Ok(0.0);
         }
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: precision loss acceptable for metric/ratio calculations
-        // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is
-        // acceptable here.
+        #[allow(clippy::cast_precision_loss)] // Reason: hit-rate percentage is a display metric; f64 precision loss on u64 counts is acceptable
         Ok((metrics.hits as f64 / metrics.total_compilations as f64) * 100.0)
     }
 }

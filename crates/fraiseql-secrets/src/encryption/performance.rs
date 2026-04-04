@@ -48,8 +48,7 @@ impl OperationMetrics {
 
     /// Get latency in milliseconds
     pub fn latency_ms(&self) -> f64 {
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: microsecond latency will never exceed f64 mantissa range
+        #[allow(clippy::cast_precision_loss)] // Reason: microsecond latency will never exceed f64 mantissa range
         let us = self.latency_us as f64;
         us / 1000.0
     }
@@ -182,11 +181,9 @@ impl KeyCache {
 
     /// Get hit rate
     pub fn hit_rate(&self) -> f64 {
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: cache hit/miss counters won't exceed f64 mantissa range
+        #[allow(clippy::cast_precision_loss)] // Reason: cache hit/miss counters won't exceed f64 mantissa range
         let hits = self.hits.load(Ordering::Relaxed) as f64;
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: cache hit/miss counters won't exceed f64 mantissa range
+        #[allow(clippy::cast_precision_loss)] // Reason: cache hit/miss counters won't exceed f64 mantissa range
         let misses = self.misses.load(Ordering::Relaxed) as f64;
         let total = hits + misses;
         if total > 0.0 { hits / total } else { 0.0 }
@@ -328,11 +325,9 @@ impl PerformanceMonitor {
         if self.metrics.is_empty() {
             return 0.0;
         }
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: metric counts won't exceed f64 mantissa range
+        #[allow(clippy::cast_precision_loss)] // Reason: metric counts won't exceed f64 mantissa range
         let successful = self.metrics.iter().filter(|m| m.success).count() as f64;
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: metric counts won't exceed f64 mantissa range
+        #[allow(clippy::cast_precision_loss)] // Reason: metric counts won't exceed f64 mantissa range
         let total = self.metrics.len() as f64;
         successful / total
     }
@@ -352,8 +347,7 @@ impl PerformanceMonitor {
         if self.metrics.is_empty() {
             return 0.0;
         }
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: metric counts won't exceed f64 mantissa range
+        #[allow(clippy::cast_precision_loss)] // Reason: metric counts won't exceed f64 mantissa range
         let count = self.metrics.len() as f64;
         count
     }
@@ -410,16 +404,14 @@ impl OperationTimer {
 
     /// Get elapsed microseconds
     pub fn elapsed_us(&self) -> u64 {
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: elapsed micros won't exceed u64::MAX in practice
+        #[allow(clippy::cast_possible_truncation)] // Reason: elapsed micros won't exceed u64::MAX in practice
         let us = self.start.elapsed().as_micros() as u64;
         us
     }
 
     /// Get elapsed milliseconds
     pub fn elapsed_ms(&self) -> f64 {
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: microsecond latency will never exceed f64 mantissa range
+        #[allow(clippy::cast_precision_loss)] // Reason: microsecond latency will never exceed f64 mantissa range
         let us = self.elapsed_us() as f64;
         us / 1000.0
     }

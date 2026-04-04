@@ -269,9 +269,7 @@ pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module wildcard import; brings all items into test scope
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     fn create_test_claims() -> Claims {

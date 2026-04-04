@@ -26,9 +26,7 @@ pub enum ClientMessageType {
 impl ClientMessageType {
     /// Parse message type from string.
     #[must_use]
-    // Reason: returns `Option<Self>` (unknown types yield `None`), not a `FromStr`-compatible
-    // `Result`.
-    #[allow(clippy::should_implement_trait)]
+    #[allow(clippy::should_implement_trait)] // Reason: returns Option<Self> (unknown types yield None), not a FromStr-compatible Result
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "connection_init" => Some(Self::ConnectionInit),
@@ -191,8 +189,7 @@ impl ServerMessage {
 
     /// Create next (data) message.
     #[must_use]
-    // Reason: `data` is moved into `serde_json::json!` macro to construct the payload object.
-    #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::needless_pass_by_value)] // Reason: data is moved into serde_json::json! macro to construct the payload object
     pub fn next(id: impl Into<String>, data: serde_json::Value) -> Self {
         Self {
             message_type: ServerMessageType::Next.as_str().to_string(),
@@ -203,8 +200,7 @@ impl ServerMessage {
 
     /// Create error message.
     #[must_use]
-    // Reason: `errors` is consumed by `serde_json::to_value`, which requires an owned value.
-    #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::needless_pass_by_value)] // Reason: errors is consumed by serde_json::to_value, which requires an owned value
     pub fn error(id: impl Into<String>, errors: Vec<GraphQLError>) -> Self {
         Self {
             message_type: ServerMessageType::Error.as_str().to_string(),

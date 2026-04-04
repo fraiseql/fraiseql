@@ -107,8 +107,7 @@ impl WindowSqlGenerator {
                 if i > 0 {
                     sql.push_str(", ");
                 }
-                #[allow(clippy::match_same_arms)]
-                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
+                #[allow(clippy::match_same_arms)] // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let dir = match order.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",
@@ -157,8 +156,7 @@ impl WindowSqlGenerator {
                 if i > 0 {
                     sql.push_str(", ");
                 }
-                #[allow(clippy::match_same_arms)]
-                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
+                #[allow(clippy::match_same_arms)] // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
                 let dir = match order.direction {
                     OrderDirection::Asc => "ASC",
                     OrderDirection::Desc => "DESC",

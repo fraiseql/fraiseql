@@ -117,9 +117,7 @@ impl ConstantTimeOps {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module wildcard import; brings all items into test scope
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     #[test]
@@ -192,8 +190,7 @@ mod tests {
         let mut token1 = vec![0u8; 256];
         let mut token2 = vec![0u8; 256];
         for i in 0..256 {
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: loop bound is 256, so `i` is always 0..=255 — no truncation possible
+            #[allow(clippy::cast_possible_truncation)] // Reason: loop bound is 256, so i is always 0..=255
             let byte = i as u8;
             token1[i] = byte;
             token2[i] = byte;
@@ -207,8 +204,7 @@ mod tests {
 
     #[test]
     fn test_very_long_tokens() {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        // Reason: `i % 256` is always in 0..=255 for a non-negative i32, so both casts are safe
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: i % 256 is always 0..=255 for non-negative i32, both casts safe
         let token1: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
         let token2 = token1.clone();
         assert!(ConstantTimeOps::compare(&token1, &token2));

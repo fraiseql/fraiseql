@@ -389,8 +389,7 @@ impl OperationMetricsRegistry {
                 "fraiseql_query_duration_seconds_bucket{{operation=\"{name}\",le=\"+Inf\"}} \
                  {count}",
             );
-            // Reason: precision loss is acceptable for metrics reporting
-            #[allow(clippy::cast_precision_loss)]
+            #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics reporting
             let sum_secs = *duration_us as f64 / 1_000_000.0;
             let _ = writeln!(
                 out,
@@ -454,8 +453,7 @@ impl Histogram {
     }
 
     /// Render as Prometheus text format with the given metric name.
-    // Reason: microsecond precision loss at >2^53 us (~285 years) is acceptable
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss)] // Reason: microsecond precision loss at >2^53 us (~285 years) is acceptable
     #[must_use]
     pub fn to_prometheus_lines(&self, name: &str, help: &str) -> String {
         let mut out = String::new();
@@ -499,8 +497,7 @@ impl TimingGuard {
 
     /// Record duration in microseconds and consume guard.
     pub fn record(self) {
-        // Reason: microsecond counter cannot exceed u64 in any practical uptime
-        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation)] // Reason: microsecond counter cannot exceed u64 in any practical uptime
         let duration_us = self.start.elapsed().as_micros() as u64;
         self.duration_atomic.fetch_add(duration_us, Ordering::Relaxed);
     }
@@ -650,16 +647,14 @@ impl From<&MetricsCollector> for PrometheusMetrics {
             queries_total,
             queries_success,
             queries_error,
-            // Reason: precision loss is acceptable for metrics/statistics
-            #[allow(clippy::cast_precision_loss)]
+            #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics/statistics
             queries_avg_duration_ms: if queries_total > 0 {
                 (queries_duration_us as f64 / queries_total as f64) / 1000.0
             } else {
                 0.0
             },
             db_queries_total,
-            // Reason: precision loss is acceptable for metrics/statistics
-            #[allow(clippy::cast_precision_loss)]
+            #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics/statistics
             db_queries_avg_duration_ms: if db_queries_total > 0 {
                 (db_queries_duration_us as f64 / db_queries_total as f64) / 1000.0
             } else {
@@ -674,8 +669,7 @@ impl From<&MetricsCollector> for PrometheusMetrics {
             http_responses_5xx: collector.http_responses_5xx.load(Ordering::Relaxed),
             cache_hits,
             cache_misses,
-            // Reason: precision loss is acceptable for metrics/statistics
-            #[allow(clippy::cast_precision_loss)]
+            #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for metrics/statistics
             cache_hit_ratio: if cache_total > 0 {
                 cache_hits as f64 / cache_total as f64
             } else {

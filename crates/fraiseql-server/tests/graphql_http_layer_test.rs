@@ -16,8 +16,7 @@ use std::collections::HashMap;
 
 // Common test utilities
 mod common;
-#[allow(unused_imports)]
-// Reason: shared harness exports many symbols; each test uses a subset
+#[allow(unused_imports)] // Reason: shared harness exports many symbols; each test uses a subset
 use common::{DatabaseFixture, FakeGraphQLExecutor, GraphQLResult, TestDataBuilder};
 
 // ============================================================================

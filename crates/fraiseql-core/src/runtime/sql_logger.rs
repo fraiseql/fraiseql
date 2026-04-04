@@ -230,10 +230,7 @@ impl SqlQueryLog {
 
     /// Get execution time in milliseconds (for human-friendly display).
     pub fn duration_ms(&self) -> f64 {
-        #[allow(clippy::cast_precision_loss)]
-        // Reason: precision loss acceptable for metric/ratio calculations
-        // Reason: duration_us is a microsecond counter used for display; f64 precision loss is
-        // acceptable.
+        #[allow(clippy::cast_precision_loss)] // Reason: duration_us is a microsecond counter used for display; f64 precision loss is acceptable
         {
             self.duration_us as f64 / 1000.0
         }

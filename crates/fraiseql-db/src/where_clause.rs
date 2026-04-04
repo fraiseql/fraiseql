@@ -352,9 +352,7 @@ impl WhereOperator {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if operator name is unknown.
-    // Reason: intentionally not implementing `FromStr` because this returns
-    // `FraiseQLError`, not `<Self as FromStr>::Err`.
-    #[allow(clippy::should_implement_trait)]
+    #[allow(clippy::should_implement_trait)] // Reason: intentionally not implementing `FromStr` because this returns `FraiseQLError`, not `<Self as FromStr>::Err`.
     pub fn from_str(s: &str) -> Result<Self> {
         match s {
             "eq" => Ok(Self::Eq),

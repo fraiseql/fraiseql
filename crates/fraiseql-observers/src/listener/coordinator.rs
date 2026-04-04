@@ -154,9 +154,7 @@ impl MultiListenerCoordinator {
             let handle = entry.value();
             let state = handle.state_machine.get_state().await;
             let last_heartbeat = *handle.last_heartbeat.lock().await;
-            #[allow(clippy::cast_possible_wrap)]
-            // Reason: value is non-negative; wrap cannot occur in practice
-            // Reason: intentional bit-preserving reinterpretation
+            #[allow(clippy::cast_possible_wrap)] // Reason: value is non-negative; wrap cannot occur in practice
             let checkpoint = handle.checkpoint.load(Ordering::SeqCst) as i64;
 
             // Healthy if Running and heartbeat within 60s

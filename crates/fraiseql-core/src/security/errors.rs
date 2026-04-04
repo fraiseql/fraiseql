@@ -350,8 +350,7 @@ impl std::error::Error for SecurityError {
 }
 
 impl PartialEq for SecurityError {
-    #[allow(clippy::match_same_arms)]
-    // Reason: each arm binds distinct enum variant fields; combining would lose per-variant clarity
+    #[allow(clippy::match_same_arms)] // Reason: each arm binds distinct enum variant fields; combining would lose per-variant clarity
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (

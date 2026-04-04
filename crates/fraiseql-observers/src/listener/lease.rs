@@ -120,8 +120,7 @@ impl InProcessLease {
         let state = self.state.lock().await;
         if let Some(acquired_time) = state.acquired_at {
             // Consistent view: both holder and acquired_at are read under the same lock.
-            #[allow(clippy::cast_possible_truncation)]
-            // Reason: lease durations are short, millis fit in u64
+            #[allow(clippy::cast_possible_truncation)] // Reason: lease durations are short, millis fit in u64
             let elapsed = acquired_time.elapsed().as_millis() as u64;
             if elapsed < self.lease_duration_ms {
                 return Ok(self.lease_duration_ms - elapsed);

@@ -282,9 +282,7 @@ impl SessionStore for InMemorySessionStore {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module wildcard import; brings all items into test scope
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     #[test]

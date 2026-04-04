@@ -92,8 +92,7 @@ impl DependencyTracker {
     ///     vec!["v_user".to_string(), "v_post".to_string()]
     /// );
     /// ```
-    // Reason: both `cache_key` and `views` are inserted into internal HashMaps and consumed.
-    #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::needless_pass_by_value)] // Reason: both cache_key and views are inserted into internal HashMaps and consumed
     pub fn record_access(&mut self, cache_key: String, views: Vec<String>) {
         // If updating existing entry, remove old reverse mappings first
         if let Some(old_views) = self.cache_to_views.get(&cache_key) {

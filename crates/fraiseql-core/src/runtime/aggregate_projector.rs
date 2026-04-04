@@ -129,8 +129,7 @@ impl AggregationProjector {
     /// // response: {"data": {"sales_aggregate": [{"count": 42}]}}
     /// assert!(response.get("data").is_some());
     /// ```
-    // Reason: `projected` is moved into `serde_json::json!` and consumed by value.
-    #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::needless_pass_by_value)] // Reason: projected is moved into serde_json::json! and consumed by value
     pub fn wrap_in_data_envelope(projected: Value, query_name: &str) -> Value {
         json!({
             "data": {

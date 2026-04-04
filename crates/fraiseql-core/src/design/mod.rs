@@ -204,9 +204,7 @@ impl DesignAudit {
 
         // Clamp to 0-100
         let score = score.clamp(0.0, 100.0);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        // Reason: value is bounded; truncation cannot occur in practice
-        // Reason: score is clamped to 0.0..=100.0, so truncation to u8 and sign loss are both safe.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: score is clamped to 0.0..=100.0, so truncation to u8 and sign loss are both safe
         {
             score as u8
         }

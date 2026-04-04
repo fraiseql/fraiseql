@@ -31,8 +31,7 @@ fn test_percent_decode(s: &str) -> String {
             let hi = (bytes[i + 1] as char).to_digit(16);
             let lo = (bytes[i + 2] as char).to_digit(16);
             if let (Some(h), Some(l)) = (hi, lo) {
-                #[allow(clippy::cast_possible_truncation)]
-                // Reason: h and l are hex digits (0–15), combined value fits in u8
+                #[allow(clippy::cast_possible_truncation)] // Reason: h and l are hex digits (0–15), combined value fits in u8
                 result.push(char::from(((h << 4) | l) as u8));
                 i += 3;
                 continue;

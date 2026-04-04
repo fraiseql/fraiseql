@@ -64,9 +64,7 @@ pub struct OidcServerClient {
 }
 
 /// Custom `Debug` implementation that redacts the client secret.
-#[allow(clippy::missing_fields_in_debug)]
-// Reason: `server_redirect_uri` and `token_endpoint` are omitted intentionally
-// to keep debug output concise and avoid leaking endpoint configuration in logs.
+#[allow(clippy::missing_fields_in_debug)] // Reason: endpoint fields omitted to keep debug concise and avoid leaking config in logs
 impl fmt::Debug for OidcServerClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OidcServerClient")
@@ -250,9 +248,7 @@ impl OidcServerClient {
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module wildcard import; brings all items into test scope
-    // Reason: test modules use wildcard imports for conciseness
+    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
 
     fn test_client() -> OidcServerClient {
