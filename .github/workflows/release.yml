@@ -221,7 +221,7 @@ jobs:
         id: publish-error
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-error/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-error/$VERSION")" = "200" ]; then
             echo "fraiseql-error $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
@@ -231,7 +231,7 @@ jobs:
         id: publish-auth
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-auth/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-auth/$VERSION")" = "200" ]; then
             echo "fraiseql-auth $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
@@ -241,7 +241,7 @@ jobs:
         id: publish-webhooks
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-webhooks/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-webhooks/$VERSION")" = "200" ]; then
             echo "fraiseql-webhooks $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
@@ -251,7 +251,7 @@ jobs:
         id: publish-wire
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-wire/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-wire/$VERSION")" = "200" ]; then
             echo "fraiseql-wire $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
@@ -263,7 +263,7 @@ jobs:
           for crate in fraiseql-error fraiseql-auth fraiseql-webhooks fraiseql-wire; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -276,7 +276,7 @@ jobs:
         id: publish-db
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-db/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-db/$VERSION")" = "200" ]; then
             echo "fraiseql-db $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
@@ -288,7 +288,7 @@ jobs:
           for crate in fraiseql-db; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -301,7 +301,7 @@ jobs:
         id: publish-federation
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-federation/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-federation/$VERSION")" = "200" ]; then
             echo "fraiseql-federation $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
@@ -313,7 +313,7 @@ jobs:
           for crate in fraiseql-federation; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -326,7 +326,7 @@ jobs:
         id: publish-core
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-core/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-core/$VERSION")" = "200" ]; then
             echo "fraiseql-core $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
@@ -338,7 +338,7 @@ jobs:
           for crate in fraiseql-core; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -351,7 +351,7 @@ jobs:
         id: publish-arrow
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-arrow/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-arrow/$VERSION")" = "200" ]; then
             echo "fraiseql-arrow $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
@@ -361,7 +361,7 @@ jobs:
         id: publish-secrets
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-secrets/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-secrets/$VERSION")" = "200" ]; then
             echo "fraiseql-secrets $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
@@ -373,7 +373,7 @@ jobs:
           for crate in fraiseql-arrow fraiseql-secrets; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -386,7 +386,7 @@ jobs:
         id: publish-observers
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-observers/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-observers/$VERSION")" = "200" ]; then
             echo "fraiseql-observers $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
@@ -398,7 +398,7 @@ jobs:
           for crate in fraiseql-observers; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -411,7 +411,7 @@ jobs:
         id: publish-server
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-server/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-server/$VERSION")" = "200" ]; then
             echo "fraiseql-server $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
@@ -423,7 +423,7 @@ jobs:
           for crate in fraiseql-server; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -436,7 +436,7 @@ jobs:
         id: publish-cli
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql-cli/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql-cli/$VERSION")" = "200" ]; then
             echo "fraiseql-cli $VERSION already published, skipping"
           else
             cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
@@ -448,7 +448,7 @@ jobs:
           for crate in fraiseql-cli; do
             echo "Waiting for $crate to be indexed on crates.io..."
             for i in $(seq 1 30); do
-              if curl -sf "https://crates.io/api/v1/crates/$crate" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+              if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/$crate/$VERSION")" = "200" ]; then
                 echo "✅ $crate indexed"
                 break
               fi
@@ -461,7 +461,7 @@ jobs:
         id: publish-root
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          if curl -sf "https://crates.io/api/v1/crates/fraiseql/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql/$VERSION")" = "200" ]; then
             echo "fraiseql $VERSION already published, skipping"
           else
             cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
@@ -597,7 +597,14 @@ jobs:
         working-directory: sdks/official/fraiseql-typescript
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "${PKG_NAME}@${PKG_VERSION} already published to npm, skipping"
+          else
+            npm publish --access public
+          fi
 
       - name: Validate npm package
         id: validate-npm
@@ -643,7 +650,7 @@ jobs:
           VERSION="${{ steps.get_version.outputs.version }}"
 
           # Check fraiseql crate
-          if curl -s "https://crates.io/api/v1/crates/fraiseql" | jq -e ".crate.newest_version == \"$VERSION\"" >/dev/null 2>&1; then
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "https://crates.io/api/v1/crates/fraiseql/$VERSION")" = "200" ]; then
             echo "✅ fraiseql v$VERSION on crates.io" >> $GITHUB_STEP_SUMMARY
           else
             echo "⏳ fraiseql v$VERSION (crates.io indexing in progress)" >> $GITHUB_STEP_SUMMARY
