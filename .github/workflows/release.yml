@@ -199,7 +199,7 @@ jobs:
     name: Publish to crates.io
     needs: create-github-release
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -219,19 +219,43 @@ jobs:
       # Tier 1: No fraiseql dependencies
       - name: Publish fraiseql-error
         id: publish-error
-        run: cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-error/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-error $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-error --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Publish fraiseql-auth
         id: publish-auth
-        run: cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-auth/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-auth $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-auth --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Publish fraiseql-webhooks
         id: publish-webhooks
-        run: cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-webhooks/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-webhooks $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-webhooks --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Publish fraiseql-wire
         id: publish-wire
-        run: cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-wire/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-wire $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-wire --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 1)
         run: |
@@ -250,7 +274,13 @@ jobs:
       # Tier 2: Depends on Tier 1 (fraiseql-error, fraiseql-wire)
       - name: Publish fraiseql-db
         id: publish-db
-        run: cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-db/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-db $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-db --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 2)
         run: |
@@ -269,7 +299,13 @@ jobs:
       # Tier 3: Depends on fraiseql-db, fraiseql-error
       - name: Publish fraiseql-federation
         id: publish-federation
-        run: cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-federation/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-federation $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-federation --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 3)
         run: |
@@ -288,7 +324,13 @@ jobs:
       # Tier 4: Depends on fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-wire
       - name: Publish fraiseql-core
         id: publish-core
-        run: cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-core/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-core $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-core --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 4)
         run: |
@@ -307,11 +349,23 @@ jobs:
       # Tier 5: Depends on fraiseql-core
       - name: Publish fraiseql-arrow
         id: publish-arrow
-        run: cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-arrow/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-arrow $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-arrow --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Publish fraiseql-secrets
         id: publish-secrets
-        run: cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-secrets/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-secrets $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-secrets --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 5)
         run: |
@@ -330,7 +384,13 @@ jobs:
       # Tier 6: Depends on fraiseql-arrow
       - name: Publish fraiseql-observers
         id: publish-observers
-        run: cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-observers/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-observers $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-observers --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 6)
         run: |
@@ -349,7 +409,13 @@ jobs:
       # Tier 7: Depends on fraiseql-arrow, fraiseql-auth, fraiseql-core, fraiseql-error, fraiseql-observers, fraiseql-secrets, fraiseql-webhooks
       - name: Publish fraiseql-server
         id: publish-server
-        run: cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-server/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-server $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-server --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 7)
         run: |
@@ -368,7 +434,13 @@ jobs:
       # Tier 8: Depends on fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation, fraiseql-server
       - name: Publish fraiseql-cli
         id: publish-cli
-        run: cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql-cli/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql-cli $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql-cli --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Wait for crates.io indexing (Tier 8)
         run: |
@@ -387,7 +459,13 @@ jobs:
       # Tier 9: Root umbrella crate — depends on all others
       - name: Publish fraiseql (root crate)
         id: publish-root
-        run: cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if curl -sf "https://crates.io/api/v1/crates/fraiseql/$VERSION" | jq -e '.version' >/dev/null 2>&1; then
+            echo "fraiseql $VERSION already published, skipping"
+          else
+            cargo publish --package fraiseql --token ${{ secrets.CARGO_TOKEN }}
+          fi
 
       - name: Verify all crates published
         if: always()
