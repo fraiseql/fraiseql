@@ -220,8 +220,8 @@ enum QueryType {
     IntrospectionType(String),
 
     /// GraphQL mutation.
-    /// Contains the root field name (e.g., "createMachine").
-    Mutation(String),
+    /// Contains the root field name and selected response fields.
+    Mutation { name: String, selection_fields: Vec<String> },
 
     /// Relay global node lookup: `node(id: ID!)`.
     /// Resolves any type that implements the Node interface by global opaque ID.

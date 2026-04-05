@@ -86,7 +86,11 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Mutations are routed by operation type.
         if parsed.operation_type == "mutation" {
-            return Ok((QueryType::Mutation(root_field.clone()), None));
+            let selection_fields = parsed.selections
+                .first()
+                .map(|s| s.nested_fields.iter().map(|f| f.response_key().to_string()).collect())
+                .unwrap_or_default();
+            return Ok((QueryType::Mutation { name: root_field.clone(), selection_fields }, None));
         }
 
         // Aggregate queries (root field ends with `_aggregate`).

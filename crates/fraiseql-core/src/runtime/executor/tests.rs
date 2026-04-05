@@ -946,6 +946,176 @@ mod planning {
 mod mutation {
     use super::*;
 
+    /// Mock adapter for testing mutations with selection set filtering.
+    /// Returns a mutation response with multiple entity fields.
+    struct SelectionSetFilterMockAdapter;
+
+    #[async_trait]
+    impl DatabaseAdapter for SelectionSetFilterMockAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            let mut row = std::collections::HashMap::new();
+            row.insert("status".to_string(), json!("success"));
+            row.insert(
+                "entity".to_string(),
+                json!({
+                    "id": "123",
+                    "name": "Alice",
+                    "email": "alice@example.com",
+                    "bio": "Software engineer"
+                }),
+            );
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for SelectionSetFilterMockAdapter {}
+
+    /// Mock adapter that returns a mutation response for empty selection set tests.
+    struct EmptySelectionMockAdapter;
+
+    #[async_trait]
+    impl DatabaseAdapter for EmptySelectionMockAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            let mut row = std::collections::HashMap::new();
+            row.insert("status".to_string(), json!("success"));
+            row.insert(
+                "entity".to_string(),
+                json!({
+                    "id": "123",
+                    "name": "Alice",
+                    "email": "alice@example.com"
+                }),
+            );
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for EmptySelectionMockAdapter {}
+
     // Regression tests for issue #53 ──────────────────────────────────────
     //
     // The executor must fall back to operation.table when mutation_def.sql_source
@@ -1095,6 +1265,75 @@ mod mutation {
             msg.contains("mutation") || msg.contains("does not support"),
             "mutation guard message should explain the reason, got: {msg}"
         );
+    }
+
+    /// When a mutation includes a restricted selection set (e.g., `{ id name }`),
+    /// the response must only include those requested fields (plus __typename),
+    /// not all fields from the entity JSONB.
+    #[tokio::test]
+    async fn test_mutation_selection_set_filters_response_fields() {
+        use crate::schema::MutationDefinition;
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let adapter = Arc::new(SelectionSetFilterMockAdapter);
+        let executor = Executor::new(schema, adapter);
+
+        // Query with restricted selection: only id and name (plus implicit __typename)
+        let result = executor
+            .execute("mutation { createUser { id name } }", None)
+            .await
+            .unwrap();
+
+        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let data = response.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        // Must have __typename and the selected fields
+        assert!(data.get("__typename").is_some(), "response must include __typename");
+        assert!(data.get("id").is_some(), "response must include selected field 'id'");
+        assert!(data.get("name").is_some(), "response must include selected field 'name'");
+
+        // Must NOT have the non-selected fields
+        assert!(
+            data.get("email").is_none(),
+            "response must NOT include non-selected field 'email'"
+        );
+        assert!(
+            data.get("bio").is_none(),
+            "response must NOT include non-selected field 'bio'"
+        );
+    }
+
+    /// When a mutation has an empty selection set (just the field name, no `{ ... }`),
+    /// the response should include all fields (backward-compatible behavior).
+    #[tokio::test]
+    async fn test_mutation_empty_selection_set_returns_all_fields() {
+        use crate::schema::MutationDefinition;
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let adapter = Arc::new(EmptySelectionMockAdapter);
+        let executor = Executor::new(schema, adapter);
+
+        // Empty selection set: should return all fields
+        let result = executor.execute("mutation { createUser }", None).await.unwrap();
+
+        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let data = response.get("data").and_then(|d| d.get("createUser")).unwrap();
+
+        // All fields should be present
+        assert!(data.get("__typename").is_some(), "response must include __typename");
+        assert!(data.get("id").is_some(), "response must include all field 'id'");
+        assert!(data.get("name").is_some(), "response must include all field 'name'");
+        assert!(data.get("email").is_some(), "response must include all field 'email'");
     }
 }
 

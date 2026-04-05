@@ -233,11 +233,12 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.introspection.get_type_response(&type_name))
             },
-            QueryType::Mutation(mutation_name) => {
+            QueryType::Mutation { name, selection_fields } => {
                 self.execute_mutation_query_with_security(
-                    &mutation_name,
+                    &name,
                     variables,
                     Some(security_context),
+                    &selection_fields,
                 )
                 .await
             },

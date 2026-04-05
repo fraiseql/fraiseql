@@ -52,10 +52,11 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
+        selection_fields: &[String],
     ) -> Result<String> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
-        self.execute_mutation_query_with_security(mutation_name, variables, None).await
+        self.execute_mutation_query_with_security(mutation_name, variables, None, selection_fields).await
     }
 }
 
@@ -115,6 +116,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
+        selection_fields: &[String],
     ) -> Result<String> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
@@ -132,7 +134,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 path:    None,
             });
         }
-        self.execute_mutation_query_with_security(mutation_name, variables, None).await
+        self.execute_mutation_query_with_security(mutation_name, variables, None, selection_fields).await
     }
 
     /// Internal implementation shared by `execute_mutation_query` and the
@@ -160,6 +162,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         security_ctx: Option<&SecurityContext>,
+        selection_fields: &[String],
     ) -> Result<String> {
         // 1. Locate the mutation definition
         let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
@@ -363,6 +366,12 @@ impl<A: DatabaseAdapter> Executor<A> {
 
                 let mut obj = entity.as_object().cloned().unwrap_or_default();
                 obj.insert("__typename".to_string(), serde_json::Value::String(typename));
+
+                // Apply selection set filtering: only include requested fields (plus __typename)
+                if !selection_fields.is_empty() {
+                    obj.retain(|k, _| k == "__typename" || selection_fields.contains(k));
+                }
+
                 serde_json::Value::Object(obj)
             },
             MutationOutcome::Error {

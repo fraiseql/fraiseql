@@ -40,7 +40,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     query_type:     "regular".to_string(),
                 })
             },
-            QueryType::Mutation(ref name) => {
+            QueryType::Mutation { ref name, .. } => {
                 let mutation_def =
                     self.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(|| {
                         let candidates: Vec<&str> =
