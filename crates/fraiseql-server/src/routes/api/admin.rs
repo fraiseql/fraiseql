@@ -446,7 +446,7 @@ pub async fn grafana_dashboard_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
 ) -> impl axum::response::IntoResponse {
     const DASHBOARD_JSON: &str =
-        include_str!("../../../../../deploy/grafana/fraiseql-dashboard.json");
+        include_str!("../../../resources/fraiseql-dashboard.json");
 
     (
         axum::http::StatusCode::OK,
@@ -498,7 +498,7 @@ mod tests {
     #[test]
     fn test_grafana_dashboard_is_valid_json() {
         let parsed: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../../deploy/grafana/fraiseql-dashboard.json"
+            "../../../resources/fraiseql-dashboard.json"
         ))
         .expect("fraiseql-dashboard.json must be valid JSON");
 
