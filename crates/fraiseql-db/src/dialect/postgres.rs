@@ -54,6 +54,20 @@ impl SqlDialect for PostgresDialect {
         Cow::Owned(format!("({placeholder}::text)::numeric"))
     }
 
+    fn cast_native_param(&self, placeholder: &str, native_type: &str) -> String {
+        match native_type.to_lowercase().as_str() {
+            // bool uses QueryParam::Bool which encodes correctly in binary — no intermediate text.
+            "boolean" | "bool" => format!("{placeholder}::bool"),
+            // text/varchar/char(n) — no cast needed.
+            "text" | "varchar" | "character varying" | "char" | "bpchar" | "name" => {
+                placeholder.to_string()
+            },
+            // Everything else: two-step cast forces $N to be resolved as text by the
+            // server, avoiding binary-encoding mismatches for uuid, timestamps, ints, etc.
+            _ => format!("{placeholder}::text::{native_type}"),
+        }
+    }
+
     fn ilike_sql(&self, lhs: &str, rhs: &str) -> String {
         format!("{lhs} ILIKE {rhs}")
     }

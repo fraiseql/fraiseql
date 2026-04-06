@@ -203,8 +203,9 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
 
     /// Generate SQL for a native-column condition.
     ///
-    /// Emits `"column" = $N` (with optional PostgreSQL type cast on the parameter,
-    /// e.g. `$1::uuid`) instead of the JSONB extraction path.
+    /// Emits `"column" = <cast>` where `<cast>` is a dialect-appropriate
+    /// expression (e.g. `$1::text::uuid` for PostgreSQL, `CAST(? AS CHAR)` for
+    /// MySQL) instead of the JSONB extraction path.
     fn visit_native_field(
         &self,
         column: &str,
@@ -218,7 +219,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         let rhs = if pg_cast.is_empty() {
             p
         } else {
-            format!("{p}::{pg_cast}")
+            self.dialect.cast_native_param(&p, pg_cast)
         };
         match operator {
             WhereOperator::Eq => Ok(format!("{col_expr} = {rhs}")),

@@ -123,6 +123,24 @@ pub trait SqlDialect: Send + Sync + 'static {
         Cow::Borrowed(placeholder)
     }
 
+    /// Wrap a parameter placeholder for a native-column equality condition.
+    ///
+    /// `native_type` is the PostgreSQL canonical type name stored in
+    /// `native_columns` (e.g. `"uuid"`, `"int4"`, `"timestamp"`).
+    ///
+    /// Each dialect must translate it to the appropriate cast expression:
+    /// - PostgreSQL uses `{placeholder}::text::{native_type}` (two-step to avoid
+    ///   binary wire-format mismatch; `bool` is exempted because `QueryParam::Bool`
+    ///   already encodes correctly in binary).
+    /// - MySQL uses `CAST({placeholder} AS {mysql_type})`.
+    /// - SQLite uses `CAST({placeholder} AS {sqlite_type})` or the placeholder as-is.
+    /// - SQL Server uses `CAST({placeholder} AS {tsql_type})`.
+    ///
+    /// Default: pass placeholder unchanged (safe no-op fallback).
+    fn cast_native_param(&self, placeholder: &str, _native_type: &str) -> String {
+        placeholder.to_string()
+    }
+
     // ── LIKE / pattern matching ────────────────────────────────────────────────
 
     /// SQL fragment for case-sensitive LIKE: `lhs LIKE rhs`.
