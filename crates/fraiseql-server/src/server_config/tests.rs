@@ -420,3 +420,34 @@ fn test_validate_admin_readonly_token_without_admin_enabled_is_ignored() {
     };
     config.validate().unwrap_or_else(|e| panic!("expected Ok: {e}"));
 }
+
+#[test]
+fn test_validation_config_from_toml() {
+    let toml_str = r"
+        [validation]
+        max_query_depth = 15
+        max_query_complexity = 200
+    ";
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let vc = config.validation.expect("validation section should be parsed");
+    assert_eq!(vc.max_query_depth, Some(15));
+    assert_eq!(vc.max_query_complexity, Some(200));
+}
+
+#[test]
+fn test_validation_config_defaults_to_none() {
+    let config = ServerConfig::default();
+    assert!(config.validation.is_none(), "validation should default to None");
+}
+
+#[test]
+fn test_validation_config_partial_override() {
+    let toml_str = r"
+        [validation]
+        max_query_complexity = 500
+    ";
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let vc = config.validation.expect("validation section should be parsed");
+    assert_eq!(vc.max_query_depth, None, "unset depth should be None");
+    assert_eq!(vc.max_query_complexity, Some(500));
+}

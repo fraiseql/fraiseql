@@ -6,6 +6,7 @@ use tokio_postgres::Row;
 
 use super::{PostgresAdapter, build_where_select_sql};
 use crate::{
+    identifier::quote_postgres_identifier,
     traits::{DatabaseAdapter, SupportsMutations},
     types::{
         DatabaseType, JsonbValue, PoolMetrics, QueryParam,
@@ -202,10 +203,11 @@ impl DatabaseAdapter for PostgresAdapter {
         args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Build: SELECT * FROM "fn_name"($1, $2, ...)
-        // The function name is double-quoted so that reserved words, mixed-case
-        // names, and names with special characters are handled correctly.
-        // Any embedded double quotes are escaped by doubling them ("").
-        let quoted_fn = format!("\"{}\"", function_name.replace('"', "\"\""));
+        // Use the standard identifier quoting utility so that schema-qualified
+        // names like "benchmark.fn_update_user" are correctly split into
+        // "benchmark"."fn_update_user" instead of being wrapped as a single
+        // identifier.
+        let quoted_fn = quote_postgres_identifier(function_name);
         let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
         let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
 

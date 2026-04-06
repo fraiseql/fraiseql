@@ -108,20 +108,36 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             },
         }
 
-        // Build RequestValidator from compiled schema validation config
+        // Build RequestValidator from validation config.
+        // Priority: runtime TOML > compiled schema > defaults.
         let mut validator = crate::validation::RequestValidator::new();
-        if let Some(ref vc) = self.executor.schema().validation_config {
-            if let Some(depth) = vc.max_query_depth {
-                validator = validator.with_max_depth(depth as usize);
-                info!(max_query_depth = depth, "Custom query depth limit configured");
-            }
-            if let Some(complexity) = vc.max_query_complexity {
-                validator = validator.with_max_complexity(complexity as usize);
-                info!(
-                    max_query_complexity = complexity,
-                    "Custom query complexity limit configured"
-                );
-            }
+        let runtime_vc = self.config.validation.as_ref();
+        let compiled_vc = self.executor.schema().validation_config.as_ref();
+
+        let effective_depth = runtime_vc
+            .and_then(|v| v.max_query_depth)
+            .or_else(|| compiled_vc.and_then(|v| v.max_query_depth));
+        let effective_complexity = runtime_vc
+            .and_then(|v| v.max_query_complexity)
+            .or_else(|| compiled_vc.and_then(|v| v.max_query_complexity));
+
+        if let Some(depth) = effective_depth {
+            validator = validator.with_max_depth(depth as usize);
+            let source = if runtime_vc.and_then(|v| v.max_query_depth).is_some() {
+                "runtime toml"
+            } else {
+                "compiled schema"
+            };
+            info!(max_query_depth = depth, source, "Query depth limit configured");
+        }
+        if let Some(complexity) = effective_complexity {
+            validator = validator.with_max_complexity(complexity as usize);
+            let source = if runtime_vc.and_then(|v| v.max_query_complexity).is_some() {
+                "runtime toml"
+            } else {
+                "compiled schema"
+            };
+            info!(max_query_complexity = complexity, source, "Query complexity limit configured");
         }
         state = state.with_validator(validator);
 

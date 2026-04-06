@@ -429,6 +429,22 @@ pub struct ServerConfig {
     #[serde(default)]
     pub security_contact: Option<String>,
 
+    /// Query validation overrides (depth and complexity limits).
+    ///
+    /// When present, these values take precedence over the limits baked into
+    /// the compiled schema, allowing operators to tune validation without
+    /// recompiling.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [validation]
+    /// max_query_depth = 15
+    /// max_query_complexity = 200
+    /// ```
+    #[serde(default)]
+    pub validation: Option<fraiseql_core::schema::ValidationConfig>,
+
     /// Graceful shutdown drain timeout in seconds (default: 30).
     ///
     /// After a SIGTERM or Ctrl+C signal, the server stops accepting new connections and
@@ -497,6 +513,7 @@ impl Default for ServerConfig {
             pool_tuning: None,               // Pool pressure monitoring disabled by default
             admission_control: None,         // Admission control disabled by default
             security_contact: None,          // No security.txt by default
+            validation: None,                // Use compiled schema defaults
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),

@@ -178,6 +178,15 @@ impl<A: DatabaseAdapter> Executor<A> {
             combined_where
         };
 
+        // 5c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
+        //     This handles single-entity lookups like `user(id: "...")` where the
+        //     arguments are direct equality filters, not the structured `where` argument.
+        let combined_where = combine_explicit_arg_where(
+            combined_where,
+            &query_match.query_def.arguments,
+            &query_match.arguments,
+        );
+
         // 8. Extract limit/offset from query arguments when auto_params are enabled
         let limit = if query_match.query_def.auto_params.has_limit {
             query_match
@@ -334,6 +343,13 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
+        // 3c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
+        let user_where = combine_explicit_arg_where(
+            user_where,
+            &query_match.query_def.arguments,
+            &query_match.arguments,
+        );
+
         let limit = if query_match.query_def.auto_params.has_limit {
             query_match
                 .arguments
@@ -454,6 +470,13 @@ impl<A: DatabaseAdapter> Executor<A> {
             .get("orderBy")
             .map(crate::db::OrderByClause::from_graphql_json)
             .transpose()?;
+
+        // Convert explicit arguments to WHERE conditions.
+        let user_where = combine_explicit_arg_where(
+            user_where,
+            &query_match.query_def.arguments,
+            &query_match.arguments,
+        );
 
         // Compose RLS and user WHERE clauses.
         let composed_where = match (&rls_where_clause, &user_where) {
@@ -1156,6 +1179,52 @@ fn selections_contain_field(
     false
 }
 
+/// Auto-wired argument names that are handled by the `auto_params` system.
+/// These are never treated as explicit WHERE filters.
+const AUTO_PARAM_NAMES: &[&str] = &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
+
+/// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into
+/// `WhereClause::Field` equality conditions and AND them onto `existing`.
+///
+/// Arguments whose names match auto-wired parameters (`where`, `limit`,
+/// `offset`, `orderBy`, `first`, `last`, `after`, `before`) are skipped —
+/// they are handled separately by the auto-params system.
+///
+/// This handles single-entity lookups like `user(id: "...")` where the
+/// arguments are direct equality filters on JSONB columns.
+fn combine_explicit_arg_where(
+    existing: Option<WhereClause>,
+    defined_args: &[crate::schema::ArgumentDefinition],
+    provided_args: &std::collections::HashMap<String, serde_json::Value>,
+) -> Option<WhereClause> {
+    let explicit_conditions: Vec<WhereClause> = defined_args
+        .iter()
+        .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
+        .filter_map(|arg| {
+            provided_args.get(&arg.name).map(|value| WhereClause::Field {
+                path:     vec![arg.name.clone()],
+                operator: WhereOperator::Eq,
+                value:    value.clone(),
+            })
+        })
+        .collect();
+
+    if explicit_conditions.is_empty() {
+        return existing;
+    }
+
+    let mut all_conditions = Vec::new();
+    if let Some(prev) = existing {
+        all_conditions.push(prev);
+    }
+    all_conditions.extend(explicit_conditions);
+
+    match all_conditions.len() {
+        1 => Some(all_conditions.remove(0)),
+        _ => Some(WhereClause::And(all_conditions)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1302,5 +1371,108 @@ mod tests {
         assert!(selections_contain_field(&sels, "pageInfo"));
         assert!(selections_contain_field(&sels, "metadata"));
         assert!(!selections_contain_field(&sels, "cursor"));
+    }
+
+    // =========================================================================
+    // combine_explicit_arg_where
+    // =========================================================================
+
+    use crate::schema::{ArgumentDefinition, FieldType};
+
+    fn make_arg(name: &str) -> ArgumentDefinition {
+        ArgumentDefinition::new(name, FieldType::Id)
+    }
+
+    #[test]
+    fn no_explicit_args_returns_existing() {
+        let existing = Some(WhereClause::Field {
+            path:     vec!["rls".into()],
+            operator: WhereOperator::Eq,
+            value:    serde_json::json!("x"),
+        });
+        let result = combine_explicit_arg_where(existing.clone(), &[], &std::collections::HashMap::new());
+        assert_eq!(result, existing);
+    }
+
+    #[test]
+    fn explicit_id_arg_produces_where_clause() {
+        let args = vec![make_arg("id")];
+        let mut provided = std::collections::HashMap::new();
+        provided.insert("id".into(), serde_json::json!("uuid-123"));
+
+        let result = combine_explicit_arg_where(None, &args, &provided);
+        assert!(result.is_some(), "explicit id arg should produce a WHERE clause");
+        match result.expect("just asserted Some") {
+            WhereClause::Field { path, operator, value } => {
+                assert_eq!(path, vec!["id".to_string()]);
+                assert_eq!(operator, WhereOperator::Eq);
+                assert_eq!(value, serde_json::json!("uuid-123"));
+            },
+            other => panic!("expected Field, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn auto_param_names_are_skipped() {
+        let args = vec![
+            make_arg("where"),
+            make_arg("limit"),
+            make_arg("offset"),
+            make_arg("orderBy"),
+            make_arg("first"),
+            make_arg("last"),
+            make_arg("after"),
+            make_arg("before"),
+            make_arg("id"),
+        ];
+        let mut provided = std::collections::HashMap::new();
+        for name in &["where", "limit", "offset", "orderBy", "first", "last", "after", "before", "id"] {
+            provided.insert((*name).to_string(), serde_json::json!("value"));
+        }
+
+        let result = combine_explicit_arg_where(None, &args, &provided);
+        // Only "id" should produce a WHERE — all auto-param names are skipped
+        match result.expect("id arg should produce WHERE") {
+            WhereClause::Field { path, .. } => {
+                assert_eq!(path, vec!["id".to_string()]);
+            },
+            other => panic!("expected single Field for 'id', got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn explicit_args_combined_with_existing_where() {
+        let existing = WhereClause::Field {
+            path:     vec!["rls_tenant".into()],
+            operator: WhereOperator::Eq,
+            value:    serde_json::json!("tenant-1"),
+        };
+        let args = vec![make_arg("id")];
+        let mut provided = std::collections::HashMap::new();
+        provided.insert("id".into(), serde_json::json!("uuid-456"));
+
+        let result = combine_explicit_arg_where(Some(existing), &args, &provided);
+        match result.expect("should produce combined WHERE") {
+            WhereClause::And(conditions) => {
+                assert_eq!(conditions.len(), 2, "should AND existing + explicit");
+            },
+            other => panic!("expected And, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unprovided_explicit_arg_is_ignored() {
+        let args = vec![make_arg("id"), make_arg("slug")];
+        let mut provided = std::collections::HashMap::new();
+        // Only provide "id", not "slug"
+        provided.insert("id".into(), serde_json::json!("uuid-789"));
+
+        let result = combine_explicit_arg_where(None, &args, &provided);
+        match result.expect("id arg should produce WHERE") {
+            WhereClause::Field { path, .. } => {
+                assert_eq!(path, vec!["id".to_string()]);
+            },
+            other => panic!("expected single Field for 'id', got {other:?}"),
+        }
     }
 }
