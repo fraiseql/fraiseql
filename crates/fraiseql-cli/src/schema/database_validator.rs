@@ -281,9 +281,10 @@ pub async fn validate_schema_against_database(
                 continue; // Skip L2/L3 if relation doesn't exist
             }
 
-            // L2: Get columns for the relation
-            let (_, table_name) = split_schema_qualified(source);
-            let columns = introspector.get_columns(table_name).await?;
+            // L2: Get columns for the relation.
+            // Pass the full source (possibly schema-qualified like "benchmark.tv_post") so
+            // the introspector can use the explicit schema when present.
+            let columns = introspector.get_columns(source).await?;
             let column_map: HashMap<String, String> =
                 columns.into_iter().map(|(name, dtype, _)| (name, dtype)).collect();
 
@@ -333,7 +334,7 @@ pub async fn validate_schema_against_database(
                         source,
                         jsonb_col,
                         introspector,
-                        table_name,
+                        source, // pass full schema-qualified source for sample queries
                         &mut warnings,
                     )
                     .await?;

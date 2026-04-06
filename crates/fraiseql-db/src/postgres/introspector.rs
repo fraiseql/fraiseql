@@ -3,7 +3,7 @@ use deadpool_postgres::Pool;
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
-use crate::{DatabaseType, introspector::DatabaseIntrospector};
+use crate::{DatabaseType, introspector::{DatabaseIntrospector, RelationInfo, RelationKind}};
 
 /// PostgreSQL introspector for fact table metadata.
 pub struct PostgresIntrospector {
@@ -24,11 +24,12 @@ impl DatabaseIntrospector for PostgresIntrospector {
             message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        // Query information_schema for tables matching tf_* pattern
+        // Query information_schema for tables matching tf_* pattern across all schemas
+        // in the current search path.
         let query = r"
             SELECT table_name
             FROM information_schema.tables
-            WHERE table_schema = 'public'
+            WHERE table_schema = ANY(current_schemas(false))
               AND table_type = 'BASE TABLE'
               AND table_name LIKE 'tf_%'
             ORDER BY table_name
@@ -56,23 +57,36 @@ impl DatabaseIntrospector for PostgresIntrospector {
             message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        // Query information_schema for column information
-        let query = r"
-            SELECT
-                column_name,
-                data_type,
-                is_nullable = 'YES' as is_nullable
-            FROM information_schema.columns
-            WHERE table_name = $1
-            AND table_schema = 'public'
-            ORDER BY ordinal_position
-        ";
-
-        let rows: Vec<Row> =
-            client.query(query, &[&table_name]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query column information: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        // Support schema-qualified names like "benchmark.tv_post".
+        // When no schema prefix is present, search across all schemas in the current
+        // search path so that non-public schemas work without explicit qualification.
+        let rows: Vec<Row> = if let Some(dot) = table_name.find('.') {
+            let (schema, name) = (&table_name[..dot], &table_name[dot + 1..]);
+            client
+                .query(
+                    r"SELECT column_name, data_type, is_nullable = 'YES' as is_nullable
+                      FROM information_schema.columns
+                      WHERE table_name = $1 AND table_schema = $2
+                      ORDER BY ordinal_position",
+                    &[&name, &schema],
+                )
+                .await
+        } else {
+            client
+                .query(
+                    r"SELECT column_name, data_type, is_nullable = 'YES' as is_nullable
+                      FROM information_schema.columns
+                      WHERE table_name = $1
+                        AND table_schema = ANY(current_schemas(false))
+                      ORDER BY ordinal_position",
+                    &[&table_name],
+                )
+                .await
+        }
+        .map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to query column information: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
 
         let columns = rows
             .into_iter()
@@ -92,27 +106,43 @@ impl DatabaseIntrospector for PostgresIntrospector {
             message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        // Query pg_indexes for indexed columns
-        let query = r"
-            SELECT DISTINCT
-                a.attname as column_name
-            FROM
-                pg_index i
-                JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-                JOIN pg_class t ON t.oid = i.indrelid
-                JOIN pg_namespace n ON n.oid = t.relnamespace
-            WHERE
-                t.relname = $1
-                AND n.nspname = 'public'
-                AND a.attnum > 0
-            ORDER BY column_name
-        ";
-
-        let rows: Vec<Row> =
-            client.query(query, &[&table_name]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query index information: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+        // Support schema-qualified names like "benchmark.tv_post".
+        // When no schema prefix is present, search across all schemas in the current
+        // search path so that non-public schemas work without explicit qualification.
+        let rows: Vec<Row> = if let Some(dot) = table_name.find('.') {
+            let (schema, name) = (&table_name[..dot], &table_name[dot + 1..]);
+            client
+                .query(
+                    r"SELECT DISTINCT a.attname AS column_name
+                      FROM pg_index i
+                      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+                      JOIN pg_class t ON t.oid = i.indrelid
+                      JOIN pg_namespace n ON n.oid = t.relnamespace
+                      WHERE t.relname = $1 AND n.nspname = $2 AND a.attnum > 0
+                      ORDER BY column_name",
+                    &[&name, &schema],
+                )
+                .await
+        } else {
+            client
+                .query(
+                    r"SELECT DISTINCT a.attname AS column_name
+                      FROM pg_index i
+                      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+                      JOIN pg_class t ON t.oid = i.indrelid
+                      JOIN pg_namespace n ON n.oid = t.relnamespace
+                      WHERE t.relname = $1
+                        AND n.nspname = ANY(current_schemas(false))
+                        AND a.attnum > 0
+                      ORDER BY column_name",
+                    &[&table_name],
+                )
+                .await
+        }
+        .map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to query index information: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
 
         let indexed_columns = rows
             .into_iter()
@@ -127,6 +157,44 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
     fn database_type(&self) -> DatabaseType {
         DatabaseType::PostgreSQL
+    }
+
+    async fn list_relations(&self) -> Result<Vec<RelationInfo>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        // List all tables and views visible in the current search path, excluding
+        // system schemas. Uses current_schemas(false) to match the same scope as
+        // get_columns / get_indexed_columns so that relation existence checks are
+        // consistent with column lookups.
+        let rows: Vec<Row> = client
+            .query(
+                r"SELECT table_schema, table_name,
+                         CASE table_type WHEN 'VIEW' THEN 'view' ELSE 'table' END AS kind
+                  FROM information_schema.tables
+                  WHERE table_schema = ANY(current_schemas(false))
+                  ORDER BY table_schema, table_name",
+                &[],
+            )
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to list relations: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        let relations = rows
+            .into_iter()
+            .map(|row| {
+                let schema: String = row.get(0);
+                let name: String = row.get(1);
+                let kind_str: String = row.get(2);
+                let kind = if kind_str == "view" { RelationKind::View } else { RelationKind::Table };
+                RelationInfo { schema, name, kind }
+            })
+            .collect();
+
+        Ok(relations)
     }
 
     async fn get_sample_jsonb(
@@ -221,13 +289,13 @@ impl PostgresIntrospector {
             message: format!("Failed to acquire connection: {e}"),
         })?;
 
-        // Query information_schema for columns matching __ pattern
-        // This works for both views and tables
+        // Query information_schema for columns matching __ pattern.
+        // This works for both views and tables across all schemas in the search path.
         let query = r"
             SELECT column_name
             FROM information_schema.columns
             WHERE table_name = $1
-              AND table_schema = 'public'
+              AND table_schema = ANY(current_schemas(false))
               AND column_name LIKE '%__%'
             ORDER BY column_name
         ";
@@ -327,7 +395,7 @@ impl PostgresIntrospector {
             SELECT column_name
             FROM information_schema.columns
             WHERE table_name = $1
-              AND table_schema = 'public'
+              AND table_schema = ANY(current_schemas(false))
             ORDER BY ordinal_position
         ";
 
