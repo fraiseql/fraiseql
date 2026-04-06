@@ -55,9 +55,9 @@ name = "my_benchmark"
 harness = false
 ```
 
-3. If the benchmark falls into the micro or slow category, add its name pattern to the appropriate `critcmp -f` filter in `.github/workflows/bench.yml`.
+1. If the benchmark falls into the micro or slow category, add its name pattern to the appropriate `critcmp -f` filter in `.github/workflows/bench.yml`.
 
-4. Run locally to verify:
+2. Run locally to verify:
 
 ```bash
 cargo bench -p fraiseql-core -- --save-baseline before
