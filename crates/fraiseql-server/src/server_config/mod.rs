@@ -28,7 +28,7 @@ use defaults::{
 use fraiseql_core::security::OidcConfig;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
-pub use observers::ObserverConfig;
+pub use observers::{ObserverConfig, ObserverPoolConfig};
 use serde::{Deserialize, Serialize};
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
 

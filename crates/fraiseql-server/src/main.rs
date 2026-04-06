@@ -369,16 +369,36 @@ async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<FraiseWireAd
 /// Observers require their own pool because the LISTEN/NOTIFY connection
 /// occupies a persistent slot that must not be shared with request-serving
 /// connections (request connections need to be available for concurrent queries).
+///
+/// The observer pool is configured independently via `[observers.pool]` in
+/// `fraiseql.toml`. When absent, observer-specific defaults are used (smaller
+/// than the application pool — observers need far fewer connections).
 #[cfg(feature = "observers")]
 async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
+    use std::time::Duration;
+
     use sqlx::postgres::PgPoolOptions;
-    #[allow(clippy::cast_possible_truncation)]
-    // Reason: pool sizes are always far below u32::MAX in practice
+
+    let pool_cfg = config
+        .observers
+        .as_ref()
+        .map(|o| o.pool.clone())
+        .unwrap_or_default();
+
+    tracing::info!(
+        min = pool_cfg.min_connections,
+        max = pool_cfg.max_connections,
+        timeout_secs = pool_cfg.acquire_timeout_secs,
+        "Initializing observer PostgreSQL pool"
+    );
+
     let pool = PgPoolOptions::new()
-        .min_connections(config.pool_min_size as u32)
-        .max_connections(config.pool_max_size as u32)
+        .min_connections(pool_cfg.min_connections)
+        .max_connections(pool_cfg.max_connections)
+        .acquire_timeout(Duration::from_secs(pool_cfg.acquire_timeout_secs))
         .connect(&config.database_url)
         .await?;
+
     Ok(Some(pool))
 }
 

@@ -14,6 +14,25 @@ This document tracks deprecated APIs and their migration paths. Deprecated items
 |------|-------|-------|-------------|----------------|
 | `PoolTuningConfig` | `fraiseql-server` | v2.0.1 | `PoolPressureMonitorConfig` | v3.0 |
 
+### Observer pool size inheritance (v2.2.0)
+
+**Behaviour change**: Prior to v2.2.0, the observer pool inherited `pool_min_size` /
+`pool_max_size` from the top-level `ServerConfig`. As of v2.2.0, the observer pool
+uses its own defaults (`min=2, max=5`) unless explicitly configured via `[observers.pool]`.
+
+**Migration**: If you relied on the observer pool inheriting the application pool size,
+add an explicit `[observers.pool]` section to your `fraiseql.toml`:
+
+```toml
+[observers.pool]
+min_connections = 5   # was: pool_min_size
+max_connections = 20  # was: pool_max_size
+acquire_timeout_secs = 30
+```
+
+This change is intentional: the observer pool serves LISTEN/NOTIFY and metadata
+queries — it rarely needs more than 2–5 connections.
+
 ### `PoolTuningConfig` (v2.0.1)
 
 **Location**: `crates/fraiseql-server/src/config/pool_tuning.rs`
