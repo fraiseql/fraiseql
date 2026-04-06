@@ -207,6 +207,7 @@ mod tests {
                 requires_role:       None,
                 rest_path:           None,
                 rest_method:         None,
+                native_columns:      HashMap::new(),
             },
             fields:         vec!["id".to_string(), "name".to_string()],
             selections:     vec![FieldSelection {

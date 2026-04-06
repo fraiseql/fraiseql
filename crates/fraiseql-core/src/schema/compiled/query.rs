@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -174,6 +176,20 @@ pub struct QueryDefinition {
     /// REST HTTP method override (e.g., `"GET"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rest_method: Option<String>,
+
+    /// Native columns detected at compile time for direct query arguments.
+    ///
+    /// Maps argument name → PostgreSQL cast suffix (e.g., `"uuid"`, `"int4"`, `""`).
+    /// An empty string means the column exists but needs no type cast (e.g. `text`).
+    ///
+    /// At runtime, arguments present in this map generate `WHERE col = $N` (native column
+    /// lookup) instead of `WHERE data->>'col' = $N` (JSONB extraction), enabling B-tree
+    /// index usage for single-entity lookups.
+    ///
+    /// Only populated when `fraiseql compile --database <url>` is used. Schemas compiled
+    /// without a database URL omit this field and fall back to JSONB extraction.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub native_columns: HashMap<String, String>,
 }
 
 impl QueryDefinition {
@@ -200,6 +216,7 @@ impl QueryDefinition {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         }
     }
 
@@ -244,5 +261,11 @@ impl QueryDefinition {
     #[must_use]
     pub fn deprecation_reason(&self) -> Option<&str> {
         self.deprecation.as_ref().and_then(|d| d.reason.as_deref())
+    }
+}
+
+impl Default for QueryDefinition {
+    fn default() -> Self {
+        Self::new("", "")
     }
 }

@@ -5,6 +5,7 @@
 
 pub mod advanced_types;
 pub mod converter;
+pub mod database_validator;
 pub mod intermediate;
 pub mod lookup_data;
 pub mod merger;

@@ -192,6 +192,43 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 operator,
                 value,
             } => self.visit_field(path, operator, value, params),
+            WhereClause::NativeField {
+                column,
+                pg_cast,
+                operator,
+                value,
+            } => self.visit_native_field(column, pg_cast, operator, value, params),
+        }
+    }
+
+    /// Generate SQL for a native-column condition.
+    ///
+    /// Emits `"column" = $N` (with optional PostgreSQL type cast on the parameter,
+    /// e.g. `$1::uuid`) instead of the JSONB extraction path.
+    fn visit_native_field(
+        &self,
+        column: &str,
+        pg_cast: &str,
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        let col_expr = self.dialect.quote_identifier(column);
+        let p = self.push_param(params, value.clone());
+        let rhs = if pg_cast.is_empty() {
+            p
+        } else {
+            format!("{p}::{pg_cast}")
+        };
+        match operator {
+            WhereOperator::Eq => Ok(format!("{col_expr} = {rhs}")),
+            WhereOperator::Neq => {
+                let neq = self.dialect.neq_operator();
+                Ok(format!("{col_expr} {neq} {rhs}"))
+            },
+            _ => Err(FraiseQLError::validation(format!(
+                "Operator {operator:?} is not supported for native column conditions"
+            ))),
         }
     }
 

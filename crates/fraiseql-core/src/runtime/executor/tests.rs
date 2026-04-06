@@ -323,6 +323,7 @@ fn test_schema() -> CompiledSchema {
         requires_role:       None,
         rest_path:           None,
         rest_method:         None,
+        native_columns:      HashMap::new(),
     });
     schema
 }
@@ -849,6 +850,7 @@ mod inject {
             requires_role: None,
             rest_path: None,
             rest_method: None,
+            native_columns:      HashMap::new(),
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -1427,6 +1429,7 @@ mod routing {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
@@ -1470,6 +1473,7 @@ mod auto_params {
             requires_role: None,
             rest_path: None,
             rest_method: None,
+            native_columns:      HashMap::new(),
         });
         schema
     }
@@ -1603,6 +1607,7 @@ mod rls_composition {
             requires_role: None,
             rest_path: None,
             rest_method: None,
+            native_columns:      HashMap::new(),
         });
         schema
     }
@@ -1756,6 +1761,7 @@ mod field_rbac {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
         let mut user_type = TypeDefinition::new("User", "v_user");
         user_type.fields = vec![

@@ -185,6 +185,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             combined_where,
             &query_match.query_def.arguments,
             &query_match.arguments,
+            &query_match.query_def.native_columns,
         );
 
         // 8. Extract limit/offset from query arguments when auto_params are enabled
@@ -348,6 +349,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             user_where,
             &query_match.query_def.arguments,
             &query_match.arguments,
+            &query_match.query_def.native_columns,
         );
 
         let limit = if query_match.query_def.auto_params.has_limit {
@@ -476,6 +478,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             user_where,
             &query_match.query_def.arguments,
             &query_match.arguments,
+            &query_match.query_def.native_columns,
         );
 
         // Compose RLS and user WHERE clauses.
@@ -1183,28 +1186,64 @@ fn selections_contain_field(
 /// These are never treated as explicit WHERE filters.
 const AUTO_PARAM_NAMES: &[&str] = &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
 
+/// Convert PostgreSQL `information_schema.data_type` to a safe SQL cast suffix.
+///
+/// Returns an empty string for types that need no cast (e.g. `text`, `varchar`).
+fn pg_type_to_cast(data_type: &str) -> &'static str {
+    match data_type.to_lowercase().as_str() {
+        "uuid" => "uuid",
+        "integer" | "int" | "int4" => "int4",
+        "bigint" | "int8" => "int8",
+        "smallint" | "int2" => "int2",
+        "boolean" | "bool" => "bool",
+        "numeric" | "decimal" => "numeric",
+        "double precision" | "float8" => "float8",
+        "real" | "float4" => "float4",
+        "timestamp without time zone" | "timestamp" => "timestamp",
+        "timestamp with time zone" | "timestamptz" => "timestamptz",
+        "date" => "date",
+        "time without time zone" | "time" => "time",
+        // text, varchar, char(n), etc. — no cast needed
+        _ => "",
+    }
+}
+
 /// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into
-/// `WhereClause::Field` equality conditions and AND them onto `existing`.
+/// WHERE equality conditions and AND them onto `existing`.
 ///
 /// Arguments whose names match auto-wired parameters (`where`, `limit`,
 /// `offset`, `orderBy`, `first`, `last`, `after`, `before`) are skipped —
 /// they are handled separately by the auto-params system.
 ///
-/// This handles single-entity lookups like `user(id: "...")` where the
-/// arguments are direct equality filters on JSONB columns.
+/// When an argument has a matching entry in `native_columns`, a
+/// `WhereClause::NativeField` is emitted (enabling B-tree index lookup via
+/// `WHERE col = $N::type`).  Otherwise a `WhereClause::Field` is emitted
+/// (JSONB extraction: `WHERE data->>'col' = $N`).
 fn combine_explicit_arg_where(
     existing: Option<WhereClause>,
     defined_args: &[crate::schema::ArgumentDefinition],
     provided_args: &std::collections::HashMap<String, serde_json::Value>,
+    native_columns: &std::collections::HashMap<String, String>,
 ) -> Option<WhereClause> {
     let explicit_conditions: Vec<WhereClause> = defined_args
         .iter()
         .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
         .filter_map(|arg| {
-            provided_args.get(&arg.name).map(|value| WhereClause::Field {
-                path:     vec![arg.name.clone()],
-                operator: WhereOperator::Eq,
-                value:    value.clone(),
+            provided_args.get(&arg.name).map(|value| {
+                if let Some(pg_type) = native_columns.get(&arg.name) {
+                    WhereClause::NativeField {
+                        column:   arg.name.clone(),
+                        pg_cast:  pg_type_to_cast(pg_type).to_string(),
+                        operator: WhereOperator::Eq,
+                        value:    value.clone(),
+                    }
+                } else {
+                    WhereClause::Field {
+                        path:     vec![arg.name.clone()],
+                        operator: WhereOperator::Eq,
+                        value:    value.clone(),
+                    }
+                }
             })
         })
         .collect();
@@ -1390,7 +1429,7 @@ mod tests {
             operator: WhereOperator::Eq,
             value:    serde_json::json!("x"),
         });
-        let result = combine_explicit_arg_where(existing.clone(), &[], &std::collections::HashMap::new());
+        let result = combine_explicit_arg_where(existing.clone(), &[], &std::collections::HashMap::new(), &std::collections::HashMap::new());
         assert_eq!(result, existing);
     }
 
@@ -1400,7 +1439,7 @@ mod tests {
         let mut provided = std::collections::HashMap::new();
         provided.insert("id".into(), serde_json::json!("uuid-123"));
 
-        let result = combine_explicit_arg_where(None, &args, &provided);
+        let result = combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
         assert!(result.is_some(), "explicit id arg should produce a WHERE clause");
         match result.expect("just asserted Some") {
             WhereClause::Field { path, operator, value } => {
@@ -1430,7 +1469,7 @@ mod tests {
             provided.insert((*name).to_string(), serde_json::json!("value"));
         }
 
-        let result = combine_explicit_arg_where(None, &args, &provided);
+        let result = combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
         // Only "id" should produce a WHERE — all auto-param names are skipped
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
@@ -1451,7 +1490,7 @@ mod tests {
         let mut provided = std::collections::HashMap::new();
         provided.insert("id".into(), serde_json::json!("uuid-456"));
 
-        let result = combine_explicit_arg_where(Some(existing), &args, &provided);
+        let result = combine_explicit_arg_where(Some(existing), &args, &provided, &std::collections::HashMap::new());
         match result.expect("should produce combined WHERE") {
             WhereClause::And(conditions) => {
                 assert_eq!(conditions.len(), 2, "should AND existing + explicit");
@@ -1467,7 +1506,7 @@ mod tests {
         // Only provide "id", not "slug"
         provided.insert("id".into(), serde_json::json!("uuid-789"));
 
-        let result = combine_explicit_arg_where(None, &args, &provided);
+        let result = combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
                 assert_eq!(path, vec!["id".to_string()]);

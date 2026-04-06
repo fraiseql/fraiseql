@@ -42,6 +42,8 @@ pub use types::{
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+    use std::collections::HashMap;
+
     use indexmap::IndexMap;
 
     use super::*;
@@ -82,6 +84,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
 
         // Add a user query with argument
@@ -112,6 +115,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
 
         schema
@@ -785,6 +789,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -827,6 +832,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

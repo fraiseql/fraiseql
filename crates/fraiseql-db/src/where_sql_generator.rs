@@ -79,6 +79,20 @@ impl WhereSqlGenerator {
                 let inner = Self::to_sql(clause)?;
                 Ok(format!("NOT ({})", inner))
             },
+            WhereClause::NativeField {
+                column,
+                operator,
+                value,
+                ..
+            } => {
+                // Wire adapter: use native column name directly with escaped literal value.
+                // Cast suffix is omitted — wire protocol assembles raw SQL without bind params.
+                let escaped_col = Self::escape_sql_string(column)?;
+                let col_expr = format!("\"{escaped_col}\"");
+                let sql_op = Self::operator_to_sql(operator)?;
+                let val_sql = Self::value_to_sql(value, operator)?;
+                Ok(format!("{col_expr} {sql_op} {val_sql}"))
+            },
         }
     }
 

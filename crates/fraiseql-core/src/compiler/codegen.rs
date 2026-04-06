@@ -5,6 +5,8 @@
 //! Takes validated IR and SQL templates, produces runtime-optimized
 //! `CompiledSchema` ready for execution.
 
+use std::collections::HashMap;
+
 use super::ir::{
     AuthoringIR, IRArgument, IREnum, IREnumValue, IRField, IRInputField, IRInputType, IRInterface,
     IRMutation, IRUnion,
@@ -166,6 +168,7 @@ impl CodeGenerator {
                     requires_role:       None,
                     rest_path:           None,
                     rest_method:         None,
+                    native_columns:      HashMap::new(),
                 }
             })
             .collect();

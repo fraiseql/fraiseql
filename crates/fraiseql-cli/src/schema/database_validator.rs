@@ -12,16 +12,26 @@ use std::{
     fmt,
 };
 
-use fraiseql_core::schema::CompiledSchema;
-use fraiseql_db::{
-    DatabaseType,
-    introspector::{DatabaseIntrospector, RelationInfo},
+use fraiseql_core::{
+    db::{
+        DatabaseType,
+        introspector::{DatabaseIntrospector, RelationInfo},
+    },
+    schema::CompiledSchema,
 };
 
-/// Report containing all database validation warnings.
+/// Report containing all database validation warnings and discovered metadata.
 pub struct DatabaseValidationReport {
     /// All warnings emitted during validation.
     pub warnings: Vec<DatabaseWarning>,
+    /// Native columns discovered per query during L2 validation.
+    ///
+    /// Key: query name. Value: map of argument name → PostgreSQL type string
+    /// (e.g. `"uuid"`, `"integer"`, `"text"`).
+    ///
+    /// Only contains entries for queries that have at least one direct argument
+    /// with a matching native column on their `sql_source`.
+    pub native_columns: HashMap<String, HashMap<String, String>>,
 }
 
 /// A single database validation warning.
@@ -82,6 +92,18 @@ pub enum DatabaseWarning {
         field_name:  String,
         /// The snake_case key looked up in the JSON.
         json_key:    String,
+    },
+    /// L2: a direct query argument has no matching native column — will fall back to JSONB extraction.
+    ///
+    /// For best performance, consider adding a native column with the same name
+    /// and an index on the `sql_source` table/view.
+    NativeColumnFallback {
+        /// Name of the query.
+        query_name: String,
+        /// The `sql_source` relation.
+        sql_source: String,
+        /// The argument name that has no matching native column.
+        arg_name:   String,
     },
 }
 
@@ -147,6 +169,18 @@ impl fmt::Display for DatabaseWarning {
                 write!(
                     f,
                     "query `{query_name}`: field `{field_name}` (key `{json_key}`) not found in `{sql_source}.{json_column}` sample data"
+                )
+            },
+            Self::NativeColumnFallback {
+                query_name,
+                sql_source,
+                arg_name,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: argument `{arg_name}` will use JSONB extraction \
+                     (`{sql_source}.data->>''{arg_name}''`) — no native column `{arg_name}` found on \
+                     `{sql_source}`. Add a native column with an index for O(log n) lookup."
                 )
             },
         }
@@ -221,8 +255,14 @@ fn to_snake_case(name: &str) -> String {
 pub async fn validate_schema_against_database(
     schema: &CompiledSchema,
     introspector: &impl DatabaseIntrospector,
-) -> fraiseql_error::Result<DatabaseValidationReport> {
+) -> fraiseql_core::Result<DatabaseValidationReport> {
+    // Auto-wired argument names excluded from direct-arg native column detection.
+    // Must stay in sync with AUTO_PARAM_NAMES in fraiseql-core/runtime/executor/query.rs.
+    const AUTO_PARAM_NAMES: &[&str] =
+        &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
+
     let mut warnings = Vec::new();
+    let mut native_columns: HashMap<String, HashMap<String, String>> = HashMap::new();
     let db_type = introspector.database_type();
 
     // L1: Build relation lookup maps
@@ -300,6 +340,32 @@ pub async fn validate_schema_against_database(
                 }
             }
 
+            // L2: Detect native columns for direct (non-auto-param) arguments.
+            let direct_args: Vec<&str> = query
+                .arguments
+                .iter()
+                .filter(|a| !AUTO_PARAM_NAMES.contains(&a.name.as_str()))
+                .map(|a| a.name.as_str())
+                .collect();
+
+            if !direct_args.is_empty() {
+                let mut query_native: HashMap<String, String> = HashMap::new();
+                for arg_name in &direct_args {
+                    if let Some(col_type) = column_map.get(*arg_name) {
+                        query_native.insert((*arg_name).to_string(), col_type.clone());
+                    } else {
+                        warnings.push(DatabaseWarning::NativeColumnFallback {
+                            query_name: query.name.clone(),
+                            sql_source: source.clone(),
+                            arg_name:   (*arg_name).to_string(),
+                        });
+                    }
+                }
+                if !query_native.is_empty() {
+                    native_columns.insert(query.name.clone(), query_native);
+                }
+            }
+
             // L1: Check additional_views
             for view in &query.additional_views {
                 if !relation_exists(&schema_qualified, &unqualified, view) {
@@ -324,7 +390,7 @@ pub async fn validate_schema_against_database(
         }
     }
 
-    Ok(DatabaseValidationReport { warnings })
+    Ok(DatabaseValidationReport { warnings, native_columns })
 }
 
 /// Build lookup maps from the list of relations.
@@ -351,7 +417,7 @@ async fn validate_json_keys(
     introspector: &impl DatabaseIntrospector,
     table_name: &str,
     warnings: &mut Vec<DatabaseWarning>,
-) -> fraiseql_error::Result<()> {
+) -> fraiseql_core::Result<()> {
     let samples = introspector.get_sample_json_rows(table_name, jsonb_col, 5).await?;
 
     if samples.is_empty() {
@@ -405,20 +471,20 @@ async fn validate_json_keys(
 /// trait uses `async_fn_in_trait` and cannot be object-safe.
 pub enum AnyIntrospector {
     /// PostgreSQL introspector.
-    Postgres(fraiseql_db::PostgresIntrospector),
+    Postgres(fraiseql_core::db::PostgresIntrospector),
     #[cfg(feature = "mysql")]
     /// MySQL introspector.
-    MySql(fraiseql_db::MySqlIntrospector),
+    MySql(fraiseql_core::db::MySqlIntrospector),
     #[cfg(feature = "sqlite")]
     /// SQLite introspector.
-    Sqlite(fraiseql_db::SqliteIntrospector),
+    Sqlite(fraiseql_core::db::SqliteIntrospector),
     #[cfg(feature = "sqlserver")]
     /// SQL Server introspector.
-    SqlServer(fraiseql_db::SqlServerIntrospector),
+    SqlServer(fraiseql_core::db::SqlServerIntrospector),
 }
 
 impl DatabaseIntrospector for AnyIntrospector {
-    async fn list_fact_tables(&self) -> fraiseql_error::Result<Vec<String>> {
+    async fn list_fact_tables(&self) -> fraiseql_core::Result<Vec<String>> {
         match self {
             Self::Postgres(i) => i.list_fact_tables().await,
             #[cfg(feature = "mysql")]
@@ -433,7 +499,7 @@ impl DatabaseIntrospector for AnyIntrospector {
     async fn get_columns(
         &self,
         table_name: &str,
-    ) -> fraiseql_error::Result<Vec<(String, String, bool)>> {
+    ) -> fraiseql_core::Result<Vec<(String, String, bool)>> {
         match self {
             Self::Postgres(i) => i.get_columns(table_name).await,
             #[cfg(feature = "mysql")]
@@ -445,7 +511,7 @@ impl DatabaseIntrospector for AnyIntrospector {
         }
     }
 
-    async fn get_indexed_columns(&self, table_name: &str) -> fraiseql_error::Result<Vec<String>> {
+    async fn get_indexed_columns(&self, table_name: &str) -> fraiseql_core::Result<Vec<String>> {
         match self {
             Self::Postgres(i) => i.get_indexed_columns(table_name).await,
             #[cfg(feature = "mysql")]
@@ -473,7 +539,7 @@ impl DatabaseIntrospector for AnyIntrospector {
         &self,
         table_name: &str,
         column_name: &str,
-    ) -> fraiseql_error::Result<Option<serde_json::Value>> {
+    ) -> fraiseql_core::Result<Option<serde_json::Value>> {
         match self {
             Self::Postgres(i) => i.get_sample_jsonb(table_name, column_name).await,
             #[cfg(feature = "mysql")]
@@ -485,7 +551,7 @@ impl DatabaseIntrospector for AnyIntrospector {
         }
     }
 
-    async fn list_relations(&self) -> fraiseql_error::Result<Vec<fraiseql_db::RelationInfo>> {
+    async fn list_relations(&self) -> fraiseql_core::Result<Vec<fraiseql_core::db::RelationInfo>> {
         match self {
             Self::Postgres(i) => i.list_relations().await,
             #[cfg(feature = "mysql")]
@@ -502,7 +568,7 @@ impl DatabaseIntrospector for AnyIntrospector {
         table_name: &str,
         column_name: &str,
         limit: usize,
-    ) -> fraiseql_error::Result<Vec<serde_json::Value>> {
+    ) -> fraiseql_core::Result<Vec<serde_json::Value>> {
         match self {
             Self::Postgres(i) => i.get_sample_json_rows(table_name, column_name, limit).await,
             #[cfg(feature = "mysql")]
@@ -541,7 +607,7 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
             .create_pool(Some(Runtime::Tokio1), NoTls)
             .map_err(|e| anyhow::anyhow!("Failed to create PostgreSQL pool: {e}"))?;
 
-        Ok(AnyIntrospector::Postgres(fraiseql_db::PostgresIntrospector::new(pool)))
+        Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
     } else if db_url.starts_with("mysql") || db_url.starts_with("mariadb") {
         #[cfg(feature = "mysql")]
         {
@@ -551,7 +617,7 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create MySQL pool: {e}"))?;
 
-            Ok(AnyIntrospector::MySql(fraiseql_db::MySqlIntrospector::new(pool)))
+            Ok(AnyIntrospector::MySql(fraiseql_core::db::MySqlIntrospector::new(pool)))
         }
         #[cfg(not(feature = "mysql"))]
         {
@@ -570,7 +636,7 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create SQLite pool: {e}"))?;
 
-            Ok(AnyIntrospector::Sqlite(fraiseql_db::SqliteIntrospector::new(pool)))
+            Ok(AnyIntrospector::Sqlite(fraiseql_core::db::SqliteIntrospector::new(pool)))
         }
         #[cfg(not(feature = "sqlite"))]
         {
@@ -595,7 +661,7 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create SQL Server pool: {e}"))?;
 
-            Ok(AnyIntrospector::SqlServer(fraiseql_db::SqlServerIntrospector::new(pool)))
+            Ok(AnyIntrospector::SqlServer(fraiseql_core::db::SqlServerIntrospector::new(pool)))
         }
         #[cfg(not(feature = "sqlserver"))]
         {
@@ -646,7 +712,7 @@ mod tests {
             mut self,
             schema: &str,
             name: &str,
-            kind: fraiseql_db::RelationKind,
+            kind: fraiseql_core::db::RelationKind,
         ) -> Self {
             self.relations.push(RelationInfo {
                 schema: schema.to_string(),
@@ -678,21 +744,21 @@ mod tests {
     }
 
     impl DatabaseIntrospector for MockIntrospector {
-        async fn list_fact_tables(&self) -> fraiseql_error::Result<Vec<String>> {
+        async fn list_fact_tables(&self) -> fraiseql_core::Result<Vec<String>> {
             Ok(Vec::new())
         }
 
         async fn get_columns(
             &self,
             table_name: &str,
-        ) -> fraiseql_error::Result<Vec<(String, String, bool)>> {
+        ) -> fraiseql_core::Result<Vec<(String, String, bool)>> {
             Ok(self.columns.get(table_name).cloned().unwrap_or_default())
         }
 
         async fn get_indexed_columns(
             &self,
             _table_name: &str,
-        ) -> fraiseql_error::Result<Vec<String>> {
+        ) -> fraiseql_core::Result<Vec<String>> {
             Ok(Vec::new())
         }
 
@@ -700,7 +766,7 @@ mod tests {
             self.db_type
         }
 
-        async fn list_relations(&self) -> fraiseql_error::Result<Vec<RelationInfo>> {
+        async fn list_relations(&self) -> fraiseql_core::Result<Vec<RelationInfo>> {
             Ok(self.relations.clone())
         }
 
@@ -709,7 +775,7 @@ mod tests {
             table_name: &str,
             column_name: &str,
             _limit: usize,
-        ) -> fraiseql_error::Result<Vec<serde_json::Value>> {
+        ) -> fraiseql_core::Result<Vec<serde_json::Value>> {
             Ok(self
                 .json_samples
                 .get(&(table_name.to_string(), column_name.to_string()))
@@ -739,6 +805,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         }
     }
 
@@ -791,7 +858,7 @@ mod tests {
     #[tokio::test]
     async fn test_valid_schema_no_warnings() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false), ("pk_user", "bigint", false)])
             .with_json_samples(
                 "v_user",
@@ -830,7 +897,7 @@ mod tests {
     #[tokio::test]
     async fn test_missing_additional_view() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)]);
 
         let mut query = make_query("users", "User", "v_user");
@@ -848,7 +915,7 @@ mod tests {
     #[tokio::test]
     async fn test_missing_jsonb_column() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("pk_user", "bigint", false)]);
 
         let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
@@ -863,7 +930,7 @@ mod tests {
     #[tokio::test]
     async fn test_wrong_json_column_type() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "text", false)]);
 
         let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
@@ -878,7 +945,7 @@ mod tests {
     #[tokio::test]
     async fn test_sqlserver_nvarchar_no_warning() {
         let introspector = MockIntrospector::new(DatabaseType::SQLServer)
-            .with_relation("dbo", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("dbo", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "nvarchar", false)]);
 
         let schema = make_schema(vec![], vec![make_query("users", "User", "v_user")]);
@@ -896,7 +963,7 @@ mod tests {
     #[tokio::test]
     async fn test_missing_cursor_column() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)]);
 
         let mut query = make_query("users", "User", "v_user");
@@ -912,7 +979,7 @@ mod tests {
     #[tokio::test]
     async fn test_missing_json_key() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)])
             .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
 
@@ -931,7 +998,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_json_sample_no_l3_warnings() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)]);
 
         let schema = make_schema(
@@ -952,7 +1019,7 @@ mod tests {
     #[tokio::test]
     async fn test_schema_qualified_match() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("etl_log", "v_foo", fraiseql_db::RelationKind::View)
+            .with_relation("etl_log", "v_foo", fraiseql_core::db::RelationKind::View)
             .with_columns("v_foo", vec![("data", "jsonb", false)]);
 
         let schema = make_schema(vec![], vec![make_query("foos", "Foo", "etl_log.v_foo")]);
@@ -972,7 +1039,7 @@ mod tests {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL).with_relation(
             "public",
             "v_foo",
-            fraiseql_db::RelationKind::View,
+            fraiseql_core::db::RelationKind::View,
         );
 
         let schema = make_schema(vec![], vec![make_query("foos", "Foo", "etl_log.v_foo")]);
@@ -1018,7 +1085,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_samples_merge_keys() {
         let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
-            .with_relation("public", "v_user", fraiseql_db::RelationKind::View)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
             .with_columns("v_user", vec![("data", "jsonb", false)])
             .with_json_samples(
                 "v_user",

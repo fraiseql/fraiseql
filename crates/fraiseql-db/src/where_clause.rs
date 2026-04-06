@@ -55,6 +55,24 @@ pub enum WhereClause {
 
     /// Logical NOT of a condition.
     Not(Box<WhereClause>),
+
+    /// Native column condition — bypasses JSONB extraction.
+    ///
+    /// Used when a direct query argument maps to a native column on `sql_source`,
+    /// detected at compile time. Generates `"column" = $N` (with an optional
+    /// PostgreSQL type cast on the parameter, e.g. `$1::uuid`) instead of the
+    /// default `data->>'column' = $N`.
+    NativeField {
+        /// Native column name (e.g., `"id"`).
+        column:   String,
+        /// PostgreSQL parameter cast suffix (e.g., `"uuid"`, `"int4"`).
+        /// Empty string means no cast is applied.
+        pg_cast:  String,
+        /// Comparison operator.
+        operator: WhereOperator,
+        /// Value to compare against.
+        value:    serde_json::Value,
+    },
 }
 
 impl WhereClause {
@@ -63,7 +81,7 @@ impl WhereClause {
     pub const fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
-            Self::Not(_) | Self::Field { .. } => false,
+            Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } => false,
         }
     }
 

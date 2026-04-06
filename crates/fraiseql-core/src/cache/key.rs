@@ -348,7 +348,7 @@ pub fn verify_deterministic(query: &str, variables: &JsonValue, schema_version: 
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
     use indexmap::IndexMap;
     use serde_json::json;
@@ -630,6 +630,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         };
 
         let views = extract_accessed_views(&query_def);
@@ -665,6 +666,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         };
 
         let views = extract_accessed_views(&query_def);
@@ -695,6 +697,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         };
 
         let views = extract_accessed_views(&query_def);

@@ -48,6 +48,9 @@ tower = {workspace = true}
 [features]
 default = []
 federation = ["fraiseql-core/federation"]
+mysql = ["fraiseql-core/mysql"]
+sqlite = ["fraiseql-core/sqlite"]
+sqlserver = ["fraiseql-core/sqlserver"]
 run-server = ["dep:fraiseql-server", "dep:axum"]
 
 [lints]

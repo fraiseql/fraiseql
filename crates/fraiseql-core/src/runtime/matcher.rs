@@ -377,6 +377,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
         schema
     }
@@ -579,6 +580,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -612,6 +614,7 @@ mod tests {
             requires_role:       None,
             rest_path:           None,
             rest_method:         None,
+            native_columns:      HashMap::new(),
         });
         let matcher = QueryMatcher::new(schema);
 

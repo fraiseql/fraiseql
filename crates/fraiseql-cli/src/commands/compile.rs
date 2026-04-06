@@ -12,6 +12,7 @@ use crate::{
     config::TomlProjectConfig,
     schema::{
         IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer, SchemaValidator,
+        database_validator::validate_schema_against_database,
     },
 };
 
@@ -221,10 +222,42 @@ pub async fn compile_to_schema(
     // 5a. Stamp schema format version for runtime compatibility checks.
     schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
 
-    // 5b. Optional: Validate indexed columns against database
+    // 5b. Optional: Validate indexed columns and native columns against database.
     if let Some(db_url) = opts.database {
         info!("Validating indexed columns against database...");
         validate_indexed_columns(&schema, db_url).await?;
+
+        info!("Validating native columns for direct query arguments...");
+        let pg_introspector =
+            build_postgres_introspector(db_url).context("Failed to connect for native column validation")?;
+        let db_report = validate_schema_against_database(&schema, &pg_introspector).await?;
+        for w in &db_report.warnings {
+            warn!("{w}");
+        }
+        // Patch QueryDefinitions with discovered native_columns.
+        for query in &mut schema.queries {
+            if let Some(cols) = db_report.native_columns.get(&query.name) {
+                query.native_columns = cols.clone();
+            }
+        }
+    } else {
+        // Warn for queries that have direct arguments but no DB was provided for validation.
+        for query in &schema.queries {
+            if query.sql_source.is_some() {
+                let has_direct_args = query.arguments.iter().any(|a| {
+                    !["where", "limit", "offset", "orderBy", "first", "last", "after", "before"]
+                        .contains(&a.name.as_str())
+                });
+                if has_direct_args {
+                    warn!(
+                        "query `{}`: could not validate native columns for `{}` — no --database \
+                         URL provided. Direct argument filters will use JSONB extraction.",
+                        query.name,
+                        query.sql_source.as_deref().unwrap_or("?"),
+                    );
+                }
+            }
+        }
     }
 
     // 5c. Warn when SQLite is the target but the schema uses features SQLite doesn't support.
@@ -376,6 +409,33 @@ fn detect_sqlite_target_in_toml(toml_path: &str) -> bool {
     toml_schema.schema.database_target.to_ascii_lowercase().contains("sqlite")
 }
 
+/// Build a PostgreSQL introspector connected to `db_url`.
+///
+/// Shared by `validate_indexed_columns` and the native column validation path.
+///
+/// # Errors
+///
+/// Returns error if the pool cannot be created or the connection URL is invalid.
+fn build_postgres_introspector(
+    db_url: &str,
+) -> Result<fraiseql_core::db::postgres::PostgresIntrospector> {
+    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
+    use tokio_postgres::NoTls;
+
+    let mut cfg = Config::new();
+    cfg.url = Some(db_url.to_string());
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
+    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
+
+    let pool = cfg
+        .create_pool(Some(Runtime::Tokio1), NoTls)
+        .context("Failed to create connection pool for database validation")?;
+
+    Ok(fraiseql_core::db::postgres::PostgresIntrospector::new(pool))
+}
+
 /// Validate indexed columns against database views.
 ///
 /// Connects to the database and introspects view columns to verify that
@@ -523,6 +583,7 @@ mod tests {
                 requires_role:       None,
                 rest_path:           None,
                 rest_method:         None,
+                native_columns:      HashMap::new(),
             }],
             enums: vec![],
             input_types: vec![],
@@ -583,6 +644,7 @@ mod tests {
                 requires_role:       None,
                 rest_path:           None,
                 rest_method:         None,
+                native_columns:      HashMap::new(),
             }],
             mutations: vec![],
             subscriptions: vec![],
