@@ -98,4 +98,10 @@ pub struct Server<A: DatabaseAdapter> {
 
     /// Pool pressure monitoring configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
     pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,
+
+    /// Whether the adapter-level query result cache (`CachedDatabaseAdapter`) is active.
+    ///
+    /// Set to `true` when `ServerConfig::cache_enabled = true` and the server was built
+    /// with `Server::new` or `Server::with_relay_pagination`.
+    pub(super) adapter_cache_enabled: bool,
 }

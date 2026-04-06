@@ -8,6 +8,7 @@ use fraiseql_arrow::FraiseQLFlightService;
 #[cfg(all(feature = "arrow", feature = "auth"))]
 use fraiseql_core::security::OidcValidator;
 use fraiseql_core::{
+    cache::{CacheConfig, CachedDatabaseAdapter, CascadeInvalidator, QueryResultCache},
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -26,7 +27,9 @@ use super::ServerError;
 use super::{ObserverRuntime, ObserverRuntimeConfig};
 use super::{Result, Server, ServerConfig};
 
-impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
+    Server<CachedDatabaseAdapter<A>>
+{
     /// Create a server with relay pagination support enabled.
     ///
     /// The adapter must implement [`RelayDatabaseAdapter`]. Currently, only
@@ -47,6 +50,12 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
     ///
     /// Returns error if OIDC validator initialization fails.
     ///
+    /// # Panics
+    ///
+    /// Panics if the `adapter` `Arc` has been cloned before calling this constructor
+    /// (refcount > 1). The builder must have exclusive ownership to unwrap the adapter
+    /// for `CachedDatabaseAdapter` construction.
+    ///
     /// # Example
     ///
     /// ```text
@@ -61,6 +70,24 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
+        // Validate cache + RLS safety (mirrors Server::new).
+        if config.cache_enabled && !schema.has_rls_configured() {
+            if schema.is_multi_tenant() {
+                return Err(super::ServerError::ConfigError(
+                    "Cache is enabled in a multi-tenant schema but no Row-Level Security \
+                     policies are declared. This would allow cross-tenant cache hits and \
+                     data leakage. In fraiseql.toml, either disable caching with \
+                     [cache] enabled = false, declare [security.rls] policies, or set \
+                     [security] multi_tenant = false to acknowledge single-tenant mode."
+                        .to_string(),
+                ));
+            }
+            tracing::warn!(
+                "Query-result caching is enabled but no Row-Level Security policies are \
+                 declared in the compiled schema. This is safe for single-tenant deployments."
+            );
+        }
+
         // Read security configs from compiled schema BEFORE schema is moved.
         #[cfg(feature = "federation")]
         let circuit_breaker = schema.federation.as_ref().and_then(
@@ -90,7 +117,16 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
         let revocation_manager = crate::token_revocation::revocation_manager_from_schema(&schema);
         let trusted_docs = Self::trusted_docs_from_schema(&schema);
 
-        let executor = Arc::new(Executor::new_with_relay(schema.clone(), adapter));
+        let cache_config = CacheConfig::from(config.cache_enabled);
+        let cache = QueryResultCache::new(cache_config);
+        let invalidator = CascadeInvalidator::new();
+        // Unwrap Arc: refcount is 1 here — adapter has not been cloned since being passed in.
+        let inner = Arc::into_inner(adapter)
+            .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
+        let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
+            .with_ttl_overrides_from_schema(&schema)
+            .with_cascade_invalidator(invalidator);
+        let executor = Arc::new(Executor::new_with_relay(schema.clone(), Arc::new(cached)));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let mut server = Self::from_executor(
@@ -109,6 +145,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static> 
             db_pool,
         )
         .await?;
+
+        server.adapter_cache_enabled = cache_config.enabled;
 
         // Initialize MCP config from compiled schema when the feature is compiled in.
         #[cfg(feature = "mcp")]
@@ -304,6 +342,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             db_pool,
             flight_service,
+            adapter_cache_enabled: false,
         })
     }
 

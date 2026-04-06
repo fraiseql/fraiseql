@@ -82,6 +82,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("Observer runtime attached to AppState for health probes");
         }
 
+        // Thread adapter-level cache state through to admin handlers.
+        state = state.with_adapter_cache_enabled(self.adapter_cache_enabled);
+
         // Attach error sanitizer (always present; disabled by default)
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {

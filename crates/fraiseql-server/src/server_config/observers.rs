@@ -184,14 +184,14 @@ mod tests {
 
     #[test]
     fn observer_config_with_pool_section_deserializes() {
-        let toml = r#"
+        let toml = r"
             enabled = true
 
             [pool]
             min_connections = 3
             max_connections = 8
             acquire_timeout_secs = 15
-        "#;
+        ";
         let cfg: ObserverConfig = toml::from_str(toml).unwrap();
         assert_eq!(cfg.pool.min_connections, 3);
         assert_eq!(cfg.pool.max_connections, 8);
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn observer_config_pool_defaults_when_section_absent() {
-        let toml = r#"enabled = true"#;
+        let toml = r"enabled = true";
         let cfg: ObserverConfig = toml::from_str(toml).unwrap();
         assert_eq!(cfg.pool.min_connections, 2, "default min_connections should be 2");
         assert_eq!(cfg.pool.max_connections, 5, "default max_connections should be 5");

@@ -367,6 +367,18 @@ impl CacheConfig {
     }
 }
 
+impl From<bool> for CacheConfig {
+    /// Create a `CacheConfig` from a boolean flag.
+    ///
+    /// `true` → `CacheConfig::enabled()` (sensible defaults, caching on)
+    /// `false` → `CacheConfig::disabled()` (zero-overhead passthrough)
+    ///
+    /// Used by `ServerBuilder` to derive a `CacheConfig` from `ServerConfig::cache_enabled`.
+    fn from(enabled: bool) -> Self {
+        if enabled { Self::enabled() } else { Self::disabled() }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -418,6 +430,20 @@ mod tests {
         let estimated = config.estimated_memory_bytes();
         // Should be roughly 100 MB (10,000 * 10 KB)
         assert_eq!(estimated, 100_000_000);
+    }
+
+    #[test]
+    fn test_from_bool_true() {
+        let config = CacheConfig::from(true);
+        assert!(config.enabled);
+        assert_eq!(config.max_entries, 10_000);
+        assert_eq!(config.ttl_seconds, 86_400);
+    }
+
+    #[test]
+    fn test_from_bool_false() {
+        let config = CacheConfig::from(false);
+        assert!(!config.enabled);
     }
 
     #[test]

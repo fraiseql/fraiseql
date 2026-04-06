@@ -5,6 +5,7 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
+    cache::{CacheConfig, CachedDatabaseAdapter, CascadeInvalidator, QueryResultCache},
     db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -14,7 +15,7 @@ use tracing::{info, warn};
 
 use super::{RateLimiter, Result, Server, ServerConfig, ServerError};
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
     /// Create new server.
     ///
     /// Relay pagination queries will return a `Validation` error at runtime. Use
@@ -33,6 +34,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Returns error if OIDC validator initialization fails (e.g., unable to
     /// fetch discovery document or JWKS).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `adapter` `Arc` has been cloned before calling this constructor
+    /// (refcount > 1). The builder must have exclusive ownership to unwrap the adapter
+    /// for `CachedDatabaseAdapter` construction.
     ///
     /// # Example
     ///
@@ -124,15 +131,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
-        // Log cache status so operators know exactly what cache_enabled activates.
-        if config.cache_enabled {
+        // Build cache from config.
+        let cache_config = CacheConfig::from(config.cache_enabled);
+        let cache = QueryResultCache::new(cache_config);
+
+        // Build cascade invalidator (empty — schema carries no explicit view deps yet).
+        let invalidator = CascadeInvalidator::new();
+
+        // Log cache state before consuming config.
+        if cache_config.enabled {
             tracing::info!(
-                rls_configured = schema.has_rls_configured(),
-                multi_tenant   = schema.is_multi_tenant(),
-                "Query result cache: RLS safety guard active. \
-                 Note: full query result caching (CachedDatabaseAdapter) is not yet wired \
-                 into this server build. Mutations and queries execute directly against the \
-                 database adapter. Set cache_enabled = false to suppress this message."
+                max_entries   = cache_config.max_entries,
+                ttl_seconds   = cache_config.ttl_seconds,
+                rls_enforcement = ?cache_config.rls_enforcement,
+                "Query result cache: active"
             );
         } else {
             tracing::info!("Query result cache: disabled");
@@ -141,7 +153,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Read subscription config from compiled schema (hooks, limits).
         let subscriptions_config = schema.subscriptions_config.clone();
 
-        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        // Unwrap Arc: refcount is 1 here — adapter has not been cloned since being passed in.
+        let inner = Arc::into_inner(adapter)
+            .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
+        let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
+            .with_ttl_overrides_from_schema(&schema)
+            .with_cascade_invalidator(invalidator);
+        let executor = Arc::new(Executor::new(schema.clone(), Arc::new(cached)));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let mut server = Self::from_executor(
@@ -160,6 +178,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             db_pool,
         )
         .await?;
+
+        server.adapter_cache_enabled = cache_config.enabled;
 
         // Apply pool tuning config from ServerConfig (if present).
         if let Some(pt) = server.config.pool_tuning.clone() {
@@ -206,7 +226,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         Ok(server)
     }
+}
 
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Shared initialization path used by both `new` and `with_relay_pagination`.
     ///
     /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
@@ -355,6 +377,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "mcp")]
             mcp_config: None,
             pool_tuning_config: None,
+            adapter_cache_enabled: false,
         })
     }
 

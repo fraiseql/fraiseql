@@ -76,6 +76,13 @@ pub struct AppState<A: DatabaseAdapter> {
     pub(crate) reload_adapter: Option<Arc<A>>,
     /// Reload mutex to serialize concurrent reload attempts.
     pub(crate) reload_lock:    Arc<tokio::sync::Mutex<()>>,
+    /// Whether the adapter-level query result cache is active.
+    ///
+    /// Set to `true` when `ServerConfig::cache_enabled = true` and the server
+    /// was built via `Server::new` or `Server::with_relay_pagination`.
+    /// This reflects the adapter-level `CachedDatabaseAdapter` state, NOT the
+    /// Arrow flight cache (`AppState::cache`).
+    pub adapter_cache_enabled: bool,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -114,6 +121,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             schema_path: None,
             reload_adapter: None,
             reload_lock: Arc::new(tokio::sync::Mutex::new(())),
+            adapter_cache_enabled: false,
         }
     }
 
@@ -183,6 +191,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             return Ok(()); // Same schema, no-op
         }
 
+        // TODO(#184): hot-reload does not re-wrap the adapter in a new CachedDatabaseAdapter.
+        // Per-view TTL overrides from the new schema will not be applied until a full restart.
         // 5. Construct new executor (reuses same adapter/connection pool)
         let new_executor = Arc::new(Executor::new(schema, adapter.clone()));
 
@@ -357,6 +367,15 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_pool_tuner(mut self, tuner: Arc<crate::pool::PoolSizingAdvisor>) -> Self {
         self.pool_tuner = Some(tuner);
+        self
+    }
+
+    /// Set whether the adapter-level cache is active.
+    ///
+    /// Called from `build_router` to thread the cache state through to admin handlers.
+    #[must_use]
+    pub const fn with_adapter_cache_enabled(mut self, enabled: bool) -> Self {
+        self.adapter_cache_enabled = enabled;
         self
     }
 

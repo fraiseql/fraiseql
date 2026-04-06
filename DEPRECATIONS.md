@@ -13,6 +13,8 @@ This document tracks deprecated APIs and their migration paths. Deprecated items
 | Item | Crate | Since | Replacement | Removal Target |
 |------|-------|-------|-------------|----------------|
 | `PoolTuningConfig` | `fraiseql-server` | v2.0.1 | `PoolPressureMonitorConfig` | v3.0 |
+| `CacheStatus::RlsGuardOnly` | `fraiseql-server` | v2.2.0 | `CacheStatus::Active` or `CacheStatus::Disabled` | v3.0 |
+| `CacheStatus::from_cache_enabled` | `fraiseql-server` | v2.2.0 | `AppState::adapter_cache_enabled` | v3.0 |
 
 ### Observer pool size inheritance (v2.2.0)
 
@@ -32,6 +34,14 @@ acquire_timeout_secs = 30
 
 This change is intentional: the observer pool serves LISTEN/NOTIFY and metadata
 queries — it rarely needs more than 2–5 connections.
+
+### `CacheStatus::RlsGuardOnly` (deprecated in 2.2.0)
+
+Replaced by `CacheStatus::Active`. `CachedDatabaseAdapter` is now always wired when `cache_enabled = true`, so `RlsGuardOnly` (which indicated "guard active but adapter not wired") is no longer a real state. Use `Active` or `Disabled`.
+
+### `CacheStatus::from_cache_enabled` (deprecated in 2.2.0)
+
+Replaced by reading `AppState::adapter_cache_enabled`. This function returned `RlsGuardOnly` which is now deprecated.
 
 ### `PoolTuningConfig` (v2.0.1)
 

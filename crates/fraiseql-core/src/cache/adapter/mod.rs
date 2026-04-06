@@ -496,6 +496,20 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     }
 }
 
+impl<A: DatabaseAdapter + Clone> Clone for CachedDatabaseAdapter<A> {
+    fn clone(&self) -> Self {
+        Self {
+            adapter:             self.adapter.clone(),
+            cache:               Arc::clone(&self.cache),
+            schema_version:      self.schema_version.clone(),
+            view_ttl_overrides:  self.view_ttl_overrides.clone(),
+            fact_table_config:   self.fact_table_config.clone(),
+            version_provider:    Arc::clone(&self.version_provider),
+            cascade_invalidator: self.cascade_invalidator.clone(),
+        }
+    }
+}
+
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)

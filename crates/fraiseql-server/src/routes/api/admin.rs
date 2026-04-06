@@ -28,20 +28,32 @@ pub enum CacheStatus {
     Disabled,
     /// `cache_enabled = true` — RLS safety guard is active, but full
     /// query result caching (`CachedDatabaseAdapter`) is not yet wired.
+    #[deprecated(
+        since = "2.2.0",
+        note = "CachedDatabaseAdapter is now always wired when cache_enabled = true. \
+                Use `Active` or `Disabled` instead."
+    )]
     RlsGuardOnly,
     /// Full query result caching is active.
     ///
-    /// Reserved for when `CachedDatabaseAdapter` is wired into the server.
+    /// `CachedDatabaseAdapter` is wired into the server when `cache_enabled = true`.
     Active,
 }
 
 impl CacheStatus {
     /// Derive cache status from the `cache_enabled` flag.
     ///
-    /// Until full `CachedDatabaseAdapter` wire-up lands, `cache_enabled = true`
-    /// only activates the RLS safety guard, not actual query result caching.
+    /// # Deprecated
+    ///
+    /// Use `AppState::adapter_cache_enabled` to determine the true cache state.
     #[must_use]
+    #[deprecated(
+        since = "2.2.0",
+        note = "Use `AppState::adapter_cache_enabled` to determine the true cache state. \
+                This function returns `RlsGuardOnly` which is no longer accurate."
+    )]
     pub const fn from_cache_enabled(cache_enabled: bool) -> Self {
+        #[allow(deprecated)] // Reason: function itself is deprecated; returns deprecated variant
         if cache_enabled { Self::RlsGuardOnly } else { Self::Disabled }
     }
 }
@@ -416,13 +428,9 @@ pub async fn config_handler<A: DatabaseAdapter>(
             config.insert("max_queue_depth".to_string(), limits.max_queue_depth.to_string());
         }
 
-        // Cache status (requires arrow feature for full CachedDatabaseAdapter).
-        // Without the arrow feature or when the cache is not initialized,
-        // the cache is not active regardless of the cache_enabled config flag.
-        #[cfg(feature = "arrow")]
-        let cache_active = state.cache().is_some();
-        #[cfg(not(feature = "arrow"))]
-        let cache_active = false;
+        // Cache status: read from adapter_cache_enabled (set at startup by ServerBuilder).
+        // This reflects the CachedDatabaseAdapter state, independent of the Arrow cache.
+        let cache_active = state.adapter_cache_enabled;
 
         config.insert("cache_enabled".to_string(), cache_active.to_string());
         let cache_status = if cache_active { CacheStatus::Active } else { CacheStatus::Disabled };
@@ -542,6 +550,7 @@ mod tests {
     // ── CacheStatus (Phase 02, Issue #183) ─────────────────────────────────
 
     #[test]
+    #[allow(deprecated)] // Reason: testing deprecated variant
     fn cache_status_serializes_to_snake_case() {
         let json = serde_json::to_string(&CacheStatus::RlsGuardOnly).unwrap();
         assert_eq!(json, "\"rls_guard_only\"");
@@ -554,16 +563,19 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)] // Reason: testing deprecated function
     fn cache_status_from_config_enabled() {
         assert_eq!(CacheStatus::from_cache_enabled(true), CacheStatus::RlsGuardOnly);
     }
 
     #[test]
+    #[allow(deprecated)] // Reason: testing deprecated function
     fn cache_status_from_config_disabled() {
         assert_eq!(CacheStatus::from_cache_enabled(false), CacheStatus::Disabled);
     }
 
     #[test]
+    #[allow(deprecated)] // Reason: testing deprecated variant
     fn cache_status_deserializes_from_snake_case() {
         let status: CacheStatus = serde_json::from_str("\"rls_guard_only\"").unwrap();
         assert_eq!(status, CacheStatus::RlsGuardOnly);
