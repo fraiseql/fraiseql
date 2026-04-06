@@ -31,6 +31,20 @@ impl SqlDialect for SqliteDialect {
         Cow::Owned(format!("CAST({expr} AS REAL)"))
     }
 
+    fn cast_native_param(&self, placeholder: &str, native_type: &str) -> String {
+        // Map PostgreSQL canonical type names to SQLite CAST target types.
+        // SQLite is dynamically typed; TEXT is the universal fallback since
+        // SQLite coerces TEXT to numeric/integer when compared with numeric columns.
+        let sqlite_type = match native_type.to_lowercase().as_str() {
+            "integer" | "int" | "int4" | "bigint" | "int8" | "smallint" | "int2" | "boolean"
+            | "bool" => "INTEGER",
+            "numeric" | "decimal" | "double precision" | "float8" | "real" | "float4" => "REAL",
+            // uuid, timestamps, dates, text variants — store/compare as TEXT.
+            _ => "TEXT",
+        };
+        format!("CAST({placeholder} AS {sqlite_type})")
+    }
+
     fn always_false(&self) -> &'static str {
         "1=0"
     }
