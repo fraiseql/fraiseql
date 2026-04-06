@@ -124,6 +124,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             );
         }
 
+        // Log cache status so operators know exactly what cache_enabled activates.
+        if config.cache_enabled {
+            tracing::info!(
+                rls_configured = schema.has_rls_configured(),
+                multi_tenant   = schema.is_multi_tenant(),
+                "Query result cache: RLS safety guard active. \
+                 Note: full query result caching (CachedDatabaseAdapter) is not yet wired \
+                 into this server build. Mutations and queries execute directly against the \
+                 database adapter. Set cache_enabled = false to suppress this message."
+            );
+        } else {
+            tracing::info!("Query result cache: disabled");
+        }
+
         // Read subscription config from compiled schema (hooks, limits).
         let subscriptions_config = schema.subscriptions_config.clone();
 

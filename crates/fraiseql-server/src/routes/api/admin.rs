@@ -17,6 +17,35 @@ use crate::routes::{
     graphql::AppState,
 };
 
+/// Current status of the query result cache as understood by the server.
+///
+/// Used in the admin config endpoint and startup logs to give operators
+/// an accurate picture of what `cache_enabled` actually activates.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CacheStatus {
+    /// `cache_enabled = false` — no cache guard or caching active.
+    Disabled,
+    /// `cache_enabled = true` — RLS safety guard is active, but full
+    /// query result caching (`CachedDatabaseAdapter`) is not yet wired.
+    RlsGuardOnly,
+    /// Full query result caching is active.
+    ///
+    /// Reserved for when `CachedDatabaseAdapter` is wired into the server.
+    Active,
+}
+
+impl CacheStatus {
+    /// Derive cache status from the `cache_enabled` flag.
+    ///
+    /// Until full `CachedDatabaseAdapter` wire-up lands, `cache_enabled = true`
+    /// only activates the RLS safety guard, not actual query result caching.
+    #[must_use]
+    pub const fn from_cache_enabled(cache_enabled: bool) -> Self {
+        if cache_enabled { Self::RlsGuardOnly } else { Self::Disabled }
+    }
+}
+
 /// Request to reload schema from file.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ReloadSchemaRequest {
@@ -387,14 +416,28 @@ pub async fn config_handler<A: DatabaseAdapter>(
             config.insert("max_queue_depth".to_string(), limits.max_queue_depth.to_string());
         }
 
-        // Cache status (requires arrow feature)
+        // Cache status (requires arrow feature for full CachedDatabaseAdapter).
+        // Without the arrow feature or when the cache is not initialized,
+        // the cache is not active regardless of the cache_enabled config flag.
         #[cfg(feature = "arrow")]
-        config.insert("cache_enabled".to_string(), state.cache().is_some().to_string());
+        let cache_active = state.cache().is_some();
         #[cfg(not(feature = "arrow"))]
-        config.insert("cache_enabled".to_string(), "false".to_string());
+        let cache_active = false;
+
+        config.insert("cache_enabled".to_string(), cache_active.to_string());
+        let cache_status = if cache_active { CacheStatus::Active } else { CacheStatus::Disabled };
+        config.insert(
+            "cache_status".to_string(),
+            serde_json::to_string(&cache_status)
+                .unwrap_or_else(|_| "\"disabled\"".to_string())
+                .trim_matches('"')
+                .to_string(),
+        );
+        let _ = server_config; // consumed above for other fields
     } else {
         // Minimal configuration if not available
         config.insert("cache_enabled".to_string(), "false".to_string());
+        config.insert("cache_status".to_string(), "disabled".to_string());
     }
 
     let response = AdminConfigResponse {
@@ -492,8 +535,44 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 mod tests {
     use super::*;
+
+    // ── CacheStatus (Phase 02, Issue #183) ─────────────────────────────────
+
+    #[test]
+    fn cache_status_serializes_to_snake_case() {
+        let json = serde_json::to_string(&CacheStatus::RlsGuardOnly).unwrap();
+        assert_eq!(json, "\"rls_guard_only\"");
+
+        let json = serde_json::to_string(&CacheStatus::Disabled).unwrap();
+        assert_eq!(json, "\"disabled\"");
+
+        let json = serde_json::to_string(&CacheStatus::Active).unwrap();
+        assert_eq!(json, "\"active\"");
+    }
+
+    #[test]
+    fn cache_status_from_config_enabled() {
+        assert_eq!(CacheStatus::from_cache_enabled(true), CacheStatus::RlsGuardOnly);
+    }
+
+    #[test]
+    fn cache_status_from_config_disabled() {
+        assert_eq!(CacheStatus::from_cache_enabled(false), CacheStatus::Disabled);
+    }
+
+    #[test]
+    fn cache_status_deserializes_from_snake_case() {
+        let status: CacheStatus = serde_json::from_str("\"rls_guard_only\"").unwrap();
+        assert_eq!(status, CacheStatus::RlsGuardOnly);
+
+        let status: CacheStatus = serde_json::from_str("\"active\"").unwrap();
+        assert_eq!(status, CacheStatus::Active);
+    }
+
+    // ── Grafana & other tests ───────────────────────────────────────────────
 
     #[test]
     fn test_grafana_dashboard_is_valid_json() {
