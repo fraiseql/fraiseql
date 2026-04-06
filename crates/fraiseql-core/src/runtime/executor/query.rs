@@ -1189,21 +1189,42 @@ const AUTO_PARAM_NAMES: &[&str] = &["where", "limit", "offset", "orderBy", "firs
 /// Convert PostgreSQL `information_schema.data_type` to a safe SQL cast suffix.
 ///
 /// Returns an empty string for types that need no cast (e.g. `text`, `varchar`).
+/// Return the PostgreSQL cast expression for a native column type.
+///
+/// GraphQL arguments arrive as `serde_json::Value` and are converted to
+/// `QueryParam::Text` (for strings and numbers) or `QueryParam::Bool` (for
+/// booleans).  When tokio-postgres prepares a statement containing `$1::uuid`,
+/// PostgreSQL resolves `$1` as type `uuid` and requests 16-byte binary encoding.
+/// Sending a UTF-8 string in that slot causes "incorrect binary data format".
+///
+/// The two-step cast `$1::text::uuid` forces PostgreSQL to resolve `$1` as
+/// `text`, so tokio-postgres sends UTF-8 bytes.  PostgreSQL then applies the
+/// `text → uuid` cast itself.  The B-tree index on the target column is still
+/// usable because PostgreSQL applies the cast during the index scan.
+///
+/// `bool` is the only type exempted: `QueryParam::Bool` is a native Rust
+/// `bool` whose `ToSql` implementation produces correct binary encoding for
+/// `Type::BOOL`.
 fn pg_type_to_cast(data_type: &str) -> &'static str {
     match data_type.to_lowercase().as_str() {
-        "uuid" => "uuid",
-        "integer" | "int" | "int4" => "int4",
-        "bigint" | "int8" => "int8",
-        "smallint" | "int2" => "int2",
+        // String scalars — must use two-step cast to avoid binary format mismatch.
+        "uuid" => "text::uuid",
+        // Numeric scalars — `QueryParam::from(Value::Number)` always produces
+        // `QueryParam::Text` (see db_types.rs), so these also need two-step casts.
+        "integer" | "int" | "int4" => "text::int4",
+        "bigint" | "int8" => "text::int8",
+        "smallint" | "int2" => "text::int2",
+        "numeric" | "decimal" => "text::numeric",
+        "double precision" | "float8" => "text::float8",
+        "real" | "float4" => "text::float4",
+        // Date/time scalars — sent as strings from GraphQL.
+        "timestamp without time zone" | "timestamp" => "text::timestamp",
+        "timestamp with time zone" | "timestamptz" => "text::timestamptz",
+        "date" => "text::date",
+        "time without time zone" | "time" => "text::time",
+        // Boolean — `QueryParam::Bool` encodes correctly in binary; no two-step needed.
         "boolean" | "bool" => "bool",
-        "numeric" | "decimal" => "numeric",
-        "double precision" | "float8" => "float8",
-        "real" | "float4" => "float4",
-        "timestamp without time zone" | "timestamp" => "timestamp",
-        "timestamp with time zone" | "timestamptz" => "timestamptz",
-        "date" => "date",
-        "time without time zone" | "time" => "time",
-        // text, varchar, char(n), etc. — no cast needed
+        // text, varchar, char(n), etc. — no cast needed.
         _ => "",
     }
 }
@@ -1513,5 +1534,64 @@ mod tests {
             },
             other => panic!("expected single Field for 'id', got {other:?}"),
         }
+    }
+
+    // =========================================================================
+    // pg_type_to_cast
+    // =========================================================================
+
+    #[test]
+    fn uuid_cast_uses_two_step_to_avoid_binary_format_mismatch() {
+        // QueryParam::Text sends UTF-8 bytes; $1::uuid would ask for binary
+        // UUID (16 bytes) — hence the two-step cast.
+        assert_eq!(pg_type_to_cast("uuid"), "text::uuid");
+        assert_eq!(pg_type_to_cast("UUID"), "text::uuid");
+    }
+
+    #[test]
+    fn integer_casts_use_two_step_because_numbers_are_text_params() {
+        // QueryParam::from(Value::Number) → QueryParam::Text, so integers also
+        // need the text intermediate step.
+        assert_eq!(pg_type_to_cast("integer"), "text::int4");
+        assert_eq!(pg_type_to_cast("int4"), "text::int4");
+        assert_eq!(pg_type_to_cast("bigint"), "text::int8");
+        assert_eq!(pg_type_to_cast("int8"), "text::int8");
+        assert_eq!(pg_type_to_cast("smallint"), "text::int2");
+        assert_eq!(pg_type_to_cast("int2"), "text::int2");
+    }
+
+    #[test]
+    fn float_and_numeric_casts_use_two_step() {
+        assert_eq!(pg_type_to_cast("numeric"), "text::numeric");
+        assert_eq!(pg_type_to_cast("decimal"), "text::numeric");
+        assert_eq!(pg_type_to_cast("double precision"), "text::float8");
+        assert_eq!(pg_type_to_cast("float8"), "text::float8");
+        assert_eq!(pg_type_to_cast("real"), "text::float4");
+        assert_eq!(pg_type_to_cast("float4"), "text::float4");
+    }
+
+    #[test]
+    fn date_and_time_casts_use_two_step() {
+        assert_eq!(pg_type_to_cast("timestamp"), "text::timestamp");
+        assert_eq!(pg_type_to_cast("timestamp without time zone"), "text::timestamp");
+        assert_eq!(pg_type_to_cast("timestamptz"), "text::timestamptz");
+        assert_eq!(pg_type_to_cast("timestamp with time zone"), "text::timestamptz");
+        assert_eq!(pg_type_to_cast("date"), "text::date");
+        assert_eq!(pg_type_to_cast("time"), "text::time");
+        assert_eq!(pg_type_to_cast("time without time zone"), "text::time");
+    }
+
+    #[test]
+    fn bool_cast_is_direct_because_query_param_bool_is_native() {
+        // QueryParam::Bool encodes correctly in binary; no two-step needed.
+        assert_eq!(pg_type_to_cast("boolean"), "bool");
+        assert_eq!(pg_type_to_cast("bool"), "bool");
+    }
+
+    #[test]
+    fn text_types_produce_empty_cast() {
+        assert_eq!(pg_type_to_cast("text"), "");
+        assert_eq!(pg_type_to_cast("varchar"), "");
+        assert_eq!(pg_type_to_cast("unknown_type"), "");
     }
 }
