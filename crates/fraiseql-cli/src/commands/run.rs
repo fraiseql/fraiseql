@@ -93,9 +93,16 @@ async fn run_once(
     let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
 
     let adapter = Arc::new(
-        PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)
-            .await
-            .context("Failed to connect to database")?,
+        PostgresAdapter::with_pool_config(
+            db_url,
+            fraiseql_core::db::postgres::PoolPrewarmConfig {
+                min_size:     config.pool_min_size,
+                max_size:     config.pool_max_size,
+                timeout_secs: Some(config.pool_timeout_secs),
+            },
+        )
+        .await
+        .context("Failed to connect to database")?,
     );
 
     println!("Server ready at http://{bind_addr}/graphql");
@@ -123,9 +130,16 @@ async fn run_watch_loop(
         let config = build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection);
 
         let adapter = Arc::new(
-            PostgresAdapter::with_pool_config(db_url, config.pool_min_size, config.pool_max_size)
-                .await
-                .context("Failed to connect to database")?,
+            PostgresAdapter::with_pool_config(
+                db_url,
+                fraiseql_core::db::postgres::PoolPrewarmConfig {
+                    min_size:     config.pool_min_size,
+                    max_size:     config.pool_max_size,
+                    timeout_secs: Some(config.pool_timeout_secs),
+                },
+            )
+            .await
+            .context("Failed to connect to database")?,
         );
 
         println!("Server ready at http://{bind_addr}/graphql");

@@ -135,6 +135,14 @@ impl ServerConfig {
                 self.pool_min_size, self.pool_max_size
             ));
         }
+        if self.pool_timeout_secs == 0 {
+            return Err(
+                "pool_timeout_secs must be > 0. A zero-second timeout would cause every \
+                 connection acquisition to fail immediately. Use a positive value (e.g. 30) \
+                 or remove the field to use the default (30s)."
+                    .to_string(),
+            );
+        }
 
         // Validate database TLS config if present
         if let Some(ref db_tls) = self.database_tls {

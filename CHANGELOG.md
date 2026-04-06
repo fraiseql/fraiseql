@@ -5,6 +5,56 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`pool_min_size` now pre-warms the connection pool at startup** (issue #183).
+  Previously the parameter was silently dropped (`_min_size`); deadpool would lazily
+  open connections on the first request, causing high mutation latency under concurrent
+  cold-start load. This was the root cause of the 5.5× mutation throughput gap observed
+  in benchmarks. After `Server::new` returns, `pool_min_size` live connections are ready.
+
+- **`pool_timeout_secs` is now applied as the deadpool wait and create timeout** (issue #183).
+  Previously the parameter was stored in `ServerConfig` but never forwarded to the pool,
+  meaning connection acquisition could block indefinitely on pool exhaustion. With a timeout
+  set, pool exhaustion now returns an actionable error within `pool_timeout_secs` seconds
+  instead of blocking the request indefinitely.
+
+- **`acquire_connection_with_retry` no longer retries on `PoolError::Timeout`** (issue #183).
+  A timeout means the pool was genuinely exhausted for the full wait period; retrying would
+  only multiply the wait by `MAX_CONNECTION_RETRIES`. Only transient backend/create errors
+  are retried with exponential backoff.
+
+- **`cache_enabled = true` now logs a clear startup message** (issue #183).
+  Previously the flag silently had no observable effect on query execution (the full
+  `CachedDatabaseAdapter` wire-up is a separate future PR). The server now logs whether
+  the RLS safety guard is active, making the current semantics visible to operators.
+
+- **Observer pool no longer inherits application pool size** (issue #183).
+  Previously `build_observer_pool` used `pool_min_size` / `pool_max_size` from the
+  top-level config. The observer runtime needs far fewer connections (LISTEN/NOTIFY
+  + metadata queries). New defaults: `min=2, max=5, acquire_timeout=10s`. Configure
+  independently via `[observers.pool]` in `fraiseql.toml` — see `DEPRECATIONS.md`.
+
+### Added
+
+- **`PoolPrewarmConfig` struct** (`fraiseql_db::postgres::PoolPrewarmConfig`) — replaces
+  the positional `(min_size, max_size)` arguments on `PostgresAdapter::with_pool_config`.
+  Carries `min_size`, `max_size`, and `timeout_secs` in a single self-documenting struct.
+
+- **`CacheStatus` enum** (`fraiseql_server::routes::api::admin::CacheStatus`) with variants
+  `Disabled`, `RlsGuardOnly`, `Active`. The admin `/api/v1/admin/config` endpoint now
+  includes a `cache_status` field with the serialized enum value.
+
+- **`ObserverPoolConfig` struct** (`fraiseql_server::server_config::ObserverPoolConfig`) for
+  independent tuning of the observer's dedicated PostgreSQL pool via `[observers.pool]` in
+  `fraiseql.toml`.
+
+- **`pool_timeout_secs = 0` is now a validation error.** A zero-second timeout would cause
+  every connection acquisition to fail immediately; the server now rejects this configuration
+  at startup with a clear error message.
+
 ## [2.1.0] - 2026-03-30
 
 First public release of FraiseQL v2 — a compiled GraphQL execution engine that
