@@ -37,6 +37,12 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # }
     /// ```
     pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
+        // When caching is disabled, both the shard scan and the CascadeInvalidator
+        // mutex are unnecessary — skip them entirely to avoid serializing mutations.
+        if !self.cache.is_enabled() {
+            return Ok(0);
+        }
+
         // Expand the view list with transitive dependents when a cascade
         // invalidator is configured.
         if let Some(cascader) = &self.cascade_invalidator {

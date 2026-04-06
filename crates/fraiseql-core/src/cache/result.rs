@@ -455,6 +455,12 @@ impl QueryResultCache {
     /// # Ok::<(), fraiseql_core::error::FraiseQLError>(())
     /// ```
     pub fn invalidate_views(&self, views: &[String]) -> Result<u64> {
+        // When caching is disabled the cache is always empty — skip the 64-shard
+        // sequential lock scan entirely so mutation throughput is not penalized.
+        if !self.config.enabled {
+            return Ok(0);
+        }
+
         let mut total_invalidated: u64 = 0;
         let mut total_freed: usize = 0;
 
@@ -509,6 +515,12 @@ impl QueryResultCache {
     /// This method is infallible with `parking_lot::Mutex` (no poisoning).
     /// The `Result` return type is kept for API compatibility.
     pub fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
+        // When caching is disabled the cache is always empty — skip the 64-shard
+        // sequential lock scan entirely so mutation throughput is not penalized.
+        if !self.config.enabled {
+            return Ok(0);
+        }
+
         let mut total_invalidated: u64 = 0;
         let mut total_freed: usize = 0;
 
