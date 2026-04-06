@@ -1189,6 +1189,18 @@ const AUTO_PARAM_NAMES: &[&str] = &["where", "limit", "offset", "orderBy", "firs
 /// Convert PostgreSQL `information_schema.data_type` to a safe SQL cast suffix.
 ///
 /// Returns an empty string for types that need no cast (e.g. `text`, `varchar`).
+/// Normalise a database type name for use as the `pg_cast` hint in
+/// `WhereClause::NativeField`.
+///
+/// The returned string is the **canonical PostgreSQL type name** (e.g. `"uuid"`,
+/// `"int4"`, `"timestamp"`).  It is passed to `SqlDialect::cast_native_param`
+/// which translates it into the dialect-appropriate cast expression:
+/// - PostgreSQL: `$1::text::uuid`  (two-step to avoid binary wire-format mismatch)
+/// - MySQL:      `CAST(? AS CHAR)`
+/// - SQLite:     `CAST(? AS TEXT)`
+/// - SQL Server: `CAST(@p1 AS UNIQUEIDENTIFIER)`
+///
+/// Returns `""` for text-like types that need no cast.
 fn pg_type_to_cast(data_type: &str) -> &'static str {
     match data_type.to_lowercase().as_str() {
         "uuid" => "uuid",
@@ -1203,7 +1215,7 @@ fn pg_type_to_cast(data_type: &str) -> &'static str {
         "timestamp with time zone" | "timestamptz" => "timestamptz",
         "date" => "date",
         "time without time zone" | "time" => "time",
-        // text, varchar, char(n), etc. — no cast needed
+        // text, varchar, char(n), etc. — no cast needed.
         _ => "",
     }
 }
@@ -1513,5 +1525,59 @@ mod tests {
             },
             other => panic!("expected single Field for 'id', got {other:?}"),
         }
+    }
+
+    // =========================================================================
+    // pg_type_to_cast — returns canonical type names passed to SqlDialect::cast_native_param
+    // =========================================================================
+
+    #[test]
+    fn uuid_normalises_to_canonical_type_name() {
+        assert_eq!(pg_type_to_cast("uuid"), "uuid");
+        assert_eq!(pg_type_to_cast("UUID"), "uuid");
+    }
+
+    #[test]
+    fn integer_types_normalise_to_canonical_names() {
+        assert_eq!(pg_type_to_cast("integer"), "int4");
+        assert_eq!(pg_type_to_cast("int4"), "int4");
+        assert_eq!(pg_type_to_cast("bigint"), "int8");
+        assert_eq!(pg_type_to_cast("int8"), "int8");
+        assert_eq!(pg_type_to_cast("smallint"), "int2");
+        assert_eq!(pg_type_to_cast("int2"), "int2");
+    }
+
+    #[test]
+    fn float_and_numeric_types_normalise_to_canonical_names() {
+        assert_eq!(pg_type_to_cast("numeric"), "numeric");
+        assert_eq!(pg_type_to_cast("decimal"), "numeric");
+        assert_eq!(pg_type_to_cast("double precision"), "float8");
+        assert_eq!(pg_type_to_cast("float8"), "float8");
+        assert_eq!(pg_type_to_cast("real"), "float4");
+        assert_eq!(pg_type_to_cast("float4"), "float4");
+    }
+
+    #[test]
+    fn date_and_time_types_normalise_to_canonical_names() {
+        assert_eq!(pg_type_to_cast("timestamp"), "timestamp");
+        assert_eq!(pg_type_to_cast("timestamp without time zone"), "timestamp");
+        assert_eq!(pg_type_to_cast("timestamptz"), "timestamptz");
+        assert_eq!(pg_type_to_cast("timestamp with time zone"), "timestamptz");
+        assert_eq!(pg_type_to_cast("date"), "date");
+        assert_eq!(pg_type_to_cast("time"), "time");
+        assert_eq!(pg_type_to_cast("time without time zone"), "time");
+    }
+
+    #[test]
+    fn bool_normalises_to_canonical_name() {
+        assert_eq!(pg_type_to_cast("boolean"), "bool");
+        assert_eq!(pg_type_to_cast("bool"), "bool");
+    }
+
+    #[test]
+    fn text_types_produce_empty_hint_meaning_no_cast() {
+        assert_eq!(pg_type_to_cast("text"), "");
+        assert_eq!(pg_type_to_cast("varchar"), "");
+        assert_eq!(pg_type_to_cast("unknown_type"), "");
     }
 }

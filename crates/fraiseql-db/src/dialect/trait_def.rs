@@ -123,6 +123,27 @@ pub trait SqlDialect: Send + Sync + 'static {
         Cow::Borrowed(placeholder)
     }
 
+    /// Wrap a parameter placeholder for a native-column equality condition.
+    ///
+    /// `native_type` is the PostgreSQL canonical type name stored in
+    /// `native_columns` (e.g. `"uuid"`, `"int4"`, `"timestamp"`).
+    ///
+    /// **Only PostgreSQL needs to override this.**  tokio-postgres uses a binary
+    /// wire protocol: when the query contains `$1::uuid`, the server resolves `$1`
+    /// as OID 2950 and expects 16-byte binary UUID encoding, but `QueryParam::Text`
+    /// sends UTF-8 bytes, causing "incorrect binary data format".  The two-step
+    /// cast `$1::text::uuid` forces the server to resolve `$1` as `text` first.
+    ///
+    /// sqlx (MySQL, SQLite) and tiberius (SQL Server) send string parameters as
+    /// text by default regardless of column type, so no cast is needed — the
+    /// database coerces the text value at comparison time.
+    ///
+    /// Default: return the placeholder unchanged (correct for MySQL, SQLite,
+    /// SQL Server).
+    fn cast_native_param(&self, placeholder: &str, _native_type: &str) -> String {
+        placeholder.to_string()
+    }
+
     // ── LIKE / pattern matching ────────────────────────────────────────────────
 
     /// SQL fragment for case-sensitive LIKE: `lhs LIKE rhs`.
