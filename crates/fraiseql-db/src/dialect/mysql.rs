@@ -31,24 +31,6 @@ impl SqlDialect for MySqlDialect {
         Cow::Owned(format!("CAST({expr} AS DECIMAL)"))
     }
 
-    fn cast_native_param(&self, placeholder: &str, native_type: &str) -> String {
-        // Map PostgreSQL canonical type names to MySQL CAST target types.
-        let mysql_type = match native_type.to_lowercase().as_str() {
-            "uuid" | "text" | "varchar" | "character varying" | "char" | "bpchar" => "CHAR",
-            "integer" | "int" | "int4" | "bigint" | "int8" | "smallint" | "int2" => "SIGNED",
-            "boolean" | "bool" => "UNSIGNED",
-            "numeric" | "decimal" => "DECIMAL",
-            "double precision" | "float8" | "real" | "float4" => "DOUBLE",
-            "timestamp without time zone" | "timestamp" | "timestamp with time zone"
-            | "timestamptz" => "DATETIME",
-            "date" => "DATE",
-            "time without time zone" | "time" => "TIME",
-            // Unknown/unrecognised type — pass the placeholder unchanged.
-            _ => return placeholder.to_string(),
-        };
-        format!("CAST({placeholder} AS {mysql_type})")
-    }
-
     fn ilike_sql(&self, lhs: &str, rhs: &str) -> String {
         // MySQL LIKE is case-insensitive by default with utf8mb4_unicode_ci;
         // use LOWER() to be explicit and portable.

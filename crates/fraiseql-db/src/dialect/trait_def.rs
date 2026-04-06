@@ -128,15 +128,18 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// `native_type` is the PostgreSQL canonical type name stored in
     /// `native_columns` (e.g. `"uuid"`, `"int4"`, `"timestamp"`).
     ///
-    /// Each dialect must translate it to the appropriate cast expression:
-    /// - PostgreSQL uses `{placeholder}::text::{native_type}` (two-step to avoid
-    ///   binary wire-format mismatch; `bool` is exempted because `QueryParam::Bool`
-    ///   already encodes correctly in binary).
-    /// - MySQL uses `CAST({placeholder} AS {mysql_type})`.
-    /// - SQLite uses `CAST({placeholder} AS {sqlite_type})` or the placeholder as-is.
-    /// - SQL Server uses `CAST({placeholder} AS {tsql_type})`.
+    /// **Only PostgreSQL needs to override this.**  tokio-postgres uses a binary
+    /// wire protocol: when the query contains `$1::uuid`, the server resolves `$1`
+    /// as OID 2950 and expects 16-byte binary UUID encoding, but `QueryParam::Text`
+    /// sends UTF-8 bytes, causing "incorrect binary data format".  The two-step
+    /// cast `$1::text::uuid` forces the server to resolve `$1` as `text` first.
     ///
-    /// Default: pass placeholder unchanged (safe no-op fallback).
+    /// sqlx (MySQL, SQLite) and tiberius (SQL Server) send string parameters as
+    /// text by default regardless of column type, so no cast is needed — the
+    /// database coerces the text value at comparison time.
+    ///
+    /// Default: return the placeholder unchanged (correct for MySQL, SQLite,
+    /// SQL Server).
     fn cast_native_param(&self, placeholder: &str, _native_type: &str) -> String {
         placeholder.to_string()
     }
