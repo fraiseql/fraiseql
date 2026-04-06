@@ -31,28 +31,6 @@ impl SqlDialect for SqlServerDialect {
         Cow::Owned(format!("CAST({expr} AS FLOAT)"))
     }
 
-    fn cast_native_param(&self, placeholder: &str, native_type: &str) -> String {
-        // Map PostgreSQL canonical type names to T-SQL CAST target types.
-        let tsql_type = match native_type.to_lowercase().as_str() {
-            "uuid" => "UNIQUEIDENTIFIER",
-            "integer" | "int" | "int4" => "INT",
-            "bigint" | "int8" => "BIGINT",
-            "smallint" | "int2" => "SMALLINT",
-            "boolean" | "bool" => "BIT",
-            "numeric" | "decimal" => "DECIMAL",
-            "double precision" | "float8" => "FLOAT",
-            "real" | "float4" => "REAL",
-            "timestamp without time zone" | "timestamp" => "DATETIME2",
-            "timestamp with time zone" | "timestamptz" => "DATETIMEOFFSET",
-            "date" => "DATE",
-            "time without time zone" | "time" => "TIME",
-            "text" | "varchar" | "character varying" | "char" | "bpchar" => "NVARCHAR(MAX)",
-            // Unknown type — pass placeholder unchanged.
-            _ => return placeholder.to_string(),
-        };
-        format!("CAST({placeholder} AS {tsql_type})")
-    }
-
     fn like_sql(&self, lhs: &str, rhs: &str) -> String {
         format!("{lhs} LIKE {rhs} COLLATE Latin1_General_CS_AS")
     }
