@@ -9,7 +9,7 @@ mod tests;
 #[cfg(all(test, feature = "test-postgres"))]
 mod integration_tests;
 
-use std::fmt::Write;
+use std::{fmt::Write, time::Duration};
 
 use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use fraiseql_error::{FraiseQLError, Result};
@@ -34,6 +34,71 @@ const MAX_CONNECTION_RETRIES: u32 = 3;
 
 /// Base delay in milliseconds for connection retry backoff.
 const CONNECTION_RETRY_DELAY_MS: u64 = 50;
+
+/// Configuration for connection pool construction and pre-warming.
+///
+/// Controls the minimum guaranteed connections (pre-warmed at startup),
+/// the maximum pool ceiling, and the wait/create timeout for connection
+/// acquisition.
+///
+/// # Example
+///
+/// ```rust
+/// use fraiseql_db::postgres::PoolPrewarmConfig;
+///
+/// let cfg = PoolPrewarmConfig {
+///     min_size:     5,
+///     max_size:     20,
+///     timeout_secs: Some(30),
+/// };
+/// ```
+#[derive(Debug, Clone)]
+pub struct PoolPrewarmConfig {
+    /// Number of connections to establish at pool creation time.
+    ///
+    /// After the pool is created, `min_size` connections are opened eagerly
+    /// so they are ready when the first request arrives. Set to `0` to disable
+    /// pre-warming (lazy init — one connection from the startup health check).
+    pub min_size: usize,
+
+    /// Maximum number of connections the pool may hold.
+    pub max_size: usize,
+
+    /// Optional timeout (in seconds) for connection acquisition and creation.
+    ///
+    /// Applied to both the `wait` (blocked waiting for an idle connection) and
+    /// `create` (time to open a new TCP connection to PostgreSQL) deadpool slots.
+    /// When `None`, acquisition can block indefinitely on pool exhaustion.
+    pub timeout_secs: Option<u64>,
+}
+
+/// Build a `deadpool-postgres` pool with an optional wait/create timeout.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::ConnectionPool` if pool creation fails (e.g., unparseable URL).
+fn build_pool(
+    connection_string: &str,
+    max_size: usize,
+    timeout_secs: Option<u64>,
+) -> Result<Pool> {
+    let mut cfg = Config::new();
+    cfg.url = Some(connection_string.to_string());
+    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Fast });
+
+    let mut pool_cfg = deadpool_postgres::PoolConfig::new(max_size);
+    if let Some(secs) = timeout_secs {
+        let t = Duration::from_secs(secs);
+        pool_cfg.timeouts.wait = Some(t);
+        pool_cfg.timeouts.create = Some(t);
+        // `recycle` intentionally stays None — fast recycle, not user-configurable.
+    }
+    cfg.pool = Some(pool_cfg);
+
+    cfg.create_pool(Some(Runtime::Tokio1), NoTls).map_err(|e| FraiseQLError::ConnectionPool {
+        message: format!("Failed to create connection pool: {e}"),
+    })
+}
 
 /// Escape a JSONB key for use in a PostgreSQL string literal (`data->>'key'`).
 ///
@@ -115,31 +180,60 @@ impl PostgresAdapter {
     /// # }
     /// ```
     pub async fn new(connection_string: &str) -> Result<Self> {
-        Self::with_pool_size(connection_string, DEFAULT_POOL_SIZE).await
+        Self::with_pool_config(
+            connection_string,
+            PoolPrewarmConfig { min_size: 0, max_size: DEFAULT_POOL_SIZE, timeout_secs: None },
+        )
+        .await
     }
 
-    /// Create new PostgreSQL adapter with custom pool configuration.
+    /// Create new PostgreSQL adapter with pre-warming and timeout configuration.
+    ///
+    /// Constructs the pool, runs a startup health check, then eagerly opens
+    /// `cfg.min_size` connections so they are ready when the first request arrives.
     ///
     /// # Arguments
     ///
     /// * `connection_string` - PostgreSQL connection string
-    /// * `min_size` - Minimum size hint (not enforced by deadpool-postgres)
-    /// * `max_size` - Maximum number of connections in pool
+    /// * `cfg` - Pool pre-warming and timeout configuration
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
-    ///
-    /// # Note
-    ///
-    /// `min_size` is accepted for API compatibility but deadpool-postgres uses
-    /// lazy initialization with dynamic pool sizing up to `max_size`.
+    /// Returns `FraiseQLError::ConnectionPool` if pool creation or the startup
+    /// health check fails.
     pub async fn with_pool_config(
         connection_string: &str,
-        _min_size: usize,
-        max_size: usize,
+        cfg: PoolPrewarmConfig,
     ) -> Result<Self> {
-        Self::with_pool_size(connection_string, max_size).await
+        let pool = build_pool(connection_string, cfg.max_size, cfg.timeout_secs)?;
+
+        // Startup health check — establishes the first connection.
+        let client = pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to connect to database: {e}"),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        // Drop client back to the pool before pre-warming so that the health-check
+        // connection counts as idle slot #1.
+        drop(client);
+
+        let adapter = Self {
+            pool,
+            mutation_timing_enabled: false,
+            timing_variable_name: "fraiseql.started_at".to_string(),
+        };
+
+        // Pre-warm: open `min_size - 1` additional connections (one already exists).
+        let warm_target = cfg.min_size.min(cfg.max_size).saturating_sub(1);
+        if warm_target > 0 {
+            adapter.prewarm(warm_target).await;
+        }
+
+        Ok(adapter)
     }
 
     /// Create new PostgreSQL adapter with custom pool size.
@@ -153,34 +247,60 @@ impl PostgresAdapter {
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation fails.
     pub async fn with_pool_size(connection_string: &str, max_size: usize) -> Result<Self> {
-        let mut cfg = Config::new();
-        cfg.url = Some(connection_string.to_string());
-        cfg.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        cfg.pool = Some(deadpool_postgres::PoolConfig::new(max_size));
+        Self::with_pool_config(
+            connection_string,
+            PoolPrewarmConfig { min_size: 0, max_size, timeout_secs: None },
+        )
+        .await
+    }
 
-        let pool = cfg.create_pool(Some(Runtime::Tokio1), NoTls).map_err(|e| {
-            FraiseQLError::ConnectionPool {
-                message: format!("Failed to create connection pool: {e}"),
-            }
-        })?;
+    /// Pre-warm the pool by opening `count` additional connections.
+    ///
+    /// Pre-warming is best-effort: failures from individual connections are logged
+    /// but do not prevent startup. A 10-second outer timeout ensures the server
+    /// never blocks indefinitely on a slow or unreachable PostgreSQL instance.
+    async fn prewarm(&self, count: usize) {
+        use futures::future::join_all;
+        use tokio::time::timeout;
 
-        // Test connection
-        let client = pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
-            message: format!("Failed to acquire connection: {e}"),
-        })?;
+        let handles: Vec<_> = (0..count)
+            .map(|_| {
+                let pool = self.pool.clone();
+                tokio::spawn(async move { pool.get().await })
+            })
+            .collect();
 
-        client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to connect to database: {e}"),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
+        let result = timeout(Duration::from_secs(10), join_all(handles)).await;
 
-        Ok(Self {
-            pool,
-            mutation_timing_enabled: false,
-            timing_variable_name: "fraiseql.started_at".to_string(),
-        })
+        let (succeeded, failed) = match result {
+            Ok(outcomes) => {
+                let s = outcomes
+                    .iter()
+                    .filter(|r| r.as_ref().map(|inner| inner.is_ok()).unwrap_or(false))
+                    .count();
+                (s, count - s)
+            },
+            Err(_elapsed) => {
+                tracing::warn!(
+                    target_connections = count,
+                    "Pool pre-warm timed out after 10s; server will continue with partial pre-warm"
+                );
+                (0, count)
+            },
+        };
+
+        if failed > 0 {
+            tracing::warn!(
+                succeeded,
+                failed,
+                "Pool pre-warm: some connections could not be established"
+            );
+        } else {
+            tracing::info!(
+                idle_connections = succeeded + 1,
+                "PostgreSQL pool pre-warmed successfully"
+            );
+        }
     }
 
     /// Get a reference to the internal connection pool.
@@ -244,14 +364,17 @@ impl PostgresAdapter {
 
     /// Acquire a connection from the pool with retry logic.
     ///
-    /// Implements exponential backoff retry when the pool is exhausted.
-    /// This prevents transient pool exhaustion from causing query failures
-    /// under concurrent load (fixes Issue #41).
+    /// - `PoolError::Timeout`: the pool was exhausted for the full configured wait period.
+    ///   This is not transient — retrying would only multiply the wait. Fails immediately.
+    /// - `PoolError::Backend` / create errors: potentially transient. Retries with
+    ///   exponential backoff (up to `MAX_CONNECTION_RETRIES` attempts).
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::ConnectionPool` if all retries are exhausted.
+    /// Returns `FraiseQLError::ConnectionPool` on timeout or when all retries are exhausted.
     pub(super) async fn acquire_connection_with_retry(&self) -> Result<deadpool_postgres::Client> {
+        use deadpool_postgres::PoolError;
+
         let mut last_error = None;
 
         for attempt in 0..MAX_CONNECTION_RETRIES {
@@ -259,45 +382,65 @@ impl PostgresAdapter {
                 Ok(client) => {
                     if attempt > 0 {
                         tracing::info!(
-                            "Successfully acquired connection after {} retries",
-                            attempt
+                            attempt,
+                            "Successfully acquired connection after retries"
                         );
                     }
                     return Ok(client);
                 },
+                // Pool exhausted for the full wait period — not transient, fail immediately.
+                Err(PoolError::Timeout(_)) => {
+                    let metrics = self.pool_metrics();
+                    tracing::error!(
+                        available = metrics.idle_connections,
+                        active    = metrics.active_connections,
+                        max       = metrics.total_connections,
+                        "Connection pool timeout: all connections busy"
+                    );
+                    return Err(FraiseQLError::ConnectionPool {
+                        message: format!(
+                            "Connection pool timeout: {}/{} connections busy. \
+                             Increase pool_max_size or reduce concurrent load.",
+                            metrics.active_connections, metrics.total_connections,
+                        ),
+                    });
+                },
+                // Backend/create errors are potentially transient — retry with backoff.
                 Err(e) => {
                     last_error = Some(e);
                     if attempt < MAX_CONNECTION_RETRIES - 1 {
                         let delay = CONNECTION_RETRY_DELAY_MS * (u64::from(attempt) + 1);
                         tracing::warn!(
-                            "Connection pool exhausted (attempt {}/{}), retrying in {}ms...",
-                            attempt + 1,
-                            MAX_CONNECTION_RETRIES,
-                            delay
+                            attempt = attempt + 1,
+                            total   = MAX_CONNECTION_RETRIES,
+                            delay_ms = delay,
+                            "Transient connection error, retrying"
                         );
-                        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                        tokio::time::sleep(Duration::from_millis(delay)).await;
                     }
                 },
             }
         }
 
-        // All retries exhausted - log detailed pool state
+        // All retries for transient errors exhausted.
         let pool_metrics = self.pool_metrics();
         tracing::error!(
-            "Failed to acquire connection after {} retries. Pool state: available={}, active={}, total={}",
-            MAX_CONNECTION_RETRIES,
-            pool_metrics.idle_connections,
-            pool_metrics.active_connections,
-            pool_metrics.total_connections
+            retries  = MAX_CONNECTION_RETRIES,
+            available = pool_metrics.idle_connections,
+            active    = pool_metrics.active_connections,
+            max       = pool_metrics.total_connections,
+            "Failed to acquire connection after all retries"
         );
 
         Err(FraiseQLError::ConnectionPool {
             message: format!(
-                "Failed to acquire connection after {} retries: {}. Pool exhausted (available={}/{}). Consider increasing pool size or reducing concurrent load.",
+                "Failed to acquire connection after {} retries: {}. \
+                 Pool state: idle={}, active={}, max={}",
                 MAX_CONNECTION_RETRIES,
                 last_error.expect("last_error is set on every retry iteration"),
                 pool_metrics.idle_connections,
-                pool_metrics.total_connections
+                pool_metrics.active_connections,
+                pool_metrics.total_connections,
             ),
         })
     }

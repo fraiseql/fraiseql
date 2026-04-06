@@ -56,7 +56,15 @@ async fn test_postgres_adapter_with_pool_config() {
     let max_size = 20;
 
     // Initialize adapter with explicit pool config
-    let adapter = PostgresAdapter::with_pool_config(&db_url, min_size, max_size).await;
+    let adapter = PostgresAdapter::with_pool_config(
+        &db_url,
+        fraiseql_core::db::postgres::PoolPrewarmConfig {
+            min_size,
+            max_size,
+            timeout_secs: None,
+        },
+    )
+    .await;
 
     assert!(
         adapter.is_ok(),

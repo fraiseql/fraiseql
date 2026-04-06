@@ -1,5 +1,6 @@
 //! PostgreSQL integration tests.
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::items_after_statements)]
 //! These tests require a running PostgreSQL database with test data.
 //!
 //! ## Running the tests
@@ -634,5 +635,105 @@ async fn test_execute_function_call_with_timing_enabled() {
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
         "expected Database error for nonexistent function (timing enabled), got: {result:?}"
+    );
+}
+
+// ========================================================================
+// Pool Pre-warming Tests (Phase 01, Issue #183)
+// ========================================================================
+
+#[tokio::test]
+async fn pool_prewarms_to_min_size() {
+    let adapter = PostgresAdapter::with_pool_config(
+        TEST_DB_URL,
+        PoolPrewarmConfig { min_size: 5, max_size: 20, timeout_secs: None },
+    )
+    .await
+    .expect("adapter should be created");
+
+    let metrics = adapter.pool_metrics();
+    assert!(
+        metrics.idle_connections >= 5,
+        "expected >=5 idle connections after pre-warm, got {}",
+        metrics.idle_connections
+    );
+}
+
+#[tokio::test]
+async fn pool_prewarm_zero_min_size_creates_one_connection() {
+    let adapter = PostgresAdapter::with_pool_config(
+        TEST_DB_URL,
+        PoolPrewarmConfig { min_size: 0, max_size: 10, timeout_secs: None },
+    )
+    .await
+    .expect("adapter should be created");
+
+    let metrics = adapter.pool_metrics();
+    assert_eq!(metrics.idle_connections, 1, "expected exactly 1 idle connection with min_size=0");
+}
+
+#[tokio::test]
+async fn pool_prewarm_min_capped_at_max() {
+    let adapter = PostgresAdapter::with_pool_config(
+        TEST_DB_URL,
+        PoolPrewarmConfig { min_size: 100, max_size: 3, timeout_secs: None },
+    )
+    .await
+    .expect("adapter should not panic when min_size > max_size");
+
+    let metrics = adapter.pool_metrics();
+    assert!(
+        metrics.idle_connections <= 3,
+        "idle connections ({}) should not exceed max_size (3)",
+        metrics.idle_connections
+    );
+}
+
+#[tokio::test]
+async fn pool_timeout_causes_fast_failure_when_exhausted() {
+    let adapter = PostgresAdapter::with_pool_config(
+        TEST_DB_URL,
+        PoolPrewarmConfig { min_size: 1, max_size: 1, timeout_secs: Some(1) },
+    )
+    .await
+    .expect("adapter created");
+
+    // Hold the single connection so the pool is exhausted.
+    let _held = adapter.pool().get().await.expect("first get ok");
+
+    let start = std::time::Instant::now();
+    let result = adapter.acquire_connection_with_retry().await;
+    let elapsed = start.elapsed();
+
+    assert!(result.is_err(), "should fail when pool exhausted");
+    // Should fail within ~2s (1s timeout + no retry for Timeout errors).
+    assert!(
+        elapsed.as_secs() < 3,
+        "timeout should fail fast, took {}s",
+        elapsed.as_secs()
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("timeout") || err_msg.contains("busy"),
+        "error should mention exhaustion, got: {err_msg}"
+    );
+}
+
+#[tokio::test]
+async fn acquire_does_not_retry_on_timeout_error() {
+    let adapter = PostgresAdapter::with_pool_config(
+        TEST_DB_URL,
+        PoolPrewarmConfig { min_size: 1, max_size: 1, timeout_secs: Some(1) },
+    )
+    .await
+    .expect("adapter created");
+
+    let _hold = adapter.pool().get().await.unwrap();
+
+    let err = adapter.acquire_connection_with_retry().await.unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("timeout") || msg.contains("busy"),
+        "error should mention exhaustion, got: {msg}"
     );
 }

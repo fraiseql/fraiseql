@@ -6,6 +6,6 @@ mod adapter;
 mod introspector;
 mod where_generator;
 
-pub use adapter::PostgresAdapter;
+pub use adapter::{PoolPrewarmConfig, PostgresAdapter};
 pub use introspector::PostgresIntrospector;
 pub use where_generator::{IndexedColumnsCache, PostgresWhereGenerator};

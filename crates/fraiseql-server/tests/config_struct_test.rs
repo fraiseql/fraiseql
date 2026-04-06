@@ -144,6 +144,27 @@ fn test_config_custom_bind_addr() {
     assert_eq!(config.bind_addr.port(), 8080);
 }
 
+/// Test pool min size is positive and consistent in default config.
+#[test]
+fn pool_min_size_is_positive_in_default_config() {
+    let cfg = ServerConfig::default();
+    assert!(cfg.pool_min_size > 0, "default pool_min_size should be > 0, got {}", cfg.pool_min_size);
+    assert!(
+        cfg.pool_min_size <= cfg.pool_max_size,
+        "pool_min_size ({}) must not exceed pool_max_size ({})",
+        cfg.pool_min_size,
+        cfg.pool_max_size,
+    );
+}
+
+/// Test pool timeout default is sensible.
+#[test]
+fn pool_timeout_default_is_positive() {
+    let cfg = ServerConfig::default();
+    assert!(cfg.pool_timeout_secs > 0, "pool_timeout_secs should be > 0");
+    assert_eq!(cfg.pool_timeout_secs, 30, "expected default pool_timeout_secs = 30");
+}
+
 /// Test server config flags
 #[test]
 fn test_config_feature_flags() {

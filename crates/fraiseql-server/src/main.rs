@@ -335,18 +335,21 @@ fn init_security(_schema: &CompiledSchema) -> anyhow::Result<()> {
 #[cfg(not(feature = "wire-backend"))]
 async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
     tracing::info!(
-        database_url = %config.database_url,
-        pool_min_size = config.pool_min_size,
-        pool_max_size = config.pool_max_size,
-        "Initializing PostgreSQL database adapter"
+        pool_min_size     = config.pool_min_size,
+        pool_max_size     = config.pool_max_size,
+        pool_timeout_secs = config.pool_timeout_secs,
+        "Initializing PostgreSQL connection pool"
     );
     let adapter = PostgresAdapter::with_pool_config(
         &config.database_url,
-        config.pool_min_size,
-        config.pool_max_size,
+        fraiseql_core::db::postgres::PoolPrewarmConfig {
+            min_size:     config.pool_min_size,
+            max_size:     config.pool_max_size,
+            timeout_secs: Some(config.pool_timeout_secs),
+        },
     )
     .await?;
-    tracing::info!("PostgreSQL adapter initialized successfully with connection pooling");
+    tracing::info!("PostgreSQL adapter ready");
     Ok(Arc::new(adapter))
 }
 
