@@ -247,8 +247,8 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// # let db = PostgresAdapter::new("postgresql://localhost/db").await?;
     /// # let cache = QueryResultCache::new(CacheConfig::default());
     /// let overrides = std::collections::HashMap::from([
-    ///     ("v_country".to_string(), 3600_u64),   // 1 h for reference data
-    ///     ("v_live_price".to_string(), 0_u64),   // never cache live data
+    ///     ("v_country".to_string(), 3600_u64),      // 1 h for reference data
+    ///     ("v_live_price".to_string(), 0_u64),      // no TTL — mutation-invalidated only
     /// ]);
     /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string())
     ///     .with_view_ttl_overrides(overrides);
@@ -319,12 +319,12 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
                 self.view_ttl_overrides.insert(view.clone(), ttl);
             }
         }
-        // Only activate opt-in mode when at least one query has a TTL annotation.
-        // If no annotations are present, leave opt_in_mode = false so all views
-        // continue to be cached with the global default TTL (backward-compatible).
-        if !self.cacheable_views.is_empty() {
-            self.opt_in_mode = true;
-        }
+        // Always activate opt-in mode when this method is called, regardless of
+        // whether any annotations were found.  If the schema has no cache_ttl_seconds
+        // annotations, cacheable_views stays empty and every query bypasses the cache
+        // entirely — zero overhead.  If annotations are present, only the annotated
+        // views are cached; all others bypass.
+        self.opt_in_mode = true;
         self
     }
 

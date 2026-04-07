@@ -10,7 +10,7 @@
 //! - **`get()` hot path** (cache hit): lock-free frequency-counter update (thread-local
 //!   ring buffer, drained lazily on writes), `Arc` clone (single atomic increment),
 //!   one atomic counter bump.
-//! - **`put()` path**: early-exit guards (disabled / list / size / TTL=0) before touching
+//! - **`put()` path**: early-exit guards (disabled / list / size) before touching
 //!   the store. Reverse-index updates use `DashMap` (fine-grained sharding, no global lock).
 //! - **`metrics()`**: reads `store.entry_count()` directly — no shard scan.
 //! - **`invalidate_views()` / `invalidate_by_entity()`**: O(k) where k = matching entries
@@ -94,7 +94,14 @@ impl moka::Expiry<u64, CachedResult> for CacheEntryExpiry {
         value: &CachedResult,
         _created_at: std::time::Instant,
     ) -> Option<Duration> {
-        Some(Duration::from_secs(value.ttl_seconds))
+        if value.ttl_seconds == 0 {
+            // TTL=0 means "no time-based expiry" — entry lives until explicitly
+            // invalidated by a mutation.  Return None so moka never schedules
+            // a timer-wheel eviction for this entry.
+            None
+        } else {
+            Some(Duration::from_secs(value.ttl_seconds))
+        }
     }
 
     // `expire_after_read` is intentionally NOT overridden.
@@ -349,10 +356,9 @@ impl QueryResultCache {
 
         let ttl_seconds = ttl_override.unwrap_or(self.config.ttl_seconds);
 
-        // TTL=0 means "never cache this entry" — skip storing it entirely.
-        if ttl_seconds == 0 {
-            return Ok(());
-        }
+        // TTL=0 means "no time-based expiry" — store the entry and rely entirely
+        // on mutation-based invalidation.  expire_after_create returns None for
+        // these entries so moka never schedules a timer-wheel eviction.
 
         // Respect cache_list_queries: a result with more than one row is considered a list.
         if !self.config.cache_list_queries && result.len() > 1 {
@@ -822,7 +828,8 @@ mod tests {
     }
 
     #[test]
-    fn test_per_entry_ttl_zero_never_cached() {
+    fn test_per_entry_ttl_zero_cached_indefinitely() {
+        // TTL=0 = no time-based expiry; entry lives until mutation invalidation.
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
@@ -830,7 +837,7 @@ mod tests {
             .unwrap();
 
         let result = cache.get(1_u64).unwrap();
-        assert!(result.is_none(), "Entry with TTL=0 should never be cached");
+        assert!(result.is_some(), "Entry with TTL=0 should be cached indefinitely");
     }
 
     #[test]

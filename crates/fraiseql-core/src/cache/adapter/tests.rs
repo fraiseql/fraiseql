@@ -1460,12 +1460,12 @@ async fn test_schema_without_ttl_annotations_bypasses_cache() {
     );
 }
 
-/// Fixes #188: `with_ttl_overrides_from_schema` must NOT activate opt-in mode
-/// when the schema has zero `cache_ttl_seconds` annotations.  Calling it on an
-/// unannotated schema should leave `opt_in_mode = false` so all views continue
-/// to be cached with the global default TTL.
+/// `with_ttl_overrides_from_schema` activates opt-in mode unconditionally.
+/// When the schema has no `cache_ttl_seconds` annotations, `cacheable_views`
+/// is empty and every query bypasses the cache entirely — zero overhead and no
+/// stale-data risk from unconfigured caching.
 #[tokio::test]
-async fn test_ttl_overrides_from_empty_schema_does_not_disable_cache() {
+async fn test_ttl_overrides_from_empty_schema_bypasses_cache() {
     let mock = MockAdapter::new();
     let cache = QueryResultCache::new(CacheConfig::enabled());
     // Schema with no cache_ttl_seconds annotations on any query.
@@ -1473,15 +1473,15 @@ async fn test_ttl_overrides_from_empty_schema_does_not_disable_cache() {
     let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string())
         .with_ttl_overrides_from_schema(&schema);
 
-    // First call — cache miss, hits DB.
+    // First call — cache bypass, hits DB.
     adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
-    // Second call — should be a cache hit (call_count stays at 1).
+    // Second call — still bypasses cache (opt-in mode, no annotations).
     adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
     assert_eq!(
         adapter.inner().call_count(),
-        1,
-        "with_ttl_overrides_from_schema on unannotated schema must cache all views (#188)"
+        2,
+        "with_ttl_overrides_from_schema on unannotated schema must bypass cache entirely"
     );
 }
