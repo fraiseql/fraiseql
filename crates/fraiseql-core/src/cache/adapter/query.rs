@@ -5,11 +5,9 @@
 
 use std::sync::Arc;
 
-use serde_json::json;
-
 use super::CachedDatabaseAdapter;
 use crate::{
-    cache::key::generate_cache_key,
+    cache::key::{generate_projection_query_key, generate_view_query_key},
     db::{DatabaseAdapter, WhereClause, types::JsonbValue},
     error::Result,
     schema::SqlProjectionHint,
@@ -82,17 +80,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
                 .map(Arc::new);
         }
 
-        // Generate cache key including projection info
-        let query_string = format!("query {{ {view} }}");
-        let projection_info = projection.map_or("", |p| &p.projection_template[..]);
-        let variables = json!({
-            "limit": limit,
-            "offset": offset,
-            "projection": projection_info,
-        });
-
+        // Generate cache key — zero heap allocations on the hot path.
         let cache_key =
-            generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
+            generate_projection_query_key(view, projection, where_clause, limit, offset, &self.schema_version);
 
         // Hit: return cached Arc directly — zero-copy, just one atomic increment.
         if let Some(cached_arc) = self.cache.get(cache_key)? {
@@ -146,15 +136,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
                 .map(Arc::new);
         }
 
-        // Generate cache key
-        let query_string = format!("query {{ {view} }}");
-        let variables = json!({
-            "limit": limit,
-            "offset": offset,
-        });
-
+        // Generate cache key — zero heap allocations on the hot path.
         let cache_key =
-            generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
+            generate_view_query_key(view, where_clause, limit, offset, &self.schema_version);
 
         // Hit: return cached Arc directly — zero-copy.
         if let Some(cached_arc) = self.cache.get(cache_key)? {

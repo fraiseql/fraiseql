@@ -87,11 +87,11 @@ pub struct CachedResult {
 /// Moka `Expiry` implementation: reads TTL from `CachedResult.ttl_seconds`.
 struct CacheEntryExpiry;
 
-impl moka::Expiry<u64, CachedResult> for CacheEntryExpiry {
+impl moka::Expiry<u64, Arc<CachedResult>> for CacheEntryExpiry {
     fn expire_after_create(
         &self,
         _key: &u64,
-        value: &CachedResult,
+        value: &Arc<CachedResult>,
         _created_at: std::time::Instant,
     ) -> Option<Duration> {
         if value.ttl_seconds == 0 {
@@ -154,7 +154,11 @@ impl moka::Expiry<u64, CachedResult> for CacheEntryExpiry {
 /// ```
 pub struct QueryResultCache {
     /// Moka W-TinyLFU store.
-    store: MokaCache<u64, CachedResult>,
+    ///
+    /// `Arc<CachedResult>` rather than `CachedResult` so that `get()` returns in
+    /// one atomic increment instead of deep-cloning the struct (which would copy
+    /// `accessed_views: Box<[String]>` on every cache hit).
+    store: MokaCache<u64, Arc<CachedResult>>,
 
     /// Configuration (immutable after creation).
     config: CacheConfig,
@@ -218,7 +222,7 @@ fn build_store(
     memory_bytes: Arc<AtomicUsize>,
     view_index: Arc<DashMap<String, DashSet<u64>>>,
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>>,
-) -> MokaCache<u64, CachedResult> {
+) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
     let vi = view_index;
@@ -227,7 +231,7 @@ fn build_store(
     MokaCache::builder()
         .max_capacity(max_cap)
         .expire_after(CacheEntryExpiry)
-        .eviction_listener(move |key: Arc<u64>, value: CachedResult, _cause| {
+        .eviction_listener(move |key: Arc<u64>, value: Arc<CachedResult>, _cause| {
             // Decrement memory budget so put()'s byte-gate stays accurate.
             mb.fetch_sub(entry_overhead(), Ordering::Relaxed);
 
@@ -416,7 +420,8 @@ impl QueryResultCache {
         };
 
         self.memory_bytes.fetch_add(entry_overhead(), Ordering::Relaxed);
-        self.store.insert(cache_key, cached);
+        // Wrap in Arc so moka's get() costs one atomic increment, not a full clone.
+        self.store.insert(cache_key, Arc::new(cached));
         self.total_cached.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }

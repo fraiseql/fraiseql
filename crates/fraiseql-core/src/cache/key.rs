@@ -49,7 +49,7 @@ use serde_json::Value as JsonValue;
 
 use crate::{
     db::{WhereOperator, where_clause::WhereClause},
-    schema::QueryDefinition,
+    schema::{QueryDefinition, SqlProjectionHint},
 };
 
 // Fixed seeds for deterministic hashing across process restarts.
@@ -148,6 +148,122 @@ pub fn generate_cache_key(
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
 
+    h.finish()
+}
+
+/// Fast cache key for a view query — **zero heap allocations**.
+///
+/// Hashes `view + where_clause + limit + offset + schema_version` directly
+/// without constructing an intermediate `String` or `serde_json::Value`.
+/// Use this instead of [`generate_cache_key`] in the cache adapter hot path.
+///
+/// Domain tag `"v:"` separates these keys from projection keys (`"p:"`) and
+/// generic query keys (`"q:"`), preventing cross-path collisions.
+///
+/// # Arguments
+///
+/// * `view` - Database view / table name
+/// * `where_clause` - Optional WHERE filter (e.g. from RLS injection)
+/// * `limit` - Optional row limit
+/// * `offset` - Optional row offset
+/// * `schema_version` - Schema hash from `CompiledSchema::content_hash()`
+#[must_use]
+pub fn generate_view_query_key(
+    view: &str,
+    where_clause: Option<&WhereClause>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    schema_version: &str,
+) -> u64 {
+    let mut h = new_hasher();
+    h.write(b"v:");
+    h.write(view.as_bytes());
+    h.write(b"\0w:");
+    if let Some(wc) = where_clause {
+        h.write_u8(1);
+        hash_where_clause(&mut h, wc);
+    } else {
+        h.write_u8(0);
+    }
+    h.write(b"\0l:");
+    match limit {
+        Some(l) => {
+            h.write_u8(1);
+            h.write_u32(l);
+        },
+        None => h.write_u8(0),
+    }
+    h.write(b"\0o:");
+    match offset {
+        Some(o) => {
+            h.write_u8(1);
+            h.write_u32(o);
+        },
+        None => h.write_u8(0),
+    }
+    h.write(b"\0s:");
+    h.write(schema_version.as_bytes());
+    h.finish()
+}
+
+/// Fast cache key for a projection query — **zero heap allocations**.
+///
+/// Like [`generate_view_query_key`] but also hashes the projection template.
+/// Domain tag `"p:"` separates these keys from plain view keys.
+///
+/// # Arguments
+///
+/// * `view` - Database view / table name
+/// * `projection` - Optional SQL projection hint (column subset)
+/// * `where_clause` - Optional WHERE filter
+/// * `limit` - Optional row limit
+/// * `offset` - Optional row offset
+/// * `schema_version` - Schema hash from `CompiledSchema::content_hash()`
+#[must_use]
+pub fn generate_projection_query_key(
+    view: &str,
+    projection: Option<&SqlProjectionHint>,
+    where_clause: Option<&WhereClause>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    schema_version: &str,
+) -> u64 {
+    let mut h = new_hasher();
+    h.write(b"p:");
+    h.write(view.as_bytes());
+    h.write(b"\0j:");
+    match projection {
+        Some(p) => {
+            h.write_u8(1);
+            h.write(p.projection_template.as_bytes());
+        },
+        None => h.write_u8(0),
+    }
+    h.write(b"\0w:");
+    if let Some(wc) = where_clause {
+        h.write_u8(1);
+        hash_where_clause(&mut h, wc);
+    } else {
+        h.write_u8(0);
+    }
+    h.write(b"\0l:");
+    match limit {
+        Some(l) => {
+            h.write_u8(1);
+            h.write_u32(l);
+        },
+        None => h.write_u8(0),
+    }
+    h.write(b"\0o:");
+    match offset {
+        Some(o) => {
+            h.write_u8(1);
+            h.write_u32(o);
+        },
+        None => h.write_u8(0),
+    }
+    h.write(b"\0s:");
+    h.write(schema_version.as_bytes());
     h.finish()
 }
 

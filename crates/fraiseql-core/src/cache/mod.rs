@@ -227,7 +227,10 @@ pub use fact_table_version::{
     FactTableCacheConfig, FactTableVersionProvider, FactTableVersionStrategy, VERSION_TABLE_SCHEMA,
 };
 pub use invalidation::{InvalidationContext, InvalidationReason};
-pub use key::{extract_accessed_views, generate_cache_key};
+pub use key::{
+    extract_accessed_views, generate_cache_key, generate_projection_query_key,
+    generate_view_query_key,
+};
 pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;
