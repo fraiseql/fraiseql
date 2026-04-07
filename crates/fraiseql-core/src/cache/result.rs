@@ -97,17 +97,17 @@ impl moka::Expiry<u64, CachedResult> for CacheEntryExpiry {
         Some(Duration::from_secs(value.ttl_seconds))
     }
 
-    fn expire_after_read(
-        &self,
-        _key: &u64,
-        _value: &CachedResult,
-        _read_at: std::time::Instant,
-        duration_until_expiry: Option<Duration>,
-        _last_modified_at: std::time::Instant,
-    ) -> Option<Duration> {
-        // Do NOT reset TTL on read — keep original expiry.
-        duration_until_expiry
-    }
+    // `expire_after_read` is intentionally NOT overridden.
+    //
+    // Moka's default returns `None` (no change to the timer) which skips the
+    // internal timer-wheel reschedule on every get().  Overriding it to return
+    // `duration_until_expiry` — even though the value is semantically unchanged —
+    // forces moka to acquire its timer-wheel lock on every cache hit.  Under 40
+    // concurrent workers reading the same key, that lock becomes the new hot-key
+    // bottleneck, serialising reads and degrading list-query throughput ~3×.
+    //
+    // Entries expire at creation_time + ttl_seconds regardless of read frequency,
+    // which is the correct fixed-TTL semantics for query result caching.
 }
 
 /// Thread-safe W-TinyLFU cache for query results.
