@@ -8,6 +8,7 @@ use super::*;
 use crate::{
     cache::{CacheConfig, FactTableVersionStrategy},
     db::WhereOperator,
+    schema::CompiledSchema,
 };
 
 /// Mock database adapter for testing.
@@ -340,6 +341,8 @@ async fn test_schema_version_change_invalidates_cache() {
         cache:               Arc::clone(&cache),
         schema_version:      "1.0.0".to_string(),
         view_ttl_overrides:  HashMap::new(),
+        cacheable_views:     std::collections::HashSet::new(),
+        opt_in_mode:         false,
         fact_table_config:   FactTableCacheConfig::default(),
         version_provider:    Arc::clone(&version_provider),
         cascade_invalidator: None,
@@ -355,6 +358,8 @@ async fn test_schema_version_change_invalidates_cache() {
         cache:               Arc::clone(&cache),
         schema_version:      "2.0.0".to_string(),
         view_ttl_overrides:  HashMap::new(),
+        cacheable_views:     std::collections::HashSet::new(),
+        opt_in_mode:         false,
         fact_table_config:   FactTableCacheConfig::default(),
         version_provider:    Arc::clone(&version_provider),
         cascade_invalidator: None,
@@ -1366,4 +1371,117 @@ fn test_view_name_to_entity_type_empty_after_prefix() {
     use crate::cache::adapter::view_name_to_entity_type;
     assert_eq!(view_name_to_entity_type("v_"), None);
     assert_eq!(view_name_to_entity_type("_"), None);
+}
+
+// ===== Tests: Opt-in per-query caching (#186, #187) =====
+
+/// Views with no TTL annotation bypass key-generation entirely when
+/// opt-in mode is active (i.e. `with_view_ttl_overrides` or
+/// `with_ttl_overrides_from_schema` was called).  This eliminates the
+/// allocation overhead that caused the 2.4× throughput regression on
+/// TV-table and on-the-fly JSONB workloads.
+#[tokio::test]
+async fn test_non_cacheable_view_always_hits_db() {
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    // Only "v_expensive" opts into caching; "v_user" does not.
+    let overrides = HashMap::from([("v_expensive".to_string(), 300_u64)]);
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string())
+        .with_view_ttl_overrides(overrides);
+
+    // First call to a non-cacheable view.
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1);
+
+    // Second call — should bypass the cache and hit the DB again.
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 2, "non-cacheable view must not be served from cache");
+}
+
+/// A view that opts in via `cache_ttl_seconds` is still cached normally
+/// even when other views in the schema have no TTL annotation.
+#[tokio::test]
+async fn test_cacheable_view_is_still_cached() {
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let overrides = HashMap::from([("v_expensive".to_string(), 300_u64)]);
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string())
+        .with_view_ttl_overrides(overrides);
+
+    // First call — cache miss.
+    adapter.execute_where_query("v_expensive", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1);
+
+    // Second call — cache hit; DB must NOT be called again.
+    adapter.execute_where_query("v_expensive", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1, "opt-in view must be served from cache on second call");
+}
+
+/// When no TTL overrides are set AND no schema was loaded (`opt_in_mode = false`),
+/// all views remain cacheable — preserving backward-compatible behaviour for
+/// adapters constructed without a schema (e.g. in unit tests or direct usage).
+#[tokio::test]
+async fn test_all_views_cacheable_when_no_overrides_set() {
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    // No schema loaded → opt_in_mode = false → all views are cached (backward compat).
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string());
+
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1);
+
+    // Second call — cache hit.
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1, "with no schema loaded all views must be cached");
+}
+
+/// Fixes #187: when a schema with NO `cache_ttl_seconds` annotations is loaded
+/// (e.g. fraiseql-v on-the-fly JSONB views), opt-in mode is active but
+/// `cacheable_views` is empty.  ALL views should bypass key-generation entirely
+/// — restoring v2.1.2 throughput for unannotated schemas.
+#[tokio::test]
+async fn test_schema_without_ttl_annotations_bypasses_cache() {
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    // Schema loaded but no queries have cache_ttl_seconds → cacheable_views = {} but
+    // opt_in_mode = true.
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string())
+        .with_view_ttl_overrides(HashMap::new()); // simulates schema with no TTL annotations
+
+    // Every call should bypass the cache and hit the DB directly.
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1);
+
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(
+        adapter.inner().call_count(),
+        2,
+        "schema with no TTL annotations must bypass cache on every request (#187)"
+    );
+}
+
+/// Fixes #188: `with_ttl_overrides_from_schema` must NOT activate opt-in mode
+/// when the schema has zero `cache_ttl_seconds` annotations.  Calling it on an
+/// unannotated schema should leave `opt_in_mode = false` so all views continue
+/// to be cached with the global default TTL.
+#[tokio::test]
+async fn test_ttl_overrides_from_empty_schema_does_not_disable_cache() {
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    // Schema with no cache_ttl_seconds annotations on any query.
+    let schema = CompiledSchema::default();
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "1.0.0".to_string())
+        .with_ttl_overrides_from_schema(&schema);
+
+    // First call — cache miss, hits DB.
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1);
+
+    // Second call — should be a cache hit (call_count stays at 1).
+    adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+    assert_eq!(
+        adapter.inner().call_count(),
+        1,
+        "with_ttl_overrides_from_schema on unannotated schema must cache all views (#188)"
+    );
 }

@@ -63,7 +63,7 @@
 //! ```
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -154,6 +154,27 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// `CacheConfig::ttl_seconds`.
     pub(super) view_ttl_overrides: HashMap<String, u64>,
 
+    /// Set of views that explicitly opt into caching via `cache_ttl_seconds`.
+    ///
+    /// Derived from `view_ttl_overrides` keys.  When `opt_in_mode` is active,
+    /// views **not** in this set bypass cache key generation entirely, eliminating
+    /// allocation overhead for uncached queries.
+    pub(super) cacheable_views: HashSet<String>,
+
+    /// Whether opt-in caching mode is active.
+    ///
+    /// Set to `true` by [`CachedDatabaseAdapter::with_view_ttl_overrides`] and
+    /// [`CachedDatabaseAdapter::with_ttl_overrides_from_schema`] to indicate that
+    /// the caller has intentionally configured per-view TTL overrides.  In this
+    /// mode, **only** views in `cacheable_views` are cached; all others bypass
+    /// key-generation entirely.
+    ///
+    /// When `false` (default, adapter created with [`Self::new`] or
+    /// [`Self::with_fact_table_config`] without a schema call), all views remain
+    /// cacheable — preserving backward-compatible behaviour for tests and direct
+    /// usage that do not use per-query TTL annotations.
+    pub(super) opt_in_mode: bool,
+
     /// Configuration for fact table aggregation caching.
     pub(super) fact_table_config: FactTableCacheConfig,
 
@@ -204,6 +225,8 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cache: Arc::new(cache),
             schema_version,
             view_ttl_overrides: HashMap::new(),
+            cacheable_views: HashSet::new(),
+            opt_in_mode: false,
             fact_table_config: FactTableCacheConfig::default(),
             version_provider: Arc::new(FactTableVersionProvider::default()),
             cascade_invalidator: None,
@@ -234,7 +257,9 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// ```
     #[must_use]
     pub fn with_view_ttl_overrides(mut self, overrides: HashMap<String, u64>) -> Self {
+        self.cacheable_views = overrides.keys().cloned().collect();
         self.view_ttl_overrides = overrides;
+        self.opt_in_mode = true;
         self
     }
 
@@ -290,8 +315,15 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     pub fn with_ttl_overrides_from_schema(mut self, schema: &CompiledSchema) -> Self {
         for query in &schema.queries {
             if let (Some(view), Some(ttl)) = (&query.sql_source, query.cache_ttl_seconds) {
+                self.cacheable_views.insert(view.clone());
                 self.view_ttl_overrides.insert(view.clone(), ttl);
             }
+        }
+        // Only activate opt-in mode when at least one query has a TTL annotation.
+        // If no annotations are present, leave opt_in_mode = false so all views
+        // continue to be cached with the global default TTL (backward-compatible).
+        if !self.cacheable_views.is_empty() {
+            self.opt_in_mode = true;
         }
         self
     }
@@ -344,6 +376,8 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             cache: Arc::new(cache),
             schema_version,
             view_ttl_overrides: HashMap::new(),
+            cacheable_views: HashSet::new(),
+            opt_in_mode: false,
             fact_table_config,
             version_provider: Arc::new(FactTableVersionProvider::default()),
             cascade_invalidator: None,
@@ -503,6 +537,8 @@ impl<A: DatabaseAdapter + Clone> Clone for CachedDatabaseAdapter<A> {
             cache:               Arc::clone(&self.cache),
             schema_version:      self.schema_version.clone(),
             view_ttl_overrides:  self.view_ttl_overrides.clone(),
+            cacheable_views:     self.cacheable_views.clone(),
+            opt_in_mode:         self.opt_in_mode,
             fact_table_config:   self.fact_table_config.clone(),
             version_provider:    Arc::clone(&self.version_provider),
             cascade_invalidator: self.cascade_invalidator.clone(),
@@ -526,6 +562,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     ) -> Result<Vec<JsonbValue>> {
         self.execute_with_projection_impl(view, projection, where_clause, limit, offset)
             .await
+            .map(Arc::unwrap_or_clone)
     }
 
     async fn execute_where_query(
@@ -536,6 +573,32 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
         _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
+        self.execute_where_query_impl(view, where_clause, limit, offset)
+            .await
+            .map(Arc::unwrap_or_clone)
+    }
+
+    async fn execute_with_projection_arc(
+        &self,
+        view: &str,
+        projection: Option<&crate::schema::SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset)
+            .await
+    }
+
+    async fn execute_where_query_arc(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        _order_by: Option<&[OrderByClause]>,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
         self.execute_where_query_impl(view, where_clause, limit, offset).await
     }
 

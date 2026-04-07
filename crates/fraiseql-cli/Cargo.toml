@@ -5,10 +5,17 @@ path = "src/main.rs"
 [dependencies]
 # Error handling
 anyhow = "1.0"
+# SQL Server connection pool (optional, for sqlserver feature)
+bb8 = {version = "0.8", optional = true}
+bb8-tiberius = {version = "0.15", optional = true}
 # CLI framework
 clap = {version = "4.5", features = ["derive", "cargo", "color", "suggestions"]}
 # Database connection (for introspect/validate commands)
 deadpool-postgres = {workspace = true}
+# MySQL / SQLite connection (optional, for mysql/sqlite features)
+sqlx = {workspace = true, optional = true}
+# SQL Server TDS driver (optional, for sqlserver feature)
+tiberius = {version = "0.12", default-features = false, features = ["tds73", "native-tls"], optional = true}
 # Workspace dependencies
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-server = {workspace = true, optional = true}
@@ -48,9 +55,9 @@ tower = {workspace = true}
 [features]
 default = []
 federation = ["fraiseql-core/federation"]
-mysql = ["fraiseql-core/mysql"]
-sqlite = ["fraiseql-core/sqlite"]
-sqlserver = ["fraiseql-core/sqlserver"]
+mysql = ["fraiseql-core/mysql", "dep:sqlx", "sqlx/mysql"]
+sqlite = ["fraiseql-core/sqlite", "dep:sqlx", "sqlx/sqlite"]
+sqlserver = ["fraiseql-core/sqlserver", "dep:bb8", "dep:bb8-tiberius", "dep:tiberius"]
 run-server = ["dep:fraiseql-server", "dep:axum"]
 
 [lints]

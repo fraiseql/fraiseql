@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+
+- **`QueryResultCache` replaced with `moka` W-TinyLFU** (issue #185). Cache reads are now
+  lock-free — eliminates hot-key serialisation under high concurrency. View-based and
+  entity-based invalidation use O(k) reverse `DashMap` indexes instead of an O(n) full-cache
+  scan. `lru` crate usage in the cache module removed. `CachedResult::entity_ids` replaced
+  with `entity_ref: Option<(String, String)>`; `CachedResult::hit_count` removed.
+
 ### Changed
 
 - **`Server::new` and `Server::with_relay_pagination` now always wrap the database adapter in `CachedDatabaseAdapter`** (issue #184). When `cache_enabled = false` the adapter acts as a zero-overhead passthrough; when `cache_enabled = true` full query result caching is active.

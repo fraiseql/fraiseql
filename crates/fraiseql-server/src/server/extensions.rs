@@ -8,7 +8,7 @@ use fraiseql_arrow::FraiseQLFlightService;
 #[cfg(all(feature = "arrow", feature = "auth"))]
 use fraiseql_core::security::OidcValidator;
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, CascadeInvalidator, QueryResultCache},
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -119,13 +119,11 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
 
         let cache_config = CacheConfig::from(config.cache_enabled);
         let cache = QueryResultCache::new(cache_config);
-        let invalidator = CascadeInvalidator::new();
         // Unwrap Arc: refcount is 1 here — adapter has not been cloned since being passed in.
         let inner = Arc::into_inner(adapter)
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_ttl_overrides_from_schema(&schema)
-            .with_cascade_invalidator(invalidator);
+            .with_ttl_overrides_from_schema(&schema);
         let executor = Arc::new(Executor::new_with_relay(schema.clone(), Arc::new(cached)));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 

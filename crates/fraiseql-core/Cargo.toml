@@ -70,6 +70,7 @@ itertools = {workspace = true}
 jsonwebtoken = {workspace = true}
 linked-hash-map = {workspace = true}
 lru = {workspace = true}
+moka = {workspace = true}
 parking_lot = {workspace = true}
 rand = {workspace = true}
 # Kafka (optional)
@@ -98,6 +99,7 @@ deadpool-postgres.workspace = true
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
+moka = {workspace = true}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-wire = {workspace = true}
 insta = {workspace = true}

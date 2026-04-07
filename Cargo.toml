@@ -88,6 +88,7 @@ jsonwebtoken = {version = "10", features = ["rust_crypto"]}
 linked-hash-map = "0.5"
 # Caching
 lru = "0.16"
+moka = {version = "0.12", default-features = false, features = ["sync"]}
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
 # Snapshot testing

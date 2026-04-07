@@ -1,6 +1,6 @@
 //! Database adapter trait definitions.
 
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
@@ -375,6 +375,56 @@ pub trait DatabaseAdapter: Send + Sync {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>>;
+
+    /// Like `execute_where_query` but returns the result wrapped in an `Arc`.
+    ///
+    /// The default implementation wraps the result of `execute_where_query` in a
+    /// fresh `Arc`. `CachedDatabaseAdapter` overrides this to return the cached `Arc`
+    /// directly — eliminating the full `Vec<JsonbValue>` clone that the non-`Arc`
+    /// path requires on every cache hit.
+    ///
+    /// Callers on the hot query path should prefer this variant and borrow from the
+    /// `Arc` via `&**arc` rather than taking ownership.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as `execute_where_query`.
+    async fn execute_where_query_arc(
+        &self,
+        view: &str,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        self.execute_where_query(view, where_clause, limit, offset, order_by)
+            .await
+            .map(Arc::new)
+    }
+
+    /// Like `execute_with_projection` but returns the result wrapped in an `Arc`.
+    ///
+    /// The default implementation wraps the result of `execute_with_projection` in a
+    /// fresh `Arc`. `CachedDatabaseAdapter` overrides this to return the cached `Arc`
+    /// directly — eliminating the full `Vec<JsonbValue>` clone that the non-`Arc`
+    /// path requires on every cache hit.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as `execute_with_projection`.
+    async fn execute_with_projection_arc(
+        &self,
+        view: &str,
+        projection: Option<&SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        self.execute_with_projection(view, projection, where_clause, limit, offset, order_by)
+            .await
+            .map(Arc::new)
+    }
 
     /// Get database type (for logging/metrics).
     ///

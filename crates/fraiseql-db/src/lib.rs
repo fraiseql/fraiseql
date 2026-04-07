@@ -89,7 +89,7 @@ pub use identifier::{
 };
 pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
 #[cfg(feature = "mysql")]
-pub use mysql::MySqlAdapter;
+pub use mysql::{MySqlAdapter, MySqlIntrospector};
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{
@@ -97,9 +97,9 @@ pub use projection_generator::{
     SqliteProjectionGenerator,
 };
 #[cfg(feature = "sqlite")]
-pub use sqlite::SqliteAdapter;
+pub use sqlite::{SqliteAdapter, SqliteIntrospector};
 #[cfg(feature = "sqlserver")]
-pub use sqlserver::SqlServerAdapter;
+pub use sqlserver::{SqlServerAdapter, SqlServerIntrospector};
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
     DirectMutationContext, DirectMutationOp, MutationStrategy, RelayDatabaseAdapter,

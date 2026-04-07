@@ -3,6 +3,8 @@
 //! Contains the inherent helper methods with the actual cache logic.
 //! The `DatabaseAdapter` trait impl in `mod.rs` delegates to these.
 
+use std::sync::Arc;
+
 use serde_json::json;
 
 use super::CachedDatabaseAdapter;
@@ -53,8 +55,11 @@ pub fn view_name_to_entity_type(view: &str) -> Option<String> {
 impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// Cache-aware implementation of `execute_with_projection`.
     ///
-    /// Checks the cache first; on miss, delegates to the underlying adapter
-    /// and stores the result.
+    /// Returns the result as `Arc<Vec<JsonbValue>>` so that the caller can borrow
+    /// the data without a full `Vec` clone.  On a hit the cached `Arc` is returned
+    /// directly (one atomic increment).  On a miss the result is wrapped in a fresh
+    /// `Arc`, an `Arc::clone` is stored in the cache, and the original `Arc` is
+    /// returned — again without cloning the `Vec` contents.
     #[tracing::instrument(skip_all, fields(cache.view = view))]
     pub(super) async fn execute_with_projection_impl(
         &self,
@@ -63,13 +68,18 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<JsonbValue>> {
-        // Short-circuit when cache is disabled: skip cache key generation and result clone.
-        if !self.cache.is_enabled() {
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        // Short-circuit when cache is disabled, or when opt-in mode is active and
+        // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
+        // key-generation allocations entirely for un-annotated views.
+        if !self.cache.is_enabled()
+            || (self.opt_in_mode && !self.cacheable_views.contains(view))
+        {
             return self
                 .adapter
                 .execute_with_projection(view, projection, where_clause, limit, offset, None)
-                .await;
+                .await
+                .map(Arc::new);
         }
 
         // Generate cache key including projection info
@@ -84,36 +94,39 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         let cache_key =
             generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
 
-        // Try cache first
-        if let Some(cached_result) = self.cache.get(cache_key)? {
-            return Ok(std::sync::Arc::unwrap_or_clone(cached_result));
+        // Hit: return cached Arc directly — zero-copy, just one atomic increment.
+        if let Some(cached_arc) = self.cache.get(cache_key)? {
+            return Ok(cached_arc);
         }
 
-        // Cache miss - execute via underlying adapter
-        let result = self
-            .adapter
-            .execute_with_projection(view, projection, where_clause, limit, offset, None)
-            .await?;
+        // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
+        // The Vec contents are never copied — the cache and the caller share the
+        // same allocation via Arc reference counting.
+        let arc = Arc::new(
+            self.adapter
+                .execute_with_projection(view, projection, where_clause, limit, offset, None)
+                .await?,
+        );
 
         // Store in cache; derive entity type from view name so that
         // selective entity-level invalidation can target precise entries.
         let ttl = self.view_ttl_overrides.get(view).copied();
         let entity_type = view_name_to_entity_type(view);
-        self.cache.put(
+        self.cache.put_arc(
             cache_key,
-            result.clone(),
+            Arc::clone(&arc),
             vec![view.to_string()],
             ttl,
             entity_type.as_deref(),
         )?;
 
-        Ok(result)
+        Ok(arc)
     }
 
     /// Cache-aware implementation of `execute_where_query`.
     ///
-    /// Checks the cache first; on miss, delegates to the underlying adapter
-    /// and stores the result.
+    /// Returns the result as `Arc<Vec<JsonbValue>>`.  See `execute_with_projection_impl`
+    /// for the zero-copy rationale.
     #[tracing::instrument(skip_all, fields(cache.view = view))]
     pub(super) async fn execute_where_query_impl(
         &self,
@@ -121,10 +134,16 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-    ) -> Result<Vec<JsonbValue>> {
-        // Short-circuit when cache is disabled: skip cache key generation and result clone.
-        if !self.cache.is_enabled() {
-            return self.adapter.execute_where_query(view, where_clause, limit, offset, None).await;
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        // Short-circuit when cache is disabled, or when opt-in mode is active and
+        // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
+        // key-generation allocations entirely for un-annotated views.
+        if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
+            return self
+                .adapter
+                .execute_where_query(view, where_clause, limit, offset, None)
+                .await
+                .map(Arc::new);
         }
 
         // Generate cache key
@@ -137,16 +156,17 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         let cache_key =
             generate_cache_key(&query_string, &variables, where_clause, &self.schema_version);
 
-        // Try cache first
-        if let Some(cached_result) = self.cache.get(cache_key)? {
-            return Ok(std::sync::Arc::unwrap_or_clone(cached_result));
+        // Hit: return cached Arc directly — zero-copy.
+        if let Some(cached_arc) = self.cache.get(cache_key)? {
+            return Ok(cached_arc);
         }
 
-        // Cache miss - execute query
-        let result = self
-            .adapter
-            .execute_where_query(view, where_clause, limit, offset, None)
-            .await?;
+        // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
+        let arc = Arc::new(
+            self.adapter
+                .execute_where_query(view, where_clause, limit, offset, None)
+                .await?,
+        );
 
         // Store in cache with entity-type index so that mutation-side
         // invalidate_by_entity() can evict only the entries that actually
@@ -155,14 +175,14 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // list to transitively dependent views when invalidate_views() is called.
         let ttl = self.view_ttl_overrides.get(view).copied();
         let entity_type = view_name_to_entity_type(view);
-        self.cache.put(
+        self.cache.put_arc(
             cache_key,
-            result.clone(),
+            Arc::clone(&arc),
             vec![view.to_string()],
             ttl,
             entity_type.as_deref(),
         )?;
 
-        Ok(result)
+        Ok(arc)
     }
 }

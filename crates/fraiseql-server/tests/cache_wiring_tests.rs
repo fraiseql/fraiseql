@@ -180,8 +180,7 @@ async fn test_server_new_wraps_adapter_successfully() {
         .queries
         .push(fraiseql_core::schema::QueryDefinition::new("items", "Item"));
 
-    let mut config = ServerConfig::default();
-    config.cache_enabled = true;
+    let config = ServerConfig { cache_enabled: true, ..ServerConfig::default() };
 
     // This compiles and runs only if Server::new correctly returns
     // Server<CachedDatabaseAdapter<CountingAdapter>>.
@@ -197,8 +196,7 @@ async fn test_server_new_cache_disabled_also_builds() {
     let (adapter, _counter) = CountingAdapter::new();
     let schema = CompiledSchema::default();
 
-    let mut config = ServerConfig::default();
-    config.cache_enabled = false;
+    let config = ServerConfig { cache_enabled: false, ..ServerConfig::default() };
 
     let _server = Server::new(config, schema, Arc::new(adapter), None)
         .await

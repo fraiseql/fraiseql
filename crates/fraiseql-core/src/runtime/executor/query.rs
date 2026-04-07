@@ -223,7 +223,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 9. Execute query with combined WHERE clause filter
         let results = self
             .adapter
-            .execute_with_projection(
+            .execute_with_projection_arc(
                 sql_source,
                 projection_hint.as_ref(),
                 combined_where.as_ref(),
@@ -384,7 +384,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         let results = self
             .adapter
-            .execute_with_projection(
+            .execute_with_projection_arc(
                 sql_source,
                 projection_hint.as_ref(),
                 user_where.as_ref(),
@@ -505,7 +505,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Execute.
         let results = self
             .adapter
-            .execute_with_projection(
+            .execute_with_projection_arc(
                 sql_source,
                 None,
                 composed_where.as_ref(),
@@ -721,7 +721,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 4. Execute COUNT query via adapter
         let rows = self
             .adapter
-            .execute_where_query(sql_source, combined_where.as_ref(), None, None, None)
+            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
             .await?;
 
         // Return the row count
@@ -1134,11 +1134,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 5. Execute the query (limit 1).
         let rows = self
             .adapter
-            .execute_where_query(&sql_source, Some(&where_clause), Some(1), None, None)
+            .execute_where_query_arc(&sql_source, Some(&where_clause), Some(1), None, None)
             .await?;
 
         // 6. Return the first matching row (or null).
-        let node_value = rows.into_iter().next().map_or(serde_json::Value::Null, |row| row.data);
+        // When the Arc is exclusively owned (uncached path, refcount = 1) we can move the
+        // data out without copying.  When the cache also holds a reference (refcount ≥ 2)
+        // we clone the single `serde_json::Value` for this one-row lookup.
+        let node_value = Arc::try_unwrap(rows)
+            .map_or_else(
+                |arc| arc.first().map_or(serde_json::Value::Null, |row| row.data.clone()),
+                |v| v.into_iter().next().map_or(serde_json::Value::Null, |row| row.data),
+            );
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(serde_json::to_string(&response)?)

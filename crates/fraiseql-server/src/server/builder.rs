@@ -5,7 +5,7 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    cache::{CacheConfig, CachedDatabaseAdapter, CascadeInvalidator, QueryResultCache},
+    cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -135,9 +135,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         let cache_config = CacheConfig::from(config.cache_enabled);
         let cache = QueryResultCache::new(cache_config);
 
-        // Build cascade invalidator (empty — schema carries no explicit view deps yet).
-        let invalidator = CascadeInvalidator::new();
-
         // Log cache state before consuming config.
         if cache_config.enabled {
             tracing::info!(
@@ -157,8 +154,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         let inner = Arc::into_inner(adapter)
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_ttl_overrides_from_schema(&schema)
-            .with_cascade_invalidator(invalidator);
+            .with_ttl_overrides_from_schema(&schema);
         let executor = Arc::new(Executor::new(schema.clone(), Arc::new(cached)));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 

@@ -24,7 +24,10 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use fraiseql_core::db::postgres::PostgresAdapter;
+use fraiseql_core::{
+    cache::CachedDatabaseAdapter,
+    db::postgres::PostgresAdapter,
+};
 use fraiseql_server::{Server, ServerConfig, server_config::TlsServerConfig};
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
@@ -109,7 +112,7 @@ async fn run_once(
     println!("   Press Ctrl+C to stop");
     println!();
 
-    let server: Server<PostgresAdapter> = Server::new(config, schema, adapter, None)
+    let server: Server<CachedDatabaseAdapter<PostgresAdapter>> = Server::new(config, schema, adapter, None)
         .await
         .context("Failed to initialize server")?;
 
@@ -146,7 +149,7 @@ async fn run_watch_loop(
         println!("   Watching {} for changes...  (Ctrl+C to stop)", input_path.display());
         println!();
 
-        let server: Server<PostgresAdapter> = Server::new(config, schema, adapter, None)
+        let server: Server<CachedDatabaseAdapter<PostgresAdapter>> = Server::new(config, schema, adapter, None)
             .await
             .context("Failed to initialize server")?;
 
@@ -167,7 +170,7 @@ async fn run_watch_loop(
         server
             .serve_with_shutdown(async move {
                 tokio::select! {
-                    () = Server::<PostgresAdapter>::shutdown_signal() => {},
+                    () = Server::<CachedDatabaseAdapter<PostgresAdapter>>::shutdown_signal() => {},
                     result = change_rx => {
                         if result.is_err() {
                             // Sender dropped without sending — treat as OS signal
