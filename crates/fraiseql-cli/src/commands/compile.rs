@@ -274,6 +274,9 @@ pub async fn compile_to_schema(
     // 5c. Warn when SQLite is the target but the schema uses features SQLite doesn't support.
     check_sqlite_compatibility_warnings(&schema, opts.input, is_toml, opts.database);
 
+    // 5d. Warn when mutations have wide invalidation fan-out (HOT update pressure).
+    warn_wide_cascade_mutations(&schema);
+
     Ok((schema, report))
 }
 
@@ -418,6 +421,82 @@ fn detect_sqlite_target_in_toml(toml_path: &str) -> bool {
         return false;
     };
     toml_schema.schema.database_target.to_ascii_lowercase().contains("sqlite")
+}
+
+/// Minimum distinct invalidation targets (views + fact tables) that triggers
+/// the HOT-update fan-out warning.
+const WIDE_FANOUT_THRESHOLD: usize = 3;
+
+/// Return mutations whose total invalidation fan-out meets or exceeds `threshold`.
+///
+/// Fan-out is the count of distinct views (`invalidates_views`) plus fact tables
+/// (`invalidates_fact_tables`) that a mutation touches on every successful write.
+/// Used by [`warn_wide_cascade_mutations`] and exposed for unit testing.
+fn wide_cascade_mutations(
+    schema: &CompiledSchema,
+    threshold: usize,
+) -> Vec<&fraiseql_core::schema::MutationDefinition> {
+    schema
+        .mutations
+        .iter()
+        .filter(|m| m.invalidates_views.len() + m.invalidates_fact_tables.len() >= threshold)
+        .collect()
+}
+
+/// Emit a warning for each mutation whose invalidation fan-out is wide enough
+/// to risk exhausting PostgreSQL HOT-update page slots under high write load.
+///
+/// When a mutation touches many tables on every write, the free space reserved
+/// on each heap page (needed for HOT updates) fills up quickly. Subsequent
+/// mutations must write to a new page instead of updating in place, which
+/// increases I/O and table bloat. Setting `fillfactor=70-80` on the backing
+/// tables leaves 20-30 % of each page free, keeping HOT updates available.
+///
+/// The warning lists ready-to-run `ALTER TABLE … SET (fillfactor = 75)` statements
+/// derived from the view names using FraiseQL naming conventions
+/// (`tv_foo` / `v_foo` → `tb_foo`).
+fn warn_wide_cascade_mutations(schema: &CompiledSchema) {
+    for mutation in wide_cascade_mutations(schema, WIDE_FANOUT_THRESHOLD) {
+        let total = mutation.invalidates_views.len() + mutation.invalidates_fact_tables.len();
+
+        // Build a sorted, deduplicated target list for a stable message.
+        let mut targets: Vec<&str> = mutation
+            .invalidates_views
+            .iter()
+            .chain(mutation.invalidates_fact_tables.iter())
+            .map(String::as_str)
+            .collect();
+        targets.sort_unstable();
+        targets.dedup();
+
+        // Derive a likely backing-table name from FraiseQL view naming conventions.
+        // tv_foo → tb_foo, v_foo → tb_foo, anything else (e.g. fact tables) unchanged.
+        let alter_stmts: Vec<String> = targets
+            .iter()
+            .map(|&name| {
+                let table = name
+                    .strip_prefix("tv_")
+                    .or_else(|| name.strip_prefix("v_"))
+                    .map(|rest| format!("tb_{rest}"))
+                    .unwrap_or_else(|| name.to_string());
+                format!("ALTER TABLE {table} SET (fillfactor = 75);")
+            })
+            .collect();
+
+        warn!(
+            "mutation '{}' has a wide invalidation fan-out ({} targets: [{}]). \
+             Under high write load, HOT-update page slots on these tables may be \
+             exhausted, forcing full-page writes and reducing mutation throughput. \
+             Set fillfactor=70-80 on the backing tables: {}  \
+             Monitor HOT efficiency: SELECT relname, \
+             n_tup_hot_upd * 100 / NULLIF(n_tup_upd, 0) AS hot_pct \
+             FROM pg_stat_user_tables WHERE n_tup_upd > 0 ORDER BY hot_pct;",
+            mutation.name,
+            total,
+            targets.join(", "),
+            alter_stmts.join("  "),
+        );
+    }
 }
 
 /// Build a PostgreSQL introspector connected to `db_url`.
@@ -566,6 +645,82 @@ mod tests {
     use indexmap::IndexMap;
 
     use super::infer_native_columns_from_arg_types;
+
+    use fraiseql_core::schema::MutationDefinition;
+
+    use super::{WIDE_FANOUT_THRESHOLD, wide_cascade_mutations};
+
+    fn mutation_with_fanout(
+        name: &str,
+        views: &[&str],
+        fact_tables: &[&str],
+    ) -> MutationDefinition {
+        let mut m = MutationDefinition::new(name, "SomeResult");
+        m.invalidates_views = views.iter().map(|s| (*s).to_string()).collect();
+        m.invalidates_fact_tables = fact_tables.iter().map(|s| (*s).to_string()).collect();
+        m
+    }
+
+    #[test]
+    fn test_wide_cascade_below_threshold_not_flagged() {
+        let schema = CompiledSchema {
+            mutations: vec![mutation_with_fanout("update", &["tv_user", "tv_post"], &[])],
+            ..Default::default()
+        };
+        assert!(
+            wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD).is_empty(),
+            "2 targets is below threshold of 3"
+        );
+    }
+
+    #[test]
+    fn test_wide_cascade_at_threshold_flagged() {
+        let schema = CompiledSchema {
+            mutations: vec![mutation_with_fanout(
+                "updateUserWithPosts",
+                &["tv_user", "tv_post", "tv_comment"],
+                &[],
+            )],
+            ..Default::default()
+        };
+        let flagged = wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD);
+        assert_eq!(flagged.len(), 1);
+        assert_eq!(flagged[0].name, "updateUserWithPosts");
+    }
+
+    #[test]
+    fn test_wide_cascade_views_plus_fact_tables_counted_together() {
+        let schema = CompiledSchema {
+            mutations: vec![mutation_with_fanout(
+                "createOrder",
+                &["tv_order", "tv_order_item"],
+                &["tf_sales"],
+            )],
+            ..Default::default()
+        };
+        let flagged = wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD);
+        assert_eq!(flagged.len(), 1, "2 views + 1 fact table = 3 total, meets threshold");
+    }
+
+    #[test]
+    fn test_wide_cascade_only_wide_mutations_flagged() {
+        let schema = CompiledSchema {
+            mutations: vec![
+                mutation_with_fanout("narrow", &["tv_user"], &[]),
+                mutation_with_fanout("wide", &["tv_user", "tv_post", "tv_comment"], &[]),
+            ],
+            ..Default::default()
+        };
+        let flagged = wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD);
+        assert_eq!(flagged.len(), 1);
+        assert_eq!(flagged[0].name, "wide");
+    }
+
+    #[test]
+    fn test_wide_cascade_no_mutations_no_warnings() {
+        let schema = CompiledSchema::default();
+        assert!(wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD).is_empty());
+    }
 
     #[test]
     fn test_validate_schema_success() {

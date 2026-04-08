@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scan. `lru` crate usage in the cache module removed. `CachedResult::entity_ids` replaced
   with `entity_ref: Option<(String, String)>`; `CachedResult::hit_count` removed.
 
+- **`Arc<CachedResult>` in cache store eliminates per-hit deep clone.** The moka store
+  type changed from `Cache<u64, CachedResult>` to `Cache<u64, Arc<CachedResult>>`. On a
+  cache hit, only one atomic reference-count increment occurs; previously `moka::Cache::get`
+  deep-cloned the full `CachedResult` value — including the `Box<[String]>` view list — on
+  every read.
+
+- **Zero-allocation cache key generation.** `generate_view_query_key` and
+  `generate_projection_query_key` replace the previous `format!` + `serde_json::json!` +
+  `generate_cache_key` chain on every cache lookup. Parameters are hashed directly via
+  ahash with no intermediate `String` or `serde_json::Value` allocations — zero heap
+  activity on the hot read path.
+
+- **Short-circuit when cache is disabled removes per-request overhead.** When
+  `cache_enabled = false`, `execute_where_query` and `execute_with_projection` skip the
+  64-shard lock scan, `CascadeInvalidator` mutex acquisition, and `is_enabled()` check,
+  reducing the disabled-cache overhead to a single branch.
+
 ### Changed
 
 - **`Server::new` and `Server::with_relay_pagination` now always wrap the database adapter in `CachedDatabaseAdapter`** (issue #184). When `cache_enabled = false` the adapter acts as a zero-overhead passthrough; when `cache_enabled = true` full query result caching is active.
