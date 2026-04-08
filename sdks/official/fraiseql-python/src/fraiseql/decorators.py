@@ -385,7 +385,17 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
 
     Args:
         func: Python function with type annotations
-        **config_kwargs: Configuration options (sql_source, auto_params, etc.)
+        **config_kwargs: Configuration options. Common keys:
+
+            - ``sql_source``: override the default SQL view/table name.
+            - ``auto_params``: dict of ``{limit, offset, where, order_by}`` booleans,
+              or ``True`` to enable all.
+            - ``jsonb_column``: name of the JSONB column holding the result data.
+              Defaults to ``"data"`` — omit unless your table uses a different column name.
+            - ``native_columns``: ``{"arg_name": "pg_type"}`` map for arguments that
+              map to native (non-JSONB) columns. ``ID``- and ``UUID``-typed arguments
+              are inferred automatically by the compiler; only declare this when the
+              type inference does not match (e.g. a native ``TEXT`` column named ``id``).
 
     Returns:
         The original function (unmodified)

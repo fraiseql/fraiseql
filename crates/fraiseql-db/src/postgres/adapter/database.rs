@@ -15,6 +15,45 @@ use crate::{
     where_clause::WhereClause,
 };
 
+/// PostgreSQL SQLSTATE 42703: undefined column.
+const PG_UNDEFINED_COLUMN: &str = "42703";
+
+/// Enrich a `FraiseQLError::Database` error for PostgreSQL SQLSTATE 42703 (undefined column)
+/// when the WHERE clause contains `NativeField` conditions.
+///
+/// Native columns may be inferred automatically at compile time from `ID`/`UUID`-typed
+/// arguments.  If the column does not exist on the target table at runtime, the raw
+/// PostgreSQL error is replaced with a diagnostic message that names the native columns
+/// involved and explains how to fix the schema.
+fn enrich_undefined_column_error(
+    err: FraiseQLError,
+    view: &str,
+    where_clause: Option<&WhereClause>,
+) -> FraiseQLError {
+    let FraiseQLError::Database { ref sql_state, .. } = err else {
+        return err;
+    };
+    if sql_state.as_deref() != Some(PG_UNDEFINED_COLUMN) {
+        return err;
+    }
+    let native_cols: Vec<&str> = where_clause
+        .map(|wc| wc.native_column_names())
+        .unwrap_or_default();
+    if native_cols.is_empty() {
+        return err;
+    }
+    FraiseQLError::Database {
+        message: format!(
+            "Column(s) {:?} referenced as native column(s) on `{view}` do not exist. \
+             These columns were auto-inferred from ID/UUID-typed query arguments. \
+             Either add the column(s) to the table/view, or set \
+             `native_columns = {{}}` explicitly in your schema to disable inference.",
+            native_cols,
+        ),
+        sql_state: Some(PG_UNDEFINED_COLUMN.to_string()),
+    }
+}
+
 /// Convert a single `tokio_postgres::Row` into a `HashMap<String, serde_json::Value>`.
 ///
 /// Tries each PostgreSQL type in priority order; falls back to `Null` for
@@ -76,7 +115,9 @@ impl DatabaseAdapter for PostgresAdapter {
             .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
-        self.execute_raw(&sql, &param_refs).await
+        self.execute_raw(&sql, &param_refs).await.map_err(|e| {
+            enrich_undefined_column_error(e, view, where_clause)
+        })
     }
 
     async fn explain_where_query(

@@ -5,7 +5,7 @@
 use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema};
+use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType};
 use tracing::{info, warn};
 
 use crate::{
@@ -222,6 +222,10 @@ pub async fn compile_to_schema(
     // 5a. Stamp schema format version for runtime compatibility checks.
     schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
 
+    // 5b-pre. Infer native_columns for ID/UUID-typed arguments on JSONB-backed queries.
+    // DB introspection (step 5b) overrides these inferred values when `--database` is provided.
+    infer_native_columns_from_arg_types(&mut schema);
+
     // 5b. Optional: Validate indexed columns and native columns against database.
     if let Some(db_url) = opts.database {
         info!("Validating indexed columns against database...");
@@ -234,28 +238,35 @@ pub async fn compile_to_schema(
         for w in &db_report.warnings {
             warn!("{w}");
         }
-        // Patch QueryDefinitions with discovered native_columns.
+        // Patch QueryDefinitions with DB-discovered native_columns, overriding inferred values.
         for query in &mut schema.queries {
             if let Some(cols) = db_report.native_columns.get(&query.name) {
                 query.native_columns = cols.clone();
             }
         }
     } else {
-        // Warn for queries that have direct arguments but no DB was provided for validation.
+        // Warn for queries that still have unresolved direct arguments after inference.
+        // Arguments already covered by native_columns inference are not warned about.
         for query in &schema.queries {
-            if query.sql_source.is_some() {
-                let has_direct_args = query.arguments.iter().any(|a| {
-                    !["where", "limit", "offset", "orderBy", "first", "last", "after", "before"]
-                        .contains(&a.name.as_str())
-                });
-                if has_direct_args {
-                    warn!(
-                        "query `{}`: could not validate native columns for `{}` — no --database \
-                         URL provided. Direct argument filters will use JSONB extraction.",
-                        query.name,
-                        query.sql_source.as_deref().unwrap_or("?"),
-                    );
-                }
+            if query.sql_source.is_none() {
+                continue;
+            }
+            let unresolved: Vec<_> = query
+                .arguments
+                .iter()
+                .filter(|a| !NATIVE_COLUMN_SKIP_ARGS.contains(&a.name.as_str()))
+                .filter(|a| !query.native_columns.contains_key(&a.name))
+                .collect();
+            if !unresolved.is_empty() {
+                let names: Vec<_> = unresolved.iter().map(|a| a.name.as_str()).collect();
+                warn!(
+                    "query `{}`: argument(s) {:?} on `{}` could not be resolved to native \
+                     columns — no --database URL provided. These filters will use JSONB \
+                     extraction. Provide --database or annotate with native_columns.",
+                    query.name,
+                    names,
+                    query.sql_source.as_deref().unwrap_or("?"),
+                );
             }
         }
     }
@@ -507,18 +518,54 @@ async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Resu
     Ok(())
 }
 
+/// Auto-param names excluded from `native_columns` inference and JSONB-extraction warnings.
+const NATIVE_COLUMN_SKIP_ARGS: &[&str] =
+    &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
+
+/// Infer `native_columns` for `ID`/`UUID`-typed arguments on JSONB-backed queries.
+///
+/// When a query reads from a JSONB table (`sql_source` + non-empty `jsonb_column`) and an
+/// argument is typed [`FieldType::Id`] or [`FieldType::Uuid`], the argument name almost
+/// certainly maps to a native UUID column alongside the `data` JSONB column
+/// (e.g. `id UUID NOT NULL`). Emitting `WHERE id = $1::uuid` instead of
+/// `WHERE data->>'id' = $1` lets the planner use the B-tree index without
+/// needing a database connection at compile time.
+///
+/// Auto-param names (`where`, `limit`, `offset`, etc.) are skipped.
+/// Arguments already present in `native_columns` are not overridden.
+fn infer_native_columns_from_arg_types(schema: &mut CompiledSchema) {
+    for query in &mut schema.queries {
+        if query.sql_source.is_none() || query.jsonb_column.is_empty() {
+            continue;
+        }
+        for arg in &query.arguments {
+            if NATIVE_COLUMN_SKIP_ARGS.contains(&arg.name.as_str()) {
+                continue;
+            }
+            if query.native_columns.contains_key(&arg.name) {
+                continue; // already explicitly declared — don't override
+            }
+            if matches!(arg.arg_type, FieldType::Id | FieldType::Uuid) {
+                query.native_columns.insert(arg.name.clone(), "uuid".to_string());
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use fraiseql_core::{
         schema::{
-            AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldDenyPolicy, FieldType,
-            QueryDefinition, TypeDefinition,
+            ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition,
+            FieldDenyPolicy, FieldType, QueryDefinition, TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
     use indexmap::IndexMap;
+
+    use super::infer_native_columns_from_arg_types;
 
     #[test]
     fn test_validate_schema_success() {
@@ -671,5 +718,171 @@ mod tests {
         // This test demonstrates the schema structure with an invalid type
         assert_eq!(schema.types.len(), 0);
         assert_eq!(schema.queries[0].return_type, "UnknownType");
+    }
+
+    fn make_query(
+        name: &str,
+        sql_source: Option<&str>,
+        jsonb_column: &str,
+        args: Vec<(&str, FieldType)>,
+        native_columns: std::collections::HashMap<String, String>,
+    ) -> QueryDefinition {
+        QueryDefinition {
+            name:                name.to_string(),
+            return_type:         "T".to_string(),
+            returns_list:        false,
+            nullable:            true,
+            arguments:           args
+                .into_iter()
+                .map(|(n, t)| ArgumentDefinition::new(n, t))
+                .collect(),
+            sql_source:          sql_source.map(str::to_string),
+            jsonb_column:        jsonb_column.to_string(),
+            native_columns,
+            auto_params:         AutoParams::default(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_infer_id_arg_becomes_uuid_native_column() {
+        let mut schema = CompiledSchema {
+            queries: vec![make_query(
+                "user",
+                Some("tv_user"),
+                "data",
+                vec![("id", FieldType::Id)],
+                std::collections::HashMap::new(),
+            )],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        assert_eq!(
+            schema.queries[0].native_columns.get("id").map(String::as_str),
+            Some("uuid"),
+            "ID-typed arg should be inferred as uuid native column"
+        );
+    }
+
+    #[test]
+    fn test_infer_uuid_arg_becomes_uuid_native_column() {
+        let mut schema = CompiledSchema {
+            queries: vec![make_query(
+                "user",
+                Some("tv_user"),
+                "data",
+                vec![("userId", FieldType::Uuid)],
+                std::collections::HashMap::new(),
+            )],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        assert_eq!(
+            schema.queries[0].native_columns.get("userId").map(String::as_str),
+            Some("uuid")
+        );
+    }
+
+    #[test]
+    fn test_infer_does_not_override_explicit_declaration() {
+        let mut explicit = std::collections::HashMap::new();
+        explicit.insert("id".to_string(), "text".to_string()); // explicit, non-uuid
+        let mut schema = CompiledSchema {
+            queries: vec![make_query(
+                "user",
+                Some("tv_user"),
+                "data",
+                vec![("id", FieldType::Id)],
+                explicit,
+            )],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        // explicit "text" must not be overridden by the inferred "uuid"
+        assert_eq!(
+            schema.queries[0].native_columns.get("id").map(String::as_str),
+            Some("text"),
+            "explicit native_columns declaration must win over inference"
+        );
+    }
+
+    #[test]
+    fn test_infer_skips_queries_without_sql_source() {
+        let mut schema = CompiledSchema {
+            queries: vec![make_query(
+                "user",
+                None,
+                "data",
+                vec![("id", FieldType::Id)],
+                std::collections::HashMap::new(),
+            )],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        assert!(
+            schema.queries[0].native_columns.is_empty(),
+            "queries without sql_source must not get inferred native_columns"
+        );
+    }
+
+    #[test]
+    fn test_infer_skips_queries_without_jsonb_column() {
+        let mut schema = CompiledSchema {
+            queries: vec![make_query(
+                "user",
+                Some("v_user"),
+                "", // no jsonb_column — plain column view
+                vec![("id", FieldType::Id)],
+                std::collections::HashMap::new(),
+            )],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        assert!(
+            schema.queries[0].native_columns.is_empty(),
+            "queries without jsonb_column must not get inferred native_columns"
+        );
+    }
+
+    #[test]
+    fn test_infer_skips_non_id_types() {
+        let mut schema = CompiledSchema {
+            queries: vec![make_query(
+                "user",
+                Some("tv_user"),
+                "data",
+                vec![("username", FieldType::String), ("age", FieldType::Int)],
+                std::collections::HashMap::new(),
+            )],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        assert!(
+            schema.queries[0].native_columns.is_empty(),
+            "String/Int args must not be inferred as native columns"
+        );
+    }
+
+    #[test]
+    fn test_infer_skips_auto_param_names() {
+        let mut schema = CompiledSchema {
+            queries: vec![make_query(
+                "users",
+                Some("tv_user"),
+                "data",
+                vec![
+                    ("where", FieldType::Id),
+                    ("limit", FieldType::Id),
+                    ("orderBy", FieldType::Id),
+                ],
+                std::collections::HashMap::new(),
+            )],
+            ..Default::default()
+        };
+        infer_native_columns_from_arg_types(&mut schema);
+        assert!(
+            schema.queries[0].native_columns.is_empty(),
+            "auto-param names must never be inferred as native columns even if typed ID"
+        );
     }
 }

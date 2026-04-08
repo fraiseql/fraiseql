@@ -85,6 +85,32 @@ impl WhereClause {
         }
     }
 
+    /// Collect all native column names referenced in this WHERE clause.
+    ///
+    /// Used to enrich error messages when a native column does not exist on the
+    /// target table — the caller can hint that the column was auto-inferred from
+    /// an `ID`/`UUID`-typed argument and suggest adding the column or using
+    /// explicit `native_columns` annotation.
+    #[must_use]
+    pub fn native_column_names(&self) -> Vec<&str> {
+        let mut names = Vec::new();
+        self.collect_native_column_names(&mut names);
+        names
+    }
+
+    fn collect_native_column_names<'a>(&'a self, out: &mut Vec<&'a str>) {
+        match self {
+            Self::And(clauses) | Self::Or(clauses) => {
+                for c in clauses {
+                    c.collect_native_column_names(out);
+                }
+            },
+            Self::Not(inner) => inner.collect_native_column_names(out),
+            Self::NativeField { column, .. } => out.push(column),
+            Self::Field { .. } => {},
+        }
+    }
+
     /// Parse a `WhereClause` from a nested GraphQL JSON `where` variable.
     ///
     /// Expected format (nested object with field → operator → value):
