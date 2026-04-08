@@ -25,7 +25,11 @@ from pydantic import ConfigDict
 from fraiseql.client import FraiseQLClient
 
 try:
-    from langchain_core.callbacks import CallbackManagerForRetrieverRun, CallbackManagerForToolRun
+    from langchain_core.callbacks import (
+        AsyncCallbackManagerForRetrieverRun,
+        CallbackManagerForRetrieverRun,
+        CallbackManagerForToolRun,
+    )
     from langchain_core.documents import Document
     from langchain_core.retrievers import BaseRetriever
     from langchain_core.tools import BaseTool
@@ -189,7 +193,7 @@ class FraiseQLRetriever(BaseRetriever):
         self,
         query: str,
         *,
-        run_manager: CallbackManagerForRetrieverRun | None = None,
+        run_manager: AsyncCallbackManagerForRetrieverRun,
     ) -> list[Document]:
         variables = dict(self.variables or {})
         if query:

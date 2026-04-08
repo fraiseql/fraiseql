@@ -31,6 +31,8 @@ class SchemaRegistry:
     _subscriptions: ClassVar[dict[str, SchemaElement]] = {}
     # Maps scalar name -> (CustomScalar class, optional description)
     _custom_scalars: ClassVar[dict[str, tuple[type, str | None]]] = {}
+    # Inject defaults: base applies to all operations; queries/mutations are per-operation-type
+    _inject_defaults: ClassVar[dict[str, dict[str, str]]] = {}
 
     @staticmethod
     def _build_field_def(field_name: str, field_info: SchemaElement) -> SchemaElement:
@@ -356,6 +358,26 @@ class SchemaRegistry:
         cls._custom_scalars[name] = (scalar_class, description)
 
     @classmethod
+    def set_inject_defaults(
+        cls,
+        base: dict[str, str],
+        queries: dict[str, str] | None = None,
+        mutations: dict[str, str] | None = None,
+    ) -> None:
+        """Set inject_defaults loaded from ``fraiseql.toml``.
+
+        Args:
+            base: Defaults applied to all operations (top-level ``[inject_defaults]``).
+            queries: Per-query overrides (``[inject_defaults.queries]``).
+            mutations: Per-mutation overrides (``[inject_defaults.mutations]``).
+        """
+        cls._inject_defaults = {
+            "base": base,
+            "queries": queries or {},
+            "mutations": mutations or {},
+        }
+
+    @classmethod
     def get_custom_scalars(cls) -> dict[str, type]:
         """Get all registered custom scalars.
 
@@ -383,6 +405,10 @@ class SchemaRegistry:
             "subscriptions": list(cls._subscriptions.values()),
         }
 
+        # Include inject_defaults if any are set
+        if cls._inject_defaults:
+            schema["inject_defaults"] = cls._inject_defaults
+
         # Include custom scalars if any are registered
         if cls._custom_scalars:
             custom_scalars = {}
@@ -408,6 +434,7 @@ class SchemaRegistry:
         cls._mutations.clear()
         cls._subscriptions.clear()
         cls._custom_scalars.clear()
+        cls._inject_defaults.clear()
 
 
 def generate_schema_json(_types: list[type] | None = None) -> dict[str, Any]:

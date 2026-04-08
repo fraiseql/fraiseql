@@ -153,15 +153,11 @@ class CompiledSchema:
             schema_dict: Schema dictionary from registry
         """
         self.schema = schema_dict
-        self.federation = self._extract_federation_info()
+        self.federation: bool = self._extract_federation_info()
 
-    def _extract_federation_info(self) -> Federation | None:
-        """Extract federation metadata from schema."""
-        # Check if any type has federation metadata
-        types = self.schema.get("types", [])
-        if any(t.get("federation") for t in types):
-            return Federation(enabled=True, version="v2")
-        return None
+    def _extract_federation_info(self) -> bool:
+        """Return True if any type in the schema carries federation metadata."""
+        return any(t.get("federation") for t in self.schema.get("types", []))
 
     def get_type(self, name: str) -> TypeInfo | None:
         """Get type information by name.

@@ -30,7 +30,7 @@ if sys.version_info >= (3, 11):
     import tomllib
 else:
     try:
-        import tomli as tomllib  # type: ignore[no-redef]
+        import tomli as tomllib
     except ModuleNotFoundError as exc:
         msg = (
             "Python 3.10 requires the 'tomli' package to load TOML config. "
