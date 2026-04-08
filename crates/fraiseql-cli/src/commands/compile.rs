@@ -477,8 +477,7 @@ fn warn_wide_cascade_mutations(schema: &CompiledSchema) {
                 let table = name
                     .strip_prefix("tv_")
                     .or_else(|| name.strip_prefix("v_"))
-                    .map(|rest| format!("tb_{rest}"))
-                    .unwrap_or_else(|| name.to_string());
+                    .map_or_else(|| name.to_string(), |rest| format!("tb_{rest}"));
                 format!("ALTER TABLE {table} SET (fillfactor = 75);")
             })
             .collect();
