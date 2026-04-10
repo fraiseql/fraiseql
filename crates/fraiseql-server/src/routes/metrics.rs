@@ -288,6 +288,27 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         "Database query duration in seconds",
     ));
 
+    // JWT replay prevention counters.
+    {
+        let rejected = fraiseql_core::security::oidc::jwt_replay_rejected_total();
+        let errors   = fraiseql_core::security::oidc::jwt_replay_cache_errors_total();
+        let _ = write!(
+            output,
+            concat!(
+                "\n# HELP fraiseql_jwt_replay_rejected_total ",
+                "Total JWT replay attempts rejected (duplicate jti)\n",
+                "# TYPE fraiseql_jwt_replay_rejected_total counter\n",
+                "fraiseql_jwt_replay_rejected_total {rejected}\n",
+                "\n# HELP fraiseql_jwt_replay_cache_errors_total ",
+                "Total JWT replay cache backend errors (fail-open events)\n",
+                "# TYPE fraiseql_jwt_replay_cache_errors_total counter\n",
+                "fraiseql_jwt_replay_cache_errors_total {errors}\n",
+            ),
+            rejected = rejected,
+            errors   = errors,
+        );
+    }
+
     // Multi-root parallel query counter.
     {
         let multi_root = fraiseql_core::runtime::multi_root_queries_total();
