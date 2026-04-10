@@ -700,6 +700,23 @@ pub trait DatabaseAdapter: Send + Sync {
         Ok(0)
     }
 
+    /// Evict only list (multi-row) cache entries for the given views.
+    ///
+    /// Called by the executor after a successful CREATE mutation. Unlike
+    /// `invalidate_views()`, this preserves single-entity point-lookup entries
+    /// that are unaffected by the newly created entity.
+    ///
+    /// The default implementation delegates to `invalidate_views()` (safe
+    /// fallback for adapters without a `list_index`).  `CachedDatabaseAdapter`
+    /// overrides this to use the dedicated `list_index` for precise eviction.
+    ///
+    /// # Returns
+    ///
+    /// The number of cache entries evicted.
+    async fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+        self.invalidate_views(views).await
+    }
+
     /// Get database capabilities.
     ///
     /// Returns information about what features this database supports,

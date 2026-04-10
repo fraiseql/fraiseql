@@ -76,12 +76,19 @@ pub struct CachedResult {
     /// Read by `CacheEntryExpiry::expire_after_create` to tell moka the expiry.
     pub ttl_seconds: u64,
 
-    /// Entity reference for selective entity-level invalidation.
+    /// Entity references for selective entity-level invalidation.
     ///
-    /// Stores `(entity_type, entity_id)` when `put()` is called with
-    /// `entity_type = Some(...)` and the result rows contain an `"id"` field.
-    /// Used by the eviction listener to clean up the `entity_index` on eviction.
-    pub entity_ref: Option<(String, String)>,
+    /// Contains one `(entity_type, entity_id)` pair per row in `result` that has
+    /// a valid string in its `"id"` field.  Empty for queries with no `id` column
+    /// or when `put()` is called without an `entity_type`.
+    /// Used by the eviction listener to clean up `entity_index` on eviction.
+    pub entity_refs: Box<[(String, String)]>,
+
+    /// True when `result.len() > 1` at put time.
+    ///
+    /// Used by `invalidate_list_queries()` to avoid evicting single-entity
+    /// point-lookup entries on CREATE mutations.
+    pub is_list_query: bool,
 }
 
 /// Moka `Expiry` implementation: reads TTL from `CachedResult.ttl_seconds`.
@@ -181,6 +188,13 @@ pub struct QueryResultCache {
 
     /// Reverse index: entity type → entity id → set of cache keys.
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>>,
+
+    /// Reverse index: view name → set of cache keys for list (multi-row) entries only.
+    ///
+    /// Populated in `put_arc()` when `result.len() > 1`. Used by
+    /// `invalidate_list_queries()` for CREATE-targeted eviction that leaves
+    /// point-lookup entries intact.
+    list_index: Arc<DashMap<String, DashSet<u64>>>,
 }
 
 /// Cache metrics for monitoring.
@@ -222,11 +236,13 @@ fn build_store(
     memory_bytes: Arc<AtomicUsize>,
     view_index: Arc<DashMap<String, DashSet<u64>>>,
     entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>>,
+    list_index: Arc<DashMap<String, DashSet<u64>>>,
 ) -> MokaCache<u64, Arc<CachedResult>> {
     let max_cap = config.max_entries as u64;
     let mb = memory_bytes;
     let vi = view_index;
     let ei = entity_index;
+    let li = list_index;
 
     MokaCache::builder()
         .max_capacity(max_cap)
@@ -242,8 +258,17 @@ fn build_store(
                 }
             }
 
-            // Remove key from entity index.
-            if let Some((ref et, ref id)) = value.entity_ref {
+            // Remove key from list index (only populated for multi-row entries).
+            if value.is_list_query {
+                for view in &value.accessed_views {
+                    if let Some(keys) = li.get(view) {
+                        keys.remove(&*key);
+                    }
+                }
+            }
+
+            // Remove ALL entity_refs from entity index.
+            for (et, id) in &*value.entity_refs {
                 if let Some(by_type) = ei.get(et) {
                     if let Some(keys) = by_type.get(id) {
                         keys.remove(&*key);
@@ -276,12 +301,14 @@ impl QueryResultCache {
         let view_index: Arc<DashMap<String, DashSet<u64>>> = Arc::new(DashMap::new());
         let entity_index: Arc<DashMap<String, DashMap<String, DashSet<u64>>>> =
             Arc::new(DashMap::new());
+        let list_index: Arc<DashMap<String, DashSet<u64>>> = Arc::new(DashMap::new());
 
         let store = build_store(
             &config,
             Arc::clone(&memory_bytes),
             Arc::clone(&view_index),
             Arc::clone(&entity_index),
+            Arc::clone(&list_index),
         );
 
         Self {
@@ -294,6 +321,7 @@ impl QueryResultCache {
             memory_bytes,
             view_index,
             entity_index,
+            list_index,
         }
     }
 
@@ -384,23 +412,39 @@ impl QueryResultCache {
             }
         }
 
-        // Extract entity reference outside the hot path.
-        let entity_id: Option<String> = entity_type.and_then(|_et| {
-            result
-                .first()
-                .and_then(|row| row.as_value().as_object()?.get("id")?.as_str().map(str::to_string))
-        });
+        let is_list_query = result.len() > 1;
 
-        let entity_ref =
-            entity_type.zip(entity_id.as_deref()).map(|(et, id)| (et.to_string(), id.to_string()));
+        // Extract entity refs from ALL rows (not just the first).
+        let entity_refs: Box<[(String, String)]> = if let Some(et) = entity_type {
+            result
+                .iter()
+                .filter_map(|row| {
+                    row.as_value()
+                        .as_object()?
+                        .get("id")?
+                        .as_str()
+                        .map(|id| (et.to_string(), id.to_string()))
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        } else {
+            Box::default()
+        };
 
         // Register in view index.
         for view in &accessed_views {
             self.view_index.entry(view.clone()).or_default().insert(cache_key);
         }
 
-        // Register in entity index.
-        if let Some((ref et, ref id)) = entity_ref {
+        // Register in list index (only for multi-row results).
+        if is_list_query {
+            for view in &accessed_views {
+                self.list_index.entry(view.clone()).or_default().insert(cache_key);
+            }
+        }
+
+        // Register ALL entity refs in entity index.
+        for (et, id) in &*entity_refs {
             self.entity_index
                 .entry(et.clone())
                 .or_default()
@@ -416,7 +460,8 @@ impl QueryResultCache {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_secs()),
             ttl_seconds,
-            entity_ref,
+            entity_refs,
+            is_list_query,
         };
 
         self.memory_bytes.fetch_add(entry_overhead(), Ordering::Relaxed);
@@ -535,6 +580,42 @@ impl QueryResultCache {
         Ok(count)
     }
 
+    /// Evict only list (multi-row) cache entries for the given views.
+    ///
+    /// Unlike `invalidate_views()`, this method leaves single-entity point-lookup
+    /// entries intact. Used for CREATE mutations: creating a new entity does not
+    /// affect queries that fetch a *different* existing entity by UUID, but it
+    /// does invalidate queries that return a variable-length list of entities.
+    ///
+    /// Uses the `list_index` for O(k) lookup.
+    ///
+    /// # Errors
+    ///
+    /// This method is infallible. The `Result` return type is kept for API compatibility.
+    pub fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+        if !self.config.enabled {
+            return Ok(0);
+        }
+
+        let mut keys_to_invalidate: HashSet<u64> = HashSet::new();
+        for view in views {
+            if let Some(keys) = self.list_index.get(view) {
+                for k in keys.iter() {
+                    keys_to_invalidate.insert(*k);
+                }
+            }
+        }
+
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: entry count never exceeds u64
+        let count = keys_to_invalidate.len() as u64;
+        for key in keys_to_invalidate {
+            self.store.invalidate(&key);
+        }
+        self.invalidations.fetch_add(count, Ordering::Relaxed);
+        Ok(count)
+    }
+
     /// Evict cache entries that contain a specific entity UUID.
     ///
     /// Uses the `entity_index` for O(k) lookup. Entries not referencing this
@@ -554,6 +635,13 @@ impl QueryResultCache {
     /// This method is infallible. The `Result` return type is kept for API compatibility.
     pub fn invalidate_by_entity(&self, entity_type: &str, entity_id: &str) -> Result<u64> {
         if !self.config.enabled {
+            return Ok(0);
+        }
+
+        // Short-circuit: if entity_type has no indexed entries, skip the DashMap
+        // lookup entirely.  Covers cold-cache and write-heavy workloads where no
+        // reads are cached yet.
+        if !self.entity_index.contains_key(entity_type) {
             return Ok(0);
         }
 
@@ -643,6 +731,7 @@ impl QueryResultCache {
         // async eviction listener to do this.
         self.view_index.clear();
         self.entity_index.clear();
+        self.list_index.clear();
         self.memory_bytes.store(0, Ordering::Relaxed);
         Ok(())
     }
@@ -1204,6 +1293,89 @@ mod tests {
         let evicted = cache.invalidate_by_entity("User", "uuid-1").unwrap();
         assert_eq!(evicted, 0);
         assert!(cache.get(1_u64).unwrap().is_some(), "Non-indexed entry should remain");
+    }
+
+    // ========================================================================
+    // Multi-entity indexing + list_index / invalidate_list_queries tests
+    // ========================================================================
+
+    fn list_result(ids: &[&str]) -> Vec<JsonbValue> {
+        ids.iter()
+            .map(|id| JsonbValue::new(serde_json::json!({"id": id, "name": "test"})))
+            .collect()
+    }
+
+    #[test]
+    fn test_put_indexes_all_entities_in_list() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+        let rows = list_result(&["uuid-A", "uuid-B", "uuid-C"]);
+        cache.put(0xABC, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
+
+        let evicted_a = cache.invalidate_by_entity("User", "uuid-A").unwrap();
+        assert_eq!(evicted_a, 1, "uuid-A must be indexed and evictable");
+
+        // Re-insert to test uuid-C
+        let rows2 = list_result(&["uuid-A", "uuid-B", "uuid-C"]);
+        cache.put(0xDEF, rows2, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        let evicted_c = cache.invalidate_by_entity("User", "uuid-C").unwrap();
+        assert_eq!(evicted_c, 1, "uuid-C at position 2 must also be indexed");
+    }
+
+    #[test]
+    fn test_update_evicts_list_query_via_non_first_entity() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+        let rows = list_result(&["uuid-A", "uuid-B"]);
+        cache.put(0x111, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
+
+        // uuid-B is at position 1 — must still be evicted
+        let evicted = cache.invalidate_by_entity("User", "uuid-B").unwrap();
+        assert_eq!(evicted, 1);
+        assert!(cache.get(0x111).unwrap().is_none(), "list entry containing uuid-B must be gone");
+    }
+
+    #[test]
+    fn test_invalidate_list_queries_spares_point_lookups() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+
+        // Point lookup: single row
+        let single = vec![JsonbValue::new(serde_json::json!({"id": "uuid-X"}))];
+        cache.put(0x001, single, vec!["v_user".to_string()], None, Some("User")).unwrap();
+
+        // List query: multiple rows
+        let list = list_result(&["uuid-A", "uuid-B"]);
+        cache.put(0x002, list, vec!["v_user".to_string()], None, Some("User")).unwrap();
+
+        // CREATE fires invalidate_list_queries
+        let evicted = cache.invalidate_list_queries(&["v_user".to_string()]).unwrap();
+        assert_eq!(evicted, 1, "only the list entry should be evicted");
+        assert!(cache.get(0x001).unwrap().is_some(), "point lookup must survive");
+        assert!(cache.get(0x002).unwrap().is_none(), "list entry must be evicted");
+    }
+
+    #[test]
+    fn test_invalidate_by_entity_short_circuits_on_empty_index() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+        // Nothing cached — must return 0 without panicking
+        let count = cache.invalidate_by_entity("User", "uuid-X").unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_eviction_listener_cleans_all_entity_refs() {
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+        let rows = list_result(&["uuid-A", "uuid-B"]);
+        cache.put(0x001, rows, vec!["v_user".to_string()], None, Some("User")).unwrap();
+
+        // Force eviction via invalidate_views
+        cache.invalidate_views(&["v_user".to_string()]).unwrap();
+        // Flush moka's async eviction pipeline
+        cache.store.run_pending_tasks();
+
+        // After eviction the entity_index must be cleaned up (no dangling refs)
+        let count_a = cache.invalidate_by_entity("User", "uuid-A").unwrap();
+        let count_b = cache.invalidate_by_entity("User", "uuid-B").unwrap();
+        assert_eq!(count_a, 0, "entity_index must be clean after eviction");
+        assert_eq!(count_b, 0, "entity_index must be clean after eviction");
     }
 
     // ========================================================================

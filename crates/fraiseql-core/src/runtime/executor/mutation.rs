@@ -335,7 +335,16 @@ impl<A: DatabaseAdapter> Executor<A> {
                     mutation_def.invalidates_views.clone()
                 };
                 if !views_to_invalidate.is_empty() {
-                    self.adapter.invalidate_views(&views_to_invalidate).await?;
+                    if entity_id.is_none() {
+                        // CREATE: the new entity is absent from all existing cache entries,
+                        // so point-lookup entries for other entities remain valid.  Only
+                        // list queries need eviction (the new row must appear in results).
+                        self.adapter.invalidate_list_queries(&views_to_invalidate).await?;
+                    } else {
+                        // Developer-declared invalidates_views on an UPDATE/DELETE: honour
+                        // the explicit annotation with a full view sweep.
+                        self.adapter.invalidate_views(&views_to_invalidate).await?;
+                    }
                 }
             }
         }

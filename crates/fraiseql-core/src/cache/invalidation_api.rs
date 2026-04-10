@@ -142,6 +142,43 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         self.cache.invalidate_views(&views)
     }
 
+    /// Evict only list (multi-row) cache entries for the given views.
+    ///
+    /// Unlike `invalidate_views()`, leaves single-entity point-lookup entries
+    /// intact.  Used for CREATE mutations: creating a new entity does not affect
+    /// queries that fetch a *different* existing entity by UUID.
+    ///
+    /// Expands the view list with transitive dependents when a
+    /// `CascadeInvalidator` is configured (same logic as `invalidate_views()`).
+    ///
+    /// # Returns
+    ///
+    /// Number of cache entries evicted.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the cascade invalidator lock is poisoned.
+    pub fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+        if !self.cache.is_enabled() {
+            return Ok(0);
+        }
+
+        if let Some(cascader) = &self.cascade_invalidator {
+            let mut expanded: std::collections::HashSet<String> = views.iter().cloned().collect();
+            let mut guard = cascader.lock().map_err(|e| crate::error::FraiseQLError::Internal {
+                message: format!("Cascade invalidator lock poisoned: {e}"),
+                source:  None,
+            })?;
+            for view in views {
+                let transitive = guard.cascade_invalidate(view)?;
+                expanded.extend(transitive);
+            }
+            let expanded_views: Vec<String> = expanded.into_iter().collect();
+            return self.cache.invalidate_list_queries(&expanded_views);
+        }
+        self.cache.invalidate_list_queries(views)
+    }
+
     /// Evict cache entries that contain the given entity UUID.
     ///
     /// Delegates to `QueryResultCache::invalidate_by_entity`. Only entries

@@ -653,6 +653,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         CachedDatabaseAdapter::invalidate_by_entity(self, entity_type, entity_id)
     }
 
+    async fn invalidate_list_queries(&self, views: &[String]) -> Result<u64> {
+        CachedDatabaseAdapter::invalidate_list_queries(self, views)
+    }
+
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
         self.bump_fact_table_versions_impl(tables).await
     }
