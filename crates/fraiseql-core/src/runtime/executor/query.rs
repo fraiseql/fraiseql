@@ -9,10 +9,71 @@ use crate::{
         projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter,
     },
     error::{FraiseQLError, Result},
+    graphql::FieldSelection,
     runtime::{JsonbStrategy, ResultProjector},
-    schema::SqlProjectionHint,
+    schema::{CompiledSchema, SqlProjectionHint},
     security::{RlsWhereClause, SecurityContext},
 };
+
+/// Build a recursive [`ProjectionField`] tree from a GraphQL selection set.
+///
+/// For each field in `selections`, consults the compiled schema to determine
+/// whether the field is composite (Object) or scalar, and — for Object fields —
+/// recurses into the requested sub-fields to produce a nested
+/// `jsonb_build_object(...)` at the SQL level instead of returning the full blob.
+///
+/// List fields always fall back to `data->'field'` (full blob) because
+/// sub-projection inside aggregated JSONB arrays is out of scope.
+///
+/// Recursion is capped at 4 levels, matching `MAX_PROJECTION_DEPTH` in the
+/// projection generator.
+fn build_typed_projection_fields(
+    selections: &[FieldSelection],
+    schema: &CompiledSchema,
+    parent_type_name: &str,
+    depth: usize,
+) -> Vec<ProjectionField> {
+    const MAX_DEPTH: usize = 4;
+
+    let type_def = schema.find_type(parent_type_name);
+    selections
+        .iter()
+        .map(|sel| {
+            let field_def =
+                type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
+
+            let is_composite = field_def.is_some_and(|fd| !fd.field_type.is_scalar());
+            let is_list = field_def.is_some_and(|fd| fd.field_type.is_list());
+
+            // Recurse into Object types only — List fields fall back to full blob
+            let sub_fields = if is_composite
+                && !is_list
+                && !sel.nested_fields.is_empty()
+                && depth < MAX_DEPTH
+            {
+                let child_type = field_def.and_then(|fd| fd.field_type.type_name()).unwrap_or("");
+                if child_type.is_empty() {
+                    None
+                } else {
+                    Some(build_typed_projection_fields(
+                        &sel.nested_fields,
+                        schema,
+                        child_type,
+                        depth + 1,
+                    ))
+                }
+            } else {
+                None
+            };
+
+            ProjectionField {
+                name: sel.response_key().to_string(),
+                is_composite,
+                sub_fields,
+            }
+        })
+        .collect()
+}
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a regular query with row-level security (RLS) filtering.
@@ -91,26 +152,23 @@ impl<A: DatabaseAdapter> Executor<A> {
                     path:    None,
                 })?;
 
-        // 6. Generate SQL projection hint for requested fields (optimization) Look up field types
-        //    from schema to use the correct JSONB operator: `->` for objects/lists (preserves
-        //    JSONB), `->>` for scalars (text).
+        // 6. Generate SQL projection hint for requested fields (optimization).
+        //    Build a recursive ProjectionField tree from the selection set so that
+        //    composite sub-fields are projected with nested jsonb_build_object instead
+        //    of returning the full blob.
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
-            let type_def = self.schema.find_type(&query_match.query_def.return_type);
-            let typed_fields: Vec<ProjectionField> = plan
-                .projection_fields
-                .iter()
-                .map(|name| {
-                    let is_composite = type_def
-                        .and_then(|td| td.fields.iter().find(|f| f.name == name.as_str()))
-                        .is_some_and(|f| !f.field_type.is_scalar());
-                    ProjectionField {
-                        name: name.clone(),
-                        is_composite,
-                    }
-                })
-                .collect();
+            let root_fields = query_match
+                .selections
+                .first()
+                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+            let typed_fields = build_typed_projection_fields(
+                root_fields,
+                &self.schema,
+                &query_match.query_def.return_type,
+                0,
+            );
 
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
@@ -310,15 +368,25 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         })?;
 
-        // 3a. Generate SQL projection hint for requested fields (optimization)
-        // Strategy selection: Project (extract fields) vs Stream (return full JSONB)
-        // This reduces payload by projecting only requested fields at the database level
+        // 3a. Generate SQL projection hint for requested fields (optimization).
+        //     Recursive typed projection: composite sub-fields are projected with nested
+        //     jsonb_build_object instead of returning the full blob.
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
+            let root_fields = query_match
+                .selections
+                .first()
+                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+            let typed_fields = build_typed_projection_fields(
+                root_fields,
+                &self.schema,
+                &query_match.query_def.return_type,
+                0,
+            );
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
-                .generate_projection_sql(&plan.projection_fields)
+                .generate_typed_projection_sql(&typed_fields)
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint {
