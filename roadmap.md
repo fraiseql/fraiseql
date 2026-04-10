@@ -139,6 +139,12 @@ Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes Fraise
 - **Reference entity support** - Simplified patterns for entities referenced across services
 - **Easy deployment** - Unified deployment model with gateway as optional configuration
 
+### Known Limitations (v2.1.x)
+
+Issues confirmed in benchmarking and tracked for v2.2.0 resolution:
+
+- **Cache mutation routing overhead** — When `cache_enabled = true`, mutations route through `CachedDatabaseAdapter` which performs a synchronous view-level cache invalidation after every write. On fraiseql-v variants this adds ~15% overhead (measured: 7,047 → 6,019 RPS). On fraiseql-tv variants the overhead is masked by run-order page fragmentation in sequential benchmarks but the invalidation path is equally coarse-grained. Fix planned for v2.2.0: write-through invalidation that skips the full key scan when no cached entries match the written entity, replacing the current evict-all-for-view strategy with targeted eviction.
+
 ---
 
 ## Future (Unprioritized)
