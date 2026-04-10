@@ -106,9 +106,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # let executor = Executor::new(schema, Arc::new(adapter));
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
+    /// let fields = vec!["id".to_string(), "name".to_string()];
     /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}
-    /// let result = executor.execute_mutation("createUser", Some(&vars)).await?;
+    /// let result = executor.execute_mutation("createUser", Some(&vars), &fields).await?;
     /// # Ok(())
     /// # }
     /// ```
