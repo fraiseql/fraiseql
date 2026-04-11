@@ -5,6 +5,51 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.4] - 2026-04-11
+
+### Added
+
+- **Recursive JSONB sub-field projection via `jsonb_build_object`**. Composite fields with
+  a `sub_fields` list now emit a nested `jsonb_build_object(...)` instead of returning the
+  full JSONB blob, eliminating over-fetching for deeply nested types. Recursion is capped at
+  4 levels; deeper fields and list fields fall back to the full-blob path.
+  `ProjectionField` gains a `composite_with_sub_fields` constructor and
+  `sub_fields: Option<Vec<ProjectionField>>`.
+
+- **APQ (Automatic Persisted Queries) mutation end-to-end test**. Covers the full
+  store-on-miss → retrieve-on-hit cycle for mutations, guarding the APQ cache path that was
+  previously untested in integration. Adds ADR-0010 documenting the async mutation handler
+  design decision.
+
+- **JWT replay counters exposed on Prometheus `/metrics` endpoint**.
+  `fraiseql_jwt_replay_rejected_total` and `fraiseql_jwt_replay_cache_errors_total` are now
+  registered as Prometheus counters, completing the observability story for JWT replay
+  prevention (plan 01). A flaky test assertion on shared `AtomicU64` counters is also fixed.
+
+### Fixed
+
+- **Stale list queries after UPDATE/DELETE targeting a non-first row** (correctness bug).
+  `QueryResultCache::put_arc` previously indexed only `result[0]` in `entity_index`. For a
+  list query returning N rows, entities at positions 1…N-1 were invisible to
+  `invalidate_by_entity`, leaving the stale list result in cache after a mutation. All rows
+  are now indexed.
+
+- **Unnecessary point-lookup eviction on CREATE** (performance bug). CREATE mutations called
+  `invalidate_views()`, which evicted every cache entry for the view — including
+  single-entity point-lookup entries for existing entities that are completely unaffected by
+  the newly created row. CREATE now calls `invalidate_list_queries()`, which evicts only
+  multi-row list entries via a dedicated `list_index`. Expected cache hit-rate improvement
+  under mixed read+write workloads: ~60–70 % → ~85–95 %.
+
+### Changed
+
+- **`CachedResult` struct**: `entity_ref: Option<(String, String)>` replaced by
+  `entity_refs: Box<[(String, String)]>` (one entry per row) and `is_list_query: bool`.
+  The `invalidate_by_entity` fast path now short-circuits when the entity type has no
+  indexed entries, making write-heavy workloads with no cached reads a near-zero-cost no-op.
+
+---
+
 ## [2.1.3] - 2026-04-08
 
 ### Performance
