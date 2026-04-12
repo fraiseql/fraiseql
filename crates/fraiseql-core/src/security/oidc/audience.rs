@@ -1,5 +1,7 @@
 //! Audience validation types for OIDC token claims.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -50,6 +52,15 @@ pub struct JwtClaims {
 
     /// Name claim
     pub name: Option<String>,
+
+    /// Arbitrary extra claims not captured by named fields above.
+    ///
+    /// Captures custom OIDC claims such as `"email"`, `"tenant_id"`, or
+    /// namespaced claims like `"https://myapp.com/role"` that are not part of
+    /// the standard JWT claim set.  Used by `GET /auth/me` to reflect a
+    /// configurable subset of the token's claims to the frontend.
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 /// Audience can be a single string or array of strings.
@@ -114,6 +125,50 @@ mod tests {
         assert!(aud.contains("api2"));
         assert!(!aud.contains("api3"));
         assert_eq!(aud.to_vec(), vec!["api1", "api2"]);
+    }
+
+    #[test]
+    fn test_extra_claims_captures_namespaced_claim() {
+        let claims_json = r#"{
+            "sub": "user123",
+            "exp": 1735689600,
+            "https://myapp.com/role": "admin",
+            "tenant_id": "acme-corp"
+        }"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert_eq!(
+            claims.extra.get("https://myapp.com/role"),
+            Some(&serde_json::json!("admin"))
+        );
+        assert_eq!(
+            claims.extra.get("tenant_id"),
+            Some(&serde_json::json!("acme-corp"))
+        );
+    }
+
+    #[test]
+    fn test_named_claim_not_duplicated_in_extra() {
+        // Named fields (sub, exp, email, etc.) must not appear in extra.
+        let claims_json = r#"{
+            "sub": "user123",
+            "exp": 1735689600,
+            "email": "user@example.com",
+            "name": "Alice"
+        }"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert_eq!(claims.email, Some("user@example.com".to_string()));
+        assert!(!claims.extra.contains_key("email"), "named claim must not appear in extra");
+        assert!(!claims.extra.contains_key("name"), "named claim must not appear in extra");
+    }
+
+    #[test]
+    fn test_extra_claims_empty_when_no_unknowns() {
+        let claims_json = r#"{"sub": "user123", "exp": 1735689600}"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert!(claims.extra.is_empty());
     }
 
     #[test]

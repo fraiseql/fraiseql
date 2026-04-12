@@ -375,6 +375,6 @@ mod tests {
         cache.check_and_record("jti-counter", Duration::from_secs(900)).await.unwrap();
         let _ = cache.check_and_record("jti-counter", Duration::from_secs(900)).await;
         let after = jwt_replay_rejected_total();
-        assert!(after >= before + 1, "replay counter should have incremented");
+        assert!(after > before, "replay counter should have incremented");
     }
 }

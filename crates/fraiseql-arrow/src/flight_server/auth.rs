@@ -103,9 +103,10 @@ pub fn validate_session_token(
         .ok_or_else(|| Status::internal("Invalid expiration timestamp"))?;
 
     Ok(fraiseql_core::security::auth_middleware::AuthenticatedUser {
-        user_id: claims.sub,
-        scopes: claims.scopes,
+        user_id:      claims.sub,
+        scopes:       claims.scopes,
         expires_at,
+        extra_claims: std::collections::HashMap::new(),
     })
 }
 

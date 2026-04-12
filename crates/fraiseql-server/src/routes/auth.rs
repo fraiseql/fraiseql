@@ -394,6 +394,68 @@ pub async fn revoke_all_tokens(
 }
 
 // ---------------------------------------------------------------------------
+// GET /auth/me
+// ---------------------------------------------------------------------------
+
+/// State for the [`auth_me`] handler, extracted from `[auth.me]` config.
+pub struct AuthMeState {
+    /// Raw JWT claim names that the handler should include in the response,
+    /// beyond the always-present `sub`, `user_id`, and `expires_at`.
+    pub expose_claims: Vec<String>,
+}
+
+/// Return the current session's identity as JSON.
+///
+/// Reads the [`crate::middleware::AuthUser`] request extension populated by
+/// `oidc_auth_middleware` and reflects a configurable subset of the validated
+/// JWT claims back to the caller.
+///
+/// The response always contains:
+/// - `sub` — the standard JWT subject (user ID).
+/// - `user_id` — hardcoded alias for `sub`; more ergonomic for frontend code.
+/// - `expires_at` — ISO-8601 timestamp when the session expires.
+///
+/// Additional fields are included only when (a) the claim name appears in the
+/// `expose_claims` allowlist **and** (b) the claim is present in the token.
+/// Claims in the allowlist but absent from the token are silently omitted —
+/// the response is never padded with `null` values.
+///
+/// The `user_id` alias for `sub` is always present and does **not** need to
+/// be listed in `expose_claims`.  Listing `"user_id"` there would silently
+/// return nothing because the JWT only carries `sub`, not `user_id`.
+///
+/// # Responses
+///
+/// - `200` JSON `{ sub, user_id, expires_at, ...expose_claims }`
+/// - `401` when no valid session is present (enforced by `oidc_auth_middleware`
+///   before this handler is called).
+pub async fn auth_me(
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<AuthMeState>>,
+    axum::Extension(auth_user): axum::Extension<crate::middleware::AuthUser>,
+) -> axum::response::Response {
+    use axum::Json;
+    use axum::response::IntoResponse as _;
+
+    let user = &auth_user.0;
+
+    let mut map = serde_json::Map::new();
+    map.insert("sub".to_owned(), serde_json::Value::String(user.user_id.clone()));
+    map.insert("user_id".to_owned(), serde_json::Value::String(user.user_id.clone()));
+    map.insert(
+        "expires_at".to_owned(),
+        serde_json::Value::String(user.expires_at.to_rfc3339()),
+    );
+
+    for claim_name in &state.expose_claims {
+        if let Some(value) = user.extra_claims.get(claim_name) {
+            map.insert(claim_name.clone(), value.clone());
+        }
+    }
+
+    Json(serde_json::Value::Object(map)).into_response()
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
 
@@ -401,14 +463,119 @@ pub async fn revoke_all_tokens(
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use axum::{Router, body::Body, http::Request, routing::get};
+    use axum::{Extension, Router, body::Body, http::Request, routing::get};
+    use chrono::Utc;
     use tower::ServiceExt as _;
 
     use super::*;
     use crate::auth::PkceStateStore;
+    use crate::middleware::AuthUser;
 
     fn mock_pkce_store() -> Arc<PkceStateStore> {
         Arc::new(PkceStateStore::new(600, None))
+    }
+
+    // -------------------------------------------------------------------------
+    // auth_me tests
+    // -------------------------------------------------------------------------
+
+    fn make_auth_user(
+        user_id: &str,
+        extra: std::collections::HashMap<String, serde_json::Value>,
+    ) -> AuthUser {
+        AuthUser(fraiseql_core::security::AuthenticatedUser {
+            user_id:      user_id.to_owned(),
+            scopes:       vec![],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            extra_claims: extra,
+        })
+    }
+
+    fn make_me_state(expose_claims: Vec<&str>) -> Arc<AuthMeState> {
+        Arc::new(AuthMeState {
+            expose_claims: expose_claims.into_iter().map(str::to_owned).collect(),
+        })
+    }
+
+    #[tokio::test]
+    async fn test_auth_me_always_returns_sub_user_id_expires_at() {
+        let app = Router::new()
+            .route("/auth/me", get(auth_me))
+            .layer(Extension(make_auth_user("user-123", std::collections::HashMap::new())))
+            .with_state(make_me_state(vec![]));
+
+        let req = Request::builder().uri("/auth/me").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(json["sub"], "user-123");
+        assert_eq!(json["user_id"], "user-123");
+        assert!(json["expires_at"].is_string(), "expires_at must be present");
+    }
+
+    #[tokio::test]
+    async fn test_auth_me_expose_claims_filters_correctly() {
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("email".to_owned(), serde_json::json!("alice@example.com"));
+        extra.insert(
+            "https://myapp.com/role".to_owned(),
+            serde_json::json!("admin"),
+        );
+
+        let app = Router::new()
+            .route("/auth/me", get(auth_me))
+            .layer(Extension(make_auth_user("alice", extra)))
+            .with_state(make_me_state(vec!["email"]));
+
+        let req = Request::builder().uri("/auth/me").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(json["email"], "alice@example.com", "listed claim must appear");
+        assert!(
+            json.get("https://myapp.com/role").is_none(),
+            "unlisted claim must be absent"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_auth_me_claim_absent_from_token_silently_omitted() {
+        // expose_claims lists "tenant_id" but the token doesn't have it.
+        let app = Router::new()
+            .route("/auth/me", get(auth_me))
+            .layer(Extension(make_auth_user("user-x", std::collections::HashMap::new())))
+            .with_state(make_me_state(vec!["tenant_id"]));
+
+        let req = Request::builder().uri("/auth/me").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert!(json.get("tenant_id").is_none(), "absent claim must not be null-padded");
+        // Fixed fields must still be present.
+        assert_eq!(json["sub"], "user-x");
+    }
+
+    #[tokio::test]
+    async fn test_auth_me_namespaced_claim_in_expose_claims() {
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("https://myapp.com/role".to_owned(), serde_json::json!("editor"));
+
+        let app = Router::new()
+            .route("/auth/me", get(auth_me))
+            .layer(Extension(make_auth_user("user-y", extra)))
+            .with_state(make_me_state(vec!["https://myapp.com/role"]));
+
+        let req = Request::builder().uri("/auth/me").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(json["https://myapp.com/role"], "editor");
     }
 
     fn mock_oidc_client() -> Arc<OidcServerClient> {

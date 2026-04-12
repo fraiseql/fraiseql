@@ -192,9 +192,10 @@ mod tests {
 
         // Simulate an authenticated user from the OIDC middleware
         let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec!["read:user".to_string(), "write:post".to_string()],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:      "user123".to_string(),
+            scopes:       vec!["read:user".to_string(), "write:post".to_string()],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            extra_claims: std::collections::HashMap::new(),
         });
 
         // Create headers with additional metadata

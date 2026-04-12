@@ -210,6 +210,11 @@ impl SchemaConverter {
             interface_names.insert(interface_def.name.clone());
         }
 
+        // Add input types — valid as mutation argument types (fraiseql/fraiseql#190)
+        for input_type in &schema.input_types {
+            type_names.insert(input_type.name.clone());
+        }
+
         // Add built-in scalars
         type_names.insert("Int".to_string());
         type_names.insert("Float".to_string());

@@ -18,7 +18,8 @@ pub mod rest;
 
 #[cfg(feature = "auth")]
 pub use auth::{
-    AuthPkceState, RevocationRouteState, auth_callback, auth_start, revoke_all_tokens, revoke_token,
+    AuthMeState, AuthPkceState, RevocationRouteState, auth_callback, auth_me, auth_start,
+    revoke_all_tokens, revoke_token,
 };
 pub use graphql::{graphql_get_handler, graphql_handler};
 #[cfg(feature = "federation")]

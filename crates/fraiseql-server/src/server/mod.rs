@@ -16,7 +16,7 @@ use {
 };
 
 #[cfg(feature = "auth")]
-use crate::routes::{AuthPkceState, auth_callback, auth_start};
+use crate::routes::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
 use crate::{
     Result, ServerError,
     middleware::{

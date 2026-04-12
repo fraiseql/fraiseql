@@ -26,7 +26,10 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 /// Encode a BIGINT primary key value as a Relay edge cursor.
 ///
 /// The cursor is `base64(pk_string)` where `pk_string` is the decimal
-/// representation of the BIGINT.  This is opaque to the client.
+/// representation of the BIGINT.  Base64 is encoding, not encryption —
+/// a client that decodes the cursor will see the raw integer PK value.
+/// The Relay spec requires cursors to be treated as opaque by convention,
+/// but provides no cryptographic guarantee.
 ///
 /// # Example
 ///
@@ -68,7 +71,10 @@ pub fn decode_edge_cursor(cursor: &str) -> Option<i64> {
 
 /// Encode a UUID string as a Relay edge cursor.
 ///
-/// The cursor is `base64(uuid_string)`, opaque to the client.
+/// The cursor is `base64(uuid_string)`.  Base64 is encoding, not encryption —
+/// a client that decodes the cursor will see the raw UUID.  The Relay spec
+/// requires cursors to be treated as opaque by convention, but provides no
+/// cryptographic guarantee.
 ///
 /// # Example
 ///
@@ -104,9 +110,10 @@ pub fn decode_uuid_cursor(cursor: &str) -> Option<String> {
     std::str::from_utf8(&bytes).ok().map(str::to_owned)
 }
 
-/// Encode a global Node ID as a Relay-compatible opaque ID.
+/// Encode a global Node ID as a Relay-compatible ID.
 ///
-/// The format is `base64("TypeName:uuid")`.
+/// The format is `base64("TypeName:uuid")`.  Base64 is encoding, not
+/// encryption — a client that decodes the ID will see the type name and UUID.
 ///
 /// # Example
 ///

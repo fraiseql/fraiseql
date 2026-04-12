@@ -57,6 +57,7 @@ fn required_oidc_state() -> OidcAuthState {
         jwks_uri:             None,
         scope_claim:          "scope".to_string(),
         require_jti:          false,
+        me:                   None,
     };
     // with_jwks_uri bypasses async OIDC discovery; 401 is returned before
     // any real JWKS request is made.
@@ -77,6 +78,7 @@ fn optional_oidc_state() -> OidcAuthState {
         jwks_uri:             None,
         scope_claim:          "scope".to_string(),
         require_jti:          false,
+        me:                   None,
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
     OidcAuthState::new(Arc::new(validator))

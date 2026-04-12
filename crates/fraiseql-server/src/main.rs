@@ -479,8 +479,15 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Arrow Flight service initialized with real database adapter");
         Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service)).await?
     };
+    // Use relay-capable server when the schema has relay queries (fraiseql/fraiseql#191).
     #[cfg(not(feature = "arrow"))]
-    let server = Server::new(config, schema, adapter, db_pool).await?;
+    let has_relay_queries = schema.queries.iter().any(|q| q.relay);
+    #[cfg(not(feature = "arrow"))]
+    let server = if has_relay_queries {
+        Server::with_relay_pagination(config, schema, adapter, db_pool).await?
+    } else {
+        Server::new(config, schema, adapter, db_pool).await?
+    };
 
     // Attach secrets manager if configured.
     #[cfg(feature = "secrets")]

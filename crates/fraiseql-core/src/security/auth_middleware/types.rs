@@ -1,5 +1,6 @@
 //! Authentication types: `AuthenticatedUser`, `AuthRequest`, `TokenClaims`.
 
+use std::collections::HashMap;
 use std::fmt;
 
 use chrono::{DateTime, Utc};
@@ -21,6 +22,17 @@ pub struct AuthenticatedUser {
 
     /// When the token expires
     pub expires_at: DateTime<Utc>,
+
+    /// Arbitrary extra claims from the JWT, forwarded by the OIDC validator.
+    ///
+    /// Populated from the `#[serde(flatten)] extra` field on `JwtClaims` when
+    /// the OIDC validation path is used.  Empty when tokens are validated via
+    /// the legacy `AuthMiddleware` signing-key path or API-key authentication.
+    ///
+    /// Used by `GET /auth/me` to surface a configurable subset of custom OIDC
+    /// claims (e.g. `"email"`, `"tenant_id"`, namespaced claims) to the
+    /// frontend without requiring client-side script to touch the `HttpOnly` cookie.
+    pub extra_claims: HashMap<String, serde_json::Value>,
 }
 
 impl fmt::Display for AuthenticatedUser {
@@ -156,4 +168,11 @@ pub(super) struct JwtClaims {
     #[serde(default)]
     #[allow(dead_code)] // Reason: serde deserialization target, validated by jsonwebtoken
     pub(super) iss: Option<String>,
+
+    /// Arbitrary extra claims not captured by named fields above.
+    ///
+    /// Passed through to `AuthenticatedUser.extra_claims` so that custom OIDC
+    /// claims are available to handlers such as `GET /auth/me`.
+    #[serde(flatten)]
+    pub(super) extra: HashMap<String, serde_json::Value>,
 }

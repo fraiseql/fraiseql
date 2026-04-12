@@ -15,9 +15,10 @@ use tonic::Request;
 /// Create a test authenticated user for testing.
 fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
     AuthenticatedUser {
-        user_id:    user_id.to_string(),
-        scopes:     scopes.into_iter().map(|s| s.to_string()).collect(),
-        expires_at: Utc::now() + chrono::Duration::hours(1),
+        user_id:      user_id.to_string(),
+        scopes:       scopes.into_iter().map(|s| s.to_string()).collect(),
+        expires_at:   Utc::now() + chrono::Duration::hours(1),
+        extra_claims: std::collections::HashMap::new(),
     }
 }
 

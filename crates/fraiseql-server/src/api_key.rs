@@ -223,9 +223,10 @@ fn sha256_hash(input: &[u8]) -> [u8; 32] {
 /// Build a `SecurityContext` for an API key identity.
 fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext {
     let user = AuthenticatedUser {
-        user_id:    format!("apikey:{key_name}"),
-        scopes:     scopes.to_vec(),
-        expires_at: Utc::now() + chrono::Duration::hours(24),
+        user_id:      format!("apikey:{key_name}"),
+        scopes:       scopes.to_vec(),
+        expires_at:   Utc::now() + chrono::Duration::hours(24),
+        extra_claims: std::collections::HashMap::new(),
     };
     SecurityContext::from_user(&user, format!("apikey-{}", uuid::Uuid::new_v4()))
 }

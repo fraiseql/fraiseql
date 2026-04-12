@@ -8,6 +8,38 @@ use crate::security::errors::{Result, SecurityError};
 // OIDC Configuration
 // ============================================================================
 
+/// Configuration for the `GET /auth/me` session-identity endpoint.
+///
+/// Exposed at `/auth/me` when enabled.  The endpoint reads the validated
+/// JWT already in the request context and returns a JSON object containing
+/// `sub`, `user_id` (alias for `sub`), `expires_at`, plus any extra claims
+/// listed in `expose_claims` that are present in the token.
+///
+/// # Example (TOML)
+///
+/// ```toml
+/// [auth.me]
+/// enabled = true
+/// expose_claims = ["email", "tenant_id", "https://myapp.com/role"]
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct MeEndpointConfig {
+    /// Enable the `GET /auth/me` endpoint.  Default: `false` (opt-in).
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Raw JWT claim names to include in the response body, beyond the
+    /// always-present `sub`, `user_id`, and `expires_at`.
+    ///
+    /// Names must match the raw claim key in the token (e.g. `"email"`,
+    /// `"https://myapp.com/role"`).  Claims absent from the token are silently
+    /// omitted.  The `user_id` alias for `sub` is always included and must
+    /// **not** be listed here — listing `"user_id"` would silently return
+    /// nothing because the JWT only carries `sub`.
+    #[serde(default)]
+    pub expose_claims: Vec<String>,
+}
+
 /// OIDC authentication configuration.
 ///
 /// Configure this with your identity provider's issuer URL.
@@ -99,6 +131,16 @@ pub struct OidcConfig {
     /// [`ReplayCache`]: crate::security::oidc::replay_cache::ReplayCache
     #[serde(default)]
     pub require_jti: bool,
+
+    /// Configuration for the `GET /auth/me` session-identity endpoint.
+    ///
+    /// When present and `enabled = true`, mounts `GET /auth/me` behind
+    /// OIDC authentication.  The endpoint reflects a configurable subset of
+    /// the current session's JWT claims to the frontend.
+    ///
+    /// Default: `None` (endpoint not mounted).
+    #[serde(default)]
+    pub me: Option<MeEndpointConfig>,
 }
 
 pub(super) const fn default_jwks_cache_ttl() -> u64 {
@@ -140,6 +182,7 @@ impl Default for OidcConfig {
             required:             default_required(),
             scope_claim:          default_scope_claim(),
             require_jti:          false,
+            me:                   None,
         }
     }
 }

@@ -5,6 +5,60 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.5] - 2026-04-12
+
+### Added
+
+- **`GET /auth/me` session-identity endpoint** (issue #193). Frontends using the PKCE cookie
+  flow had no way to ask "who am I?" because the JWT is stored in an `HttpOnly` cookie
+  inaccessible to client-side script. The new endpoint reflects a configurable subset of the
+  validated session's JWT claims as JSON. Enable opt-in via `[auth.me]` in the compiled
+  schema:
+
+  ```toml
+  [auth.me]
+  enabled = true
+  expose_claims = ["email", "tenant_id", "https://myapp.com/role"]
+  ```
+
+  The response always includes `sub`, `user_id` (alias for `sub`), and `expires_at`. Extra
+  fields are included only when listed in `expose_claims` **and** present in the token —
+  absent claims are silently omitted, never `null`-padded. No enrichment callbacks, no
+  external calls: the endpoint reads only from the already-validated JWT.
+
+  `oidc_auth_middleware` now also accepts tokens from the `__Host-access_token` cookie as a
+  fallback when no `Authorization: Bearer` header is present, enabling the middleware to
+  protect the new endpoint in browser flows.
+
+  `AuthenticatedUser` gains an `extra_claims: HashMap<String, serde_json::Value>` field,
+  populated by the OIDC validation path from a new `#[serde(flatten)] extra` field on
+  `JwtClaims`. Custom OIDC claims (e.g. `"email"`, namespaced URL-form claims) that
+  previously fell off the floor during JWT validation are now preserved end-to-end.
+
+### Fixed
+
+- **Input types not recognised as valid mutation argument types** (issue #190). The CLI
+  schema converter and validator built their known-type sets from object types, interfaces,
+  and scalars but omitted input types. A mutation argument declared as a custom input type
+  (e.g. `CreateUserInput`) was incorrectly rejected as an unknown type reference. Both
+  `SchemaConverter` and `SchemaValidator` now include input types in the valid-type set.
+
+- **Server did not auto-select relay pagination when schema has relay queries** (issue #191).
+  `Server::new` does not enable the Relay cursor pagination runtime; operators had to
+  explicitly call `Server::with_relay_pagination`. The binary entrypoint now inspects the
+  compiled schema at startup and selects `with_relay_pagination` automatically when any query
+  carries `relay: true`.
+
+### Changed
+
+- **Relay cursor doc-comments clarified**: the `encode_edge_cursor`, `encode_uuid_cursor`,
+  and `encode_node_id` functions now document that base64 is encoding, not encryption — a
+  client that decodes the cursor will see the raw integer PK, UUID, or `TypeName:uuid`
+  string. The Relay spec requires cursors to be treated as opaque by convention only; no
+  cryptographic guarantee is provided.
+
+---
+
 ## [2.1.4] - 2026-04-11
 
 ### Added

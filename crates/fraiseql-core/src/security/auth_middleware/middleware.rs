@@ -1,5 +1,7 @@
 //! Authentication middleware implementation.
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Validation, decode};
 
@@ -185,6 +187,7 @@ impl AuthMiddleware {
             user_id,
             scopes,
             expires_at,
+            extra_claims: claims.extra,
         })
     }
 
@@ -255,6 +258,7 @@ impl AuthMiddleware {
             user_id,
             scopes,
             expires_at,
+            extra_claims: HashMap::new(),
         })
     }
 
@@ -682,9 +686,10 @@ mod tests {
     #[test]
     fn test_user_has_scope() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec!["read".to_string(), "write".to_string()],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:      "user123".to_string(),
+            scopes:       vec!["read".to_string(), "write".to_string()],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            extra_claims: HashMap::new(),
         };
 
         assert!(user.has_scope("read"));
@@ -695,9 +700,10 @@ mod tests {
     #[test]
     fn test_user_is_not_expired() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec![],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:      "user123".to_string(),
+            scopes:       vec![],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            extra_claims: HashMap::new(),
         };
 
         assert!(!user.is_expired());
@@ -706,9 +712,10 @@ mod tests {
     #[test]
     fn test_user_is_expired() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec![],
-            expires_at: Utc::now() - chrono::Duration::hours(1),
+            user_id:      "user123".to_string(),
+            scopes:       vec![],
+            expires_at:   Utc::now() - chrono::Duration::hours(1),
+            extra_claims: HashMap::new(),
         };
 
         assert!(user.is_expired());
@@ -719,9 +726,10 @@ mod tests {
         let now = Utc::now();
         let expires_at = now + chrono::Duration::hours(2);
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
-            scopes: vec![],
+            user_id:      "user123".to_string(),
+            scopes:       vec![],
             expires_at,
+            extra_claims: HashMap::new(),
         };
 
         let ttl = user.ttl_secs();
@@ -732,9 +740,10 @@ mod tests {
     #[test]
     fn test_user_display() {
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec![],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:      "user123".to_string(),
+            scopes:       vec![],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            extra_claims: HashMap::new(),
         };
 
         let display_str = user.to_string();

@@ -36,13 +36,37 @@ impl OidcAuthState {
 #[derive(Clone, Debug)]
 pub struct AuthUser(pub AuthenticatedUser);
 
+/// Extract the bearer token from a raw `Cookie` header value.
+///
+/// Looks for `__Host-access_token=<value>` in the semicolon-separated cookie
+/// string and returns the token value, stripping RFC 6265 double-quotes if
+/// present.  Returns `None` if the cookie is absent.
+///
+/// This is used as a fallback by [`oidc_auth_middleware`] when no
+/// `Authorization: Bearer` header is present, to support browser flows where
+/// the JWT is stored in an `HttpOnly` cookie inaccessible to client-side script.
+fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
+    headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies.split(';').find_map(|part| {
+                let part = part.trim();
+                part.strip_prefix("__Host-access_token=")
+                    .map(|v| v.trim_matches('"').to_owned())
+            })
+        })
+}
+
 /// OIDC authentication middleware.
 ///
-/// Validates JWT tokens from the Authorization header using OIDC/JWKS.
+/// Validates JWT tokens from the `Authorization: Bearer` header using
+/// OIDC/JWKS.  When no `Authorization` header is present, falls back to the
+/// `__Host-access_token` `HttpOnly` cookie set by the PKCE callback.
 ///
 /// # Behavior
 ///
-/// - If auth is required and no token: returns 401 Unauthorized
+/// - If auth is required and no token (header or cookie): returns 401 Unauthorized
 /// - If token is invalid/expired: returns 401 Unauthorized
 /// - If token is valid: adds `AuthUser` to request extensions
 /// - If auth is optional and no token: allows request through (no `AuthUser`)
@@ -64,17 +88,39 @@ pub async fn oidc_auth_middleware(
     mut request: Request<Body>,
     next: Next,
 ) -> Response {
-    // Extract Authorization header
-    let auth_header = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok());
+    // Prefer Authorization: Bearer header; fall back to __Host-access_token cookie.
+    // The token is extracted as an owned String to avoid borrow conflicts with
+    // request.extensions_mut() later in this function.
+    let token_string: Option<String> = {
+        let auth_header = request
+            .headers()
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok());
 
-    match auth_header {
+        match auth_header {
+            Some(header_value) => {
+                if !header_value.starts_with("Bearer ") {
+                    tracing::debug!("Invalid Authorization header format");
+                    return (
+                        StatusCode::UNAUTHORIZED,
+                        [(
+                            header::WWW_AUTHENTICATE,
+                            "Bearer error=\"invalid_request\"".to_string(),
+                        )],
+                        "Invalid Authorization header format",
+                    )
+                        .into_response();
+                }
+                Some(header_value[7..].to_owned())
+            },
+            None => extract_access_token_cookie(request.headers()),
+        }
+    };
+
+    match token_string {
         None => {
-            // No authorization header
             if auth_state.validator.is_required() {
-                tracing::debug!("Authentication required but no Authorization header");
+                tracing::debug!("Authentication required but no token found (header or cookie)");
                 return (
                     StatusCode::UNAUTHORIZED,
                     [(
@@ -88,22 +134,9 @@ pub async fn oidc_auth_middleware(
             // Auth is optional, continue without user context
             next.run(request).await
         },
-        Some(header_value) => {
-            // Extract bearer token
-            if !header_value.starts_with("Bearer ") {
-                tracing::debug!("Invalid Authorization header format");
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    [(header::WWW_AUTHENTICATE, "Bearer error=\"invalid_request\"".to_string())],
-                    "Invalid Authorization header format",
-                )
-                    .into_response();
-            }
-
-            let token = &header_value[7..];
-
+        Some(token) => {
             // Validate token
-            match auth_state.validator.validate_token(token).await {
+            match auth_state.validator.validate_token(&token).await {
                 Ok(user) => {
                     tracing::debug!(
                         user_id = %user.user_id,
@@ -141,6 +174,8 @@ pub async fn oidc_auth_middleware(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]
@@ -148,9 +183,10 @@ mod tests {
         use chrono::Utc;
 
         let user = AuthenticatedUser {
-            user_id:    "user123".to_string(),
-            scopes:     vec!["read".to_string()],
-            expires_at: Utc::now(),
+            user_id:      "user123".to_string(),
+            scopes:       vec!["read".to_string()],
+            expires_at:   Utc::now(),
+            extra_claims: std::collections::HashMap::new(),
         };
 
         let auth_user = AuthUser(user);
@@ -165,5 +201,57 @@ mod tests {
         // by verifying the type compiles with Clone trait bound
         fn assert_clone<T: Clone>() {}
         assert_clone::<OidcAuthState>();
+    }
+
+    #[test]
+    fn test_cookie_fallback_extracts_token() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            "__Host-access_token=my.jwt.token; Path=/; SameSite=Strict".parse().unwrap(),
+        );
+
+        let token = extract_access_token_cookie(&headers);
+        assert_eq!(token.as_deref(), Some("my.jwt.token"));
+    }
+
+    #[test]
+    fn test_cookie_fallback_strips_rfc6265_quotes() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            "__Host-access_token=\"my.jwt.token\"".parse().unwrap(),
+        );
+
+        let token = extract_access_token_cookie(&headers);
+        assert_eq!(token.as_deref(), Some("my.jwt.token"));
+    }
+
+    #[test]
+    fn test_cookie_fallback_absent_returns_none() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(header::COOKIE, "session=abc; other=xyz".parse().unwrap());
+
+        let token = extract_access_token_cookie(&headers);
+        assert!(token.is_none());
+    }
+
+    #[test]
+    fn test_cookie_fallback_no_cookie_header_returns_none() {
+        let headers = axum::http::HeaderMap::new();
+        let token = extract_access_token_cookie(&headers);
+        assert!(token.is_none());
+    }
+
+    #[test]
+    fn test_cookie_fallback_multiple_cookies_finds_correct_one() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            "session=abc; __Host-access_token=correct.token; csrf=xyz".parse().unwrap(),
+        );
+
+        let token = extract_access_token_cookie(&headers);
+        assert_eq!(token.as_deref(), Some("correct.token"));
     }
 }

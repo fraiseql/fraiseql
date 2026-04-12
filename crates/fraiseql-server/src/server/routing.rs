@@ -20,7 +20,7 @@ use super::{
     require_json_content_type, subscription_handler, trace_layer,
 };
 #[cfg(feature = "auth")]
-use super::{AuthPkceState, auth_callback, auth_start};
+use super::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build application router and return the shared `AppState`.
@@ -482,6 +482,39 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_state(auth_state);
             app = app.merge(auth_router);
             info!("PKCE auth routes mounted: GET /auth/start, GET /auth/callback");
+        }
+
+        // /auth/me session-identity endpoint — mounted when:
+        // 1. The `auth` feature is compiled in.
+        // 2. An OIDC validator is present (token validation capability).
+        // 3. `[auth.me] enabled = true` in the compiled schema / ServerConfig.
+        //
+        // Gated on the OIDC *validator* (not on pkce_store) because the endpoint
+        // only needs to validate tokens; it does not participate in the PKCE flow.
+        // This lets operators use /auth/me even when tokens are issued by an
+        // external mechanism rather than FraiseQL's built-in PKCE routes.
+        #[cfg(feature = "auth")]
+        if let (Some(ref validator), Some(me_cfg)) = (
+            &self.oidc_validator,
+            self.config
+                .auth
+                .as_ref()
+                .and_then(|a| a.me.as_ref())
+                .filter(|m| m.enabled),
+        ) {
+            let me_state = Arc::new(AuthMeState {
+                expose_claims: me_cfg.expose_claims.clone(),
+            });
+            let auth_state = OidcAuthState::new(Arc::clone(validator));
+            let me_router = Router::new()
+                .route("/auth/me", get(auth_me))
+                .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                .with_state(me_state);
+            app = app.merge(me_router);
+            info!(
+                expose_claims = ?me_cfg.expose_claims,
+                "Session identity route mounted: GET /auth/me"
+            );
         }
 
         // Token revocation routes — mounted only when revocation is configured.

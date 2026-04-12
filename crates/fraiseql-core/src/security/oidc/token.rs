@@ -327,6 +327,7 @@ impl OidcValidator {
             user_id,
             scopes,
             expires_at,
+            extra_claims: claims.extra,
         })
     }
 
