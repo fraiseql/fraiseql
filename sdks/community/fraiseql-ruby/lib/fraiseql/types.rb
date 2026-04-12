@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module FraiseQL
   # Type and field definitions for GraphQL schema
   module Types

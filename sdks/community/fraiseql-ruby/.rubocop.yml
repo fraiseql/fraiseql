@@ -1,0 +1,11 @@
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.1
+
+# Schema management classes legitimately exceed 100 lines.
+Metrics/ClassLength:
+  Max: 120
+
+# Methods that build/validate complex structures exceed 10 lines.
+Metrics/MethodLength:
+  Max: 20

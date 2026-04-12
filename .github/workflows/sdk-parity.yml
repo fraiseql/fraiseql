@@ -82,7 +82,7 @@ jobs:
         env:
           SCHEMA_OUTPUT_FILE: /tmp/schema_go.json
         run: |
-          go test -run TestGenerateParitySchema -v ./fraiseql/
+          go test -count=1 -run TestGenerateParitySchema -v ./fraiseql/
 
       # -----------------------------------------------------------------------
       # Deep structural comparison

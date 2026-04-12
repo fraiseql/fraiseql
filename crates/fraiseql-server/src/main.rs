@@ -480,14 +480,18 @@ async fn main() -> anyhow::Result<()> {
         Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service)).await?
     };
     // Use relay-capable server when the schema has relay queries (fraiseql/fraiseql#191).
-    #[cfg(not(feature = "arrow"))]
+    // wire-backend uses FraiseWireAdapter which does not implement RelayDatabaseAdapter,
+    // so relay auto-detection is skipped and Server::new is used unconditionally there.
+    #[cfg(not(any(feature = "arrow", feature = "wire-backend")))]
     let has_relay_queries = schema.queries.iter().any(|q| q.relay);
-    #[cfg(not(feature = "arrow"))]
+    #[cfg(not(any(feature = "arrow", feature = "wire-backend")))]
     let server = if has_relay_queries {
         Server::with_relay_pagination(config, schema, adapter, db_pool).await?
     } else {
         Server::new(config, schema, adapter, db_pool).await?
     };
+    #[cfg(all(not(feature = "arrow"), feature = "wire-backend"))]
+    let server = Server::new(config, schema, adapter, db_pool).await?;
 
     // Attach secrets manager if configured.
     #[cfg(feature = "secrets")]

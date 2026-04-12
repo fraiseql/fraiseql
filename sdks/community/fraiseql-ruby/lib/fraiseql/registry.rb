@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'singleton'
 
 module FraiseQL
@@ -23,8 +25,8 @@ module FraiseQL
       end
     end
 
-    # Get all registered types as hashes with FieldInfo objects
-    def get_types
+    # Return all registered types as hashes with FieldInfo objects
+    def all_types
       @mutex.synchronize do
         @types.values.map { |type_def| convert_to_field_info(type_def) }
       end
@@ -39,9 +41,8 @@ module FraiseQL
 
     private
 
-    # Convert raw type definition to one with FieldInfo objects
-    def convert_to_field_info(type_def)
-      fields = type_def[:fields].map do |field_config|
+    def build_field_infos(type_def)
+      type_def[:fields].map do |field_config|
         Types::FieldInfo.new(
           name: field_config[:name],
           type: field_config[:type],
@@ -51,10 +52,13 @@ module FraiseQL
           requires_scopes: field_config[:requires_scopes]
         )
       end
+    end
 
+    # Convert raw type definition to one with FieldInfo objects
+    def convert_to_field_info(type_def)
       {
         name: type_def[:name],
-        fields: fields,
+        fields: build_field_infos(type_def),
         description: type_def[:description]
       }
     end
