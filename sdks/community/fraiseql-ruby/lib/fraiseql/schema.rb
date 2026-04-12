@@ -65,11 +65,11 @@ module FraiseQL
         # Validate scopes array if present
         if field_config[:requires_scopes]
           if field_config[:requires_scopes].empty?
-            raise RuntimeError, "Field #{name}.#{field_config[:name]} has empty scopes array"
+            raise "Field #{name}.#{field_config[:name]} has empty scopes array"
           end
           field_config[:requires_scopes].each do |scope|
             if scope.empty?
-              raise RuntimeError, "Field #{name}.#{field_config[:name]} has empty scope in scopes array"
+              raise "Field #{name}.#{field_config[:name]} has empty scope in scopes array"
             end
             validate_scope(scope, name, field_config[:name])
           end
@@ -77,7 +77,7 @@ module FraiseQL
 
         # Ensure not both scope and scopes
         if field_config[:requires_scope] && field_config[:requires_scopes]
-          raise RuntimeError, "Field #{name}.#{field_config[:name]} cannot have both requires_scope and requires_scopes"
+          raise "Field #{name}.#{field_config[:name]} cannot have both requires_scope and requires_scopes"
         end
 
         validated_field

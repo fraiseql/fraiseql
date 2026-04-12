@@ -50,9 +50,10 @@ interface ObserverConfig {
  * @returns Method decorator
  */
 export function Observer(config: ObserverConfig) {
-  return function (_target: unknown, context: ClassMethodDecoratorContext): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy method decorator target
+  return function (_target: any, propertyKey: string, _descriptor: PropertyDescriptor): void {
     SchemaRegistry.registerObserver(
-      String(context.name),
+      propertyKey,
       config.entity,
       config.event,
       config.actions,
