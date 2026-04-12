@@ -176,28 +176,6 @@
                 </configuration>
             </plugin>
 
-            <!-- GPG Signature for Maven Central (optional, enable in production) -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-gpg-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <id>sign-artifacts</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>sign</goal>
-                        </goals>
-                        <configuration>
-                            <gpgArguments>
-                                <arg>--pinentry-mode</arg>
-                                <arg>loopback</arg>
-                            </gpgArguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
             <!-- Nexus Staging for Maven Central -->
             <plugin>
                 <groupId>org.sonatype.plugins</groupId>

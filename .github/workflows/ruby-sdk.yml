@@ -3,11 +3,11 @@ name: Ruby SDK
 on:
   push:
     paths:
-      - 'sdks/official/fraiseql-ruby/**'
+      - 'sdks/community/fraiseql-ruby/**'
       - '.github/workflows/ruby-sdk.yml'
   pull_request:
     paths:
-      - 'sdks/official/fraiseql-ruby/**'
+      - 'sdks/community/fraiseql-ruby/**'
       - '.github/workflows/ruby-sdk.yml'
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: sdks/official/fraiseql-ruby
+        working-directory: sdks/community/fraiseql-ruby
 
     strategy:
       matrix:
@@ -31,7 +31,7 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
-          working-directory: sdks/official/fraiseql-ruby
+          working-directory: sdks/community/fraiseql-ruby
 
       - name: Run RuboCop
         run: bundle exec rubocop --parallel
@@ -54,14 +54,14 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: sdks/official/fraiseql-ruby
+          working-directory: sdks/community/fraiseql-ruby
 
       - name: Build gem
-        working-directory: sdks/official/fraiseql-ruby
+        working-directory: sdks/community/fraiseql-ruby
         run: gem build *.gemspec
 
       - name: Push gem
-        working-directory: sdks/official/fraiseql-ruby
+        working-directory: sdks/community/fraiseql-ruby
         run: gem push *.gem
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}

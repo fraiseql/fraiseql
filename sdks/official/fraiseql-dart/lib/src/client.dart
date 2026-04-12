@@ -37,8 +37,7 @@ class FraiseQLClient {
     }
   }
 
-  FraiseQLClient.simple(String url)
-      : this(FraiseQLClientConfig(url: url));
+  FraiseQLClient.simple(String url) : this(FraiseQLClientConfig(url: url));
 
   /// Execute a GraphQL query.
   ///

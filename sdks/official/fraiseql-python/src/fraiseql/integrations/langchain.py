@@ -193,7 +193,7 @@ class FraiseQLRetriever(BaseRetriever):
         self,
         query: str,
         *,
-        run_manager: AsyncCallbackManagerForRetrieverRun,
+        run_manager: AsyncCallbackManagerForRetrieverRun | None = None,
     ) -> list[Document]:
         variables = dict(self.variables or {})
         if query:
