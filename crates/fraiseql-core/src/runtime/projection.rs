@@ -5,6 +5,7 @@ use serde_json::{Map, Value as JsonValue};
 use crate::{
     db::types::JsonbValue,
     error::{FraiseQLError, Result},
+    graphql::FieldSelection,
 };
 
 /// Field mapping for projection with alias support.
@@ -108,9 +109,12 @@ impl FieldMapping {
 #[derive(Debug, Clone)]
 pub struct ProjectionMapper {
     /// Fields to project (with optional aliases).
-    pub fields:   Vec<FieldMapping>,
+    pub fields:          Vec<FieldMapping>,
     /// Optional `__typename` value to add to each object.
-    pub typename: Option<String>,
+    pub typename:        Option<String>,
+    /// When `true`, `__typename` is injected unconditionally regardless of selection set.
+    /// Used by federation `_entities` resolver where the gateway always expects `__typename`.
+    pub federation_mode: bool,
 }
 
 impl ProjectionMapper {
@@ -118,8 +122,9 @@ impl ProjectionMapper {
     #[must_use]
     pub fn new(fields: Vec<String>) -> Self {
         Self {
-            fields:   fields.into_iter().map(FieldMapping::simple).collect(),
-            typename: None,
+            fields:          fields.into_iter().map(FieldMapping::simple).collect(),
+            typename:        None,
+            federation_mode: false,
         }
     }
 
@@ -128,7 +133,8 @@ impl ProjectionMapper {
     pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             fields,
-            typename: None,
+            typename:        None,
+            federation_mode: false,
         }
     }
 
@@ -136,6 +142,13 @@ impl ProjectionMapper {
     #[must_use]
     pub fn with_typename(mut self, typename: impl Into<String>) -> Self {
         self.typename = Some(typename.into());
+        self
+    }
+
+    /// Enable federation mode: `__typename` is always injected regardless of selection set.
+    #[must_use]
+    pub const fn with_federation_mode(mut self, enabled: bool) -> Self {
+        self.federation_mode = enabled;
         self
     }
 
@@ -289,6 +302,32 @@ impl ResultProjector {
     #[must_use]
     pub fn with_typename(mut self, typename: impl Into<String>) -> Self {
         self.mapper = self.mapper.with_typename(typename);
+        self
+    }
+
+    /// Configure typename injection from the query selection set.
+    ///
+    /// Inspects the root selection's nested fields for `__typename`. If found,
+    /// enables typename injection via [`with_typename`](Self::with_typename).
+    #[must_use]
+    pub fn configure_typename_from_selections(
+        self,
+        selections: &[FieldSelection],
+        entity_type: &str,
+    ) -> Self {
+        let wants_typename = selections
+            .first()
+            .is_some_and(|root| root.nested_fields.iter().any(|f| f.name == "__typename"));
+        if wants_typename { self.with_typename(entity_type) } else { self }
+    }
+
+    /// Enable federation mode: `__typename` is always injected regardless of selection set.
+    ///
+    /// Used by the `_entities` federation resolver where the gateway always expects
+    /// `__typename` in entity results.
+    #[must_use]
+    pub fn with_federation_mode(mut self, enabled: bool) -> Self {
+        self.mapper = self.mapper.with_federation_mode(enabled);
         self
     }
 
@@ -928,6 +967,137 @@ mod tests {
         assert_eq!(author.get("id"), Some(&json!("user-2")));
         assert_eq!(author.get("name"), Some(&json!("Bob")));
     }
+
+    // ========================================================================
+    // configure_typename_from_selections tests
+    // ========================================================================
+
+    fn make_selections_with_typename() -> Vec<FieldSelection> {
+        vec![FieldSelection {
+            name:          "users".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![
+                FieldSelection {
+                    name:          "id".to_string(),
+                    alias:         None,
+                    arguments:     vec![],
+                    nested_fields: vec![],
+                    directives:    vec![],
+                },
+                FieldSelection {
+                    name:          "__typename".to_string(),
+                    alias:         None,
+                    arguments:     vec![],
+                    nested_fields: vec![],
+                    directives:    vec![],
+                },
+            ],
+            directives:    vec![],
+        }]
+    }
+
+    fn make_selections_without_typename() -> Vec<FieldSelection> {
+        vec![FieldSelection {
+            name:          "users".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![FieldSelection {
+                name:          "id".to_string(),
+                alias:         None,
+                arguments:     vec![],
+                nested_fields: vec![],
+                directives:    vec![],
+            }],
+            directives:    vec![],
+        }]
+    }
+
+    #[test]
+    fn test_configure_typename_from_selections_present() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&make_selections_with_typename(), "User");
+
+        let data = json!({ "id": "1", "name": "Alice" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(result, json!({ "__typename": "User", "id": "1" }));
+    }
+
+    #[test]
+    fn test_configure_typename_from_selections_absent() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&make_selections_without_typename(), "User");
+
+        let data = json!({ "id": "1", "name": "Alice" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        // No __typename because selection set didn't request it
+        assert_eq!(result, json!({ "id": "1" }));
+    }
+
+    #[test]
+    fn test_configure_typename_from_selections_list() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&make_selections_with_typename(), "User");
+
+        let results = vec![
+            JsonbValue::new(json!({ "id": "1" })),
+            JsonbValue::new(json!({ "id": "2" })),
+        ];
+        let result = projector.project_results(&results, true).unwrap();
+
+        assert_eq!(
+            result,
+            json!([
+                { "__typename": "User", "id": "1" },
+                { "__typename": "User", "id": "2" }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_configure_typename_empty_selections() {
+        // Empty selections → no typename
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&[], "User");
+
+        let data = json!({ "id": "1" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(result, json!({ "id": "1" }));
+    }
+
+    // ========================================================================
+    // Federation mode tests
+    // ========================================================================
+
+    #[test]
+    fn test_federation_mode_injects_typename() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .with_typename("User")
+            .with_federation_mode(true);
+
+        let data = json!({ "id": "1", "name": "Alice" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(result, json!({ "__typename": "User", "id": "1" }));
+    }
+
+    #[test]
+    fn test_federation_mode_flag_propagates() {
+        let mapper = ProjectionMapper::new(vec!["id".to_string()]).with_federation_mode(true);
+        assert!(mapper.federation_mode);
+
+        let mapper2 = ProjectionMapper::new(vec!["id".to_string()]).with_federation_mode(false);
+        assert!(!mapper2.federation_mode);
+    }
+
+    // ========================================================================
 
     #[test]
     fn test_nested_without_specific_fields() {

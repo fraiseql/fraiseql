@@ -124,12 +124,19 @@ impl QueryPlanner {
     /// Extract field names for projection from parsed selections.
     ///
     /// For a query like `{ users { id name } }`, this extracts `["id", "name"]`.
+    ///
+    /// Filter `__typename` from SQL projection fields.
+    /// `__typename` is a GraphQL meta-field not stored in JSONB.
+    /// The `ResultProjector` handles injection — see `projection.rs`.
+    /// Removing this filter causes `data->>'__typename'` (NULL) to overwrite
+    /// the value injected by `with_typename()`, depending on field iteration order.
     fn extract_projection_fields(&self, selections: &[FieldSelection]) -> Vec<String> {
         // Get the first (root) selection and extract its nested fields
         if let Some(root_selection) = selections.first() {
             root_selection
                 .nested_fields
                 .iter()
+                .filter(|f| f.name != "__typename")
                 .map(|f| f.response_key().to_string())
                 .collect()
         } else {
@@ -301,6 +308,27 @@ mod tests {
     // ========================================================================
 
     // ========================================================================
+
+    #[test]
+    fn test_projection_fields_exclude_typename() {
+        let planner = QueryPlanner::new(true);
+        let mut query_match = test_query_match();
+
+        // Add __typename to the nested fields of the root selection
+        query_match.selections[0].nested_fields.push(FieldSelection {
+            name:          "__typename".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![],
+        });
+
+        let plan = planner.plan(&query_match).unwrap();
+
+        // __typename must NOT appear in projection fields (it's a GraphQL meta-field)
+        assert!(!plan.projection_fields.contains(&"__typename".to_string()));
+        assert_eq!(plan.projection_fields, vec!["id".to_string(), "name".to_string()]);
+    }
 
     #[test]
     fn test_plan_includes_jsonb_strategy() {

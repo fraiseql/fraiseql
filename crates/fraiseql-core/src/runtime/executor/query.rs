@@ -27,6 +27,12 @@ use crate::{
 ///
 /// Recursion is capped at 4 levels, matching `MAX_PROJECTION_DEPTH` in the
 /// projection generator.
+///
+/// Filter `__typename` from SQL projection fields.
+/// `__typename` is a GraphQL meta-field not stored in JSONB.
+/// The `ResultProjector` handles injection — see `projection.rs`.
+/// Removing this filter causes `data->>'__typename'` (NULL) to overwrite
+/// the value injected by `with_typename()`, depending on field iteration order.
 fn build_typed_projection_fields(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
@@ -38,6 +44,7 @@ fn build_typed_projection_fields(
     let type_def = schema.find_type(parent_type_name);
     selections
         .iter()
+        .filter(|sel| sel.name != "__typename")
         .map(|sel| {
             let field_def =
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
@@ -363,7 +370,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 11. Project results — include both allowed and masked fields in projection
         let mut all_projection_fields = access.allowed;
         all_projection_fields.extend(access.masked.iter().cloned());
-        let projector = ResultProjector::new(all_projection_fields);
+        let projector = ResultProjector::new(all_projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
         let mut projected =
             projector.project_results(&results, query_match.query_def.returns_list)?;
 
@@ -533,7 +544,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // 4. Project results
-        let projector = ResultProjector::new(plan.projection_fields);
+        let projector = ResultProjector::new(plan.projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // 5. Wrap in GraphQL data envelope
@@ -662,7 +677,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // Project results.
-        let projector = ResultProjector::new(plan.projection_fields);
+        let projector = ResultProjector::new(plan.projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // Wrap in GraphQL data envelope.

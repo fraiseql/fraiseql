@@ -89,20 +89,21 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Create federation resolver
         let fed_resolver = crate::federation::FederationResolver::new(fed_metadata);
 
-        // Extract actual field selection from GraphQL query AST
+        // Extract actual field selection from GraphQL query AST.
+        // __typename is NOT added to the SQL field list — it is a GraphQL meta-field
+        // not stored in the database. The database_resolver injects it into results.
         let selection = match crate::federation::selection_parser::parse_field_selection(query) {
             Ok(sel) if !sel.fields.is_empty() => {
-                // Ensure __typename is always selected
-                let mut fields = sel.fields;
-                if !fields.contains(&"__typename".to_string()) {
-                    fields.push("__typename".to_string());
-                }
+                let fields: Vec<String> = sel
+                    .fields
+                    .into_iter()
+                    .filter(|f| f != "__typename")
+                    .collect();
                 crate::federation::FieldSelection::new(fields)
             },
             _ => {
                 // Fallback to wildcard if parsing fails or no fields extracted
                 crate::federation::FieldSelection::new(vec![
-                    "__typename".to_string(),
                     "*".to_string(), // Wildcard for all fields (will be expanded by resolver)
                 ])
             },
