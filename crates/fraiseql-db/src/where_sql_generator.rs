@@ -93,6 +93,12 @@ impl WhereSqlGenerator {
                 let val_sql = Self::value_to_sql(value, operator)?;
                 Ok(format!("{col_expr} {sql_op} {val_sql}"))
             },
+            WhereClause::RelationFilter { relation, .. } => {
+                Err(FraiseQLError::validation(format!(
+                    "Unresolved relation filter on '{relation}'. \
+                     Relation filters must be resolved before SQL generation"
+                )))
+            },
         }
     }
 

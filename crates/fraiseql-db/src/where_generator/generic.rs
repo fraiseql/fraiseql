@@ -198,6 +198,12 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 operator,
                 value,
             } => self.visit_native_field(column, pg_cast, operator, value, params),
+            WhereClause::RelationFilter { relation, .. } => {
+                Err(FraiseQLError::validation(format!(
+                    "Unresolved relation filter on '{relation}'. \
+                     Relation filters must be resolved before SQL generation"
+                )))
+            },
         }
     }
 

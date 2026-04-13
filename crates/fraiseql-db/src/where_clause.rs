@@ -73,6 +73,19 @@ pub enum WhereClause {
         /// Value to compare against.
         value:    serde_json::Value,
     },
+
+    /// Nested relation filter — parsed but not yet resolved.
+    ///
+    /// Produced by `from_graphql_json` when the user writes nested object filters
+    /// like `where: { machine: { id: { eq: "..." } } }`. Must be resolved to
+    /// `Field` or `NativeField` via `resolve_relation_filters()` before SQL
+    /// generation.
+    RelationFilter {
+        /// Relation field name (e.g., `"machine"`).
+        relation:  String,
+        /// The inner condition on the related type's fields.
+        condition: Box<WhereClause>,
+    },
 }
 
 impl WhereClause {
@@ -81,7 +94,10 @@ impl WhereClause {
     pub const fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
-            Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } => false,
+            Self::Not(_)
+            | Self::Field { .. }
+            | Self::NativeField { .. }
+            | Self::RelationFilter { .. } => false,
         }
     }
 
@@ -107,7 +123,43 @@ impl WhereClause {
             },
             Self::Not(inner) => inner.collect_native_column_names(out),
             Self::NativeField { column, .. } => out.push(column),
-            Self::Field { .. } => {},
+            Self::Field { .. } | Self::RelationFilter { .. } => {},
+        }
+    }
+
+    /// Resolve all `RelationFilter` nodes by applying a user-supplied resolver.
+    ///
+    /// The resolver receives `(relation_name, inner_condition)` and must return
+    /// a resolved `WhereClause` (typically `NativeField` or `Field`).
+    /// This is called in the executor layer where schema context is available.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error produced by the resolver closure.
+    pub fn resolve_relation_filters<F>(self, resolver: &F) -> Result<Self>
+    where
+        F: Fn(&str, Self) -> Result<Self>,
+    {
+        match self {
+            Self::RelationFilter {
+                relation,
+                condition,
+            } => {
+                let resolved_inner = condition.resolve_relation_filters(resolver)?;
+                resolver(&relation, resolved_inner)
+            },
+            Self::And(clauses) => {
+                let resolved: Result<Vec<_>> =
+                    clauses.into_iter().map(|c| c.resolve_relation_filters(resolver)).collect();
+                Ok(Self::And(resolved?))
+            },
+            Self::Or(clauses) => {
+                let resolved: Result<Vec<_>> =
+                    clauses.into_iter().map(|c| c.resolve_relation_filters(resolver)).collect();
+                Ok(Self::Or(resolved?))
+            },
+            Self::Not(inner) => Ok(Self::Not(Box::new(inner.resolve_relation_filters(resolver)?))),
+            other @ (Self::Field { .. } | Self::NativeField { .. }) => Ok(other),
         }
     }
 
@@ -178,12 +230,27 @@ impl WhereClause {
                         path:    None,
                     })?;
                     for (op_str, op_val) in ops {
-                        let operator = WhereOperator::from_str(op_str)?;
-                        conditions.push(Self::Field {
-                            path: vec![field_name.to_string()],
-                            operator,
-                            value: op_val.clone(),
-                        });
+                        match WhereOperator::from_str(op_str) {
+                            Ok(operator) => {
+                                conditions.push(Self::Field {
+                                    path: vec![field_name.to_string()],
+                                    operator,
+                                    value: op_val.clone(),
+                                });
+                            },
+                            Err(_) if op_val.is_object() => {
+                                // Nested relation filter: { relation: { field: { op: val } } }
+                                // Parse the inner condition and wrap in RelationFilter for
+                                // later resolution against the schema.
+                                let inner_json = serde_json::json!({ op_str: op_val });
+                                let inner = Self::from_graphql_json(&inner_json)?;
+                                conditions.push(Self::RelationFilter {
+                                    relation:  field_name.to_string(),
+                                    condition: Box::new(inner),
+                                });
+                            },
+                            Err(e) => return Err(e),
+                        }
                     }
                 },
             }
@@ -732,6 +799,102 @@ mod tests {
         assert!(!WhereOperator::Nlike.is_case_insensitive());
         assert!(!WhereOperator::Regex.is_case_insensitive());
         assert!(!WhereOperator::Nregex.is_case_insensitive());
+    }
+
+    #[test]
+    fn test_nested_relation_filter_parsed_as_relation_filter() {
+        // where: { machine: { id: { eq: "some-uuid" } } }
+        let json = json!({ "machine": { "id": { "eq": "some-uuid" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        match clause {
+            WhereClause::RelationFilter {
+                relation,
+                condition,
+            } => {
+                assert_eq!(relation, "machine");
+                assert_eq!(
+                    *condition,
+                    WhereClause::Field {
+                        path:     vec!["id".to_string()],
+                        operator: WhereOperator::Eq,
+                        value:    json!("some-uuid"),
+                    }
+                );
+            },
+            other => panic!("expected RelationFilter, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_nested_relation_filter_multiple_fields() {
+        // where: { machine: { id: { eq: "..." }, identifier: { contains: "abc" } } }
+        let json = json!({ "machine": { "id": { "eq": "uuid" }, "name": { "contains": "x" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        // Two nested fields → And of two RelationFilters
+        match clause {
+            WhereClause::And(conditions) => {
+                assert_eq!(conditions.len(), 2);
+                assert!(
+                    conditions.iter().all(|c| matches!(c, WhereClause::RelationFilter { .. })),
+                    "all conditions should be RelationFilter"
+                );
+            },
+            other => panic!("expected And of RelationFilters, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_relation_filters_transforms_to_field() {
+        let clause = WhereClause::RelationFilter {
+            relation:  "machine".to_string(),
+            condition: Box::new(WhereClause::Field {
+                path:     vec!["id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("some-uuid"),
+            }),
+        };
+
+        // Resolver that maps machine.id → machine_id
+        let resolved = clause
+            .resolve_relation_filters(&|relation, inner| match inner {
+                WhereClause::Field {
+                    path,
+                    operator,
+                    value,
+                } if path.len() == 1 && path[0] == "id" => Ok(WhereClause::Field {
+                    path: vec![format!("{relation}_id")],
+                    operator,
+                    value,
+                }),
+                _ => Err(FraiseQLError::validation("unsupported".to_string())),
+            })
+            .unwrap();
+
+        assert_eq!(
+            resolved,
+            WhereClause::Field {
+                path:     vec!["machine_id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("some-uuid"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_unknown_operator_scalar_value_still_errors() {
+        // A truly unknown operator with a scalar value should still give the
+        // original "Unknown WHERE operator" error, not the nested relation hint.
+        let json = json!({ "field": { "nonexistent_op": 42 } });
+        let result = WhereClause::from_graphql_json(&json);
+        match result {
+            Err(FraiseQLError::Validation { message, .. }) => {
+                assert!(
+                    message.contains("Unknown WHERE operator"),
+                    "expected unknown operator error, got: {message}"
+                );
+            },
+            other => panic!("expected Validation error, got: {other:?}"),
+        }
     }
 
     #[test]
