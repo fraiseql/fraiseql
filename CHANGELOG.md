@@ -110,7 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Observer pool no longer inherits application pool size** (issue #183).
   Previously `build_observer_pool` used `pool_min_size` / `pool_max_size` from the
   top-level config. The observer runtime needs far fewer connections (LISTEN/NOTIFY
-  + metadata queries). New defaults: `min=2, max=5, acquire_timeout=10s`. Configure
+  - metadata queries). New defaults: `min=2, max=5, acquire_timeout=10s`. Configure
   independently via `[observers.pool]` in `fraiseql.toml` — see `DEPRECATIONS.md`.
 
 ### Added

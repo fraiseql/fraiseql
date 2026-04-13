@@ -141,7 +141,8 @@ command = "python analyze.py"
 
 **Pros**: Maximum flexibility
 
-**Cons**: 
+**Cons**:
+
 - ❌ **Security nightmare** — shell injection, privilege escalation, arbitrary code execution
 - ❌ **Not deterministic** — can't validate at compile time
 - ❌ **Unobservable** — hard to trace, monitor, debug
@@ -164,6 +165,7 @@ on_failure_webhook = "http://worker:8000/on-error"
 **Pros**: Simple, works with existing mutation infrastructure
 
 **Cons**:
+
 - ❌ Not part of mutation response (client doesn't know about job)
 - ❌ One-way communication (handler can't communicate back)
 - ❌ Only useful for side effects, not for mutations that *are* the async job
@@ -190,6 +192,7 @@ mutation {
 **Pros**: GraphQL-native, leverages `@defer` spec
 
 **Cons**:
+
 - ❌ Doesn't map to "enqueue job" paradigm (fundamentally different model)
 - ❌ Complexity in implementing deferred handlers
 - ❌ Unclear error handling mid-defer
@@ -218,6 +221,7 @@ mutation {
 **Pros**: All info in one response
 
 **Cons**:
+
 - ❌ Schema bloat — every async mutation has same output type
 - ❌ Not extensible — hard to add mutation-specific metadata
 - ❌ `result` field is `String` (opaque, loses type safety)
@@ -237,6 +241,7 @@ SELECT mutation_context.enqueue_job('analyzeDocument', $input) as job_id;
 **Pros**: Keeps everything in SQL
 
 **Cons**:
+
 - ❌ SQL doesn't have first-class async primitives
 - ❌ Hard to implement correctly across database engines
 - ❌ Handler lifecycle tied to transaction (risky)
@@ -251,6 +256,7 @@ SELECT mutation_context.enqueue_job('analyzeDocument', $input) as job_id;
 ### Phase 1: MVP (v2.3.0)
 
 **Core functionality:**
+
 - [ ] `AsyncMutationHandler` trait in `fraiseql-core`
 - [ ] `HttpAsyncMutationHandler` implementation
 - [ ] `[fraiseql.async_mutations]` config in compiler
