@@ -21,6 +21,7 @@ use crate::{
     identifier::quote_postgres_identifier,
     traits::DatabaseAdapter,
     types::{JsonbValue, QueryParam, sql_hints::{OrderByClause, SqlProjectionHint}},
+    utils::to_snake_case,
     where_clause::WhereClause,
 };
 
@@ -537,7 +538,9 @@ impl PostgresAdapter {
                     if i > 0 {
                         sql.push_str(", ");
                     }
-                    let escaped = escape_jsonb_key(&clause.field);
+                    // JSONB keys are stored in snake_case; convert from GraphQL camelCase.
+                    let snake_field = to_snake_case(&clause.field);
+                    let escaped = escape_jsonb_key(&snake_field);
                     write!(sql, "data->>'{escaped}' {}", clause.direction.as_sql())
                         .expect("write to String");
                 }
@@ -617,7 +620,9 @@ pub(super) fn build_where_select_sql(
                 if i > 0 {
                     sql.push_str(", ");
                 }
-                let escaped = escape_jsonb_key(&clause.field);
+                // JSONB keys are stored in snake_case; convert from GraphQL camelCase.
+                let snake_field = to_snake_case(&clause.field);
+                let escaped = escape_jsonb_key(&snake_field);
                 write!(sql, "data->>'{escaped}' {}", clause.direction.as_sql())
                     .expect("write to String");
             }

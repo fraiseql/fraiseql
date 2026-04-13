@@ -46,6 +46,10 @@ fn build_typed_projection_fields(
     let type_def = schema.find_type(parent_type_name);
     selections
         .iter()
+        // Skip __typename — it is a GraphQL meta-field not stored in the JSONB column.
+        // Including it would generate `data->>'__typename'` (always NULL) in the SQL
+        // projection and then overwrite the value already injected by `with_typename`.
+        .filter(|sel| sel.name != "__typename")
         .map(|sel| {
             let field_def =
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));

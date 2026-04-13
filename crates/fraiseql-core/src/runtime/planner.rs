@@ -132,11 +132,16 @@ impl QueryPlanner {
     ///
     /// For a query like `{ users { id name } }`, this extracts `["id", "name"]`.
     fn extract_projection_fields(&self, selections: &[FieldSelection]) -> Vec<String> {
-        // Get the first (root) selection and extract its nested fields
+        // Get the first (root) selection and extract its nested fields.
+        // Skip `__typename` — it is a GraphQL meta-field handled by the projector
+        // at the Rust level; including it in the field list causes the SQL projection
+        // to emit `data->>'__typename'` which returns NULL and then overwrites the
+        // correctly-computed typename injected by `ResultProjector::with_typename`.
         if let Some(root_selection) = selections.first() {
             root_selection
                 .nested_fields
                 .iter()
+                .filter(|f| f.name != "__typename")
                 .map(|f| f.response_key().to_string())
                 .collect()
         } else {
