@@ -17,6 +17,19 @@ use clap::{Args, Parser};
 
 use crate::ServerConfig;
 
+/// Parse a boolean environment variable, returning `None` if unset.
+///
+/// Accepts `true`, `1`, `yes`, `on` (case-insensitive) as `Some(true)`;
+/// all other values as `Some(false)`.
+fn parse_bool_env_opt(var: &str) -> Option<bool> {
+    std::env::var(var).ok().map(|v| {
+        matches!(
+            v.to_ascii_lowercase().as_str(),
+            "true" | "1" | "yes" | "on"
+        )
+    })
+}
+
 // ── Top-level CLI ────────────────────────────────────────────────────────────
 
 /// FraiseQL Server — compiled GraphQL execution engine.
@@ -121,6 +134,42 @@ pub struct ServerArgs {
 }
 
 impl ServerArgs {
+    /// Construct a `ServerArgs` from environment variables only (no CLI parsing).
+    ///
+    /// This is useful for consumers that handle their own CLI args (e.g.
+    /// `fraiseql run`) but still want to pick up server-production env vars
+    /// like `FRAISEQL_METRICS_ENABLED` without duplicating the parsing logic.
+    ///
+    /// Unset env vars produce `None` fields — only explicitly set env vars
+    /// generate overrides.
+    pub fn from_env() -> Self {
+        Self {
+            config:                    std::env::var("FRAISEQL_CONFIG").ok(),
+            database_url:             std::env::var("DATABASE_URL").ok(),
+            bind_addr:                std::env::var("FRAISEQL_BIND_ADDR")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            schema_path:              std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
+            metrics_enabled:          parse_bool_env_opt("FRAISEQL_METRICS_ENABLED"),
+            metrics_token:            std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
+            admin_api_enabled:        parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED"),
+            admin_token:              std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
+            introspection_enabled:    parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
+            introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH"),
+            rate_limiting_enabled:    parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
+            rate_limit_rps_per_ip:    std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            rate_limit_rps_per_user:  std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            rate_limit_burst_size:    std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            log_format:               std::env::var("FRAISEQL_LOG_FORMAT").ok(),
+        }
+    }
+
     /// Apply CLI/env overrides to a [`ServerConfig`] loaded from file or
     /// defaults.
     ///

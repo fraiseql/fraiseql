@@ -18,7 +18,7 @@ sqlx = {workspace = true, optional = true}
 tiberius = {version = "0.12", default-features = false, features = ["tds73", "native-tls"], optional = true}
 # Workspace dependencies
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
-fraiseql-server = {workspace = true, optional = true}
+fraiseql-server = {workspace = true, optional = true, features = ["cli"]}
 axum = {workspace = true, optional = true}
 glob = "0.3"
 prost = "0.14"
