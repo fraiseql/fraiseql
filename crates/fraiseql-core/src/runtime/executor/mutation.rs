@@ -1,12 +1,14 @@
 //! Mutation execution.
 
+use std::collections::HashMap;
+
 use super::{Executor, resolve_inject_value};
 use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
     runtime::{
-        ResultProjector,
-        mutation_result::{MutationOutcome, parse_mutation_row, populate_error_fields},
+        FieldMapping, ProjectionMapper, ResultProjector, build_field_mappings_from_type,
+        mutation_result::{MutationOutcome, parse_mutation_row},
         suggest_similar,
     },
     security::SecurityContext,
@@ -52,11 +54,11 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        selection_fields: &[String],
+        type_selections: &HashMap<String, Vec<String>>,
     ) -> Result<String> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
-        self.execute_mutation_query_with_security(mutation_name, variables, None, selection_fields).await
+        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections).await
     }
 }
 
@@ -106,10 +108,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # let executor = Executor::new(schema, Arc::new(adapter));
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
-    /// let fields = vec!["id".to_string(), "name".to_string()];
+    /// let selections = std::collections::HashMap::new(); // no filtering
     /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}
-    /// let result = executor.execute_mutation("createUser", Some(&vars), &fields).await?;
+    /// let result = executor.execute_mutation("createUser", Some(&vars), &selections).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -117,7 +119,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        selection_fields: &[String],
+        type_selections: &HashMap<String, Vec<String>>,
     ) -> Result<String> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
@@ -135,7 +137,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 path:    None,
             });
         }
-        self.execute_mutation_query_with_security(mutation_name, variables, None, selection_fields).await
+        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections).await
     }
 
     /// Internal implementation shared by `execute_mutation_query` and the
@@ -163,7 +165,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         security_ctx: Option<&SecurityContext>,
-        selection_fields: &[String],
+        type_selections: &HashMap<String, Vec<String>>,
     ) -> Result<String> {
         // 1. Locate the mutation definition
         let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
@@ -353,6 +355,25 @@ impl<A: DatabaseAdapter> Executor<A> {
         let mutation_return_type = mutation_def.return_type.clone();
         let mutation_name_owned = mutation_name.to_string();
 
+        // Helper: merge common fields (key "") with type-specific fields for selection filtering.
+        let selection_for_type = |type_name: &str| -> Option<Vec<String>> {
+            if type_selections.is_empty() {
+                return None;
+            }
+            let common = type_selections.get("");
+            let specific = type_selections.get(type_name);
+            match (common, specific) {
+                (None, None) => None,
+                (Some(c), None) => Some(c.clone()),
+                (None, Some(s)) => Some(s.clone()),
+                (Some(c), Some(s)) => {
+                    let mut merged = c.clone();
+                    merged.extend(s.iter().cloned());
+                    Some(merged)
+                },
+            }
+        };
+
         let result_json = match outcome {
             MutationOutcome::Success {
                 entity,
@@ -374,15 +395,24 @@ impl<A: DatabaseAdapter> Executor<A> {
                     })
                     .unwrap_or_else(|| mutation_return_type.clone());
 
-                let mut obj = entity.as_object().cloned().unwrap_or_default();
-                obj.insert("__typename".to_string(), serde_json::Value::String(typename));
+                // Build projection mappings from the selection set.
+                // Success entities use snake_case keys (from DB), so source == output.
+                let requested = selection_for_type(&typename);
+                let mappings: Vec<FieldMapping> = match &requested {
+                    Some(fields) => fields.iter().map(|f| FieldMapping::simple(f.clone())).collect(),
+                    None => {
+                        // No selection filtering — pass all fields
+                        entity
+                            .as_object()
+                            .map(|m| m.keys().map(|k| FieldMapping::simple(k.clone())).collect())
+                            .unwrap_or_default()
+                    },
+                };
 
-                // Apply selection set filtering: only include requested fields (plus __typename)
-                if !selection_fields.is_empty() {
-                    obj.retain(|k, _| k == "__typename" || selection_fields.contains(k));
-                }
-
-                serde_json::Value::Object(obj)
+                let mapper = ProjectionMapper::with_mappings(mappings)
+                    .with_typename(&typename);
+                let obj = entity.as_object().cloned().unwrap_or_default();
+                mapper.project_json_object(&obj)?
             },
             MutationOutcome::Error {
                 status, metadata, ..
@@ -397,22 +427,29 @@ impl<A: DatabaseAdapter> Executor<A> {
 
                 match error_type {
                     Some(td) => {
-                        let mut fields = populate_error_fields(&td.fields, &metadata);
-                        fields.insert(
-                            "__typename".to_string(),
-                            serde_json::Value::String(td.name.to_string()),
+                        // Build field mappings from the error type definition, with camelCase
+                        // source keys and recursive nested object/array projection (#215).
+                        let requested = selection_for_type(td.name.as_str());
+                        let requested_slice = requested.as_deref();
+                        let mut visited = std::collections::HashSet::new();
+                        let mappings = build_field_mappings_from_type(
+                            &td.fields, &self.schema, requested_slice, &mut visited,
                         );
-                        // Include status so the client can act on it
-                        fields.insert("status".to_string(), serde_json::Value::String(status));
 
-                        // Apply selection set filtering (#214): only include requested fields
-                        if !selection_fields.is_empty() {
-                            fields.retain(|k, _| {
-                                k == "__typename" || selection_fields.contains(k)
-                            });
+                        let mapper = ProjectionMapper::with_mappings(mappings)
+                            .with_typename(td.name.to_string());
+                        let obj = metadata.as_object().cloned().unwrap_or_default();
+                        let mut result = mapper.project_json_object(&obj)?;
+
+                        // Inject status (not in type definition, but required by clients)
+                        if let serde_json::Value::Object(ref mut map) = result {
+                            map.insert(
+                                "status".to_string(),
+                                serde_json::Value::String(status),
+                            );
                         }
 
-                        serde_json::Value::Object(fields)
+                        result
                     },
                     None => {
                         // No error type defined: surface the status as a plain object

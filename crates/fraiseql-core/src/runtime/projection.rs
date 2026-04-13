@@ -1,25 +1,32 @@
 //! Result projection - transforms JSONB database results to GraphQL responses.
 
+use std::collections::HashSet;
+
 use serde_json::{Map, Value as JsonValue};
 
 use crate::{
     db::types::JsonbValue,
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
+    schema::{CompiledSchema, FieldDefinition},
 };
 
 /// Field mapping for projection with alias support.
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// JSONB key name (source).
-    pub source:          String,
+    pub source:           String,
     /// Output key name (alias if different from source).
-    pub output:          String,
+    pub output:           String,
+    /// Fallback source key to try when the primary `source` is not found.
+    /// Used for mutation error metadata where the key may be either `camelCase`
+    /// or `snake_case` depending on the backend.
+    pub source_fallback:  Option<String>,
     /// For nested object fields, the typename to add.
     /// This enables `__typename` to be added recursively to nested objects.
-    pub nested_typename: Option<String>,
+    pub nested_typename:  Option<String>,
     /// Nested field mappings (for related objects).
-    pub nested_fields:   Option<Vec<FieldMapping>>,
+    pub nested_fields:    Option<Vec<FieldMapping>>,
 }
 
 impl FieldMapping {
@@ -30,6 +37,7 @@ impl FieldMapping {
         Self {
             source:          name.clone(),
             output:          name,
+            source_fallback: None,
             nested_typename: None,
             nested_fields:   None,
         }
@@ -41,6 +49,7 @@ impl FieldMapping {
         Self {
             source:          source.into(),
             output:          alias.into(),
+            source_fallback: None,
             nested_typename: None,
             nested_fields:   None,
         }
@@ -67,10 +76,11 @@ impl FieldMapping {
     ) -> Self {
         let name = name.into();
         Self {
-            source:          name.clone(),
-            output:          name,
-            nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            source:           name.clone(),
+            output:           name,
+            source_fallback:  None,
+            nested_typename:  Some(typename.into()),
+            nested_fields:    Some(fields),
         }
     }
 
@@ -83,10 +93,11 @@ impl FieldMapping {
         fields: Vec<FieldMapping>,
     ) -> Self {
         Self {
-            source:          source.into(),
-            output:          alias.into(),
-            nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            source:           source.into(),
+            output:           alias.into(),
+            source_fallback:  None,
+            nested_typename:  Some(typename.into()),
+            nested_fields:    Some(fields),
         }
     }
 
@@ -177,7 +188,15 @@ impl ProjectionMapper {
     }
 
     /// Project object fields from JSON object.
-    fn project_json_object(&self, map: &serde_json::Map<String, JsonValue>) -> Result<JsonValue> {
+    ///
+    /// Maps source keys to output keys according to the configured `FieldMapping`s,
+    /// injects `__typename` when configured, and recursively projects nested objects
+    /// and arrays.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if nested value projection fails.
+    pub fn project_json_object(&self, map: &serde_json::Map<String, JsonValue>) -> Result<JsonValue> {
         let mut result = Map::new();
 
         // Add __typename first if configured (GraphQL convention)
@@ -185,10 +204,12 @@ impl ProjectionMapper {
             result.insert("__typename".to_string(), JsonValue::String(typename.clone()));
         }
 
-        // Project fields with alias support
+        // Project fields with alias support and optional fallback key
         for field in &self.fields {
-            if let Some(value) = map.get(&field.source) {
-                // Handle nested objects with their own typename
+            let value = map.get(&field.source).or_else(|| {
+                field.source_fallback.as_ref().and_then(|fb| map.get(fb))
+            });
+            if let Some(value) = value {
                 let projected_value = self.project_nested_value(value, field)?;
                 result.insert(field.output.clone(), projected_value);
             }
@@ -473,6 +494,104 @@ impl ResultProjector {
 
         JsonValue::Object(response)
     }
+}
+
+/// Build `FieldMapping`s from a type definition's fields, mapping `camelCase`
+/// source keys (as stored in mutation metadata JSONB) to `snake_case` output keys
+/// (as defined in the GraphQL schema).
+///
+/// Recursively builds nested mappings for `Object` and `List(Object)` fields by
+/// looking up types in the compiled schema. This enables the same `ProjectionMapper`
+/// pipeline used for query results to handle mutation error metadata.
+///
+/// # Arguments
+///
+/// * `fields` — the type's field definitions
+/// * `schema` — compiled schema for resolving nested object types
+/// * `requested` — optional selection filter; when `Some`, only listed fields are included
+/// * `visited` — cycle guard to prevent infinite recursion on self-referencing types
+#[must_use]
+#[allow(clippy::implicit_hasher)] // Reason: internal API; no need for hasher generality
+pub fn build_field_mappings_from_type(
+    fields: &[FieldDefinition],
+    schema: &CompiledSchema,
+    requested: Option<&[String]>,
+    visited: &mut HashSet<String>,
+) -> Vec<FieldMapping> {
+    fields
+        .iter()
+        .filter(|f| {
+            requested.is_none_or(|r| r.iter().any(|name| name == f.name.as_str()))
+        })
+        .map(|field| {
+            let source = to_camel_case(field.name.as_str());
+            let output = field.name.to_string();
+
+            // Fallback: try snake_case key when camelCase is not found.
+            // Mutation metadata may use either convention depending on the backend.
+            let source_fallback = if source != output {
+                Some(output.clone())
+            } else {
+                None
+            };
+
+            // Resolve the innermost type (unwrap List wrapper if present)
+            let inner = field
+                .field_type
+                .inner_type()
+                .unwrap_or(&field.field_type);
+
+            if let Some(type_name) = inner.type_name() {
+                // Object/Enum/Interface reference — try to resolve in schema
+                if let Some(td) = schema.find_type(type_name) {
+                    if visited.insert(type_name.to_string()) {
+                        let nested = build_field_mappings_from_type(
+                            &td.fields, schema, None, visited,
+                        );
+                        visited.remove(type_name);
+                        return FieldMapping {
+                            source,
+                            output,
+                            source_fallback,
+                            nested_typename: Some(type_name.to_string()),
+                            nested_fields:   Some(nested),
+                        };
+                    }
+                    // Cycle detected — return without recursion
+                }
+            }
+
+            FieldMapping {
+                source,
+                output,
+                source_fallback,
+                nested_typename: None,
+                nested_fields:   None,
+            }
+        })
+        .collect()
+}
+
+/// Convert a `snake_case` field name to `camelCase` for metadata key lookup.
+///
+/// Examples: `"last_activity_date"` → `"lastActivityDate"`,
+///            `"cascade_count"` → `"cascadeCount"`.
+fn to_camel_case(snake: &str) -> String {
+    let mut result = String::with_capacity(snake.len());
+    let mut capitalise_next = false;
+
+    for ch in snake.chars() {
+        if ch == '_' {
+            capitalise_next = true;
+        } else if capitalise_next {
+            result.push(ch.to_ascii_uppercase());
+            capitalise_next = false;
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]

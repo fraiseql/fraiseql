@@ -1,5 +1,7 @@
 //! Query classification — determines operation type for routing.
 
+use std::collections::HashMap;
+
 use super::{Executor, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
@@ -86,27 +88,30 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Mutations are routed by operation type.
         if parsed.operation_type == "mutation" {
-            let selection_fields = parsed
+            let type_selections: HashMap<String, Vec<String>> = parsed
                 .selections
                 .first()
                 .map(|s| {
-                    s.nested_fields
-                        .iter()
-                        .flat_map(|f| {
-                            if f.name.starts_with("...on ") {
-                                // Inline fragment: collect its nested fields
-                                f.nested_fields
-                                    .iter()
-                                    .map(|nf| nf.response_key().to_string())
-                                    .collect::<Vec<_>>()
-                            } else {
-                                vec![f.response_key().to_string()]
-                            }
-                        })
-                        .collect()
+                    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+                    for f in &s.nested_fields {
+                        if let Some(type_name) = f.name.strip_prefix("...on ") {
+                            // Inline fragment: collect fields under the type name
+                            let fields: Vec<String> =
+                                f.nested_fields.iter().map(|nf| nf.response_key().to_string()).collect();
+                            map.entry(type_name.to_string())
+                                .or_default()
+                                .extend(fields);
+                        } else {
+                            // Common field (outside any inline fragment)
+                            map.entry(String::new())
+                                .or_default()
+                                .push(f.response_key().to_string());
+                        }
+                    }
+                    map
                 })
                 .unwrap_or_default();
-            return Ok((QueryType::Mutation { name: root_field.clone(), selection_fields }, None));
+            return Ok((QueryType::Mutation { name: root_field.clone(), type_selections }, None));
         }
 
         // Aggregate queries (root field ends with `_aggregate`).

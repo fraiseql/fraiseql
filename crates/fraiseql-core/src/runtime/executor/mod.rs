@@ -162,6 +162,8 @@ pub mod pipeline;
 
 mod relay;
 
+use std::collections::HashMap;
+
 #[cfg(test)]
 use std::{sync::Arc, time::Duration};
 
@@ -220,8 +222,9 @@ enum QueryType {
     IntrospectionType(String),
 
     /// GraphQL mutation.
-    /// Contains the root field name and selected response fields.
-    Mutation { name: String, selection_fields: Vec<String> },
+    /// Contains the root field name and per-type selection fields.
+    /// Keys are type names (from `...on TypeName` fragments); `""` holds common fields.
+    Mutation { name: String, type_selections: HashMap<String, Vec<String>> },
 
     /// Relay global node lookup: `node(id: ID!)`.
     /// Resolves any type that implements the Node interface by global opaque ID.

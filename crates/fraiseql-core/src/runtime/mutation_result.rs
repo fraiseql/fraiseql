@@ -1,22 +1,10 @@
 //! Mutation response parser for `app.mutation_response` composite rows.
-//!
-//! This module implements the fix for issue #294: error types with scalar/primitive
-//! fields (String, Int, `DateTime`, UUID, etc.) are now correctly populated from the
-//! `metadata` JSONB column, in addition to the existing support for nested object fields.
 
 use std::collections::HashMap;
 
-use serde_json::{Map, Value as JsonValue};
+use serde_json::Value as JsonValue;
 
-use crate::{
-    error::{FraiseQLError, Result},
-    schema::FieldDefinition,
-};
-
-/// Scalar GraphQL type names that can be populated directly from JSONB values.
-const SCALAR_TYPES: &[&str] = &[
-    "String", "Int", "Float", "Boolean", "ID", "DateTime", "UUID", "Date", "Time",
-];
+use crate::error::{FraiseQLError, Result};
 
 /// Outcome of parsing a single `mutation_response` row.
 #[derive(Debug, Clone)]
@@ -101,86 +89,6 @@ pub fn is_error_status(status: &str) -> bool {
     status.starts_with("failed:") || status.starts_with("conflict:") || status == "error"
 }
 
-/// Populate error-type fields from a `metadata` JSONB object.
-///
-/// This is the fix for issue #294: scalar fields (String, Int, Float, Boolean,
-/// `DateTime`, UUID, …) are now populated directly from the JSON value, without
-/// requiring the value to be a nested object.
-///
-/// Both camelCase and `snake_case` metadata keys are tried for each field.
-///
-/// # Arguments
-///
-/// * `fields` — field definitions from the error `TypeDefinition`
-/// * `metadata` — the raw `metadata` JSON from the mutation response row
-///
-/// # Returns
-///
-/// A JSON object map containing the populated fields.
-pub fn populate_error_fields(
-    fields: &[FieldDefinition],
-    metadata: &JsonValue,
-) -> Map<String, JsonValue> {
-    let mut output = Map::new();
-
-    let Some(obj) = metadata.as_object() else {
-        return output;
-    };
-
-    for field in fields {
-        // Try camelCase first, then the raw field name (snake_case)
-        let camel = to_camel_case(field.name.as_str());
-        let raw_val = obj.get(&camel).or_else(|| obj.get(field.name.as_str()));
-
-        let Some(raw_val) = raw_val else { continue };
-
-        let base_type = strip_list_and_bang(&field.field_type.to_string());
-
-        if SCALAR_TYPES.contains(&base_type.as_str()) {
-            // #294 fix: copy scalar values directly (string, int, datetime, uuid, …)
-            output.insert(field.name.to_string(), raw_val.clone());
-        } else if raw_val.is_object() || raw_val.is_array() {
-            // Complex field: nested JSON object or array of entities (#214)
-            output.insert(field.name.to_string(), raw_val.clone());
-        }
-        // else: null or unexpected primitive for a non-scalar type — skip
-    }
-
-    output
-}
-
-/// Convert a `snake_case` field name to camelCase for metadata key lookup.
-///
-/// Examples: `"last_activity_date"` → `"lastActivityDate"`,
-///            `"cascade_count"` → `"cascadeCount"`.
-fn to_camel_case(snake: &str) -> String {
-    let mut result = String::with_capacity(snake.len());
-    let mut capitalise_next = false;
-
-    for ch in snake.chars() {
-        if ch == '_' {
-            capitalise_next = true;
-        } else if capitalise_next {
-            result.push(ch.to_ascii_uppercase());
-            capitalise_next = false;
-        } else {
-            result.push(ch);
-        }
-    }
-
-    result
-}
-
-/// Strip list wrappers and non-null bangs from a field type string.
-///
-/// Examples:
-/// - `"String!"` → `"String"`
-/// - `"[String!]!"` → `"String"`
-/// - `"DateTime"` → `"DateTime"`
-fn strip_list_and_bang(field_type: &str) -> String {
-    field_type.trim_matches(|c| c == '[' || c == ']' || c == '!').to_string()
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -188,23 +96,6 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::schema::{FieldDenyPolicy, FieldType};
-
-    fn make_field(name: &str, type_str: &str) -> FieldDefinition {
-        FieldDefinition {
-            name:           name.into(),
-            field_type:     FieldType::parse(type_str),
-            nullable:       true,
-            default_value:  None,
-            description:    None,
-            vector_config:  None,
-            alias:          None,
-            deprecation:    None,
-            requires_scope: None,
-            on_deny:        FieldDenyPolicy::default(),
-            encryption:     None,
-        }
-    }
 
     #[test]
     fn test_parse_success_row() {
@@ -283,93 +174,6 @@ mod tests {
             assert_eq!(status, "failed:validation");
             assert!(metadata.is_object());
         }
-    }
-
-    #[test]
-    fn test_populate_scalar_string() {
-        let fields = vec![make_field("reason", "String")];
-        let metadata = json!({"reason": "some error"});
-
-        let result = populate_error_fields(&fields, &metadata);
-        assert_eq!(result["reason"], "some error");
-    }
-
-    #[test]
-    fn test_populate_scalar_int() {
-        let fields = vec![make_field("cascade_count", "Int")];
-        let metadata = json!({"cascade_count": 42});
-
-        let result = populate_error_fields(&fields, &metadata);
-        assert_eq!(result["cascade_count"], 42);
-    }
-
-    #[test]
-    fn test_populate_scalar_datetime() {
-        let fields = vec![make_field("last_activity_date", "DateTime")];
-        let metadata = json!({"last_activity_date": "2024-06-01T12:00:00Z"});
-
-        let result = populate_error_fields(&fields, &metadata);
-        assert_eq!(result["last_activity_date"], "2024-06-01T12:00:00Z");
-    }
-
-    #[test]
-    fn test_populate_scalar_uuid() {
-        let fields = vec![make_field("entity_id", "UUID")];
-        let metadata = json!({"entity_id": "550e8400-e29b-41d4-a716-446655440000"});
-
-        let result = populate_error_fields(&fields, &metadata);
-        assert_eq!(result["entity_id"], "550e8400-e29b-41d4-a716-446655440000");
-    }
-
-    #[test]
-    fn test_populate_complex_entity() {
-        let fields = vec![make_field("related", "SomeType")];
-        let metadata = json!({"related": {"id": "xyz", "name": "bar"}});
-
-        let result = populate_error_fields(&fields, &metadata);
-        assert_eq!(result["related"]["id"], "xyz");
-    }
-
-    #[test]
-    fn test_populate_missing_field_is_absent() {
-        let fields = vec![make_field("reason", "String")];
-        let metadata = json!({"other_key": "value"});
-
-        let result = populate_error_fields(&fields, &metadata);
-        assert!(!result.contains_key("reason"));
-    }
-
-    #[test]
-    fn test_camel_case_key_lookup() {
-        // Field name is snake_case; metadata key is camelCase
-        let fields = vec![make_field("last_activity_date", "DateTime")];
-        let metadata = json!({"lastActivityDate": "2024-01-01"});
-
-        let result = populate_error_fields(&fields, &metadata);
-        assert_eq!(result["last_activity_date"], "2024-01-01");
-    }
-
-    #[test]
-    fn test_populate_array_field() {
-        let fields = vec![make_field("affected_ids", "[UUID!]!")];
-        let metadata = json!({"affected_ids": ["id-1", "id-2", "id-3"]});
-
-        let result = populate_error_fields(&fields, &metadata);
-        let arr = result["affected_ids"].as_array().expect("should be array");
-        assert_eq!(arr.len(), 3);
-        assert_eq!(arr[0], "id-1");
-    }
-
-    #[test]
-    fn test_populate_array_of_objects() {
-        let fields = vec![make_field("blockers", "[Blocker!]!")];
-        let metadata = json!({"blockers": [{"id": "b1", "reason": "active"}, {"id": "b2", "reason": "locked"}]});
-
-        let result = populate_error_fields(&fields, &metadata);
-        let arr = result["blockers"].as_array().expect("should be array");
-        assert_eq!(arr.len(), 2);
-        assert_eq!(arr[0]["id"], "b1");
-        assert_eq!(arr[1]["reason"], "locked");
     }
 
     #[test]

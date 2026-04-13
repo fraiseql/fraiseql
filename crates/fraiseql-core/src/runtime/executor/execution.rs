@@ -130,8 +130,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 // Return pre-built __type response (zero-cost at runtime)
                 Ok(self.introspection.get_type_response(&type_name))
             },
-            QueryType::Mutation { name, selection_fields } => {
-                self.execute_mutation_query(&name, variables, &selection_fields).await
+            QueryType::Mutation { name, type_selections } => {
+                self.execute_mutation_query(&name, variables, &type_selections).await
             },
             QueryType::NodeQuery => self.execute_node_query(query, variables).await,
         }

@@ -1249,7 +1249,7 @@ async fn execute_mutation<A: DatabaseAdapter + SupportsMutations>(
             )
             .await
     } else {
-        executor.execute_mutation(mutation_name, variables, &[]).await
+        executor.execute_mutation(mutation_name, variables, &HashMap::new()).await
     };
     result.map_err(RestError::from)
 }
