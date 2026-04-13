@@ -192,6 +192,44 @@ fn test_complex_object_field_still_populated() {
 }
 
 // ---------------------------------------------------------------------------
+// Array field population (#214)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_array_field_populated_from_metadata() {
+    let fields = vec![field("affected_ids", "[UUID!]!")];
+    let metadata = json!({ "affected_ids": ["id-1", "id-2", "id-3"] });
+
+    let result = populate_error_fields(&fields, &metadata);
+
+    let arr = result["affected_ids"]
+        .as_array()
+        .expect("array field should be populated");
+    assert_eq!(arr.len(), 3, "all array elements should be preserved");
+    assert_eq!(arr[0], "id-1");
+}
+
+#[test]
+fn test_array_of_entity_objects_populated() {
+    let fields = vec![field("blockers", "[Blocker!]!")];
+    let metadata = json!({
+        "blockers": [
+            { "id": "b1", "name": "session-1" },
+            { "id": "b2", "name": "session-2" }
+        ]
+    });
+
+    let result = populate_error_fields(&fields, &metadata);
+
+    let arr = result["blockers"]
+        .as_array()
+        .expect("array of entities should be populated");
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["id"], "b1");
+    assert_eq!(arr[1]["name"], "session-2");
+}
+
+// ---------------------------------------------------------------------------
 // null / non-object metadata
 // ---------------------------------------------------------------------------
 

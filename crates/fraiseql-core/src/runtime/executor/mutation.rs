@@ -404,6 +404,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                         );
                         // Include status so the client can act on it
                         fields.insert("status".to_string(), serde_json::Value::String(status));
+
+                        // Apply selection set filtering (#214): only include requested fields
+                        if !selection_fields.is_empty() {
+                            fields.retain(|k, _| {
+                                k == "__typename" || selection_fields.contains(k)
+                            });
+                        }
+
                         serde_json::Value::Object(fields)
                     },
                     None => {

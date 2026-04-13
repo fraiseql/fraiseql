@@ -86,9 +86,25 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Mutations are routed by operation type.
         if parsed.operation_type == "mutation" {
-            let selection_fields = parsed.selections
+            let selection_fields = parsed
+                .selections
                 .first()
-                .map(|s| s.nested_fields.iter().map(|f| f.response_key().to_string()).collect())
+                .map(|s| {
+                    s.nested_fields
+                        .iter()
+                        .flat_map(|f| {
+                            if f.name.starts_with("...on ") {
+                                // Inline fragment: collect its nested fields
+                                f.nested_fields
+                                    .iter()
+                                    .map(|nf| nf.response_key().to_string())
+                                    .collect::<Vec<_>>()
+                            } else {
+                                vec![f.response_key().to_string()]
+                            }
+                        })
+                        .collect()
+                })
                 .unwrap_or_default();
             return Ok((QueryType::Mutation { name: root_field.clone(), selection_fields }, None));
         }

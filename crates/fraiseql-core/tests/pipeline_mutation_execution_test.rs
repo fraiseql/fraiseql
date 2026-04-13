@@ -321,6 +321,133 @@ async fn mutation_executor_appends_inject_params_from_jwt() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Error path: selection filtering and array handling (#214)
+// ---------------------------------------------------------------------------
+
+fn mutation_error_row() -> HashMap<String, serde_json::Value> {
+    let mut row = HashMap::new();
+    row.insert("status".to_string(), json!("failed:duplicate"));
+    row.insert("message".to_string(), json!("email already exists"));
+    row.insert("entity".to_string(), serde_json::Value::Null);
+    row.insert("entity_type".to_string(), serde_json::Value::Null);
+    row.insert("cascade".to_string(), serde_json::Value::Null);
+    row.insert(
+        "metadata".to_string(),
+        json!({
+            "message": "email already exists",
+            "conflicting_id": "existing-user-id",
+            "code": 409,
+            "affected_ids": ["id-1", "id-2"],
+            "details": {"field": "email", "rule": "unique"}
+        }),
+    );
+    row
+}
+
+/// Error path: selection filtering restricts error fields to those requested.
+///
+/// When the client requests only `{ message code }` on an error union member,
+/// unrequested fields like `conflicting_id` and `affected_ids` must not appear.
+#[tokio::test]
+async fn error_path_applies_selection_filtering() {
+    let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");
+    let schema = CompiledSchema::from_json(json).expect("fixture must parse");
+
+    let mock = Arc::new(RecordingMockAdapter::new(mutation_error_row()));
+    let executor = Executor::new(schema, Arc::clone(&mock));
+    let vars = json!({"email": "dup@example.com", "name": "Alice"});
+
+    // Only request message and code (not conflicting_id, affected_ids, details)
+    let result = executor
+        .execute(
+            r#"mutation { createUser(email: "dup@example.com", name: "Alice") { ... on DuplicateEmailError { message code } } }"#,
+            Some(&vars),
+        )
+        .await
+        .expect("mutation must succeed even on error outcome");
+
+    let body: serde_json::Value = serde_json::from_str(&result).expect("valid JSON");
+    let data = &body["data"]["createUser"];
+
+    assert_eq!(data["__typename"], "DuplicateEmailError");
+    assert_eq!(data["message"], "email already exists");
+    assert_eq!(data["code"], 409);
+
+    // Fields NOT in the selection set must be absent
+    assert!(
+        data.get("conflicting_id").is_none(),
+        "unrequested field 'conflicting_id' must be filtered out: {data}"
+    );
+    assert!(
+        data.get("affected_ids").is_none(),
+        "unrequested field 'affected_ids' must be filtered out: {data}"
+    );
+    assert!(
+        data.get("details").is_none(),
+        "unrequested field 'details' must be filtered out: {data}"
+    );
+}
+
+/// Error path: array fields are correctly populated from metadata.
+///
+/// Prior to #214, array values in metadata were silently dropped because
+/// `populate_error_fields` only handled scalars and objects.
+#[tokio::test]
+async fn error_path_populates_array_fields() {
+    let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");
+    let schema = CompiledSchema::from_json(json).expect("fixture must parse");
+
+    let mock = Arc::new(RecordingMockAdapter::new(mutation_error_row()));
+    let executor = Executor::new(schema, Arc::clone(&mock));
+    let vars = json!({"email": "dup@example.com", "name": "Alice"});
+
+    // Request the array field
+    let result = executor
+        .execute(
+            r#"mutation { createUser(email: "dup@example.com", name: "Alice") { ... on DuplicateEmailError { message affected_ids } } }"#,
+            Some(&vars),
+        )
+        .await
+        .expect("mutation must succeed");
+
+    let body: serde_json::Value = serde_json::from_str(&result).expect("valid JSON");
+    let data = &body["data"]["createUser"];
+
+    assert_eq!(data["__typename"], "DuplicateEmailError");
+    let arr = data["affected_ids"]
+        .as_array()
+        .expect("affected_ids must be an array");
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0], "id-1");
+    assert_eq!(arr[1], "id-2");
+}
+
+/// Error path: nested object field is populated from metadata.
+#[tokio::test]
+async fn error_path_populates_nested_object_fields() {
+    let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");
+    let schema = CompiledSchema::from_json(json).expect("fixture must parse");
+
+    let mock = Arc::new(RecordingMockAdapter::new(mutation_error_row()));
+    let executor = Executor::new(schema, Arc::clone(&mock));
+    let vars = json!({"email": "dup@example.com", "name": "Alice"});
+
+    let result = executor
+        .execute(
+            r#"mutation { createUser(email: "dup@example.com", name: "Alice") { ... on DuplicateEmailError { message details } } }"#,
+            Some(&vars),
+        )
+        .await
+        .expect("mutation must succeed");
+
+    let body: serde_json::Value = serde_json::from_str(&result).expect("valid JSON");
+    let data = &body["data"]["createUser"];
+
+    assert_eq!(data["details"]["field"], "email");
+    assert_eq!(data["details"]["rule"], "unique");
+}
+
 /// Pipeline 3: mutation with `inject_params` fails when no security context provided.
 ///
 /// A mutation that requires `inject_params` (resolved from JWT claims) cannot

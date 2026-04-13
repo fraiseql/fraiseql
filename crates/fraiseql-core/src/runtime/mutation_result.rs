@@ -139,11 +139,11 @@ pub fn populate_error_fields(
         if SCALAR_TYPES.contains(&base_type.as_str()) {
             // #294 fix: copy scalar values directly (string, int, datetime, uuid, …)
             output.insert(field.name.to_string(), raw_val.clone());
-        } else if raw_val.is_object() {
-            // Complex entity field: nested JSON object (existing behaviour)
+        } else if raw_val.is_object() || raw_val.is_array() {
+            // Complex field: nested JSON object or array of entities (#214)
             output.insert(field.name.to_string(), raw_val.clone());
         }
-        // else: non-scalar, non-object value in metadata — skip
+        // else: null or unexpected primitive for a non-scalar type — skip
     }
 
     output
@@ -347,6 +347,29 @@ mod tests {
 
         let result = populate_error_fields(&fields, &metadata);
         assert_eq!(result["last_activity_date"], "2024-01-01");
+    }
+
+    #[test]
+    fn test_populate_array_field() {
+        let fields = vec![make_field("affected_ids", "[UUID!]!")];
+        let metadata = json!({"affected_ids": ["id-1", "id-2", "id-3"]});
+
+        let result = populate_error_fields(&fields, &metadata);
+        let arr = result["affected_ids"].as_array().expect("should be array");
+        assert_eq!(arr.len(), 3);
+        assert_eq!(arr[0], "id-1");
+    }
+
+    #[test]
+    fn test_populate_array_of_objects() {
+        let fields = vec![make_field("blockers", "[Blocker!]!")];
+        let metadata = json!({"blockers": [{"id": "b1", "reason": "active"}, {"id": "b2", "reason": "locked"}]});
+
+        let result = populate_error_fields(&fields, &metadata);
+        let arr = result["blockers"].as_array().expect("should be array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["id"], "b1");
+        assert_eq!(arr[1]["reason"], "locked");
     }
 
     #[test]
