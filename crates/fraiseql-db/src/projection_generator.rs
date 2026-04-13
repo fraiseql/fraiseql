@@ -137,7 +137,7 @@ fn validate_field_name(field: &str) -> Result<()> {
 /// assert_eq!(to_snake_case("firstName"), "first_name");
 /// assert_eq!(to_snake_case("id"), "id");
 /// ```
-fn to_snake_case(name: &str) -> String {
+pub(crate) fn to_snake_case(name: &str) -> String {
     let mut result = String::new();
     for (i, ch) in name.chars().enumerate() {
         if ch.is_uppercase() && i > 0 {

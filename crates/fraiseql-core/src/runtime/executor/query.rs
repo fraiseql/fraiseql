@@ -75,6 +75,58 @@ fn build_typed_projection_fields(
         .collect()
 }
 
+/// Map a schema [`FieldType`] to the ORDER BY cast hint.
+///
+/// Returns [`OrderByFieldType::Text`] for types that sort correctly as text
+/// (strings, UUIDs, enums) or for composite/container types where a cast
+/// would be meaningless.
+const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> crate::db::OrderByFieldType {
+    use crate::db::OrderByFieldType as OB;
+    use crate::schema::FieldType as FT;
+    match ft {
+        FT::Int => OB::Integer,
+        FT::Float | FT::Decimal => OB::Numeric,
+        FT::Boolean => OB::Boolean,
+        FT::DateTime => OB::DateTime,
+        FT::Date => OB::Date,
+        FT::Time => OB::Time,
+        // String, ID, UUID, Json, Enum, Scalar, and container types sort as text.
+        _ => OB::Text,
+    }
+}
+
+/// Enrich parsed `OrderByClause` values with schema-derived type information
+/// and native column mappings.
+///
+/// For each clause, looks up the field in the compiled schema's type definition
+/// to determine the correct `OrderByFieldType` (so the SQL generator emits a
+/// typed cast), and checks `native_columns` for a direct column mapping (so the
+/// SQL generator can bypass JSONB extraction entirely).
+fn enrich_order_by_clauses(
+    mut clauses: Vec<crate::db::OrderByClause>,
+    schema: &CompiledSchema,
+    return_type: &str,
+    native_columns: &std::collections::HashMap<String, String>,
+) -> Vec<crate::db::OrderByClause> {
+    let type_def = schema.find_type(return_type);
+    for clause in &mut clauses {
+        // Look up the field type from the schema definition.
+        if let Some(td) = type_def {
+            if let Some(field_def) = td.find_field(&clause.field) {
+                clause.field_type = field_type_to_order_by_type(&field_def.field_type);
+            }
+        }
+
+        // Check if the query definition has a native column mapping for this field.
+        // `native_columns` keys are the GraphQL argument names (camelCase).
+        let storage_key = clause.storage_key();
+        if native_columns.contains_key(&storage_key) {
+            clause.native_column = Some(storage_key);
+        }
+    }
+    clauses
+}
+
 impl<A: DatabaseAdapter> Executor<A> {
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
@@ -267,13 +319,23 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        // 8b. Extract order_by from query arguments when has_order_by is enabled
+        // 8b. Extract order_by from query arguments when has_order_by is enabled,
+        //     then enrich each clause with the schema field type so the SQL generator
+        //     emits correct type casts (e.g., `(data->>'amount')::numeric`).
         let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
             query_match
                 .arguments
                 .get("orderBy")
                 .map(crate::db::OrderByClause::from_graphql_json)
                 .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.schema,
+                        &query_match.query_def.return_type,
+                        &query_match.query_def.native_columns,
+                    )
+                })
         } else {
             None
         };
@@ -446,6 +508,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .get("orderBy")
                 .map(crate::db::OrderByClause::from_graphql_json)
                 .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.schema,
+                        &query_match.query_def.return_type,
+                        &query_match.query_def.native_columns,
+                    )
+                })
         } else {
             None
         };
@@ -539,7 +609,15 @@ impl<A: DatabaseAdapter> Executor<A> {
             .arguments
             .get("orderBy")
             .map(crate::db::OrderByClause::from_graphql_json)
-            .transpose()?;
+            .transpose()?
+            .map(|clauses| {
+                enrich_order_by_clauses(
+                    clauses,
+                    &self.schema,
+                    &query_match.query_def.return_type,
+                    &query_match.query_def.native_columns,
+                )
+            });
 
         // Convert explicit arguments to WHERE conditions.
         let user_where = combine_explicit_arg_where(
@@ -1017,11 +1095,19 @@ impl<A: DatabaseAdapter> Executor<A> {
             (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
         };
 
-        // Parse optional `orderBy` from variables.
+        // Parse optional `orderBy` from variables, enriched with schema type info.
         let order_by = if query_def.auto_params.has_order_by {
             vars.and_then(|v| v.get("orderBy"))
                 .map(OrderByClause::from_graphql_json)
                 .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.schema,
+                        &query_def.return_type,
+                        &query_def.native_columns,
+                    )
+                })
         } else {
             None
         };

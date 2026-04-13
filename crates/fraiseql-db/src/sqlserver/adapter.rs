@@ -12,6 +12,7 @@ use super::where_generator::SqlServerWhereGenerator;
 use crate::{
     dialect::SqlServerDialect,
     identifier::quote_sqlserver_identifier,
+    order_by::append_order_by,
     traits::{
         CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
     },
@@ -260,11 +261,11 @@ impl DatabaseAdapter for SqlServerAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let Some(projection) = projection else {
@@ -272,14 +273,13 @@ impl DatabaseAdapter for SqlServerAdapter {
             unreachable!("projection is Some; None case returned above");
         };
 
-        // Build SQL with SQL Server-specific JSON projection
-        // The projection_template contains the SELECT clause with JSON functions
-        // SQL Server uses square brackets for identifiers and TOP for LIMIT
+        // Build SQL with SQL Server-specific JSON projection.
         // TOP and OFFSET...FETCH are mutually exclusive in T-SQL, so only use
-        // TOP when there is no OFFSET (otherwise OFFSET...FETCH handles both).
+        // TOP when there is no OFFSET and no ORDER BY (otherwise OFFSET...FETCH
+        // handles both, and ORDER BY requires the OFFSET...FETCH form).
+        let needs_offset_fetch = offset.is_some() || order_by.is_some_and(|c| !c.is_empty());
         let mut sql = if let Some(lim) = limit {
-            if offset.is_some() {
-                // With OFFSET, we use OFFSET...FETCH instead of TOP
+            if needs_offset_fetch {
                 format!(
                     "SELECT {} FROM {}",
                     projection.projection_template,
@@ -312,11 +312,17 @@ impl DatabaseAdapter for SqlServerAdapter {
             Vec::new()
         };
 
-        // Add OFFSET/FETCH for pagination (SQL Server requires ORDER BY for OFFSET).
+        // ORDER BY + pagination for SQL Server.
+        // T-SQL requires ORDER BY for OFFSET...FETCH. When the user provides
+        // order_by, use it; otherwise fall back to `ORDER BY (SELECT NULL)`.
         // Reason (expect below): fmt::Write for String is infallible.
-        if let Some(off) = offset {
-            // SQL Server requires ORDER BY for OFFSET/FETCH NEXT syntax
-            write!(sql, " ORDER BY (SELECT NULL) OFFSET {off} ROWS").expect("write to String");
+        let has_order = append_order_by(&mut sql, order_by, DatabaseType::SQLServer)?;
+        if needs_offset_fetch {
+            if !has_order {
+                sql.push_str(" ORDER BY (SELECT NULL)");
+            }
+            let off = offset.unwrap_or(0);
+            write!(sql, " OFFSET {off} ROWS").expect("write to String");
             if let Some(lim) = limit {
                 write!(sql, " FETCH NEXT {lim} ROWS ONLY").expect("write to String");
             }
@@ -336,13 +342,15 @@ impl DatabaseAdapter for SqlServerAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        // Build base query - SQL Server uses square brackets for identifiers
-        // SQL Server uses TOP instead of LIMIT, and OFFSET...FETCH for pagination
+        // Build base query — SQL Server uses square brackets for identifiers.
+        // TOP and OFFSET...FETCH are mutually exclusive in T-SQL.
+        // When ORDER BY is provided, always use OFFSET...FETCH (even without offset)
+        // so the ordering is honoured with LIMIT.
+        let needs_offset_fetch = offset.is_some() || order_by.is_some_and(|c| !c.is_empty());
         let mut sql = if let Some(lim) = limit {
-            if offset.is_some() {
-                // With OFFSET, we need ORDER BY for pagination
+            if needs_offset_fetch {
                 format!("SELECT data FROM {}", quote_sqlserver_identifier(view))
             } else {
                 format!("SELECT TOP {lim} data FROM {}", quote_sqlserver_identifier(view))
@@ -364,11 +372,16 @@ impl DatabaseAdapter for SqlServerAdapter {
                 (Vec::new(), 0)
             };
 
-        // Handle pagination with OFFSET...FETCH (requires ORDER BY).
-        // SQL Server uses @p1, @p2, ... for parameters.
+        // ORDER BY + pagination for SQL Server.
+        // T-SQL requires ORDER BY for OFFSET...FETCH. When the user provides
+        // order_by, use it; otherwise fall back to `ORDER BY (SELECT NULL)`.
         // Reason (expect below): fmt::Write for String is infallible.
-        if let Some(off) = offset {
-            sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
+        let has_order = append_order_by(&mut sql, order_by, DatabaseType::SQLServer)?;
+        if needs_offset_fetch {
+            if !has_order {
+                sql.push_str(" ORDER BY (SELECT NULL)");
+            }
+            let off = offset.unwrap_or(0);
             param_count += 1;
             write!(sql, " OFFSET @p{param_count} ROWS").expect("write to String");
             params.push(serde_json::Value::Number(off.into()));
@@ -1000,10 +1013,7 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_order_sql_forward_custom_order_by_asc() {
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Asc)];
         let sql = build_relay_order_sql("[id]", Some(&order_by), true);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') ASC, [id] ASC");
     }
@@ -1012,20 +1022,14 @@ mod relay_sql_tests {
     fn test_build_relay_order_sql_backward_custom_order_by_asc_flips_to_desc() {
         // KEY TEST: backward pagination must flip ASC → DESC so the inner
         // FETCH NEXT subquery retrieves the correct N rows before the cursor.
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Asc)];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') DESC, [id] DESC");
     }
 
     #[test]
     fn test_build_relay_order_sql_backward_custom_order_by_desc_flips_to_asc() {
-        let order_by = vec![OrderByClause {
-            field:     "created_at".to_string(),
-            direction: OrderDirection::Desc,
-        }];
+        let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Desc)];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.created_at') ASC, [id] DESC");
     }
@@ -1033,14 +1037,8 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_multi_column_forward() {
         let order_by = vec![
-            OrderByClause {
-                field:     "a".to_string(),
-                direction: OrderDirection::Asc,
-            },
-            OrderByClause {
-                field:     "b".to_string(),
-                direction: OrderDirection::Desc,
-            },
+            OrderByClause::new("a".to_string(), OrderDirection::Asc),
+            OrderByClause::new("b".to_string(), OrderDirection::Desc),
         ];
         let sql = build_relay_order_sql("[id]", Some(&order_by), true);
         assert_eq!(
@@ -1052,14 +1050,8 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_multi_column_backward_all_flipped() {
         let order_by = vec![
-            OrderByClause {
-                field:     "a".to_string(),
-                direction: OrderDirection::Asc,
-            },
-            OrderByClause {
-                field:     "b".to_string(),
-                direction: OrderDirection::Desc,
-            },
+            OrderByClause::new("a".to_string(), OrderDirection::Asc),
+            OrderByClause::new("b".to_string(), OrderDirection::Desc),
         ];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(
@@ -1078,20 +1070,14 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_backward_outer_order_sql_with_custom_asc() {
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Asc)];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
         assert_eq!(sql, " ORDER BY _relay_sort_0 ASC, _relay_cursor ASC");
     }
 
     #[test]
     fn test_build_relay_backward_outer_order_sql_desc_preserved() {
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Desc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Desc)];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
         assert_eq!(sql, " ORDER BY _relay_sort_0 DESC, _relay_cursor ASC");
     }

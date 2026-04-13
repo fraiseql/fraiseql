@@ -19,7 +19,7 @@
 
 use fraiseql_error::FraiseQLError;
 
-use crate::types::DatabaseType;
+use crate::types::{DatabaseType, sql_hints::OrderByFieldType};
 
 // ============================================================================
 // Feature enum
@@ -77,6 +77,113 @@ impl Feature {
 // ============================================================================
 
 impl DatabaseType {
+    /// Return a SQL expression that extracts a text value from the `data` JSONB column.
+    ///
+    /// The `key` must already be validated via [`OrderByClause::validate_field_name`]
+    /// and converted to snake_case storage form via [`OrderByClause::storage_key`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fraiseql_db::DatabaseType;
+    ///
+    /// assert_eq!(DatabaseType::PostgreSQL.json_field_expr("created_at"), "data->>'created_at'");
+    /// assert_eq!(DatabaseType::MySQL.json_field_expr("name"), "JSON_UNQUOTE(JSON_EXTRACT(data, '$.name'))");
+    /// ```
+    #[must_use]
+    pub fn json_field_expr(self, key: &str) -> String {
+        match self {
+            Self::PostgreSQL => format!("data->>'{key}'"),
+            Self::MySQL => format!("JSON_UNQUOTE(JSON_EXTRACT(data, '$.{key}'))"),
+            Self::SQLite => format!("json_extract(data, '$.{key}')"),
+            Self::SQLServer => format!("JSON_VALUE(data, '$.{key}')"),
+        }
+    }
+
+    /// Return a SQL expression that extracts and casts a value from the `data` JSONB
+    /// column for ORDER BY sorting.
+    ///
+    /// When `field_type` is [`OrderByFieldType::Text`] this is identical to
+    /// [`json_field_expr`](Self::json_field_expr). For numeric, date, and boolean
+    /// types the expression is wrapped in a dialect-specific cast so the database
+    /// sorts by the typed value instead of the raw text (`"9" > "10"` is wrong for
+    /// numbers).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fraiseql_db::{DatabaseType, OrderByFieldType};
+    ///
+    /// assert_eq!(
+    ///     DatabaseType::PostgreSQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+    ///     "(data->>'amount')::numeric"
+    /// );
+    /// assert_eq!(
+    ///     DatabaseType::MySQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+    ///     "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.amount')) AS DECIMAL(38,12))"
+    /// );
+    /// ```
+    #[must_use]
+    pub fn typed_json_field_expr(self, key: &str, field_type: OrderByFieldType) -> String {
+        use OrderByFieldType as F;
+
+        // Text needs no cast — the raw extraction is already text.
+        if field_type == F::Text {
+            return self.json_field_expr(key);
+        }
+
+        let base = self.json_field_expr(key);
+
+        match self {
+            Self::PostgreSQL => {
+                let pg_type = match field_type {
+                    F::Text => unreachable!(),
+                    F::Integer => "bigint",
+                    F::Numeric => "numeric",
+                    F::Boolean => "boolean",
+                    F::DateTime => "timestamptz",
+                    F::Date => "date",
+                    F::Time => "time",
+                };
+                format!("({base})::{pg_type}")
+            },
+            Self::MySQL => {
+                let mysql_type = match field_type {
+                    F::Text => unreachable!(),
+                    F::Integer => "SIGNED",
+                    F::Numeric => "DECIMAL(38,12)",
+                    F::Boolean => "UNSIGNED",
+                    F::DateTime => "DATETIME",
+                    F::Date => "DATE",
+                    F::Time => "TIME",
+                };
+                format!("CAST({base} AS {mysql_type})")
+            },
+            Self::SQLite => {
+                // SQLite has limited type affinity; CAST works for REAL/INTEGER.
+                let sqlite_type = match field_type {
+                    F::Text => unreachable!(),
+                    F::Integer | F::Boolean => "INTEGER",
+                    F::Numeric => "REAL",
+                    F::DateTime | F::Date | F::Time => "TEXT", // ISO-8601 sorts correctly as text
+                };
+                format!("CAST({base} AS {sqlite_type})")
+            },
+            Self::SQLServer => {
+                let sqlserver_type = match field_type {
+                    F::Text => unreachable!(),
+                    F::Integer => "BIGINT",
+                    F::Numeric => "DECIMAL(38,12)",
+                    F::Boolean => "BIT",
+                    F::DateTime => "DATETIME2",
+                    F::Date => "DATE",
+                    F::Time => "TIME",
+                };
+                format!("CAST({base} AS {sqlserver_type})")
+            },
+        }
+    }
+
     /// Check whether this dialect supports `feature`.
     ///
     /// All checks are `const`-friendly and zero-cost at runtime.
@@ -375,6 +482,132 @@ mod tests {
         assert!(
             msg.contains("docs/database-compatibility.md"),
             "check_all error must link to compatibility docs: {msg}"
+        );
+    }
+
+    // --- DatabaseType::json_field_expr ---
+
+    #[test]
+    fn test_json_field_expr_postgres() {
+        assert_eq!(
+            DatabaseType::PostgreSQL.json_field_expr("created_at"),
+            "data->>'created_at'"
+        );
+    }
+
+    #[test]
+    fn test_json_field_expr_mysql() {
+        assert_eq!(
+            DatabaseType::MySQL.json_field_expr("name"),
+            "JSON_UNQUOTE(JSON_EXTRACT(data, '$.name'))"
+        );
+    }
+
+    #[test]
+    fn test_json_field_expr_sqlite() {
+        assert_eq!(
+            DatabaseType::SQLite.json_field_expr("email"),
+            "json_extract(data, '$.email')"
+        );
+    }
+
+    #[test]
+    fn test_json_field_expr_sqlserver() {
+        assert_eq!(
+            DatabaseType::SQLServer.json_field_expr("status"),
+            "JSON_VALUE(data, '$.status')"
+        );
+    }
+
+    // --- DatabaseType::typed_json_field_expr ---
+
+    #[test]
+    fn test_typed_expr_text_is_plain_extraction() {
+        // Text type should produce the same result as json_field_expr
+        assert_eq!(
+            DatabaseType::PostgreSQL.typed_json_field_expr("name", OrderByFieldType::Text),
+            DatabaseType::PostgreSQL.json_field_expr("name"),
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_postgres_numeric() {
+        assert_eq!(
+            DatabaseType::PostgreSQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+            "(data->>'amount')::numeric"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_postgres_integer() {
+        assert_eq!(
+            DatabaseType::PostgreSQL.typed_json_field_expr("count", OrderByFieldType::Integer),
+            "(data->>'count')::bigint"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_postgres_datetime() {
+        assert_eq!(
+            DatabaseType::PostgreSQL.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
+            "(data->>'created_at')::timestamptz"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_postgres_boolean() {
+        assert_eq!(
+            DatabaseType::PostgreSQL.typed_json_field_expr("active", OrderByFieldType::Boolean),
+            "(data->>'active')::boolean"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_mysql_numeric() {
+        assert_eq!(
+            DatabaseType::MySQL.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+            "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.amount')) AS DECIMAL(38,12))"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_mysql_integer() {
+        assert_eq!(
+            DatabaseType::MySQL.typed_json_field_expr("count", OrderByFieldType::Integer),
+            "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.count')) AS SIGNED)"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_sqlite_numeric() {
+        assert_eq!(
+            DatabaseType::SQLite.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+            "CAST(json_extract(data, '$.amount') AS REAL)"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_sqlite_datetime_is_text() {
+        // SQLite: ISO-8601 dates sort correctly as TEXT
+        assert_eq!(
+            DatabaseType::SQLite.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
+            "CAST(json_extract(data, '$.created_at') AS TEXT)"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_sqlserver_numeric() {
+        assert_eq!(
+            DatabaseType::SQLServer.typed_json_field_expr("amount", OrderByFieldType::Numeric),
+            "CAST(JSON_VALUE(data, '$.amount') AS DECIMAL(38,12))"
+        );
+    }
+
+    #[test]
+    fn test_typed_expr_sqlserver_datetime() {
+        assert_eq!(
+            DatabaseType::SQLServer.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
+            "CAST(JSON_VALUE(data, '$.created_at') AS DATETIME2)"
         );
     }
 

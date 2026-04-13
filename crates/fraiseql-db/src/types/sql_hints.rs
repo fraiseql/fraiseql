@@ -8,26 +8,64 @@
 use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::projection_generator::to_snake_case;
 use crate::types::db_types::DatabaseType;
 
-/// ORDER BY clause
+/// SQL sort type for ORDER BY cast generation.
 ///
-/// # Numeric field sorting
+/// Determines whether the SQL generator wraps the extracted JSONB text in a
+/// type cast (e.g., `(data->>'amount')::numeric`) to ensure correct sort order.
+/// Without a cast, all JSONB extractions are `text` and sort lexicographically,
+/// which is wrong for numeric and date/time fields (`"9" > "10"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum OrderByFieldType {
+    /// No cast — text/string sort (correct for strings, UUIDs, enum values).
+    #[default]
+    Text,
+    /// Cast to integer type (`::bigint` / `CAST(... AS BIGINT)`).
+    Integer,
+    /// Cast to floating-point/numeric type (`::numeric` / `CAST(... AS DECIMAL(38,12))`).
+    Numeric,
+    /// Cast to boolean (`::boolean` / `CAST(... AS UNSIGNED)`).
+    Boolean,
+    /// Cast to timestamp (`::timestamptz` / `CAST(... AS DATETIME)`).
+    /// Also used for ISO-8601 date-time strings which sort correctly as text,
+    /// but the cast ensures the database optimizer can use typed comparisons.
+    DateTime,
+    /// Cast to date (`::date` / `CAST(... AS DATE)`).
+    Date,
+    /// Cast to time (`::time` / `CAST(... AS TIME)`).
+    Time,
+}
+
+/// ORDER BY clause with optional type and native column information.
 ///
-/// When sorting on a JSONB field via relay pagination, the value is
-/// extracted as `text` using `data->>'field'`. This means **numeric
-/// JSON fields sort lexicographically** (`"9" > "10"`), which is
-/// incorrect for integer and float data.
+/// The SQL generator uses `field_type` to emit the correct type cast for
+/// JSONB-extracted values, and `native_column` to bypass JSONB extraction
+/// entirely when the view exposes a dedicated typed column.
 ///
-/// Workaround: expose integer sort keys as a dedicated typed column
-/// in the database view. String and ISO-8601 date/time fields sort
-/// correctly without this workaround.
+/// # Sort correctness by source
+///
+/// | Source | Text fields | Numeric fields | Date fields |
+/// |--------|------------|----------------|-------------|
+/// | JSONB (no cast) | Correct | **Wrong** (lexicographic) | Correct (ISO-8601) |
+/// | JSONB (with cast) | Correct | Correct | Correct |
+/// | Native column | Correct | Correct | Correct + indexable |
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderByClause {
-    /// Field to order by (can be dimension, aggregate, or temporal bucket)
+    /// Field to order by (GraphQL camelCase name).
     pub field:     String,
-    /// Sort direction
+    /// Sort direction.
     pub direction: OrderDirection,
+    /// Field type for SQL cast generation. `Text` (default) means no cast.
+    #[serde(default)]
+    pub field_type: OrderByFieldType,
+    /// Native column name if the view exposes this field as a typed column.
+    /// When set, ORDER BY uses this column directly instead of JSONB extraction,
+    /// enabling index support and correct typing without casts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_column: Option<String>,
 }
 
 /// Sort direction
@@ -40,7 +78,45 @@ pub enum OrderDirection {
     Desc,
 }
 
+impl OrderDirection {
+    /// Return the SQL keyword for this direction.
+    #[must_use]
+    pub const fn as_sql(self) -> &'static str {
+        match self {
+            Self::Asc => "ASC",
+            Self::Desc => "DESC",
+        }
+    }
+}
+
 impl OrderByClause {
+    /// Create a new `OrderByClause` with default field type (text) and no native column.
+    #[must_use]
+    pub fn new(field: String, direction: OrderDirection) -> Self {
+        Self {
+            field,
+            direction,
+            field_type:    OrderByFieldType::default(),
+            native_column: None,
+        }
+    }
+
+    /// Convert the GraphQL camelCase field name to the JSONB snake_case storage key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fraiseql_db::OrderByClause;
+    /// use fraiseql_db::OrderDirection;
+    ///
+    /// let clause = OrderByClause::new("createdAt".to_string(), OrderDirection::Asc);
+    /// assert_eq!(clause.storage_key(), "created_at");
+    /// ```
+    #[must_use]
+    pub fn storage_key(&self) -> String {
+        to_snake_case(&self.field)
+    }
+
     /// Validate that a field name matches the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*`.
     ///
     /// This is a security boundary: field names are interpolated into SQL `data->>'field'`
@@ -50,7 +126,7 @@ impl OrderByClause {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if the field contains invalid characters.
-    fn validate_field_name(field: &str) -> Result<()> {
+    pub fn validate_field_name(field: &str) -> Result<()> {
         let mut chars = field.chars();
         let first_ok = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
         let rest_ok = chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
@@ -100,10 +176,7 @@ impl OrderByClause {
                         },
                     };
                     Self::validate_field_name(field)?;
-                    Ok(Self {
-                        field: field.clone(),
-                        direction,
-                    })
+                    Ok(Self::new(field.clone(), direction))
                 })
                 .collect()
         } else if let Some(arr) = value.as_array() {
@@ -136,7 +209,7 @@ impl OrderByClause {
                         },
                     };
                     Self::validate_field_name(&field)?;
-                    Ok(Self { field, direction })
+                    Ok(Self::new(field, direction))
                 })
                 .collect()
         } else {
@@ -166,4 +239,64 @@ pub struct SqlProjectionHint {
 
     /// Estimated reduction in payload size (percentage 0-100).
     pub estimated_reduction_percent: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::*;
+
+    // ── storage_key ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_storage_key_camel_to_snake() {
+        let clause = OrderByClause::new("createdAt".into(), OrderDirection::Asc);
+        assert_eq!(clause.storage_key(), "created_at");
+    }
+
+    #[test]
+    fn test_storage_key_multi_word() {
+        let clause = OrderByClause::new("firstName".into(), OrderDirection::Desc);
+        assert_eq!(clause.storage_key(), "first_name");
+    }
+
+    #[test]
+    fn test_storage_key_already_snake() {
+        let clause = OrderByClause::new("id".into(), OrderDirection::Asc);
+        assert_eq!(clause.storage_key(), "id");
+    }
+
+    #[test]
+    fn test_storage_key_long_camel() {
+        let clause =
+            OrderByClause::new("updatedAtTimestamp".into(), OrderDirection::Asc);
+        assert_eq!(clause.storage_key(), "updated_at_timestamp");
+    }
+
+    // ── OrderDirection::as_sql ────────────────────────────────────────────
+
+    #[test]
+    fn test_order_direction_as_sql() {
+        assert_eq!(OrderDirection::Asc.as_sql(), "ASC");
+        assert_eq!(OrderDirection::Desc.as_sql(), "DESC");
+    }
+
+    // ── validate_field_name ───────────────────────────────────────────────
+
+    #[test]
+    fn test_validate_field_name_accepts_valid() {
+        assert!(OrderByClause::validate_field_name("id").is_ok());
+        assert!(OrderByClause::validate_field_name("createdAt").is_ok());
+        assert!(OrderByClause::validate_field_name("_private").is_ok());
+        assert!(OrderByClause::validate_field_name("field123").is_ok());
+    }
+
+    #[test]
+    fn test_validate_field_name_rejects_injection() {
+        assert!(OrderByClause::validate_field_name("'; DROP TABLE users; --").is_err());
+        assert!(OrderByClause::validate_field_name("field name").is_err());
+        assert!(OrderByClause::validate_field_name("123start").is_err());
+        assert!(OrderByClause::validate_field_name("").is_err());
+    }
 }

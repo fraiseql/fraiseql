@@ -631,10 +631,7 @@ impl AggregateQueryParser {
                     _ => OrderDirection::Asc, // Default to ASC
                 };
 
-                clauses.push(OrderByClause {
-                    field: field.clone(),
-                    direction,
-                });
+                clauses.push(OrderByClause::new(field.clone(), direction));
             }
         }
 

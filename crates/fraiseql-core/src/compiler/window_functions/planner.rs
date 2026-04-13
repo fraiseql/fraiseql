@@ -91,10 +91,10 @@ impl WindowFunctionPlanner {
                             Some("DESC") => OrderDirection::Desc,
                             _ => OrderDirection::Asc,
                         };
-                        Some(OrderByClause {
-                            field: item["field"].as_str()?.to_string(),
+                        Some(OrderByClause::new(
+                            item["field"].as_str()?.to_string(),
                             direction,
-                        })
+                        ))
                     })
                     .collect()
             })
@@ -194,10 +194,7 @@ impl WindowFunctionPlanner {
                         validate_sql_expression(field, "orderBy.field")?;
                         // Layer 2: schema-based allowlist (defence-in-depth)
                         allowlist.validate(field, "ORDER BY")?;
-                        Ok(OrderByClause {
-                            field: field.to_string(),
-                            direction,
-                        })
+                        Ok(OrderByClause::new(field.to_string(), direction))
                     })
                     .collect()
             })

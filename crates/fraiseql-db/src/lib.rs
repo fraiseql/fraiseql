@@ -47,6 +47,7 @@ pub mod where_generator;
 // DB adapter modules (from the old db/ directory)
 pub mod collation;
 pub mod identifier;
+pub mod order_by;
 pub mod path_escape;
 pub mod projection_generator;
 pub mod traits;
@@ -107,7 +108,7 @@ pub use traits::{
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics,
-    sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
+    sql_hints::{OrderByClause, OrderByFieldType, OrderDirection, SqlProjectionHint},
 };
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_generator::GenericWhereGenerator;

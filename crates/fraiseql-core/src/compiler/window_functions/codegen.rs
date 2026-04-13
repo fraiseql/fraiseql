@@ -299,10 +299,7 @@ impl WindowPlanner {
         metadata: &FactTableMetadata,
     ) -> Result<OrderByClause> {
         let field = Self::resolve_field_to_sql(&order.field, metadata)?;
-        Ok(OrderByClause {
-            field,
-            direction: order.direction,
-        })
+        Ok(OrderByClause::new(field, order.direction))
     }
 
     /// Convert final ORDER BY to SQL expressions.
