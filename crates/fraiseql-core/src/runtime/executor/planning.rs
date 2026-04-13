@@ -115,7 +115,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 views_accessed: Vec::new(),
                 query_type:     "federation".to_string(),
             }),
-            QueryType::NodeQuery => Ok(super::super::ExplainPlan {
+            QueryType::NodeQuery { .. } => Ok(super::super::ExplainPlan {
                 sql:            String::new(),
                 parameters:     Vec::new(),
                 estimated_cost: 50,

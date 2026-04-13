@@ -6,8 +6,8 @@ open System.Text.RegularExpressions
 ///
 /// Generated operations follow FraiseQL conventions:
 ///   - Read:   query <snake> (get by PK) + query <snake>s (list with auto_params)
-///   - Create: mutation create_<snake> with all fields as arguments
-///   - Update: mutation update_<snake> with PK required, other fields nullable
+///   - Create: mutation create_<snake> with a Create<Type>Input input object
+///   - Update: mutation update_<snake> with an Update<Type>Input input object
 ///   - Delete: mutation delete_<snake> with PK only
 module CrudGenerator =
 
@@ -35,9 +35,9 @@ module CrudGenerator =
         else
             name + "s"
 
-    /// Generates CRUD queries and mutations for the given type.
+    /// Generates CRUD queries, mutations, and input types for the given type.
     ///
-    /// Returns a tuple of (queries, mutations).
+    /// Returns a tuple of (queries, mutations, input_types).
     ///
     /// # Errors
     ///
@@ -47,7 +47,7 @@ module CrudGenerator =
         (fields: FieldDefinition list)
         (sqlSource: string)
         (cascade: bool)
-        : QueryDefinition list * MutationDefinition list
+        : QueryDefinition list * MutationDefinition list * InputTypeDefinition list
         =
         if fields.IsEmpty then
             raise (
@@ -66,6 +66,40 @@ module CrudGenerator =
 
         let pkField = fields.[0]
         let cascadeValue = if cascade then Some true else None
+
+        let createInputName = sprintf "Create%sInput" typeName
+
+        let createInputType: InputTypeDefinition =
+            {
+                name = createInputName
+                fields =
+                    fields
+                    |> List.map (fun f ->
+                        {
+                            name = f.name
+                            type_ = f.type_
+                            nullable = f.nullable
+                        })
+                description = Some(sprintf "Input for creating a new %s." typeName)
+            }
+
+        let updateInputName = sprintf "Update%sInput" typeName
+
+        let updateInputType: InputTypeDefinition =
+            {
+                name = updateInputName
+                fields =
+                    { name = pkField.name; type_ = pkField.type_; nullable = false }
+                    :: (fields
+                        |> List.tail
+                        |> List.map (fun f ->
+                            {
+                                name = f.name
+                                type_ = f.type_
+                                nullable = true
+                            }))
+                description = Some(sprintf "Input for updating an existing %s." typeName)
+            }
 
         let queries =
             [
@@ -104,45 +138,43 @@ module CrudGenerator =
 
         let mutations =
             [
-                // Create mutation — all fields as arguments
+                // Create mutation — single input object argument
                 {
                     name = "create_" + snake
                     return_type = typeName
                     sql_source = "fn_create_" + snake
                     operation = "INSERT"
                     arguments =
-                        fields
-                        |> List.map (fun f ->
+                        [
                             {
-                                name = f.name
-                                type_ = f.type_
-                                nullable = f.nullable
-                            })
+                                name = "input"
+                                type_ = createInputName
+                                nullable = false
+                            }
+                        ]
                     description = Some(sprintf "Create a new %s." typeName)
                     rest = None
                     cascade = cascadeValue
                 }
-                // Update mutation — PK required, rest nullable
+                // Update mutation — single input object argument
                 {
                     name = "update_" + snake
                     return_type = typeName
                     sql_source = "fn_update_" + snake
                     operation = "UPDATE"
                     arguments =
-                        { name = pkField.name; type_ = pkField.type_; nullable = false }
-                        :: (fields
-                            |> List.tail
-                            |> List.map (fun f ->
-                                {
-                                    name = f.name
-                                    type_ = f.type_
-                                    nullable = true
-                                }))
+                        [
+                            {
+                                name = "input"
+                                type_ = updateInputName
+                                nullable = false
+                            }
+                        ]
                     description = Some(sprintf "Update an existing %s." typeName)
                     rest = None
                     cascade = cascadeValue
                 }
-                // Delete mutation — PK only
+                // Delete mutation — PK only (unchanged)
                 {
                     name = "delete_" + snake
                     return_type = typeName
@@ -162,4 +194,6 @@ module CrudGenerator =
                 }
             ]
 
-        (queries, mutations)
+        let inputTypes = [ createInputType; updateInputType ]
+
+        (queries, mutations, inputTypes)

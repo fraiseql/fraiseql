@@ -10,8 +10,8 @@ import java.util.regex.*;
  * creates the following operations:
  * <ul>
  *   <li>Read: get-by-ID query + list query with auto_params</li>
- *   <li>Create: insert mutation with all fields as arguments</li>
- *   <li>Update: update mutation with PK required, other fields nullable</li>
+ *   <li>Create: insert mutation with a {@code Create{TypeName}Input} input object</li>
+ *   <li>Update: update mutation with an {@code Update{TypeName}Input} input object (PK required, others nullable)</li>
  *   <li>Delete: delete mutation with PK only</li>
  * </ul>
  */
@@ -86,22 +86,37 @@ public final class CrudGenerator {
             new LinkedHashMap<>(), "List " + typeName + " records.",
             false, view, null, null, null);
 
-        // Create mutation: all fields as arguments
-        Map<String, String> createArgs = new LinkedHashMap<>();
+        // Create mutation: register input type, then use single "input" argument
+        String createInputName = "Create" + typeName + "Input";
+        Map<String, TypeConverter.GraphQLFieldInfo> createInputFields = new LinkedHashMap<>();
         for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fieldList) {
-            createArgs.put(entry.getKey(), entry.getValue().type);
+            createInputFields.put(entry.getKey(), entry.getValue());
         }
+        registry.registerInputType(createInputName, createInputFields,
+            "Input for creating a new " + typeName + ".");
+
+        Map<String, String> createArgs = new LinkedHashMap<>();
+        createArgs.put("input", createInputName);
         registry.registerMutation("create_" + snake, typeName, createArgs,
             "Create a new " + typeName + ".", "fn_create_" + snake, "INSERT",
             null, null, null, cascade);
 
-        // Update mutation: PK required, other fields nullable
-        Map<String, String> updateArgs = new LinkedHashMap<>();
-        updateArgs.put(pkName, pkType);
+        // Update mutation: register input type (PK required, others nullable), then use single "input" argument
+        String updateInputName = "Update" + typeName + "Input";
+        Map<String, TypeConverter.GraphQLFieldInfo> updateInputFields = new LinkedHashMap<>();
+        updateInputFields.put(pkName, pkEntry.getValue());
         for (int i = 1; i < fieldList.size(); i++) {
             Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry = fieldList.get(i);
-            updateArgs.put(entry.getKey(), entry.getValue().type);
+            TypeConverter.GraphQLFieldInfo original = entry.getValue();
+            TypeConverter.GraphQLFieldInfo nullableField = new TypeConverter.GraphQLFieldInfo(
+                original.name, original.type, true, original.description);
+            updateInputFields.put(entry.getKey(), nullableField);
         }
+        registry.registerInputType(updateInputName, updateInputFields,
+            "Input for updating an existing " + typeName + ".");
+
+        Map<String, String> updateArgs = new LinkedHashMap<>();
+        updateArgs.put("input", updateInputName);
         registry.registerMutation("update_" + snake, typeName, updateArgs,
             "Update an existing " + typeName + ".", "fn_update_" + snake, "UPDATE",
             null, null, null, cascade);

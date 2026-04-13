@@ -10,6 +10,7 @@ use crate::{
         suggest_similar,
     },
     security::SecurityContext,
+    utils::casing::{to_camel_case, to_snake_case},
 };
 
 /// Compile-time enforcement: `SqliteAdapter` must NOT implement `SupportsMutations`.
@@ -222,22 +223,58 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Build positional args Vec from variables in ArgumentDefinition order. Validate that
         //    every required (non-nullable, no default) argument is present.
+        //
+        //    Input object unwrapping: when the mutation has a single argument named "input"
+        //    whose type is an Input type, AND the client sends a JSON object for that argument,
+        //    unwrap the object's fields and pass them positionally in the order defined by the
+        //    input type's field list.  This keeps the SQL function signature flat while letting
+        //    the GraphQL API use the standard input object pattern.
         let vars_obj = variables.and_then(|v| v.as_object());
 
         let mut missing_required: Vec<&str> = Vec::new();
         let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
         let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
-        args.extend(mutation_def.arguments.iter().map(|arg| {
-            let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
-            if let Some(v) = value {
-                v
-            } else {
-                if !arg.nullable && arg.default_value.is_none() {
-                    missing_required.push(&arg.name);
-                }
-                arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+
+        // Detect single-input-object pattern
+        let input_type_name = if mutation_def.arguments.len() == 1
+            && mutation_def.arguments[0].name == "input"
+        {
+            match &mutation_def.arguments[0].arg_type {
+                crate::schema::FieldType::Input(name) => Some(name.as_str()),
+                _ => None,
             }
-        }));
+        } else {
+            None
+        };
+
+        if let Some(input_type) = input_type_name.and_then(|n| self.schema.find_input_type(n)) {
+            // Unwrap input object: extract fields in the order defined by the input type
+            let input_obj = vars_obj
+                .and_then(|obj| obj.get("input"))
+                .and_then(|v| v.as_object());
+
+            if let Some(input_obj) = input_obj {
+                for field in &input_type.fields {
+                    let value = input_obj.get(&field.name).cloned();
+                    args.push(value.unwrap_or(serde_json::Value::Null));
+                }
+            } else if !mutation_def.arguments[0].nullable {
+                missing_required.push("input");
+            }
+        } else {
+            // Standard argument handling (flat arguments, no input object)
+            args.extend(mutation_def.arguments.iter().map(|arg| {
+                let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
+                if let Some(v) = value {
+                    v
+                } else {
+                    if !arg.nullable && arg.default_value.is_none() {
+                        missing_required.push(&arg.name);
+                    }
+                    arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+                }
+            }));
+        }
 
         if !missing_required.is_empty() {
             return Err(FraiseQLError::Validation {
@@ -374,7 +411,30 @@ impl<A: DatabaseAdapter> Executor<A> {
                     })
                     .unwrap_or_else(|| mutation_return_type.clone());
 
-                let mut obj = entity.as_object().cloned().unwrap_or_default();
+                let raw_obj = entity.as_object().cloned().unwrap_or_default();
+
+                // Remap snake_case keys from the SQL function to camelCase for
+                // GraphQL clients.  Uses the type's field definitions so that
+                // the rename is deterministic and matches the compiled schema.
+                let mut obj = if let Some(td) = self.schema.find_type(&typename) {
+                    let mut mapped = serde_json::Map::with_capacity(raw_obj.len());
+                    for (k, v) in &raw_obj {
+                        let camel = td
+                            .fields
+                            .iter()
+                            .find(|f| to_snake_case(f.name.as_str()) == *k || f.name.as_str() == k)
+                            .map_or_else(|| to_camel_case(k), |f| f.name.to_string());
+                        mapped.insert(camel, v.clone());
+                    }
+                    mapped
+                } else {
+                    // No type definition — best-effort camelCase conversion
+                    raw_obj
+                        .into_iter()
+                        .map(|(k, v)| (to_camel_case(&k), v))
+                        .collect()
+                };
+
                 obj.insert("__typename".to_string(), serde_json::Value::String(typename));
 
                 // Apply selection set filtering: only include requested fields (plus __typename)

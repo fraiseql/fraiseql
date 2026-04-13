@@ -242,7 +242,9 @@ impl<A: DatabaseAdapter> Executor<A> {
                 )
                 .await
             },
-            QueryType::NodeQuery => self.execute_node_query(query, variables).await,
+            QueryType::NodeQuery { selections } => {
+                self.execute_node_query(query, variables, &selections).await
+            },
         }
     }
 

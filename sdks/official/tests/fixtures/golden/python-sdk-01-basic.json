@@ -31,7 +31,7 @@
   ],
   "mutations": [
     {
-      "name":         "create_user",
+      "name":         "createUser",
       "return_type":  "User",
       "returns_list": false,
       "nullable":     false,

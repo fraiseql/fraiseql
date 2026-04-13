@@ -10,8 +10,8 @@ namespace FraiseQL;
 /// <para>Generated operations follow FraiseQL conventions:</para>
 /// <list type="bullet">
 /// <item>Read: query <c>&lt;snake&gt;</c> (get by PK) + query <c>&lt;snake&gt;s</c> (list with auto_params)</item>
-/// <item>Create: mutation <c>create_&lt;snake&gt;</c> with all fields as arguments</item>
-/// <item>Update: mutation <c>update_&lt;snake&gt;</c> with PK required, other fields nullable</item>
+/// <item>Create: mutation <c>create_&lt;snake&gt;</c> with a <c>Create{Type}Input</c> input object</item>
+/// <item>Update: mutation <c>update_&lt;snake&gt;</c> with an <c>Update{Type}Input</c> input object</item>
 /// <item>Delete: mutation <c>delete_&lt;snake&gt;</c> with PK only</item>
 /// </list>
 /// </remarks>
@@ -47,9 +47,9 @@ public static class CrudGenerator
     /// <param name="fields">The fields on this type. The first field is assumed to be the primary key.</param>
     /// <param name="sqlSource">Optional SQL source override. Defaults to <c>v_&lt;snake&gt;</c>.</param>
     /// <param name="cascade">When <see langword="true"/>, generated mutations include cascade support.</param>
-    /// <returns>A tuple of generated queries and mutations.</returns>
+    /// <returns>A tuple of generated queries, mutations, and input types.</returns>
     /// <exception cref="InvalidOperationException">Thrown when <paramref name="fields"/> is empty.</exception>
-    public static (IReadOnlyList<IntermediateQuery> Queries, IReadOnlyList<IntermediateMutation> Mutations)
+    public static (IReadOnlyList<IntermediateQuery> Queries, IReadOnlyList<IntermediateMutation> Mutations, IReadOnlyList<InputTypeDefinition> InputTypes)
         Generate(string typeName, IReadOnlyList<IntermediateField> fields, string? sqlSource = null, bool cascade = false)
     {
         if (fields.Count == 0)
@@ -85,37 +85,46 @@ public static class CrudGenerator
         };
 
         var mutations = new List<IntermediateMutation>();
+        var inputTypes = new List<InputTypeDefinition>();
 
-        // Create mutation — all fields as arguments
-        var createArgs = fields
-            .Select(f => new IntermediateArgument(f.Name, f.Type, f.Nullable))
+        // Create mutation — input object with all fields
+        var createInputName = $"Create{typeName}Input";
+        var createInputFields = fields
+            .Select(f => new InputFieldDefinition(f.Name, f.Type, f.Nullable))
             .ToList()
             .AsReadOnly();
+        inputTypes.Add(new InputTypeDefinition(
+            createInputName, createInputFields, $"Input for creating a new {typeName}."));
+
         mutations.Add(new IntermediateMutation(
             Name: $"create_{snake}",
             ReturnType: typeName,
             SqlSource: $"fn_create_{snake}",
             Operation: "INSERT",
-            Arguments: createArgs,
+            Arguments: new[] { new IntermediateArgument("input", createInputName, false) }.ToList().AsReadOnly(),
             Description: $"Create a new {typeName}.",
             Cascade: cascadeValue));
 
-        // Update mutation — PK required, rest nullable
-        var updateArgs = new List<IntermediateArgument>
+        // Update mutation — input object with PK required, rest nullable
+        var updateInputName = $"Update{typeName}Input";
+        var updateInputFields = new List<InputFieldDefinition>
         {
             new(pkField.Name, pkField.Type, false)
         };
-        updateArgs.AddRange(fields.Skip(1).Select(f => new IntermediateArgument(f.Name, f.Type, true)));
+        updateInputFields.AddRange(fields.Skip(1).Select(f => new InputFieldDefinition(f.Name, f.Type, true)));
+        inputTypes.Add(new InputTypeDefinition(
+            updateInputName, updateInputFields.AsReadOnly(), $"Input for updating an existing {typeName}."));
+
         mutations.Add(new IntermediateMutation(
             Name: $"update_{snake}",
             ReturnType: typeName,
             SqlSource: $"fn_update_{snake}",
             Operation: "UPDATE",
-            Arguments: updateArgs.AsReadOnly(),
+            Arguments: new[] { new IntermediateArgument("input", updateInputName, false) }.ToList().AsReadOnly(),
             Description: $"Update an existing {typeName}.",
             Cascade: cascadeValue));
 
-        // Delete mutation — PK only
+        // Delete mutation — PK only (no input object)
         mutations.Add(new IntermediateMutation(
             Name: $"delete_{snake}",
             ReturnType: typeName,
@@ -125,6 +134,25 @@ public static class CrudGenerator
             Description: $"Delete a {typeName}.",
             Cascade: cascadeValue));
 
-        return (queries.AsReadOnly(), mutations.AsReadOnly());
+        return (queries.AsReadOnly(), mutations.AsReadOnly(), inputTypes.AsReadOnly());
     }
+
+    /// <summary>
+    /// Represents a field within a generated input type.
+    /// </summary>
+    /// <param name="Name">The field name.</param>
+    /// <param name="Type">The GraphQL type name.</param>
+    /// <param name="Nullable">Whether this field accepts null.</param>
+    public record InputFieldDefinition(string Name, string Type, bool Nullable);
+
+    /// <summary>
+    /// Represents a generated input type (e.g. <c>CreateUserInput</c>, <c>UpdateUserInput</c>).
+    /// </summary>
+    /// <param name="Name">The input type name.</param>
+    /// <param name="Fields">Ordered list of fields on this input type.</param>
+    /// <param name="Description">Human-readable description.</param>
+    public record InputTypeDefinition(
+        string Name,
+        IReadOnlyList<InputFieldDefinition> Fields,
+        string Description);
 }

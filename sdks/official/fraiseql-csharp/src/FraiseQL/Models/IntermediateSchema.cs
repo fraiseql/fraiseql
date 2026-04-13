@@ -10,8 +10,10 @@ namespace FraiseQL.Models;
 /// <param name="Types">Registered GraphQL types.</param>
 /// <param name="Queries">Registered GraphQL queries.</param>
 /// <param name="Mutations">Registered GraphQL mutations.</param>
+/// <param name="InputTypes">Registered GraphQL input types, omitted when empty.</param>
 public record IntermediateSchema(
-    [property: JsonPropertyName("version")]   string Version,
-    [property: JsonPropertyName("types")]     IReadOnlyList<IntermediateType> Types,
-    [property: JsonPropertyName("queries")]   IReadOnlyList<IntermediateQuery> Queries,
-    [property: JsonPropertyName("mutations")] IReadOnlyList<IntermediateMutation> Mutations);
+    [property: JsonPropertyName("version")]     string Version,
+    [property: JsonPropertyName("types")]       IReadOnlyList<IntermediateType> Types,
+    [property: JsonPropertyName("queries")]     IReadOnlyList<IntermediateQuery> Queries,
+    [property: JsonPropertyName("mutations")]   IReadOnlyList<IntermediateMutation> Mutations,
+    [property: JsonPropertyName("input_types")] IReadOnlyList<IntermediateInputType>? InputTypes = null);

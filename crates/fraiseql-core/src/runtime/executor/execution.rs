@@ -133,7 +133,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation { name, selection_fields } => {
                 self.execute_mutation_query(&name, variables, &selection_fields).await
             },
-            QueryType::NodeQuery => self.execute_node_query(query, variables).await,
+            QueryType::NodeQuery { selections } => {
+                self.execute_node_query(query, variables, &selections).await
+            },
         }
     }
 

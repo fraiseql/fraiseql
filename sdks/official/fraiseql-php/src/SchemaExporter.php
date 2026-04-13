@@ -77,12 +77,19 @@ final class SchemaExporter
     {
         $registry = SchemaRegistry::getInstance();
 
-        return [
+        $schema = [
             'version'   => '2.0.0',
             'types'     => self::buildTypes($registry),
             'queries'   => self::buildQueries($registry),
             'mutations' => self::buildMutations($registry),
         ];
+
+        $inputTypes = $registry->getAllInputTypes();
+        if (!empty($inputTypes)) {
+            $schema['input_types'] = array_values($inputTypes);
+        }
+
+        return $schema;
     }
 
     /**

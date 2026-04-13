@@ -44,6 +44,9 @@ final class SchemaRegistry
     /** @var array<string, MutationBuilder> Registered mutations */
     private array $mutations = [];
 
+    /** @var array<string, array{name: string, fields: list<array{name: string, type: string, nullable: bool}>, description: string|null}> Registered input types */
+    private array $inputTypes = [];
+
     /** @var array<string, array{sql_source: string|null, is_error: bool}> Extra type metadata */
     private array $typeMeta = [];
 
@@ -286,6 +289,43 @@ final class SchemaRegistry
         return $this->mutations;
     }
 
+    /**
+     * Register a GraphQL input object type.
+     *
+     * @param string $name Input type name (e.g. "CreateUserInput")
+     * @param list<array{name: string, type: string, nullable: bool}> $fields Field definitions
+     * @param string|null $description Optional input type description
+     * @return self Fluent interface
+     *
+     * @throws FraiseQLException If an input type with this name is already registered
+     */
+    public function registerInputType(string $name, array $fields, ?string $description = null): self
+    {
+        if (isset($this->inputTypes[$name])) {
+            throw new FraiseQLException(
+                "Input type '{$name}' is already registered. Each name must be unique within a schema.",
+            );
+        }
+
+        $this->inputTypes[$name] = [
+            'name' => $name,
+            'fields' => $fields,
+            'description' => $description,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Get all registered input types.
+     *
+     * @return array<string, array{name: string, fields: list<array{name: string, type: string, nullable: bool}>, description: string|null}>
+     */
+    public function getAllInputTypes(): array
+    {
+        return $this->inputTypes;
+    }
+
     /** @var array<string, string> Base inject defaults */
     private array $injectDefaultsBase = [];
 
@@ -360,6 +400,7 @@ final class SchemaRegistry
         $this->subscriptions = [];
         $this->queries = [];
         $this->mutations = [];
+        $this->inputTypes = [];
         $this->typeMeta = [];
         $this->injectDefaultsBase = [];
         $this->injectDefaultsQueries = [];

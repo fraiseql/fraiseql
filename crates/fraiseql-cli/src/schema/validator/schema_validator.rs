@@ -54,6 +54,11 @@ impl SchemaValidator {
             type_names.insert(type_def.name.clone());
         }
 
+        // Add input types so mutation/query arguments can reference them
+        for input_type in &schema.input_types {
+            type_names.insert(input_type.name.clone());
+        }
+
         // Add built-in scalars
         type_names.insert("Int".to_string());
         type_names.insert("Float".to_string());

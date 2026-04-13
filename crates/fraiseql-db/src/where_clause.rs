@@ -170,21 +170,7 @@ impl WhereClause {
                     conditions.push(Self::Not(Box::new(sub)));
                 },
                 field_name => {
-                    // Field → { operator: value } or { op1: val1, op2: val2 }
-                    let ops = val.as_object().ok_or_else(|| FraiseQLError::Validation {
-                        message: format!(
-                            "where field '{field_name}' must be an object of {{operator: value}}"
-                        ),
-                        path:    None,
-                    })?;
-                    for (op_str, op_val) in ops {
-                        let operator = WhereOperator::from_str(op_str)?;
-                        conditions.push(Self::Field {
-                            path: vec![field_name.to_string()],
-                            operator,
-                            value: op_val.clone(),
-                        });
-                    }
+                    parse_field_conditions(field_name, val, vec![], &mut conditions)?;
                 },
             }
         }
@@ -196,6 +182,66 @@ impl WhereClause {
             Ok(Self::And(conditions))
         }
     }
+}
+
+/// Maximum nesting depth for recursive WHERE field parsing.
+///
+/// Prevents pathological inputs like `{ a: { b: { c: { d: { e: { eq: 1 } } } } } }`
+/// from producing unbounded recursion.
+const MAX_WHERE_DEPTH: usize = 4;
+
+/// Parse a field condition, recursing into nested relation fields as needed.
+///
+/// Distinguishes between operator maps (`{ eq: "...", gte: 42 }`) and nested
+/// field maps (`{ id: { eq: "..." }, name: { icontains: "..." } }`) by peeking
+/// at the first key: if it is a known operator name, the entire object is treated
+/// as an operator map; otherwise it is treated as a nested field map.
+fn parse_field_conditions(
+    field_name: &str,
+    val: &serde_json::Value,
+    path_prefix: Vec<String>,
+    conditions: &mut Vec<WhereClause>,
+) -> Result<()> {
+    let snake_name = crate::utils::to_snake_case(field_name);
+    let mut full_path = path_prefix;
+    full_path.push(snake_name);
+
+    if full_path.len() > MAX_WHERE_DEPTH {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "where clause nesting depth exceeds maximum ({MAX_WHERE_DEPTH})"
+            ),
+            path: None,
+        });
+    }
+
+    let ops = val.as_object().ok_or_else(|| FraiseQLError::Validation {
+        message: format!(
+            "where field '{field_name}' must be an object of {{operator: value}}"
+        ),
+        path: None,
+    })?;
+
+    // Peek at the first key to decide: operator map or nested field map?
+    let first_key = ops.keys().next().map_or("", String::as_str);
+
+    if ops.is_empty() || WhereOperator::from_str(first_key).is_ok() {
+        // All keys are operators (or empty map — no conditions to add)
+        for (op_str, op_val) in ops {
+            let operator = WhereOperator::from_str(op_str)?;
+            conditions.push(WhereClause::Field {
+                path:     full_path.clone(),
+                operator,
+                value:    op_val.clone(),
+            });
+        }
+    } else {
+        // Keys are nested field names — recurse one level deeper
+        for (nested_name, nested_val) in ops {
+            parse_field_conditions(nested_name, nested_val, full_path.clone(), conditions)?;
+        }
+    }
+    Ok(())
 }
 
 /// WHERE operators (FraiseQL v1 compatibility).
@@ -658,6 +704,34 @@ mod tests {
     }
 
     #[test]
+    fn test_from_graphql_json_camelcase_field_normalized_to_snake_case() {
+        let json = json!({ "ipAddress": { "eq": "10.0.0.1" } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["ip_address".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("10.0.0.1"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_from_graphql_json_snake_case_field_unchanged() {
+        let json = json!({ "ip_address": { "eq": "10.0.0.1" } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["ip_address".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("10.0.0.1"),
+            }
+        );
+    }
+
+    #[test]
     fn test_from_graphql_json_multiple_fields() {
         let json = json!({
             "status": { "eq": "active" },
@@ -700,6 +774,78 @@ mod tests {
             matches!(result, Err(FraiseQLError::Validation { .. })),
             "expected Validation error, got: {result:?}"
         );
+    }
+
+    // ── Nested relation WHERE tests (issue #196) ─────────────────────────────
+
+    #[test]
+    fn test_nested_relation_where_builds_path() {
+        let json = json!({ "machine": { "id": { "eq": "abc" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["machine".to_string(), "id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("abc"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_nested_relation_where_camelcase_normalized() {
+        let json = json!({ "machineGroup": { "ipAddress": { "eq": "10.0.0.1" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["machine_group".to_string(), "ip_address".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("10.0.0.1"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_nested_relation_where_multiple_operators() {
+        let json = json!({ "machine": { "id": { "eq": "abc" } , "name": { "icontains": "test" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        // Two nested fields → AND combination
+        match clause {
+            WhereClause::And(conditions) => {
+                assert_eq!(conditions.len(), 2);
+                // Both should have path ["machine", ...]
+                for cond in &conditions {
+                    match cond {
+                        WhereClause::Field { path, .. } => {
+                            assert_eq!(path[0], "machine");
+                        },
+                        other => panic!("expected Field, got {other:?}"),
+                    }
+                }
+            },
+            _ => panic!("expected And for multiple nested conditions"),
+        }
+    }
+
+    #[test]
+    fn test_nested_relation_where_depth_limit() {
+        // 5 levels deep: exceeds MAX_WHERE_DEPTH of 4
+        let json = json!({ "a": { "b": { "c": { "d": { "e": { "eq": 1 } } } } } });
+        let result = WhereClause::from_graphql_json(&json);
+        assert!(
+            matches!(result, Err(FraiseQLError::Validation { .. })),
+            "expected Validation error for deep nesting, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_unknown_operator_still_errors() {
+        // "bogus" is neither a known operator nor a valid nested field (its value is
+        // a plain string, not an object), so the recursion hits the "must be an
+        // object" validation.
+        let json = json!({ "name": { "bogus": "value" } });
+        assert!(WhereClause::from_graphql_json(&json).is_err());
     }
 
     #[test]
