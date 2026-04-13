@@ -390,6 +390,12 @@ impl DatabaseAdapter for SqlServerAdapter {
                 write!(sql, " FETCH NEXT @p{param_count} ROWS ONLY").expect("write to String");
                 params.push(serde_json::Value::Number(lim.into()));
             }
+        } else if has_order && limit.is_some() {
+            // ORDER BY without OFFSET — SQL Server needs OFFSET 0 for FETCH
+            param_count += 1;
+            write!(sql, " OFFSET 0 ROWS FETCH NEXT @p{param_count} ROWS ONLY")
+                .expect("write to String");
+            params.push(serde_json::Value::Number(limit.expect("checked above").into()));
         }
 
         self.execute_raw(&sql, params).await
@@ -667,8 +673,6 @@ fn bind_json_params<'a>(
 // Relay cursor pagination
 // ============================================================================
 
-/// Build the ORDER BY clause for a relay page query.
-///
 /// Custom sort columns come first, then the cursor column as tiebreaker.
 /// For backward pagination every direction is flipped so the inner `FETCH NEXT` subquery
 /// retrieves the correct `N` rows before the cursor; the outer re-sort in

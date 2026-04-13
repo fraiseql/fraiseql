@@ -97,30 +97,58 @@ final class CrudGenerator
             ->sqlSource($view)
             ->autoParams(true);
 
-        // Create mutation
+        // Create mutation with input object type
+        $createInputName = "Create{$typeName}Input";
+        $createInputFields = array_map(
+            static fn(FieldDefinition $f) => [
+                'name' => $f->name,
+                'type' => $f->type,
+                'nullable' => $f->nullable,
+            ],
+            $fieldList,
+        );
+        SchemaRegistry::getInstance()->registerInputType(
+            $createInputName,
+            $createInputFields,
+            "Input for creating a new {$typeName}.",
+        );
+
         $create = MutationBuilder::mutation("create_{$snake}")
             ->returnType($typeName)
             ->description("Create a new {$typeName}.")
             ->sqlSource("fn_create_{$snake}")
-            ->operation('INSERT');
-        foreach ($fieldList as $f) {
-            $create->argument($f->name, $f->type, nullable: $f->nullable);
-        }
+            ->operation('INSERT')
+            ->argument('input', $createInputName, nullable: false);
         if ($cascade) {
             $create->cascade(true);
         }
         $mutations[] = $create;
 
-        // Update mutation (PK required, other fields nullable)
+        // Update mutation with input object type (PK required, other fields nullable)
+        $updateInputName = "Update{$typeName}Input";
+        $updateInputFields = [
+            ['name' => $pkField->name, 'type' => $pkField->type, 'nullable' => false],
+            ...array_map(
+                static fn(FieldDefinition $f) => [
+                    'name' => $f->name,
+                    'type' => $f->type,
+                    'nullable' => true,
+                ],
+                array_slice($fieldList, 1),
+            ),
+        ];
+        SchemaRegistry::getInstance()->registerInputType(
+            $updateInputName,
+            $updateInputFields,
+            "Input for updating an existing {$typeName}.",
+        );
+
         $update = MutationBuilder::mutation("update_{$snake}")
             ->returnType($typeName)
             ->description("Update an existing {$typeName}.")
             ->sqlSource("fn_update_{$snake}")
-            ->operation('UPDATE');
-        $update->argument($pkField->name, $pkField->type, nullable: false);
-        foreach (array_slice($fieldList, 1) as $f) {
-            $update->argument($f->name, $f->type, nullable: true);
-        }
+            ->operation('UPDATE')
+            ->argument('input', $updateInputName, nullable: false);
         if ($cascade) {
             $update->cascade(true);
         }

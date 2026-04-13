@@ -373,12 +373,23 @@ impl CompiledSchema {
     ///
     /// Uses the O(1) pre-built index when available; falls back to O(n) linear
     /// scan for schemas built directly in tests without calling `build_indexes()`.
+    ///
+    /// If the exact name is not found, retries with `to_snake_case(name)` to
+    /// handle camelCase → `snake_case` normalization (e.g. `dnsServers` →
+    /// `dns_servers`). This supports schemas compiled before the SDK camelCase
+    /// migration.
     #[must_use]
     pub fn find_query(&self, name: &str) -> Option<&QueryDefinition> {
         if self.query_index.is_empty() && !self.queries.is_empty() {
             self.queries.iter().find(|q| q.name == name)
+                .or_else(|| {
+                    let snake = crate::utils::casing::to_snake_case(name);
+                    self.queries.iter().find(|q| q.name == snake)
+                })
         } else {
-            self.query_index.get(name).map(|&i| &self.queries[i])
+            self.query_index.get(name)
+                .or_else(|| self.query_index.get(&crate::utils::casing::to_snake_case(name)))
+                .map(|&i| &self.queries[i])
         }
     }
 
@@ -386,12 +397,22 @@ impl CompiledSchema {
     ///
     /// Uses the O(1) pre-built index when available; falls back to O(n) linear
     /// scan for schemas built directly in tests without calling `build_indexes()`.
+    ///
+    /// If the exact name is not found, retries with `to_snake_case(name)` to
+    /// handle camelCase → `snake_case` normalization. This supports schemas
+    /// compiled before the SDK camelCase migration.
     #[must_use]
     pub fn find_mutation(&self, name: &str) -> Option<&MutationDefinition> {
         if self.mutation_index.is_empty() && !self.mutations.is_empty() {
             self.mutations.iter().find(|m| m.name == name)
+                .or_else(|| {
+                    let snake = crate::utils::casing::to_snake_case(name);
+                    self.mutations.iter().find(|m| m.name == snake)
+                })
         } else {
-            self.mutation_index.get(name).map(|&i| &self.mutations[i])
+            self.mutation_index.get(name)
+                .or_else(|| self.mutation_index.get(&crate::utils::casing::to_snake_case(name)))
+                .map(|&i| &self.mutations[i])
         }
     }
 
@@ -399,12 +420,22 @@ impl CompiledSchema {
     ///
     /// Uses the O(1) pre-built index when available; falls back to O(n) linear
     /// scan for schemas built directly in tests without calling `build_indexes()`.
+    ///
+    /// If the exact name is not found, retries with `to_snake_case(name)` to
+    /// handle camelCase → `snake_case` normalization. This supports schemas
+    /// compiled before the SDK camelCase migration.
     #[must_use]
     pub fn find_subscription(&self, name: &str) -> Option<&SubscriptionDefinition> {
         if self.subscription_index.is_empty() && !self.subscriptions.is_empty() {
             self.subscriptions.iter().find(|s| s.name == name)
+                .or_else(|| {
+                    let snake = crate::utils::casing::to_snake_case(name);
+                    self.subscriptions.iter().find(|s| s.name == snake)
+                })
         } else {
-            self.subscription_index.get(name).map(|&i| &self.subscriptions[i])
+            self.subscription_index.get(name)
+                .or_else(|| self.subscription_index.get(&crate::utils::casing::to_snake_case(name)))
+                .map(|&i| &self.subscriptions[i])
         }
     }
 
@@ -1401,5 +1432,55 @@ mod tests {
         let mut schema = CompiledSchema::new();
         schema.queries.push(make_query("q", "Blob"));
         assert!(schema.validate().is_err());
+    }
+
+    // ── Operation name normalization (issue #199) ────────────────────────
+
+    #[test]
+    fn find_query_exact_match() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("User"));
+        schema.queries.push(make_query("users", "User"));
+        schema.build_indexes();
+        assert!(schema.find_query("users").is_some());
+    }
+
+    #[test]
+    fn find_query_camel_to_snake_fallback() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("DnsServer"));
+        schema.queries.push(make_query("dns_servers", "DnsServer"));
+        schema.build_indexes();
+        // Exact match works
+        assert!(schema.find_query("dns_servers").is_some());
+        // camelCase fallback also works
+        assert!(schema.find_query("dnsServers").is_some());
+    }
+
+    #[test]
+    fn find_query_camel_to_snake_fallback_without_index() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("DnsServer"));
+        schema.queries.push(make_query("dns_servers", "DnsServer"));
+        // No build_indexes() — exercises the linear scan fallback path
+        assert!(schema.find_query("dnsServers").is_some());
+    }
+
+    #[test]
+    fn find_mutation_camel_to_snake_fallback() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("Location"));
+        schema.mutations.push(make_mutation("create_location", "Location"));
+        schema.build_indexes();
+        assert!(schema.find_mutation("createLocation").is_some());
+    }
+
+    #[test]
+    fn find_query_returns_none_for_unknown() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("User"));
+        schema.queries.push(make_query("users", "User"));
+        schema.build_indexes();
+        assert!(schema.find_query("nonexistent").is_none());
     }
 }

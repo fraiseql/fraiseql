@@ -120,7 +120,7 @@ def test_mutation_decorator() -> None:
     assert len(schema["mutations"]) == 1
 
     create_mutation = schema["mutations"][0]
-    assert create_mutation["name"] == "create_user"
+    assert create_mutation["name"] == "createUser"
     assert create_mutation["return_type"] == "User"
     assert create_mutation["returns_list"] is False
     assert create_mutation["nullable"] is False
@@ -290,7 +290,7 @@ def test_subscription_decorator_simple() -> None:
     assert len(schema["subscriptions"]) == 1
 
     sub = schema["subscriptions"][0]
-    assert sub["name"] == "order_created"
+    assert sub["name"] == "orderCreated"
     assert sub["entity_type"] == "Order"
     assert sub["nullable"] is False
     assert sub["description"] == "Subscribe to new orders."
@@ -314,7 +314,7 @@ def test_subscription_decorator_with_topic() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "order_created"
+    assert sub["name"] == "orderCreated"
     assert sub["entity_type"] == "Order"
     assert sub["topic"] == "orders_created"
 
@@ -335,7 +335,7 @@ def test_subscription_decorator_with_operation() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "user_updated"
+    assert sub["name"] == "userUpdated"
     assert sub["entity_type"] == "User"
     assert sub["operation"] == "UPDATE"
 
@@ -357,11 +357,11 @@ def test_subscription_decorator_with_arguments() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "order_status_changed"
+    assert sub["name"] == "orderStatusChanged"
     assert sub["entity_type"] == "Order"
     assert len(sub["arguments"]) == 2
 
-    user_arg = next(a for a in sub["arguments"] if a["name"] == "user_id")
+    user_arg = next(a for a in sub["arguments"] if a["name"] == "userId")
     assert user_arg["type"] == "String"
     assert user_arg["nullable"] is True
 
@@ -407,7 +407,7 @@ def test_subscription_decorator_nullable_return() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "user_deleted"
+    assert sub["name"] == "userDeleted"
     assert sub["nullable"] is True
 
 
@@ -438,9 +438,9 @@ def test_multiple_subscriptions() -> None:
     assert len(schema["subscriptions"]) == 3
 
     names = [s["name"] for s in schema["subscriptions"]]
-    assert "order_created" in names
-    assert "order_updated" in names
-    assert "user_created" in names
+    assert "orderCreated" in names
+    assert "orderUpdated" in names
+    assert "userCreated" in names
 
 
 def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None:  # type: ignore[name-defined]
@@ -468,7 +468,7 @@ def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None
     assert len(schema["subscriptions"]) == 1
 
     sub = schema["subscriptions"][0]
-    assert sub["name"] == "order_created"
+    assert sub["name"] == "orderCreated"
     assert sub["entity_type"] == "Order"
     assert sub["topic"] == "orders"
     assert sub["operation"] == "CREATE"
@@ -567,7 +567,7 @@ def test_mutation_inject_valid_passes_through() -> None:
 
     schema = SchemaRegistry.get_schema()
     m = schema["mutations"][0]
-    assert m["name"] == "create_item"
+    assert m["name"] == "createItem"
     assert m["inject"] == {"tenant_id": "jwt:tenant_id"}
 
 
@@ -785,7 +785,7 @@ def test_mutation_invalidates_fact_tables_valid_passes_through() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    mut = next(m for m in schema["mutations"] if m["name"] == "create_order")
+    mut = next(m for m in schema["mutations"] if m["name"] == "createOrder")
     assert mut["invalidates_fact_tables"] == ["tf_sales", "tf_order_count"]
 
 
@@ -801,7 +801,7 @@ def test_mutation_invalidates_fact_tables_empty_list_passes_through() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    mut = next(m for m in schema["mutations"] if m["name"] == "create_item")
+    mut = next(m for m in schema["mutations"] if m["name"] == "createItem")
     assert mut["invalidates_fact_tables"] == []
 
 
@@ -857,7 +857,7 @@ def test_mutation_invalidates_views_valid_passes_through() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    mut = next(m for m in schema["mutations"] if m["name"] == "create_invoice")
+    mut = next(m for m in schema["mutations"] if m["name"] == "createInvoice")
     assert mut["invalidates_views"] == ["v_invoice", "v_invoice_summary"]
 
 
@@ -1033,7 +1033,7 @@ def test_query_requires_role_is_set() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    q = next(q for q in schema["queries"] if q["name"] == "audit_logs")
+    q = next(q for q in schema["queries"] if q["name"] == "auditLogs")
     assert q["requires_role"] == "admin"
 
 
@@ -1151,8 +1151,8 @@ def test_error_type_fields_include_scalar_types() -> None:
     assert t["is_error"] is True
     field_names = [f["name"] for f in t["fields"]]
     assert "message" in field_names
-    assert "conflict_id" in field_names
-    assert "occurred_at" in field_names
+    assert "conflictId" in field_names
+    assert "occurredAt" in field_names
 
 
 def test_error_type_not_is_error_by_default() -> None:
@@ -1303,3 +1303,108 @@ def test_mutation_invalidates_views_in_json() -> None:
     m = SchemaRegistry.get_schema()["mutations"][0]
     assert m["sql_source"] == "fn_create_order"
     assert m["invalidates_views"] == ["v_order_summary"]
+
+
+# ── CRUD input object type tests (issue #204) ────────────────────────────
+
+
+def test_crud_create_generates_input_type() -> None:
+    """CRUD create mutations use a CreateXInput input object."""
+
+    @fraiseql.type(crud=["create"], sql_source="v_product")
+    class Product:
+        pk_product: int
+        name: str
+        price: float | None
+
+    schema = SchemaRegistry.get_schema()
+
+    # Input type registered
+    input_types = schema["input_types"]
+    assert len(input_types) == 1
+    input_t = input_types[0]
+    assert input_t["name"] == "CreateProductInput"
+    assert len(input_t["fields"]) == 3
+
+    # Mutation uses single "input" argument
+    mutations = schema["mutations"]
+    assert len(mutations) == 1
+    create = mutations[0]
+    assert create["name"] == "createProduct"
+    assert len(create["arguments"]) == 1
+    arg = create["arguments"][0]
+    assert arg["name"] == "input"
+    assert arg["type"] == "CreateProductInput"
+    assert arg["nullable"] is False
+
+
+def test_crud_update_generates_input_type() -> None:
+    """CRUD update mutations use an UpdateXInput input object."""
+
+    @fraiseql.type(crud=["update"], sql_source="v_widget")
+    class Widget:
+        pk_widget: int
+        label: str
+        weight: float | None
+
+    schema = SchemaRegistry.get_schema()
+
+    input_types = schema["input_types"]
+    assert len(input_types) == 1
+    input_t = input_types[0]
+    assert input_t["name"] == "UpdateWidgetInput"
+    # PK required, other fields nullable for partial update
+    pk_field = next(f for f in input_t["fields"] if f["name"] == "pkWidget")
+    assert pk_field["nullable"] is False
+    label_field = next(f for f in input_t["fields"] if f["name"] == "label")
+    assert label_field["nullable"] is True
+
+    mutations = schema["mutations"]
+    update = mutations[0]
+    assert update["name"] == "updateWidget"
+    assert len(update["arguments"]) == 1
+    assert update["arguments"][0]["name"] == "input"
+    assert update["arguments"][0]["type"] == "UpdateWidgetInput"
+
+
+def test_crud_delete_stays_flat() -> None:
+    """CRUD delete keeps a single flat PK argument (no input object)."""
+
+    @fraiseql.type(crud=["delete"], sql_source="v_gadget")
+    class Gadget:
+        pk_gadget: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+
+    # No input types for delete
+    assert len(schema["input_types"]) == 0
+
+    mutations = schema["mutations"]
+    delete = mutations[0]
+    assert delete["name"] == "deleteGadget"
+    assert len(delete["arguments"]) == 1
+    assert delete["arguments"][0]["name"] == "pkGadget"
+
+
+def test_crud_full_generates_both_input_types() -> None:
+    """crud=True generates input types for create and update, not delete."""
+
+    @fraiseql.type(crud=True, sql_source="v_order")
+    class Order:
+        pk_order: int
+        total: float
+        note: str | None
+
+    schema = SchemaRegistry.get_schema()
+    input_names = sorted(t["name"] for t in schema["input_types"])
+    assert input_names == ["CreateOrderInput", "UpdateOrderInput"]
+
+    mutations = schema["mutations"]
+    create = next(m for m in mutations if m["name"] == "createOrder")
+    update = next(m for m in mutations if m["name"] == "updateOrder")
+    delete = next(m for m in mutations if m["name"] == "deleteOrder")
+
+    assert create["arguments"][0]["name"] == "input"
+    assert update["arguments"][0]["name"] == "input"
+    assert delete["arguments"][0]["name"] == "pkOrder"

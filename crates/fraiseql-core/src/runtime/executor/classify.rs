@@ -82,8 +82,27 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // Relay global node lookup: root field is exactly "node" on a query.
+        // Extract selections from inline fragments (... on TypeName { fields })
+        // so the execution layer can project only requested fields.
         if parsed.operation_type == "query" && root_field == "node" {
-            return Ok((QueryType::NodeQuery, None));
+            let selections = parsed.selections
+                .first()
+                .map(|node_sel| {
+                    // Flatten inline fragments: `node { ... on Booking { id startDate } }`
+                    // Inline fragments are represented as FieldSelection with name "...on TypeName"
+                    let mut fields = Vec::new();
+                    for sel in &node_sel.nested_fields {
+                        if sel.name.starts_with("...") {
+                            // Inline fragment — lift its nested_fields up
+                            fields.extend(sel.nested_fields.clone());
+                        } else {
+                            fields.push(sel.clone());
+                        }
+                    }
+                    fields
+                })
+                .unwrap_or_default();
+            return Ok((QueryType::NodeQuery { selections }, None));
         }
 
         // Mutations are routed by operation type.

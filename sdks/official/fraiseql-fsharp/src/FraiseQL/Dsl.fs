@@ -373,6 +373,7 @@ module Dsl =
             {
                 version = "2.0.0"
                 types = items |> List.choose (function TypeItem t -> Some t | _ -> None)
+                input_types = []
                 queries = items |> List.choose (function QueryItem q -> Some q | _ -> None)
                 mutations = items |> List.choose (function MutationItem m -> Some m | _ -> None)
             }

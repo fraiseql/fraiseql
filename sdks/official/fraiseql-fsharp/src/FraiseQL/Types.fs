@@ -108,6 +108,18 @@ type MutationDefinition =
         cascade: bool option
     }
 
+/// Represents a GraphQL input object type used as a mutation argument.
+[<CLIMutable>]
+type InputTypeDefinition =
+    {
+        /// The GraphQL input type name (e.g., "CreateUserInput").
+        name: string
+        /// The fields of this input type.
+        fields: ArgumentDefinition list
+        /// Optional human-readable description for introspection.
+        description: string option
+    }
+
 /// The root schema record serialized to schema.json.
 [<CLIMutable>]
 type IntermediateSchema =
@@ -116,6 +128,8 @@ type IntermediateSchema =
         version: string
         /// All GraphQL types defined in this schema.
         types: TypeDefinition list
+        /// All GraphQL input types defined in this schema.
+        input_types: InputTypeDefinition list
         /// All GraphQL queries defined in this schema.
         queries: QueryDefinition list
         /// All GraphQL mutations defined in this schema.

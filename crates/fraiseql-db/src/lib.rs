@@ -44,6 +44,9 @@ pub mod introspector;
 pub mod types;
 pub mod where_generator;
 
+// Shared utilities
+pub(crate) mod utils;
+
 // DB adapter modules (from the old db/ directory)
 pub mod collation;
 pub mod identifier;
@@ -94,7 +97,7 @@ pub use mysql::{MySqlAdapter, MySqlIntrospector};
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
 pub use projection_generator::{
-    MySqlProjectionGenerator, PostgresProjectionGenerator, ProjectionField,
+    FieldKind, MySqlProjectionGenerator, PostgresProjectionGenerator, ProjectionField,
     SqliteProjectionGenerator,
 };
 #[cfg(feature = "sqlite")]

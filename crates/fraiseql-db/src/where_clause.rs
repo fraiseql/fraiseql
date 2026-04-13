@@ -3,6 +3,8 @@
 use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::utils::to_snake_case;
+
 /// WHERE clause abstract syntax tree.
 ///
 /// Represents a type-safe WHERE condition that can be compiled to database-specific SQL.
@@ -195,7 +197,7 @@ impl WhereClause {
                         path:    None,
                     })?;
                     let mut field_path = path_prefix.to_vec();
-                    field_path.push(field_name.to_string());
+                    field_path.push(to_snake_case(field_name));
 
                     for (op_str, op_val) in ops {
                         match WhereOperator::from_str(op_str) {
@@ -231,6 +233,7 @@ impl WhereClause {
     }
 }
 
+/// Maximum nesting depth for recursive WHERE field parsing.
 /// WHERE operators (FraiseQL v1 compatibility).
 ///
 /// All standard operators are supported.
@@ -691,6 +694,34 @@ mod tests {
     }
 
     #[test]
+    fn test_from_graphql_json_camelcase_field_normalized_to_snake_case() {
+        let json = json!({ "ipAddress": { "eq": "10.0.0.1" } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["ip_address".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("10.0.0.1"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_from_graphql_json_snake_case_field_unchanged() {
+        let json = json!({ "ip_address": { "eq": "10.0.0.1" } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["ip_address".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("10.0.0.1"),
+            }
+        );
+    }
+
+    #[test]
     fn test_from_graphql_json_multiple_fields() {
         let json = json!({
             "status": { "eq": "active" },
@@ -733,6 +764,67 @@ mod tests {
             matches!(result, Err(FraiseQLError::Validation { .. })),
             "expected Validation error, got: {result:?}"
         );
+    }
+
+    // ── Nested relation WHERE tests (issue #196) ─────────────────────────────
+
+    #[test]
+    fn test_nested_relation_where_builds_path() {
+        let json = json!({ "machine": { "id": { "eq": "abc" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["machine".to_string(), "id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("abc"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_nested_relation_where_camelcase_normalized() {
+        let json = json!({ "machineGroup": { "ipAddress": { "eq": "10.0.0.1" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["machine_group".to_string(), "ip_address".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("10.0.0.1"),
+            }
+        );
+    }
+
+    #[test]
+    fn test_nested_relation_where_multiple_operators() {
+        let json = json!({ "machine": { "id": { "eq": "abc" } , "name": { "icontains": "test" } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
+        // Two nested fields → AND combination
+        match clause {
+            WhereClause::And(conditions) => {
+                assert_eq!(conditions.len(), 2);
+                // Both should have path ["machine", ...]
+                for cond in &conditions {
+                    match cond {
+                        WhereClause::Field { path, .. } => {
+                            assert_eq!(path[0], "machine");
+                        },
+                        other => panic!("expected Field, got {other:?}"),
+                    }
+                }
+            },
+            _ => panic!("expected And for multiple nested conditions"),
+        }
+    }
+
+    #[test]
+    fn test_unknown_operator_still_errors() {
+        // "bogus" is neither a known operator nor a valid nested field (its value is
+        // a plain string, not an object), so the recursion hits the "must be an
+        // object" validation.
+        let json = json!({ "name": { "bogus": "value" } });
+        assert!(WhereClause::from_graphql_json(&json).is_err());
     }
 
     #[test]

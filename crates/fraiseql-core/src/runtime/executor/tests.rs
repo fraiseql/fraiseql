@@ -479,7 +479,7 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name } } }"#;
-        assert_eq!(executor.classify_query(query).unwrap(), QueryType::NodeQuery);
+        assert!(matches!(executor.classify_query(query).unwrap(), QueryType::NodeQuery { .. }));
     }
 
     #[test]
@@ -489,7 +489,41 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r"query GetNode($id: ID!) { node(id: $id) { id } }";
-        assert_eq!(executor.classify_query(query).unwrap(), QueryType::NodeQuery);
+        assert!(matches!(executor.classify_query(query).unwrap(), QueryType::NodeQuery { .. }));
+    }
+
+    #[test]
+    fn test_classify_node_query_extracts_inline_fragment_selections() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name email } } }"#;
+        let qt = executor.classify_query(query).unwrap();
+        match qt {
+            QueryType::NodeQuery { selections } => {
+                let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
+                assert_eq!(names, vec!["name", "email"]);
+            },
+            other => panic!("expected NodeQuery, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_classify_node_query_direct_fields_without_fragment() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"query GetNode($id: ID!) { node(id: $id) { id name } }";
+        let qt = executor.classify_query(query).unwrap();
+        match qt {
+            QueryType::NodeQuery { selections } => {
+                let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
+                assert_eq!(names, vec!["id", "name"]);
+            },
+            other => panic!("expected NodeQuery, got {other:?}"),
+        }
     }
 
     #[test]

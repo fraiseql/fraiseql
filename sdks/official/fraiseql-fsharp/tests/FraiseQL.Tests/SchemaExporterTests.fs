@@ -13,6 +13,7 @@ let private emptySchema: IntermediateSchema =
     {
         version = "2.0.0"
         types = []
+        input_types = []
         queries = []
         mutations = []
     }

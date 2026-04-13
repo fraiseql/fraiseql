@@ -6,7 +6,8 @@ use super::{Executor, null_masked_fields, resolve_inject_value};
 use crate::{
     db::{
         CursorValue, ProjectionField, WhereClause, WhereOperator,
-        projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter,
+        projection_generator::{FieldKind, PostgresProjectionGenerator},
+        traits::DatabaseAdapter,
     },
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
@@ -44,6 +45,9 @@ fn build_typed_projection_fields(
     let type_def = schema.find_type(parent_type_name);
     selections
         .iter()
+        // Skip __typename — it is a GraphQL meta-field not stored in the JSONB column.
+        // Including it would generate `data->>'__typename'` (always NULL) in the SQL
+        // projection and then overwrite the value already injected by `with_typename`.
         .filter(|sel| sel.name != "__typename")
         .map(|sel| {
             let field_def =
@@ -51,6 +55,20 @@ fn build_typed_projection_fields(
 
             let is_composite = field_def.is_some_and(|fd| !fd.field_type.is_scalar());
             let is_list = field_def.is_some_and(|fd| fd.field_type.is_list());
+            let is_text = field_def.is_some_and(|fd| {
+                matches!(
+                    fd.field_type,
+                    crate::schema::FieldType::String | crate::schema::FieldType::Id
+                )
+            });
+
+            let kind = if is_composite {
+                FieldKind::Composite
+            } else if is_text {
+                FieldKind::Text
+            } else {
+                FieldKind::Native
+            };
 
             // Recurse into Object types only — List fields fall back to full blob
             let sub_fields = if is_composite
@@ -75,7 +93,7 @@ fn build_typed_projection_fields(
 
             ProjectionField {
                 name: sel.response_key().to_string(),
-                is_composite,
+                kind,
                 sub_fields,
             }
         })
@@ -1260,6 +1278,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
+        selections: &[FieldSelection],
     ) -> Result<String> {
         use crate::{
             db::{WhereClause, where_clause::WhereOperator},
@@ -1304,13 +1323,41 @@ impl<A: DatabaseAdapter> Executor<A> {
             value:    serde_json::Value::String(uuid),
         };
 
-        // 5. Execute the query (limit 1).
+        // 5. Build projection hint from selections (mirrors regular query path).
+        let projection_hint = if !selections.is_empty() {
+            let typed_fields = build_typed_projection_fields(
+                selections,
+                &self.schema,
+                &type_name,
+                0,
+            );
+            let generator = PostgresProjectionGenerator::new();
+            let projection_sql = generator
+                .generate_typed_projection_sql(&typed_fields)
+                .unwrap_or_else(|_| "data".to_string());
+            Some(SqlProjectionHint {
+                database:                    self.adapter.database_type(),
+                projection_template:         projection_sql,
+                estimated_reduction_percent: compute_projection_reduction(typed_fields.len()),
+            })
+        } else {
+            None
+        };
+
+        // 6. Execute the query (limit 1) with projection.
         let rows = self
             .adapter
-            .execute_where_query_arc(&sql_source, Some(&where_clause), Some(1), None, None)
+            .execute_with_projection_arc(
+                &sql_source,
+                projection_hint.as_ref(),
+                Some(&where_clause),
+                Some(1),
+                None,
+                None,
+            )
             .await?;
 
-        // 6. Return the first matching row (or null).
+        // 7. Return the first matching row (or null).
         // When the Arc is exclusively owned (uncached path, refcount = 1) we can move the
         // data out without copying.  When the cache also holds a reference (refcount ≥ 2)
         // we clone the single `serde_json::Value` for this one-row lookup.

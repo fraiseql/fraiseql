@@ -2,9 +2,18 @@
 
 use std::collections::HashMap;
 
-use serde_json::Value as JsonValue;
+use serde_json::{Map, Value as JsonValue};
 
-use crate::error::{FraiseQLError, Result};
+use crate::{
+    error::{FraiseQLError, Result},
+    schema::FieldDefinition,
+    utils::casing::to_camel_case,
+};
+
+/// Scalar GraphQL type names that can be populated directly from JSONB values.
+const SCALAR_TYPES: &[&str] = &[
+    "String", "Int", "Float", "Boolean", "ID", "DateTime", "UUID", "Date", "Time",
+];
 
 /// Outcome of parsing a single `mutation_response` row.
 #[derive(Debug, Clone)]
@@ -87,6 +96,64 @@ pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
 /// - `"error"` — generic error status
 pub fn is_error_status(status: &str) -> bool {
     status.starts_with("failed:") || status.starts_with("conflict:") || status == "error"
+}
+
+/// Populate error-type fields from a `metadata` JSONB object.
+///
+/// This is the fix for issue #294: scalar fields (String, Int, Float, Boolean,
+/// `DateTime`, UUID, …) are now populated directly from the JSON value, without
+/// requiring the value to be a nested object.
+///
+/// Both camelCase and `snake_case` metadata keys are tried for each field.
+///
+/// # Arguments
+///
+/// * `fields` — field definitions from the error `TypeDefinition`
+/// * `metadata` — the raw `metadata` JSON from the mutation response row
+///
+/// # Returns
+///
+/// A JSON object map containing the populated fields.
+pub fn populate_error_fields(
+    fields: &[FieldDefinition],
+    metadata: &JsonValue,
+) -> Map<String, JsonValue> {
+    let mut output = Map::new();
+
+    let Some(obj) = metadata.as_object() else {
+        return output;
+    };
+
+    for field in fields {
+        // Try camelCase first, then the raw field name (snake_case)
+        let camel = to_camel_case(field.name.as_str());
+        let raw_val = obj.get(&camel).or_else(|| obj.get(field.name.as_str()));
+
+        let Some(raw_val) = raw_val else { continue };
+
+        let base_type = strip_list_and_bang(&field.field_type.to_string());
+
+        if SCALAR_TYPES.contains(&base_type.as_str()) {
+            // #294 fix: copy scalar values directly (string, int, datetime, uuid, …)
+            output.insert(field.name.to_string(), raw_val.clone());
+        } else if raw_val.is_object() || raw_val.is_array() {
+            // Complex entity field: nested JSON object or array relation
+            output.insert(field.name.to_string(), raw_val.clone());
+        }
+        // else: non-scalar, non-object, non-array value in metadata — skip
+    }
+
+    output
+}
+
+/// Strip list wrappers and non-null bangs from a field type string.
+///
+/// Examples:
+/// - `"String!"` → `"String"`
+/// - `"[String!]!"` → `"String"`
+/// - `"DateTime"` → `"DateTime"`
+fn strip_list_and_bang(field_type: &str) -> String {
+    field_type.trim_matches(|c| c == '[' || c == ']' || c == '!').to_string()
 }
 
 #[cfg(test)]

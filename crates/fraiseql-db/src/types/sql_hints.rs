@@ -8,7 +8,7 @@
 use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::projection_generator::to_snake_case;
+use crate::utils::to_snake_case;
 use crate::types::db_types::DatabaseType;
 
 /// SQL sort type for ORDER BY cast generation.

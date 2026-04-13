@@ -29,10 +29,27 @@
 
 use fraiseql_error::{FraiseQLError, Result};
 
+/// The semantic kind of a projection field, determining which JSONB extraction
+/// operator to use in generated SQL.
+///
+/// - `Text` → `->>` (extracts as text — for String and ID scalars)
+/// - `Native` → `->` (preserves native JSON type — Int, Float, Boolean, DateTime, etc.)
+/// - `Composite` → `->` (preserves full JSONB structure)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldKind {
+    /// Text scalar — extracted with `->>` (String, ID).
+    Text,
+    /// Native JSON scalar — extracted with `->` to preserve type (Int, Float, Boolean, DateTime, etc.).
+    Native,
+    /// Object or list — extracted with `->` to preserve JSONB structure.
+    Composite,
+}
+
 /// A field in a SQL projection with type information.
 ///
 /// Used by typed projection generators to choose the correct JSONB extraction
-/// operator: `->` (preserves JSONB) for objects/arrays, `->>` (text) for scalars.
+/// operator based on [`FieldKind`]: `->` (preserves JSONB) for composites and
+/// native scalars, `->>` (text) for text scalars (String, ID).
 ///
 /// When `sub_fields` is populated on a composite field, `generate_typed_projection_sql`
 /// will recurse and emit a nested `jsonb_build_object(...)` instead of returning the full
@@ -43,9 +60,8 @@ pub struct ProjectionField {
     /// GraphQL field name (camelCase).
     pub name: String,
 
-    /// Whether this field is a composite type (Object or List) that should
-    /// be extracted as JSONB (`->`) rather than text (`->>`).
-    pub is_composite: bool,
+    /// Semantic kind of the field, controlling the JSONB extraction operator.
+    pub kind: FieldKind,
 
     /// Sub-fields to project for composite (Object) types.
     ///
@@ -58,13 +74,30 @@ pub struct ProjectionField {
 }
 
 impl ProjectionField {
-    /// Create a scalar projection field (uses `->>` text extraction).
+    /// Create a text scalar projection field (uses `->>` text extraction).
+    ///
+    /// Use for String and ID fields only. Other scalars (Int, Float, Boolean,
+    /// DateTime, etc.) should use [`Self::native`].
     #[must_use]
     pub fn scalar(name: impl Into<String>) -> Self {
         Self {
-            name:         name.into(),
-            is_composite: false,
-            sub_fields:   None,
+            name:       name.into(),
+            kind:       FieldKind::Text,
+            sub_fields: None,
+        }
+    }
+
+    /// Create a native JSON scalar projection field (uses `->` to preserve type).
+    ///
+    /// Use for Int, Float, Boolean, DateTime, Date, Time, Decimal, Vector, and
+    /// other non-text scalars. `->>` would coerce these to strings inside
+    /// `jsonb_build_object`, losing type information.
+    #[must_use]
+    pub fn native(name: impl Into<String>) -> Self {
+        Self {
+            name:       name.into(),
+            kind:       FieldKind::Native,
+            sub_fields: None,
         }
     }
 
@@ -72,9 +105,9 @@ impl ProjectionField {
     #[must_use]
     pub fn composite(name: impl Into<String>) -> Self {
         Self {
-            name:         name.into(),
-            is_composite: true,
-            sub_fields:   None,
+            name:       name.into(),
+            kind:       FieldKind::Composite,
+            sub_fields: None,
         }
     }
 
@@ -85,10 +118,16 @@ impl ProjectionField {
     #[must_use]
     pub fn composite_with_sub_fields(name: impl Into<String>, sub_fields: Vec<Self>) -> Self {
         Self {
-            name:         name.into(),
-            is_composite: true,
-            sub_fields:   Some(sub_fields),
+            name:       name.into(),
+            kind:       FieldKind::Composite,
+            sub_fields: Some(sub_fields),
         }
+    }
+
+    /// Whether this field is a composite type (Object or List).
+    #[must_use]
+    pub const fn is_composite(&self) -> bool {
+        matches!(self.kind, FieldKind::Composite)
     }
 }
 
@@ -125,35 +164,7 @@ fn validate_field_name(field: &str) -> Result<()> {
     }
 }
 
-/// Convert camelCase field name to snake_case for JSON/JSONB key lookup.
-///
-/// FraiseQL converts schema field names from snake_case to camelCase for GraphQL spec compliance.
-/// However, JSON/JSONB keys are stored in their original snake_case form.
-/// This function reverses that conversion for JSON key access.
-///
-/// # Examples
-///
-/// ```text
-/// assert_eq!(to_snake_case("firstName"), "first_name");
-/// assert_eq!(to_snake_case("id"), "id");
-/// ```
-pub(crate) fn to_snake_case(name: &str) -> String {
-    let mut result = String::new();
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_uppercase() && i > 0 {
-            result.push('_');
-            result.push(
-                ch.to_lowercase()
-                    .next()
-                    // Reason: Unicode spec guarantees to_lowercase yields ≥ 1 char
-                    .expect("char::to_lowercase always yields at least one char"),
-            );
-        } else {
-            result.push(ch);
-        }
-    }
-    result
-}
+use crate::utils::to_snake_case;
 
 /// Maximum nesting depth for recursive JSONB projection.
 ///
@@ -314,8 +325,9 @@ impl PostgresProjectionGenerator {
             }
         }
 
-        // Scalar: ->> (text).  Composite without sub-fields: -> (full JSONB blob).
-        let op = if field.is_composite { "->" } else { "->>" };
+        // Text: ->> (text cast, for String/ID).
+        // Native / Composite: -> (preserves native JSONB type).
+        let op = if field.kind == FieldKind::Text { "->>" } else { "->" };
         Ok(format!("'{}', {}{}'{}'", resp_key, path, op, safe_jsonb_key))
     }
 
@@ -900,13 +912,13 @@ mod tests {
     }
 
     #[test]
-    fn test_typed_projection_scalar_field_uses_text_extraction() {
+    fn test_typed_projection_text_field_uses_text_extraction() {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![ProjectionField::scalar("name")];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
-        // Scalar fields use ->> (text extraction)
-        assert!(sql.contains("->>'name'"), "scalar field must use ->> operator, got: {sql}");
-        assert!(!sql.contains("->'name'"), "scalar field must NOT use -> operator, got: {sql}");
+        // Text fields use ->> (text extraction)
+        assert!(sql.contains("->>'name'"), "text field must use ->> operator, got: {sql}");
+        assert!(!sql.contains("->'name'"), "text field must NOT use -> operator, got: {sql}");
     }
 
     #[test]
@@ -919,19 +931,23 @@ mod tests {
     }
 
     #[test]
-    fn test_typed_projection_mixed_scalar_and_composite() {
+    fn test_typed_projection_mixed_text_native_and_composite() {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![
             ProjectionField::scalar("id"),
+            ProjectionField::native("age"),
             ProjectionField::composite("address"),
             ProjectionField::composite("tags"),
             ProjectionField::scalar("email"),
         ];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
 
-        // Scalars use ->>
-        assert!(sql.contains("->>'id'"), "id (scalar) must use ->>, got: {sql}");
-        assert!(sql.contains("->>'email'"), "email (scalar) must use ->>, got: {sql}");
+        // Text scalars use ->>
+        assert!(sql.contains("->>'id'"), "id (text) must use ->>, got: {sql}");
+        assert!(sql.contains("->>'email'"), "email (text) must use ->>, got: {sql}");
+
+        // Native scalars use ->
+        assert!(sql.contains("->'age'"), "age (native) must use ->, got: {sql}");
 
         // Composites use ->
         assert!(sql.contains("->'address'"), "address (composite) must use ->, got: {sql}");
@@ -970,6 +986,60 @@ mod tests {
             sql.contains("'it''s'"),
             "single quote in field name must be escaped, got: {sql}"
         );
+    }
+
+    // ── Native field extraction tests (issue #197 / #202) ──────────────────────
+
+    #[test]
+    fn test_native_field_uses_jsonb_extraction() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ProjectionField::native("isActive"),
+            ProjectionField::scalar("name"),
+        ];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Native: -> (not ->>) to preserve native JSON type (boolean, int, etc.)
+        assert!(
+            sql.contains("->'is_active'"),
+            "native field must use -> operator, got: {sql}"
+        );
+        // Text scalar still uses ->>
+        assert!(
+            sql.contains("->>'name'"),
+            "text scalar field must use ->> operator, got: {sql}"
+        );
+    }
+
+    #[test]
+    fn test_native_field_mixed_with_composite() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ProjectionField::native("isActive"),
+            ProjectionField::composite("address"),
+            ProjectionField::scalar("email"),
+        ];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        assert!(sql.contains("->'is_active'"), "native uses ->, got: {sql}");
+        assert!(sql.contains("->'address'"), "composite uses ->, got: {sql}");
+        assert!(sql.contains("->>'email'"), "text scalar uses ->>, got: {sql}");
+    }
+
+    #[test]
+    fn test_native_int_and_float_use_jsonb_extraction() {
+        let generator = PostgresProjectionGenerator::new();
+        let fields = vec![
+            ProjectionField::native("age"),
+            ProjectionField::native("price"),
+            ProjectionField::scalar("name"),
+            ProjectionField::scalar("id"),
+        ];
+        let sql = generator.generate_typed_projection_sql(&fields).unwrap();
+        // Native scalars (Int, Float) use ->
+        assert!(sql.contains("->'age'"), "int (native) must use ->, got: {sql}");
+        assert!(sql.contains("->'price'"), "float (native) must use ->, got: {sql}");
+        // Text scalars (String, ID) use ->>
+        assert!(sql.contains("->>'name'"), "string (text) must use ->>, got: {sql}");
+        assert!(sql.contains("->>'id'"), "id (text) must use ->>, got: {sql}");
     }
 
     // ── Deep nested projection tests (issue #189) ─────────────────────────────

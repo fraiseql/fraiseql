@@ -1,0 +1,250 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "fields": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "is_active",
+          "type": "Boolean",
+          "nullable": false
+        }
+      ],
+      "description": "User type representing a user in the system."
+    },
+    {
+      "name": "Post",
+      "sql_source": "v_post",
+      "fields": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "author_id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "published",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Post type representing a blog post."
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "limit",
+          "type": "Int",
+          "nullable": false,
+          "default": 10
+        },
+        {
+          "name": "offset",
+          "type": "Int",
+          "nullable": false,
+          "default": 0
+        },
+        {
+          "name": "is_active",
+          "type": "Boolean",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Get list of users with pagination.\n\nArgs:\n    limit: Maximum number of users to return\n    offset: Number of users to skip\n    is_active: Filter by active status (optional)\n\nReturns:\n    List of User objects\n",
+      "sql_source": "v_user",
+      "auto_params": {
+        "limit": true,
+        "offset": true,
+        "where": true,
+        "order_by": true
+      }
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Get a single user by ID.\n\nArgs:\n    id: User ID\n\nReturns:\n    User object or None if not found\n",
+      "sql_source": "v_user"
+    },
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "author_id",
+          "type": "Int",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "published",
+          "type": "Boolean",
+          "nullable": false,
+          "default": true
+        }
+      ],
+      "description": "Get list of posts with filtering.\n\nArgs:\n    author_id: Filter by author ID (optional)\n    published: Filter by published status\n\nReturns:\n    List of Post objects\n",
+      "sql_source": "v_post",
+      "auto_params": {
+        "limit": true,
+        "offset": true,
+        "where": true,
+        "order_by": true
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "create_user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new user.\n\nArgs:\n    name: User's full name\n    email: User's email address\n\nReturns:\n    Created User object\n",
+      "sql_source": "fn_create_user",
+      "operation": "CREATE"
+    },
+    {
+      "name": "update_user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Update an existing user.\n\nArgs:\n    id: User ID to update\n    name: New name (optional)\n    email: New email (optional)\n\nReturns:\n    Updated User object\n",
+      "sql_source": "fn_update_user",
+      "operation": "UPDATE"
+    },
+    {
+      "name": "delete_user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Delete a user.\n\nArgs:\n    id: User ID to delete\n\nReturns:\n    Deleted User object\n",
+      "sql_source": "fn_delete_user",
+      "operation": "DELETE"
+    },
+    {
+      "name": "create_post",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "author_id",
+          "type": "Int",
+          "nullable": false
+        }
+      ],
+      "description": "Create a new blog post.\n\nArgs:\n    title: Post title\n    content: Post content\n    author_id: ID of the author\n\nReturns:\n    Created Post object\n",
+      "sql_source": "fn_create_post",
+      "operation": "CREATE"
+    }
+  ],
+  "subscriptions": []
+}

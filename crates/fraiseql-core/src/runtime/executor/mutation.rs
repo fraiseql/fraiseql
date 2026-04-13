@@ -224,22 +224,58 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Build positional args Vec from variables in ArgumentDefinition order. Validate that
         //    every required (non-nullable, no default) argument is present.
+        //
+        //    Input object unwrapping: when the mutation has a single argument named "input"
+        //    whose type is an Input type, AND the client sends a JSON object for that argument,
+        //    unwrap the object's fields and pass them positionally in the order defined by the
+        //    input type's field list.  This keeps the SQL function signature flat while letting
+        //    the GraphQL API use the standard input object pattern.
         let vars_obj = variables.and_then(|v| v.as_object());
 
         let mut missing_required: Vec<&str> = Vec::new();
         let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
         let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
-        args.extend(mutation_def.arguments.iter().map(|arg| {
-            let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
-            if let Some(v) = value {
-                v
-            } else {
-                if !arg.nullable && arg.default_value.is_none() {
-                    missing_required.push(&arg.name);
-                }
-                arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+
+        // Detect single-input-object pattern
+        let input_type_name = if mutation_def.arguments.len() == 1
+            && mutation_def.arguments[0].name == "input"
+        {
+            match &mutation_def.arguments[0].arg_type {
+                crate::schema::FieldType::Input(name) => Some(name.as_str()),
+                _ => None,
             }
-        }));
+        } else {
+            None
+        };
+
+        if let Some(input_type) = input_type_name.and_then(|n| self.schema.find_input_type(n)) {
+            // Unwrap input object: extract fields in the order defined by the input type
+            let input_obj = vars_obj
+                .and_then(|obj| obj.get("input"))
+                .and_then(|v| v.as_object());
+
+            if let Some(input_obj) = input_obj {
+                for field in &input_type.fields {
+                    let value = input_obj.get(&field.name).cloned();
+                    args.push(value.unwrap_or(serde_json::Value::Null));
+                }
+            } else if !mutation_def.arguments[0].nullable {
+                missing_required.push("input");
+            }
+        } else {
+            // Standard argument handling (flat arguments, no input object)
+            args.extend(mutation_def.arguments.iter().map(|arg| {
+                let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
+                if let Some(v) = value {
+                    v
+                } else {
+                    if !arg.nullable && arg.default_value.is_none() {
+                        missing_required.push(&arg.name);
+                    }
+                    arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+                }
+            }));
+        }
 
         if !missing_required.is_empty() {
             return Err(FraiseQLError::Validation {

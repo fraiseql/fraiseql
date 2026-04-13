@@ -119,16 +119,33 @@ public sealed class SchemaBuilder
             .Concat(_mutations.Select(m => m.Build()))
             .ToList();
 
+        // Collect input types from registry
+        var mergedInputTypes = SchemaRegistry.Instance.GetAllInputTypes().ToList();
+
         // Generate CRUD operations for fluent types that have crud enabled
         foreach (var tc in _types.Where(t => t.HasCrud))
         {
-            var (crudQueries, crudMutations) = CrudGenerator.Generate(
+            var (crudQueries, crudMutations, crudInputTypes) = CrudGenerator.Generate(
                 tc.Name, tc.GetFields(), tc.GetSqlSource(), tc.HasCascade);
             mergedQueries.AddRange(crudQueries);
             mergedMutations.AddRange(crudMutations);
+
+            foreach (var inputType in crudInputTypes)
+            {
+                var inputFields = inputType.Fields
+                    .Select(f => new IntermediateInputField(f.Name, f.Type, f.Nullable))
+                    .ToList()
+                    .AsReadOnly();
+                mergedInputTypes.Add(new IntermediateInputType(inputType.Name, inputFields, inputType.Description));
+            }
         }
 
-        return new IntermediateSchema("2.0.0", allTypes, mergedQueries.AsReadOnly(), mergedMutations.AsReadOnly());
+        return new IntermediateSchema(
+            "2.0.0",
+            allTypes,
+            mergedQueries.AsReadOnly(),
+            mergedMutations.AsReadOnly(),
+            mergedInputTypes.Count > 0 ? mergedInputTypes.AsReadOnly() : null);
     }
 
     /// <summary>

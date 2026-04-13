@@ -228,7 +228,8 @@ enum QueryType {
 
     /// Relay global node lookup: `node(id: ID!)`.
     /// Resolves any type that implements the Node interface by global opaque ID.
-    NodeQuery,
+    /// Contains the field selections from the inline fragment for projection.
+    NodeQuery { selections: Vec<crate::graphql::FieldSelection> },
 }
 
 /// Null out masked fields in a projected JSON result.

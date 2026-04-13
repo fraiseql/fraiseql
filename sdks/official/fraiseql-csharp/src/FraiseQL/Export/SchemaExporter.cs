@@ -28,11 +28,14 @@ public static class SchemaExporter
             .ToList()
             .AsReadOnly();
 
+        var inputTypes = registry.GetAllInputTypes();
+
         return new IntermediateSchema(
             Version: SchemaVersion,
             Types: types,
             Queries: registry.GetAllQueries(),
-            Mutations: registry.GetAllMutations());
+            Mutations: registry.GetAllMutations(),
+            InputTypes: inputTypes.Count > 0 ? inputTypes : null);
     }
 
     /// <summary>
