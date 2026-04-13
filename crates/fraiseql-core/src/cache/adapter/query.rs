@@ -8,7 +8,7 @@ use std::sync::Arc;
 use super::CachedDatabaseAdapter;
 use crate::{
     cache::key::{generate_projection_query_key, generate_view_query_key},
-    db::{DatabaseAdapter, WhereClause, types::JsonbValue},
+    db::{DatabaseAdapter, OrderByClause, WhereClause, types::JsonbValue},
     error::Result,
     schema::SqlProjectionHint,
 };
@@ -66,6 +66,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
@@ -75,7 +76,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         {
             return self
                 .adapter
-                .execute_with_projection(view, projection, where_clause, limit, offset, None)
+                .execute_with_projection(view, projection, where_clause, limit, offset, order_by)
                 .await
                 .map(Arc::new);
         }
@@ -94,7 +95,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // same allocation via Arc reference counting.
         let arc = Arc::new(
             self.adapter
-                .execute_with_projection(view, projection, where_clause, limit, offset, None)
+                .execute_with_projection(view, projection, where_clause, limit, offset, order_by)
                 .await?,
         );
 
@@ -124,6 +125,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
@@ -131,7 +133,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
-                .execute_where_query(view, where_clause, limit, offset, None)
+                .execute_where_query(view, where_clause, limit, offset, order_by)
                 .await
                 .map(Arc::new);
         }
@@ -148,7 +150,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
         let arc = Arc::new(
             self.adapter
-                .execute_where_query(view, where_clause, limit, offset, None)
+                .execute_where_query(view, where_clause, limit, offset, order_by)
                 .await?,
         );
 

@@ -219,11 +219,11 @@ impl DatabaseAdapter for MySqlAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let Some(projection) = projection else {
@@ -250,6 +250,9 @@ impl DatabaseAdapter for MySqlAdapter {
         } else {
             Vec::new()
         };
+
+        // Add ORDER BY clause — field names are pre-validated by OrderByClause
+        append_mysql_order_by(&mut sql, order_by);
 
         // Add LIMIT/OFFSET — MySQL requires LIMIT before OFFSET.
         // Reason (expect below): fmt::Write for String is infallible.
@@ -281,7 +284,7 @@ impl DatabaseAdapter for MySqlAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query
         let mut sql = format!("SELECT data FROM {}", quote_mysql_identifier(view));
@@ -296,6 +299,9 @@ impl DatabaseAdapter for MySqlAdapter {
         } else {
             Vec::new()
         };
+
+        // Add ORDER BY clause
+        append_mysql_order_by(&mut sql, order_by);
 
         // Add LIMIT and OFFSET
         // Note: MySQL requires LIMIT when using OFFSET, so we use a large number for "unlimited"
@@ -749,6 +755,31 @@ impl MySqlAdapter {
 }
 
 impl SupportsMutations for MySqlAdapter {}
+
+/// Append `ORDER BY` clause for MySQL JSONB queries.
+///
+/// Uses `JSON_UNQUOTE(JSON_EXTRACT(data, '$.field'))` for text extraction.
+/// Field names are pre-validated by `OrderByClause::validate_field_name`.
+fn append_mysql_order_by(sql: &mut String, order_by: Option<&[OrderByClause]>) {
+    if let Some(clauses) = order_by {
+        if !clauses.is_empty() {
+            sql.push_str(" ORDER BY ");
+            for (i, clause) in clauses.iter().enumerate() {
+                if i > 0 {
+                    sql.push_str(", ");
+                }
+                // Reason (expect below): fmt::Write for String is infallible.
+                write!(
+                    sql,
+                    "JSON_UNQUOTE(JSON_EXTRACT(data, '$.{}')) {}",
+                    clause.field,
+                    clause.direction.as_sql()
+                )
+                .expect("write to String");
+            }
+        }
+    }
+}
 
 // ── RelayDatabaseAdapter ───────────────────────────────────────────────────
 

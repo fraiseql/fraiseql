@@ -16,6 +16,13 @@ use crate::{
     security::{RlsWhereClause, SecurityContext},
 };
 
+/// Check whether the client requested `__typename` in the root selection set.
+fn selections_request_typename(selections: &[FieldSelection]) -> bool {
+    selections
+        .first()
+        .is_some_and(|root| root.nested_fields.iter().any(|f| f.name == "__typename"))
+}
+
 /// Build a recursive [`ProjectionField`] tree from a GraphQL selection set.
 ///
 /// For each field in `selections`, consults the compiled schema to determine
@@ -316,7 +323,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 11. Project results — include both allowed and masked fields in projection
         let mut all_projection_fields = access.allowed;
         all_projection_fields.extend(access.masked.iter().cloned());
-        let projector = ResultProjector::new(all_projection_fields);
+        let mut projector = ResultProjector::new(all_projection_fields);
+        if selections_request_typename(&query_match.selections) {
+            projector = projector.with_typename(&query_match.query_def.return_type);
+        }
         let mut projected =
             projector.project_results(&results, query_match.query_def.returns_list)?;
 
@@ -478,7 +488,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // 4. Project results
-        let projector = ResultProjector::new(plan.projection_fields);
+        let mut projector = ResultProjector::new(plan.projection_fields);
+        if selections_request_typename(&query_match.selections) {
+            projector = projector.with_typename(&query_match.query_def.return_type);
+        }
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // 5. Wrap in GraphQL data envelope
@@ -599,7 +612,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // Project results.
-        let projector = ResultProjector::new(plan.projection_fields);
+        let mut projector = ResultProjector::new(plan.projection_fields);
+        if selections_request_typename(&query_match.selections) {
+            projector = projector.with_typename(&query_match.query_def.return_type);
+        }
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // Wrap in GraphQL data envelope.

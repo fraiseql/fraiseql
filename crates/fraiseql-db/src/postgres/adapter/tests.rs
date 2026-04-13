@@ -10,14 +10,14 @@ use super::{PoolPrewarmConfig, PostgresAdapter, build_where_select_sql, escape_j
 
 #[test]
 fn test_build_where_select_sql_no_clause() {
-    let (sql, params) = build_where_select_sql("v_user", None, None, None).unwrap();
+    let (sql, params) = build_where_select_sql("v_user", None, None, None, None).unwrap();
     assert_eq!(sql, r#"SELECT data FROM "v_user""#);
     assert!(params.is_empty());
 }
 
 #[test]
 fn test_build_where_select_sql_with_limit_offset() {
-    let (sql, params) = build_where_select_sql("v_order", None, Some(10), Some(20)).unwrap();
+    let (sql, params) = build_where_select_sql("v_order", None, Some(10), Some(20), None).unwrap();
     // LIMIT takes $1, OFFSET takes $2.
     assert!(sql.contains("LIMIT $1"), "expected LIMIT $1 in: {sql}");
     assert!(sql.contains("OFFSET $2"), "expected OFFSET $2 in: {sql}");

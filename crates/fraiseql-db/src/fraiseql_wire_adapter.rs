@@ -225,11 +225,11 @@ impl DatabaseAdapter for FraiseWireAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // FraiseWire uses streaming, so projection is handled by field selection
         // Fall back to standard query for now
-        self.execute_where_query(view, where_clause, limit, offset, _order_by).await
+        self.execute_where_query(view, where_clause, limit, offset, order_by).await
     }
 
     /// # Errors
@@ -242,7 +242,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // fraiseql-wire generates SQL as: SELECT data FROM {entity}
         // where entity is used exactly as provided (no prefix modifications)

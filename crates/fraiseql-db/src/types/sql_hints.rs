@@ -40,6 +40,17 @@ pub enum OrderDirection {
     Desc,
 }
 
+impl OrderDirection {
+    /// Return the SQL keyword for this direction.
+    #[must_use]
+    pub const fn as_sql(self) -> &'static str {
+        match self {
+            Self::Asc => "ASC",
+            Self::Desc => "DESC",
+        }
+    }
+}
+
 impl OrderByClause {
     /// Validate that a field name matches the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*`.
     ///

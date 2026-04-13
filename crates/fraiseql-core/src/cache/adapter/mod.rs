@@ -558,9 +558,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset)
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -571,9 +571,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset)
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by)
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -585,9 +585,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset)
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
             .await
     }
 
@@ -597,9 +597,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset).await
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by).await
     }
 
     fn database_type(&self) -> DatabaseType {

@@ -214,11 +214,11 @@ impl DatabaseAdapter for SqliteAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let Some(projection) = projection else {
@@ -247,6 +247,9 @@ impl DatabaseAdapter for SqliteAdapter {
             Vec::new()
         };
 
+        // Add ORDER BY clause
+        append_sqlite_order_by(&mut sql, order_by);
+
         // Add LIMIT/OFFSET — SQLite requires LIMIT before OFFSET.
         // Reason (expect below): fmt::Write for String is infallible.
         match (limit, offset) {
@@ -273,7 +276,7 @@ impl DatabaseAdapter for SqliteAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQLite uses double quotes for identifiers
         let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
@@ -288,6 +291,9 @@ impl DatabaseAdapter for SqliteAdapter {
         } else {
             Vec::new()
         };
+
+        // Add ORDER BY clause
+        append_sqlite_order_by(&mut sql, order_by);
 
         // Add LIMIT and OFFSET
         // Note: SQLite requires LIMIT when using OFFSET, so we use LIMIT -1 for "unlimited"
@@ -584,6 +590,31 @@ impl DatabaseAdapter for SqliteAdapter {
             .collect();
 
         Ok(serde_json::json!(steps))
+    }
+}
+
+/// Append `ORDER BY` clause for SQLite JSONB queries.
+///
+/// Uses `json_extract(data, '$.field')` for value extraction.
+/// Field names are pre-validated by `OrderByClause::validate_field_name`.
+fn append_sqlite_order_by(sql: &mut String, order_by: Option<&[OrderByClause]>) {
+    if let Some(clauses) = order_by {
+        if !clauses.is_empty() {
+            sql.push_str(" ORDER BY ");
+            for (i, clause) in clauses.iter().enumerate() {
+                if i > 0 {
+                    sql.push_str(", ");
+                }
+                // Reason (expect below): fmt::Write for String is infallible.
+                write!(
+                    sql,
+                    "json_extract(data, '$.{}') {}",
+                    clause.field,
+                    clause.direction.as_sql()
+                )
+                .expect("write to String");
+            }
+        }
     }
 }
 

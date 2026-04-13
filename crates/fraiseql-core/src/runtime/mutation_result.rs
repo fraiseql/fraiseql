@@ -139,11 +139,11 @@ pub fn populate_error_fields(
         if SCALAR_TYPES.contains(&base_type.as_str()) {
             // #294 fix: copy scalar values directly (string, int, datetime, uuid, …)
             output.insert(field.name.to_string(), raw_val.clone());
-        } else if raw_val.is_object() {
-            // Complex entity field: nested JSON object (existing behaviour)
+        } else if raw_val.is_object() || raw_val.is_array() {
+            // Complex entity field: nested JSON object or array relation
             output.insert(field.name.to_string(), raw_val.clone());
         }
-        // else: non-scalar, non-object value in metadata — skip
+        // else: non-scalar, non-object, non-array value in metadata — skip
     }
 
     output

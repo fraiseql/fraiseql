@@ -260,11 +260,11 @@ impl DatabaseAdapter for SqlServerAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let Some(projection) = projection else {
@@ -312,11 +312,19 @@ impl DatabaseAdapter for SqlServerAdapter {
             Vec::new()
         };
 
-        // Add OFFSET/FETCH for pagination (SQL Server requires ORDER BY for OFFSET).
+        // Add ORDER BY clause or use dummy for OFFSET/FETCH
         // Reason (expect below): fmt::Write for String is infallible.
+        let has_order_by = order_by.is_some_and(|c| !c.is_empty());
+        if has_order_by {
+            append_sqlserver_order_by(&mut sql, order_by);
+        }
+
         if let Some(off) = offset {
-            // SQL Server requires ORDER BY for OFFSET/FETCH NEXT syntax
-            write!(sql, " ORDER BY (SELECT NULL) OFFSET {off} ROWS").expect("write to String");
+            if !has_order_by {
+                // SQL Server requires ORDER BY for OFFSET/FETCH NEXT syntax
+                sql.push_str(" ORDER BY (SELECT NULL)");
+            }
+            write!(sql, " OFFSET {off} ROWS").expect("write to String");
             if let Some(lim) = limit {
                 write!(sql, " FETCH NEXT {lim} ROWS ONLY").expect("write to String");
             }
@@ -336,13 +344,14 @@ impl DatabaseAdapter for SqlServerAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQL Server uses square brackets for identifiers
         // SQL Server uses TOP instead of LIMIT, and OFFSET...FETCH for pagination
+        let has_order_by = order_by.is_some_and(|c| !c.is_empty());
         let mut sql = if let Some(lim) = limit {
-            if offset.is_some() {
-                // With OFFSET, we need ORDER BY for pagination
+            if offset.is_some() || has_order_by {
+                // With OFFSET or ORDER BY, we use OFFSET...FETCH instead of TOP
                 format!("SELECT data FROM {}", quote_sqlserver_identifier(view))
             } else {
                 format!("SELECT TOP {lim} data FROM {}", quote_sqlserver_identifier(view))
@@ -364,11 +373,17 @@ impl DatabaseAdapter for SqlServerAdapter {
                 (Vec::new(), 0)
             };
 
-        // Handle pagination with OFFSET...FETCH (requires ORDER BY).
+        // Add ORDER BY clause or dummy for OFFSET/FETCH.
         // SQL Server uses @p1, @p2, ... for parameters.
         // Reason (expect below): fmt::Write for String is infallible.
+        if has_order_by {
+            append_sqlserver_order_by(&mut sql, order_by);
+        }
+
         if let Some(off) = offset {
-            sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
+            if !has_order_by {
+                sql.push_str(" ORDER BY (SELECT NULL)"); // Arbitrary ordering for pagination
+            }
             param_count += 1;
             write!(sql, " OFFSET @p{param_count} ROWS").expect("write to String");
             params.push(serde_json::Value::Number(off.into()));
@@ -377,6 +392,12 @@ impl DatabaseAdapter for SqlServerAdapter {
                 write!(sql, " FETCH NEXT @p{param_count} ROWS ONLY").expect("write to String");
                 params.push(serde_json::Value::Number(lim.into()));
             }
+        } else if has_order_by && limit.is_some() {
+            // ORDER BY without OFFSET — SQL Server needs OFFSET 0 for FETCH
+            param_count += 1;
+            write!(sql, " OFFSET 0 ROWS FETCH NEXT @p{param_count} ROWS ONLY")
+                .expect("write to String");
+            params.push(serde_json::Value::Number(limit.expect("checked above").into()));
         }
 
         self.execute_raw(&sql, params).await
@@ -656,6 +677,31 @@ fn bind_json_params<'a>(
 
 /// Build the ORDER BY clause for a relay page query.
 ///
+/// Append `ORDER BY` clause for SQL Server JSONB queries.
+///
+/// Uses `JSON_VALUE(data, '$.field')` for value extraction.
+/// Field names are pre-validated by `OrderByClause::validate_field_name`.
+fn append_sqlserver_order_by(sql: &mut String, order_by: Option<&[OrderByClause]>) {
+    if let Some(clauses) = order_by {
+        if !clauses.is_empty() {
+            sql.push_str(" ORDER BY ");
+            for (i, clause) in clauses.iter().enumerate() {
+                if i > 0 {
+                    sql.push_str(", ");
+                }
+                // Reason (expect below): fmt::Write for String is infallible.
+                write!(
+                    sql,
+                    "JSON_VALUE(data, '$.{}') {}",
+                    clause.field,
+                    clause.direction.as_sql()
+                )
+                .expect("write to String");
+            }
+        }
+    }
+}
+
 /// Custom sort columns come first, then the cursor column as tiebreaker.
 /// For backward pagination every direction is flipped so the inner `FETCH NEXT` subquery
 /// retrieves the correct `N` rows before the cursor; the outer re-sort in

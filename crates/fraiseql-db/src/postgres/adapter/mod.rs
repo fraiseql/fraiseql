@@ -20,7 +20,7 @@ use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
     traits::DatabaseAdapter,
-    types::{JsonbValue, QueryParam, sql_hints::SqlProjectionHint},
+    types::{JsonbValue, QueryParam, sql_hints::{OrderByClause, SqlProjectionHint}},
     where_clause::WhereClause,
 };
 
@@ -499,10 +499,11 @@ impl PostgresAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -517,67 +518,56 @@ impl PostgresAdapter {
         );
 
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
+        let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
             let generator = PostgresWhereGenerator::new(PostgresDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-
-            // Convert WHERE params to typed params first
-            let mut typed_params: Vec<QueryParam> =
-                where_params.into_iter().map(QueryParam::from).collect();
-            let mut param_count = typed_params.len();
-
-            // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
-            // Reason (expect below): fmt::Write for String is infallible.
-            if let Some(lim) = limit {
-                param_count += 1;
-                write!(sql, " LIMIT ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(lim)));
-            }
-
-            if let Some(off) = offset {
-                param_count += 1;
-                write!(sql, " OFFSET ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(off)));
-            }
-
-            tracing::debug!("SQL with projection = {}", sql);
-            tracing::debug!("typed_params = {:?}", typed_params);
-
-            // Create references to QueryParam for ToSql
-            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
-                .iter()
-                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-                .collect();
-
-            self.execute_raw(&sql, &param_refs).await
+            where_params.into_iter().map(QueryParam::from).collect()
         } else {
-            // No WHERE clause — only LIMIT/OFFSET params.
-            // Reason (expect below): fmt::Write for String is infallible.
-            let mut typed_params: Vec<QueryParam> = Vec::new();
-            let mut param_count = 0;
+            Vec::new()
+        };
+        let mut param_count = typed_params.len();
 
-            if let Some(lim) = limit {
-                param_count += 1;
-                write!(sql, " LIMIT ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(lim)));
+        // Add ORDER BY clause
+        if let Some(clauses) = order_by {
+            if !clauses.is_empty() {
+                sql.push_str(" ORDER BY ");
+                for (i, clause) in clauses.iter().enumerate() {
+                    if i > 0 {
+                        sql.push_str(", ");
+                    }
+                    let escaped = escape_jsonb_key(&clause.field);
+                    write!(sql, "data->>'{escaped}' {}", clause.direction.as_sql())
+                        .expect("write to String");
+                }
             }
-
-            if let Some(off) = offset {
-                param_count += 1;
-                write!(sql, " OFFSET ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(off)));
-            }
-
-            // Create references to QueryParam for ToSql
-            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
-                .iter()
-                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-                .collect();
-
-            self.execute_raw(&sql, &param_refs).await
         }
+
+        // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
+        // Reason (expect below): fmt::Write for String is infallible.
+        if let Some(lim) = limit {
+            param_count += 1;
+            write!(sql, " LIMIT ${param_count}").expect("write to String");
+            typed_params.push(QueryParam::BigInt(i64::from(lim)));
+        }
+
+        if let Some(off) = offset {
+            param_count += 1;
+            write!(sql, " OFFSET ${param_count}").expect("write to String");
+            typed_params.push(QueryParam::BigInt(i64::from(off)));
+        }
+
+        tracing::debug!("SQL with projection = {}", sql);
+        tracing::debug!("typed_params = {:?}", typed_params);
+
+        // Create references to QueryParam for ToSql
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        self.execute_raw(&sql, &param_refs).await
     }
 }
 
@@ -599,6 +589,7 @@ pub(super) fn build_where_select_sql(
     where_clause: Option<&WhereClause>,
     limit: Option<u32>,
     offset: Option<u32>,
+    order_by: Option<&[OrderByClause]>,
 ) -> Result<(String, Vec<QueryParam>)> {
     // Build base query
     let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
@@ -616,6 +607,22 @@ pub(super) fn build_where_select_sql(
         Vec::new()
     };
     let mut param_count = typed_params.len();
+
+    // Add ORDER BY clause — field names are pre-validated by OrderByClause::validate_field_name
+    // to the GraphQL identifier pattern [_A-Za-z][_0-9A-Za-z]*, safe for interpolation.
+    if let Some(clauses) = order_by {
+        if !clauses.is_empty() {
+            sql.push_str(" ORDER BY ");
+            for (i, clause) in clauses.iter().enumerate() {
+                if i > 0 {
+                    sql.push_str(", ");
+                }
+                let escaped = escape_jsonb_key(&clause.field);
+                write!(sql, "data->>'{escaped}' {}", clause.direction.as_sql())
+                    .expect("write to String");
+            }
+        }
+    }
 
     // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT).
     // Reason (expect below): fmt::Write for String is infallible.

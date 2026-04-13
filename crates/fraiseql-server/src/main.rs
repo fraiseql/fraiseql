@@ -12,6 +12,24 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // ── Helper functions ──────────────────────────────────────────────────────
 
+/// Parse `--config <path>` from CLI arguments.
+///
+/// Returns `Some(path)` if `--config` was provided, `None` otherwise.
+/// Supports both `--config path` (two args) and `--config=path` (one arg).
+fn parse_config_flag() -> Option<String> {
+    let args: Vec<String> = env::args().collect();
+    let mut iter = args.iter().skip(1); // skip binary name
+    while let Some(arg) = iter.next() {
+        if arg == "--config" {
+            return iter.next().cloned();
+        }
+        if let Some(value) = arg.strip_prefix("--config=") {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
 /// Load configuration from file or use defaults.
 ///
 /// # Errors
@@ -233,7 +251,8 @@ where
 /// Returns an error if configuration loading fails (file I/O, parse errors) or
 /// if the resulting configuration is invalid.
 fn load_and_validate_config() -> anyhow::Result<ServerConfig> {
-    let config_path = env::var("FRAISEQL_CONFIG").ok();
+    // Resolve config path: --config CLI flag takes precedence over FRAISEQL_CONFIG env var.
+    let config_path = parse_config_flag().or_else(|| env::var("FRAISEQL_CONFIG").ok());
     let mut config = load_config(config_path.as_deref())?;
 
     // Override configuration from environment variables if set.
