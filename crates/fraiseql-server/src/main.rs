@@ -1,13 +1,14 @@
 //! FraiseQL Server binary.
 
-use std::{env, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
 
+use clap::Parser;
 #[cfg(feature = "wire-backend")]
 use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(not(feature = "wire-backend"))]
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_core::schema::CompiledSchema;
-use fraiseql_server::{CompiledSchemaLoader, Server, ServerConfig, middleware::RateLimitConfig};
+use fraiseql_server::{Cli, CompiledSchemaLoader, Server, ServerConfig};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // ── Helper functions ──────────────────────────────────────────────────────
@@ -26,85 +27,6 @@ fn load_config(config_path: Option<&str>) -> anyhow::Result<ServerConfig> {
     } else {
         tracing::info!("Using default server configuration");
         Ok(ServerConfig::default())
-    }
-}
-
-/// Apply rate-limiting env var overrides to config.
-///
-/// Reads all four `FRAISEQL_RATE_LIMIT_*` environment variables up front and
-/// mutates `config.rate_limiting` exactly once, avoiding repeated
-/// `.take().unwrap_or(default)` constructions when multiple variables are set.
-fn apply_rate_limit_overrides(config: &mut ServerConfig) {
-    let enabled_raw = std::env::var("FRAISEQL_RATE_LIMITING_ENABLED").ok();
-    let rps_ip_raw = std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP").ok();
-    let rps_user_raw = std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER").ok();
-    let burst_raw = std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE").ok();
-
-    if enabled_raw.is_none()
-        && rps_ip_raw.is_none()
-        && rps_user_raw.is_none()
-        && burst_raw.is_none()
-    {
-        return;
-    }
-
-    let mut rate_config = config.rate_limiting.take().unwrap_or_else(|| RateLimitConfig {
-        enabled:               true,
-        rps_per_ip:            100,
-        rps_per_user:          1000,
-        burst_size:            500,
-        cleanup_interval_secs: 300,
-        trust_proxy_headers:   false,
-        trusted_proxy_cidrs:   Vec::new(),
-    });
-
-    if let Some(val) = enabled_raw {
-        warn_if_unrecognised_bool("FRAISEQL_RATE_LIMITING_ENABLED", &val);
-        rate_config.enabled = parse_bool_env(&val);
-    }
-    if let Some(val) = rps_ip_raw {
-        if let Ok(v) = val.parse() {
-            rate_config.rps_per_ip = v;
-        }
-    }
-    if let Some(val) = rps_user_raw {
-        if let Ok(v) = val.parse() {
-            rate_config.rps_per_user = v;
-        }
-    }
-    if let Some(val) = burst_raw {
-        if let Ok(v) = val.parse() {
-            rate_config.burst_size = v;
-        }
-    }
-
-    config.rate_limiting = Some(rate_config);
-}
-
-/// Parse a boolean environment variable value consistently.
-///
-/// Returns `true` for `"true"`, `"1"`, `"yes"`, `"on"` (case-insensitive);
-/// returns `false` for all other values including empty string and unrecognised inputs.
-fn parse_bool_env(val: &str) -> bool {
-    matches!(val.to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "on")
-}
-
-/// Emit a warning if `val` is neither a recognised truthy nor a recognised falsy boolean string.
-///
-/// Recognised values: `true`, `1`, `yes`, `on`, `false`, `0`, `no`, `off` (case-insensitive).
-/// Any other value (e.g. `"enabled"`, `"active"`) is silently treated as `false` by
-/// `parse_bool_env`; this warning surfaces that silent mis-configuration.
-fn warn_if_unrecognised_bool(var: &str, val: &str) {
-    if !matches!(
-        val.to_ascii_lowercase().as_str(),
-        "true" | "1" | "yes" | "on" | "false" | "0" | "no" | "off"
-    ) {
-        tracing::warn!(
-            variable = var,
-            value = val,
-            "Unrecognised boolean value; defaulting to false. \
-             Use true/false, 1/0, yes/no, or on/off."
-        );
     }
 }
 
@@ -135,16 +57,10 @@ fn validate_schema_path(path: &Path) -> anyhow::Result<()> {
 /// `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable), an `OpenTelemetry` span
 /// exporter is added as an additional tracing layer.  When no endpoint is set,
 /// no gRPC connection is attempted and there is zero overhead.
-fn init_tracing(config: &ServerConfig) {
+fn init_tracing(config: &ServerConfig, is_json: bool) {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "fraiseql_server=info,tower_http=info,axum=info".into());
 
-    let is_json = std::env::var("FRAISEQL_LOG_FORMAT")
-        .map(|v| v.eq_ignore_ascii_case("json"))
-        .unwrap_or(false);
-
-    // The OTel layer's type parameter must match the subscriber it composes
-    // with, so we build it separately per branch.
     if is_json {
         let subscriber = tracing_subscriber::registry()
             .with(env_filter)
@@ -226,64 +142,17 @@ where
     Some(tracing_opentelemetry::layer().with_tracer(tracer))
 }
 
-/// Load config from file/defaults, apply all env var overrides, then validate.
+/// Load config from file/defaults, apply all CLI/env overrides, then validate.
 ///
 /// # Errors
 ///
 /// Returns an error if configuration loading fails (file I/O, parse errors) or
 /// if the resulting configuration is invalid.
-fn load_and_validate_config() -> anyhow::Result<ServerConfig> {
-    let config_path = env::var("FRAISEQL_CONFIG").ok();
-    let mut config = load_config(config_path.as_deref())?;
+fn load_and_validate_config(cli: &Cli) -> anyhow::Result<ServerConfig> {
+    let mut config = load_config(cli.server.config.as_deref())?;
 
-    // Override configuration from environment variables if set.
-    if let Ok(db_url) = env::var("DATABASE_URL") {
-        config.database_url = db_url;
-    }
-    if let Ok(bind_addr) = env::var("FRAISEQL_BIND_ADDR") {
-        if let Ok(addr) = bind_addr.parse() {
-            config.bind_addr = addr;
-        } else {
-            tracing::warn!(bind_addr = %bind_addr, "Invalid FRAISEQL_BIND_ADDR, using default");
-        }
-    }
-    if let Ok(schema_path) = env::var("FRAISEQL_SCHEMA_PATH") {
-        config.schema_path = schema_path.into();
-    }
-
-    // Metrics configuration from environment.
-    if let Ok(metrics_enabled) = env::var("FRAISEQL_METRICS_ENABLED") {
-        warn_if_unrecognised_bool("FRAISEQL_METRICS_ENABLED", &metrics_enabled);
-        config.metrics_enabled = parse_bool_env(&metrics_enabled);
-    }
-    if let Ok(metrics_token) = env::var("FRAISEQL_METRICS_TOKEN") {
-        config.metrics_token = Some(metrics_token);
-    }
-
-    // Admin API configuration from environment.
-    if let Ok(admin_enabled) = env::var("FRAISEQL_ADMIN_API_ENABLED") {
-        warn_if_unrecognised_bool("FRAISEQL_ADMIN_API_ENABLED", &admin_enabled);
-        config.admin_api_enabled = parse_bool_env(&admin_enabled);
-    }
-    if let Ok(admin_token) = env::var("FRAISEQL_ADMIN_TOKEN") {
-        config.admin_token = Some(admin_token);
-    }
-
-    // Introspection configuration from environment.
-    if let Ok(introspection_enabled) = env::var("FRAISEQL_INTROSPECTION_ENABLED") {
-        warn_if_unrecognised_bool("FRAISEQL_INTROSPECTION_ENABLED", &introspection_enabled);
-        config.introspection_enabled = parse_bool_env(&introspection_enabled);
-    }
-    if let Ok(introspection_require_auth) = env::var("FRAISEQL_INTROSPECTION_REQUIRE_AUTH") {
-        warn_if_unrecognised_bool(
-            "FRAISEQL_INTROSPECTION_REQUIRE_AUTH",
-            &introspection_require_auth,
-        );
-        config.introspection_require_auth = parse_bool_env(&introspection_require_auth);
-    }
-
-    // Rate limiting configuration from environment — all four vars handled atomically.
-    apply_rate_limit_overrides(&mut config);
+    // Apply all CLI flag and env var overrides in one pass.
+    cli.server.apply_to_config(&mut config);
 
     if let Err(e) = config.validate() {
         tracing::error!(error = %e, "Configuration validation failed");
@@ -407,11 +276,12 @@ async fn build_observer_pool(_config: &ServerConfig) -> anyhow::Result<Option<sq
     Ok(None)
 }
 
-/// Initialize the secrets manager backend if `FRAISEQL_SECRETS_BACKEND` is set.
+/// Initialize the secrets manager backend if `--secrets-backend` / `FRAISEQL_SECRETS_BACKEND` is
+/// set.
 #[cfg(feature = "secrets")]
 async fn build_secrets_manager()
 -> anyhow::Result<Option<Arc<fraiseql_server::secrets_manager::SecretsManager>>> {
-    if env::var("FRAISEQL_SECRETS_BACKEND").is_err() {
+    if std::env::var("FRAISEQL_SECRETS_BACKEND").is_err() {
         tracing::debug!("Secrets manager disabled (set FRAISEQL_SECRETS_BACKEND to enable)");
         return Ok(None);
     }
@@ -436,24 +306,27 @@ async fn build_secrets_manager() -> anyhow::Result<Option<std::convert::Infallib
 /// Entry point.
 ///
 /// Initialization sequence:
-/// 1. **Tracing** — set up `tracing_subscriber` with `RUST_LOG` env filter.
-/// 2. **Config** — load `ServerConfig` from file (via `FRAISEQL_CONFIG`) or defaults, then apply
-///    env var overrides for database URL, bind address, schema path, metrics, admin API,
+/// 1. **CLI** — parse command-line flags and env var overrides via clap.
+/// 2. **Config** — load `ServerConfig` from file (via `--config` / `FRAISEQL_CONFIG`) or defaults,
+///    then apply CLI/env overrides for database URL, bind address, schema path, metrics, admin API,
 ///    introspection, and rate limiting.
-/// 3. **Schema** — validate the compiled schema file exists and load it.
-/// 4. **Security** — (auth feature) initialize and validate security config from schema.
-/// 5. **Database** — create the PostgreSQL or Wire database adapter.
-/// 6. **Observers / Secrets** — optionally create sqlx pool for observers and initialize the
+/// 3. **Tracing** — set up `tracing_subscriber` with `RUST_LOG` env filter.
+/// 4. **Schema** — validate the compiled schema file exists and load it.
+/// 5. **Security** — (auth feature) initialize and validate security config from schema.
+/// 6. **Database** — create the PostgreSQL or Wire database adapter.
+/// 7. **Observers / Secrets** — optionally create sqlx pool for observers and initialize the
 ///    secrets manager backend.
-/// 7. **Server** — construct `Server` (with optional Arrow Flight service), optionally attach
+/// 8. **Server** — construct `Server` (with optional Arrow Flight service), optionally attach
 ///    secrets manager, then call `serve()` (or `serve_mcp_stdio()`).
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
     // Load config first so tracing can include the OTLP layer if configured.
     // Tracing calls in load_and_validate_config are silently discarded (no
     // subscriber yet); critical errors surface via the Result return.
-    let config = load_and_validate_config()?;
-    init_tracing(&config);
+    let config = load_and_validate_config(&cli)?;
+    init_tracing(&config, cli.server.is_json_log_format());
     tracing::info!("FraiseQL Server v{}", env!("CARGO_PKG_VERSION"));
     tracing::info!(
         bind_addr = %config.bind_addr,
@@ -494,7 +367,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Serve MCP over stdio if requested, otherwise start HTTP server.
     #[cfg(feature = "mcp")]
-    if env::var("FRAISEQL_MCP_STDIO").is_ok() {
+    if cli.mcp_stdio.is_some() {
         tracing::info!("FraiseQL MCP stdio mode starting");
         server.serve_mcp_stdio().await?;
         return Ok(());
@@ -507,48 +380,4 @@ async fn main() -> anyhow::Result<()> {
 
     server.serve().await?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{parse_bool_env, warn_if_unrecognised_bool};
-
-    #[test]
-    fn parse_bool_env_truthy_values() {
-        assert!(parse_bool_env("true"));
-        assert!(parse_bool_env("TRUE"));
-        assert!(parse_bool_env("True"));
-        assert!(parse_bool_env("1"));
-        assert!(parse_bool_env("yes"));
-        assert!(parse_bool_env("YES"));
-        assert!(parse_bool_env("on"));
-        assert!(parse_bool_env("ON"));
-    }
-
-    #[test]
-    fn parse_bool_env_falsy_values() {
-        assert!(!parse_bool_env("false"));
-        assert!(!parse_bool_env("FALSE"));
-        assert!(!parse_bool_env("0"));
-        assert!(!parse_bool_env("no"));
-        assert!(!parse_bool_env("off"));
-        assert!(!parse_bool_env(""));
-        assert!(!parse_bool_env("unexpected"));
-        assert!(!parse_bool_env("2"));
-    }
-
-    #[test]
-    fn warn_if_unrecognised_bool_does_not_panic_for_any_input() {
-        // All recognised values — function must be a no-op (no panic).
-        for val in &[
-            "true", "TRUE", "1", "yes", "YES", "on", "ON", "false", "FALSE", "0", "no", "NO",
-            "off", "OFF",
-        ] {
-            warn_if_unrecognised_bool("TEST_VAR", val);
-        }
-        // Unrecognised values — function emits a warning but must not panic.
-        for val in &["enabled", "active", "2", "", "maybe"] {
-            warn_if_unrecognised_bool("TEST_VAR", val);
-        }
-    }
 }

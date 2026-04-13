@@ -330,12 +330,9 @@ pub async fn run() {
         #[cfg(feature = "run-server")]
         Commands::Run {
             input,
-            database,
-            port,
-            bind,
             watch,
-            introspection,
-        } => commands::run::run(input.as_deref(), database, port, bind, watch, introspection).await,
+            server,
+        } => commands::run::run(input.as_deref(), server, watch).await,
 
         Commands::ValidateDocuments { manifest } => {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
