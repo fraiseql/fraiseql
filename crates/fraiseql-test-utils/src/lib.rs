@@ -7,7 +7,6 @@
 //! | Helper | Module | Purpose |
 //! |--------|--------|---------|
 //! | `database_url()` | `db` | Resolve `DATABASE_URL` or panic with actionable message |
-//! | `setup_test_schema()` | `schema` | Compile a schema string into `CompiledSchema` |
 //! | `assert_graphql_success()` | `assertions` | Assert response has no errors |
 //! | `assert_no_graphql_errors()` | `assertions` | Assert `errors` field is absent |
 //! | `assert_has_data()` | `assertions` | Assert `data` field is present and non-null |
@@ -39,7 +38,6 @@ pub mod fixtures;
 pub mod mock_db;
 pub mod observers;
 pub mod saga;
-pub mod schema;
 pub mod schema_builder;
 
 // Re-export assertion helpers for direct use
