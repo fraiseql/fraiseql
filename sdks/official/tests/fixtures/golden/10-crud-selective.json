@@ -12,7 +12,7 @@
   ],
   "queries": [
     {
-      "name": "audit_log",
+      "name": "auditLog",
       "return_type": "AuditLog",
       "returns_list": false,
       "nullable": true,
@@ -23,7 +23,7 @@
       "sql_source": "v_audit_log"
     },
     {
-      "name": "audit_logs",
+      "name": "auditLogs",
       "return_type": "AuditLog",
       "returns_list": true,
       "nullable": false,

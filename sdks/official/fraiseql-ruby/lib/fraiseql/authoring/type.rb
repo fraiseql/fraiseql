@@ -52,7 +52,7 @@ module FraiseQL
           name: @fraiseql_type_name,
           sql_source: fraiseql_sql_source,
           fields: @fraiseql_fields.map { |fname, fmeta|
-            { name: fname.to_s, type: fmeta[:type].to_s }.tap { |f|
+            { name: CrudGenerator.snake_to_camel(fname.to_s), type: fmeta[:type].to_s }.tap { |f|
               f[:description] = fmeta[:description] if fmeta[:description]
               f[:deprecated] = true if fmeta[:deprecated]
             }

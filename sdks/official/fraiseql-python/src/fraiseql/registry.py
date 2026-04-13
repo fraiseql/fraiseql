@@ -6,11 +6,20 @@ from typing import Any, ClassVar, TypeAlias
 SchemaElement: TypeAlias = dict[str, Any]
 
 _CAMEL_RE = re.compile(r"(?<!^)(?=[A-Z])")
+_SNAKE_WORD_RE = re.compile(r"_([a-z])")
 
 
 def _pascal_to_snake(name: str) -> str:
     """Convert PascalCase to snake_case (e.g. OrderItem → order_item)."""
     return _CAMEL_RE.sub("_", name).lower()
+
+
+def _snake_to_camel(name: str) -> str:
+    """Convert snake_case to camelCase (e.g. create_user → createUser).
+
+    Idempotent: already-camelCase strings are returned unchanged.
+    """
+    return _SNAKE_WORD_RE.sub(lambda m: m.group(1).upper(), name)
 
 
 class SchemaRegistry:
@@ -38,7 +47,7 @@ class SchemaRegistry:
     def _build_field_def(field_name: str, field_info: SchemaElement) -> SchemaElement:
         """Build a single field definition dict from a field name and info mapping."""
         field_def: dict[str, Any] = {
-            "name": field_name,
+            "name": _snake_to_camel(field_name),
             "type": field_info["type"],
             "nullable": field_info["nullable"],
         }
@@ -186,7 +195,7 @@ class SchemaRegistry:
             )
         cls._input_types[name] = {
             "name": name,
-            "fields": fields,
+            "fields": [{**f, "name": _snake_to_camel(f["name"])} for f in fields],
             "description": description,
         }
 
@@ -239,20 +248,22 @@ class SchemaRegistry:
             description: Optional query description from docstring
             **config: Additional configuration (sql_source, etc.)
         """
-        if name in cls._queries:
+        camel_name = _snake_to_camel(name)
+        if camel_name in cls._queries:
             raise ValueError(
-                f"Query {name!r} is already registered. Each name must be unique within a schema."
+                f"Query {camel_name!r} is already registered. "
+                "Each name must be unique within a schema."
             )
 
         # Clean return type (remove list brackets for returns_list queries)
         clean_type = return_type.strip("[]!") if returns_list else return_type
 
-        cls._queries[name] = {
-            "name": name,
+        cls._queries[camel_name] = {
+            "name": camel_name,
             "return_type": clean_type,
             "returns_list": returns_list,
             "nullable": nullable,
-            "arguments": arguments,
+            "arguments": [{**a, "name": _snake_to_camel(a["name"])} for a in arguments],
             "description": description,
             **config,
         }
@@ -279,21 +290,22 @@ class SchemaRegistry:
             description: Optional mutation description from docstring
             **config: Additional configuration (sql_source, operation, etc.)
         """
-        if name in cls._mutations:
+        camel_name = _snake_to_camel(name)
+        if camel_name in cls._mutations:
             raise ValueError(
-                f"Mutation {name!r} is already registered. "
+                f"Mutation {camel_name!r} is already registered. "
                 "Each name must be unique within a schema."
             )
 
         # Clean return type (remove list brackets for returns_list mutations)
         clean_type = return_type.strip("[]!") if returns_list else return_type
 
-        cls._mutations[name] = {
-            "name": name,
+        cls._mutations[camel_name] = {
+            "name": camel_name,
             "return_type": clean_type,
             "returns_list": returns_list,
             "nullable": nullable,
-            "arguments": arguments,
+            "arguments": [{**a, "name": _snake_to_camel(a["name"])} for a in arguments],
             "description": description,
             **config,
         }
@@ -321,16 +333,17 @@ class SchemaRegistry:
             description: Optional subscription description from docstring
             **config: Additional configuration (topic, operation, etc.)
         """
-        if name in cls._subscriptions:
+        camel_name = _snake_to_camel(name)
+        if camel_name in cls._subscriptions:
             raise ValueError(
-                f"Subscription {name!r} is already registered. "
+                f"Subscription {camel_name!r} is already registered. "
                 "Each name must be unique within a schema."
             )
-        cls._subscriptions[name] = {
-            "name": name,
+        cls._subscriptions[camel_name] = {
+            "name": camel_name,
             "entity_type": entity_type,
             "nullable": nullable,
-            "arguments": arguments,
+            "arguments": [{**a, "name": _snake_to_camel(a["name"])} for a in arguments],
             "description": description,
             **config,
         }

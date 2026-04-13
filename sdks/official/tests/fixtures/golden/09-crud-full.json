@@ -40,7 +40,7 @@
   ],
   "mutations": [
     {
-      "name": "create_product",
+      "name": "createProduct",
       "return_type": "Product",
       "returns_list": false,
       "nullable": false,
@@ -54,7 +54,7 @@
       "operation": "INSERT"
     },
     {
-      "name": "update_product",
+      "name": "updateProduct",
       "return_type": "Product",
       "returns_list": false,
       "nullable": true,
@@ -68,7 +68,7 @@
       "operation": "UPDATE"
     },
     {
-      "name": "delete_product",
+      "name": "deleteProduct",
       "return_type": "Product",
       "returns_list": false,
       "nullable": false,

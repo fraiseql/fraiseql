@@ -21,6 +21,16 @@ module FraiseQL
       name.gsub(/(?<!^)([A-Z])/, '_\1').downcase
     end
 
+    # Convert a snake_case name to camelCase.
+    #
+    # Idempotent: already-camelCase strings are returned unchanged.
+    #
+    # @param name [String] the snake_case name
+    # @return [String] the camelCase equivalent
+    def snake_to_camel(name)
+      name.gsub(/_([a-z])/) { $1.upcase }
+    end
+
     # Apply basic English pluralization rules to a snake_case name.
     #
     # Rules (ordered):
@@ -62,18 +72,18 @@ module FraiseQL
 
       # Get by ID
       queries << {
-        name: snake,
+        name: snake_to_camel(snake),
         return_type: type_name,
         returns_list: false,
         nullable: true,
-        arguments: [{ name: pk[:name], type: pk[:type], nullable: false }],
+        arguments: [{ name: snake_to_camel(pk[:name]), type: pk[:type], nullable: false }],
         description: "Get #{type_name} by ID.",
         sql_source: view
       }
 
       # List
       queries << {
-        name: pluralize(snake),
+        name: snake_to_camel(pluralize(snake)),
         return_type: type_name,
         returns_list: true,
         nullable: false,
@@ -85,11 +95,11 @@ module FraiseQL
 
       # Create
       create = {
-        name: "create_#{snake}",
+        name: snake_to_camel("create_#{snake}"),
         return_type: type_name,
         returns_list: false,
         nullable: false,
-        arguments: fields.map { |f| { name: f[:name], type: f[:type], nullable: f[:nullable] } },
+        arguments: fields.map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: f[:nullable] } },
         description: "Create a new #{type_name}.",
         sql_source: "fn_create_#{snake}",
         operation: "INSERT"
@@ -99,12 +109,12 @@ module FraiseQL
 
       # Update
       update = {
-        name: "update_#{snake}",
+        name: snake_to_camel("update_#{snake}"),
         return_type: type_name,
         returns_list: false,
         nullable: true,
-        arguments: [{ name: pk[:name], type: pk[:type], nullable: false }] +
-          fields[1..].map { |f| { name: f[:name], type: f[:type], nullable: true } },
+        arguments: [{ name: snake_to_camel(pk[:name]), type: pk[:type], nullable: false }] +
+          fields[1..].map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: true } },
         description: "Update an existing #{type_name}.",
         sql_source: "fn_update_#{snake}",
         operation: "UPDATE"
@@ -114,11 +124,11 @@ module FraiseQL
 
       # Delete
       delete = {
-        name: "delete_#{snake}",
+        name: snake_to_camel("delete_#{snake}"),
         return_type: type_name,
         returns_list: false,
         nullable: false,
-        arguments: [{ name: pk[:name], type: pk[:type], nullable: false }],
+        arguments: [{ name: snake_to_camel(pk[:name]), type: pk[:type], nullable: false }],
         description: "Delete a #{type_name}.",
         sql_source: "fn_delete_#{snake}",
         operation: "DELETE"

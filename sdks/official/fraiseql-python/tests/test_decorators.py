@@ -120,7 +120,7 @@ def test_mutation_decorator() -> None:
     assert len(schema["mutations"]) == 1
 
     create_mutation = schema["mutations"][0]
-    assert create_mutation["name"] == "create_user"
+    assert create_mutation["name"] == "createUser"
     assert create_mutation["return_type"] == "User"
     assert create_mutation["returns_list"] is False
     assert create_mutation["nullable"] is False
@@ -290,7 +290,7 @@ def test_subscription_decorator_simple() -> None:
     assert len(schema["subscriptions"]) == 1
 
     sub = schema["subscriptions"][0]
-    assert sub["name"] == "order_created"
+    assert sub["name"] == "orderCreated"
     assert sub["entity_type"] == "Order"
     assert sub["nullable"] is False
     assert sub["description"] == "Subscribe to new orders."
@@ -314,7 +314,7 @@ def test_subscription_decorator_with_topic() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "order_created"
+    assert sub["name"] == "orderCreated"
     assert sub["entity_type"] == "Order"
     assert sub["topic"] == "orders_created"
 
@@ -335,7 +335,7 @@ def test_subscription_decorator_with_operation() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "user_updated"
+    assert sub["name"] == "userUpdated"
     assert sub["entity_type"] == "User"
     assert sub["operation"] == "UPDATE"
 
@@ -357,11 +357,11 @@ def test_subscription_decorator_with_arguments() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "order_status_changed"
+    assert sub["name"] == "orderStatusChanged"
     assert sub["entity_type"] == "Order"
     assert len(sub["arguments"]) == 2
 
-    user_arg = next(a for a in sub["arguments"] if a["name"] == "user_id")
+    user_arg = next(a for a in sub["arguments"] if a["name"] == "userId")
     assert user_arg["type"] == "String"
     assert user_arg["nullable"] is True
 
@@ -407,7 +407,7 @@ def test_subscription_decorator_nullable_return() -> None:
     schema = SchemaRegistry.get_schema()
     sub = schema["subscriptions"][0]
 
-    assert sub["name"] == "user_deleted"
+    assert sub["name"] == "userDeleted"
     assert sub["nullable"] is True
 
 
@@ -438,9 +438,9 @@ def test_multiple_subscriptions() -> None:
     assert len(schema["subscriptions"]) == 3
 
     names = [s["name"] for s in schema["subscriptions"]]
-    assert "order_created" in names
-    assert "order_updated" in names
-    assert "user_created" in names
+    assert "orderCreated" in names
+    assert "orderUpdated" in names
+    assert "userCreated" in names
 
 
 def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None:  # type: ignore[name-defined]
@@ -468,7 +468,7 @@ def test_subscription_in_schema_export(tmp_path: pytest.TempPathFactory) -> None
     assert len(schema["subscriptions"]) == 1
 
     sub = schema["subscriptions"][0]
-    assert sub["name"] == "order_created"
+    assert sub["name"] == "orderCreated"
     assert sub["entity_type"] == "Order"
     assert sub["topic"] == "orders"
     assert sub["operation"] == "CREATE"
@@ -567,7 +567,7 @@ def test_mutation_inject_valid_passes_through() -> None:
 
     schema = SchemaRegistry.get_schema()
     m = schema["mutations"][0]
-    assert m["name"] == "create_item"
+    assert m["name"] == "createItem"
     assert m["inject"] == {"tenant_id": "jwt:tenant_id"}
 
 
@@ -785,7 +785,7 @@ def test_mutation_invalidates_fact_tables_valid_passes_through() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    mut = next(m for m in schema["mutations"] if m["name"] == "create_order")
+    mut = next(m for m in schema["mutations"] if m["name"] == "createOrder")
     assert mut["invalidates_fact_tables"] == ["tf_sales", "tf_order_count"]
 
 
@@ -801,7 +801,7 @@ def test_mutation_invalidates_fact_tables_empty_list_passes_through() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    mut = next(m for m in schema["mutations"] if m["name"] == "create_item")
+    mut = next(m for m in schema["mutations"] if m["name"] == "createItem")
     assert mut["invalidates_fact_tables"] == []
 
 
@@ -857,7 +857,7 @@ def test_mutation_invalidates_views_valid_passes_through() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    mut = next(m for m in schema["mutations"] if m["name"] == "create_invoice")
+    mut = next(m for m in schema["mutations"] if m["name"] == "createInvoice")
     assert mut["invalidates_views"] == ["v_invoice", "v_invoice_summary"]
 
 
@@ -1033,7 +1033,7 @@ def test_query_requires_role_is_set() -> None:
         pass
 
     schema = SchemaRegistry.get_schema()
-    q = next(q for q in schema["queries"] if q["name"] == "audit_logs")
+    q = next(q for q in schema["queries"] if q["name"] == "auditLogs")
     assert q["requires_role"] == "admin"
 
 
@@ -1151,8 +1151,8 @@ def test_error_type_fields_include_scalar_types() -> None:
     assert t["is_error"] is True
     field_names = [f["name"] for f in t["fields"]]
     assert "message" in field_names
-    assert "conflict_id" in field_names
-    assert "occurred_at" in field_names
+    assert "conflictId" in field_names
+    assert "occurredAt" in field_names
 
 
 def test_error_type_not_is_error_by_default() -> None:

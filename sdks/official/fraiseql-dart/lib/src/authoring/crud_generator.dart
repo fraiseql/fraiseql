@@ -18,6 +18,16 @@ class CrudGenerator {
         .toLowerCase();
   }
 
+  /// Convert a snake_case name to camelCase.
+  ///
+  /// Idempotent: already-camelCase strings are returned unchanged.
+  static String snakeToCamel(String name) {
+    return name.replaceAllMapped(
+      RegExp(r'_([a-z])'),
+      (m) => m[1]!.toUpperCase(),
+    );
+  }
+
   /// Apply basic English pluralization rules to a snake_case name.
   ///
   /// Rules (ordered):
@@ -68,12 +78,12 @@ class CrudGenerator {
 
     // Get by ID
     queries.add({
-      'name': snake,
+      'name': snakeToCamel(snake),
       'return_type': typeName,
       'returns_list': false,
       'nullable': true,
       'arguments': [
-        {'name': pkField['name'], 'type': pkField['type'], 'nullable': false},
+        {'name': snakeToCamel(pkField['name'] as String), 'type': pkField['type'], 'nullable': false},
       ],
       'description': 'Get $typeName by ID.',
       'sql_source': view,
@@ -81,7 +91,7 @@ class CrudGenerator {
 
     // List
     queries.add({
-      'name': pluralize(snake),
+      'name': snakeToCamel(pluralize(snake)),
       'return_type': typeName,
       'returns_list': true,
       'nullable': false,
@@ -98,13 +108,13 @@ class CrudGenerator {
 
     // Create
     final createMutation = <String, dynamic>{
-      'name': 'create_$snake',
+      'name': snakeToCamel('create_$snake'),
       'return_type': typeName,
       'returns_list': false,
       'nullable': false,
       'arguments': fields
           .map((f) => {
-                'name': f['name'],
+                'name': snakeToCamel(f['name'] as String),
                 'type': f['type'],
                 'nullable': f['nullable'] ?? false,
               })
@@ -118,15 +128,15 @@ class CrudGenerator {
 
     // Update
     final updateArgs = <Map<String, dynamic>>[
-      {'name': pkField['name'], 'type': pkField['type'], 'nullable': false},
+      {'name': snakeToCamel(pkField['name'] as String), 'type': pkField['type'], 'nullable': false},
       ...fields.skip(1).map((f) => {
-            'name': f['name'],
+            'name': snakeToCamel(f['name'] as String),
             'type': f['type'],
             'nullable': true,
           }),
     ];
     final updateMutation = <String, dynamic>{
-      'name': 'update_$snake',
+      'name': snakeToCamel('update_$snake'),
       'return_type': typeName,
       'returns_list': false,
       'nullable': true,
@@ -140,12 +150,12 @@ class CrudGenerator {
 
     // Delete
     final deleteMutation = <String, dynamic>{
-      'name': 'delete_$snake',
+      'name': snakeToCamel('delete_$snake'),
       'return_type': typeName,
       'returns_list': false,
       'nullable': false,
       'arguments': [
-        {'name': pkField['name'], 'type': pkField['type'], 'nullable': false},
+        {'name': snakeToCamel(pkField['name'] as String), 'type': pkField['type'], 'nullable': false},
       ],
       'description': 'Delete a $typeName.',
       'sql_source': 'fn_delete_$snake',
