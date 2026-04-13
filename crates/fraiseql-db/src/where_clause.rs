@@ -74,18 +74,6 @@ pub enum WhereClause {
         value:    serde_json::Value,
     },
 
-    /// Nested relation filter — parsed but not yet resolved.
-    ///
-    /// Produced by `from_graphql_json` when the user writes nested object filters
-    /// like `where: { machine: { id: { eq: "..." } } }`. Must be resolved to
-    /// `Field` or `NativeField` via `resolve_relation_filters()` before SQL
-    /// generation.
-    RelationFilter {
-        /// Relation field name (e.g., `"machine"`).
-        relation:  String,
-        /// The inner condition on the related type's fields.
-        condition: Box<WhereClause>,
-    },
 }
 
 impl WhereClause {
@@ -94,10 +82,7 @@ impl WhereClause {
     pub const fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
-            Self::Not(_)
-            | Self::Field { .. }
-            | Self::NativeField { .. }
-            | Self::RelationFilter { .. } => false,
+            Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } => false,
         }
     }
 
@@ -123,43 +108,7 @@ impl WhereClause {
             },
             Self::Not(inner) => inner.collect_native_column_names(out),
             Self::NativeField { column, .. } => out.push(column),
-            Self::Field { .. } | Self::RelationFilter { .. } => {},
-        }
-    }
-
-    /// Resolve all `RelationFilter` nodes by applying a user-supplied resolver.
-    ///
-    /// The resolver receives `(relation_name, inner_condition)` and must return
-    /// a resolved `WhereClause` (typically `NativeField` or `Field`).
-    /// This is called in the executor layer where schema context is available.
-    ///
-    /// # Errors
-    ///
-    /// Returns any error produced by the resolver closure.
-    pub fn resolve_relation_filters<F>(self, resolver: &F) -> Result<Self>
-    where
-        F: Fn(&str, Self) -> Result<Self>,
-    {
-        match self {
-            Self::RelationFilter {
-                relation,
-                condition,
-            } => {
-                let resolved_inner = condition.resolve_relation_filters(resolver)?;
-                resolver(&relation, resolved_inner)
-            },
-            Self::And(clauses) => {
-                let resolved: Result<Vec<_>> =
-                    clauses.into_iter().map(|c| c.resolve_relation_filters(resolver)).collect();
-                Ok(Self::And(resolved?))
-            },
-            Self::Or(clauses) => {
-                let resolved: Result<Vec<_>> =
-                    clauses.into_iter().map(|c| c.resolve_relation_filters(resolver)).collect();
-                Ok(Self::Or(resolved?))
-            },
-            Self::Not(inner) => Ok(Self::Not(Box::new(inner.resolve_relation_filters(resolver)?))),
-            other @ (Self::Field { .. } | Self::NativeField { .. }) => Ok(other),
+            Self::Field { .. } => {},
         }
     }
 
@@ -190,6 +139,21 @@ impl WhereClause {
     /// Cannot panic: the internal `.expect("checked len == 1")` is only reached
     /// after verifying `conditions.len() == 1`.
     pub fn from_graphql_json(value: &serde_json::Value) -> Result<Self> {
+        Self::parse_where_object(value, &[])
+    }
+
+    /// Recursive WHERE parser that builds multi-segment paths for nested objects.
+    ///
+    /// When parsing `{ machine: { id: { eq: "..." } } }`:
+    /// 1. Key `machine`, value is `{ id: { eq: "..." } }` — not an operator map.
+    /// 2. Recurse with path prefix `["machine"]`.
+    /// 3. Key `id`, value is `{ eq: "..." }` — this IS an operator map.
+    /// 4. Emit `Field { path: ["machine", "id"], operator: Eq, value: "..." }`.
+    ///
+    /// The multi-segment path is then handled by `GenericWhereGenerator`, which
+    /// checks `IndexedColumnsCache` for `machine__id` (native column with index)
+    /// and falls back to JSONB extraction (`data->'machine'->>'id'`).
+    fn parse_where_object(value: &serde_json::Value, path_prefix: &[String]) -> Result<Self> {
         let Some(obj) = value.as_object() else {
             return Err(FraiseQLError::Validation {
                 message: "where clause must be a JSON object".to_string(),
@@ -206,7 +170,8 @@ impl WhereClause {
                         message: "_and must be an array".to_string(),
                         path:    None,
                     })?;
-                    let sub: Result<Vec<Self>> = arr.iter().map(Self::from_graphql_json).collect();
+                    let sub: Result<Vec<Self>> =
+                        arr.iter().map(|v| Self::parse_where_object(v, path_prefix)).collect();
                     conditions.push(Self::And(sub?));
                 },
                 "_or" => {
@@ -214,40 +179,41 @@ impl WhereClause {
                         message: "_or must be an array".to_string(),
                         path:    None,
                     })?;
-                    let sub: Result<Vec<Self>> = arr.iter().map(Self::from_graphql_json).collect();
+                    let sub: Result<Vec<Self>> =
+                        arr.iter().map(|v| Self::parse_where_object(v, path_prefix)).collect();
                     conditions.push(Self::Or(sub?));
                 },
                 "_not" => {
-                    let sub = Self::from_graphql_json(val)?;
+                    let sub = Self::parse_where_object(val, path_prefix)?;
                     conditions.push(Self::Not(Box::new(sub)));
                 },
                 field_name => {
-                    // Field → { operator: value } or { op1: val1, op2: val2 }
                     let ops = val.as_object().ok_or_else(|| FraiseQLError::Validation {
                         message: format!(
                             "where field '{field_name}' must be an object of {{operator: value}}"
                         ),
                         path:    None,
                     })?;
+                    let mut field_path = path_prefix.to_vec();
+                    field_path.push(field_name.to_string());
+
                     for (op_str, op_val) in ops {
                         match WhereOperator::from_str(op_str) {
                             Ok(operator) => {
                                 conditions.push(Self::Field {
-                                    path: vec![field_name.to_string()],
+                                    path: field_path.clone(),
                                     operator,
                                     value: op_val.clone(),
                                 });
                             },
                             Err(_) if op_val.is_object() => {
-                                // Nested relation filter: { relation: { field: { op: val } } }
-                                // Parse the inner condition and wrap in RelationFilter for
-                                // later resolution against the schema.
-                                let inner_json = serde_json::json!({ op_str: op_val });
-                                let inner = Self::from_graphql_json(&inner_json)?;
-                                conditions.push(Self::RelationFilter {
-                                    relation:  field_name.to_string(),
-                                    condition: Box::new(inner),
-                                });
+                                // Nested relation/object filter: recurse with extended path.
+                                // e.g., { machine: { id: { eq: "..." } } }
+                                //   → path_prefix=["machine"], key="id", value={ eq: "..." }
+                                let nested_json = serde_json::json!({ op_str: op_val });
+                                let nested =
+                                    Self::parse_where_object(&nested_json, &field_path)?;
+                                conditions.push(nested);
                             },
                             Err(e) => return Err(e),
                         }
@@ -802,80 +768,52 @@ mod tests {
     }
 
     #[test]
-    fn test_nested_relation_filter_parsed_as_relation_filter() {
+    fn test_nested_relation_filter_builds_multi_segment_path() {
         // where: { machine: { id: { eq: "some-uuid" } } }
         let json = json!({ "machine": { "id": { "eq": "some-uuid" } } });
         let clause = WhereClause::from_graphql_json(&json).unwrap();
-        match clause {
-            WhereClause::RelationFilter {
-                relation,
-                condition,
-            } => {
-                assert_eq!(relation, "machine");
-                assert_eq!(
-                    *condition,
-                    WhereClause::Field {
-                        path:     vec!["id".to_string()],
-                        operator: WhereOperator::Eq,
-                        value:    json!("some-uuid"),
-                    }
-                );
-            },
-            other => panic!("expected RelationFilter, got: {other:?}"),
-        }
+        assert_eq!(
+            clause,
+            WhereClause::Field {
+                path:     vec!["machine".to_string(), "id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("some-uuid"),
+            }
+        );
     }
 
     #[test]
     fn test_nested_relation_filter_multiple_fields() {
-        // where: { machine: { id: { eq: "..." }, identifier: { contains: "abc" } } }
+        // where: { machine: { id: { eq: "uuid" }, name: { contains: "x" } } }
         let json = json!({ "machine": { "id": { "eq": "uuid" }, "name": { "contains": "x" } } });
         let clause = WhereClause::from_graphql_json(&json).unwrap();
-        // Two nested fields → And of two RelationFilters
         match clause {
             WhereClause::And(conditions) => {
                 assert_eq!(conditions.len(), 2);
                 assert!(
-                    conditions.iter().all(|c| matches!(c, WhereClause::RelationFilter { .. })),
-                    "all conditions should be RelationFilter"
+                    conditions.iter().all(|c| matches!(c, WhereClause::Field { .. })),
+                    "all conditions should be Field with multi-segment paths"
                 );
             },
-            other => panic!("expected And of RelationFilters, got: {other:?}"),
+            other => panic!("expected And of Fields, got: {other:?}"),
         }
     }
 
     #[test]
-    fn test_resolve_relation_filters_transforms_to_field() {
-        let clause = WhereClause::RelationFilter {
-            relation:  "machine".to_string(),
-            condition: Box::new(WhereClause::Field {
-                path:     vec!["id".to_string()],
-                operator: WhereOperator::Eq,
-                value:    json!("some-uuid"),
-            }),
-        };
-
-        // Resolver that maps machine.id → machine_id
-        let resolved = clause
-            .resolve_relation_filters(&|relation, inner| match inner {
-                WhereClause::Field {
-                    path,
-                    operator,
-                    value,
-                } if path.len() == 1 && path[0] == "id" => Ok(WhereClause::Field {
-                    path: vec![format!("{relation}_id")],
-                    operator,
-                    value,
-                }),
-                _ => Err(FraiseQLError::validation("unsupported".to_string())),
-            })
-            .unwrap();
-
+    fn test_deeply_nested_filter_builds_three_segment_path() {
+        // where: { items: { product: { category: { eq: "electronics" } } } }
+        let json = json!({ "items": { "product": { "category": { "eq": "electronics" } } } });
+        let clause = WhereClause::from_graphql_json(&json).unwrap();
         assert_eq!(
-            resolved,
+            clause,
             WhereClause::Field {
-                path:     vec!["machine_id".to_string()],
+                path: vec![
+                    "items".to_string(),
+                    "product".to_string(),
+                    "category".to_string(),
+                ],
                 operator: WhereOperator::Eq,
-                value:    json!("some-uuid"),
+                value: json!("electronics"),
             }
         );
     }

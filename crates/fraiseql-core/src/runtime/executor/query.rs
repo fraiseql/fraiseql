@@ -284,15 +284,6 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .arguments
                 .get("where")
                 .map(WhereClause::from_graphql_json)
-                .transpose()?
-                .map(|wc| {
-                    resolve_where_relation_filters(
-                        wc,
-                        &self.schema,
-                        &query_match.query_def.return_type,
-                        &query_match.query_def.native_columns,
-                    )
-                })
                 .transpose()?;
             match (combined_where, user_where) {
                 (None, None) => None,
@@ -490,15 +481,6 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .get("where")
                 .map(WhereClause::from_graphql_json)
                 .transpose()?
-                .map(|wc| {
-                    resolve_where_relation_filters(
-                        wc,
-                        &self.schema,
-                        &query_match.query_def.return_type,
-                        &query_match.query_def.native_columns,
-                    )
-                })
-                .transpose()?
         } else {
             None
         };
@@ -621,15 +603,6 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .arguments
                 .get("where")
                 .map(WhereClause::from_graphql_json)
-                .transpose()?
-                .map(|wc| {
-                    resolve_where_relation_filters(
-                        wc,
-                        &self.schema,
-                        &query_match.query_def.return_type,
-                        &query_match.query_def.native_columns,
-                    )
-                })
                 .transpose()?
         } else {
             None
@@ -899,15 +872,6 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .arguments
                 .get("where")
                 .map(WhereClause::from_graphql_json)
-                .transpose()?
-                .map(|wc| {
-                    resolve_where_relation_filters(
-                        wc,
-                        &self.schema,
-                        &query_match.query_def.return_type,
-                        &query_match.query_def.native_columns,
-                    )
-                })
                 .transpose()?;
             match (combined_where, user_where) {
                 (None, None) => None,
@@ -1136,15 +1100,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         let user_where_clause = if query_def.auto_params.has_where {
             vars.and_then(|v| v.get("where"))
                 .map(WhereClause::from_graphql_json)
-                .transpose()?
-                .map(|wc| {
-                    resolve_where_relation_filters(
-                        wc,
-                        &self.schema,
-                        &query_def.return_type,
-                        &query_def.native_columns,
-                    )
-                })
                 .transpose()?
         } else {
             None
@@ -1443,112 +1398,6 @@ fn pg_type_to_cast(data_type: &str) -> &'static str {
         // text, varchar, char(n), etc. — no cast needed.
         _ => "",
     }
-}
-
-/// Resolve nested relation filters in a `WhereClause` using schema relationships.
-///
-/// Transforms `RelationFilter { relation: "machine", condition: Field { path: ["id"], .. } }`
-/// into a direct foreign-key filter (e.g., `NativeField { column: "machine_id", .. }` or
-/// `Field { path: ["machine_id"], .. }`).
-///
-/// When the inner field matches the relationship's `referenced_key` (typically `"id"`),
-/// the filter is rewritten to use the FK column. Otherwise a validation error is
-/// returned — cross-table JOINs for arbitrary nested fields are not yet supported.
-///
-/// # Errors
-///
-/// Returns `FraiseQLError::Validation` if:
-/// - The relation name doesn't match any relationship on the return type
-/// - The inner filter targets a field other than the referenced key
-fn resolve_where_relation_filters(
-    clause: WhereClause,
-    schema: &CompiledSchema,
-    return_type: &str,
-    native_columns: &std::collections::HashMap<String, String>,
-) -> Result<WhereClause> {
-    clause.resolve_relation_filters(&|relation, inner| {
-        // Look up the return type in the schema.
-        let type_def = schema.types.iter().find(|t| t.name.as_str() == return_type).ok_or_else(
-            || FraiseQLError::Validation {
-                message: format!("Type '{return_type}' not found in schema"),
-                path:    None,
-            },
-        )?;
-
-        // Find the matching relationship.
-        let rel = type_def.relationships.iter().find(|r| r.name == relation).ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: format!(
-                    "'{relation}' is not a known relationship on type '{return_type}'. \
-                     Use the foreign key field directly (e.g., '{relation}_id')"
-                ),
-                path: None,
-            }
-        })?;
-
-        // Extract the field being filtered from the inner condition.
-        match inner {
-            WhereClause::Field {
-                ref path,
-                ref operator,
-                ref value,
-            } if path.len() == 1 && path[0] == rel.referenced_key => {
-                // The user is filtering on the referenced key (e.g., `machine.id`).
-                // Rewrite to use the FK column (e.g., `machine_id`).
-                let fk = &rel.foreign_key;
-                if let Some(pg_type) = native_columns.get(fk) {
-                    Ok(WhereClause::NativeField {
-                        column:   fk.clone(),
-                        pg_cast:  pg_type_to_cast(pg_type).to_string(),
-                        operator: operator.clone(),
-                        value:    value.clone(),
-                    })
-                } else {
-                    Ok(WhereClause::Field {
-                        path:     vec![fk.clone()],
-                        operator: operator.clone(),
-                        value:    value.clone(),
-                    })
-                }
-            },
-            WhereClause::And(ref conditions) => {
-                // Multiple conditions on the nested relation — resolve each.
-                let resolved: Result<Vec<_>> = conditions
-                    .iter()
-                    .map(|c| {
-                        resolve_where_relation_filters(
-                            WhereClause::RelationFilter {
-                                relation:  relation.to_string(),
-                                condition: Box::new(c.clone()),
-                            },
-                            schema,
-                            return_type,
-                            native_columns,
-                        )
-                    })
-                    .collect();
-                Ok(WhereClause::And(resolved?))
-            },
-            WhereClause::Field { ref path, .. } => {
-                let field_name = path.first().map_or("?", String::as_str);
-                Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Nested relation filter on '{relation}.{field_name}' is not supported. \
-                         Only filtering on the referenced key ('{relation}.{}') is supported, \
-                         which maps to the foreign key column '{}'",
-                        rel.referenced_key, rel.foreign_key
-                    ),
-                    path: None,
-                })
-            },
-            _ => Err(FraiseQLError::Validation {
-                message: format!(
-                    "Unsupported nested relation filter structure on '{relation}'"
-                ),
-                path: None,
-            }),
-        }
-    })
 }
 
 /// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into
