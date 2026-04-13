@@ -81,7 +81,7 @@ futures = "0.3"
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
-hyper = {version = "1.0"}
+hyper = {version = "1.9"}
 indexmap = {version = "2", features = ["serde"]}
 itertools = "0.14"
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
@@ -92,7 +92,7 @@ moka = {version = "0.12", default-features = false, features = ["sync"]}
 # Parking lot (faster mutexes)
 parking_lot = "0.12"
 # Snapshot testing
-insta = {version = "1.38", features = ["yaml"]}
+insta = {version = "1.47", features = ["yaml"]}
 # Property-based testing
 proptest = "1.4"
 # Random
@@ -119,7 +119,7 @@ tempfile = "3.25"
 # Unification blocked on sqlx 0.9 (which will upgrade to tokio-rustls 0.26 / rustls 0.23).
 thiserror = "2.0"
 # Async runtime
-tokio = {version = "1.0", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "io-std", "sync", "signal", "fs"]}
+tokio = {version = "1.51", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "io-std", "sync", "signal", "fs"]}
 # Database drivers
 # PostgreSQL
 tokio-postgres = {version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"]}
