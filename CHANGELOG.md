@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.6] - 2026-04-14
 
+### Added
+
+- **Session variables via PostgreSQL `set_config()`** (#97). The executor now
+  propagates per-request session variables (`user_id`, `tenant_id`, roles, and
+  arbitrary custom attributes from `SecurityContext`) into the PostgreSQL session
+  via `set_config(name, value, is_local=true)`, so RLS policies and SQL functions
+  can read `current_setting('fraiseql.user_id')` etc. without a separate round-trip.
+- **Schema naming-convention support for GraphQL operations** (#216). The
+  compiler accepts an explicit naming convention (camelCase / snake_case) for
+  generated query, mutation, and subscription operation names, so authoring
+  languages with different conventions emit a consistent GraphQL surface.
+- **Nested relation filters via automatic FK resolution** (#196). Where-clause
+  inputs can now traverse foreign-key relations (e.g. `where: { post: { author:
+  { name: { eq: "..." } } } }`) and the compiler resolves the join path from
+  FK metadata rather than requiring an explicit subquery. `c2ae22ef5` further
+  simplifies the nested path to a multi-segment path.
+- **HS256 auth mode exposed for integration testing** (#217). Server
+  configuration accepts an HS256 shared-secret auth mode alongside the existing
+  OIDC/JWKS path, so test harnesses can mint tokens locally without a mock
+  identity provider.
+
+### Changed
+
+- **Removed dead Cargo features**: `cors`, `database`, and `rich-filters`
+  features that were defined but no longer wired to any code have been removed
+  from the workspace.
+- **`fraiseql-server` CLI now uses `clap`** (#213). `fraiseql-server` and
+  `fraiseql run` share a `ServerArgs` definition; `clap` is feature-gated in
+  `fraiseql-cli` so the `fraiseql run` ergonomics are preserved for embedding.
+- **`__typename` detection moved to `ResultProjector`** (#212). Detection is
+  consolidated at the projection layer and the executor gains a
+  `federation_mode` switch so Apollo Federation subgraphs produce
+  `__typename`-annotated payloads without duplicated detection logic.
+- **`orderBy` SQL generation rewritten as a shared builder** (#211). A shared
+  builder fixes a cache-key bug (previously colliding on same fields with
+  different directions) and emits type-aware SQL casts so ordering by
+  `NUMERIC`/`TIMESTAMPTZ` columns produces correct comparisons.
+- **Mutation error projection unified via `ProjectionMapper`** (#215). The two
+  divergent mutation-result and error-union projection paths were consolidated
+  onto a single mapper; behaviour is preserved but the code path is now shared.
+
+### Fixed
+
+- **Mutation error-union inline fragments, array fields, and selection
+  filtering** (#214). Inline fragments on error unions, array fields inside
+  mutation payloads, and nested selection filtering all projected incorrectly
+  in specific shapes; all three now round-trip through `ProjectionMapper`.
+- **`__typename` filtered from SQL projection; `orderBy` snake_case keys
+  accepted** (`d9c415fff`). `__typename` is a GraphQL-layer concern and must
+  never appear in the SQL SELECT list; `orderBy` now accepts snake_case keys
+  in addition to the camelCase form.
+- **Issues #206–#209** (`74c9d8d21`): `orderBy` regression on composite types,
+  stray `__typename` in SQL, `--config` CLI flag lookup, and array-field
+  projection edge cases.
+- **Issues #195–#204** (`6a024c3d4`): projection types for scalars behind
+  nullable wrappers, camelCase key preservation through the executor, and
+  input-object round-tripping in mutation arguments.
+- **SDKs: snake_case → camelCase auto-conversion** (`ca9e76b29`). Python, Ruby,
+  and Dart authoring SDKs now auto-convert snake_case field names to the
+  camelCase form the compiler expects, matching the behaviour of the
+  TypeScript and Go SDKs.
+- **SDK manifests aligned to 2.1.6**: Dart, Elixir, Go, Java, PHP, Ruby, C#
+  (`FraiseQL` + `FraiseQL.Tool`), F#, and Rust authoring SDK version strings
+  bumped to match the workspace release.
+
 ### Performance
 
 - **Eliminated `serde_json` string round-trip in executor** (#153). All executor
@@ -42,11 +107,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no-proxy deployments can opt back in with `compression_enabled = true` in `fraiseql.toml`.
 - **Compression now skips responses under 1 KiB** when enabled. tiny payloads (short
   GraphQL results, health responses) pay no compressor overhead.
-
-### Changed
-
-- **Removed dead Cargo features**: `cors`, `database`, and `rich-filters` features that were
-  defined but no longer wired to any code have been removed from the workspace.
 
 ---
 
