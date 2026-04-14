@@ -203,6 +203,26 @@ impl<A: DatabaseAdapter> Executor<A> {
             return self.execute_relay_query(&query_match, variables, Some(security_context)).await;
         }
 
+        // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
+        let response_cache_key = self
+            .response_cache
+            .as_ref()
+            .filter(|rc| rc.is_enabled())
+            .map(|_| {
+                let query_key = Self::compute_response_cache_key(&query_match);
+                let sec_hash =
+                    crate::cache::response_cache::hash_security_context(Some(security_context));
+                (query_key, sec_hash)
+            });
+
+        if let (Some((query_key, sec_hash)), Some(rc)) =
+            (response_cache_key, self.response_cache.as_ref())
+        {
+            if let Some(cached) = rc.get(query_key, sec_hash)? {
+                return Ok((*cached).clone());
+            }
+        }
+
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
 
@@ -405,8 +425,44 @@ impl<A: DatabaseAdapter> Executor<A> {
         let response =
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
-        // 13. Serialize to JSON string
+        // 13. Store in response cache (if enabled) and return value
+        if let (Some((query_key, sec_hash)), Some(rc)) =
+            (response_cache_key, self.response_cache.as_ref())
+        {
+            let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
+            let _ = rc.put(
+                query_key,
+                sec_hash,
+                Arc::new(response.clone()),
+                vec![sql_source.to_string()],
+            );
+        }
+
         Ok(response)
+    }
+
+    /// Compute a response cache key from a query match.
+    ///
+    /// Hashes the query name, matched fields, and arguments to produce
+    /// a u64 key. Combined with the security context hash, this forms
+    /// the full response cache key.
+    fn compute_response_cache_key(query_match: &crate::runtime::matcher::QueryMatch) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = ahash::AHasher::default();
+        query_match.query_def.name.hash(&mut hasher);
+        for field in &query_match.fields {
+            field.hash(&mut hasher);
+        }
+        // Hash arguments (sorted keys for determinism)
+        let mut keys: Vec<&String> = query_match.arguments.keys().collect();
+        keys.sort();
+        for key in keys {
+            key.hash(&mut hasher);
+            serde_json::to_string(&query_match.arguments[key])
+                .unwrap_or_default()
+                .hash(&mut hasher);
+        }
+        hasher.finish()
     }
 
     /// Execute a regular (non-aggregate, non-relay) GraphQL query.

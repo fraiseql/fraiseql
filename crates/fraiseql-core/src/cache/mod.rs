@@ -199,6 +199,7 @@ mod invalidation;
 mod invalidation_api;
 mod key;
 mod relay_cache;
+pub mod response_cache;
 mod result;
 
 // Cascading invalidation with transitive dependencies
@@ -232,5 +233,6 @@ pub use key::{
     generate_view_query_key,
 };
 pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
+pub use response_cache::{ResponseCache, ResponseCacheConfig};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;

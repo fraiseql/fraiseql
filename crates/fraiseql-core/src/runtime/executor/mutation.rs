@@ -374,6 +374,21 @@ impl<A: DatabaseAdapter> Executor<A> {
             // Entity-aware path: precise eviction for UPDATE/DELETE.
             if let (Some(etype), Some(eid)) = (entity_type.as_deref(), entity_id.as_deref()) {
                 self.adapter.invalidate_by_entity(etype, eid).await?;
+
+                // The response cache doesn't have entity-level granularity, so
+                // invalidate by the inferred view for this entity type.
+                if let Some(ref rc) = self.response_cache {
+                    let inferred_view = self
+                        .schema
+                        .types
+                        .iter()
+                        .find(|t| t.name == etype)
+                        .filter(|t| !t.sql_source.as_str().is_empty())
+                        .map(|t| t.sql_source.to_string());
+                    if let Some(view) = inferred_view {
+                        let _ = rc.invalidate_views(&[view]);
+                    }
+                }
             }
 
             // View-level path: needed when entity_id is absent (CREATE) or when the developer
@@ -401,6 +416,10 @@ impl<A: DatabaseAdapter> Executor<A> {
                         // Developer-declared invalidates_views on an UPDATE/DELETE: honour
                         // the explicit annotation with a full view sweep.
                         self.adapter.invalidate_views(&views_to_invalidate).await?;
+                    }
+                    // Also invalidate the response cache for these views
+                    if let Some(ref rc) = self.response_cache {
+                        let _ = rc.invalidate_views(&views_to_invalidate);
                     }
                 }
             }

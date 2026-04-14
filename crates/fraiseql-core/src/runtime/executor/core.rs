@@ -104,6 +104,13 @@ pub struct Executor<A: DatabaseAdapter> {
     /// immutable and deterministic; the same query string always produces the same result.
     /// Only successful parses are stored; errors are never cached.
     pub(super) parse_cache: MokaCache<u64, Arc<(QueryType, Option<ParsedQuery>)>>,
+
+    /// Optional executor-level response cache.
+    ///
+    /// When enabled, caches the final projected GraphQL response (after RBAC,
+    /// projection, envelope wrapping) to skip all redundant work on cache hits.
+    /// Keyed by `(query_cache_key, security_context_hash)`.
+    pub(super) response_cache: Option<Arc<crate::cache::ResponseCache>>,
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -170,6 +177,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             introspection,
             node_type_index,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
+            response_cache: None,
         }
     }
 
@@ -207,6 +215,23 @@ impl<A: DatabaseAdapter> Executor<A> {
     #[must_use]
     pub fn parse_cache_entry_count(&self) -> u64 {
         self.parse_cache.entry_count()
+    }
+
+    /// Attach an executor-level response cache.
+    ///
+    /// When enabled, the executor caches the final projected response
+    /// (after RBAC, projection, and envelope wrapping) to skip all
+    /// redundant work on cache hits.
+    #[must_use]
+    pub fn with_response_cache(mut self, cache: Arc<crate::cache::ResponseCache>) -> Self {
+        self.response_cache = Some(cache);
+        self
+    }
+
+    /// Get response cache reference (if configured).
+    #[must_use]
+    pub const fn response_cache(&self) -> Option<&Arc<crate::cache::ResponseCache>> {
+        self.response_cache.as_ref()
     }
 }
 
@@ -267,6 +292,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             introspection,
             node_type_index,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
+            response_cache: None,
         }
     }
 }
