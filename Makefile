@@ -589,14 +589,12 @@ coverage:
 audit:
 	cargo audit
 
-# Full security checks: advisory scan + supply-chain policy gate + vendor drift.
+# Full security checks: advisory scan + supply-chain policy gate.
 # Run before opening a PR to catch new advisories early.
 .PHONY: security
 security:
 	cargo deny check
 	cargo audit
-	@echo "Checking vendored dependencies for upstream security fixes..."
-	@CI_VENDOR_WARN_ONLY=1 bash tools/check-vendor-security.sh
 	@echo "Security checks passed"
 
 # Report test counts — run this before each release and update overview.md if the order of magnitude changed
