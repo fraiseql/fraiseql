@@ -22,7 +22,7 @@ keywords = ["graphql", "authorization", "rbac", "schema"]
 license = "Apache-2.0"
 name = "fraiseql-rust"
 repository = "https://github.com/fraiseql/fraiseql"
-version = "1.0.0"
+version = "2.1.6"
 
 [[test]]
 name = "integration_test"
