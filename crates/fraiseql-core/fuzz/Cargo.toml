@@ -45,7 +45,6 @@ serde_json = "1"
 
 [dependencies.fraiseql-core]
 default-features = false
-features = ["rich-filters"]
 path = ".."
 
 [package]

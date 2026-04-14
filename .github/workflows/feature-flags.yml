@@ -24,7 +24,7 @@ jobs:
           - "observers,redis-rate-limiting"
           - "observers-enterprise,redis-rate-limiting,tracing-opentelemetry"
           - "arrow,wire-backend"
-          - "mcp,auth,cors"
+          - "mcp,auth"
           - "observers-enterprise,redis-apq,redis-pkce"
           - "federation"                                                               # federation standalone
           - "secrets"                                                                   # secrets standalone
@@ -80,7 +80,7 @@ jobs:
       matrix:
         features:
           - "postgres"                              # minimal single-backend
-          - "mysql,rich-filters"                    # secondary backend + filters
+          - "mysql"                                 # secondary backend
           - "sqlite,sqlserver"                      # lightweight + enterprise, no postgres
           - "postgres,mysql,sqlite,sqlserver"        # all backends, no extras
     steps:

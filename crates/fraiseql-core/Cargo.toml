@@ -123,7 +123,7 @@ arrow = ["dep:arrow", "dep:arrow-array"]
 audit-syslog = ["dep:hostname"]
 # Audit log export: HTTPS webhook sink for audit entries.
 audit-webhook = []
-default = ["postgres", "rich-filters"]
+default = ["postgres"]
 dhat-heap = ["dhat"]
 federation = ["dep:fraiseql-federation"]
 grpc = ["fraiseql-db/grpc"]
@@ -134,9 +134,6 @@ redis-apq = ["redis"]
 # JWT replay prevention via Redis SET NX (requires a Redis instance).
 # Enables RedisReplayCache for distributed jti replay detection.
 jwt-replay = ["redis"]
-# Rich type filters (Email, VIN, IBAN, CountryCode, etc.)
-# Includes specialized filter operators for 44 rich scalar types
-rich-filters = ["fraiseql-db/rich-filters"]
 # Schema linting: anti-pattern detection, cost analysis, quality scoring.
 # Only needed by fraiseql-cli's `lint` command; not compiled into the server binary.
 schema-lint = []
