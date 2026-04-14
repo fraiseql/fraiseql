@@ -169,9 +169,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<String> {
         // 1. Locate the mutation definition
         let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
-            let candidates: Vec<&str> =
-                self.schema.mutations.iter().map(|m| m.name.as_str()).collect();
-            let suggestion = suggest_similar(mutation_name, &candidates);
+            let display_names: Vec<String> =
+                self.schema.mutations.iter().map(|m| self.schema.display_name(&m.name)).collect();
+            let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
+            let suggestion = suggest_similar(mutation_name, &candidate_refs);
             let message = match suggestion.as_slice() {
                 [s] => {
                     format!("Mutation '{mutation_name}' not found in schema. Did you mean '{s}'?")

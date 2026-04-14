@@ -9,6 +9,7 @@
 #![allow(clippy::cast_precision_loss)] // Benchmarks intentionally cast u128 to f64 for timing
 
 use fraiseql_cli::schema::{SchemaConverter, intermediate::IntermediateSchema};
+use fraiseql_core::schema::NamingConvention;
 
 /// Benchmark: Compile empty schema with auto-generated rich types
 #[test]
@@ -41,6 +42,7 @@ fn bench_compile_empty_schema_rich_types() {
             debug_config:         None,
             mcp_config:           None,
             query_defaults:       None,
+        naming_convention: NamingConvention::default(),
         };
 
         let _compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -88,6 +90,7 @@ fn bench_metadata_access_performance() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -141,6 +144,7 @@ fn bench_operator_metadata_parsing() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -198,6 +202,7 @@ fn bench_database_template_access() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -261,6 +266,7 @@ fn bench_lookup_data_access() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -318,6 +324,7 @@ fn bench_full_operator_traversal() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

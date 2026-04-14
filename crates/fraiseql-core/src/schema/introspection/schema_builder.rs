@@ -128,7 +128,7 @@ impl IntrospectionBuilder {
 /// Build Query root type.
 fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
     let mut fields: Vec<IntrospectionField> =
-        schema.queries.iter().map(build_query_field).collect();
+        schema.queries.iter().map(|q| build_query_field(q, schema)).collect();
 
     // Inject synthetic `node(id: ID!): Node` field when relay types exist.
     let has_relay_types =
@@ -154,7 +154,7 @@ fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
 /// Build Mutation root type.
 fn build_mutation_type(schema: &CompiledSchema) -> IntrospectionType {
     let fields: Vec<IntrospectionField> =
-        schema.mutations.iter().map(build_mutation_field).collect();
+        schema.mutations.iter().map(|m| build_mutation_field(m, schema)).collect();
 
     IntrospectionType {
         kind:               TypeKind::Object,
@@ -173,7 +173,7 @@ fn build_mutation_type(schema: &CompiledSchema) -> IntrospectionType {
 /// Build Subscription root type.
 fn build_subscription_type(schema: &CompiledSchema) -> IntrospectionType {
     let fields: Vec<IntrospectionField> =
-        schema.subscriptions.iter().map(build_subscription_field).collect();
+        schema.subscriptions.iter().map(|s| build_subscription_field(s, schema)).collect();
 
     IntrospectionType {
         kind:               TypeKind::Object,
@@ -194,11 +194,11 @@ fn build_subscription_type(schema: &CompiledSchema) -> IntrospectionType {
 // =============================================================================
 
 /// Build query field introspection.
-fn build_query_field(query: &QueryDefinition) -> IntrospectionField {
+fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> IntrospectionField {
     // Relay connection queries expose `XxxConnection` as their return type
     // (always non-null) and add the four standard cursor arguments.
     if query.relay {
-        return build_relay_query_field(query);
+        return build_relay_query_field(query, schema);
     }
 
     let return_type = type_ref(&query.return_type);
@@ -241,7 +241,7 @@ fn build_query_field(query: &QueryDefinition) -> IntrospectionField {
         query.arguments.iter().map(build_arg_input_value).collect();
 
     IntrospectionField {
-        name: query.name.clone(),
+        name: schema.display_name(&query.name),
         description: query.description.clone(),
         args,
         field_type: return_type,
@@ -256,7 +256,7 @@ fn build_query_field(query: &QueryDefinition) -> IntrospectionField {
 /// - Return type is `XxxConnection!` (non-null), not `[Xxx!]!`
 /// - Arguments are `first: Int, after: String, last: Int, before: String` (instead of
 ///   `limit`/`offset`)
-fn build_relay_query_field(query: &QueryDefinition) -> IntrospectionField {
+fn build_relay_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> IntrospectionField {
     let connection_type = format!("{}Connection", query.return_type);
 
     // Return type: XxxConnection! (always non-null)
@@ -338,7 +338,7 @@ fn build_relay_query_field(query: &QueryDefinition) -> IntrospectionField {
     ];
 
     IntrospectionField {
-        name:               query.name.clone(),
+        name:               schema.display_name(&query.name),
         description:        query.description.clone(),
         args:               relay_args,
         field_type:         return_type,
@@ -402,7 +402,7 @@ fn build_node_query_field() -> IntrospectionField {
 }
 
 /// Build mutation field introspection.
-fn build_mutation_field(mutation: &MutationDefinition) -> IntrospectionField {
+fn build_mutation_field(mutation: &MutationDefinition, schema: &CompiledSchema) -> IntrospectionField {
     // Mutations always return a single object (not a list)
     let return_type = type_ref(&mutation.return_type);
 
@@ -411,7 +411,7 @@ fn build_mutation_field(mutation: &MutationDefinition) -> IntrospectionField {
         mutation.arguments.iter().map(build_arg_input_value).collect();
 
     IntrospectionField {
-        name: mutation.name.clone(),
+        name: schema.display_name(&mutation.name),
         description: mutation.description.clone(),
         args,
         field_type: return_type,
@@ -421,7 +421,7 @@ fn build_mutation_field(mutation: &MutationDefinition) -> IntrospectionField {
 }
 
 /// Build subscription field introspection.
-fn build_subscription_field(subscription: &SubscriptionDefinition) -> IntrospectionField {
+fn build_subscription_field(subscription: &SubscriptionDefinition, schema: &CompiledSchema) -> IntrospectionField {
     // Subscriptions typically return a single item per event
     let return_type = type_ref(&subscription.return_type);
 
@@ -430,7 +430,7 @@ fn build_subscription_field(subscription: &SubscriptionDefinition) -> Introspect
         subscription.arguments.iter().map(build_arg_input_value).collect();
 
     IntrospectionField {
-        name: subscription.name.clone(),
+        name: schema.display_name(&subscription.name),
         description: subscription.description.clone(),
         args,
         field_type: return_type,

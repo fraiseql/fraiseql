@@ -14,7 +14,7 @@ use fraiseql_cli::schema::{
         IntermediateType,
     },
 };
-use fraiseql_core::schema::CursorType;
+use fraiseql_core::schema::{CursorType, NamingConvention};
 use indexmap::IndexMap;
 
 /// Test: E2E complete rich filter compilation pipeline
@@ -44,6 +44,7 @@ fn test_e2e_complete_compilation_pipeline() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -97,6 +98,7 @@ fn test_e2e_sql_templates_all_databases() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -156,6 +158,7 @@ fn test_e2e_lookup_data_comprehensive() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -212,6 +215,7 @@ fn test_e2e_all_operators_generated() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -276,6 +280,7 @@ fn test_e2e_compilation_deterministic() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled1 =
@@ -334,6 +339,7 @@ fn test_e2e_all_49_types_valid() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -459,6 +465,7 @@ fn test_e2e_full_field_assertion() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let schema = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

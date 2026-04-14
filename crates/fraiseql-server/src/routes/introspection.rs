@@ -105,7 +105,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .iter()
         .filter(|q| q.requires_role.as_ref().is_none_or(|role| user_roles.contains(&role.as_str())))
         .map(|q| QueryInfo {
-            name:         q.name.clone(),
+            name:         schema.display_name(&q.name),
             return_type:  q.return_type.clone(),
             returns_list: q.returns_list,
             description:  q.description.clone(),
@@ -116,7 +116,7 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .mutations
         .iter()
         .map(|m| MutationInfo {
-            name:        m.name.clone(),
+            name:        schema.display_name(&m.name),
             return_type: m.return_type.clone(),
             description: m.description.clone(),
         })

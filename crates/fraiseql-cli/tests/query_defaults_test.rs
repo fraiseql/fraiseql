@@ -11,6 +11,7 @@ use fraiseql_cli::schema::{
         IntermediateType,
     },
 };
+use fraiseql_core::schema::NamingConvention;
 
 // =============================================================================
 // Helper
@@ -52,6 +53,7 @@ fn base_schema_with_query(
         debug_config: None,
         mcp_config: None,
         query_defaults,
+        naming_convention: NamingConvention::default(),
     }
 }
 
@@ -427,6 +429,40 @@ limit = false
     assert!(schema.query_defaults.order_by, "order_by still true");
     assert!(!schema.query_defaults.limit, "limit set to false");
     assert!(schema.query_defaults.offset, "offset still true");
+}
+
+// =============================================================================
+// Naming convention TOML parsing tests (issue #216)
+// =============================================================================
+
+#[test]
+fn test_parse_naming_convention_camel_case() {
+    use fraiseql_cli::config::TomlSchema;
+
+    let toml = r#"
+naming_convention = "camelCase"
+
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+"#;
+    let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+    assert_eq!(schema.naming_convention, NamingConvention::CamelCase);
+}
+
+#[test]
+fn test_parse_naming_convention_default_is_preserve() {
+    use fraiseql_cli::config::TomlSchema;
+
+    let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+"#;
+    let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
+    assert_eq!(schema.naming_convention, NamingConvention::Preserve);
 }
 
 // =============================================================================

@@ -16,14 +16,16 @@ pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool>
     let mut tools = Vec::new();
 
     for query in &schema.queries {
-        if should_include(&query.name, config) {
-            tools.push(query_to_tool(query));
+        let display = schema.display_name(&query.name);
+        if should_include(&display, config) {
+            tools.push(query_to_tool(query, &display));
         }
     }
 
     for mutation in &schema.mutations {
-        if should_include(&mutation.name, config) {
-            tools.push(mutation_to_tool(mutation));
+        let display = schema.display_name(&mutation.name);
+        if should_include(&display, config) {
+            tools.push(mutation_to_tool(mutation, &display));
         }
     }
 
@@ -42,11 +44,12 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 }
 
 /// Convert a query definition into an MCP tool.
-fn query_to_tool(query: &QueryDefinition) -> Tool {
-    let description = query.description.clone().unwrap_or_else(|| format!("Query: {}", query.name));
+fn query_to_tool(query: &QueryDefinition, display_name: &str) -> Tool {
+    let description =
+        query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
 
     Tool {
-        name:          Cow::Owned(query.name.clone()),
+        name:          Cow::Owned(display_name.to_string()),
         title:         None,
         description:   Some(Cow::Owned(description)),
         input_schema:  Arc::new(arguments_to_json_schema(&query.arguments)),
@@ -59,14 +62,14 @@ fn query_to_tool(query: &QueryDefinition) -> Tool {
 }
 
 /// Convert a mutation definition into an MCP tool.
-fn mutation_to_tool(mutation: &MutationDefinition) -> Tool {
+fn mutation_to_tool(mutation: &MutationDefinition, display_name: &str) -> Tool {
     let description = mutation
         .description
         .clone()
-        .unwrap_or_else(|| format!("Mutation: {}", mutation.name));
+        .unwrap_or_else(|| format!("Mutation: {display_name}"));
 
     Tool {
-        name:          Cow::Owned(mutation.name.clone()),
+        name:          Cow::Owned(display_name.to_string()),
         title:         None,
         description:   Some(Cow::Owned(description)),
         input_schema:  Arc::new(arguments_to_json_schema(&mutation.arguments)),

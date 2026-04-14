@@ -172,9 +172,10 @@ impl QueryMatcher {
             .schema
             .find_query(&parsed.root_field)
             .ok_or_else(|| {
-                let candidates: Vec<&str> =
-                    self.schema.queries.iter().map(|q| q.name.as_str()).collect();
-                let suggestion = suggest_similar(&parsed.root_field, &candidates);
+                let display_names: Vec<String> =
+                    self.schema.queries.iter().map(|q| self.schema.display_name(&q.name)).collect();
+                let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
+                let suggestion = suggest_similar(&parsed.root_field, &candidate_refs);
                 let message = match suggestion.as_slice() {
                     [s] => format!(
                         "Query '{}' not found in schema. Did you mean '{s}'?",

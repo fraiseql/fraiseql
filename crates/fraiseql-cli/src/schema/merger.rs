@@ -589,6 +589,10 @@ impl SchemaMerger {
                 serde_json::to_value(&toml_schema.mcp).context("Failed to serialize MCP config")?;
         }
 
+        // Embed naming convention
+        merged["naming_convention"] = serde_json::to_value(toml_schema.naming_convention)
+            .context("Failed to serialize naming_convention")?;
+
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;

@@ -42,6 +42,7 @@ pub use security::{
     StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode,
     TrustedDocumentsConfig,
 };
+use fraiseql_core::schema::NamingConvention;
 use serde::{Deserialize, Serialize};
 pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
@@ -148,6 +149,13 @@ pub struct TomlSchema {
     /// MCP (Model Context Protocol) server configuration.
     #[serde(default)]
     pub mcp: McpConfig,
+
+    /// Naming convention for GraphQL operation names.
+    ///
+    /// `"preserve"` (default) keeps names as authored (snake_case from Python SDKs).
+    /// `"camelCase"` converts operation names to standard GraphQL camelCase.
+    #[serde(default)]
+    pub naming_convention: NamingConvention,
 }
 
 impl TomlSchema {

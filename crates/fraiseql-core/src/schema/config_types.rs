@@ -505,6 +505,46 @@ mod tests {
 
         assert_eq!(config, restored);
     }
+
+    #[test]
+    fn test_naming_convention_default_is_preserve() {
+        assert_eq!(NamingConvention::default(), NamingConvention::Preserve);
+    }
+
+    #[test]
+    fn test_naming_convention_serde_roundtrip() {
+        let camel = NamingConvention::CamelCase;
+        let json = serde_json::to_string(&camel).unwrap();
+        assert_eq!(json, r#""camelCase""#);
+        let restored: NamingConvention = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, NamingConvention::CamelCase);
+
+        let preserve = NamingConvention::Preserve;
+        let json = serde_json::to_string(&preserve).unwrap();
+        assert_eq!(json, r#""preserve""#);
+        let restored: NamingConvention = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, NamingConvention::Preserve);
+    }
+}
+
+/// Naming convention for GraphQL operation names.
+///
+/// Controls how operation names (queries, mutations, subscriptions) are exposed
+/// in the introspection schema and resolved at execution time.
+///
+/// Python/TypeScript SDKs emit `snake_case` operation names (e.g., `create_dns_server`).
+/// Standard GraphQL convention is `camelCase` (`createDnsServer`). This setting
+/// controls whether the compiler/runtime converts names automatically.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum NamingConvention {
+    /// Preserve operation names as authored (`snake_case` from Python, etc.).
+    #[default]
+    #[serde(rename = "preserve")]
+    Preserve,
+    /// Convert operation names to camelCase for GraphQL convention.
+    #[serde(rename = "camelCase")]
+    CamelCase,
 }
 
 /// How DELETE endpoints report success.
