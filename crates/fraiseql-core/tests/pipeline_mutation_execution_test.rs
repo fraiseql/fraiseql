@@ -259,12 +259,10 @@ async fn mutation_executor_wraps_response_in_data_envelope() {
         .await
         .expect("mutation must succeed");
 
-    let body: serde_json::Value =
-        serde_json::from_str(&result).expect("response must be valid JSON");
-    assert!(body.get("data").is_some(), "response must have 'data' key");
+    assert!(result.get("data").is_some(), "response must have 'data' key");
     assert!(
-        body.get("errors").is_none(),
-        "successful mutation must not produce 'errors': {body}"
+        result.get("errors").is_none(),
+        "successful mutation must not produce 'errors': {result}"
     );
 }
 
@@ -367,8 +365,7 @@ async fn error_path_applies_selection_filtering() {
         .await
         .expect("mutation must succeed even on error outcome");
 
-    let body: serde_json::Value = serde_json::from_str(&result).expect("valid JSON");
-    let data = &body["data"]["createUser"];
+    let data = &result["data"]["createUser"];
 
     assert_eq!(data["__typename"], "DuplicateEmailError");
     assert_eq!(data["message"], "email already exists");
@@ -411,8 +408,7 @@ async fn error_path_populates_array_fields() {
         .await
         .expect("mutation must succeed");
 
-    let body: serde_json::Value = serde_json::from_str(&result).expect("valid JSON");
-    let data = &body["data"]["createUser"];
+    let data = &result["data"]["createUser"];
 
     assert_eq!(data["__typename"], "DuplicateEmailError");
     let arr = data["affected_ids"]
@@ -441,8 +437,7 @@ async fn error_path_populates_nested_object_fields() {
         .await
         .expect("mutation must succeed");
 
-    let body: serde_json::Value = serde_json::from_str(&result).expect("valid JSON");
-    let data = &body["data"]["createUser"];
+    let data = &result["data"]["createUser"];
 
     assert_eq!(data["details"]["field"], "email");
     assert_eq!(data["details"]["rule"], "unique");

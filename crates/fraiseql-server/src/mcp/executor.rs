@@ -30,7 +30,10 @@ pub async fn call_tool<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     let variables = arguments.map(|args| serde_json::Value::Object(args.clone()));
 
     match executor.execute(&graphql_query, variables.as_ref()).await {
-        Ok(result) => CallToolResult::success(vec![Content::text(result)]),
+        Ok(result) => {
+            let result_text = result.to_string();
+            CallToolResult::success(vec![Content::text(result_text)])
+        },
         Err(e) => error_result(&e.to_string()),
     }
 }

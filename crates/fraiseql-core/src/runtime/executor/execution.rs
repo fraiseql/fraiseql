@@ -30,7 +30,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // GATE 1: Query structure validation (DoS protection for direct embedders).
         if let Some(ref cfg) = self.config.query_validation {
             QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
@@ -76,7 +76,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // 1. Classify query type — also returns the ParsedQuery for Regular
         // queries so we do not parse the same string twice.
         let (query_type, maybe_parsed) = self.classify_query_with_parse(query)?;
@@ -95,12 +95,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 if pipeline::is_multi_root(&parsed) {
                     let pr = self.execute_parallel(&parsed, variables).await?;
                     let data = pr.merge_into_data_map();
-                    return serde_json::to_string(&serde_json::json!({ "data": data })).map_err(
-                        |e| FraiseQLError::Internal {
-                            message: e.to_string(),
-                            source:  None,
-                        },
-                    );
+                    return Ok(serde_json::json!({ "data": data }));
                 }
                 self.execute_regular_query(query, variables).await
             },
@@ -124,7 +119,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::IntrospectionSchema => {
                 // Return pre-built __schema response (zero-cost at runtime)
-                Ok(self.introspection.schema_response.clone())
+                Ok(self.introspection.schema_response.as_ref().clone())
             },
             QueryType::IntrospectionType(type_name) => {
                 // Return pre-built __type response (zero-cost at runtime)
@@ -177,7 +172,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         user_scopes: &[String],
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // GATE 1: Query structure validation (mirrors execute() — DoS protection).
         if let Some(ref cfg) = self.config.query_validation {
             QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {

@@ -42,7 +42,7 @@ impl<A: DatabaseAdapter + 'static> QueryExecutor for ExecutorQueryAdapter<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
-    ) -> Result<String, String> {
+    ) -> Result<serde_json::Value, String> {
         self.executor
             .execute_with_security(query, variables, security_context)
             .await

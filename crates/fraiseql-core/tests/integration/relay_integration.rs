@@ -272,7 +272,7 @@ async fn test_relay_forward_first_page() {
     let exec = executor();
     // Fetch first 2 (no cursor)
     let result = exec
-        .execute_json("{ users { edges { cursor node { id name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"first": 2})))
+        .execute("{ users { edges { cursor node { id name } } pageInfo { hasNextPage hasPreviousPage } } }", Some(&json!({"first": 2})))
         .await
         .unwrap();
 
@@ -287,7 +287,7 @@ async fn test_relay_forward_full_page() {
     let exec = executor();
     // Fetch all 3
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { edges { cursor node { id name } } pageInfo { hasNextPage } } }",
             Some(&json!({"first": 10})),
         )
@@ -306,7 +306,7 @@ async fn test_relay_forward_with_after_cursor() {
     // After Alice (pk=1) → should get Bob and Carol
     let after = encode_edge_cursor(PK_ALICE);
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }",
             Some(&json!({"first": 10, "after": after})),
         )
@@ -326,7 +326,7 @@ async fn test_relay_backward_with_before_cursor() {
     // Before Carol (pk=3), fetch last 2 → should get Bob and Alice
     let before = encode_edge_cursor(PK_CAROL);
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }",
             Some(&json!({"last": 2, "before": before})),
         )
@@ -346,7 +346,7 @@ async fn test_relay_empty_results() {
     // After Carol (pk=3) → no more rows
     let after = encode_edge_cursor(PK_CAROL);
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { edges { cursor node { name } } pageInfo { hasNextPage hasPreviousPage } } }",
             Some(&json!({"first": 10, "after": after})),
         )
@@ -362,7 +362,7 @@ async fn test_relay_empty_results() {
 async fn test_relay_edges_have_cursors() {
     let exec = executor();
     let result = exec
-        .execute_json("{ users { edges { cursor node { id } } } }", Some(&json!({"first": 3})))
+        .execute("{ users { edges { cursor node { id } } } }", Some(&json!({"first": 3})))
         .await
         .unwrap();
 
@@ -384,7 +384,7 @@ async fn test_node_query_found() {
     let node_id = encode_node_id("User", alice_uuid);
 
     let result = exec
-        .execute_json("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
+        .execute("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
         .await
         .unwrap();
 
@@ -400,7 +400,7 @@ async fn test_node_query_not_found() {
     let node_id = encode_node_id("User", unknown_uuid);
 
     let result = exec
-        .execute_json("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
+        .execute("{ node(id: $id) { id } }", Some(&json!({"id": node_id})))
         .await
         .unwrap();
 
@@ -411,7 +411,7 @@ async fn test_node_query_not_found() {
 async fn test_node_query_invalid_id_returns_error() {
     let exec = executor();
     let result = exec
-        .execute_json("{ node(id: $id) { id } }", Some(&json!({"id": "not-valid-base64!!!"})))
+        .execute("{ node(id: $id) { id } }", Some(&json!({"id": "not-valid-base64!!!"})))
         .await;
 
     assert!(result.is_err(), "invalid node ID should return an error");
@@ -434,7 +434,7 @@ async fn test_node_query_inline_id() {
 
     // Inline literal (no variables)
     let query = format!("{{ node(id: \"{node_id}\") {{ id }} }}");
-    let result = exec.execute_json(&query, None).await.unwrap();
+    let result = exec.execute(&query, None).await.unwrap();
 
     let node = &result["data"]["node"];
     assert!(!node.is_null(), "inline node ID should resolve");
@@ -449,7 +449,7 @@ async fn test_node_query_inline_id() {
 async fn test_introspection_includes_node_field_in_query_type() {
     let exec = executor();
     let result = exec
-        .execute_json("{ __type(name: \"Query\") { fields { name args { name } } } }", None)
+        .execute("{ __type(name: \"Query\") { fields { name args { name } } } }", None)
         .await
         .unwrap();
 
@@ -468,7 +468,7 @@ async fn test_introspection_includes_node_field_in_query_type() {
 async fn test_introspection_node_interface_exists() {
     let exec = executor();
     let result = exec
-        .execute_json("{ __type(name: \"Node\") { kind name fields { name } } }", None)
+        .execute("{ __type(name: \"Node\") { kind name fields { name } } }", None)
         .await
         .unwrap();
 
@@ -485,7 +485,7 @@ async fn test_introspection_node_interface_exists() {
 async fn test_introspection_user_implements_node() {
     let exec = executor();
     let result = exec
-        .execute_json("{ __type(name: \"User\") { kind interfaces { name } } }", None)
+        .execute("{ __type(name: \"User\") { kind interfaces { name } } }", None)
         .await
         .unwrap();
 
@@ -504,7 +504,7 @@ async fn test_introspection_relay_query_returns_connection_type() {
     // Relay queries must expose `UsersConnection!` as return type, not `[User!]!`.
     // This is what Relay's own code generator looks for to identify connection fields.
     let result = exec
-        .execute_json(
+        .execute(
             "{ __type(name: \"Query\") { fields { name type { kind name ofType { name } } args { name } } } }",
             None,
         )
@@ -544,7 +544,7 @@ async fn test_introspection_node_field_return_kind_is_interface() {
     // `node(id: ID!): Node` — the return type kind must be INTERFACE, not OBJECT.
     // Relay's fragment dispatch (`... on User`) relies on this being an interface.
     let result = exec
-        .execute_json("{ __type(name: \"Query\") { fields { name type { kind name } } } }", None)
+        .execute("{ __type(name: \"Query\") { fields { name type { kind name } } } }", None)
         .await
         .unwrap();
 
@@ -584,7 +584,7 @@ async fn test_relay_total_count_ignores_cursor_position() {
 
     let after = encode_edge_cursor(PK_ALICE);
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { totalCount edges { cursor node { name } } } }",
             Some(&json!({"first": 1, "after": after})),
         )
@@ -605,7 +605,7 @@ async fn test_relay_total_count_ignores_cursor_position() {
 async fn test_relay_total_count_absent_when_not_requested() {
     let exec = executor();
     let result = exec
-        .execute_json("{ users { edges { cursor node { name } } } }", Some(&json!({"first": 2})))
+        .execute("{ users { edges { cursor node { name } } } }", Some(&json!({"first": 2})))
         .await
         .unwrap();
 
@@ -624,7 +624,7 @@ async fn test_relay_total_count_absent_when_not_requested() {
 async fn test_relay_total_count_via_inline_fragment() {
     let exec = executor();
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { ... on UserConnection { totalCount } edges { cursor node { name } } } }",
             Some(&json!({"first": 2})),
         )
@@ -644,7 +644,7 @@ async fn test_relay_total_count_via_inline_fragment() {
 async fn test_relay_total_count_via_named_fragment() {
     let exec = executor();
     let result = exec
-        .execute_json(
+        .execute(
             "fragment ConnFields on UserConnection { totalCount }
              { users { ...ConnFields edges { cursor node { name } } } }",
             Some(&json!({"first": 2})),
@@ -851,7 +851,7 @@ async fn test_uuid_cursor_encode_decode_roundtrip() {
 async fn test_uuid_relay_forward_first_page() {
     let exec = uuid_executor();
     let result = exec
-        .execute_json(
+        .execute(
             "{ items { edges { cursor node { id name } } pageInfo { hasNextPage hasPreviousPage } } }",
             Some(&json!({"first": 2})),
         )
@@ -875,7 +875,7 @@ async fn test_uuid_relay_forward_with_after_cursor() {
     let exec = uuid_executor();
     let after = encode_uuid_cursor("aaa00000-0000-0000-0000-000000000001");
     let result = exec
-        .execute_json(
+        .execute(
             "{ items { edges { cursor node { id name } } pageInfo { hasNextPage hasPreviousPage } } }",
             Some(&json!({"first": 10, "after": after})),
         )
@@ -902,7 +902,7 @@ async fn test_uuid_relay_forward_with_after_cursor() {
 async fn relay_returns_error_on_invalid_base64_cursor() {
     let exec = executor();
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { edges { node { id } } } }",
             Some(&json!({"first": 10, "after": "not-valid-base64!!!"})),
         )
@@ -928,7 +928,7 @@ async fn relay_returns_error_on_non_integer_cursor_content() {
     // Valid base64, but decodes to "not-a-number" rather than an i64.
     let bad_cursor = BASE64.encode("not-a-number");
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { edges { node { id } } } }",
             Some(&json!({"first": 10, "after": bad_cursor})),
         )
@@ -958,7 +958,7 @@ async fn relay_handles_bidirectional_pagination_gracefully() {
     let before = encode_edge_cursor(PK_CAROL);
 
     let result = exec
-        .execute_json(
+        .execute(
             "{ users { edges { node { id } } pageInfo { hasNextPage } } }",
             Some(&json!({
                 "first":  2,
@@ -1010,7 +1010,7 @@ async fn relay_cursor_column_is_pk_user_not_id() {
     use fraiseql_core::runtime::relay::decode_edge_cursor;
     let exec = executor();
     let result = exec
-        .execute_json("{ users { edges { cursor node { id name } } } }", Some(&json!({"first": 3})))
+        .execute("{ users { edges { cursor node { id name } } } }", Some(&json!({"first": 3})))
         .await
         .unwrap();
 

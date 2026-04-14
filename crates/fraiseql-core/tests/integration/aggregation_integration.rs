@@ -391,7 +391,7 @@ async fn test_end_to_end_aggregate_query() {
         .expect("Failed to execute aggregate query");
 
     // Parse response
-    let response: serde_json::Value = serde_json::from_str(&result).unwrap();
+    let response = result;
 
     // Verify response structure
     assert!(response.get("data").is_some());

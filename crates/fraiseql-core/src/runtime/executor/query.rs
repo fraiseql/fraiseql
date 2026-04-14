@@ -176,7 +176,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // 1. Validate security context (check expiration, etc.)
         if security_context.is_expired() {
             return Err(FraiseQLError::Validation {
@@ -406,7 +406,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
         // 13. Serialize to JSON string
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 
     /// Execute a regular (non-aggregate, non-relay) GraphQL query.
@@ -420,7 +420,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // 1. Match query to compiled template
         let query_match = self.matcher.match_query(query, variables)?;
 
@@ -574,7 +574,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
         // 6. Serialize to JSON string
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 
     /// Execute a pre-built `QueryMatch` directly, bypassing GraphQL string parsing.
@@ -591,7 +591,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_match: &crate::runtime::matcher::QueryMatch,
         _variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // Evaluate RLS policy if present.
         let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
             (&self.config.rls_policy, security_context)
@@ -706,7 +706,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let response =
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 
     /// Execute a mutation with security context for REST transport.
@@ -722,7 +722,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         arguments: &serde_json::Value,
         security_context: Option<&crate::security::SecurityContext>,
-    ) -> crate::error::Result<String> {
+    ) -> crate::error::Result<serde_json::Value> {
         // Build a synthetic GraphQL mutation query and delegate to execute()
         let args_str = if let Some(obj) = arguments.as_object() {
             obj.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(", ")
@@ -760,7 +760,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             let result = self
                 .execute_mutation_with_security(mutation_name, item, security_context)
                 .await?;
-            entities.push(serde_json::Value::String(result));
+            entities.push(result);
         }
         Ok(crate::runtime::BulkResult {
             affected_rows: entities.len() as u64,
@@ -783,16 +783,14 @@ impl<A: DatabaseAdapter> Executor<A> {
         security_context: Option<&SecurityContext>,
     ) -> crate::error::Result<crate::runtime::BulkResult> {
         // Execute the filter query to find matching rows.
-        let result_str = self.execute_query_direct(query_match, None, security_context).await?;
+        let filter_result = self.execute_query_direct(query_match, None, security_context).await?;
 
         let args = body.cloned().unwrap_or(serde_json::json!({}));
         let result = self
             .execute_mutation_with_security(mutation_name, &args, security_context)
             .await?;
 
-        let parsed: serde_json::Value =
-            serde_json::from_str(&result_str).unwrap_or(serde_json::json!({}));
-        let count = parsed
+        let count = filter_result
             .get("data")
             .and_then(|d| d.as_object())
             .and_then(|o| o.values().next())
@@ -801,7 +799,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         Ok(crate::runtime::BulkResult {
             affected_rows: count,
-            entities:      Some(vec![serde_json::Value::String(result)]),
+            entities:      Some(vec![result]),
         })
     }
 
@@ -941,7 +939,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         use crate::{
             compiler::aggregation::OrderByClause,
             runtime::relay::{decode_edge_cursor, decode_uuid_cursor, encode_edge_cursor},
@@ -1257,7 +1255,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         let response = ResultProjector::wrap_in_data_envelope(connection, &query_def.name);
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 
     /// Execute a Relay global `node(id: ID!)` query.
@@ -1279,7 +1277,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         selections: &[FieldSelection],
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         use crate::{
             db::{WhereClause, where_clause::WhereOperator},
             runtime::relay::decode_node_id,
@@ -1368,7 +1366,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             );
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 }
 

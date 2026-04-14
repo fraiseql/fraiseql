@@ -89,14 +89,14 @@ pub trait QueryExecutor: Send + Sync {
     /// * `security_context` - Security context from `fraiseql_core` for RLS policy evaluation
     ///
     /// # Returns
-    /// * `Ok(String)` - JSON result from query execution
+    /// * `Ok(serde_json::Value)` - JSON result from query execution
     /// * `Err(String)` - Error message if execution fails
     async fn execute_with_security(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &fraiseql_core::security::SecurityContext,
-    ) -> Result<String, String>;
+    ) -> Result<serde_json::Value, String>;
 }
 
 pub(crate) type HandshakeStream =

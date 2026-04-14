@@ -292,11 +292,8 @@ async fn embed_into_single<A: DatabaseAdapter>(
         .await
         .map_err(RestError::from)?;
 
-    // Parse and extract embedded data.
-    let parsed: serde_json::Value = serde_json::from_str(&result)
-        .map_err(|e| RestError::internal(format!("Failed to parse embedded result: {e}")))?;
-
-    let embedded_data = extract_query_data(&parsed, &target_query.name);
+    // Extract embedded data directly from the executor result.
+    let embedded_data = extract_query_data(&result, &target_query.name);
 
     // Set the embedded data on the parent row.
     if let Some(obj) = row.as_object_mut() {

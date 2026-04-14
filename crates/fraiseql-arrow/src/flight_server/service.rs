@@ -494,14 +494,10 @@ impl FraiseQLFlightService {
         // Execute query with RLS filtering via executor
         if let Some(executor) = self.executor() {
             // Call executor.execute_with_security() to get JSON result with RLS applied
-            let json_result = executor
+            let parsed = executor
                 .execute_with_security(query, variables.as_ref(), security_context)
                 .await
                 .map_err(|e| Status::internal(format!("Query execution failed: {e}")))?;
-
-            // Parse JSON result to get data rows
-            let parsed: serde_json::Value = serde_json::from_str(&json_result)
-                .map_err(|e| Status::internal(format!("Failed to parse query result: {e}")))?;
 
             // Convert JSON to Arrow RecordBatches
             let batches = self

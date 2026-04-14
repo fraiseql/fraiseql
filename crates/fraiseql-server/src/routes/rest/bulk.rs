@@ -145,10 +145,12 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
                 .unwrap_or_default()
                 .iter()
                 .filter_map(|r| {
-                    if let serde_json::Value::String(s) = r {
-                        extract_entity_from_result(s)
+                    if r.is_string() {
+                        // Legacy: string-wrapped JSON result — parse and extract
+                        let parsed: serde_json::Value = serde_json::from_str(r.as_str()?).ok()?;
+                        extract_entity_from_result(&parsed)
                     } else {
-                        Some(r.clone())
+                        extract_entity_from_result(r)
                     }
                 })
                 .collect();
@@ -407,10 +409,12 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
                 .unwrap_or_default()
                 .iter()
                 .filter_map(|r| {
-                    if let serde_json::Value::String(s) = r {
-                        extract_entity_from_result(s)
+                    if r.is_string() {
+                        // Legacy: string-wrapped JSON result — parse and extract
+                        let parsed: serde_json::Value = serde_json::from_str(r.as_str()?).ok()?;
+                        extract_entity_from_result(&parsed)
                     } else {
-                        Some(r.clone())
+                        extract_entity_from_result(r)
                     }
                 })
                 .collect();
@@ -470,10 +474,9 @@ fn has_filter_params(query_params: &[(&str, &str)]) -> bool {
     })
 }
 
-/// Extract entity data from a mutation result JSON string.
-fn extract_entity_from_result(result: &str) -> Option<serde_json::Value> {
-    let parsed: serde_json::Value = serde_json::from_str(result).ok()?;
-    let data = parsed.get("data")?;
+/// Extract entity data from a mutation result value.
+fn extract_entity_from_result(result: &serde_json::Value) -> Option<serde_json::Value> {
+    let data = result.get("data")?;
 
     // Get the first field in the data object (mutation name)
     let mutation_result = data.as_object()?.values().next()?;
@@ -572,30 +575,31 @@ mod tests {
 
     #[test]
     fn extract_entity_nested_format() {
-        let result = r#"{"data":{"createUser":{"entity":{"id":1,"name":"Alice"}}}}"#;
-        let entity = extract_entity_from_result(result).unwrap();
+        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"createUser":{"entity":{"id":1,"name":"Alice"}}}}"#).unwrap();
+        let entity = extract_entity_from_result(&result).unwrap();
         assert_eq!(entity["id"], 1);
         assert_eq!(entity["name"], "Alice");
     }
 
     #[test]
     fn extract_entity_executor_format() {
-        let result =
-            r#"{"data":{"createUser":{"pk_user_id":1,"name":"Alice","__typename":"User"}}}"#;
-        let entity = extract_entity_from_result(result).unwrap();
+        let result: serde_json::Value = serde_json::from_str(
+            r#"{"data":{"createUser":{"pk_user_id":1,"name":"Alice","__typename":"User"}}}"#,
+        ).unwrap();
+        let entity = extract_entity_from_result(&result).unwrap();
         assert_eq!(entity["pk_user_id"], 1);
         assert!(entity.get("__typename").is_none());
     }
 
     #[test]
     fn extract_entity_null() {
-        let result = r#"{"data":{"createUser":{"entity":null}}}"#;
-        assert!(extract_entity_from_result(result).is_none());
+        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"createUser":{"entity":null}}}"#).unwrap();
+        assert!(extract_entity_from_result(&result).is_none());
     }
 
     #[test]
-    fn extract_entity_invalid_json() {
-        assert!(extract_entity_from_result("not json").is_none());
+    fn extract_entity_null_value() {
+        assert!(extract_entity_from_result(&serde_json::Value::Null).is_none());
     }
 
     // -----------------------------------------------------------------------

@@ -46,7 +46,7 @@ async fn handle_query(
     match result {
         Ok(json_result) => {
             info!(user_id, correlation_id, "Converting query result to Arrow");
-            let batch_result = encode_json_to_arrow_batch(&json_result)
+            let batch_result = encode_json_to_arrow_batch(&json_result.to_string())
                 .map_err(|e| format!("Encoding error: {e}"));
             match batch_result {
                 Ok(batch) => {

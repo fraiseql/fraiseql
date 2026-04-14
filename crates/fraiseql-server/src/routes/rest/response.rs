@@ -45,7 +45,7 @@ impl<'a> RestResponseFormatter<'a> {
     /// Returns `RestError` if the execution result cannot be parsed as JSON.
     pub fn format_single(
         &self,
-        result: &str,
+        result: &serde_json::Value,
         request_headers: &HeaderMap,
     ) -> Result<RestResponse, RestError> {
         let data = extract_single_data(result)?;
@@ -87,7 +87,7 @@ impl<'a> RestResponseFormatter<'a> {
     /// Returns `RestError` if the execution result cannot be parsed as JSON.
     pub fn format_collection(
         &self,
-        result: &str,
+        result: &serde_json::Value,
         total: Option<u64>,
         pagination: &PaginationParams,
         resource_path: &str,
@@ -196,7 +196,7 @@ impl<'a> RestResponseFormatter<'a> {
     /// Returns `RestError` if the mutation result cannot be parsed.
     pub fn format_created(
         &self,
-        result: &str,
+        result: &serde_json::Value,
         resource_path: &str,
         id: Option<&serde_json::Value>,
         request_headers: &HeaderMap,
@@ -230,7 +230,7 @@ impl<'a> RestResponseFormatter<'a> {
     /// Returns `RestError` if the mutation result cannot be parsed.
     pub fn format_mutation(
         &self,
-        result: &str,
+        result: &serde_json::Value,
         request_headers: &HeaderMap,
     ) -> Result<RestResponse, RestError> {
         let data = extract_mutation_data(result)?;
@@ -252,7 +252,7 @@ impl<'a> RestResponseFormatter<'a> {
     /// `X-Preference-Fallback: entity-unavailable` instead of 200.
     pub fn format_deleted(
         &self,
-        result: &str,
+        result: &serde_json::Value,
         mutation_name: &str,
         prefer: &PreferHeader,
         request_headers: &HeaderMap,
@@ -379,18 +379,15 @@ fn check_if_none_match(headers: &HeaderMap, etag: &str) -> Option<bool> {
 /// # Errors
 ///
 /// Returns `RestError` if JSON parsing fails.
-fn extract_single_data(result: &str) -> Result<serde_json::Value, RestError> {
-    let parsed: serde_json::Value = serde_json::from_str(result)
-        .map_err(|e| RestError::internal(format!("Failed to parse query result: {e}")))?;
-
-    if let Some(data_obj) = parsed.get("data") {
+fn extract_single_data(result: &serde_json::Value) -> Result<serde_json::Value, RestError> {
+    if let Some(data_obj) = result.get("data") {
         if let serde_json::Value::Object(map) = data_obj {
             Ok(map.values().next().cloned().unwrap_or(serde_json::Value::Null))
         } else {
             Ok(data_obj.clone())
         }
     } else {
-        Ok(parsed)
+        Ok(result.clone())
     }
 }
 
@@ -399,7 +396,7 @@ fn extract_single_data(result: &str) -> Result<serde_json::Value, RestError> {
 /// # Errors
 ///
 /// Returns `RestError` if JSON parsing fails.
-fn extract_collection_data(result: &str) -> Result<serde_json::Value, RestError> {
+fn extract_collection_data(result: &serde_json::Value) -> Result<serde_json::Value, RestError> {
     extract_single_data(result)
 }
 
@@ -410,11 +407,8 @@ fn extract_collection_data(result: &str) -> Result<serde_json::Value, RestError>
 /// # Errors
 ///
 /// Returns `RestError` if JSON parsing fails.
-fn extract_mutation_data(result: &str) -> Result<serde_json::Value, RestError> {
-    let parsed: serde_json::Value = serde_json::from_str(result)
-        .map_err(|e| RestError::internal(format!("Failed to parse mutation result: {e}")))?;
-
-    if let Some(data_obj) = parsed.get("data") {
+fn extract_mutation_data(result: &serde_json::Value) -> Result<serde_json::Value, RestError> {
+    if let Some(data_obj) = result.get("data") {
         if let serde_json::Value::Object(map) = data_obj {
             // For mutations, extract the entity from mutation_response
             if let Some(mutation_result) = map.values().next() {
@@ -429,16 +423,15 @@ fn extract_mutation_data(result: &str) -> Result<serde_json::Value, RestError> {
         }
         Ok(data_obj.clone())
     } else {
-        Ok(parsed)
+        Ok(result.clone())
     }
 }
 
 /// Extract entity data from a DELETE mutation response.
 ///
 /// Parses `data.{mutation_name}.entity` from the mutation result.
-fn extract_delete_entity(result: &str, mutation_name: &str) -> Option<serde_json::Value> {
-    let parsed: serde_json::Value = serde_json::from_str(result).ok()?;
-    let entity = parsed.get("data")?.get(mutation_name)?.get("entity")?;
+fn extract_delete_entity(result: &serde_json::Value, mutation_name: &str) -> Option<serde_json::Value> {
+    let entity = result.get("data")?.get(mutation_name)?.get("entity")?;
 
     if entity.is_null() {
         None
@@ -623,6 +616,10 @@ impl RestError {
 mod tests {
     use super::*;
 
+    fn v(s: &str) -> serde_json::Value {
+        serde_json::from_str(s).unwrap()
+    }
+
     fn default_config() -> RestConfig {
         RestConfig::default()
     }
@@ -729,8 +726,8 @@ mod tests {
     fn single_resource_200_with_data() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#;
-        let resp = formatter.format_single(result, &empty_headers()).unwrap();
+        let result = v(r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#);
+        let resp = formatter.format_single(&result, &empty_headers()).unwrap();
 
         assert_eq!(resp.status, StatusCode::OK);
         let body = resp.body.unwrap();
@@ -743,8 +740,8 @@ mod tests {
     fn single_resource_has_etag() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"user":{"id":1}}}"#;
-        let resp = formatter.format_single(result, &empty_headers()).unwrap();
+        let result = v(r#"{"data":{"user":{"id":1}}}"#);
+        let resp = formatter.format_single(&result, &empty_headers()).unwrap();
 
         assert!(resp.headers.get("etag").is_some());
         let etag = resp.headers.get("etag").unwrap().to_str().unwrap();
@@ -755,8 +752,8 @@ mod tests {
     fn single_resource_no_etag_when_disabled() {
         let config = no_etag_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"user":{"id":1}}}"#;
-        let resp = formatter.format_single(result, &empty_headers()).unwrap();
+        let result = v(r#"{"data":{"user":{"id":1}}}"#);
+        let resp = formatter.format_single(&result, &empty_headers()).unwrap();
 
         assert!(resp.headers.get("etag").is_none());
     }
@@ -765,15 +762,15 @@ mod tests {
     fn single_resource_304_on_matching_etag() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"user":{"id":1}}}"#;
+        let result = v(r#"{"data":{"user":{"id":1}}}"#);
 
         // First request to get the ETag
-        let resp1 = formatter.format_single(result, &empty_headers()).unwrap();
+        let resp1 = formatter.format_single(&result, &empty_headers()).unwrap();
         let etag = resp1.headers.get("etag").unwrap().to_str().unwrap().to_string();
 
         // Second request with If-None-Match
         let headers = headers_with_if_none_match(&etag);
-        let resp2 = formatter.format_single(result, &headers).unwrap();
+        let resp2 = formatter.format_single(&result, &headers).unwrap();
 
         assert_eq!(resp2.status, StatusCode::NOT_MODIFIED);
         assert!(resp2.body.is_none());
@@ -784,9 +781,9 @@ mod tests {
     fn single_resource_200_on_stale_etag() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"user":{"id":1}}}"#;
+        let result = v(r#"{"data":{"user":{"id":1}}}"#);
         let headers = headers_with_if_none_match("W/\"stale\"");
-        let resp = formatter.format_single(result, &headers).unwrap();
+        let resp = formatter.format_single(&result, &headers).unwrap();
 
         assert_eq!(resp.status, StatusCode::OK);
         assert!(resp.body.is_some());
@@ -796,9 +793,9 @@ mod tests {
     fn single_resource_has_request_id() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"user":{"id":1}}}"#;
+        let result = v(r#"{"data":{"user":{"id":1}}}"#);
         let headers = headers_with_request_id("abc-123");
-        let resp = formatter.format_single(result, &headers).unwrap();
+        let resp = formatter.format_single(&result, &headers).unwrap();
 
         assert_eq!(resp.headers.get("x-request-id").unwrap().to_str().unwrap(), "abc-123");
     }
@@ -807,8 +804,8 @@ mod tests {
     fn single_resource_generates_request_id_when_missing() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"user":{"id":1}}}"#;
-        let resp = formatter.format_single(result, &empty_headers()).unwrap();
+        let result = v(r#"{"data":{"user":{"id":1}}}"#);
+        let resp = formatter.format_single(&result, &empty_headers()).unwrap();
 
         let id = resp.headers.get("x-request-id").unwrap().to_str().unwrap();
         assert_eq!(id.len(), 36); // UUID format
@@ -822,7 +819,7 @@ mod tests {
     fn collection_offset_with_total() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[{"id":1},{"id":2}]}}"#;
+        let result = v(r#"{"data":{"users":[{"id":1},{"id":2}]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 0,
@@ -833,7 +830,7 @@ mod tests {
         };
 
         let resp = formatter
-            .format_collection(result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
 
         assert_eq!(resp.status, StatusCode::OK);
@@ -853,7 +850,7 @@ mod tests {
     fn collection_offset_without_total_omits_meta_total() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[{"id":1}]}}"#;
+        let result = v(r#"{"data":{"users":[{"id":1}]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 0,
@@ -861,7 +858,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, None, &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, None, &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -874,7 +871,7 @@ mod tests {
     fn collection_offset_links_with_total() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[{"id":1}]}}"#;
+        let result = v(r#"{"data":{"users":[{"id":1}]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 10,
@@ -882,7 +879,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -898,7 +895,7 @@ mod tests {
     fn collection_offset_links_first_page() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[]}}"#;
+        let result = v(r#"{"data":{"users":[]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 0,
@@ -906,7 +903,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -919,7 +916,7 @@ mod tests {
     fn collection_offset_links_last_page() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[]}}"#;
+        let result = v(r#"{"data":{"users":[]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 40,
@@ -927,7 +924,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, Some(42), &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -939,7 +936,7 @@ mod tests {
     fn collection_offset_links_last_omitted_without_total() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[]}}"#;
+        let result = v(r#"{"data":{"users":[]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 0,
@@ -947,7 +944,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, None, &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, None, &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -963,7 +960,7 @@ mod tests {
     fn collection_cursor_has_next_page_meta() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#;
+        let result = v(r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#);
         let pagination = PaginationParams::Cursor {
             first:  Some(5),
             after:  None,
@@ -973,7 +970,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, None, &pagination, "/posts", &empty_headers(), &prefer)
+            .format_collection(&result, None, &pagination, "/posts", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -986,7 +983,7 @@ mod tests {
     fn collection_cursor_links_with_next() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#;
+        let result = v(r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#);
         let pagination = PaginationParams::Cursor {
             first:  Some(10),
             after:  None,
@@ -996,7 +993,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, None, &pagination, "/posts", &empty_headers(), &prefer)
+            .format_collection(&result, None, &pagination, "/posts", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -1009,7 +1006,7 @@ mod tests {
     fn collection_cursor_no_next_link_when_no_next_page() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"posts":{"edges":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}}}"#;
+        let result = v(r#"{"data":{"posts":{"edges":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}}}"#);
         let pagination = PaginationParams::Cursor {
             first:  Some(10),
             after:  None,
@@ -1019,7 +1016,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, None, &pagination, "/posts", &empty_headers(), &prefer)
+            .format_collection(&result, None, &pagination, "/posts", &empty_headers(), &prefer)
             .unwrap();
 
         let body = resp.body.unwrap();
@@ -1034,7 +1031,7 @@ mod tests {
     fn collection_has_etag() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[{"id":1}]}}"#;
+        let result = v(r#"{"data":{"users":[{"id":1}]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 0,
@@ -1042,7 +1039,7 @@ mod tests {
         let prefer = PreferHeader::default();
 
         let resp = formatter
-            .format_collection(result, None, &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, None, &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
 
         assert!(resp.headers.get("etag").is_some());
@@ -1052,7 +1049,7 @@ mod tests {
     fn collection_304_on_matching_etag() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"users":[{"id":1}]}}"#;
+        let result = v(r#"{"data":{"users":[{"id":1}]}}"#);
         let pagination = PaginationParams::Offset {
             limit:  10,
             offset: 0,
@@ -1061,14 +1058,14 @@ mod tests {
 
         // First request to get the ETag
         let resp1 = formatter
-            .format_collection(result, None, &pagination, "/users", &empty_headers(), &prefer)
+            .format_collection(&result, None, &pagination, "/users", &empty_headers(), &prefer)
             .unwrap();
         let etag = resp1.headers.get("etag").unwrap().to_str().unwrap().to_string();
 
         // Second request with If-None-Match
         let headers = headers_with_if_none_match(&etag);
         let resp2 = formatter
-            .format_collection(result, None, &pagination, "/users", &headers, &prefer)
+            .format_collection(&result, None, &pagination, "/users", &headers, &prefer)
             .unwrap();
 
         assert_eq!(resp2.status, StatusCode::NOT_MODIFIED);
@@ -1083,9 +1080,9 @@ mod tests {
     fn created_201_with_location() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"createUser":{"entity":{"id":3,"name":"Charlie"}}}}"#;
+        let result = v(r#"{"data":{"createUser":{"entity":{"id":3,"name":"Charlie"}}}}"#);
 
-        let resp = formatter.format_created(result, "/users", None, &empty_headers()).unwrap();
+        let resp = formatter.format_created(&result, "/users", None, &empty_headers()).unwrap();
 
         assert_eq!(resp.status, StatusCode::CREATED);
         let body = resp.body.unwrap();
@@ -1097,10 +1094,10 @@ mod tests {
     fn created_201_with_explicit_id() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"createUser":{"entity":{"id":5}}}}"#;
+        let result = v(r#"{"data":{"createUser":{"entity":{"id":5}}}}"#);
         let id = json!(5);
 
-        let resp = formatter.format_created(result, "/users", Some(&id), &empty_headers()).unwrap();
+        let resp = formatter.format_created(&result, "/users", Some(&id), &empty_headers()).unwrap();
 
         assert_eq!(resp.headers.get("location").unwrap().to_str().unwrap(), "/rest/v1/users/5");
     }
@@ -1110,8 +1107,9 @@ mod tests {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
-        let result =
-            format!(r#"{{"data":{{"createUser":{{"entity":{{"id":"{uuid}","name":"Alice"}}}}}}}}"#);
+        let result = v(&format!(
+            r#"{{"data":{{"createUser":{{"entity":{{"id":"{uuid}","name":"Alice"}}}}}}}}"#
+        ));
 
         let resp = formatter.format_created(&result, "/users", None, &empty_headers()).unwrap();
 
@@ -1123,10 +1121,10 @@ mod tests {
     fn created_201_has_request_id() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"createUser":{"entity":{"id":1}}}}"#;
+        let result = v(r#"{"data":{"createUser":{"entity":{"id":1}}}}"#);
         let headers = headers_with_request_id("req-42");
 
-        let resp = formatter.format_created(result, "/users", None, &headers).unwrap();
+        let resp = formatter.format_created(&result, "/users", None, &headers).unwrap();
 
         assert_eq!(resp.headers.get("x-request-id").unwrap().to_str().unwrap(), "req-42");
     }
@@ -1139,9 +1137,9 @@ mod tests {
     fn mutation_200_with_data() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"updateUser":{"entity":{"id":1,"name":"Updated"}}}}"#;
+        let result = v(r#"{"data":{"updateUser":{"entity":{"id":1,"name":"Updated"}}}}"#);
 
-        let resp = formatter.format_mutation(result, &empty_headers()).unwrap();
+        let resp = formatter.format_mutation(&result, &empty_headers()).unwrap();
 
         assert_eq!(resp.status, StatusCode::OK);
         let body = resp.body.unwrap();
@@ -1156,10 +1154,10 @@ mod tests {
     fn deleted_204_no_content_default() {
         let config = default_config(); // delete_response = NoContent
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#;
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#);
         let prefer = PreferHeader::default();
 
-        let resp = formatter.format_deleted(result, "deleteUser", &prefer, &empty_headers());
+        let resp = formatter.format_deleted(&result, "deleteUser", &prefer, &empty_headers());
 
         assert_eq!(resp.status, StatusCode::NO_CONTENT);
         assert!(resp.body.is_none());
@@ -1169,10 +1167,10 @@ mod tests {
     fn deleted_200_entity_config() {
         let config = entity_delete_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#;
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
         let prefer = PreferHeader::default();
 
-        let resp = formatter.format_deleted(result, "deleteUser", &prefer, &empty_headers());
+        let resp = formatter.format_deleted(&result, "deleteUser", &prefer, &empty_headers());
 
         assert_eq!(resp.status, StatusCode::OK);
         let body = resp.body.unwrap();
@@ -1183,13 +1181,13 @@ mod tests {
     fn deleted_prefer_return_representation_with_entity() {
         let config = default_config(); // NoContent default, but Prefer overrides
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#;
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
         let prefer = PreferHeader {
             return_representation: true,
             ..Default::default()
         };
 
-        let resp = formatter.format_deleted(result, "deleteUser", &prefer, &empty_headers());
+        let resp = formatter.format_deleted(&result, "deleteUser", &prefer, &empty_headers());
 
         assert_eq!(resp.status, StatusCode::OK);
         let body = resp.body.unwrap();
@@ -1204,13 +1202,13 @@ mod tests {
     fn deleted_prefer_return_representation_entity_unavailable() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#;
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#);
         let prefer = PreferHeader {
             return_representation: true,
             ..Default::default()
         };
 
-        let resp = formatter.format_deleted(result, "deleteUser", &prefer, &empty_headers());
+        let resp = formatter.format_deleted(&result, "deleteUser", &prefer, &empty_headers());
 
         assert_eq!(resp.status, StatusCode::NO_CONTENT);
         assert!(resp.body.is_none());
@@ -1228,13 +1226,13 @@ mod tests {
     fn deleted_prefer_return_minimal_overrides_entity_config() {
         let config = entity_delete_config(); // Entity default, but Prefer overrides
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#;
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
         let prefer = PreferHeader {
             return_minimal: true,
             ..Default::default()
         };
 
-        let resp = formatter.format_deleted(result, "deleteUser", &prefer, &empty_headers());
+        let resp = formatter.format_deleted(&result, "deleteUser", &prefer, &empty_headers());
 
         assert_eq!(resp.status, StatusCode::NO_CONTENT);
         assert!(resp.body.is_none());
@@ -1248,11 +1246,11 @@ mod tests {
     fn deleted_has_request_id() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = r#"{"data":{"deleteUser":{"success":true}}}"#;
+        let result = v(r#"{"data":{"deleteUser":{"success":true}}}"#);
         let prefer = PreferHeader::default();
         let headers = headers_with_request_id("del-99");
 
-        let resp = formatter.format_deleted(result, "deleteUser", &prefer, &headers);
+        let resp = formatter.format_deleted(&result, "deleteUser", &prefer, &headers);
 
         assert_eq!(resp.headers.get("x-request-id").unwrap().to_str().unwrap(), "del-99");
     }
@@ -1397,50 +1395,50 @@ mod tests {
 
     #[test]
     fn extract_single_data_from_envelope() {
-        let result = r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#;
-        let data = extract_single_data(result).unwrap();
+        let result = v(r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#);
+        let data = extract_single_data(&result).unwrap();
         assert_eq!(data["id"], 1);
         assert_eq!(data["name"], "Alice");
     }
 
     #[test]
     fn extract_single_data_unwraps_first_field() {
-        let result = r#"{"data":{"someQuery":{"value":42}}}"#;
-        let data = extract_single_data(result).unwrap();
+        let result = v(r#"{"data":{"someQuery":{"value":42}}}"#);
+        let data = extract_single_data(&result).unwrap();
         assert_eq!(data["value"], 42);
     }
 
     #[test]
     fn extract_mutation_data_extracts_entity() {
-        let result = r#"{"data":{"createUser":{"entity":{"id":3,"name":"Charlie"}}}}"#;
-        let data = extract_mutation_data(result).unwrap();
+        let result = v(r#"{"data":{"createUser":{"entity":{"id":3,"name":"Charlie"}}}}"#);
+        let data = extract_mutation_data(&result).unwrap();
         assert_eq!(data["id"], 3);
     }
 
     #[test]
     fn extract_mutation_data_null_entity_returns_full_response() {
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#;
-        let data = extract_mutation_data(result).unwrap();
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#);
+        let data = extract_mutation_data(&result).unwrap();
         assert_eq!(data["success"], true);
     }
 
     #[test]
     fn extract_delete_entity_present() {
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#;
-        let entity = extract_delete_entity(result, "deleteUser").unwrap();
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
+        let entity = extract_delete_entity(&result, "deleteUser").unwrap();
         assert_eq!(entity["id"], 1);
     }
 
     #[test]
     fn extract_delete_entity_null() {
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#;
-        assert!(extract_delete_entity(result, "deleteUser").is_none());
+        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#);
+        assert!(extract_delete_entity(&result, "deleteUser").is_none());
     }
 
     #[test]
     fn extract_delete_entity_missing() {
-        let result = r#"{"data":{"deleteUser":{"success":true}}}"#;
-        assert!(extract_delete_entity(result, "deleteUser").is_none());
+        let result = v(r#"{"data":{"deleteUser":{"success":true}}}"#);
+        assert!(extract_delete_entity(&result, "deleteUser").is_none());
     }
 
     #[test]

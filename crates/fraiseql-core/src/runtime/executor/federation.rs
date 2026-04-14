@@ -21,7 +21,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_name: &str,
         query: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         match query_name {
             "_service" => self.execute_service_query().await,
             "_entities" => self.execute_entities_query(query, variables).await,
@@ -33,7 +33,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     }
 
     /// Execute _service query returning federation SDL.
-    async fn execute_service_query(&self) -> Result<String> {
+    async fn execute_service_query(&self) -> Result<serde_json::Value> {
         // Get federation metadata from schema
         let fed_metadata =
             self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
@@ -54,7 +54,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         });
 
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 
     /// Execute _entities query resolving federation entities.
@@ -62,7 +62,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // Get federation metadata from schema
         let fed_metadata =
             self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
@@ -133,6 +133,6 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         });
 
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 }

@@ -3,7 +3,7 @@
 //! Builds the Query, Mutation, and Subscription root introspection types, and
 //! the `IntrospectionBuilder` and `IntrospectionResponses` public entry points.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use super::{
     super::{CompiledSchema, MutationDefinition, QueryDefinition, SubscriptionDefinition},
@@ -444,12 +444,15 @@ fn build_subscription_field(subscription: &SubscriptionDefinition, schema: &Comp
 // =============================================================================
 
 /// Pre-built introspection responses for fast serving.
+///
+/// Responses are stored as `Arc<serde_json::Value>` so cloning is O(1)
+/// (introspection queries are frequent but the schema is immutable).
 #[derive(Debug, Clone)]
 pub struct IntrospectionResponses {
     /// Full `__schema` response JSON.
-    pub schema_response: String,
+    pub schema_response: Arc<serde_json::Value>,
     /// Map of type name -> `__type` response JSON.
-    pub type_responses:  HashMap<String, String>,
+    pub type_responses:  HashMap<String, Arc<serde_json::Value>>,
 }
 
 impl IntrospectionResponses {
@@ -461,22 +464,20 @@ impl IntrospectionResponses {
         let type_map = IntrospectionBuilder::build_type_map(&introspection);
 
         // Build __schema response
-        let schema_response = serde_json::json!({
+        let schema_response = Arc::new(serde_json::json!({
             "data": {
                 "__schema": introspection
             }
-        })
-        .to_string();
+        }));
 
         // Build __type responses for each type
         let mut type_responses = HashMap::new();
         for (name, t) in type_map {
-            let response = serde_json::json!({
+            let response = Arc::new(serde_json::json!({
                 "data": {
                     "__type": t
                 }
-            })
-            .to_string();
+            }));
             type_responses.insert(name, response);
         }
 
@@ -488,14 +489,18 @@ impl IntrospectionResponses {
 
     /// Get response for `__type(name: "...")` query.
     #[must_use]
-    pub fn get_type_response(&self, type_name: &str) -> String {
-        self.type_responses.get(type_name).cloned().unwrap_or_else(|| {
-            serde_json::json!({
-                "data": {
-                    "__type": null
-                }
-            })
-            .to_string()
-        })
+    pub fn get_type_response(&self, type_name: &str) -> serde_json::Value {
+        self.type_responses
+            .get(type_name)
+            .map_or_else(
+                || {
+                    serde_json::json!({
+                        "data": {
+                            "__type": null
+                        }
+                    })
+                },
+                |v| v.as_ref().clone(),
+            )
     }
 }

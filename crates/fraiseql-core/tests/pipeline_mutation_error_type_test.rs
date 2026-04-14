@@ -152,8 +152,7 @@ async fn mutation_error_status_produces_graphql_level_response() {
         "executor must return Ok (not Err) for failed mutation status: {result:?}"
     );
 
-    let body: serde_json::Value =
-        serde_json::from_str(&result.unwrap()).expect("response must be valid JSON");
+    let body = result.unwrap();
 
     // Must be a valid GraphQL envelope
     assert!(
@@ -186,11 +185,7 @@ async fn mutation_failed_conflict_returns_non_empty_response() {
     let result = executor.execute(r"mutation { createUser { id } }", Some(&vars)).await;
 
     assert!(result.is_ok(), "executor must return Ok: {result:?}");
-    let body_str = result.unwrap();
-    assert!(!body_str.is_empty(), "response must not be empty");
-
-    let body: serde_json::Value =
-        serde_json::from_str(&body_str).expect("must be valid JSON: {body_str}");
+    let body = result.unwrap();
     assert!(body != serde_json::Value::Null, "response must not be null");
 }
 
@@ -225,8 +220,7 @@ async fn mutation_generic_error_status_produces_valid_response() {
         "generic 'error' status must produce a valid response, not Err: {result:?}"
     );
 
-    let body: serde_json::Value =
-        serde_json::from_str(&result.unwrap()).expect("must be valid JSON");
+    let body = result.unwrap();
     assert!(
         body.get("data").is_some() || body.get("errors").is_some(),
         "response must be a GraphQL envelope: {body}"
@@ -260,8 +254,6 @@ async fn mutation_success_status_includes_entity_in_data() {
         .await
         .expect("success mutation must succeed");
 
-    let body: serde_json::Value = serde_json::from_str(&result).expect("must be valid JSON");
-
-    assert!(body.get("data").is_some(), "success response must have 'data': {body}");
-    assert!(body.get("errors").is_none(), "success response must not have 'errors': {body}");
+    assert!(result.get("data").is_some(), "success response must have 'data': {result}");
+    assert!(result.get("errors").is_none(), "success response must not have 'errors': {result}");
 }

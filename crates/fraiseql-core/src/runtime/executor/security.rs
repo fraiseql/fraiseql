@@ -163,7 +163,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         ctx: &ExecutionContext,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // Check if already cancelled before starting
         if ctx.is_cancelled() {
             return Err(FraiseQLError::cancelled(
@@ -240,7 +240,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // Apply query timeout if configured
         if self.config.query_timeout_ms > 0 {
             let timeout_duration = Duration::from_millis(self.config.query_timeout_ms);
@@ -272,7 +272,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query: &str,
         variables: Option<&serde_json::Value>,
         security_context: &SecurityContext,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // 1. Classify query type
         let query_type = self.classify_query(query)?;
 
@@ -302,7 +302,9 @@ impl<A: DatabaseAdapter> Executor<A> {
                     path:    None,
                 })
             },
-            QueryType::IntrospectionSchema => Ok(self.introspection.schema_response.clone()),
+            QueryType::IntrospectionSchema => {
+                Ok(self.introspection.schema_response.as_ref().clone())
+            },
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.introspection.get_type_response(&type_name))
             },
@@ -401,19 +403,19 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Execute a query and return parsed JSON.
     ///
-    /// Same as `execute()` but returns parsed `serde_json::Value` instead of string.
+    /// This method is now equivalent to `execute()` since `execute()` already
+    /// returns `serde_json::Value`.
     ///
     /// # Errors
     ///
-    /// Propagates all errors from [`Self::execute`] and additionally returns
-    /// [`FraiseQLError::Database`] if the response string is not valid JSON.
+    /// Returns any error from `execute()`.
+    #[deprecated(since = "2.2.0", note = "use execute() directly — it now returns Value")]
     pub async fn execute_json(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
-        let result_str = self.execute(query, variables).await?;
-        Ok(serde_json::from_str(&result_str)?)
+        self.execute(query, variables).await
     }
 }
 

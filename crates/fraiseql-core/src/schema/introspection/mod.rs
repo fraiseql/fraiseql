@@ -161,8 +161,8 @@ mod tests {
         let responses = IntrospectionResponses::build(&schema);
 
         // Should have schema response
-        assert!(responses.schema_response.contains("__schema"));
-        assert!(responses.schema_response.contains("Query"));
+        assert!(responses.schema_response.get("data").is_some());
+        assert!(responses.schema_response["data"].get("__schema").is_some());
 
         // Should have type responses
         assert!(responses.type_responses.contains_key("User"));
@@ -171,7 +171,7 @@ mod tests {
 
         // Unknown type should return null
         let unknown = responses.get_type_response("Unknown");
-        assert!(unknown.contains("null"));
+        assert!(unknown["data"]["__type"].is_null());
     }
 
     #[test]

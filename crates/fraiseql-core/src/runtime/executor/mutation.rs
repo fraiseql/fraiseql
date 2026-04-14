@@ -55,7 +55,7 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         type_selections: &HashMap<String, Vec<String>>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
         self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections).await
@@ -120,7 +120,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         type_selections: &HashMap<String, Vec<String>>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
         // The common execute() entry point accepts raw GraphQL strings and
@@ -166,7 +166,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_ctx: Option<&SecurityContext>,
         type_selections: &HashMap<String, Vec<String>>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // 1. Locate the mutation definition
         let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
             let display_names: Vec<String> =
@@ -515,6 +515,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         };
 
         let response = ResultProjector::wrap_in_data_envelope(result_json, &mutation_name_owned);
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 }

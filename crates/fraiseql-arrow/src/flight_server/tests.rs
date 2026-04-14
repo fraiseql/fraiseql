@@ -28,8 +28,8 @@ impl QueryExecutor for DummyExecutor {
         _query: &str,
         _variables: Option<&serde_json::Value>,
         _security_context: &fraiseql_core::security::SecurityContext,
-    ) -> std::result::Result<String, String> {
-        Ok(r#"{"data": {"test": "ok"}}"#.to_string())
+    ) -> std::result::Result<serde_json::Value, String> {
+        Ok(serde_json::json!({"data": {"test": "ok"}}))
     }
 }
 

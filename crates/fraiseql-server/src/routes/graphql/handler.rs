@@ -528,26 +528,14 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     }
 
     debug!(
-        response_length = result.len(),
         elapsed_ms = elapsed.as_millis(),
         operation_name = ?request.operation_name,
         "Query executed successfully"
     );
 
-    // Parse result as JSON
-    #[allow(unused_mut)] // Reason: mut required by conditional compilation path
-    // Reason: `mut` is required by `decrypt_response(&mut …)` when the `secrets` feature is enabled
-    let mut response_json: serde_json::Value = serde_json::from_str(&result).map_err(|e| {
-        error!(
-            error = %e,
-            response_length = result.len(),
-            "Failed to deserialize executor response"
-        );
-        let err = state
-            .error_sanitizer
-            .sanitize(GraphQLError::internal(format!("Failed to process response: {e}")));
-        ErrorResponse::from_error(err)
-    })?;
+    #[allow(unused_mut)]
+    // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
+    let mut response_json = result;
 
     // Decrypt encrypted fields if field encryption is configured
     #[cfg(feature = "secrets")]

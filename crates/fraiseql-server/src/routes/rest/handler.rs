@@ -780,7 +780,7 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
         let rest_response = RestResponse {
             status,
             headers: response_headers,
-            body: Some(serde_json::Value::String(result)),
+            body: Some(result),
         };
 
         // Idempotency: store the response for replay
@@ -868,7 +868,7 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
         Ok(RestResponse {
             status:  StatusCode::OK,
             headers: response_headers,
-            body:    Some(serde_json::Value::String(result)),
+            body:    Some(result),
         })
     }
 
@@ -942,7 +942,7 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 Ok(RestResponse {
                     status:  StatusCode::OK,
                     headers: response_headers,
-                    body:    Some(serde_json::Value::String(result)),
+                    body:    Some(result),
                 })
             },
             _ => {
@@ -1239,7 +1239,7 @@ async fn execute_mutation<A: DatabaseAdapter + SupportsMutations>(
     mutation_name: &str,
     variables: Option<&serde_json::Value>,
     security_context: Option<&SecurityContext>,
-) -> Result<String, RestError> {
+) -> Result<serde_json::Value, RestError> {
     let result = if let Some(ctx) = security_context {
         executor
             .execute_mutation_with_security(
@@ -1330,11 +1330,10 @@ fn validate_put_body(body: &serde_json::Value, type_def: &TypeDefinition) -> Res
 
 /// Extract entity from a DELETE mutation response.
 ///
-/// Parses the mutation result JSON and extracts `data.{mutation_name}.entity`.
+/// Extracts `data.{mutation_name}.entity` from the executor result.
 /// Returns `None` if entity is null or unavailable.
-fn extract_delete_entity(result: &str, mutation_name: &str) -> Option<serde_json::Value> {
-    let parsed: serde_json::Value = serde_json::from_str(result).ok()?;
-    let mutation_result = parsed.get("data")?.get(mutation_name)?;
+fn extract_delete_entity(result: &serde_json::Value, mutation_name: &str) -> Option<serde_json::Value> {
+    let mutation_result = result.get("data")?.get(mutation_name)?;
 
     // The executor flattens entity fields directly under `data.{mutation_name}`.
     // If an `entity` key exists, use it (raw mutation_response format).
@@ -1368,15 +1367,12 @@ fn extract_delete_entity(result: &str, mutation_name: &str) -> Option<serde_json
 
 /// Build a query response JSON with optional total count and pagination metadata.
 fn build_query_response(
-    result: &str,
+    result: &serde_json::Value,
     total: Option<u64>,
     pagination: &PaginationParams,
 ) -> Result<serde_json::Value, RestError> {
-    let parsed: serde_json::Value = serde_json::from_str(result)
-        .map_err(|e| RestError::internal(format!("Failed to parse query result: {e}")))?;
-
     // Extract data from the executor result envelope
-    let data = if let Some(data_obj) = parsed.get("data") {
+    let data = if let Some(data_obj) = result.get("data") {
         // The executor returns `{ "data": { "queryName": [...] } }`.
         // Extract the inner value (first field of the data object).
         if let serde_json::Value::Object(map) = data_obj {
@@ -1385,7 +1381,7 @@ fn build_query_response(
             data_obj.clone()
         }
     } else {
-        parsed.clone()
+        result.clone()
     };
 
     let mut response = json!({ "data": data });
@@ -1510,6 +1506,11 @@ mod tests {
     use fraiseql_core::schema::{FieldDefinition, FieldType, TypeDefinition};
 
     use super::*;
+
+    /// Parse a JSON string literal into `serde_json::Value` for test assertions.
+    fn v(s: &str) -> serde_json::Value {
+        serde_json::from_str(s).unwrap()
+    }
 
     // -----------------------------------------------------------------------
     // Prefer header tests
@@ -2068,8 +2069,8 @@ mod tests {
 
     #[test]
     fn extract_entity_nested_format() {
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#;
-        let entity = extract_delete_entity(result, "deleteUser").unwrap();
+        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#).unwrap();
+        let entity = extract_delete_entity(&result, "deleteUser").unwrap();
         assert_eq!(entity["id"], 1);
         assert_eq!(entity["name"], "Alice");
     }
@@ -2077,9 +2078,10 @@ mod tests {
     #[test]
     fn extract_entity_executor_format() {
         // Executor flattens entity fields + __typename directly under mutation name
-        let result =
-            r#"{"data":{"delete_user":{"pk_user_id":42,"name":"Alice","__typename":"User"}}}"#;
-        let entity = extract_delete_entity(result, "delete_user").unwrap();
+        let result: serde_json::Value = serde_json::from_str(
+            r#"{"data":{"delete_user":{"pk_user_id":42,"name":"Alice","__typename":"User"}}}"#,
+        ).unwrap();
+        let entity = extract_delete_entity(&result, "delete_user").unwrap();
         assert_eq!(entity["pk_user_id"], 42);
         assert_eq!(entity["name"], "Alice");
         // __typename should be stripped
@@ -2088,19 +2090,19 @@ mod tests {
 
     #[test]
     fn extract_entity_null() {
-        let result = r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#;
-        assert!(extract_delete_entity(result, "deleteUser").is_none());
+        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#).unwrap();
+        assert!(extract_delete_entity(&result, "deleteUser").is_none());
     }
 
     #[test]
     fn extract_entity_missing() {
-        let result = r#"{"data":{"deleteUser":{}}}"#;
-        assert!(extract_delete_entity(result, "deleteUser").is_none());
+        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"deleteUser":{}}}"#).unwrap();
+        assert!(extract_delete_entity(&result, "deleteUser").is_none());
     }
 
     #[test]
-    fn extract_entity_invalid_json() {
-        assert!(extract_delete_entity("not json", "deleteUser").is_none());
+    fn extract_entity_null_value() {
+        assert!(extract_delete_entity(&serde_json::Value::Null, "deleteUser").is_none());
     }
 
     // -----------------------------------------------------------------------
@@ -2145,7 +2147,7 @@ mod tests {
     #[test]
     fn build_response_single_resource() {
         let result = r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#;
-        let response = build_query_response(result, None, &PaginationParams::None).unwrap();
+        let response = build_query_response(&v(result), None, &PaginationParams::None).unwrap();
         assert_eq!(response["data"]["id"], 1);
         assert!(response.get("meta").is_none());
     }
@@ -2154,7 +2156,7 @@ mod tests {
     fn build_response_collection_offset() {
         let result = r#"{"data":{"users":[{"id":1},{"id":2}]}}"#;
         let response = build_query_response(
-            result,
+            &v(result),
             Some(100),
             &PaginationParams::Offset {
                 limit:  10,
@@ -2172,7 +2174,7 @@ mod tests {
     fn build_response_collection_no_total() {
         let result = r#"{"data":{"users":[{"id":1}]}}"#;
         let response = build_query_response(
-            result,
+            &v(result),
             None,
             &PaginationParams::Offset {
                 limit:  10,
@@ -2187,7 +2189,7 @@ mod tests {
     fn build_response_cursor_pagination() {
         let result = r#"{"data":{"posts":{"edges":[{"cursor":"abc","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false}}}}"#;
         let response = build_query_response(
-            result,
+            &v(result),
             None,
             &PaginationParams::Cursor {
                 first:  Some(5),

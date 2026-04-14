@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use super::Executor;
 use crate::{
     db::traits::DatabaseAdapter,
-    error::{FraiseQLError, Result},
+    error::Result,
     graphql::{FieldSelection, GraphQLArgument, ParsedQuery},
 };
 
@@ -202,16 +202,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Drive all futures concurrently (single-threaded cooperative multitasking).
         let results = futures::future::try_join_all(futs).await?;
 
-        // Extract the per-field `data` from each `{"data":{"field":[...]}}` response.
+        // Extract the per-field `data` from each `{"data":{"field":[...]}}` Value response.
         let fields = results
             .into_iter()
             .zip(field_queries.iter())
-            .map(|(json_str, (field_name, _))| {
-                let response: serde_json::Value =
-                    serde_json::from_str(&json_str).map_err(|e| FraiseQLError::Internal {
-                        message: e.to_string(),
-                        source:  None,
-                    })?;
+            .map(|(response, (field_name, _))| {
                 let data = response["data"][field_name.as_str()].clone();
                 Ok(RootFieldResult {
                     field_name: field_name.clone(),
@@ -420,8 +415,7 @@ mod tests {
     #[tokio::test]
     async fn test_single_root_unaffected() {
         let exec = make_executor(&[("users", "v_users")]);
-        let response = exec.execute("{ users { id } }", None).await.unwrap();
-        let val: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let val = exec.execute("{ users { id } }", None).await.unwrap();
         assert!(val["data"]["users"].is_array());
     }
 

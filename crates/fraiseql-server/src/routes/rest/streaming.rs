@@ -193,7 +193,7 @@ async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
         Some(&batch_vars)
     };
 
-    let result_str: String = match state
+    let result_value = match state
         .executor
         .execute_query_direct(&state.query_match, vars_ref, state.security_ctx.as_ref())
         .await
@@ -205,7 +205,7 @@ async fn fetch_and_serialize_batch<A: DatabaseAdapter>(
         },
     };
 
-    let rows = match extract_rows(&result_str, &state.query_name) {
+    let rows = match extract_rows(&result_value, &state.query_name) {
         Ok(r) => r,
         Err(e) => {
             state.done = true;
@@ -289,11 +289,8 @@ impl NdjsonBody {
 /// # Errors
 ///
 /// Returns `RestError` if the result cannot be parsed.
-fn extract_rows(result: &str, query_name: &str) -> Result<Vec<serde_json::Value>, RestError> {
-    let parsed: serde_json::Value = serde_json::from_str(result)
-        .map_err(|e| RestError::internal(format!("Failed to parse query result: {e}")))?;
-
-    let data = parsed
+fn extract_rows(result: &serde_json::Value, query_name: &str) -> Result<Vec<serde_json::Value>, RestError> {
+    let data = result
         .get("data")
         .and_then(|d| d.get(query_name))
         .ok_or_else(|| RestError::internal("Missing data in query result"))?;
@@ -441,10 +438,14 @@ mod tests {
     // extract_rows
     // -----------------------------------------------------------------------
 
+    fn v(s: &str) -> serde_json::Value {
+        serde_json::from_str(s).unwrap()
+    }
+
     #[test]
     fn extract_rows_from_array() {
-        let result = r#"{"data":{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}}"#;
-        let rows = extract_rows(result, "users").unwrap();
+        let result = v(r#"{"data":{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}}"#);
+        let rows = extract_rows(&result, "users").unwrap();
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["name"], "Alice");
         assert_eq!(rows[1]["name"], "Bob");
@@ -452,23 +453,23 @@ mod tests {
 
     #[test]
     fn extract_rows_from_single_resource() {
-        let result = r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#;
-        let rows = extract_rows(result, "user").unwrap();
+        let result = v(r#"{"data":{"user":{"id":1,"name":"Alice"}}}"#);
+        let rows = extract_rows(&result, "user").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0]["name"], "Alice");
     }
 
     #[test]
     fn extract_rows_missing_data() {
-        let result = r#"{"errors":[]}"#;
-        let err = extract_rows(result, "users").unwrap_err();
+        let result = v(r#"{"errors":[]}"#);
+        let err = extract_rows(&result, "users").unwrap_err();
         assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn extract_rows_missing_query() {
-        let result = r#"{"data":{"other_query":[]}}"#;
-        let err = extract_rows(result, "users").unwrap_err();
+        let result = v(r#"{"data":{"other_query":[]}}"#);
+        let err = extract_rows(&result, "users").unwrap_err();
         assert_eq!(err.status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 

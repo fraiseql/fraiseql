@@ -357,10 +357,10 @@ mod query {
         let query = "{ users { id name } }";
         let result = executor.execute(query, None).await.unwrap();
 
-        assert!(result.contains("\"data\""));
-        assert!(result.contains("\"users\""));
-        assert!(result.contains("\"id\""));
-        assert!(result.contains("\"name\""));
+        assert!(result.get("data").is_some());
+        assert!(result["data"].get("users").is_some());
+        assert!(result["data"]["users"][0].get("id").is_some());
+        assert!(result["data"]["users"][0].get("name").is_some());
     }
 
     #[tokio::test]
@@ -370,7 +370,7 @@ mod query {
         let executor = Executor::new(schema, adapter);
 
         let query = "{ users { id name } }";
-        let result = executor.execute_json(query, None).await.unwrap();
+        let result = executor.execute(query, None).await.unwrap();
 
         assert!(result.get("data").is_some());
         assert!(result["data"].get("users").is_some());
@@ -413,8 +413,7 @@ mod introspection {
         let query = r"{ __schema { queryType { name } } }";
         let result = executor.execute(query, None).await.unwrap();
 
-        assert!(result.contains("__schema"));
-        assert!(result.contains("Query"));
+        assert!(result["data"].get("__schema").is_some());
     }
 
     #[tokio::test]
@@ -426,8 +425,8 @@ mod introspection {
         let query = r#"{ __type(name: "Int") { kind name } }"#;
         let result = executor.execute(query, None).await.unwrap();
 
-        assert!(result.contains("__type"));
-        assert!(result.contains("Int"));
+        assert!(result["data"].get("__type").is_some());
+        assert_eq!(result["data"]["__type"]["name"], "Int");
     }
 
     #[tokio::test]
@@ -440,7 +439,7 @@ mod introspection {
         let result = executor.execute(query, None).await.unwrap();
 
         // Unknown type returns null
-        assert!(result.contains("null"));
+        assert!(result["data"]["__type"].is_null());
     }
 }
 
@@ -654,7 +653,7 @@ mod context {
 
         let result = executor.execute_with_context(query, None, &ctx).await;
         let output = result.unwrap_or_else(|e| panic!("expected Ok for execute_with_context: {e}"));
-        assert!(output.contains("__schema"));
+        assert!(output["data"].get("__schema").is_some());
     }
 
     #[tokio::test]
@@ -1325,8 +1324,7 @@ mod mutation {
             .await
             .unwrap();
 
-        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
-        let data = response.get("data").and_then(|d| d.get("createUser")).unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
 
         // Must have __typename and the selected fields
         assert!(data.get("__typename").is_some(), "response must include __typename");
@@ -1362,8 +1360,7 @@ mod mutation {
         // Empty selection set: should return all fields
         let result = executor.execute("mutation { createUser }", None).await.unwrap();
 
-        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
-        let data = response.get("data").and_then(|d| d.get("createUser")).unwrap();
+        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
 
         // All fields should be present
         assert!(data.get("__typename").is_some(), "response must include __typename");
@@ -1473,9 +1470,9 @@ mod routing {
         let result = executor.execute("{ users { id type } }", None).await.unwrap();
 
         // v_user must return the user row, not the empty default.
-        assert!(
-            result.contains("\"type\":\"user\""),
-            "expected user row from v_user, got: {result}"
+        assert_eq!(
+            result["data"]["users"][0]["type"], "user",
+            "expected user row from v_user"
         );
     }
 }
@@ -1969,9 +1966,8 @@ mod field_rbac {
             .await
             .unwrap();
 
-        // Parse response JSON to verify masking
-        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
-        let users = &response["data"]["users"];
+        // Verify masking using Value directly
+        let users = &result["data"]["users"];
         assert!(users.is_array(), "expected users array in response: {result}");
         for user in users.as_array().unwrap() {
             assert!(
@@ -2001,8 +1997,7 @@ mod field_rbac {
             .await
             .unwrap();
 
-        let response: serde_json::Value = serde_json::from_str(&result).unwrap();
-        let users = &response["data"]["users"];
+        let users = &result["data"]["users"];
         for user in users.as_array().unwrap() {
             assert_eq!(
                 user["email"], "alice@example.com",

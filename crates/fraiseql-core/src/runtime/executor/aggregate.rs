@@ -19,7 +19,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query_name: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // Extract table name from query name (e.g., "sales_aggregate" -> "tf_sales")
         let table_name =
             query_name.strip_suffix("_aggregate").ok_or_else(|| FraiseQLError::Validation {
@@ -63,7 +63,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query_name: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // Extract table name from query name (e.g., "sales_window" -> "tf_sales")
         let table_name =
             query_name.strip_suffix("_window").ok_or_else(|| FraiseQLError::Validation {
@@ -135,7 +135,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_json: &serde_json::Value,
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // 1. Parse JSON query into AggregationRequest
         let request = super::super::AggregateQueryParser::parse(query_json, metadata)?;
 
@@ -162,7 +162,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             super::super::AggregationProjector::wrap_in_data_envelope(projected, query_name);
 
         // 7. Serialize to JSON string
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 
     /// Execute a window query.
@@ -209,7 +209,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_json: &serde_json::Value,
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
-    ) -> Result<String> {
+    ) -> Result<serde_json::Value> {
         // 1. Parse JSON query into WindowRequest
         let request = super::super::WindowQueryParser::parse(query_json, metadata)?;
 
@@ -234,6 +234,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         let response = super::super::WindowProjector::wrap_in_data_envelope(projected, query_name);
 
         // 7. Serialize to JSON string
-        Ok(serde_json::to_string(&response)?)
+        Ok(response)
     }
 }
