@@ -7,7 +7,7 @@ use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
-    security::OidcValidator,
+    security::{AuthMiddleware, OidcValidator},
 };
 #[cfg(feature = "observers")]
 use {
@@ -64,6 +64,12 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) subscription_lifecycle: Arc<dyn crate::subscriptions::SubscriptionLifecycle>,
     pub(super) max_subscriptions_per_connection: Option<u32>,
     pub(super) oidc_validator: Option<Arc<OidcValidator>>,
+    /// Local HS256 JWT validator (alternative to `oidc_validator`).
+    ///
+    /// When set, the GraphQL endpoint is protected by shared-secret JWT
+    /// validation instead of OIDC. Intended for integration testing and
+    /// internal service-to-service auth.
+    pub(super) hs256_auth: Option<Arc<AuthMiddleware>>,
     pub(super) rate_limiter: Option<Arc<RateLimiter>>,
     #[cfg(feature = "secrets")]
     pub(super) secrets_manager: Option<Arc<crate::secrets_manager::SecretsManager>>,

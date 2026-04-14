@@ -22,7 +22,7 @@ fn test_default_config() {
     assert_eq!(config.metrics_path, "/metrics");
     assert_eq!(config.metrics_json_path, "/metrics/json");
     assert!(config.cors_enabled);
-    assert!(config.compression_enabled);
+    assert!(!config.compression_enabled);
 }
 
 #[test]
@@ -450,4 +450,65 @@ fn test_validation_config_partial_override() {
     let vc = config.validation.expect("validation section should be parsed");
     assert_eq!(vc.max_query_depth, None, "unset depth should be None");
     assert_eq!(vc.max_query_complexity, Some(500));
+}
+
+#[test]
+fn test_auth_hs256_defaults_to_none() {
+    let config = ServerConfig::default();
+    assert!(config.auth_hs256.is_none());
+}
+
+#[test]
+fn test_auth_hs256_parses_from_toml() {
+    let toml_str = r#"
+        [auth_hs256]
+        secret_env = "MY_TEST_HS256_SECRET"
+        issuer = "test-suite"
+        audience = "test-api"
+    "#;
+    let config: ServerConfig = toml::from_str(toml_str).unwrap();
+    let hs = config.auth_hs256.expect("auth_hs256 section should be parsed");
+    assert_eq!(hs.secret_env, "MY_TEST_HS256_SECRET");
+    assert_eq!(hs.issuer.as_deref(), Some("test-suite"));
+    assert_eq!(hs.audience.as_deref(), Some("test-api"));
+}
+
+#[test]
+fn test_auth_and_auth_hs256_are_mutually_exclusive() {
+    use fraiseql_core::security::OidcConfig;
+
+    let env_name = "FRAISEQL_TEST_HS256_MUTEX_EXCLUSIVE";
+    temp_env::with_vars([(env_name, Some("secret-value-at-least-a-bit-long"))], || {
+        let config = ServerConfig {
+            auth: Some(OidcConfig::auth0("tenant.auth0.com", "my-api")),
+            auth_hs256: Some(super::Hs256Config {
+                secret_env: env_name.to_string(),
+                issuer: Some("test".to_string()),
+                audience: None,
+            }),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.contains("mutually exclusive") || err.contains("Pick one"),
+            "unexpected error: {err}"
+        );
+    });
+}
+
+#[test]
+fn test_auth_hs256_fails_when_secret_env_unset() {
+    let env_name = "FRAISEQL_TEST_HS256_UNSET_XYZ";
+    temp_env::with_vars([(env_name, None::<&str>)], || {
+        let config = ServerConfig {
+            auth_hs256: Some(super::Hs256Config {
+                secret_env: env_name.to_string(),
+                issuer: None,
+                audience: None,
+            }),
+            ..ServerConfig::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(err.contains("not set"), "expected 'not set' error, got: {err}");
+    });
 }

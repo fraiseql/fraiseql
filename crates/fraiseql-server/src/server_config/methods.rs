@@ -89,6 +89,24 @@ impl ServerConfig {
             auth.validate().map_err(|e| e.to_string())?;
         }
 
+        // OIDC and HS256 are mutually exclusive.
+        if self.auth.is_some() && self.auth_hs256.is_some() {
+            return Err(
+                "Both [auth] (OIDC) and [auth_hs256] are configured. Pick one — \
+                 HS256 is intended for integration testing and internal services; \
+                 OIDC is intended for public-facing production."
+                    .to_string(),
+            );
+        }
+
+        // Validate HS256 config if present: the secret env var must be set.
+        if let Some(ref hs) = self.auth_hs256 {
+            if hs.secret_env.trim().is_empty() {
+                return Err("auth_hs256.secret_env must not be empty".to_string());
+            }
+            hs.load_secret()?;
+        }
+
         // Validate TLS config if present and enabled
         if let Some(ref tls) = self.tls {
             if tls.enabled {

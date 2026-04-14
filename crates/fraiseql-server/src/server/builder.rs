@@ -9,11 +9,35 @@ use fraiseql_core::{
     db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
-    security::OidcValidator,
+    security::{AuthConfig, AuthMiddleware, OidcValidator},
 };
 use tracing::{info, warn};
 
 use super::{RateLimiter, Result, Server, ServerConfig, ServerError};
+
+/// Build an HS256 validator from the server config, if configured.
+pub(super) fn build_hs256_auth(config: &ServerConfig) -> Result<Option<Arc<AuthMiddleware>>> {
+    let Some(ref hs) = config.auth_hs256 else {
+        return Ok(None);
+    };
+    let secret = hs
+        .load_secret()
+        .map_err(|e| ServerError::ConfigError(format!("Failed to initialize HS256 auth: {e}")))?;
+    let mut auth_config = AuthConfig::with_hs256(&secret);
+    if let Some(ref iss) = hs.issuer {
+        auth_config = auth_config.with_issuer(iss);
+    }
+    if let Some(ref aud) = hs.audience {
+        auth_config = auth_config.with_audience(aud);
+    }
+    info!(
+        secret_env = %hs.secret_env,
+        issuer = ?hs.issuer,
+        audience = ?hs.audience,
+        "Initializing HS256 authentication (local validation, no network)"
+    );
+    Ok(Some(Arc::new(AuthMiddleware::from_config(auth_config))))
+}
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
     /// Create new server.
@@ -269,6 +293,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             None
         };
 
+        // Initialize HS256 validator if configured (mutually exclusive with OIDC).
+        let hs256_auth = build_hs256_auth(&config)?;
+
         // Initialize rate limiter: compiled schema config takes priority over server config.
         let rate_limiter = if let Some(rl) = schema_rate_limiter {
             Some(rl)
@@ -348,6 +375,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             subscription_lifecycle: Arc::new(crate::subscriptions::NoopLifecycle),
             max_subscriptions_per_connection: None,
             oidc_validator,
+            hs256_auth,
             rate_limiter,
             #[cfg(feature = "secrets")]
             secrets_manager: None,

@@ -249,6 +249,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(not(feature = "auth"))]
         let oidc_validator: Option<Arc<fraiseql_core::security::OidcValidator>> = None;
 
+        // Initialize HS256 validator if configured (mutually exclusive with OIDC).
+        let hs256_auth = super::builder::build_hs256_auth(&config)?;
+
         // Initialize rate limiter: compiled schema config takes priority over server config.
         let rate_limiter = if let Some(rl) = schema_rate_limiter {
             Some(rl)
@@ -311,6 +314,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             subscription_lifecycle: Arc::new(crate::subscriptions::NoopLifecycle),
             max_subscriptions_per_connection: None,
             oidc_validator,
+            hs256_auth,
             rate_limiter,
             #[cfg(feature = "secrets")]
             secrets_manager: None,

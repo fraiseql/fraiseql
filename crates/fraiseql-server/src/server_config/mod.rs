@@ -8,6 +8,7 @@
 //! see `docs/architecture/config-vs-settings.md`.
 
 pub(crate) mod defaults;
+pub mod hs256;
 mod methods;
 pub mod observers;
 pub mod tls;
@@ -26,6 +27,7 @@ use defaults::{
     default_subscription_path,
 };
 use fraiseql_core::security::OidcConfig;
+pub use hs256::Hs256Config;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
 pub use observers::{ObserverConfig, ObserverPoolConfig};
@@ -65,8 +67,13 @@ pub struct ServerConfig {
     #[serde(default)]
     pub cors_origins: Vec<String>,
 
-    /// Enable compression.
-    #[serde(default = "defaults::default_true")]
+    /// Enable framework-level response compression.
+    ///
+    /// Defaults to `false`. In production FraiseQL is typically deployed
+    /// behind a reverse proxy (Nginx, Caddy, cloud load balancer) that
+    /// handles compression more efficiently (brotli, shared across upstreams,
+    /// cacheable). Enable this only for single-binary / no-proxy deployments.
+    #[serde(default = "defaults::default_false")]
     pub compression_enabled: bool,
 
     /// Enable request tracing.
@@ -262,6 +269,25 @@ pub struct ServerConfig {
     /// ```
     #[serde(default)]
     pub auth: Option<OidcConfig>,
+
+    /// HS256 symmetric-key authentication (optional).
+    ///
+    /// Alternative to `auth` (OIDC) for integration testing and internal
+    /// service-to-service scenarios. Mutually exclusive with `auth`.
+    ///
+    /// Validation is fully local — no discovery endpoint, no JWKS fetch.
+    /// Not recommended for public-facing production.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [auth_hs256]
+    /// secret_env = "FRAISEQL_HS256_SECRET"
+    /// issuer = "my-test-suite"
+    /// audience = "my-api"
+    /// ```
+    #[serde(default)]
+    pub auth_hs256: Option<Hs256Config>,
 
     /// TLS/SSL configuration for HTTPS and encrypted connections.
     ///
@@ -470,7 +496,7 @@ impl Default for ServerConfig {
             flight_bind_addr: defaults::default_flight_bind_addr(),
             cors_enabled: true,
             cors_origins: Vec::new(),
-            compression_enabled: true,
+            compression_enabled: false,
             tracing_enabled: true,
             otlp_endpoint: None,
             otlp_export_timeout_secs: defaults::default_otlp_timeout_secs(),
@@ -500,6 +526,7 @@ impl Default for ServerConfig {
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
             auth: None, // No auth by default
+            auth_hs256: None, // No HS256 auth by default
             tls: None,  // TLS disabled by default
             database_tls: None, /* Database TLS disabled
                          * by default */
