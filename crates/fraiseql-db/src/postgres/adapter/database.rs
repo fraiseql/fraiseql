@@ -311,6 +311,23 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
+    async fn set_session_variables(&self, variables: &[(&str, &str)]) -> Result<()> {
+        if variables.is_empty() {
+            return Ok(());
+        }
+        let client = self.acquire_connection_with_retry().await?;
+        for (name, value) in variables {
+            client
+                .execute("SELECT set_config($1, $2, true)", &[name, value])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("set_config({name:?}) failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+        }
+        Ok(())
+    }
+
     async fn explain_query(
         &self,
         sql: &str,

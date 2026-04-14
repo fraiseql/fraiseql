@@ -23,7 +23,8 @@ use crate::{
     schema::{
         config_types::{
             DebugConfig, FederationConfig, GrpcConfig, McpConfig, NamingConvention,
-            ObserversConfig, RestConfig, SubscriptionsConfig, ValidationConfig,
+            ObserversConfig, RestConfig, SessionVariablesConfig, SubscriptionsConfig,
+            ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -154,6 +155,17 @@ pub struct CompiledSchema {
     /// Compiled from the `[grpc]` TOML section.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grpc_config: Option<GrpcConfig>,
+
+    /// Session variable injection configuration.
+    ///
+    /// When populated, the executor calls PostgreSQL `set_config()` before each
+    /// mutation, injecting per-request values (JWT claims, HTTP headers, literals)
+    /// as transaction-scoped settings.  SQL functions read these via
+    /// `current_setting('app.tenant_id', true)`.
+    ///
+    /// Compiled from the `[session_variables]` TOML section.
+    #[serde(default)]
+    pub session_variables: SessionVariablesConfig,
 
     /// Naming convention for GraphQL operation names.
     ///

@@ -311,6 +311,24 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // 3b. Inject session variables (transaction-scoped set_config) when configured.
+        //
+        // Only called when there are variables to inject or inject_started_at is enabled,
+        // and only on the authenticated path (security context present). The no-op default
+        // on non-PostgreSQL adapters means this call is effectively free there.
+        {
+            let sv = &self.schema.session_variables;
+            if !sv.variables.is_empty() || sv.inject_started_at {
+                if let Some(ctx) = security_ctx {
+                    let vars =
+                        crate::runtime::executor::security::resolve_session_variables(sv, ctx);
+                    let pairs: Vec<(&str, &str)> =
+                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+                    self.adapter.set_session_variables(&pairs).await?;
+                }
+            }
+        }
+
         // 4. Call the database function
         let rows = self.adapter.execute_function_call(sql_source, &args).await?;
 

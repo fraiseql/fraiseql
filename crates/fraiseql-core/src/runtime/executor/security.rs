@@ -8,8 +8,81 @@ use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     runtime::{ExecutionContext, classify_field_access},
+    schema::{SessionVariableSource, SessionVariablesConfig},
     security::{FieldAccessError, SecurityContext},
 };
+
+/// Resolve session variable mappings against the current security context.
+///
+/// Returns a list of `(name, value)` pairs to inject as PostgreSQL transaction-scoped
+/// session variables via `set_config()`.
+///
+/// Resolution rules:
+/// - [`SessionVariableSource::Jwt`] — looks up the claim in
+///   `security_context.attributes`; falls back to `user_id` for `"sub"` and to
+///   `tenant_id` for `"tenant_id"`.  Missing claims are silently skipped.
+/// - [`SessionVariableSource::Header`] — looks up the header name in
+///   `security_context.attributes`.  Missing headers are silently skipped.
+/// - [`SessionVariableSource::Literal`] — uses the fixed value as-is.
+///
+/// When `config.inject_started_at` is `true`, the pair
+/// `("fraiseql.started_at", <RFC 3339 now>)` is **prepended** to the returned list.
+#[must_use]
+pub fn resolve_session_variables(
+    config: &SessionVariablesConfig,
+    security_context: &SecurityContext,
+) -> Vec<(String, String)> {
+    use chrono::Utc;
+
+    let mut vars: Vec<(String, String)> = Vec::new();
+
+    if config.inject_started_at {
+        vars.push(("fraiseql.started_at".to_string(), Utc::now().to_rfc3339()));
+    }
+
+    for mapping in &config.variables {
+        let value: Option<String> = match &mapping.source {
+            SessionVariableSource::Jwt { claim } => {
+                // Check custom attributes first (raw JWT claims forwarded there).
+                // Fall back to well-known SecurityContext fields for `sub`/`user_id`
+                // and `tenant_id` so that schemas that populate only those fields
+                // (not attributes) still work.
+                if let Some(v) = security_context.attributes.get(claim.as_str()) {
+                    Some(if let serde_json::Value::String(s) = v {
+                        s.clone()
+                    } else {
+                        v.to_string()
+                    })
+                } else if claim == "sub" || claim == "user_id" {
+                    Some(security_context.user_id.clone())
+                } else if claim == "tenant_id" {
+                    security_context.tenant_id.clone()
+                } else {
+                    None
+                }
+            },
+            SessionVariableSource::Header { header } => {
+                // HTTP headers are forwarded into attributes
+                security_context
+                    .attributes
+                    .get(header.as_str())
+                    .map(|v| {
+                        if let serde_json::Value::String(s) = v {
+                            s.clone()
+                        } else {
+                            v.to_string()
+                        }
+                    })
+            },
+            SessionVariableSource::Literal { value } => Some(value.clone()),
+        };
+        if let Some(v) = value {
+            vars.push((mapping.name.clone(), v));
+        }
+    }
+
+    vars
+}
 
 impl<A: DatabaseAdapter> Executor<A> {
     /// Validate that user has access to all requested fields.
@@ -341,5 +414,142 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         let result_str = self.execute(query, variables).await?;
         Ok(serde_json::from_str(&result_str)?)
+    }
+}
+
+#[cfg(test)]
+mod session_variable_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use chrono::Utc;
+
+    use super::resolve_session_variables;
+    use crate::{
+        schema::{
+            SessionVariableMapping, SessionVariableSource, SessionVariablesConfig,
+        },
+        security::SecurityContext,
+    };
+
+    fn make_context() -> SecurityContext {
+        let mut attributes = std::collections::HashMap::new();
+        attributes.insert("tenant_id".to_string(), serde_json::json!("tenant-abc"));
+        attributes.insert("x-tenant-id".to_string(), serde_json::json!("header-tenant"));
+        attributes.insert("region".to_string(), serde_json::json!("eu-west-1"));
+        SecurityContext {
+            user_id:          "user-42".to_string(),
+            roles:            vec!["admin".to_string()],
+            tenant_id:        Some("tenant-123".to_string()),
+            scopes:           vec![],
+            attributes,
+            request_id:       "req-test".to_string(),
+            ip_address:       None,
+            authenticated_at: Utc::now(),
+            expires_at:       Utc::now(),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    #[test]
+    fn resolve_session_variables_jwt_claim() {
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables: vec![SessionVariableMapping {
+                name:   "app.tenant_id".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "tenant_id".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        // tenant_id is in attributes
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars[0].0, "app.tenant_id");
+        assert_eq!(vars[0].1, "tenant-abc");
+    }
+
+    #[test]
+    fn resolve_session_variables_jwt_well_known_sub() {
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables: vec![SessionVariableMapping {
+                name:   "app.user_id".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "sub".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars[0].0, "app.user_id");
+        assert_eq!(vars[0].1, "user-42");
+    }
+
+    #[test]
+    fn resolve_session_variables_literal() {
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables: vec![SessionVariableMapping {
+                name:   "app.locale".to_string(),
+                source: SessionVariableSource::Literal { value: "en".to_string() },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars[0].0, "app.locale");
+        assert_eq!(vars[0].1, "en");
+    }
+
+    #[test]
+    fn inject_started_at_prepended() {
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables: vec![SessionVariableMapping {
+                name:   "app.locale".to_string(),
+                source: SessionVariableSource::Literal { value: "en".to_string() },
+            }],
+            inject_started_at: true,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        // started_at must come first
+        assert_eq!(vars.len(), 2);
+        assert_eq!(vars[0].0, "fraiseql.started_at");
+        // Verify it's an ISO 8601 / RFC 3339 string (contains 'T')
+        assert!(vars[0].1.contains('T'), "started_at should be ISO 8601");
+        assert_eq!(vars[1].0, "app.locale");
+    }
+
+    #[test]
+    fn inject_started_at_disabled() {
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables:         vec![],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        assert!(vars.is_empty());
+        assert!(!vars.iter().any(|(k, _)| k == "fraiseql.started_at"));
+    }
+
+    #[test]
+    fn resolve_session_variables_header() {
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables: vec![SessionVariableMapping {
+                name:   "app.tenant".to_string(),
+                source: SessionVariableSource::Header {
+                    header: "x-tenant-id".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars[0].0, "app.tenant");
+        assert_eq!(vars[0].1, "header-tenant");
     }
 }

@@ -788,6 +788,33 @@ pub trait DatabaseAdapter: Send + Sync {
         MutationStrategy::FunctionCall
     }
 
+    /// Set transaction-scoped session variables before query/mutation execution.
+    ///
+    /// Called at the start of each mutation request when `SessionVariablesConfig`
+    /// is populated.  Each `(name, value)` pair is applied via
+    /// `SELECT set_config($1, $2, true)` (transaction-local, auto-reset on
+    /// commit/rollback).
+    ///
+    /// SQL functions and views can then read these settings via
+    /// `current_setting('app.tenant_id', true)`.
+    ///
+    /// # Arguments
+    ///
+    /// * `variables` - Slice of `(setting_name, value)` pairs to inject.
+    ///   Names must be safe PostgreSQL setting names (e.g. `"app.tenant_id"`).
+    ///
+    /// # Default
+    ///
+    /// No-op.  Only `PostgresAdapter` overrides this with `set_config()` calls.
+    /// MySQL, SQLite, and SQL Server adapters inherit the no-op default.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the underlying `set_config()` call fails.
+    async fn set_session_variables(&self, _variables: &[(&str, &str)]) -> Result<()> {
+        Ok(())
+    }
+
     /// Execute a direct SQL mutation (INSERT/UPDATE/DELETE) and return the
     /// mutation response rows as JSON objects.
     ///

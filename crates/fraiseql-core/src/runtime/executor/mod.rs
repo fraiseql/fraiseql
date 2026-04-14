@@ -191,7 +191,7 @@ mod federation;
 mod mutation;
 mod planning;
 mod query;
-mod security;
+pub mod security;
 
 #[cfg(test)]
 mod tests;

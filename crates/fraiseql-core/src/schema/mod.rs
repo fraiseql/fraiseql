@@ -66,7 +66,7 @@ pub use config_types::{
     CompiledSecurityConfig, DebugConfig, DeleteResponse, EnterpriseSecurityConfig,
     EntityCircuitBreakerOverride, EventHandler, FederationConfig, FederationEntity, FieldAuthRule,
     GrpcConfig, McpConfig, NamingConvention, ObserversConfig, Relationship, RestConfig,
-    SubscriptionHooksConfig,
+    SessionVariableMapping, SessionVariableSource, SessionVariablesConfig, SubscriptionHooksConfig,
     SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};

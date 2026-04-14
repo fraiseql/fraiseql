@@ -547,6 +547,56 @@ pub enum NamingConvention {
     CamelCase,
 }
 
+/// Where a session variable's value comes from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "source")]
+pub enum SessionVariableSource {
+    /// Pull from a JWT claim (e.g. `"sub"`, `"tenant_id"`, or a custom claim).
+    Jwt {
+        /// JWT claim name to look up (e.g. `"sub"`, `"tenant_id"`).
+        claim: String,
+    },
+    /// Pull from an HTTP request header forwarded via `SecurityContext.attributes`.
+    Header {
+        /// HTTP header name (e.g. `"x-tenant-id"`).
+        header: String,
+    },
+    /// A fixed literal value.
+    Literal {
+        /// The literal string value to inject.
+        value: String,
+    },
+}
+
+/// One session variable declaration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionVariableMapping {
+    /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
+    pub name:   String,
+    /// Where the value comes from.
+    pub source: SessionVariableSource,
+}
+
+/// Top-level session variables configuration in the compiled schema.
+///
+/// When populated, the executor calls `set_config()` before each mutation
+/// to inject per-request values (JWT claims, HTTP headers, or literals) as
+/// PostgreSQL transaction-scoped settings.  SQL functions can then read these
+/// via `current_setting('app.tenant_id', true)`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SessionVariablesConfig {
+    /// Per-request session variable mappings.
+    #[serde(default)]
+    pub variables:        Vec<SessionVariableMapping>,
+    /// Inject the built-in `fraiseql.started_at` timestamp before every mutation.
+    #[serde(default = "session_default_true")]
+    pub inject_started_at: bool,
+}
+
+const fn session_default_true() -> bool {
+    true
+}
+
 /// How DELETE endpoints report success.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
