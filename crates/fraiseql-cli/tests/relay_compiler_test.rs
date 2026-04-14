@@ -14,6 +14,7 @@ use fraiseql_cli::schema::{
     SchemaConverter,
     intermediate::{IntermediateField, IntermediateQuery, IntermediateSchema, IntermediateType},
 };
+use fraiseql_core::schema::NamingConvention;
 
 // =============================================================================
 // Helper: minimal intermediate schema with one relay type + query
@@ -88,6 +89,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     }
 }
 

@@ -1,12 +1,14 @@
 //! Mutation execution.
 
+use std::collections::HashMap;
+
 use super::{Executor, resolve_inject_value};
 use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
     runtime::{
-        ResultProjector,
-        mutation_result::{MutationOutcome, parse_mutation_row, populate_error_fields},
+        FieldMapping, ProjectionMapper, ResultProjector, build_field_mappings_from_type,
+        mutation_result::{MutationOutcome, parse_mutation_row},
         suggest_similar,
     },
     security::SecurityContext,
@@ -52,11 +54,11 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        selection_fields: &[String],
+        type_selections: &HashMap<String, Vec<String>>,
     ) -> Result<String> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
-        self.execute_mutation_query_with_security(mutation_name, variables, None, selection_fields).await
+        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections).await
     }
 }
 
@@ -106,10 +108,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # let executor = Executor::new(schema, Arc::new(adapter));
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
-    /// let fields = vec!["id".to_string(), "name".to_string()];
+    /// let selections = std::collections::HashMap::new(); // no filtering
     /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}
-    /// let result = executor.execute_mutation("createUser", Some(&vars), &fields).await?;
+    /// let result = executor.execute_mutation("createUser", Some(&vars), &selections).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -117,7 +119,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        selection_fields: &[String],
+        type_selections: &HashMap<String, Vec<String>>,
     ) -> Result<String> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
@@ -135,7 +137,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 path:    None,
             });
         }
-        self.execute_mutation_query_with_security(mutation_name, variables, None, selection_fields).await
+        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections).await
     }
 
     /// Internal implementation shared by `execute_mutation_query` and the
@@ -163,13 +165,14 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         security_ctx: Option<&SecurityContext>,
-        selection_fields: &[String],
+        type_selections: &HashMap<String, Vec<String>>,
     ) -> Result<String> {
         // 1. Locate the mutation definition
         let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
-            let candidates: Vec<&str> =
-                self.schema.mutations.iter().map(|m| m.name.as_str()).collect();
-            let suggestion = suggest_similar(mutation_name, &candidates);
+            let display_names: Vec<String> =
+                self.schema.mutations.iter().map(|m| self.schema.display_name(&m.name)).collect();
+            let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
+            let suggestion = suggest_similar(mutation_name, &candidate_refs);
             let message = match suggestion.as_slice() {
                 [s] => {
                     format!("Mutation '{mutation_name}' not found in schema. Did you mean '{s}'?")
@@ -222,22 +225,58 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Build positional args Vec from variables in ArgumentDefinition order. Validate that
         //    every required (non-nullable, no default) argument is present.
+        //
+        //    Input object unwrapping: when the mutation has a single argument named "input"
+        //    whose type is an Input type, AND the client sends a JSON object for that argument,
+        //    unwrap the object's fields and pass them positionally in the order defined by the
+        //    input type's field list.  This keeps the SQL function signature flat while letting
+        //    the GraphQL API use the standard input object pattern.
         let vars_obj = variables.and_then(|v| v.as_object());
 
         let mut missing_required: Vec<&str> = Vec::new();
         let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
         let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
-        args.extend(mutation_def.arguments.iter().map(|arg| {
-            let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
-            if let Some(v) = value {
-                v
-            } else {
-                if !arg.nullable && arg.default_value.is_none() {
-                    missing_required.push(&arg.name);
-                }
-                arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+
+        // Detect single-input-object pattern
+        let input_type_name = if mutation_def.arguments.len() == 1
+            && mutation_def.arguments[0].name == "input"
+        {
+            match &mutation_def.arguments[0].arg_type {
+                crate::schema::FieldType::Input(name) => Some(name.as_str()),
+                _ => None,
             }
-        }));
+        } else {
+            None
+        };
+
+        if let Some(input_type) = input_type_name.and_then(|n| self.schema.find_input_type(n)) {
+            // Unwrap input object: extract fields in the order defined by the input type
+            let input_obj = vars_obj
+                .and_then(|obj| obj.get("input"))
+                .and_then(|v| v.as_object());
+
+            if let Some(input_obj) = input_obj {
+                for field in &input_type.fields {
+                    let value = input_obj.get(&field.name).cloned();
+                    args.push(value.unwrap_or(serde_json::Value::Null));
+                }
+            } else if !mutation_def.arguments[0].nullable {
+                missing_required.push("input");
+            }
+        } else {
+            // Standard argument handling (flat arguments, no input object)
+            args.extend(mutation_def.arguments.iter().map(|arg| {
+                let value = vars_obj.and_then(|obj| obj.get(&arg.name)).cloned();
+                if let Some(v) = value {
+                    v
+                } else {
+                    if !arg.nullable && arg.default_value.is_none() {
+                        missing_required.push(&arg.name);
+                    }
+                    arg.default_value.as_ref().map_or(serde_json::Value::Null, |v| v.to_json())
+                }
+            }));
+        }
 
         if !missing_required.is_empty() {
             return Err(FraiseQLError::Validation {
@@ -353,6 +392,25 @@ impl<A: DatabaseAdapter> Executor<A> {
         let mutation_return_type = mutation_def.return_type.clone();
         let mutation_name_owned = mutation_name.to_string();
 
+        // Helper: merge common fields (key "") with type-specific fields for selection filtering.
+        let selection_for_type = |type_name: &str| -> Option<Vec<String>> {
+            if type_selections.is_empty() {
+                return None;
+            }
+            let common = type_selections.get("");
+            let specific = type_selections.get(type_name);
+            match (common, specific) {
+                (None, None) => None,
+                (Some(c), None) => Some(c.clone()),
+                (None, Some(s)) => Some(s.clone()),
+                (Some(c), Some(s)) => {
+                    let mut merged = c.clone();
+                    merged.extend(s.iter().cloned());
+                    Some(merged)
+                },
+            }
+        };
+
         let result_json = match outcome {
             MutationOutcome::Success {
                 entity,
@@ -374,15 +432,24 @@ impl<A: DatabaseAdapter> Executor<A> {
                     })
                     .unwrap_or_else(|| mutation_return_type.clone());
 
-                let mut obj = entity.as_object().cloned().unwrap_or_default();
-                obj.insert("__typename".to_string(), serde_json::Value::String(typename));
+                // Build projection mappings from the selection set.
+                // Success entities use snake_case keys (from DB), so source == output.
+                let requested = selection_for_type(&typename);
+                let mappings: Vec<FieldMapping> = match &requested {
+                    Some(fields) => fields.iter().map(|f| FieldMapping::simple(f.clone())).collect(),
+                    None => {
+                        // No selection filtering — pass all fields
+                        entity
+                            .as_object()
+                            .map(|m| m.keys().map(|k| FieldMapping::simple(k.clone())).collect())
+                            .unwrap_or_default()
+                    },
+                };
 
-                // Apply selection set filtering: only include requested fields (plus __typename)
-                if !selection_fields.is_empty() {
-                    obj.retain(|k, _| k == "__typename" || selection_fields.contains(k));
-                }
-
-                serde_json::Value::Object(obj)
+                let mapper = ProjectionMapper::with_mappings(mappings)
+                    .with_typename(&typename);
+                let obj = entity.as_object().cloned().unwrap_or_default();
+                mapper.project_json_object(&obj)?
             },
             MutationOutcome::Error {
                 status, metadata, ..
@@ -397,14 +464,29 @@ impl<A: DatabaseAdapter> Executor<A> {
 
                 match error_type {
                     Some(td) => {
-                        let mut fields = populate_error_fields(&td.fields, &metadata);
-                        fields.insert(
-                            "__typename".to_string(),
-                            serde_json::Value::String(td.name.to_string()),
+                        // Build field mappings from the error type definition, with camelCase
+                        // source keys and recursive nested object/array projection (#215).
+                        let requested = selection_for_type(td.name.as_str());
+                        let requested_slice = requested.as_deref();
+                        let mut visited = std::collections::HashSet::new();
+                        let mappings = build_field_mappings_from_type(
+                            &td.fields, &self.schema, requested_slice, &mut visited,
                         );
-                        // Include status so the client can act on it
-                        fields.insert("status".to_string(), serde_json::Value::String(status));
-                        serde_json::Value::Object(fields)
+
+                        let mapper = ProjectionMapper::with_mappings(mappings)
+                            .with_typename(td.name.to_string());
+                        let obj = metadata.as_object().cloned().unwrap_or_default();
+                        let mut result = mapper.project_json_object(&obj)?;
+
+                        // Inject status (not in type definition, but required by clients)
+                        if let serde_json::Value::Object(ref mut map) = result {
+                            map.insert(
+                                "status".to_string(),
+                                serde_json::Value::String(status),
+                            );
+                        }
+
+                        result
                     },
                     None => {
                         // No error type defined: surface the status as a plain object

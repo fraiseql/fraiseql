@@ -1,0 +1,60 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "fields": [
+        {"name": "id",    "field_type": "ID",     "nullable": false},
+        {"name": "email", "field_type": "String", "nullable": false},
+        {"name": "name",  "field_type": "String", "nullable": false}
+      ]
+    },
+    {
+      "name": "DuplicateEmailError",
+      "sql_source": "",
+      "is_error": true,
+      "fields": [
+        {"name": "message",        "field_type": "String",     "nullable": false},
+        {"name": "conflicting_id", "field_type": "ID",         "nullable": true},
+        {"name": "code",           "field_type": "Int",        "nullable": false},
+        {"name": "affected_ids",   "field_type": {"List": "UUID"}, "nullable": false},
+        {"name": "details",        "field_type": "Json",       "nullable": true}
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_user",
+      "arguments": [
+        {"name": "id", "arg_type": "ID", "nullable": false}
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "name": "createUser",
+      "return_type": "CreateUserResult",
+      "sql_source": "fn_create_user",
+      "operation": {"Insert": {"table": "users"}},
+      "arguments": [
+        {"name": "email", "arg_type": "String", "nullable": false},
+        {"name": "name",  "arg_type": "String", "nullable": false}
+      ]
+    }
+  ],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [
+    {
+      "name": "CreateUserResult",
+      "description": "Success or error from createUser mutation",
+      "member_types": ["User", "DuplicateEmailError"]
+    }
+  ]
+}

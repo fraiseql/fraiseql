@@ -10,7 +10,7 @@
 //! ### Key Components
 //!
 //! - **Schema**: Compiled schema representation (types, fields, SQL mappings)
-//! - **Compiler**: GraphQL schema → SQL template compiler
+//! - **Compiler**: Parsing, validation, and runtime sub-modules (aggregation, fact tables, window functions)
 //! - **Runtime**: Compiled query executor
 //! - **Database**: Connection pooling and transaction management
 //! - **Cache**: Query result caching with coherency
@@ -24,9 +24,9 @@
 //!         ↓
 //!    JSON Schema
 //!         ↓
-//!     Compiler
+//!  SchemaConverter (fraiseql-cli)
 //!    ↙    ↓    ↘
-//! Parse Validate Codegen
+//! Parse Validate Convert
 //!         ↓
 //!  CompiledSchema.json
 //!         ↓

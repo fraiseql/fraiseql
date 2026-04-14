@@ -119,10 +119,9 @@ impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
             }
         }
 
-        // Add __typename field
-        if !select_fields.contains(&"__typename".to_string()) {
-            select_fields.push("__typename".to_string());
-        }
+        // Filter __typename from SQL SELECT — it is a GraphQL meta-field not stored
+        // in the database. The project_results() function injects it into each entity.
+        select_fields.retain(|f| f != "__typename");
 
         // Execute query
         let sql = format!(

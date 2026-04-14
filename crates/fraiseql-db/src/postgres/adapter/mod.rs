@@ -19,8 +19,9 @@ use super::where_generator::PostgresWhereGenerator;
 use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
+    order_by::append_order_by,
     traits::DatabaseAdapter,
-    types::{JsonbValue, QueryParam, sql_hints::SqlProjectionHint},
+    types::{DatabaseType, JsonbValue, QueryParam, sql_hints::{OrderByClause, SqlProjectionHint}},
     where_clause::WhereClause,
 };
 
@@ -492,17 +493,22 @@ impl PostgresAdapter {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn execute_with_projection(
+    /// Implementation of `execute_with_projection` with ORDER BY support.
+    ///
+    /// Called by both the inherent convenience method and the `DatabaseAdapter`
+    /// trait implementation.
+    pub(super) async fn execute_with_projection_impl(
         &self,
         view: &str,
         projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -517,67 +523,63 @@ impl PostgresAdapter {
         );
 
         // Add WHERE clause if present
-        if let Some(clause) = where_clause {
+        let mut typed_params: Vec<QueryParam> = if let Some(clause) = where_clause {
             let generator = PostgresWhereGenerator::new(PostgresDialect);
             let (where_sql, where_params) = generator.generate(clause)?;
             sql.push_str(" WHERE ");
             sql.push_str(&where_sql);
-
-            // Convert WHERE params to typed params first
-            let mut typed_params: Vec<QueryParam> =
-                where_params.into_iter().map(QueryParam::from).collect();
-            let mut param_count = typed_params.len();
-
-            // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
-            // Reason (expect below): fmt::Write for String is infallible.
-            if let Some(lim) = limit {
-                param_count += 1;
-                write!(sql, " LIMIT ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(lim)));
-            }
-
-            if let Some(off) = offset {
-                param_count += 1;
-                write!(sql, " OFFSET ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(off)));
-            }
-
-            tracing::debug!("SQL with projection = {}", sql);
-            tracing::debug!("typed_params = {:?}", typed_params);
-
-            // Create references to QueryParam for ToSql
-            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
-                .iter()
-                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-                .collect();
-
-            self.execute_raw(&sql, &param_refs).await
+            where_params.into_iter().map(QueryParam::from).collect()
         } else {
-            // No WHERE clause — only LIMIT/OFFSET params.
-            // Reason (expect below): fmt::Write for String is infallible.
-            let mut typed_params: Vec<QueryParam> = Vec::new();
-            let mut param_count = 0;
+            Vec::new()
+        };
+        let mut param_count = typed_params.len();
 
-            if let Some(lim) = limit {
-                param_count += 1;
-                write!(sql, " LIMIT ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(lim)));
-            }
+        // ORDER BY must come before LIMIT/OFFSET in SQL.
+        append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL)?;
 
-            if let Some(off) = offset {
-                param_count += 1;
-                write!(sql, " OFFSET ${param_count}").expect("write to String");
-                typed_params.push(QueryParam::BigInt(i64::from(off)));
-            }
-
-            // Create references to QueryParam for ToSql
-            let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
-                .iter()
-                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-                .collect();
-
-            self.execute_raw(&sql, &param_refs).await
+        // Append LIMIT/OFFSET as BigInt (PostgreSQL requires integer type).
+        // Reason (expect below): fmt::Write for String is infallible.
+        if let Some(lim) = limit {
+            param_count += 1;
+            write!(sql, " LIMIT ${param_count}").expect("write to String");
+            typed_params.push(QueryParam::BigInt(i64::from(lim)));
         }
+
+        if let Some(off) = offset {
+            param_count += 1;
+            write!(sql, " OFFSET ${param_count}").expect("write to String");
+            typed_params.push(QueryParam::BigInt(i64::from(off)));
+        }
+
+        tracing::debug!("SQL with projection = {}", sql);
+        tracing::debug!("typed_params = {:?}", typed_params);
+
+        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
+            .iter()
+            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        self.execute_raw(&sql, &param_refs).await
+    }
+
+    /// Execute query with SQL field projection optimization.
+    ///
+    /// Convenience wrapper for callers that don't need ORDER BY.
+    /// See [`execute_with_projection_impl`](Self::execute_with_projection_impl) for details.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` on query execution failure.
+    pub async fn execute_with_projection(
+        &self,
+        view: &str,
+        projection: Option<&SqlProjectionHint>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<JsonbValue>> {
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, None)
+            .await
     }
 }
 
@@ -600,6 +602,27 @@ pub(super) fn build_where_select_sql(
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> Result<(String, Vec<QueryParam>)> {
+    build_where_select_sql_ordered(view, where_clause, limit, offset, None)
+}
+
+/// Build a parameterized `SELECT data FROM {view}` SQL string with optional ORDER BY.
+///
+/// ORDER BY is inserted between the WHERE clause and LIMIT/OFFSET as required by SQL.
+///
+/// # Returns
+///
+/// `(sql, typed_params)` — the SQL string and the bound parameter values.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError` if WHERE clause generation or field name validation fails.
+pub(super) fn build_where_select_sql_ordered(
+    view: &str,
+    where_clause: Option<&WhereClause>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    order_by: Option<&[OrderByClause]>,
+) -> Result<(String, Vec<QueryParam>)> {
     // Build base query
     let mut sql = format!("SELECT data FROM {}", quote_postgres_identifier(view));
 
@@ -616,6 +639,9 @@ pub(super) fn build_where_select_sql(
         Vec::new()
     };
     let mut param_count = typed_params.len();
+
+    // ORDER BY must come before LIMIT/OFFSET in SQL.
+    append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL)?;
 
     // Add LIMIT as BigInt (PostgreSQL requires integer type for LIMIT).
     // Reason (expect below): fmt::Write for String is infallible.

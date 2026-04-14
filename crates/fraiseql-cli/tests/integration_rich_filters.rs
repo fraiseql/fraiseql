@@ -9,6 +9,7 @@
 //! 5. Verify lookup data present
 
 use fraiseql_cli::schema::{converter::SchemaConverter, intermediate::IntermediateSchema};
+use fraiseql_core::schema::NamingConvention;
 
 /// Test: Complete rich filter compilation pipeline
 #[test]
@@ -39,6 +40,7 @@ fn test_rich_filter_compilation_pipeline() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     // 2. Compile to schema
@@ -116,6 +118,7 @@ fn test_all_rich_types_generate_where_input() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -177,6 +180,7 @@ fn test_where_input_fields_include_standard_operators() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -233,6 +237,7 @@ fn test_sql_templates_cover_all_databases() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -300,6 +305,7 @@ fn test_lookup_data_integrity() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -368,6 +374,7 @@ fn test_compiled_schema_is_valid() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
+        naming_convention: NamingConvention::default(),
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

@@ -2951,6 +2951,7 @@ dependencies = [
  "bytes",
  "chacha20poly1305",
  "chrono",
+ "clap",
  "criterion",
  "dashmap",
  "dirs",

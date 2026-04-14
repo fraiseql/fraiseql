@@ -65,7 +65,8 @@ pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
     CompiledSecurityConfig, DebugConfig, DeleteResponse, EnterpriseSecurityConfig,
     EntityCircuitBreakerOverride, EventHandler, FederationConfig, FederationEntity, FieldAuthRule,
-    GrpcConfig, McpConfig, ObserversConfig, Relationship, RestConfig, SubscriptionHooksConfig,
+    GrpcConfig, McpConfig, NamingConvention, ObserversConfig, Relationship, RestConfig,
+    SubscriptionHooksConfig,
     SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};

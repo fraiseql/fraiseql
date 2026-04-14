@@ -16,13 +16,15 @@ open System.Collections.Concurrent
 module SchemaRegistry =
 
     let private types = ConcurrentDictionary<string, TypeDefinition>()
+    let private inputTypes = ConcurrentDictionary<string, InputTypeDefinition>()
     let private queries = System.Collections.Generic.List<QueryDefinition>()
     let private mutations = System.Collections.Generic.List<MutationDefinition>()
     let private lockObj = obj ()
 
-    /// Clears all registered types, queries, and mutations. Required between test runs.
+    /// Clears all registered types, input types, queries, and mutations. Required between test runs.
     let reset () =
         types.Clear()
+        inputTypes.Clear()
 
         lock lockObj (fun () ->
             queries.Clear()
@@ -103,8 +105,11 @@ module SchemaRegistry =
         types.[name] <- typeDef
 
         if attr.Crud then
-            let crudQueries, crudMutations =
+            let crudQueries, crudMutations, crudInputTypes =
                 CrudGenerator.generate name typeDef.fields attr.SqlSource attr.Cascade
+
+            for it in crudInputTypes do
+                inputTypes.[it.name] <- it
 
             lock lockObj (fun () ->
                 for q in crudQueries do
@@ -122,6 +127,23 @@ module SchemaRegistry =
 
     /// Returns all registered <see cref="TypeDefinition"/> values in an unspecified order.
     let getAllTypes () : TypeDefinition list = types.Values |> Seq.toList
+
+    /// Registers an <see cref="InputTypeDefinition"/> directly.
+    /// Raises <see cref="ArgumentException"/> when an input type with the same name
+    /// is already registered.
+    let registerInput (input: InputTypeDefinition) : unit =
+        if not (inputTypes.TryAdd(input.name, input)) then
+            raise (
+                ArgumentException(
+                    sprintf
+                        "Input type '%s' is already registered. Each name must be unique within a schema."
+                        input.name
+                )
+            )
+
+    /// Returns all registered <see cref="InputTypeDefinition"/> values in an unspecified order.
+    let getAllInputTypes () : InputTypeDefinition list =
+        inputTypes.Values |> Seq.toList
 
     /// Registers a <see cref="QueryDefinition"/> directly (without reflection).
     let registerQuery (q: QueryDefinition) : unit =
@@ -144,6 +166,7 @@ module SchemaRegistry =
         {
             version = "2.0.0"
             types = getAllTypes ()
+            input_types = getAllInputTypes ()
             queries = getAllQueries ()
             mutations = getAllMutations ()
         }

@@ -1,5 +1,7 @@
 //! Query classification — determines operation type for routing.
 
+use std::collections::HashMap;
+
 use super::{Executor, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
@@ -80,17 +82,55 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // Relay global node lookup: root field is exactly "node" on a query.
+        // Extract selections from inline fragments (... on TypeName { fields })
+        // so the execution layer can project only requested fields.
         if parsed.operation_type == "query" && root_field == "node" {
-            return Ok((QueryType::NodeQuery, None));
+            let selections = parsed.selections
+                .first()
+                .map(|node_sel| {
+                    // Flatten inline fragments: `node { ... on Booking { id startDate } }`
+                    // Inline fragments are represented as FieldSelection with name "...on TypeName"
+                    let mut fields = Vec::new();
+                    for sel in &node_sel.nested_fields {
+                        if sel.name.starts_with("...") {
+                            // Inline fragment — lift its nested_fields up
+                            fields.extend(sel.nested_fields.clone());
+                        } else {
+                            fields.push(sel.clone());
+                        }
+                    }
+                    fields
+                })
+                .unwrap_or_default();
+            return Ok((QueryType::NodeQuery { selections }, None));
         }
 
         // Mutations are routed by operation type.
         if parsed.operation_type == "mutation" {
-            let selection_fields = parsed.selections
+            let type_selections: HashMap<String, Vec<String>> = parsed
+                .selections
                 .first()
-                .map(|s| s.nested_fields.iter().map(|f| f.response_key().to_string()).collect())
+                .map(|s| {
+                    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+                    for f in &s.nested_fields {
+                        if let Some(type_name) = f.name.strip_prefix("...on ") {
+                            // Inline fragment: collect fields under the type name
+                            let fields: Vec<String> =
+                                f.nested_fields.iter().map(|nf| nf.response_key().to_string()).collect();
+                            map.entry(type_name.to_string())
+                                .or_default()
+                                .extend(fields);
+                        } else {
+                            // Common field (outside any inline fragment)
+                            map.entry(String::new())
+                                .or_default()
+                                .push(f.response_key().to_string());
+                        }
+                    }
+                    map
+                })
                 .unwrap_or_default();
-            return Ok((QueryType::Mutation { name: root_field.clone(), selection_fields }, None));
+            return Ok((QueryType::Mutation { name: root_field.clone(), type_selections }, None));
         }
 
         // Aggregate queries (root field ends with `_aggregate`).

@@ -1303,3 +1303,108 @@ def test_mutation_invalidates_views_in_json() -> None:
     m = SchemaRegistry.get_schema()["mutations"][0]
     assert m["sql_source"] == "fn_create_order"
     assert m["invalidates_views"] == ["v_order_summary"]
+
+
+# ── CRUD input object type tests (issue #204) ────────────────────────────
+
+
+def test_crud_create_generates_input_type() -> None:
+    """CRUD create mutations use a CreateXInput input object."""
+
+    @fraiseql.type(crud=["create"], sql_source="v_product")
+    class Product:
+        pk_product: int
+        name: str
+        price: float | None
+
+    schema = SchemaRegistry.get_schema()
+
+    # Input type registered
+    input_types = schema["input_types"]
+    assert len(input_types) == 1
+    input_t = input_types[0]
+    assert input_t["name"] == "CreateProductInput"
+    assert len(input_t["fields"]) == 3
+
+    # Mutation uses single "input" argument
+    mutations = schema["mutations"]
+    assert len(mutations) == 1
+    create = mutations[0]
+    assert create["name"] == "createProduct"
+    assert len(create["arguments"]) == 1
+    arg = create["arguments"][0]
+    assert arg["name"] == "input"
+    assert arg["type"] == "CreateProductInput"
+    assert arg["nullable"] is False
+
+
+def test_crud_update_generates_input_type() -> None:
+    """CRUD update mutations use an UpdateXInput input object."""
+
+    @fraiseql.type(crud=["update"], sql_source="v_widget")
+    class Widget:
+        pk_widget: int
+        label: str
+        weight: float | None
+
+    schema = SchemaRegistry.get_schema()
+
+    input_types = schema["input_types"]
+    assert len(input_types) == 1
+    input_t = input_types[0]
+    assert input_t["name"] == "UpdateWidgetInput"
+    # PK required, other fields nullable for partial update
+    pk_field = next(f for f in input_t["fields"] if f["name"] == "pkWidget")
+    assert pk_field["nullable"] is False
+    label_field = next(f for f in input_t["fields"] if f["name"] == "label")
+    assert label_field["nullable"] is True
+
+    mutations = schema["mutations"]
+    update = mutations[0]
+    assert update["name"] == "updateWidget"
+    assert len(update["arguments"]) == 1
+    assert update["arguments"][0]["name"] == "input"
+    assert update["arguments"][0]["type"] == "UpdateWidgetInput"
+
+
+def test_crud_delete_stays_flat() -> None:
+    """CRUD delete keeps a single flat PK argument (no input object)."""
+
+    @fraiseql.type(crud=["delete"], sql_source="v_gadget")
+    class Gadget:
+        pk_gadget: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+
+    # No input types for delete
+    assert len(schema["input_types"]) == 0
+
+    mutations = schema["mutations"]
+    delete = mutations[0]
+    assert delete["name"] == "deleteGadget"
+    assert len(delete["arguments"]) == 1
+    assert delete["arguments"][0]["name"] == "pkGadget"
+
+
+def test_crud_full_generates_both_input_types() -> None:
+    """crud=True generates input types for create and update, not delete."""
+
+    @fraiseql.type(crud=True, sql_source="v_order")
+    class Order:
+        pk_order: int
+        total: float
+        note: str | None
+
+    schema = SchemaRegistry.get_schema()
+    input_names = sorted(t["name"] for t in schema["input_types"])
+    assert input_names == ["CreateOrderInput", "UpdateOrderInput"]
+
+    mutations = schema["mutations"]
+    create = next(m for m in mutations if m["name"] == "createOrder")
+    update = next(m for m in mutations if m["name"] == "updateOrder")
+    delete = next(m for m in mutations if m["name"] == "deleteOrder")
+
+    assert create["arguments"][0]["name"] == "input"
+    assert update["arguments"][0]["name"] == "input"
+    assert delete["arguments"][0]["name"] == "pkOrder"

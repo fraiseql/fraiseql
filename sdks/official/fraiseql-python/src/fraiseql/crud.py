@@ -147,16 +147,22 @@ def _generate_create_op(
     field_list: list[tuple[str, dict[str, Any]]],
     cascade: bool,
 ) -> None:
-    args = [
+    input_name = f"Create{type_name}Input"
+    input_fields = [
         {"name": name, "type": info["type"], "nullable": info["nullable"]}
         for name, info in field_list
     ]
+    SchemaRegistry.register_input(
+        name=input_name,
+        fields=input_fields,
+        description=f"Input for creating a new {type_name}.",
+    )
     kwargs: dict[str, Any] = {
         "name": f"create_{snake}",
         "return_type": type_name,
         "returns_list": False,
         "nullable": False,
-        "arguments": args,
+        "arguments": [{"name": "input", "type": input_name, "nullable": False}],
         "description": f"Create a new {type_name}.",
         "sql_source": f"fn_create_{snake}",
         "operation": "INSERT",
@@ -174,15 +180,21 @@ def _generate_update_op(  # noqa: PLR0913 — all parameters are meaningful
     field_list: list[tuple[str, dict[str, Any]]],
     cascade: bool,
 ) -> None:
-    args = [{"name": pk_name, "type": pk_info["type"], "nullable": False}]
+    input_name = f"Update{type_name}Input"
+    input_fields = [{"name": pk_name, "type": pk_info["type"], "nullable": False}]
     for name, info in field_list[1:]:
-        args.append({"name": name, "type": info["type"], "nullable": True})
+        input_fields.append({"name": name, "type": info["type"], "nullable": True})
+    SchemaRegistry.register_input(
+        name=input_name,
+        fields=input_fields,
+        description=f"Input for updating an existing {type_name}.",
+    )
     kwargs: dict[str, Any] = {
         "name": f"update_{snake}",
         "return_type": type_name,
         "returns_list": False,
         "nullable": True,
-        "arguments": args,
+        "arguments": [{"name": "input", "type": input_name, "nullable": False}],
         "description": f"Update an existing {type_name}.",
         "sql_source": f"fn_update_{snake}",
         "operation": "UPDATE",

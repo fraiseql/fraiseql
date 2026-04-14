@@ -6,7 +6,7 @@
  * following FraiseQL naming conventions.
  */
 
-import { SchemaRegistry, ArgumentDefinition, Field } from "./registry";
+import { SchemaRegistry, Field } from "./registry";
 
 const ALL_OPS = new Set(["read", "create", "update", "delete"]);
 
@@ -92,11 +92,13 @@ export function generateCrudOperations(
   }
 
   if (ops.has("create")) {
-    const args: ArgumentDefinition[] = fields.map((f) => ({
+    const inputName = `Create${typeName}Input`;
+    const inputFields = fields.map((f) => ({
       name: f.name,
       type: f.type,
       nullable: f.nullable,
     }));
+    SchemaRegistry.registerInputType(inputName, inputFields, `Input for creating a new ${typeName}.`);
     const config: Record<string, unknown> = {
       sql_source: `fn_create_${snake}`,
       operation: "INSERT",
@@ -107,17 +109,19 @@ export function generateCrudOperations(
       typeName,
       false,
       false,
-      args,
+      [{ name: "input", type: inputName, nullable: false }],
       `Create a new ${typeName}.`,
       config
     );
   }
 
   if (ops.has("update")) {
-    const args: ArgumentDefinition[] = [
+    const inputName = `Update${typeName}Input`;
+    const inputFields = [
       { name: pkField.name, type: pkField.type, nullable: false },
       ...fields.slice(1).map((f) => ({ name: f.name, type: f.type, nullable: true })),
     ];
+    SchemaRegistry.registerInputType(inputName, inputFields, `Input for updating an existing ${typeName}.`);
     const config: Record<string, unknown> = {
       sql_source: `fn_update_${snake}`,
       operation: "UPDATE",
@@ -128,7 +132,7 @@ export function generateCrudOperations(
       typeName,
       false,
       true,
-      args,
+      [{ name: "input", type: inputName, nullable: false }],
       `Update an existing ${typeName}.`,
       config
     );

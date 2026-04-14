@@ -25,6 +25,7 @@ use super::where_generator::SqliteWhereGenerator;
 use crate::{
     dialect::SqliteDialect,
     identifier::quote_sqlite_identifier,
+    order_by::append_order_by,
     traits::{DatabaseAdapter, DirectMutationContext, MutationStrategy},
     types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
     where_clause::WhereClause,
@@ -214,11 +215,11 @@ impl DatabaseAdapter for SqliteAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let Some(projection) = projection else {
@@ -227,9 +228,6 @@ impl DatabaseAdapter for SqliteAdapter {
         };
 
         // Build SQL with SQLite-specific json_object projection
-        // The projection_template contains the SELECT clause with json_object() calls
-        // SQLite uses double quotes for identifiers, not backticks
-        // e.g., "json_object('id', data->'$.id', 'email', data->'$.email')"
         let mut sql = format!(
             "SELECT {} FROM {}",
             projection.projection_template,
@@ -246,6 +244,9 @@ impl DatabaseAdapter for SqliteAdapter {
         } else {
             Vec::new()
         };
+
+        // ORDER BY must come before LIMIT/OFFSET.
+        append_order_by(&mut sql, order_by, DatabaseType::SQLite)?;
 
         // Add LIMIT/OFFSET — SQLite requires LIMIT before OFFSET.
         // Reason (expect below): fmt::Write for String is infallible.
@@ -273,7 +274,7 @@ impl DatabaseAdapter for SqliteAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQLite uses double quotes for identifiers
         let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
@@ -288,6 +289,9 @@ impl DatabaseAdapter for SqliteAdapter {
         } else {
             Vec::new()
         };
+
+        // ORDER BY must come before LIMIT/OFFSET.
+        append_order_by(&mut sql, order_by, DatabaseType::SQLite)?;
 
         // Add LIMIT and OFFSET
         // Note: SQLite requires LIMIT when using OFFSET, so we use LIMIT -1 for "unlimited"

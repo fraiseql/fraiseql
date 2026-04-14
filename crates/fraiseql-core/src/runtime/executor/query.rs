@@ -6,7 +6,8 @@ use super::{Executor, null_masked_fields, resolve_inject_value};
 use crate::{
     db::{
         CursorValue, ProjectionField, WhereClause, WhereOperator,
-        projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter,
+        projection_generator::{FieldKind, PostgresProjectionGenerator},
+        traits::DatabaseAdapter,
     },
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
@@ -27,6 +28,12 @@ use crate::{
 ///
 /// Recursion is capped at 4 levels, matching `MAX_PROJECTION_DEPTH` in the
 /// projection generator.
+///
+/// Filter `__typename` from SQL projection fields.
+/// `__typename` is a GraphQL meta-field not stored in JSONB.
+/// The `ResultProjector` handles injection — see `projection.rs`.
+/// Removing this filter causes `data->>'__typename'` (NULL) to overwrite
+/// the value injected by `with_typename()`, depending on field iteration order.
 fn build_typed_projection_fields(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
@@ -38,12 +45,30 @@ fn build_typed_projection_fields(
     let type_def = schema.find_type(parent_type_name);
     selections
         .iter()
+        // Skip __typename — it is a GraphQL meta-field not stored in the JSONB column.
+        // Including it would generate `data->>'__typename'` (always NULL) in the SQL
+        // projection and then overwrite the value already injected by `with_typename`.
+        .filter(|sel| sel.name != "__typename")
         .map(|sel| {
             let field_def =
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
 
             let is_composite = field_def.is_some_and(|fd| !fd.field_type.is_scalar());
             let is_list = field_def.is_some_and(|fd| fd.field_type.is_list());
+            let is_text = field_def.is_some_and(|fd| {
+                matches!(
+                    fd.field_type,
+                    crate::schema::FieldType::String | crate::schema::FieldType::Id
+                )
+            });
+
+            let kind = if is_composite {
+                FieldKind::Composite
+            } else if is_text {
+                FieldKind::Text
+            } else {
+                FieldKind::Native
+            };
 
             // Recurse into Object types only — List fields fall back to full blob
             let sub_fields = if is_composite
@@ -68,11 +93,63 @@ fn build_typed_projection_fields(
 
             ProjectionField {
                 name: sel.response_key().to_string(),
-                is_composite,
+                kind,
                 sub_fields,
             }
         })
         .collect()
+}
+
+/// Map a schema [`FieldType`] to the ORDER BY cast hint.
+///
+/// Returns [`OrderByFieldType::Text`] for types that sort correctly as text
+/// (strings, UUIDs, enums) or for composite/container types where a cast
+/// would be meaningless.
+const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> crate::db::OrderByFieldType {
+    use crate::db::OrderByFieldType as OB;
+    use crate::schema::FieldType as FT;
+    match ft {
+        FT::Int => OB::Integer,
+        FT::Float | FT::Decimal => OB::Numeric,
+        FT::Boolean => OB::Boolean,
+        FT::DateTime => OB::DateTime,
+        FT::Date => OB::Date,
+        FT::Time => OB::Time,
+        // String, ID, UUID, Json, Enum, Scalar, and container types sort as text.
+        _ => OB::Text,
+    }
+}
+
+/// Enrich parsed `OrderByClause` values with schema-derived type information
+/// and native column mappings.
+///
+/// For each clause, looks up the field in the compiled schema's type definition
+/// to determine the correct `OrderByFieldType` (so the SQL generator emits a
+/// typed cast), and checks `native_columns` for a direct column mapping (so the
+/// SQL generator can bypass JSONB extraction entirely).
+fn enrich_order_by_clauses(
+    mut clauses: Vec<crate::db::OrderByClause>,
+    schema: &CompiledSchema,
+    return_type: &str,
+    native_columns: &std::collections::HashMap<String, String>,
+) -> Vec<crate::db::OrderByClause> {
+    let type_def = schema.find_type(return_type);
+    for clause in &mut clauses {
+        // Look up the field type from the schema definition.
+        if let Some(td) = type_def {
+            if let Some(field_def) = td.find_field(&clause.field) {
+                clause.field_type = field_type_to_order_by_type(&field_def.field_type);
+            }
+        }
+
+        // Check if the query definition has a native column mapping for this field.
+        // `native_columns` keys are the GraphQL argument names (camelCase).
+        let storage_key = clause.storage_key();
+        if native_columns.contains_key(&storage_key) {
+            clause.native_column = Some(storage_key);
+        }
+    }
+    clauses
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -267,13 +344,23 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        // 8b. Extract order_by from query arguments when has_order_by is enabled
+        // 8b. Extract order_by from query arguments when has_order_by is enabled,
+        //     then enrich each clause with the schema field type so the SQL generator
+        //     emits correct type casts (e.g., `(data->>'amount')::numeric`).
         let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
             query_match
                 .arguments
                 .get("orderBy")
                 .map(crate::db::OrderByClause::from_graphql_json)
                 .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.schema,
+                        &query_match.query_def.return_type,
+                        &query_match.query_def.native_columns,
+                    )
+                })
         } else {
             None
         };
@@ -301,7 +388,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 11. Project results — include both allowed and masked fields in projection
         let mut all_projection_fields = access.allowed;
         all_projection_fields.extend(access.masked.iter().cloned());
-        let projector = ResultProjector::new(all_projection_fields);
+        let projector = ResultProjector::new(all_projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
         let mut projected =
             projector.project_results(&results, query_match.query_def.returns_list)?;
 
@@ -446,6 +537,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .get("orderBy")
                 .map(crate::db::OrderByClause::from_graphql_json)
                 .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.schema,
+                        &query_match.query_def.return_type,
+                        &query_match.query_def.native_columns,
+                    )
+                })
         } else {
             None
         };
@@ -463,7 +562,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // 4. Project results
-        let projector = ResultProjector::new(plan.projection_fields);
+        let projector = ResultProjector::new(plan.projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // 5. Wrap in GraphQL data envelope
@@ -539,7 +642,15 @@ impl<A: DatabaseAdapter> Executor<A> {
             .arguments
             .get("orderBy")
             .map(crate::db::OrderByClause::from_graphql_json)
-            .transpose()?;
+            .transpose()?
+            .map(|clauses| {
+                enrich_order_by_clauses(
+                    clauses,
+                    &self.schema,
+                    &query_match.query_def.return_type,
+                    &query_match.query_def.native_columns,
+                )
+            });
 
         // Convert explicit arguments to WHERE conditions.
         let user_where = combine_explicit_arg_where(
@@ -584,7 +695,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // Project results.
-        let projector = ResultProjector::new(plan.projection_fields);
+        let projector = ResultProjector::new(plan.projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
         let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // Wrap in GraphQL data envelope.
@@ -1017,11 +1132,19 @@ impl<A: DatabaseAdapter> Executor<A> {
             (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
         };
 
-        // Parse optional `orderBy` from variables.
+        // Parse optional `orderBy` from variables, enriched with schema type info.
         let order_by = if query_def.auto_params.has_order_by {
             vars.and_then(|v| v.get("orderBy"))
                 .map(OrderByClause::from_graphql_json)
                 .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.schema,
+                        &query_def.return_type,
+                        &query_def.native_columns,
+                    )
+                })
         } else {
             None
         };
@@ -1155,6 +1278,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
+        selections: &[FieldSelection],
     ) -> Result<String> {
         use crate::{
             db::{WhereClause, where_clause::WhereOperator},
@@ -1199,13 +1323,41 @@ impl<A: DatabaseAdapter> Executor<A> {
             value:    serde_json::Value::String(uuid),
         };
 
-        // 5. Execute the query (limit 1).
+        // 5. Build projection hint from selections (mirrors regular query path).
+        let projection_hint = if !selections.is_empty() {
+            let typed_fields = build_typed_projection_fields(
+                selections,
+                &self.schema,
+                &type_name,
+                0,
+            );
+            let generator = PostgresProjectionGenerator::new();
+            let projection_sql = generator
+                .generate_typed_projection_sql(&typed_fields)
+                .unwrap_or_else(|_| "data".to_string());
+            Some(SqlProjectionHint {
+                database:                    self.adapter.database_type(),
+                projection_template:         projection_sql,
+                estimated_reduction_percent: compute_projection_reduction(typed_fields.len()),
+            })
+        } else {
+            None
+        };
+
+        // 6. Execute the query (limit 1) with projection.
         let rows = self
             .adapter
-            .execute_where_query_arc(&sql_source, Some(&where_clause), Some(1), None, None)
+            .execute_with_projection_arc(
+                &sql_source,
+                projection_hint.as_ref(),
+                Some(&where_clause),
+                Some(1),
+                None,
+                None,
+            )
             .await?;
 
-        // 6. Return the first matching row (or null).
+        // 7. Return the first matching row (or null).
         // When the Arc is exclusively owned (uncached path, refcount = 1) we can move the
         // data out without copying.  When the cache also holds a reference (refcount ≥ 2)
         // we clone the single `serde_json::Value` for this one-row lookup.

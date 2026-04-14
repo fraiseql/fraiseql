@@ -22,6 +22,7 @@ public sealed class SchemaRegistry
 
     private readonly object _lock = new();
     private readonly List<TypeDefinition> _types = new();
+    private readonly List<IntermediateInputType> _inputTypes = new();
     private readonly List<IntermediateQuery> _queries = new();
     private readonly List<IntermediateMutation> _mutations = new();
     private Dictionary<string, string>? _injectDefaultsBase;
@@ -69,14 +70,39 @@ public sealed class SchemaRegistry
                 .ToList()
                 .AsReadOnly();
 
-            var (crudQueries, crudMutations) = CrudGenerator.Generate(
+            var (crudQueries, crudMutations, crudInputTypes) = CrudGenerator.Generate(
                 typeName, intermediateFields, typeAttr.SqlSource, typeAttr.Cascade);
+
+            foreach (var inputType in crudInputTypes)
+            {
+                var inputFields = inputType.Fields
+                    .Select(f => new IntermediateInputField(f.Name, f.Type, f.Nullable))
+                    .ToList()
+                    .AsReadOnly();
+                RegisterInputType(inputType.Name, inputFields, inputType.Description);
+            }
 
             lock (_lock)
             {
                 foreach (var q in crudQueries) _queries.Add(q);
                 foreach (var m in crudMutations) _mutations.Add(m);
             }
+        }
+    }
+
+    /// <summary>
+    /// Registers a GraphQL input object type by name and field list.
+    /// Used by <see cref="CrudGenerator"/> to register <c>Create{Type}Input</c>
+    /// and <c>Update{Type}Input</c> types.
+    /// </summary>
+    /// <param name="name">The input type name (e.g. <c>"CreateUserInput"</c>).</param>
+    /// <param name="fields">Ordered list of fields on the input type.</param>
+    /// <param name="description">Optional human-readable description.</param>
+    public void RegisterInputType(string name, IReadOnlyList<IntermediateInputField> fields, string? description = null)
+    {
+        lock (_lock)
+        {
+            _inputTypes.Add(new IntermediateInputType(name, fields, description));
         }
     }
 
@@ -152,6 +178,18 @@ public sealed class SchemaRegistry
     }
 
     /// <summary>
+    /// Returns a snapshot of all registered input types.
+    /// </summary>
+    /// <returns>An immutable list of registered input types.</returns>
+    public IReadOnlyList<IntermediateInputType> GetAllInputTypes()
+    {
+        lock (_lock)
+        {
+            return _inputTypes.ToList().AsReadOnly();
+        }
+    }
+
+    /// <summary>
     /// Returns a snapshot of all registered queries.
     /// </summary>
     /// <returns>An immutable list of registered queries.</returns>
@@ -197,6 +235,7 @@ public sealed class SchemaRegistry
         lock (_lock)
         {
             _types.Clear();
+            _inputTypes.Clear();
             _queries.Clear();
             _mutations.Clear();
             _injectDefaultsBase = null;

@@ -81,10 +81,7 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_order_sql_forward_custom_order_by_asc() {
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Asc)];
         let sql = build_relay_order_sql("[id]", Some(&order_by), true);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') ASC, [id] ASC");
     }
@@ -93,20 +90,14 @@ mod relay_sql_tests {
     fn test_build_relay_order_sql_backward_custom_order_by_asc_flips_to_desc() {
         // KEY TEST: backward pagination must flip ASC → DESC so the inner
         // FETCH NEXT subquery retrieves the correct N rows before the cursor.
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Asc)];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.score') DESC, [id] DESC");
     }
 
     #[test]
     fn test_build_relay_order_sql_backward_custom_order_by_desc_flips_to_asc() {
-        let order_by = vec![OrderByClause {
-            field:     "created_at".to_string(),
-            direction: OrderDirection::Desc,
-        }];
+        let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Desc)];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.created_at') ASC, [id] DESC");
     }
@@ -114,14 +105,8 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_multi_column_forward() {
         let order_by = vec![
-            OrderByClause {
-                field:     "a".to_string(),
-                direction: OrderDirection::Asc,
-            },
-            OrderByClause {
-                field:     "b".to_string(),
-                direction: OrderDirection::Desc,
-            },
+            OrderByClause::new("a".to_string(), OrderDirection::Asc),
+            OrderByClause::new("b".to_string(), OrderDirection::Desc),
         ];
         let sql = build_relay_order_sql("[id]", Some(&order_by), true);
         assert_eq!(
@@ -133,14 +118,8 @@ mod relay_sql_tests {
     #[test]
     fn test_build_relay_order_sql_multi_column_backward_all_flipped() {
         let order_by = vec![
-            OrderByClause {
-                field:     "a".to_string(),
-                direction: OrderDirection::Asc,
-            },
-            OrderByClause {
-                field:     "b".to_string(),
-                direction: OrderDirection::Desc,
-            },
+            OrderByClause::new("a".to_string(), OrderDirection::Asc),
+            OrderByClause::new("b".to_string(), OrderDirection::Desc),
         ];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(
@@ -159,20 +138,14 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_backward_outer_order_sql_with_custom_asc() {
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Asc)];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
         assert_eq!(sql, " ORDER BY _relay_sort_0 ASC, _relay_cursor ASC");
     }
 
     #[test]
     fn test_build_relay_backward_outer_order_sql_desc_preserved() {
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Desc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Desc)];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
         assert_eq!(sql, " ORDER BY _relay_sort_0 DESC, _relay_cursor ASC");
     }

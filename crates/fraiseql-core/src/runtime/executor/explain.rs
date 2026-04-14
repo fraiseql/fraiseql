@@ -50,9 +50,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Look up the query definition by name.
         let query_def =
             self.schema.queries.iter().find(|q| q.name == query_name).ok_or_else(|| {
-                let candidates: Vec<&str> =
-                    self.schema.queries.iter().map(|q| q.name.as_str()).collect();
-                let suggestion = crate::runtime::suggest_similar(query_name, &candidates);
+                let display_names: Vec<String> =
+                    self.schema.queries.iter().map(|q| self.schema.display_name(&q.name)).collect();
+                let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
+                let suggestion = crate::runtime::suggest_similar(query_name, &candidate_refs);
                 let message = match suggestion.as_slice() {
                     [s] => format!("Query '{query_name}' not found in schema. Did you mean '{s}'?"),
                     _ => format!("Query '{query_name}' not found in schema"),

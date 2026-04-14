@@ -23,6 +23,9 @@
 
 #![forbid(unsafe_code)]
 
+// CLI argument parsing (shared with fraiseql-cli) — requires `cli` feature
+#[cfg(feature = "cli")]
+pub mod cli;
 // API key authentication
 pub mod api_key;
 // Token revocation
@@ -158,6 +161,8 @@ pub mod trusted_documents;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
+#[cfg(feature = "cli")]
+pub use cli::{Cli, ServerArgs};
 pub use logging::{
     ErrorDetails, LogLevel, LogMetrics, RequestContext, RequestId, RequestLogger, SourceLocation,
     StructuredLogEntry,

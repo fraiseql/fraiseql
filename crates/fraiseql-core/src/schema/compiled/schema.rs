@@ -22,8 +22,8 @@ use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
         config_types::{
-            DebugConfig, FederationConfig, GrpcConfig, McpConfig, ObserversConfig, RestConfig,
-            SubscriptionsConfig, ValidationConfig,
+            DebugConfig, FederationConfig, GrpcConfig, McpConfig, NamingConvention,
+            ObserversConfig, RestConfig, SubscriptionsConfig, ValidationConfig,
         },
         graphql_type_defs::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
@@ -155,6 +155,14 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grpc_config: Option<GrpcConfig>,
 
+    /// Naming convention for GraphQL operation names.
+    ///
+    /// When set to `CamelCase`, operation names are converted from `snake_case`
+    /// (e.g., `create_dns_server` → `createDnsServer`) in the introspection
+    /// schema and lookup indexes. Compiled from `[fraiseql]` in `fraiseql.toml`.
+    #[serde(default)]
+    pub naming_convention: NamingConvention,
+
     /// Schema format version emitted by the compiler.
     ///
     /// Used to detect runtime/compiler skew. If present and ≠ `CURRENT_SCHEMA_FORMAT_VERSION`,
@@ -218,6 +226,7 @@ impl PartialEq for CompiledSchema {
             && self.validation_config == other.validation_config
             && self.debug_config == other.debug_config
             && self.mcp_config == other.mcp_config
+            && self.naming_convention == other.naming_convention
             && self.schema_sdl == other.schema_sdl
     }
 }
@@ -258,16 +267,68 @@ impl CompiledSchema {
     /// Called automatically by `from_json()`. Must be called manually after any
     /// direct mutation of `self.queries`, `self.mutations`, or `self.subscriptions`.
     pub fn build_indexes(&mut self) {
-        self.query_index =
-            self.queries.iter().enumerate().map(|(i, q)| (q.name.clone(), i)).collect();
-        self.mutation_index =
-            self.mutations.iter().enumerate().map(|(i, m)| (m.name.clone(), i)).collect();
+        let camel = matches!(self.naming_convention, NamingConvention::CamelCase);
+
+        self.query_index = self
+            .queries
+            .iter()
+            .enumerate()
+            .flat_map(|(i, q)| {
+                let mut entries = vec![(q.name.clone(), i)];
+                if camel {
+                    let converted = crate::utils::casing::to_camel_case(&q.name);
+                    if converted != q.name {
+                        entries.push((converted, i));
+                    }
+                }
+                entries
+            })
+            .collect();
+
+        self.mutation_index = self
+            .mutations
+            .iter()
+            .enumerate()
+            .flat_map(|(i, m)| {
+                let mut entries = vec![(m.name.clone(), i)];
+                if camel {
+                    let converted = crate::utils::casing::to_camel_case(&m.name);
+                    if converted != m.name {
+                        entries.push((converted, i));
+                    }
+                }
+                entries
+            })
+            .collect();
+
         self.subscription_index = self
             .subscriptions
             .iter()
             .enumerate()
-            .map(|(i, s)| (s.name.clone(), i))
+            .flat_map(|(i, s)| {
+                let mut entries = vec![(s.name.clone(), i)];
+                if camel {
+                    let converted = crate::utils::casing::to_camel_case(&s.name);
+                    if converted != s.name {
+                        entries.push((converted, i));
+                    }
+                }
+                entries
+            })
             .collect();
+    }
+
+    /// Return the display name for an operation, applying the naming convention.
+    ///
+    /// When `naming_convention` is `CamelCase`, converts `snake_case` names to
+    /// `camelCase` (e.g., `create_dns_server` → `createDnsServer`).
+    /// When `Preserve`, returns the name unchanged.
+    #[must_use]
+    pub fn display_name(&self, name: &str) -> String {
+        match self.naming_convention {
+            NamingConvention::CamelCase => crate::utils::casing::to_camel_case(name),
+            NamingConvention::Preserve => name.to_string(),
+        }
     }
 
     /// Deserialize from JSON string.
@@ -373,12 +434,23 @@ impl CompiledSchema {
     ///
     /// Uses the O(1) pre-built index when available; falls back to O(n) linear
     /// scan for schemas built directly in tests without calling `build_indexes()`.
+    ///
+    /// If the exact name is not found, retries with `to_snake_case(name)` to
+    /// handle camelCase → `snake_case` normalization (e.g. `dnsServers` →
+    /// `dns_servers`). This supports schemas compiled before the SDK camelCase
+    /// migration.
     #[must_use]
     pub fn find_query(&self, name: &str) -> Option<&QueryDefinition> {
         if self.query_index.is_empty() && !self.queries.is_empty() {
             self.queries.iter().find(|q| q.name == name)
+                .or_else(|| {
+                    let snake = crate::utils::casing::to_snake_case(name);
+                    self.queries.iter().find(|q| q.name == snake)
+                })
         } else {
-            self.query_index.get(name).map(|&i| &self.queries[i])
+            self.query_index.get(name)
+                .or_else(|| self.query_index.get(&crate::utils::casing::to_snake_case(name)))
+                .map(|&i| &self.queries[i])
         }
     }
 
@@ -386,12 +458,22 @@ impl CompiledSchema {
     ///
     /// Uses the O(1) pre-built index when available; falls back to O(n) linear
     /// scan for schemas built directly in tests without calling `build_indexes()`.
+    ///
+    /// If the exact name is not found, retries with `to_snake_case(name)` to
+    /// handle camelCase → `snake_case` normalization. This supports schemas
+    /// compiled before the SDK camelCase migration.
     #[must_use]
     pub fn find_mutation(&self, name: &str) -> Option<&MutationDefinition> {
         if self.mutation_index.is_empty() && !self.mutations.is_empty() {
             self.mutations.iter().find(|m| m.name == name)
+                .or_else(|| {
+                    let snake = crate::utils::casing::to_snake_case(name);
+                    self.mutations.iter().find(|m| m.name == snake)
+                })
         } else {
-            self.mutation_index.get(name).map(|&i| &self.mutations[i])
+            self.mutation_index.get(name)
+                .or_else(|| self.mutation_index.get(&crate::utils::casing::to_snake_case(name)))
+                .map(|&i| &self.mutations[i])
         }
     }
 
@@ -399,12 +481,22 @@ impl CompiledSchema {
     ///
     /// Uses the O(1) pre-built index when available; falls back to O(n) linear
     /// scan for schemas built directly in tests without calling `build_indexes()`.
+    ///
+    /// If the exact name is not found, retries with `to_snake_case(name)` to
+    /// handle camelCase → `snake_case` normalization. This supports schemas
+    /// compiled before the SDK camelCase migration.
     #[must_use]
     pub fn find_subscription(&self, name: &str) -> Option<&SubscriptionDefinition> {
         if self.subscription_index.is_empty() && !self.subscriptions.is_empty() {
             self.subscriptions.iter().find(|s| s.name == name)
+                .or_else(|| {
+                    let snake = crate::utils::casing::to_snake_case(name);
+                    self.subscriptions.iter().find(|s| s.name == snake)
+                })
         } else {
-            self.subscription_index.get(name).map(|&i| &self.subscriptions[i])
+            self.subscription_index.get(name)
+                .or_else(|| self.subscription_index.get(&crate::utils::casing::to_snake_case(name)))
+                .map(|&i| &self.subscriptions[i])
         }
     }
 
@@ -1401,5 +1493,112 @@ mod tests {
         let mut schema = CompiledSchema::new();
         schema.queries.push(make_query("q", "Blob"));
         assert!(schema.validate().is_err());
+    }
+
+    // ── Operation name normalization (issue #199) ────────────────────────
+
+    #[test]
+    fn find_query_exact_match() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("User"));
+        schema.queries.push(make_query("users", "User"));
+        schema.build_indexes();
+        assert!(schema.find_query("users").is_some());
+    }
+
+    #[test]
+    fn find_query_camel_to_snake_fallback() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("DnsServer"));
+        schema.queries.push(make_query("dns_servers", "DnsServer"));
+        schema.build_indexes();
+        // Exact match works
+        assert!(schema.find_query("dns_servers").is_some());
+        // camelCase fallback also works
+        assert!(schema.find_query("dnsServers").is_some());
+    }
+
+    #[test]
+    fn find_query_camel_to_snake_fallback_without_index() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("DnsServer"));
+        schema.queries.push(make_query("dns_servers", "DnsServer"));
+        // No build_indexes() — exercises the linear scan fallback path
+        assert!(schema.find_query("dnsServers").is_some());
+    }
+
+    #[test]
+    fn find_mutation_camel_to_snake_fallback() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("Location"));
+        schema.mutations.push(make_mutation("create_location", "Location"));
+        schema.build_indexes();
+        assert!(schema.find_mutation("createLocation").is_some());
+    }
+
+    #[test]
+    fn find_query_returns_none_for_unknown() {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(make_type_def("User"));
+        schema.queries.push(make_query("users", "User"));
+        schema.build_indexes();
+        assert!(schema.find_query("nonexistent").is_none());
+    }
+
+    // ── NamingConvention (issue #216) ───────────────────────────────────
+
+    #[test]
+    fn display_name_preserve_returns_unchanged() {
+        let schema = CompiledSchema::new(); // default = Preserve
+        assert_eq!(schema.display_name("create_dns_server"), "create_dns_server");
+        assert_eq!(schema.display_name("dns_servers"), "dns_servers");
+    }
+
+    #[test]
+    fn display_name_camel_case_converts() {
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        assert_eq!(schema.display_name("create_dns_server"), "createDnsServer");
+        assert_eq!(schema.display_name("dns_servers"), "dnsServers");
+        assert_eq!(schema.display_name("delete_outreach_sequence"), "deleteOutreachSequence");
+    }
+
+    #[test]
+    fn camel_case_index_lookup() {
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        schema.types.push(make_type_def("DnsServer"));
+        schema.queries.push(make_query("dns_servers", "DnsServer"));
+        schema.mutations.push(make_mutation("create_dns_server", "DnsServer"));
+        schema.build_indexes();
+
+        // camelCase lookup via index
+        assert!(schema.find_query("dnsServers").is_some());
+        assert!(schema.find_mutation("createDnsServer").is_some());
+
+        // Original snake_case still works
+        assert!(schema.find_query("dns_servers").is_some());
+        assert!(schema.find_mutation("create_dns_server").is_some());
+    }
+
+    #[test]
+    fn preserve_convention_no_camel_index_entry() {
+        let mut schema = CompiledSchema::new(); // Preserve
+        schema.types.push(make_type_def("DnsServer"));
+        schema.queries.push(make_query("dns_servers", "DnsServer"));
+        schema.build_indexes();
+
+        // Only 1 index entry (the original name); camelCase only works via fallback
+        assert_eq!(schema.query_index.len(), 1);
+        assert!(schema.query_index.contains_key("dns_servers"));
+    }
+
+    #[test]
+    fn naming_convention_serde_in_compiled_schema() {
+        let mut schema = CompiledSchema::new();
+        schema.naming_convention = NamingConvention::CamelCase;
+        let json = schema.to_json().unwrap();
+        let restored = CompiledSchema::from_json(&json).unwrap();
+        assert_eq!(restored.naming_convention, NamingConvention::CamelCase);
     }
 }

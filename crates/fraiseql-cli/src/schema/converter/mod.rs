@@ -162,6 +162,7 @@ impl SchemaConverter {
             validation_config: intermediate.validation_config, // Validation limits from TOML
             debug_config: intermediate.debug_config,           // Debug config from TOML
             mcp_config: intermediate.mcp_config,               // MCP config from TOML
+            naming_convention: intermediate.naming_convention,  // Naming convention from TOML
             schema_sdl: None,                                  // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(),     // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),

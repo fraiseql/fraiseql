@@ -45,9 +45,7 @@
       "returns_list": false,
       "nullable": false,
       "arguments": [
-        { "name": "id", "type": "ID", "nullable": false },
-        { "name": "name", "type": "String", "nullable": false },
-        { "name": "price", "type": "Float", "nullable": false }
+        { "name": "input", "type": "CreateProductInput", "nullable": false }
       ],
       "description": "Create a new Product.",
       "sql_source": "fn_create_product",
@@ -59,9 +57,7 @@
       "returns_list": false,
       "nullable": true,
       "arguments": [
-        { "name": "id", "type": "ID", "nullable": false },
-        { "name": "name", "type": "String", "nullable": true },
-        { "name": "price", "type": "Float", "nullable": true }
+        { "name": "input", "type": "UpdateProductInput", "nullable": false }
       ],
       "description": "Update an existing Product.",
       "sql_source": "fn_update_product",
@@ -78,6 +74,26 @@
       "description": "Delete a Product.",
       "sql_source": "fn_delete_product",
       "operation": "DELETE"
+    }
+  ],
+  "input_types": [
+    {
+      "name": "CreateProductInput",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "name", "type": "String", "nullable": false },
+        { "name": "price", "type": "Float", "nullable": false }
+      ],
+      "description": "Input for creating a new Product."
+    },
+    {
+      "name": "UpdateProductInput",
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "name", "type": "String", "nullable": true },
+        { "name": "price", "type": "Float", "nullable": true }
+      ],
+      "description": "Input for updating an existing Product."
     }
   ]
 }

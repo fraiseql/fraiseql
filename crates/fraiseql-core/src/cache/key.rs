@@ -48,7 +48,7 @@ use ahash::RandomState;
 use serde_json::Value as JsonValue;
 
 use crate::{
-    db::{WhereOperator, where_clause::WhereClause},
+    db::{OrderByClause, WhereOperator, where_clause::WhereClause},
     schema::{QueryDefinition, SqlProjectionHint},
 };
 
@@ -173,6 +173,7 @@ pub fn generate_view_query_key(
     where_clause: Option<&WhereClause>,
     limit: Option<u32>,
     offset: Option<u32>,
+    order_by: Option<&[OrderByClause]>,
     schema_version: &str,
 ) -> u64 {
     let mut h = new_hasher();
@@ -201,6 +202,8 @@ pub fn generate_view_query_key(
         },
         None => h.write_u8(0),
     }
+    h.write(b"\0b:");
+    hash_order_by(&mut h, order_by);
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
     h.finish()
@@ -226,6 +229,7 @@ pub fn generate_projection_query_key(
     where_clause: Option<&WhereClause>,
     limit: Option<u32>,
     offset: Option<u32>,
+    order_by: Option<&[OrderByClause]>,
     schema_version: &str,
 ) -> u64 {
     let mut h = new_hasher();
@@ -262,6 +266,8 @@ pub fn generate_projection_query_key(
         },
         None => h.write_u8(0),
     }
+    h.write(b"\0b:");
+    hash_order_by(&mut h, order_by);
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
     h.finish()
@@ -379,6 +385,25 @@ fn hash_where_operator(h: &mut impl Hasher, op: &WhereOperator) {
         // here is acceptable because it only triggers for rich-filter queries.
         let inner_str = format!("{inner:?}");
         h.write(inner_str.as_bytes());
+    }
+}
+
+/// Hash an optional `OrderByClause` slice into the given hasher.
+///
+/// Hashes each clause's `storage_key()` (`snake_case`) and `direction` discriminant,
+/// ensuring that different orderings produce different cache keys.
+fn hash_order_by(h: &mut impl Hasher, order_by: Option<&[OrderByClause]>) {
+    match order_by.filter(|c| !c.is_empty()) {
+        Some(clauses) => {
+            h.write_u8(1);
+            h.write_usize(clauses.len());
+            for clause in clauses {
+                let key = clause.storage_key();
+                h.write(key.as_bytes());
+                h.write_u8(clause.direction as u8);
+            }
+        },
+        None => h.write_u8(0),
     }
 }
 
@@ -859,5 +884,74 @@ mod tests {
         let query = r#"query { user(email: "test@example.com") { name } }"#;
         // Should not panic; produces a valid u64.
         let _key = generate_cache_key(query, &json!({}), None, "v1");
+    }
+
+    // ========================================================================
+    // ORDER BY Cache Key Tests
+    // ========================================================================
+
+    #[test]
+    fn test_view_key_different_order_by_produces_different_keys() {
+        use crate::db::{OrderByClause, OrderDirection};
+
+        let asc = [OrderByClause::new("name".into(), OrderDirection::Asc)];
+        let desc = [OrderByClause::new("name".into(), OrderDirection::Desc)];
+
+        let key_asc = generate_view_query_key("v_user", None, None, None, Some(&asc), "v1");
+        let key_desc = generate_view_query_key("v_user", None, None, None, Some(&desc), "v1");
+
+        assert_ne!(key_asc, key_desc, "Different order directions must produce different keys");
+    }
+
+    #[test]
+    fn test_view_key_same_order_by_produces_same_key() {
+        use crate::db::{OrderByClause, OrderDirection};
+
+        let clauses = [OrderByClause::new("createdAt".into(), OrderDirection::Desc)];
+
+        let key1 = generate_view_query_key("v_user", None, None, None, Some(&clauses), "v1");
+        let key2 = generate_view_query_key("v_user", None, None, None, Some(&clauses), "v1");
+
+        assert_eq!(key1, key2, "Same order_by must produce identical keys");
+    }
+
+    #[test]
+    fn test_view_key_with_and_without_order_by() {
+        use crate::db::{OrderByClause, OrderDirection};
+
+        let clauses = [OrderByClause::new("name".into(), OrderDirection::Asc)];
+
+        let key_with = generate_view_query_key("v_user", None, None, None, Some(&clauses), "v1");
+        let key_without = generate_view_query_key("v_user", None, None, None, None, "v1");
+
+        assert_ne!(key_with, key_without, "Presence of order_by must change key");
+    }
+
+    #[test]
+    fn test_view_key_different_fields_produce_different_keys() {
+        use crate::db::{OrderByClause, OrderDirection};
+
+        let by_name = [OrderByClause::new("name".into(), OrderDirection::Asc)];
+        let by_date =
+            [OrderByClause::new("createdAt".into(), OrderDirection::Asc)];
+
+        let key_name = generate_view_query_key("v_user", None, None, None, Some(&by_name), "v1");
+        let key_date = generate_view_query_key("v_user", None, None, None, Some(&by_date), "v1");
+
+        assert_ne!(key_name, key_date, "Different order_by fields must produce different keys");
+    }
+
+    #[test]
+    fn test_projection_key_includes_order_by() {
+        use crate::db::{OrderByClause, OrderDirection};
+
+        let clauses = [OrderByClause::new("name".into(), OrderDirection::Asc)];
+
+        let key_with =
+            generate_projection_query_key("v_user", None, None, None, None, Some(&clauses), "v1");
+        let key_without =
+            generate_projection_query_key("v_user", None, None, None, None, None, "v1");
+
+        assert_ne!(key_with, key_without, "Projection key must include order_by");
     }
 }

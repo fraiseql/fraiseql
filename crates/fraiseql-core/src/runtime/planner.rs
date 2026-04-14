@@ -112,24 +112,42 @@ impl QueryPlanner {
         })
     }
 
-    /// Choose JSONB handling strategy based on number of requested fields.
-    fn choose_jsonb_strategy(&self, projection_fields: &[String]) -> JsonbStrategy {
-        // Estimate total fields - in reality this would come from schema
-        // For now, use a reasonable estimate based on common field counts
-        let estimated_total_fields = projection_fields.len().max(10); // assume at least 10 fields available
-        self.jsonb_options
-            .choose_strategy(projection_fields.len(), estimated_total_fields)
+    /// Choose JSONB handling strategy based on requested fields.
+    ///
+    /// When a selection set is available (non-empty `projection_fields`), we
+    /// always use `Project` so that the response keys are emitted in camelCase
+    /// by `jsonb_build_object`.  The `Stream` strategy returns raw JSONB with
+    /// `snake_case` keys, which violates client expectations.
+    ///
+    /// `Stream` is only used as a fallback when no specific fields are requested.
+    const fn choose_jsonb_strategy(&self, projection_fields: &[String]) -> JsonbStrategy {
+        if projection_fields.is_empty() {
+            self.jsonb_options.default_strategy
+        } else {
+            JsonbStrategy::Project
+        }
     }
 
     /// Extract field names for projection from parsed selections.
     ///
     /// For a query like `{ users { id name } }`, this extracts `["id", "name"]`.
+    ///
+    /// Filter `__typename` from SQL projection fields.
+    /// `__typename` is a GraphQL meta-field not stored in JSONB.
+    /// The `ResultProjector` handles injection — see `projection.rs`.
+    /// Removing this filter causes `data->>'__typename'` (NULL) to overwrite
+    /// the value injected by `with_typename()`, depending on field iteration order.
     fn extract_projection_fields(&self, selections: &[FieldSelection]) -> Vec<String> {
-        // Get the first (root) selection and extract its nested fields
+        // Get the first (root) selection and extract its nested fields.
+        // Skip `__typename` — it is a GraphQL meta-field handled by the projector
+        // at the Rust level; including it in the field list causes the SQL projection
+        // to emit `data->>'__typename'` which returns NULL and then overwrites the
+        // correctly-computed typename injected by `ResultProjector::with_typename`.
         if let Some(root_selection) = selections.first() {
             root_selection
                 .nested_fields
                 .iter()
+                .filter(|f| f.name != "__typename")
                 .map(|f| f.response_key().to_string())
                 .collect()
         } else {
@@ -303,6 +321,27 @@ mod tests {
     // ========================================================================
 
     #[test]
+    fn test_projection_fields_exclude_typename() {
+        let planner = QueryPlanner::new(true);
+        let mut query_match = test_query_match();
+
+        // Add __typename to the nested fields of the root selection
+        query_match.selections[0].nested_fields.push(FieldSelection {
+            name:          "__typename".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![],
+        });
+
+        let plan = planner.plan(&query_match).unwrap();
+
+        // __typename must NOT appear in projection fields (it's a GraphQL meta-field)
+        assert!(!plan.projection_fields.contains(&"__typename".to_string()));
+        assert_eq!(plan.projection_fields, vec!["id".to_string(), "name".to_string()]);
+    }
+
+    #[test]
     fn test_plan_includes_jsonb_strategy() {
         let planner = QueryPlanner::new(true);
         let query_match = test_query_match();
@@ -313,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    fn test_planner_with_custom_jsonb_options() {
+    fn test_planner_always_projects_when_fields_present() {
         let custom_options = JsonbOptimizationOptions {
             default_strategy:       JsonbStrategy::Stream,
             auto_threshold_percent: 50,
@@ -322,47 +361,48 @@ mod tests {
         let query_match = test_query_match();
 
         let plan = planner.plan(&query_match).unwrap();
-        // With custom options, strategy selection changes
-        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Stream);
+        // Even with Stream default, must use Project when selections exist
+        // to ensure camelCase response keys
+        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
     }
 
     #[test]
-    fn test_choose_jsonb_strategy_below_threshold() {
-        let options = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
-            auto_threshold_percent: 80,
-        };
-        let planner = QueryPlanner::with_jsonb_options(true, options);
-
-        // 2 fields requested out of ~10 estimated = 20% < 80% threshold
-        let strategy = planner.choose_jsonb_strategy(&["id".to_string(), "name".to_string()]);
-        assert_eq!(strategy, JsonbStrategy::Project);
-    }
-
-    #[test]
-    fn test_choose_jsonb_strategy_at_threshold() {
-        let options = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
-            auto_threshold_percent: 80,
-        };
-        let planner = QueryPlanner::with_jsonb_options(true, options);
-
-        // 9 fields requested out of ~10 estimated = 90% >= 80% threshold
-        let many_fields = (0..9).map(|i| format!("field_{}", i)).collect::<Vec<_>>();
-        let strategy = planner.choose_jsonb_strategy(&many_fields);
-        assert_eq!(strategy, JsonbStrategy::Stream);
-    }
-
-    #[test]
-    fn test_choose_jsonb_strategy_respects_default() {
+    fn test_choose_jsonb_strategy_forces_project_with_fields() {
         let options = JsonbOptimizationOptions {
             default_strategy:       JsonbStrategy::Stream,
             auto_threshold_percent: 80,
         };
         let planner = QueryPlanner::with_jsonb_options(true, options);
 
-        // Even with few fields, should use Stream as default
-        let strategy = planner.choose_jsonb_strategy(&["id".to_string()]);
+        // Any non-empty selection set must use Project for camelCase keys
+        let strategy = planner.choose_jsonb_strategy(&["id".to_string(), "name".to_string()]);
+        assert_eq!(strategy, JsonbStrategy::Project);
+    }
+
+    #[test]
+    fn test_choose_jsonb_strategy_forces_project_with_many_fields() {
+        let options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Project,
+            auto_threshold_percent: 80,
+        };
+        let planner = QueryPlanner::with_jsonb_options(true, options);
+
+        // Even with many fields (above old threshold), must use Project
+        let many_fields = (0..9).map(|i| format!("field_{}", i)).collect::<Vec<_>>();
+        let strategy = planner.choose_jsonb_strategy(&many_fields);
+        assert_eq!(strategy, JsonbStrategy::Project);
+    }
+
+    #[test]
+    fn test_choose_jsonb_strategy_empty_fields_uses_default() {
+        let options = JsonbOptimizationOptions {
+            default_strategy:       JsonbStrategy::Stream,
+            auto_threshold_percent: 80,
+        };
+        let planner = QueryPlanner::with_jsonb_options(true, options);
+
+        // Empty selection set falls back to default strategy
+        let strategy = planner.choose_jsonb_strategy(&[]);
         assert_eq!(strategy, JsonbStrategy::Stream);
     }
 }

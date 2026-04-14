@@ -81,7 +81,9 @@ pub use field_filter::{FieldAccessResult, can_access_field, classify_field_acces
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use planner::{ExecutionPlan, QueryPlanner};
-pub use projection::{FieldMapping, ProjectionMapper, ResultProjector};
+pub use projection::{
+    FieldMapping, ProjectionMapper, ResultProjector, build_field_mappings_from_type,
+};
 pub use query_tracing::{
     QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder, create_phase_span, create_query_span,
 };

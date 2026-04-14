@@ -280,6 +280,10 @@ fn load_runtime_config_from_toml(
 }
 
 /// Build a `ServerConfig` from resolved runtime parameters.
+///
+/// Constructs the config from TOML-derived values and CLI overrides, then
+/// applies any server-production overrides (metrics, admin, rate limiting)
+/// from env vars via [`fraiseql_server::ServerArgs`].
 fn build_config_from(
     db_url: &str,
     bind_addr: SocketAddr,
@@ -289,7 +293,7 @@ fn build_config_from(
 ) -> ServerConfig {
     let tls = server.tls.enabled.then(|| build_tls_config(&server.tls));
 
-    ServerConfig {
+    let mut config = ServerConfig {
         database_url: db_url.to_string(),
         bind_addr,
         cors_enabled: true,
@@ -303,7 +307,16 @@ fn build_config_from(
         // (development convenience; production setups use fraiseql-server directly).
         introspection_require_auth: false,
         ..ServerConfig::default()
-    }
+    };
+
+    // Apply any server-production env var overrides (metrics, admin, rate
+    // limiting, etc.) via the shared ServerArgs struct.  This picks up env
+    // vars like FRAISEQL_METRICS_ENABLED without duplicating the parsing
+    // logic here.
+    let server_args = fraiseql_server::ServerArgs::from_env();
+    server_args.apply_to_config(&mut config);
+
+    config
 }
 
 /// Convert `TlsRuntimeConfig` → `TlsServerConfig`.

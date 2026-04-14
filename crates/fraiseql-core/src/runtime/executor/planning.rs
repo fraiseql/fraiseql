@@ -43,9 +43,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation { ref name, .. } => {
                 let mutation_def =
                     self.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(|| {
-                        let candidates: Vec<&str> =
-                            self.schema.mutations.iter().map(|m| m.name.as_str()).collect();
-                        let suggestion = suggest_similar(name, &candidates);
+                        let display_names: Vec<String> =
+                            self.schema.mutations.iter().map(|m| self.schema.display_name(&m.name)).collect();
+                        let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
+                        let suggestion = suggest_similar(name, &candidate_refs);
                         let message = match suggestion.as_slice() {
                             [s] => format!(
                                 "Mutation '{name}' not found in schema. Did you mean '{s}'?"
@@ -115,7 +116,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 views_accessed: Vec::new(),
                 query_type:     "federation".to_string(),
             }),
-            QueryType::NodeQuery => Ok(super::super::ExplainPlan {
+            QueryType::NodeQuery { .. } => Ok(super::super::ExplainPlan {
                 sql:            String::new(),
                 parameters:     Vec::new(),
                 estimated_cost: 50,

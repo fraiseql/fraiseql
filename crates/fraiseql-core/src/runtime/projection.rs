@@ -1,24 +1,32 @@
 //! Result projection - transforms JSONB database results to GraphQL responses.
 
+use std::collections::HashSet;
+
 use serde_json::{Map, Value as JsonValue};
 
 use crate::{
     db::types::JsonbValue,
     error::{FraiseQLError, Result},
+    graphql::FieldSelection,
+    schema::{CompiledSchema, FieldDefinition},
 };
 
 /// Field mapping for projection with alias support.
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// JSONB key name (source).
-    pub source:          String,
+    pub source:           String,
     /// Output key name (alias if different from source).
-    pub output:          String,
+    pub output:           String,
+    /// Fallback source key to try when the primary `source` is not found.
+    /// Used for mutation error metadata where the key may be either `camelCase`
+    /// or `snake_case` depending on the backend.
+    pub source_fallback:  Option<String>,
     /// For nested object fields, the typename to add.
     /// This enables `__typename` to be added recursively to nested objects.
-    pub nested_typename: Option<String>,
+    pub nested_typename:  Option<String>,
     /// Nested field mappings (for related objects).
-    pub nested_fields:   Option<Vec<FieldMapping>>,
+    pub nested_fields:    Option<Vec<FieldMapping>>,
 }
 
 impl FieldMapping {
@@ -29,6 +37,7 @@ impl FieldMapping {
         Self {
             source:          name.clone(),
             output:          name,
+            source_fallback: None,
             nested_typename: None,
             nested_fields:   None,
         }
@@ -40,6 +49,7 @@ impl FieldMapping {
         Self {
             source:          source.into(),
             output:          alias.into(),
+            source_fallback: None,
             nested_typename: None,
             nested_fields:   None,
         }
@@ -66,10 +76,11 @@ impl FieldMapping {
     ) -> Self {
         let name = name.into();
         Self {
-            source:          name.clone(),
-            output:          name,
-            nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            source:           name.clone(),
+            output:           name,
+            source_fallback:  None,
+            nested_typename:  Some(typename.into()),
+            nested_fields:    Some(fields),
         }
     }
 
@@ -82,10 +93,11 @@ impl FieldMapping {
         fields: Vec<FieldMapping>,
     ) -> Self {
         Self {
-            source:          source.into(),
-            output:          alias.into(),
-            nested_typename: Some(typename.into()),
-            nested_fields:   Some(fields),
+            source:           source.into(),
+            output:           alias.into(),
+            source_fallback:  None,
+            nested_typename:  Some(typename.into()),
+            nested_fields:    Some(fields),
         }
     }
 
@@ -108,9 +120,12 @@ impl FieldMapping {
 #[derive(Debug, Clone)]
 pub struct ProjectionMapper {
     /// Fields to project (with optional aliases).
-    pub fields:   Vec<FieldMapping>,
+    pub fields:          Vec<FieldMapping>,
     /// Optional `__typename` value to add to each object.
-    pub typename: Option<String>,
+    pub typename:        Option<String>,
+    /// When `true`, `__typename` is injected unconditionally regardless of selection set.
+    /// Used by federation `_entities` resolver where the gateway always expects `__typename`.
+    pub federation_mode: bool,
 }
 
 impl ProjectionMapper {
@@ -118,8 +133,9 @@ impl ProjectionMapper {
     #[must_use]
     pub fn new(fields: Vec<String>) -> Self {
         Self {
-            fields:   fields.into_iter().map(FieldMapping::simple).collect(),
-            typename: None,
+            fields:          fields.into_iter().map(FieldMapping::simple).collect(),
+            typename:        None,
+            federation_mode: false,
         }
     }
 
@@ -128,7 +144,8 @@ impl ProjectionMapper {
     pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             fields,
-            typename: None,
+            typename:        None,
+            federation_mode: false,
         }
     }
 
@@ -136,6 +153,13 @@ impl ProjectionMapper {
     #[must_use]
     pub fn with_typename(mut self, typename: impl Into<String>) -> Self {
         self.typename = Some(typename.into());
+        self
+    }
+
+    /// Enable federation mode: `__typename` is always injected regardless of selection set.
+    #[must_use]
+    pub const fn with_federation_mode(mut self, enabled: bool) -> Self {
+        self.federation_mode = enabled;
         self
     }
 
@@ -164,7 +188,15 @@ impl ProjectionMapper {
     }
 
     /// Project object fields from JSON object.
-    fn project_json_object(&self, map: &serde_json::Map<String, JsonValue>) -> Result<JsonValue> {
+    ///
+    /// Maps source keys to output keys according to the configured `FieldMapping`s,
+    /// injects `__typename` when configured, and recursively projects nested objects
+    /// and arrays.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if nested value projection fails.
+    pub fn project_json_object(&self, map: &serde_json::Map<String, JsonValue>) -> Result<JsonValue> {
         let mut result = Map::new();
 
         // Add __typename first if configured (GraphQL convention)
@@ -172,10 +204,12 @@ impl ProjectionMapper {
             result.insert("__typename".to_string(), JsonValue::String(typename.clone()));
         }
 
-        // Project fields with alias support
+        // Project fields with alias support and optional fallback key
         for field in &self.fields {
-            if let Some(value) = map.get(&field.source) {
-                // Handle nested objects with their own typename
+            let value = map.get(&field.source).or_else(|| {
+                field.source_fallback.as_ref().and_then(|fb| map.get(fb))
+            });
+            if let Some(value) = value {
                 let projected_value = self.project_nested_value(value, field)?;
                 result.insert(field.output.clone(), projected_value);
             }
@@ -289,6 +323,32 @@ impl ResultProjector {
     #[must_use]
     pub fn with_typename(mut self, typename: impl Into<String>) -> Self {
         self.mapper = self.mapper.with_typename(typename);
+        self
+    }
+
+    /// Configure typename injection from the query selection set.
+    ///
+    /// Inspects the root selection's nested fields for `__typename`. If found,
+    /// enables typename injection via [`with_typename`](Self::with_typename).
+    #[must_use]
+    pub fn configure_typename_from_selections(
+        self,
+        selections: &[FieldSelection],
+        entity_type: &str,
+    ) -> Self {
+        let wants_typename = selections
+            .first()
+            .is_some_and(|root| root.nested_fields.iter().any(|f| f.name == "__typename"));
+        if wants_typename { self.with_typename(entity_type) } else { self }
+    }
+
+    /// Enable federation mode: `__typename` is always injected regardless of selection set.
+    ///
+    /// Used by the `_entities` federation resolver where the gateway always expects
+    /// `__typename` in entity results.
+    #[must_use]
+    pub fn with_federation_mode(mut self, enabled: bool) -> Self {
+        self.mapper = self.mapper.with_federation_mode(enabled);
         self
     }
 
@@ -434,6 +494,104 @@ impl ResultProjector {
 
         JsonValue::Object(response)
     }
+}
+
+/// Build `FieldMapping`s from a type definition's fields, mapping `camelCase`
+/// source keys (as stored in mutation metadata JSONB) to `snake_case` output keys
+/// (as defined in the GraphQL schema).
+///
+/// Recursively builds nested mappings for `Object` and `List(Object)` fields by
+/// looking up types in the compiled schema. This enables the same `ProjectionMapper`
+/// pipeline used for query results to handle mutation error metadata.
+///
+/// # Arguments
+///
+/// * `fields` — the type's field definitions
+/// * `schema` — compiled schema for resolving nested object types
+/// * `requested` — optional selection filter; when `Some`, only listed fields are included
+/// * `visited` — cycle guard to prevent infinite recursion on self-referencing types
+#[must_use]
+#[allow(clippy::implicit_hasher)] // Reason: internal API; no need for hasher generality
+pub fn build_field_mappings_from_type(
+    fields: &[FieldDefinition],
+    schema: &CompiledSchema,
+    requested: Option<&[String]>,
+    visited: &mut HashSet<String>,
+) -> Vec<FieldMapping> {
+    fields
+        .iter()
+        .filter(|f| {
+            requested.is_none_or(|r| r.iter().any(|name| name == f.name.as_str()))
+        })
+        .map(|field| {
+            let source = to_camel_case(field.name.as_str());
+            let output = field.name.to_string();
+
+            // Fallback: try snake_case key when camelCase is not found.
+            // Mutation metadata may use either convention depending on the backend.
+            let source_fallback = if source != output {
+                Some(output.clone())
+            } else {
+                None
+            };
+
+            // Resolve the innermost type (unwrap List wrapper if present)
+            let inner = field
+                .field_type
+                .inner_type()
+                .unwrap_or(&field.field_type);
+
+            if let Some(type_name) = inner.type_name() {
+                // Object/Enum/Interface reference — try to resolve in schema
+                if let Some(td) = schema.find_type(type_name) {
+                    if visited.insert(type_name.to_string()) {
+                        let nested = build_field_mappings_from_type(
+                            &td.fields, schema, None, visited,
+                        );
+                        visited.remove(type_name);
+                        return FieldMapping {
+                            source,
+                            output,
+                            source_fallback,
+                            nested_typename: Some(type_name.to_string()),
+                            nested_fields:   Some(nested),
+                        };
+                    }
+                    // Cycle detected — return without recursion
+                }
+            }
+
+            FieldMapping {
+                source,
+                output,
+                source_fallback,
+                nested_typename: None,
+                nested_fields:   None,
+            }
+        })
+        .collect()
+}
+
+/// Convert a `snake_case` field name to `camelCase` for metadata key lookup.
+///
+/// Examples: `"last_activity_date"` → `"lastActivityDate"`,
+///            `"cascade_count"` → `"cascadeCount"`.
+fn to_camel_case(snake: &str) -> String {
+    let mut result = String::with_capacity(snake.len());
+    let mut capitalise_next = false;
+
+    for ch in snake.chars() {
+        if ch == '_' {
+            capitalise_next = true;
+        } else if capitalise_next {
+            result.push(ch.to_ascii_uppercase());
+            capitalise_next = false;
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -928,6 +1086,137 @@ mod tests {
         assert_eq!(author.get("id"), Some(&json!("user-2")));
         assert_eq!(author.get("name"), Some(&json!("Bob")));
     }
+
+    // ========================================================================
+    // configure_typename_from_selections tests
+    // ========================================================================
+
+    fn make_selections_with_typename() -> Vec<FieldSelection> {
+        vec![FieldSelection {
+            name:          "users".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![
+                FieldSelection {
+                    name:          "id".to_string(),
+                    alias:         None,
+                    arguments:     vec![],
+                    nested_fields: vec![],
+                    directives:    vec![],
+                },
+                FieldSelection {
+                    name:          "__typename".to_string(),
+                    alias:         None,
+                    arguments:     vec![],
+                    nested_fields: vec![],
+                    directives:    vec![],
+                },
+            ],
+            directives:    vec![],
+        }]
+    }
+
+    fn make_selections_without_typename() -> Vec<FieldSelection> {
+        vec![FieldSelection {
+            name:          "users".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![FieldSelection {
+                name:          "id".to_string(),
+                alias:         None,
+                arguments:     vec![],
+                nested_fields: vec![],
+                directives:    vec![],
+            }],
+            directives:    vec![],
+        }]
+    }
+
+    #[test]
+    fn test_configure_typename_from_selections_present() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&make_selections_with_typename(), "User");
+
+        let data = json!({ "id": "1", "name": "Alice" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(result, json!({ "__typename": "User", "id": "1" }));
+    }
+
+    #[test]
+    fn test_configure_typename_from_selections_absent() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&make_selections_without_typename(), "User");
+
+        let data = json!({ "id": "1", "name": "Alice" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        // No __typename because selection set didn't request it
+        assert_eq!(result, json!({ "id": "1" }));
+    }
+
+    #[test]
+    fn test_configure_typename_from_selections_list() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&make_selections_with_typename(), "User");
+
+        let results = vec![
+            JsonbValue::new(json!({ "id": "1" })),
+            JsonbValue::new(json!({ "id": "2" })),
+        ];
+        let result = projector.project_results(&results, true).unwrap();
+
+        assert_eq!(
+            result,
+            json!([
+                { "__typename": "User", "id": "1" },
+                { "__typename": "User", "id": "2" }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_configure_typename_empty_selections() {
+        // Empty selections → no typename
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .configure_typename_from_selections(&[], "User");
+
+        let data = json!({ "id": "1" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(result, json!({ "id": "1" }));
+    }
+
+    // ========================================================================
+    // Federation mode tests
+    // ========================================================================
+
+    #[test]
+    fn test_federation_mode_injects_typename() {
+        let projector = ResultProjector::new(vec!["id".to_string()])
+            .with_typename("User")
+            .with_federation_mode(true);
+
+        let data = json!({ "id": "1", "name": "Alice" });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(result, json!({ "__typename": "User", "id": "1" }));
+    }
+
+    #[test]
+    fn test_federation_mode_flag_propagates() {
+        let mapper = ProjectionMapper::new(vec!["id".to_string()]).with_federation_mode(true);
+        assert!(mapper.federation_mode);
+
+        let mapper2 = ProjectionMapper::new(vec!["id".to_string()]).with_federation_mode(false);
+        assert!(!mapper2.federation_mode);
+    }
+
+    // ========================================================================
 
     #[test]
     fn test_nested_without_specific_fields() {

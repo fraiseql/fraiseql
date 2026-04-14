@@ -13,6 +13,7 @@ use super::where_generator::MySqlWhereGenerator;
 use crate::{
     dialect::MySqlDialect,
     identifier::quote_mysql_identifier,
+    order_by::append_order_by,
     traits::{
         CursorValue, DatabaseAdapter, RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
     },
@@ -219,11 +220,11 @@ impl DatabaseAdapter for MySqlAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let Some(projection) = projection else {
@@ -232,8 +233,6 @@ impl DatabaseAdapter for MySqlAdapter {
         };
 
         // Build SQL with MySQL-specific JSON_OBJECT projection
-        // The projection_template contains the SELECT clause with JSON_OBJECT calls
-        // e.g., "JSON_OBJECT('id', data->'$.id', 'email', data->'$.email')"
         let mut sql = format!(
             "SELECT {} FROM {}",
             projection.projection_template,
@@ -250,6 +249,9 @@ impl DatabaseAdapter for MySqlAdapter {
         } else {
             Vec::new()
         };
+
+        // ORDER BY must come before LIMIT/OFFSET.
+        append_order_by(&mut sql, order_by, DatabaseType::MySQL)?;
 
         // Add LIMIT/OFFSET — MySQL requires LIMIT before OFFSET.
         // Reason (expect below): fmt::Write for String is infallible.
@@ -281,7 +283,7 @@ impl DatabaseAdapter for MySqlAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
         // Build base query
         let mut sql = format!("SELECT data FROM {}", quote_mysql_identifier(view));
@@ -297,6 +299,9 @@ impl DatabaseAdapter for MySqlAdapter {
             Vec::new()
         };
 
+        // ORDER BY must come before LIMIT/OFFSET.
+        append_order_by(&mut sql, order_by, DatabaseType::MySQL)?;
+
         // Add LIMIT and OFFSET
         // Note: MySQL requires LIMIT when using OFFSET, so we use a large number for "unlimited"
         match (limit, offset) {
@@ -311,7 +316,6 @@ impl DatabaseAdapter for MySqlAdapter {
             },
             (None, Some(off)) => {
                 // MySQL requires LIMIT with OFFSET; use large number for "unlimited"
-                // MySQL's max is 18446744073709551615, but we use a practical large value
                 sql.push_str(" LIMIT 18446744073709551615 OFFSET ?");
                 params.push(serde_json::Value::Number(off.into()));
             },
@@ -980,10 +984,7 @@ mod unit_tests {
     fn relay_order_sql_forward_with_desc_custom_order() {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
-        let order_by = vec![OrderByClause {
-            field:     "created_at".to_string(),
-            direction: OrderDirection::Desc,
-        }];
+        let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Desc)];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), true);
         assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
         assert!(result.ends_with("`id` ASC"));
@@ -993,10 +994,7 @@ mod unit_tests {
     fn relay_order_sql_backward_flips_asc_to_desc() {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
-        let order_by = vec![OrderByClause {
-            field:     "created_at".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Asc)];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), false);
         assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
         assert!(result.ends_with("`id` DESC"));

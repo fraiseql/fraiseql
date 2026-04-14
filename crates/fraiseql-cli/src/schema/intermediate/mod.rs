@@ -26,6 +26,7 @@ pub use operations::{
     IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
     IntermediateQueryDefaults,
 };
+use fraiseql_core::schema::NamingConvention;
 use serde::{Deserialize, Serialize};
 pub use subscriptions::{
     IntermediateFilterCondition, IntermediateObserver, IntermediateObserverAction,
@@ -157,6 +158,12 @@ pub struct IntermediateSchema {
     /// in `fraiseql.toml`. Used by the converter to resolve per-query `auto_params`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query_defaults: Option<IntermediateQueryDefaults>,
+
+    /// Naming convention for GraphQL operation names.
+    ///
+    /// Compiled from `fraiseql.toml` top-level `naming_convention` setting.
+    #[serde(default)]
+    pub naming_convention: NamingConvention,
 }
 
 fn default_version() -> String {

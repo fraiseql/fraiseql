@@ -812,10 +812,7 @@ mod sqlserver_relay_tests {
         use fraiseql_core::compiler::aggregation::{OrderByClause, OrderDirection};
 
         let a = adapter().await;
-        let order_by = vec![OrderByClause {
-            field:     "score".to_string(),
-            direction: OrderDirection::Asc,
-        }];
+        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Asc)];
 
         // before = UUID-5 (score=90), limit=3, forward=false, order_by score ASC.
         // Rows with UUID < UUID-5: item-1(50), item-2(30), item-3(70), item-4(10).
