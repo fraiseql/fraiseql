@@ -1,11 +1,6 @@
 # FraiseQL v2 - Compiled GraphQL Execution Engine
 # Workspace root configuration
 
-[patch.crates-io]
-# Local patch: upgrade thiserror dependency from 1.x to 2.x to eliminate
-# duplicate thiserror versions in the build. Pending upstream PR to graphql-rust/graphql-parser.
-graphql-parser = {path = "vendor/graphql-parser"}
-
 [profile.bench]
 lto = "thin"
 opt-level = 3
@@ -76,8 +71,6 @@ fraiseql-server = {path = "crates/fraiseql-server", version = "2.1.6"}
 fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.1.6"}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.1.6"}
 futures = "0.3"
-# GraphQL parsing — patched via vendor/graphql-parser to use thiserror 2.x.
-# See [patch.crates-io] at the bottom of this file.
 graphql-parser = "0.4"
 hex = "0.4"
 hmac = "0.12"
