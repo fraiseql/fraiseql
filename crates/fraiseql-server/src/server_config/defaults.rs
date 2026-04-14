@@ -26,6 +26,10 @@ pub const fn default_true() -> bool {
     true
 }
 
+pub const fn default_false() -> bool {
+    false
+}
+
 /// 1 MB default body limit.
 pub const fn default_max_request_body_bytes() -> usize {
     1_048_576

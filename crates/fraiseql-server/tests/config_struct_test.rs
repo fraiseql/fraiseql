@@ -37,7 +37,7 @@ fn test_default_config() {
     assert_eq!(config.introspection_path, "/introspection");
     assert_eq!(config.schema_path, PathBuf::from("schema.compiled.json"));
     assert!(config.cors_enabled);
-    assert!(config.compression_enabled);
+    assert!(!config.compression_enabled);
     assert!(config.tracing_enabled);
 }
 

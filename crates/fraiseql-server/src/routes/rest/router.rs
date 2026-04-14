@@ -19,7 +19,7 @@ use fraiseql_core::{
     runtime::Executor,
 };
 use serde_json::json;
-use tower_http::compression::CompressionLayer;
+use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
 use tracing::info;
 
 use super::{
@@ -141,7 +141,7 @@ where
     // Finalize state; apply framework-level compression if enabled.
     let mut router = router.with_state(rest_state);
     if compression_enabled {
-        router = router.layer(CompressionLayer::new());
+        router = router.layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)));
     }
 
     // Serve OpenAPI specification at {base_path}/openapi.json.
@@ -269,7 +269,7 @@ where
     // Finalize state; apply framework-level compression if enabled.
     let mut router = router.with_state(rest_state);
     if compression_enabled {
-        router = router.layer(CompressionLayer::new());
+        router = router.layer(CompressionLayer::new().compress_when(SizeAbove::new(1024)));
     }
 
     // Serve OpenAPI specification at {base_path}/openapi.json.

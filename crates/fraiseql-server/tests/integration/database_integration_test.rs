@@ -89,7 +89,7 @@ fn test_server_config_defaults() {
     assert_eq!(config.graphql_path, "/graphql");
     assert_eq!(config.health_path, "/health");
     assert!(config.cors_enabled);
-    assert!(config.compression_enabled);
+    assert!(!config.compression_enabled);
 }
 
 /// Test server configuration with custom pool settings

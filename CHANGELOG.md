@@ -5,6 +5,51 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.6] - 2026-04-14
+
+### Performance
+
+- **Eliminated `serde_json` string round-trip in executor** (#153). All executor
+  methods now return `serde_json::Value` directly instead of serializing to `String` and
+  immediately deserializing again on every request. Touched 26 files across
+  `fraiseql-core`, `fraiseql-server`, and `fraiseql-arrow`.
+
+- **Parsed-query AST cache on `Executor`** (#153). Repeated identical query strings skip
+  the full lexer + recursive-descent parse. A lock-free `moka` cache keyed by xxHash64 of
+  the query string returns an `Arc<(QueryType, Option<ParsedQuery>)>` in nanoseconds. Only
+  successful parses are cached; errors are never stored. Capacity: 1 024 distinct query
+  strings.
+
+- **Executor-level response cache** (#156). An optional second cache tier above the
+  adapter-level row cache. On a hit, the entire projection + RBAC + envelope-wrapping
+  pipeline is skipped — only an `Arc::clone`. Keyed by `(query_hash,
+  security_context_hash)`; the security hash covers `user_id`, roles, `tenant_id`, scopes,
+  and custom `attributes`, so users never see each other's cached data. View-based
+  invalidation via a `DashMap` reverse index (O(k), no full-cache scan). Opt-in via
+  `ResponseCacheConfig`; disabled by default.
+
+- **TCP_NODELAY + gated compression on GraphQL route** (#157). Enables `TCP_NODELAY` to
+  eliminate Nagle-algorithm buffering on response frames. Adds a `CompressionLayer` to the
+  GraphQL and REST routers, gated on `compression_enabled` (see *Changed* below).
+
+### Changed (breaking default)
+
+- **`compression_enabled` now defaults to `false`** (was `true` earlier in this release
+  cycle). FraiseQL is overwhelmingly deployed behind a reverse proxy (Nginx, Caddy, cloud
+  load balancer) that already handles compression — often with brotli, shared across
+  upstreams, and with static-asset caching. Framework-level gzip duplicated that work and
+  silently cost 3× RPS on TEXT-heavy GraphQL responses under concurrency. Single-binary /
+  no-proxy deployments can opt back in with `compression_enabled = true` in `fraiseql.toml`.
+- **Compression now skips responses under 1 KiB** when enabled. tiny payloads (short
+  GraphQL results, health responses) pay no compressor overhead.
+
+### Changed
+
+- **Removed dead Cargo features**: `cors`, `database`, and `rich-filters` features that were
+  defined but no longer wired to any code have been removed from the workspace.
+
+---
+
 ## [2.1.5] - 2026-04-12
 
 ### Added
