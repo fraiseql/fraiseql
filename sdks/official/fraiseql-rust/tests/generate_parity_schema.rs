@@ -6,8 +6,85 @@
 //! metadata, and that the fragment is parseable JSON matching the expected
 //! type structure.
 
+use std::fs;
+
 use fraiseql_rust::field::Field;
 use fraiseql_rust::schema::SchemaRegistry;
+
+/// Build the canonical parity registry (same 3 types as Python/TS/Go reference).
+fn build_parity_registry() -> SchemaRegistry {
+    let mut registry = SchemaRegistry::new();
+
+    registry.register_type(
+        "User",
+        vec![
+            Field::new("id", "ID").with_nullable(false),
+            Field::new("email", "String").with_nullable(false),
+            Field::new("name", "String").with_nullable(false),
+        ],
+    );
+
+    registry.register_type(
+        "Order",
+        vec![
+            Field::new("id", "ID").with_nullable(false),
+            Field::new("total", "Float").with_nullable(false),
+        ],
+    );
+
+    registry.register_type(
+        "UserNotFound",
+        vec![
+            Field::new("message", "String").with_nullable(false),
+            Field::new("code", "String").with_nullable(false),
+        ],
+    );
+
+    registry
+}
+
+/// Serialize the registry to the parity-comparator JSON shape:
+/// `{ "types": [ {"name": "...", "fields": [ {"name":..., "type":..., "nullable":...}, ... ] }, ... ] }`
+///
+/// The Rust SDK is authoring-for-RBAC only, so queries/mutations are intentionally empty —
+/// matched via `compare_schemas.py --types-only` in CI.
+fn registry_to_parity_json(registry: &SchemaRegistry) -> String {
+    // Deterministic ordering so CI diffs are stable. Comparator is order-agnostic
+    // but consistent output simplifies debugging.
+    let ordered_names = ["Order", "User", "UserNotFound"];
+
+    let type_entries: Vec<String> = ordered_names
+        .iter()
+        .filter_map(|name| registry.get_type(name).map(|fields| (name, fields)))
+        .map(|(name, fields)| {
+            let field_jsons: Vec<String> = fields.iter().map(Field::to_json).collect();
+            format!(
+                "{{\"name\":\"{name}\",\"fields\":[{fields}]}}",
+                fields = field_jsons.join(",")
+            )
+        })
+        .collect();
+
+    format!(
+        "{{\"types\":[{types}],\"queries\":[],\"mutations\":[]}}",
+        types = type_entries.join(",")
+    )
+}
+
+/// Write parity JSON when `SCHEMA_OUTPUT_FILE` is set (used by CI).
+#[test]
+fn emit_parity_schema_json_when_env_set() {
+    let Ok(path) = std::env::var("SCHEMA_OUTPUT_FILE") else {
+        return; // Not running under CI; nothing to emit.
+    };
+    if path.is_empty() {
+        return;
+    }
+
+    let registry = build_parity_registry();
+    let json = registry_to_parity_json(&registry);
+    fs::write(&path, json).expect("SCHEMA_OUTPUT_FILE path must be writable");
+}
 
 /// Build the parity type definitions and verify they contain the expected fields.
 #[test]

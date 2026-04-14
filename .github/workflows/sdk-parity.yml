@@ -85,9 +85,9 @@ jobs:
           go test -count=1 -run TestGenerateParitySchema -v ./fraiseql/
 
       # -----------------------------------------------------------------------
-      # Deep structural comparison
+      # Deep structural comparison — hard gate (Python, TypeScript, Go)
       # -----------------------------------------------------------------------
-      - name: Compare all SDK schema outputs
+      - name: Compare core SDK schema outputs (strict)
         run: |
           # Full parity: Python (reference) vs TypeScript, Go
           # Checks: type/query/mutation names, field types, nullability,
@@ -95,6 +95,97 @@ jobs:
           python3 sdks/official/tests/compare_schemas.py \
             --reference /tmp/schema_python.json \
             --compare /tmp/schema_ts.json /tmp/schema_go.json
+
+      # -----------------------------------------------------------------------
+      # Rust SDK (types-only — authoring SDK is RBAC-focused)
+      # -----------------------------------------------------------------------
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        continue-on-error: true
+
+      - name: Generate schema via Rust SDK
+        working-directory: sdks/official/fraiseql-rust
+        env:
+          SCHEMA_OUTPUT_FILE: /tmp/schema_rust.json
+        continue-on-error: true
+        run: cargo test --test generate_parity_schema -- --nocapture
+
+      # -----------------------------------------------------------------------
+      # PHP SDK (full parity)
+      # -----------------------------------------------------------------------
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        continue-on-error: true
+        with:
+          php-version: '8.2'
+          tools: composer
+
+      - name: Install PHP SDK dependencies
+        working-directory: sdks/official/fraiseql-php
+        continue-on-error: true
+        run: composer install --prefer-dist --no-progress
+
+      - name: Generate schema via PHP SDK
+        working-directory: sdks/official/fraiseql-php
+        continue-on-error: true
+        run: php tests/GenerateParitySchema.php > /tmp/schema_php.json
+
+      # -----------------------------------------------------------------------
+      # Elixir SDK (full parity)
+      # -----------------------------------------------------------------------
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        continue-on-error: true
+        with:
+          otp-version: '26'
+          elixir-version: '1.15'
+
+      - name: Install Elixir deps
+        working-directory: sdks/official/fraiseql-elixir
+        continue-on-error: true
+        run: mix deps.get
+
+      - name: Generate schema via Elixir SDK
+        working-directory: sdks/official/fraiseql-elixir
+        env:
+          SCHEMA_OUTPUT_FILE: /tmp/schema_elixir.json
+        continue-on-error: true
+        run: mix test test/generate_parity_schema_test.exs
+
+      # -----------------------------------------------------------------------
+      # Extended parity (Rust / PHP / Elixir) — soft gate for first landing.
+      # Any mismatch is reported but does not fail the build. Flip to strict
+      # in a follow-up PR once the baseline is clean.
+      # -----------------------------------------------------------------------
+      - name: Compare extended SDK schema outputs (soft)
+        continue-on-error: true
+        run: |
+          compare_args=()
+          types_only_args=()
+          if [ -s /tmp/schema_php.json ]; then
+            compare_args+=(/tmp/schema_php.json)
+          else
+            echo "::warning::PHP parity schema missing — skipping"
+          fi
+          if [ -s /tmp/schema_elixir.json ]; then
+            compare_args+=(/tmp/schema_elixir.json)
+          else
+            echo "::warning::Elixir parity schema missing — skipping"
+          fi
+          if [ -s /tmp/schema_rust.json ]; then
+            types_only_args+=(/tmp/schema_rust.json)
+          else
+            echo "::warning::Rust parity schema missing — skipping"
+          fi
+
+          cmd=(python3 sdks/official/tests/compare_schemas.py --reference /tmp/schema_python.json)
+          if [ ${#compare_args[@]} -gt 0 ]; then
+            cmd+=(--compare "${compare_args[@]}")
+          fi
+          if [ ${#types_only_args[@]} -gt 0 ]; then
+            cmd+=(--types-only "${types_only_args[@]}")
+          fi
+          "${cmd[@]}"
 
       - name: Upload schema artifacts on failure
         if: failure()
@@ -105,4 +196,7 @@ jobs:
             /tmp/schema_python.json
             /tmp/schema_ts.json
             /tmp/schema_go.json
+            /tmp/schema_rust.json
+            /tmp/schema_php.json
+            /tmp/schema_elixir.json
           retention-days: 7
