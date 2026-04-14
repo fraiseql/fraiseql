@@ -10,6 +10,7 @@ use axum::{
     routing::{get, post},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
+use tower_http::compression::CompressionLayer;
 use tracing::{info, warn};
 
 use super::{
@@ -215,6 +216,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             } else {
                 router.with_state(state.clone())
             }
+        };
+
+        // Apply framework-level compression if enabled.
+        // In production, prefer reverse-proxy compression (Nginx, Caddy, cloud LB)
+        // which offloads CPU and provides uniform config across all upstreams.
+        let graphql_router = if self.config.compression_enabled {
+            graphql_router.layer(CompressionLayer::new())
+        } else {
+            graphql_router
         };
 
         // Build base routes (always available without auth)

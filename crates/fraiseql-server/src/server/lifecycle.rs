@@ -1,5 +1,6 @@
 //! Server lifecycle: serve, `serve_with_shutdown`, and `shutdown_signal`.
 
+use axum::serve::ListenerExt;
 use tokio::net::TcpListener;
 use tracing::{error, info, warn};
 
@@ -124,9 +125,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             drop(guard);
         }
 
+        // Explicitly enable TCP_NODELAY (disable Nagle's algorithm) on every
+        // accepted connection to minimise latency for small GraphQL responses.
         let listener = TcpListener::bind(self.config.bind_addr)
             .await
-            .map_err(|e| ServerError::BindError(e.to_string()))?;
+            .map_err(|e| ServerError::BindError(e.to_string()))?
+            .tap_io(|tcp_stream| {
+                if let Err(err) = tcp_stream.set_nodelay(true) {
+                    warn!("failed to set TCP_NODELAY: {err:#}");
+                }
+            });
 
         // Warn if the process file descriptor limit is below the recommended minimum.
         // A low limit causes "too many open files" errors under load.

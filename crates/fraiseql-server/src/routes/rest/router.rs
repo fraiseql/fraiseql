@@ -114,7 +114,7 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_query_router<A>(state: &AppState<A>) -> Option<Router>
+pub fn rest_query_router<A>(state: &AppState<A>, compression_enabled: bool) -> Option<Router>
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
@@ -138,8 +138,11 @@ where
         router = router.route(&stream_path, get(rest_sse_handler::<A>));
     }
 
-    // Finalize state and apply compression.
-    let mut router = router.with_state(rest_state).layer(CompressionLayer::new());
+    // Finalize state; apply framework-level compression if enabled.
+    let mut router = router.with_state(rest_state);
+    if compression_enabled {
+        router = router.layer(CompressionLayer::new());
+    }
 
     // Serve OpenAPI specification at {base_path}/openapi.json.
     let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
@@ -199,7 +202,7 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_router<A>(state: &AppState<A>) -> Option<Router>
+pub fn rest_router<A>(state: &AppState<A>, compression_enabled: bool) -> Option<Router>
 where
     A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
 {
@@ -263,8 +266,11 @@ where
         router = router.route(&stream_path, get(rest_sse_handler::<A>));
     }
 
-    // Finalize state and apply compression.
-    let mut router = router.with_state(rest_state).layer(CompressionLayer::new());
+    // Finalize state; apply framework-level compression if enabled.
+    let mut router = router.with_state(rest_state);
+    if compression_enabled {
+        router = router.layer(CompressionLayer::new());
+    }
 
     // Serve OpenAPI specification at {base_path}/openapi.json.
     let openapi_path = format!("{}/openapi.json", base_path.trim_end_matches('/'));
@@ -876,19 +882,19 @@ mod tests {
     #[test]
     fn rest_query_router_returns_none_when_no_config() {
         let state = make_app_state(schema_without_rest());
-        assert!(rest_query_router(&state).is_none());
+        assert!(rest_query_router(&state, false).is_none());
     }
 
     #[test]
     fn rest_query_router_returns_none_when_disabled() {
         let state = make_app_state(schema_with_rest_disabled());
-        assert!(rest_query_router(&state).is_none());
+        assert!(rest_query_router(&state, false).is_none());
     }
 
     #[test]
     fn rest_query_router_returns_some_when_enabled() {
         let state = make_app_state(schema_with_rest());
-        assert!(rest_query_router(&state).is_some());
+        assert!(rest_query_router(&state, false).is_some());
     }
 
     // -----------------------------------------------------------------------
@@ -898,19 +904,19 @@ mod tests {
     #[test]
     fn rest_router_returns_none_when_no_config() {
         let state = make_app_state(schema_without_rest());
-        assert!(rest_router(&state).is_none());
+        assert!(rest_router(&state, false).is_none());
     }
 
     #[test]
     fn rest_router_returns_none_when_disabled() {
         let state = make_app_state(schema_with_rest_disabled());
-        assert!(rest_router(&state).is_none());
+        assert!(rest_router(&state, false).is_none());
     }
 
     #[test]
     fn rest_router_returns_some_when_enabled() {
         let state = make_app_state(schema_with_rest());
-        assert!(rest_router(&state).is_some());
+        assert!(rest_router(&state, false).is_some());
     }
 
     #[test]
@@ -923,7 +929,7 @@ mod tests {
         });
         let state = make_app_state(schema);
         // Should succeed — custom path doesn't prevent creation.
-        assert!(rest_router(&state).is_some());
+        assert!(rest_router(&state, false).is_some());
     }
 
     // -----------------------------------------------------------------------
