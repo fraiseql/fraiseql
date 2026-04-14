@@ -2,12 +2,22 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use super::relay::{RelayDispatch, RelayDispatchImpl};
+use moka::sync::Cache as MokaCache;
+
+use super::{QueryType, relay::{RelayDispatch, RelayDispatchImpl}};
 use crate::{
     db::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
+    graphql::ParsedQuery,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig},
     schema::{CompiledSchema, IntrospectionResponses},
 };
+
+/// Maximum number of distinct query strings whose parsed ASTs are cached in memory.
+///
+/// 1 024 entries covers the full distinct-query vocabulary of any realistic workload.
+/// Each entry holds an `Arc<(QueryType, Option<ParsedQuery>)>` — the AST is shared,
+/// not duplicated.
+const PARSE_CACHE_CAPACITY: u64 = 1_024;
 
 /// Query executor - executes compiled GraphQL queries.
 ///
@@ -86,6 +96,14 @@ pub struct Executor<A: DatabaseAdapter> {
     /// `execute_node_query()` call is a single `HashMap::get()` rather than an O(N)
     /// linear scan over `schema.queries`.
     pub(super) node_type_index: HashMap<String, Arc<str>>,
+
+    /// Parsed GraphQL AST cache, keyed by xxHash64 of the query string.
+    ///
+    /// Repeated identical queries skip re-parsing entirely — a lock-free moka hit
+    /// instead of a full lexer + recursive-descent parse.  No TTL: parsed ASTs are
+    /// immutable and deterministic; the same query string always produces the same result.
+    /// Only successful parses are stored; errors are never cached.
+    pub(super) parse_cache: MokaCache<u64, Arc<(QueryType, Option<ParsedQuery>)>>,
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -151,6 +169,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             config,
             introspection,
             node_type_index,
+            parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
         }
     }
 
@@ -178,6 +197,16 @@ impl<A: DatabaseAdapter> Executor<A> {
     #[must_use]
     pub const fn adapter(&self) -> &Arc<A> {
         &self.adapter
+    }
+
+    /// Return the number of entries currently held in the parsed-query AST cache.
+    ///
+    /// Exposed for testing only — callers outside `#[cfg(test)]` code should not
+    /// rely on the exact count, which may lag by one maintenance cycle in moka.
+    #[cfg(test)]
+    #[must_use]
+    pub fn parse_cache_entry_count(&self) -> u64 {
+        self.parse_cache.entry_count()
     }
 }
 
@@ -237,6 +266,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             config,
             introspection,
             node_type_index,
+            parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
         }
     }
 }

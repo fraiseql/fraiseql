@@ -2103,3 +2103,71 @@ mod executor_paths {
         assert!(result.is_ok(), "correct role should succeed: {:?}", result.err());
     }
 }
+
+// ── mod parse_cache: AST cache behaviour ─────────────────────────────────
+
+mod parse_cache {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_cache_empty_before_first_execute() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        assert_eq!(executor.parse_cache_entry_count(), 0, "cache must be empty before any call");
+    }
+
+    #[tokio::test]
+    async fn test_cache_populated_after_first_execute() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        executor.execute("{ users { id name } }", None).await.unwrap();
+
+        // moka may apply a brief maintenance delay; run_pending_tasks() drains it.
+        executor.parse_cache.run_pending_tasks();
+        assert_eq!(
+            executor.parse_cache_entry_count(),
+            1,
+            "one distinct query must produce exactly one cache entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cache_no_double_insert_for_repeated_query() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        let query = "{ users { id name } }";
+        executor.execute(query, None).await.unwrap();
+        executor.execute(query, None).await.unwrap();
+        executor.execute(query, None).await.unwrap();
+
+        executor.parse_cache.run_pending_tasks();
+        assert_eq!(
+            executor.parse_cache_entry_count(),
+            1,
+            "repeating the same query must not grow the cache beyond 1 entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cache_separate_entries_for_distinct_queries() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter);
+
+        executor.execute("{ users { id name } }", None).await.unwrap();
+        executor.execute("{ users { id } }", None).await.unwrap();
+
+        executor.parse_cache.run_pending_tasks();
+        assert_eq!(
+            executor.parse_cache_entry_count(),
+            2,
+            "two distinct query strings must produce two cache entries"
+        );
+    }
+}

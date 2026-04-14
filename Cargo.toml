@@ -133,6 +133,8 @@ tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter"]}
 # UUID
 uuid = {version = "1.21", features = ["v4", "serde"]}
+# Hashing
+xxhash-rust = {version = "0.8", features = ["xxh3"]}
 
 [workspace.lints.clippy]
 # ── Global levels ────────────────────────────────────────────────────────────

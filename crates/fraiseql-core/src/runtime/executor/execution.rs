@@ -1,6 +1,6 @@
 //! Core query execution — `execute()`, `execute_internal()`, `execute_with_scopes()`.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use super::{Executor, QueryType, pipeline};
 use crate::{
@@ -79,7 +79,17 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         // 1. Classify query type — also returns the ParsedQuery for Regular
         // queries so we do not parse the same string twice.
-        let (query_type, maybe_parsed) = self.classify_query_with_parse(query)?;
+        //
+        // The parse result is memoised in `parse_cache` (keyed by xxHash64 of
+        // the query string) so repeated identical queries skip re-parsing.
+        let cache_key = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
+        let (query_type, maybe_parsed) = if let Some(arc) = self.parse_cache.get(&cache_key) {
+            arc.as_ref().clone()
+        } else {
+            let pair = self.classify_query_with_parse(query)?;
+            self.parse_cache.insert(cache_key, Arc::new(pair.clone()));
+            pair
+        };
 
         // 2. Route to appropriate handler
         match query_type {
