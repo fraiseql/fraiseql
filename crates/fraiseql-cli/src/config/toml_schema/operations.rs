@@ -108,8 +108,13 @@ impl Default for QueryDefinition {
 pub struct MutationDefinition {
     /// Return type name
     pub return_type: String,
-    /// SQL function or procedure source
-    pub sql_source:  String,
+    /// SQL function or procedure source.
+    ///
+    /// When absent, the compiler resolves the function name from the `[crud]`
+    /// naming config using the `operation` and the entity name derived from
+    /// `return_type`. A compile error is emitted if both are missing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sql_source:  Option<String>,
     /// Operation type (CREATE, UPDATE, DELETE)
     pub operation:   String,
     /// Mutation description
@@ -122,7 +127,7 @@ impl Default for MutationDefinition {
     fn default() -> Self {
         Self {
             return_type: "String".to_string(),
-            sql_source:  "fn_operation".to_string(),
+            sql_source:  None,
             operation:   "CREATE".to_string(),
             description: None,
             args:        vec![],

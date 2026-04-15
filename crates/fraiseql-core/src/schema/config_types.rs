@@ -506,6 +506,130 @@ mod tests {
         assert_eq!(config, restored);
     }
 
+    // ── CrudNamingConfig ─────────────────────────────────────────────────────
+
+    #[test]
+    fn crud_trinity_resolves_create() {
+        let cfg = CrudNamingConfig {
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("CREATE", "user"), Some("create_user".to_string()));
+    }
+
+    #[test]
+    fn crud_trinity_resolves_update() {
+        let cfg = CrudNamingConfig {
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("UPDATE", "user"), Some("update_user".to_string()));
+    }
+
+    #[test]
+    fn crud_trinity_resolves_delete() {
+        let cfg = CrudNamingConfig {
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("DELETE", "user"), Some("delete_user".to_string()));
+    }
+
+    #[test]
+    fn crud_function_schema_prefix_applied() {
+        let cfg = CrudNamingConfig {
+            function_schema: Some("app".to_string()),
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("CREATE", "user"), Some("app.create_user".to_string()));
+    }
+
+    #[test]
+    fn crud_function_schema_prefix_applied_to_custom_template() {
+        let cfg = CrudNamingConfig {
+            function_schema:  Some("app".to_string()),
+            create_template:  Some("insert_{entity}".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("CREATE", "order"), Some("app.insert_order".to_string()));
+    }
+
+    #[test]
+    fn crud_custom_template_overrides_preset() {
+        let cfg = CrudNamingConfig {
+            function_naming: Some(CrudNamingPreset::Trinity),
+            create_template: Some("insert_{entity}".to_string()),
+            ..Default::default()
+        };
+        // Custom template wins over trinity
+        assert_eq!(cfg.resolve("CREATE", "user"), Some("insert_user".to_string()));
+        // Other operations fall back to trinity
+        assert_eq!(cfg.resolve("UPDATE", "user"), Some("update_user".to_string()));
+    }
+
+    #[test]
+    fn crud_no_config_returns_none() {
+        let cfg = CrudNamingConfig::default();
+        assert_eq!(cfg.resolve("CREATE", "user"), None);
+        assert_eq!(cfg.resolve("UPDATE", "user"), None);
+        assert_eq!(cfg.resolve("DELETE", "user"), None);
+    }
+
+    #[test]
+    fn crud_unknown_operation_returns_none() {
+        let cfg = CrudNamingConfig {
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("UPSERT", "user"), None);
+    }
+
+    #[test]
+    fn crud_operation_case_insensitive() {
+        let cfg = CrudNamingConfig {
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("create", "user"), Some("create_user".to_string()));
+        assert_eq!(cfg.resolve("Create", "user"), Some("create_user".to_string()));
+    }
+
+    #[test]
+    fn crud_entity_with_underscores() {
+        let cfg = CrudNamingConfig {
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        assert_eq!(cfg.resolve("CREATE", "user_profile"), Some("create_user_profile".to_string()));
+    }
+
+    #[test]
+    fn crud_serde_roundtrip_trinity() {
+        let cfg = CrudNamingConfig {
+            function_schema: Some("app".to_string()),
+            function_naming: Some(CrudNamingPreset::Trinity),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let restored: CrudNamingConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(cfg, restored);
+    }
+
+    #[test]
+    fn crud_serde_roundtrip_custom_templates() {
+        let cfg = CrudNamingConfig {
+            function_schema: Some("app".to_string()),
+            create_template: Some("insert_{entity}".to_string()),
+            update_template: Some("upsert_{entity}".to_string()),
+            delete_template: Some("remove_{entity}".to_string()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let restored: CrudNamingConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(cfg, restored);
+    }
+
     #[test]
     fn test_naming_convention_default_is_preserve() {
         assert_eq!(NamingConvention::default(), NamingConvention::Preserve);
@@ -545,6 +669,92 @@ pub enum NamingConvention {
     /// Convert operation names to camelCase for GraphQL convention.
     #[serde(rename = "camelCase")]
     CamelCase,
+}
+
+/// Built-in CRUD naming preset for automatic `sql_source` resolution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum CrudNamingPreset {
+    /// Trinity pattern: `create_{entity}` / `update_{entity}` / `delete_{entity}`.
+    #[serde(rename = "trinity")]
+    Trinity,
+}
+
+/// CRUD function naming configuration, compiled from `[crud]` in `fraiseql.toml`.
+///
+/// When a mutation's `sql_source` is absent, the compiler resolves the PostgreSQL
+/// function name using these templates and the entity name derived from the
+/// mutation's `return_type`.
+///
+/// **Precedence** (highest first):
+/// 1. Explicit `sql_source` on the mutation — always wins.
+/// 2. Per-operation custom template (`create_template`, `update_template`,
+///    `delete_template`).
+/// 3. Built-in preset (`function_naming = "trinity"`).
+///
+/// `function_schema` is applied as a prefix to the resolved name
+/// (e.g. `"app"` + `"create_user"` → `"app.create_user"`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CrudNamingConfig {
+    /// PostgreSQL schema prefix (e.g. `"app"` → `"app.create_user"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_schema:   Option<String>,
+    /// Built-in naming preset (expands to fixed templates).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_naming:   Option<CrudNamingPreset>,
+    /// Custom template for CREATE mutations (e.g. `"insert_{entity}"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub create_template:   Option<String>,
+    /// Custom template for UPDATE mutations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_template:   Option<String>,
+    /// Custom template for DELETE mutations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete_template:   Option<String>,
+}
+
+impl CrudNamingConfig {
+    /// Resolve a PostgreSQL function name for the given CRUD operation and entity.
+    ///
+    /// Returns `None` if neither a custom template nor a preset can satisfy the
+    /// operation. The caller is responsible for emitting a compile error in that
+    /// case.
+    ///
+    /// `operation` is compared case-insensitively (`"CREATE"`, `"create"`, etc.).
+    /// `entity` should already be in `snake_case` (e.g. `"user_profile"`).
+    #[must_use]
+    pub fn resolve(&self, operation: &str, entity: &str) -> Option<String> {
+        let template = match operation.to_uppercase().as_str() {
+            "CREATE" => self
+                .create_template
+                .as_deref()
+                .or_else(|| self.function_naming.map(|p| match p {
+                    CrudNamingPreset::Trinity => "create_{entity}",
+                })),
+            "UPDATE" => self
+                .update_template
+                .as_deref()
+                .or_else(|| self.function_naming.map(|p| match p {
+                    CrudNamingPreset::Trinity => "update_{entity}",
+                })),
+            "DELETE" => self
+                .delete_template
+                .as_deref()
+                .or_else(|| self.function_naming.map(|p| match p {
+                    CrudNamingPreset::Trinity => "delete_{entity}",
+                })),
+            _ => None,
+        }?;
+
+        #[allow(clippy::literal_string_with_formatting_args)]
+        // Reason: `{entity}` is a template placeholder string, not a format macro argument.
+        let fn_name = template.replace("{entity}", entity);
+        Some(match &self.function_schema {
+            Some(schema) => format!("{schema}.{fn_name}"),
+            None => fn_name,
+        })
+    }
 }
 
 /// Where a session variable's value comes from.

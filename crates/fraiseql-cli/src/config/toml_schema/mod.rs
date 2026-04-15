@@ -42,7 +42,7 @@ pub use security::{
     StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode,
     TrustedDocumentsConfig,
 };
-use fraiseql_core::schema::NamingConvention;
+use fraiseql_core::schema::{CrudNamingConfig, NamingConvention};
 use serde::{Deserialize, Serialize};
 pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
@@ -156,6 +156,21 @@ pub struct TomlSchema {
     /// `"camelCase"` converts operation names to standard GraphQL camelCase.
     #[serde(default)]
     pub naming_convention: NamingConvention,
+
+    /// CRUD function naming config for automatic `sql_source` resolution.
+    ///
+    /// When set, mutations that omit `sql_source` have their PostgreSQL function
+    /// name resolved at compile time using the configured template and the entity
+    /// name derived from `return_type`.
+    ///
+    /// Example:
+    /// ```toml
+    /// [crud]
+    /// function_schema = "app"
+    /// function_naming = "trinity"
+    /// ```
+    #[serde(default)]
+    pub crud: Option<CrudNamingConfig>,
 }
 
 impl TomlSchema {

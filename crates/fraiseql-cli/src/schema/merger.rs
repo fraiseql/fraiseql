@@ -9,12 +9,58 @@
 use std::fs;
 
 use anyhow::{Context, Result};
+use fraiseql_core::schema::CrudNamingConfig;
 use serde_json::{Value, json};
 
 use crate::{
     config::TomlSchema,
     schema::{IntermediateSchema, intermediate::IntermediateQueryDefaults},
 };
+
+/// Convert a PascalCase GraphQL type name to a `snake_case` entity name.
+///
+/// Used to derive the entity segment for CRUD naming templates:
+/// `"UserProfile"` → `"user_profile"`, `"User"` → `"user"`.
+fn pascal_to_snake(type_name: &str) -> String {
+    let mut out = String::with_capacity(type_name.len() + 4);
+    for (i, ch) in type_name.chars().enumerate() {
+        if ch.is_uppercase() && i > 0 {
+            out.push('_');
+        }
+        out.push(ch.to_ascii_lowercase());
+    }
+    out
+}
+
+/// Resolve the `sql_source` for a TOML-defined mutation.
+///
+/// Precedence (highest first):
+/// 1. Explicit `sql_source` on the mutation.
+/// 2. `[crud]` naming config resolved from `operation` + entity derived from `return_type`.
+///
+/// Returns an error when neither is available, naming the offending mutation.
+fn resolve_mutation_sql_source(
+    mutation_name: &str,
+    sql_source: &Option<String>,
+    operation: &str,
+    return_type: &str,
+    crud: Option<&CrudNamingConfig>,
+) -> Result<String> {
+    if let Some(src) = sql_source {
+        return Ok(src.clone());
+    }
+    if let Some(cfg) = crud {
+        let entity = pascal_to_snake(return_type);
+        if let Some(resolved) = cfg.resolve(operation, &entity) {
+            return Ok(resolved);
+        }
+    }
+    anyhow::bail!(
+        "Mutation '{mutation_name}' has no `sql_source` and no `[crud]` naming config \
+         could resolve it (operation = {operation:?}, return_type = {return_type:?}). \
+         Either add `sql_source` to the mutation or configure `[crud]` in fraiseql.toml."
+    )
+}
 
 /// Schema merger combining language types and TOML config
 pub struct SchemaMerger;
@@ -443,10 +489,17 @@ impl SchemaMerger {
 
         // Add mutations from TOML
         for (mutation_name, toml_mutation) in &toml_schema.mutations {
+            let sql_source = resolve_mutation_sql_source(
+                mutation_name,
+                &toml_mutation.sql_source,
+                &toml_mutation.operation,
+                &toml_mutation.return_type,
+                toml_schema.crud.as_ref(),
+            )?;
             mutations_array.push(json!({
                 "name": mutation_name,
                 "return_type": toml_mutation.return_type,
-                "sql_source": toml_mutation.sql_source,
+                "sql_source": sql_source,
                 "operation": toml_mutation.operation,
                 "description": toml_mutation.description,
                 "args": toml_mutation.args.iter().map(|arg| json!({
@@ -912,5 +965,209 @@ type = "ID"
         assert!(schema.validation_config.is_none());
 
         let _ = std::fs::remove_file(temp_path);
+    }
+
+    // ── CRUD naming config (P2) ───────────────────────────────────────────────
+
+    #[test]
+    fn pascal_to_snake_single_word() {
+        assert_eq!(pascal_to_snake("User"), "user");
+    }
+
+    #[test]
+    fn pascal_to_snake_compound_type() {
+        assert_eq!(pascal_to_snake("UserProfile"), "user_profile");
+    }
+
+    #[test]
+    fn pascal_to_snake_already_lower() {
+        assert_eq!(pascal_to_snake("user"), "user");
+    }
+
+    #[test]
+    fn pascal_to_snake_three_words() {
+        assert_eq!(pascal_to_snake("DnsServerConfig"), "dns_server_config");
+    }
+
+    fn write_temp_toml(content: &str) -> String {
+        let path = format!("/tmp/test_crud_merger_{}.toml", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos());
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn crud_trinity_resolves_create_mutation() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[crud]
+function_schema = "app"
+function_naming = "trinity"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.fields.id]
+type = "ID"
+
+[mutations.create_user]
+return_type = "User"
+operation = "CREATE"
+"#;
+        let temp_path = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(&temp_path)
+            .expect("should merge with crud naming");
+        let mutation = schema.mutations.iter().find(|m| m.name == "create_user").unwrap();
+        assert_eq!(mutation.sql_source.as_deref(), Some("app.create_user"));
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    #[test]
+    fn crud_trinity_resolves_pascal_return_type() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[crud]
+function_naming = "trinity"
+
+[types.UserProfile]
+sql_source = "v_user_profile"
+
+[types.UserProfile.fields.id]
+type = "ID"
+
+[mutations.create_user_profile]
+return_type = "UserProfile"
+operation = "CREATE"
+"#;
+        let temp_path = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let mutation = schema.mutations.iter().find(|m| m.name == "create_user_profile").unwrap();
+        assert_eq!(mutation.sql_source.as_deref(), Some("create_user_profile"));
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    #[test]
+    fn explicit_sql_source_wins_over_crud() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[crud]
+function_schema = "app"
+function_naming = "trinity"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.fields.id]
+type = "ID"
+
+[mutations.create_user]
+return_type = "User"
+operation = "CREATE"
+sql_source = "custom_create_user_fn"
+"#;
+        let temp_path = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let mutation = schema.mutations.iter().find(|m| m.name == "create_user").unwrap();
+        assert_eq!(mutation.sql_source.as_deref(), Some("custom_create_user_fn"));
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    #[test]
+    fn no_sql_source_no_crud_errors_with_mutation_name() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.fields.id]
+type = "ID"
+
+[mutations.create_user]
+return_type = "User"
+operation = "CREATE"
+"#;
+        let temp_path = write_temp_toml(toml);
+        let err = SchemaMerger::merge_toml_only(&temp_path)
+            .expect_err("should fail without sql_source and no crud config");
+        let msg = format!("{err}");
+        assert!(msg.contains("create_user"), "error should name the mutation, got: {msg}");
+        assert!(msg.contains("sql_source") || msg.contains("crud"), "got: {msg}");
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    #[test]
+    fn crud_custom_template_resolved_in_merger() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[crud]
+function_schema = "app"
+create_template = "insert_{entity}"
+
+[types.Order]
+sql_source = "v_order"
+
+[types.Order.fields.id]
+type = "ID"
+
+[mutations.create_order]
+return_type = "Order"
+operation = "CREATE"
+"#;
+        let temp_path = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let mutation = schema.mutations.iter().find(|m| m.name == "create_order").unwrap();
+        assert_eq!(mutation.sql_source.as_deref(), Some("app.insert_order"));
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    #[test]
+    fn crud_update_and_delete_resolved() {
+        let toml = r#"
+[schema]
+name = "test"
+version = "1.0.0"
+
+[crud]
+function_schema = "app"
+function_naming = "trinity"
+
+[types.User]
+sql_source = "v_user"
+
+[types.User.fields.id]
+type = "ID"
+
+[mutations.update_user]
+return_type = "User"
+operation = "UPDATE"
+
+[mutations.delete_user]
+return_type = "User"
+operation = "DELETE"
+"#;
+        let temp_path = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let update = schema.mutations.iter().find(|m| m.name == "update_user").unwrap();
+        let delete = schema.mutations.iter().find(|m| m.name == "delete_user").unwrap();
+        assert_eq!(update.sql_source.as_deref(), Some("app.update_user"));
+        assert_eq!(delete.sql_source.as_deref(), Some("app.delete_user"));
+        let _ = std::fs::remove_file(&temp_path);
     }
 }

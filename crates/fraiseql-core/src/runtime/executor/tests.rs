@@ -1368,6 +1368,275 @@ mod mutation {
         assert!(data.get("name").is_some(), "response must include all field 'name'");
         assert!(data.get("email").is_some(), "response must include all field 'email'");
     }
+
+    // ── Three-state field semantics (issue #221) ───────────────────────────
+    //
+    // Update mutations must preserve the absent/null/value distinction.
+    // The executor passes the entire input object as a single JSONB arg so that
+    // SQL functions can use `input ? 'field'` to test key presence.
+
+    /// Mock adapter that captures the args passed to `execute_function_call`.
+    /// Returns a minimal v1 mutation_response so the full execution path runs.
+    struct CapturingFunctionCallAdapter {
+        captured_args: std::sync::Mutex<Vec<serde_json::Value>>,
+    }
+
+    impl CapturingFunctionCallAdapter {
+        fn new() -> Self {
+            Self {
+                captured_args: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn args(&self) -> Vec<serde_json::Value> {
+            self.captured_args.lock().unwrap().clone()
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseAdapter for CapturingFunctionCallAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            *self.captured_args.lock().unwrap() = args.to_vec();
+            use serde_json::json;
+            let mut row = std::collections::HashMap::new();
+            row.insert("status".to_string(), json!("success"));
+            row.insert("entity".to_string(), json!({"id": "1"}));
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for CapturingFunctionCallAdapter {}
+
+    fn schema_with_update_mutation() -> CompiledSchema {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "UpdateUserInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("id", "ID!"),
+                InputFieldDefinition::new("name", "String"),
+                InputFieldDefinition::new("email", "String"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name:       "update_user".to_string(),
+            return_type: "User".to_string(),
+            sql_source: Some("update_user".to_string()),
+            operation:  MutationOperation::Update { table: "update_user".to_string() },
+            arguments:  vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("UpdateUserInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("update_user", "User")
+        });
+        schema
+    }
+
+    fn schema_with_insert_mutation() -> CompiledSchema {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateUserInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("name", "String!"),
+                InputFieldDefinition::new("email", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name:       "create_user".to_string(),
+            return_type: "User".to_string(),
+            sql_source: Some("create_user".to_string()),
+            operation:  MutationOperation::Insert { table: "create_user".to_string() },
+            arguments:  vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateUserInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("create_user", "User")
+        });
+        schema
+    }
+
+    /// Update mutations must pass the entire input object as a single JSONB arg,
+    /// not flattened positional args. This is the prerequisite for three-state semantics.
+    #[tokio::test]
+    async fn update_mutation_passes_input_as_single_jsonb_arg() {
+        let schema = schema_with_update_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "id": "abc", "name": "Alice", "email": "alice@example.com" }
+        });
+        executor
+            .execute_mutation("update_user", Some(&vars), &HashMap::new())
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "update mutation must pass exactly one JSONB arg");
+        assert!(
+            captured[0].is_object(),
+            "the single arg must be a JSON object (JSONB), got: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["id"], "abc");
+        assert_eq!(captured[0]["name"], "Alice");
+    }
+
+    /// Insert mutations must still flatten Input type fields to positional args
+    /// (no three-state problem: absent ≡ NULL is correct for creates).
+    #[tokio::test]
+    async fn insert_mutation_flattens_fields_to_positional_args() {
+        let schema = schema_with_insert_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "name": "Bob", "email": "bob@example.com" }
+        });
+        executor
+            .execute_mutation("create_user", Some(&vars), &HashMap::new())
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        // Two positional args (name, email), not one JSONB object.
+        assert_eq!(captured.len(), 2, "insert mutation must flatten to two positional args");
+        assert_eq!(captured[0], "Bob");
+        assert_eq!(captured[1], "bob@example.com");
+    }
+
+    /// Explicitly-null fields in an update input must survive as key-present-null
+    /// in the JSONB arg, not be dropped. This is what allows SET field = NULL.
+    #[tokio::test]
+    async fn update_mutation_preserves_explicit_null_in_jsonb() {
+        let schema = schema_with_update_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "id": "abc", "name": null }
+        });
+        executor
+            .execute_mutation("update_user", Some(&vars), &HashMap::new())
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1);
+        let obj = captured[0].as_object().unwrap();
+        assert!(obj.contains_key("name"), "key 'name' must be present in JSONB (explicit null)");
+        assert!(obj["name"].is_null(), "'name' must be null, not absent");
+    }
+
+    /// Absent fields in an update input must not appear in the JSONB arg at all,
+    /// distinguishing "leave unchanged" from "set to NULL".
+    #[tokio::test]
+    async fn update_mutation_absent_field_not_in_jsonb() {
+        let schema = schema_with_update_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        // Only provide id and name; email is absent.
+        let vars = serde_json::json!({
+            "input": { "id": "abc", "name": "Alice" }
+        });
+        executor
+            .execute_mutation("update_user", Some(&vars), &HashMap::new())
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1);
+        let obj = captured[0].as_object().unwrap();
+        assert!(
+            !obj.contains_key("email"),
+            "absent field 'email' must NOT appear in JSONB (leave DB value unchanged)"
+        );
+    }
 }
 
 // ── mod security: DoS protection (alias / depth / complexity limits) ──────

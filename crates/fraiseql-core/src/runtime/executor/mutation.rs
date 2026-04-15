@@ -11,6 +11,7 @@ use crate::{
         mutation_result::{MutationOutcome, parse_mutation_row},
         suggest_similar,
     },
+    schema::MutationOperation,
     security::SecurityContext,
 };
 
@@ -204,7 +205,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_source: &str = if let Some(src) = mutation_def.sql_source.as_deref() {
             src
         } else {
-            use crate::schema::MutationOperation;
             match &mutation_def.operation {
                 MutationOperation::Insert { table }
                 | MutationOperation::Update { table }
@@ -249,12 +249,35 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        if let Some(input_type) = input_type_name.and_then(|n| self.schema.find_input_type(n)) {
-            // Unwrap input object: extract fields in the order defined by the input type
+        // Update mutations pass the entire input object as a single JSONB arg, which
+        // preserves all three field states that typed positional args cannot express:
+        //   - key absent            → leave the database value unchanged
+        //   - key present, null     → SET field = NULL
+        //   - key present, value    → SET field = <value>
+        // SQL update functions use `input_payload ? 'field'` to test key presence.
+        //
+        // Insert / Delete / Custom flatten the Input type fields to positional args as
+        // before (no three-state problem: absent ≡ NULL for creates; deletes need only
+        // the PK).
+        let is_update = matches!(&mutation_def.operation, MutationOperation::Update { .. });
+
+        if is_update && input_type_name.is_some() {
+            // Pass the entire input object as a single JSONB arg.
             let input_obj = vars_obj
                 .and_then(|obj| obj.get("input"))
                 .and_then(|v| v.as_object());
-
+            if let Some(obj) = input_obj {
+                args.push(serde_json::Value::Object(obj.clone()));
+            } else if !mutation_def.arguments[0].nullable {
+                missing_required.push("input");
+            }
+        } else if let Some(input_type) =
+            input_type_name.and_then(|n| self.schema.find_input_type(n))
+        {
+            // Insert / Delete / Custom: flatten Input type fields to positional typed args.
+            let input_obj = vars_obj
+                .and_then(|obj| obj.get("input"))
+                .and_then(|v| v.as_object());
             if let Some(input_obj) = input_obj {
                 for field in &input_type.fields {
                     let value = input_obj.get(&field.name).cloned();
