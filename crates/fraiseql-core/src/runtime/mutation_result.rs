@@ -99,6 +99,8 @@ pub fn is_error_status(status: &str) -> bool {
     status.starts_with("failed:")
         || status.starts_with("conflict:")
         || status.starts_with("not_found:")
+        || status.starts_with("noop:")
+        || status.starts_with("validation:")
         || status == "error"
 }
 
@@ -255,6 +257,8 @@ mod tests {
         assert!(is_error_status("conflict:concurrent_update"));
         assert!(is_error_status("not_found:dns_server"));
         assert!(is_error_status("not_found:user"));
+        assert!(is_error_status("noop:no_changes"));
+        assert!(is_error_status("validation:has_current_allocations"));
         assert!(is_error_status("error"));
         assert!(!is_error_status("new"));
         assert!(!is_error_status("updated"));
