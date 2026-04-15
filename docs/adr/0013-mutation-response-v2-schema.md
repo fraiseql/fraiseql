@@ -12,7 +12,7 @@ This design has four compounding problems:
 
 2. **Conflation of orthogonal concerns.** The `status` string encodes at least four orthogonal things: operation outcome (was it a create/update/delete), state change (did the DB actually change), error class (what went wrong), and error subtype (free-text detail). Bundling them into one column means every consumer must unbundle them.
 
-3. **Error class is double-encoded.** Printoptim's `core.error_detail_*` templates carry `http_status` (404/409/422) in the JSONB `metadata` column. The status prefix also encodes the class (`conflict:*` vs `not_found:*`). These can disagree, and the Rust parser has no principled way to resolve them without a tiebreaker.
+3. **Error class is double-encoded.** The downstream PG reference implementation's `core.error_detail_*` templates carry `http_status` (404/409/422) in the JSONB `metadata` column. The status prefix also encodes the class (`conflict:*` vs `not_found:*`). These can disagree, and the Rust parser has no principled way to resolve them without a tiebreaker.
 
 4. **No versioning.** Evolving the composite shape — adding a column, changing semantics — is a flag-day operation across every mutation function. There is no `schema_version` field, no side-by-side support, no graceful path.
 
@@ -103,8 +103,8 @@ One-to-one. No fallback tables, no HTTP-code tiebreakers, no prefix parsing:
 
 1. Phase 00: design and spec (this ADR).
 2. Phase 01: Rust v2 parser alongside v1; `parse_mutation_row` dispatches on `schema_version`.
-3. Phase 02: printoptim adds v2 helpers (`build_mutation_response_v2`, `error_detail_*_v2`) beside v1.
-4. Phase 03: printoptim migrates ~40 mutation functions to v2 in waves. Wave = PR. Rollback = revert.
+3. Phase 02: the downstream PG repository adds v2 helpers (`build_mutation_response_v2`, `error_detail_*_v2`) beside v1.
+4. Phase 03: the downstream PG repository migrates its ~40 mutation functions to v2 in waves. Wave = PR. Rollback = revert.
 5. Phase 04: remove v1 helpers, v1 composite, Rust v1 parser. Rename `_v2` suffix off everything.
 6. Phase 05: FraiseQL downstream sweep (SDKs, examples, docs).
 7. Phase 06: finalize — no scar tissue.
@@ -123,8 +123,8 @@ One-to-one. No fallback tables, no HTTP-code tiebreakers, no prefix parsing:
 
 ### Negative
 
-- ⚠️ **Large migration.** ~40 printoptim functions, all helpers, templates, tests, fixtures, snapshots, SDK types. Mitigated by wave-based rollout, `schema_version` coexistence, and "revert the PR" as always-available rollback.
-- ⚠️ **Cross-repo coordination.** FraiseQL and printoptim must ship the type changes in lockstep. Mitigated by the dispatcher pattern — v2 parser lands before any v2 emitters; v1 removal happens after all v1 emitters are gone.
+- ⚠️ **Large migration.** ~40 downstream mutation functions, all helpers, templates, tests, fixtures, snapshots, SDK types. Mitigated by wave-based rollout, `schema_version` coexistence, and "revert the PR" as always-available rollback.
+- ⚠️ **Cross-repo coordination.** FraiseQL and the downstream PG repository must ship the type changes in lockstep. Mitigated by the dispatcher pattern — v2 parser lands before any v2 emitters; v1 removal happens after all v1 emitters are gone.
 - ⚠️ **One-time cost.** PG enum evolution is cheap for add (`ALTER TYPE ADD VALUE`) but expensive for removal. The error-class enum should be treated as stable; additions require ADR amendments.
 - ⚠️ **Transitional complexity.** During Phases 02–03, both v1 and v2 emitters run. Documented as transitional; Phase 04 removes it.
 
@@ -170,8 +170,8 @@ See `.phases/mutation-response-v2/` for the 7-phase implementation plan:
 
 - Phase 00: Design and Specification (this ADR + `docs/architecture/mutation-response.md`)
 - Phase 01: Rust v2 parser with version dispatch
-- Phase 02: Printoptim v2 helpers and templates
-- Phase 03: Printoptim function migration in waves
+- Phase 02: Downstream PG v2 helpers and templates
+- Phase 03: Downstream PG function migration in waves
 - Phase 04: v1 removal
 - Phase 05: FraiseQL downstream sweep
 - Phase 06: Finalize
@@ -179,6 +179,5 @@ See `.phases/mutation-response-v2/` for the 7-phase implementation plan:
 ## References
 
 - graphql-cascade specification, `specification/04_mutation_responses.md`
-- Printoptim reference implementation: `../printoptim_backend/db/0_schema/03_functions/030_common/0302_mutation/`
 - [ADR-0001: Three-layer architecture](0001-three-layer-architecture.md) — Rust runtime is the authoritative consumer of compiled schema + PG output
 - `memory/project_graphql_cascade_spec.md` — FraiseQL's cascade implementation strategy

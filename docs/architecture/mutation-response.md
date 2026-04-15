@@ -373,12 +373,12 @@ sign-off (see below).
 
 ---
 
-## Pointer: printoptim reference implementation
+## Pointer: downstream PG reference implementation
 
-The canonical PG helpers that emit v2 rows live in a private reference
-repository (`core.build_mutation_response_v2`, `core.log_and_return_mutation_v2`,
-`core.error_detail_*_v2`). FraiseQL's compiler and runtime do not depend on
-them; Phases 02–03 of the plan describe that repository's migration for
+The canonical PG helpers that emit v2 rows (`core.build_mutation_response_v2`,
+`core.log_and_return_mutation_v2`, `core.error_detail_*_v2`) live in a private
+downstream repository. FraiseQL's compiler and runtime do not depend on that
+repository; Phases 02–03 of the migration plan describe its changes for
 context but are out of scope for this codebase.
 
 ---
