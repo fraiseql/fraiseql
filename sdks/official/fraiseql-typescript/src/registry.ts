@@ -14,6 +14,7 @@ export interface FieldMetadata {
   requiresScope?: string | string[];
   deprecated?: boolean | string;
   description?: string;
+  computed?: boolean;
 }
 
 /**

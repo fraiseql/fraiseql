@@ -93,7 +93,8 @@ export function generateCrudOperations(
 
   if (ops.has("create")) {
     const inputName = `Create${typeName}Input`;
-    const inputFields = fields.map((f) => ({
+    const writableFields = fields.filter((f) => !f.computed);
+    const inputFields = writableFields.map((f) => ({
       name: f.name,
       type: f.type,
       nullable: f.nullable,
@@ -117,9 +118,10 @@ export function generateCrudOperations(
 
   if (ops.has("update")) {
     const inputName = `Update${typeName}Input`;
+    const writableFields = fields.slice(1).filter((f) => !f.computed);
     const inputFields = [
       { name: pkField.name, type: pkField.type, nullable: false },
-      ...fields.slice(1).map((f) => ({ name: f.name, type: f.type, nullable: true })),
+      ...writableFields.map((f) => ({ name: f.name, type: f.type, nullable: true })),
     ];
     SchemaRegistry.registerInputType(inputName, inputFields, `Input for updating an existing ${typeName}.`);
     const config: Record<string, unknown> = {

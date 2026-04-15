@@ -376,6 +376,87 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       const oldEmailField = schema.types[0].fields.find((f) => f.name === "oldEmail");
       expect(oldEmailField?.deprecated).toBe("Use email instead");
     });
+
+    it("should have parity: computed fields excluded from CRUD inputs (create only)", () => {
+      // TypeScript: Type with computed field and create-only CRUD
+      registerTypeFields("Order", [
+        { name: "id", type: "ID", nullable: false },
+        { name: "reference", type: "String", nullable: false, computed: true },
+        { name: "quantity", type: "Int", nullable: false },
+      ], undefined, { crud: ["create"] });
+
+      // Python equivalent:
+      // @fraiseql.type(crud=["create"])
+      // class Order:
+      //   id: int
+      //   reference: Annotated[str, fraiseql.field(computed=True)]
+      //   quantity: int
+
+      const schema = SchemaRegistry.getSchema();
+      const createInput = schema.input_types!.find((it) => it.name === "CreateOrderInput");
+      expect(createInput).toBeDefined();
+      expect(createInput!.fields).toHaveLength(2); // id and quantity, reference excluded
+      expect(createInput!.fields.map((f) => f.name)).toEqual(["id", "quantity"]);
+    });
+
+    it("should have parity: computed fields excluded from CRUD inputs (update only)", () => {
+      // TypeScript: Type with computed field and update-only CRUD
+      registerTypeFields("Product", [
+        { name: "id", type: "ID", nullable: false },
+        { name: "slug", type: "String", nullable: false, computed: true },
+        { name: "name", type: "String", nullable: false },
+      ], undefined, { crud: ["update"] });
+
+      // Python equivalent:
+      // @fraiseql.type(crud=["update"])
+      // class Product:
+      //   id: int
+      //   slug: Annotated[str, fraiseql.field(computed=True)]
+      //   name: str
+
+      const schema = SchemaRegistry.getSchema();
+      const updateInput = schema.input_types!.find((it) => it.name === "UpdateProductInput");
+      expect(updateInput).toBeDefined();
+      expect(updateInput!.fields).toHaveLength(2); // id (required) and name, slug excluded
+      expect(updateInput!.fields.map((f) => f.name)).toEqual(["id", "name"]);
+      expect(updateInput!.fields[0].nullable).toBe(false); // PK is required
+      expect(updateInput!.fields[1].nullable).toBe(true);  // other fields are optional
+    });
+
+    it("should have parity: computed fields excluded from CRUD inputs (full crud)", () => {
+      // TypeScript: Type with computed field and full CRUD
+      registerTypeFields("Post", [
+        { name: "id", type: "ID", nullable: false },
+        { name: "urlSlug", type: "String", nullable: false, computed: true },
+        { name: "title", type: "String", nullable: false },
+        { name: "content", type: "String", nullable: false },
+      ], undefined, { crud: true });
+
+      // Python equivalent:
+      // @fraiseql.type(crud=True)
+      // class Post:
+      //   id: int
+      //   url_slug: Annotated[str, fraiseql.field(computed=True)]
+      //   title: str
+      //   content: str
+
+      const schema = SchemaRegistry.getSchema();
+      const createInput = schema.input_types!.find((it) => it.name === "CreatePostInput");
+      const updateInput = schema.input_types!.find((it) => it.name === "UpdatePostInput");
+
+      // Create input: all fields except computed
+      expect(createInput).toBeDefined();
+      expect(createInput!.fields).toHaveLength(3);
+      expect(createInput!.fields.map((f) => f.name)).toEqual(["id", "title", "content"]);
+
+      // Update input: PK required, other non-computed fields optional
+      expect(updateInput).toBeDefined();
+      expect(updateInput!.fields).toHaveLength(3);
+      expect(updateInput!.fields.map((f) => f.name)).toEqual(["id", "title", "content"]);
+      expect(updateInput!.fields[0].nullable).toBe(false); // PK required
+      expect(updateInput!.fields[1].nullable).toBe(true);  // title optional
+      expect(updateInput!.fields[2].nullable).toBe(true);  // content optional
+    });
   });
 
   // ============================================================================
