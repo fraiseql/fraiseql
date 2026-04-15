@@ -198,6 +198,25 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Inject session variables (transaction-scoped set_config) when configured.
+        //
+        // Must run before any DB execution (including the relay branch below) so that
+        // PostgreSQL-native Row Level Security policies that rely on `current_setting()`
+        // values (e.g. `app.tenant_id`) are effective for read queries, matching the
+        // behaviour already in place for mutations.
+        {
+            let sv = &self.schema.session_variables;
+            if !sv.variables.is_empty() || sv.inject_started_at {
+                let vars =
+                    crate::runtime::executor::security::resolve_session_variables(sv, security_context);
+                if !vars.is_empty() {
+                    let pairs: Vec<(&str, &str)> =
+                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+                    self.adapter.set_session_variables(&pairs).await?;
+                }
+            }
+        }
+
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
             return self.execute_relay_query(&query_match, variables, Some(security_context)).await;

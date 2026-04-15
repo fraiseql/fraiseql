@@ -2171,3 +2171,189 @@ mod parse_cache {
         );
     }
 }
+
+// ── mod session_variables: C-SV — set_session_variables called on reads ───
+
+mod session_variables {
+    use crate::schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig};
+
+    use super::*;
+
+    /// Mock adapter that captures calls to `set_session_variables`.
+    struct SessionVarCapturingAdapter {
+        mock_results: Vec<JsonbValue>,
+        captured:     std::sync::Mutex<Vec<(String, String)>>,
+    }
+
+    impl SessionVarCapturingAdapter {
+        fn new(mock_results: Vec<JsonbValue>) -> Self {
+            Self {
+                mock_results,
+                captured: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn captured_pairs(&self) -> Vec<(String, String)> {
+            self.captured.lock().unwrap().clone()
+        }
+    }
+
+    // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl DatabaseAdapter for SessionVarCapturingAdapter {
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[crate::db::types::sql_hints::OrderByClause]>,
+        ) -> crate::error::Result<Vec<JsonbValue>> {
+            Ok(self.mock_results.clone())
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[crate::db::types::sql_hints::OrderByClause]>,
+        ) -> crate::error::Result<Vec<JsonbValue>> {
+            Ok(self.mock_results.clone())
+        }
+
+        async fn set_session_variables(
+            &self,
+            variables: &[(&str, &str)],
+        ) -> crate::error::Result<()> {
+            let mut guard = self.captured.lock().unwrap();
+            for (k, v) in variables {
+                guard.push(((*k).to_string(), (*v).to_string()));
+            }
+            Ok(())
+        }
+
+        async fn health_check(&self) -> crate::error::Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> crate::db::DatabaseType {
+            crate::db::DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> crate::db::PoolMetrics {
+            crate::db::PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> crate::error::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+        > {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> crate::error::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+        > {
+            Ok(vec![])
+        }
+
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> crate::error::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+        > {
+            Ok(vec![])
+        }
+    }
+
+    fn schema_with_session_vars() -> CompiledSchema {
+        let mut schema = test_schema();
+        schema.session_variables = SessionVariablesConfig {
+            variables:        vec![SessionVariableMapping {
+                name:   "app.tenant_id".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "tenant_id".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        schema
+    }
+
+    fn security_ctx_with_tenant() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-1".to_string(),
+            roles:            vec![],
+            tenant_id:        Some("tenant-abc".to_string()),
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-sv".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+        }
+    }
+
+    /// C-SV1: session variables are injected via `set_session_variables` before a read query.
+    #[tokio::test]
+    async fn test_session_variables_injected_on_read_query() {
+        let schema = schema_with_session_vars();
+        let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = security_ctx_with_tenant();
+        executor
+            .execute_with_security("{ users { id name } }", None, &ctx)
+            .await
+            .unwrap();
+
+        let pairs = adapter.captured_pairs();
+        assert!(
+            !pairs.is_empty(),
+            "set_session_variables must be called before a read query when session_variables are \
+             configured"
+        );
+        assert!(
+            pairs.iter().any(|(k, _)| k == "app.tenant_id"),
+            "expected app.tenant_id in session variable pairs, got: {pairs:?}"
+        );
+    }
+
+    /// C-SV2: no `set_session_variables` call when `session_variables` config is empty.
+    #[tokio::test]
+    async fn test_no_session_variables_injected_when_config_empty() {
+        let schema = test_schema(); // session_variables defaults to empty
+        let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = security_ctx_with_tenant();
+        executor
+            .execute_with_security("{ users { id name } }", None, &ctx)
+            .await
+            .unwrap();
+
+        assert!(
+            adapter.captured_pairs().is_empty(),
+            "set_session_variables must not be called when no session_variables are configured"
+        );
+    }
+}

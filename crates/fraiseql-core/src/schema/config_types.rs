@@ -579,10 +579,10 @@ pub struct SessionVariableMapping {
 
 /// Top-level session variables configuration in the compiled schema.
 ///
-/// When populated, the executor calls `set_config()` before each mutation
-/// to inject per-request values (JWT claims, HTTP headers, or literals) as
-/// PostgreSQL transaction-scoped settings.  SQL functions can then read these
-/// via `current_setting('app.tenant_id', true)`.
+/// When populated, the executor calls `set_config()` before each query and
+/// mutation to inject per-request values (JWT claims, HTTP headers, or literals)
+/// as PostgreSQL transaction-scoped settings.  SQL functions and RLS policies can
+/// then read these via `current_setting('app.tenant_id', true)`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SessionVariablesConfig {
     /// Per-request session variable mappings.
