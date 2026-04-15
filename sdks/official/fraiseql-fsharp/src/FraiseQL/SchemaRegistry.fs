@@ -71,6 +71,7 @@ module SchemaRegistry =
                         else
                             None
                     scope = scope
+                    computed = fieldAttr.Computed
                 }))
         |> Array.toList
 

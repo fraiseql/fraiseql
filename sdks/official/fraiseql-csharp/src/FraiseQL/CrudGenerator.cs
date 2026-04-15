@@ -87,9 +87,10 @@ public static class CrudGenerator
         var mutations = new List<IntermediateMutation>();
         var inputTypes = new List<InputTypeDefinition>();
 
-        // Create mutation — input object with all fields
+        // Create mutation — input object with all non-computed fields
         var createInputName = $"Create{typeName}Input";
         var createInputFields = fields
+            .Where(f => f.Computed != true)
             .Select(f => new InputFieldDefinition(f.Name, f.Type, f.Nullable))
             .ToList()
             .AsReadOnly();
@@ -111,7 +112,7 @@ public static class CrudGenerator
         {
             new(pkField.Name, pkField.Type, false)
         };
-        updateInputFields.AddRange(fields.Skip(1).Select(f => new InputFieldDefinition(f.Name, f.Type, true)));
+        updateInputFields.AddRange(fields.Skip(1).Where(f => f.Computed != true).Select(f => new InputFieldDefinition(f.Name, f.Type, true)));
         inputTypes.Add(new InputTypeDefinition(
             updateInputName, updateInputFields.AsReadOnly(), $"Input for updating an existing {typeName}."));
 

@@ -45,4 +45,17 @@ public sealed class GraphQLFieldAttribute : Attribute
 
     /// <summary>Gets or sets multiple required OAuth scopes (any one suffices) for field access.</summary>
     public string[]? Scopes { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this field is computed and should be excluded from CRUD input types.
+    /// Computed fields are typically auto-generated (like slugs, timestamps, etc.)
+    /// and should not be set directly by users in create/update operations.
+    ///
+    /// When <see langword="true"/>, the field will be excluded from:
+    /// - <c>Create{TypeName}Input</c> types (all fields)
+    /// - <c>Update{TypeName}Input</c> types (non-PK fields only)
+    ///
+    /// The field remains visible in query results.
+    /// </summary>
+    public bool Computed { get; set; } = false;
 }

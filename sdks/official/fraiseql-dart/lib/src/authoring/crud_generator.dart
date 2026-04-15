@@ -106,13 +106,14 @@ class CrudGenerator {
       },
     });
 
-    // Create
+    // Create — exclude computed fields
     final createMutation = <String, dynamic>{
       'name': snakeToCamel('create_$snake'),
       'return_type': typeName,
       'returns_list': false,
       'nullable': false,
       'arguments': fields
+          .where((f) => f['computed'] != true)
           .map((f) => {
                 'name': snakeToCamel(f['name'] as String),
                 'type': f['type'],
@@ -126,10 +127,10 @@ class CrudGenerator {
     if (cascade) createMutation['cascade'] = true;
     mutations.add(createMutation);
 
-    // Update
+    // Update — PK required, exclude computed non-PK fields
     final updateArgs = <Map<String, dynamic>>[
       {'name': snakeToCamel(pkField['name'] as String), 'type': pkField['type'], 'nullable': false},
-      ...fields.skip(1).map((f) => {
+      ...fields.skip(1).where((f) => f['computed'] != true).map((f) => {
             'name': snakeToCamel(f['name'] as String),
             'type': f['type'],
             'nullable': true,

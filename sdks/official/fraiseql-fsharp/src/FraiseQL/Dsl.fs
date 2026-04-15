@@ -37,6 +37,7 @@ module Dsl =
             nullable: bool
             description: string option
             scope: string option
+            computed: bool
         }
 
     /// Computation expression builder for a single <see cref="FieldDefinition"/>.
@@ -51,6 +52,7 @@ module Dsl =
                 nullable = true
                 description = None
                 scope = None
+                computed = false
             }
 
         member this.Zero() : FieldState = this.Yield(())
@@ -64,6 +66,7 @@ module Dsl =
                 nullable = s.nullable
                 description = s.description
                 scope = s.scope
+                computed = s.computed
             }
 
         /// Sets whether this field may be null.
@@ -78,6 +81,10 @@ module Dsl =
         /// Sets the single scope required to read this field.
         [<CustomOperation("scope")>]
         member _.Scope(s: FieldState, v: string) : FieldState = { s with scope = Some v }
+
+        /// Marks this field as server-computed; excluded from CRUD input types.
+        [<CustomOperation("computed")>]
+        member _.Computed(s: FieldState, v: bool) : FieldState = { s with computed = v }
 
     // -------------------------------------------------------------------------
     // TypeCEBuilder

@@ -23,6 +23,7 @@ final readonly class FieldDefinition
      * @param string $parentType The parent GraphQL type name
      * @param string|null $scope Optional JWT scope required to access this field
      * @param array<string>|null $scopes Optional JWT scopes required to access this field
+     * @param bool $computed When true, this field is server-computed and excluded from CRUD input types
      */
     public function __construct(
         public string $name,
@@ -35,6 +36,7 @@ final readonly class FieldDefinition
         public string $parentType = 'Unknown',
         public ?string $scope = null,
         public ?array $scopes = null,
+        public bool $computed = false,
     ) {
     }
 

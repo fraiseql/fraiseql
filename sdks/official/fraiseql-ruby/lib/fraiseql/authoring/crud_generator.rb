@@ -93,13 +93,13 @@ module FraiseQL
         auto_params: { where: true, order_by: true, limit: true, offset: true }
       }
 
-      # Create
+      # Create — exclude computed fields
       create = {
         name: snake_to_camel("create_#{snake}"),
         return_type: type_name,
         returns_list: false,
         nullable: false,
-        arguments: fields.map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: f[:nullable] } },
+        arguments: fields.reject { |f| f[:computed] }.map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: f[:nullable] } },
         description: "Create a new #{type_name}.",
         sql_source: "fn_create_#{snake}",
         operation: "INSERT"
@@ -107,14 +107,14 @@ module FraiseQL
       create[:cascade] = true if cascade
       mutations << create
 
-      # Update
+      # Update — PK required, exclude computed non-PK fields
       update = {
         name: snake_to_camel("update_#{snake}"),
         return_type: type_name,
         returns_list: false,
         nullable: true,
         arguments: [{ name: snake_to_camel(pk[:name]), type: pk[:type], nullable: false }] +
-          fields[1..].map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: true } },
+          fields[1..].reject { |f| f[:computed] }.map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: true } },
         description: "Update an existing #{type_name}.",
         sql_source: "fn_update_#{snake}",
         operation: "UPDATE"

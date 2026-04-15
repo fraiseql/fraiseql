@@ -102,7 +102,9 @@ defmodule FraiseQL.CrudGenerator do
 
   defp generate_create_op(type_name, snake, fields, cascade) do
     args =
-      Enum.map(fields, fn f ->
+      fields
+      |> Enum.reject(& &1.computed)
+      |> Enum.map(fn f ->
         %ArgumentDefinition{name: f.name, type: f.type, nullable: f.nullable}
       end)
 
@@ -123,6 +125,7 @@ defmodule FraiseQL.CrudGenerator do
     other_args =
       fields
       |> Enum.drop(1)
+      |> Enum.reject(& &1.computed)
       |> Enum.map(fn f ->
         %ArgumentDefinition{name: f.name, type: f.type, nullable: true}
       end)

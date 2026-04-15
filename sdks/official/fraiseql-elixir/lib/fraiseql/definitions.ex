@@ -10,6 +10,8 @@ defmodule FraiseQL.FieldDefinition do
     * `:description` — optional human-readable description
     * `:requires_scope` — optional single OAuth scope string required to read this field
     * `:requires_scopes` — optional list of OAuth scope strings (any one satisfies)
+    * `:computed` — when `true`, this field is server-computed and excluded from CRUD
+      input types (`CreateXInput`, `UpdateXInput`); defaults to `false`
   """
 
   @enforce_keys [:name, :type]
@@ -19,7 +21,8 @@ defmodule FraiseQL.FieldDefinition do
     nullable: false,
     description: nil,
     requires_scope: nil,
-    requires_scopes: nil
+    requires_scopes: nil,
+    computed: false
   ]
 
   @type t :: %__MODULE__{
@@ -28,7 +31,8 @@ defmodule FraiseQL.FieldDefinition do
           nullable: boolean(),
           description: String.t() | nil,
           requires_scope: String.t() | nil,
-          requires_scopes: [String.t()] | nil
+          requires_scopes: [String.t()] | nil,
+          computed: boolean()
         }
 end
 

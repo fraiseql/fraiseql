@@ -51,10 +51,18 @@ class FraiseQLField {
   /// Whether the field is deprecated.
   final bool deprecated;
 
+  /// When true, this field is server-computed and excluded from CRUD input types.
+  ///
+  /// Computed fields (e.g. auto-generated slugs, view aggregations) are never
+  /// provided by the client, so they are omitted from [Create{Type}Input] and
+  /// [Update{Type}Input]. They remain visible in query results.
+  final bool computed;
+
   const FraiseQLField({
     this.name,
     this.required = true,
     this.description,
     this.deprecated = false,
+    this.computed = false,
   });
 }

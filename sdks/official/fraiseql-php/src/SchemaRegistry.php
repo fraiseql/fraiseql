@@ -422,6 +422,9 @@ final class SchemaRegistry
     ): FieldDefinition {
         $typeInfo = TypeConverter::fromReflectionProperty($property);
 
+        $fieldAttr = ($property->getAttributes(\FraiseQL\Attributes\GraphQLField::class)[0] ?? null)
+            ?->newInstance();
+
         return new FieldDefinition(
             name: $property->getName(),
             type: $typeInfo->graphQLType,
@@ -431,6 +434,7 @@ final class SchemaRegistry
             phpType: $typeInfo->phpType,
             customResolver: $typeInfo->customResolver,
             parentType: $typeName,
+            computed: $fieldAttr?->computed ?? false,
         );
     }
 }

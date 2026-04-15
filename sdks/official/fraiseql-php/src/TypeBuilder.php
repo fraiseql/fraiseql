@@ -60,6 +60,7 @@ final class TypeBuilder
      * @param bool $isList Whether the field is a list
      * @param string|null $description Optional field description
      * @param string|null $customResolver Optional resolver method name
+     * @param bool $computed When true, excluded from CRUD input types (Create/Update)
      * @return self Fluent interface
      */
     public function field(
@@ -69,6 +70,7 @@ final class TypeBuilder
         bool $isList = false,
         ?string $description = null,
         ?string $customResolver = null,
+        bool $computed = false,
     ): self {
         $this->fields[$name] = new FieldDefinition(
             name: $name,
@@ -79,6 +81,7 @@ final class TypeBuilder
             phpType: 'mixed',
             customResolver: $customResolver,
             parentType: $this->name,
+            computed: $computed,
         );
 
         return $this;
@@ -168,6 +171,7 @@ final class TypeBuilder
                 phpType: $field->phpType,
                 customResolver: $methodName,
                 parentType: $field->parentType,
+                computed: $field->computed,
             );
         }
 

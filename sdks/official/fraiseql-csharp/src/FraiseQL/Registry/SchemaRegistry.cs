@@ -66,7 +66,7 @@ public sealed class SchemaRegistry
         if (typeAttr.Crud)
         {
             var intermediateFields = fields
-                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description, f.Resolver, f.Scope, f.Scopes))
+                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description, f.Resolver, f.Scope, f.Scopes, f.Computed ? true : null))
                 .ToList()
                 .AsReadOnly();
 
@@ -264,7 +264,8 @@ public sealed class SchemaRegistry
                 Description: fieldAttr.Description,
                 Resolver: fieldAttr.Resolver,
                 Scope: fieldAttr.Scope,
-                Scopes: fieldAttr.Scopes));
+                Scopes: fieldAttr.Scopes,
+                Computed: fieldAttr.Computed));
         }
 
         return fields.AsReadOnly();

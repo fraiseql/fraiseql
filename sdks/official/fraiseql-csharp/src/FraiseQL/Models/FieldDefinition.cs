@@ -11,6 +11,10 @@ namespace FraiseQL.Models;
 /// <param name="Resolver">Optional custom resolver name for computed fields.</param>
 /// <param name="Scope">Optional single required OAuth scope.</param>
 /// <param name="Scopes">Optional multiple required OAuth scopes.</param>
+/// <param name="Computed">
+/// When <see langword="true"/>, this field is server-computed and excluded from CRUD input types.
+/// Computed fields remain visible in query results.
+/// </param>
 public record FieldDefinition(
     string Name,
     string Type,
@@ -18,4 +22,5 @@ public record FieldDefinition(
     string? Description,
     string? Resolver,
     string? Scope,
-    IReadOnlyList<string>? Scopes);
+    IReadOnlyList<string>? Scopes,
+    bool Computed = false);

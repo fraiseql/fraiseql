@@ -74,6 +74,7 @@ module CrudGenerator =
                 name = createInputName
                 fields =
                     fields
+                    |> List.filter (fun f -> not f.computed)
                     |> List.map (fun f ->
                         {
                             name = f.name
@@ -92,6 +93,7 @@ module CrudGenerator =
                     { name = pkField.name; type_ = pkField.type_; nullable = false }
                     :: (fields
                         |> List.tail
+                        |> List.filter (fun f -> not f.computed)
                         |> List.map (fun f ->
                             {
                                 name = f.name

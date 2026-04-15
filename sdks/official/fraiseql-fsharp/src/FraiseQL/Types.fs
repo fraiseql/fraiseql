@@ -17,6 +17,9 @@ type FieldDefinition =
         description: string option
         /// Optional scope required to read this field.
         scope: string option
+        /// When true, this field is server-computed and excluded from CRUD input types.
+        /// Computed fields remain visible in query results.
+        computed: bool
     }
 
 /// Represents an argument on a GraphQL query or mutation.

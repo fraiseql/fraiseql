@@ -37,6 +37,10 @@ final readonly class GraphQLField
      * @param string|null $resolver Optional custom resolver method name.
      * @param string|null $scope Optional JWT scope required to access this field (single scope).
      * @param array<string>|null $scopes Optional JWT scopes required to access this field (multiple scopes).
+     * @param bool $computed When true, this field is server-computed and excluded from CRUD input types.
+     *   Computed fields (e.g. auto-generated slugs, view aggregations) are never provided by the
+     *   client, so they are omitted from Create{Type}Input and Update{Type}Input.
+     *   They remain visible in query results.
      */
     public function __construct(
         public ?string $type = null,
@@ -45,6 +49,7 @@ final readonly class GraphQLField
         public ?string $resolver = null,
         public ?string $scope = null,
         public ?array $scopes = null,
+        public bool $computed = false,
     ) {
     }
 }
