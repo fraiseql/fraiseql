@@ -443,6 +443,44 @@ async fn error_path_populates_nested_object_fields() {
     assert_eq!(data["details"]["rule"], "unique");
 }
 
+/// Cascade JSONB from `mutation_response_v2.cascade` is surfaced in the response.
+///
+/// When the DB function returns a non-null `cascade` JSONB, the executor must
+/// inject it as a `"cascade"` key on the projected entity object so that clients
+/// receive the full graphql-cascade wire format
+/// (`{ updated[], deleted[], invalidations[], metadata }`).
+#[tokio::test]
+async fn mutation_cascade_json_is_surfaced_in_response() {
+    let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
+    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+
+    let cascade_payload = json!({
+        "updated": [
+            { "__typename": "User", "id": "abc-123" }
+        ],
+        "deleted": [],
+        "invalidations": [],
+        "metadata": { "triggered_by": "createUser" }
+    });
+
+    let mut row = mutation_success_row();
+    row.insert("cascade".to_string(), cascade_payload.clone());
+
+    let mock = Arc::new(RecordingMockAdapter::new(row));
+    let executor = Executor::new(schema, Arc::clone(&mock));
+    let vars = serde_json::json!({"email": "a@b.com", "name": "Alice"});
+
+    let result = executor
+        .execute(r"mutation { createUser { id } }", Some(&vars))
+        .await
+        .expect("mutation must succeed");
+
+    let entity = &result["data"]["createUser"];
+    assert!(entity.get("cascade").is_some(), "cascade must be present in response: {result}");
+    assert_eq!(entity["cascade"]["updated"][0]["__typename"], "User");
+    assert_eq!(entity["cascade"]["metadata"]["triggered_by"], "createUser");
+}
+
 /// Pipeline 3: mutation with `inject_params` fails when no security context provided.
 ///
 /// A mutation that requires `inject_params` (resolved from JWT claims) cannot

@@ -475,6 +475,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             MutationOutcome::Success {
                 entity,
                 entity_type,
+                cascade,
                 ..
             } => {
                 // Determine the GraphQL __typename
@@ -509,7 +510,19 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let mapper = ProjectionMapper::with_mappings(mappings)
                     .with_typename(&typename);
                 let obj = entity.as_object().cloned().unwrap_or_default();
-                mapper.project_json_object(&obj)?
+                let mut projected = mapper.project_json_object(&obj)?;
+
+                // Inject cascade JSONB into the projected object when present.
+                // This surfaces the graphql-cascade wire format
+                // (updated/deleted/invalidations/metadata) to clients without
+                // requiring the DB function to embed it in the entity JSONB itself.
+                if let Some(cascade_json) = cascade {
+                    if let serde_json::Value::Object(ref mut map) = projected {
+                        map.insert("cascade".to_string(), cascade_json);
+                    }
+                }
+
+                projected
             },
             MutationOutcome::Error {
                 status, metadata, ..
