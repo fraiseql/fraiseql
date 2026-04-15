@@ -63,6 +63,27 @@ where
                 let mut context = SecurityContext::from_user(&authenticated_user, request_id);
                 context.ip_address = ip_address;
                 context.tenant_id = tenant_id;
+
+                // Forward JWT extra_claims to security context attributes.
+                // This makes custom claims (org_id, roles, etc.) available to RLS policies
+                // and session variable injection.
+                for (key, value) in &authenticated_user.extra_claims {
+                    context.attributes.insert(key.clone(), value.clone());
+                }
+
+                // Set tenant_id from org_id JWT claim when not already set from headers.
+                // This is the standard multi-tenant pattern: the JWT org_id claim identifies
+                // which tenant's data the authenticated user may access.
+                if context.tenant_id.is_none() {
+                    if let Some(org_id) = authenticated_user
+                        .extra_claims
+                        .get("org_id")
+                        .and_then(|v| v.as_str())
+                    {
+                        context.tenant_id = Some(org_id.to_string());
+                    }
+                }
+
                 context
             });
 

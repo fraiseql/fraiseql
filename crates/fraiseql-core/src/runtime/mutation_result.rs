@@ -93,9 +93,13 @@ pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
 /// The following patterns are treated as errors:
 /// - `"failed:*"` — validation, business-rule, or processing failures
 /// - `"conflict:*"` — uniqueness or concurrency conflicts
+/// - `"not_found:*"` — entity not found or access denied
 /// - `"error"` — generic error status
 pub fn is_error_status(status: &str) -> bool {
-    status.starts_with("failed:") || status.starts_with("conflict:") || status == "error"
+    status.starts_with("failed:")
+        || status.starts_with("conflict:")
+        || status.starts_with("not_found:")
+        || status == "error"
 }
 
 /// Populate error-type fields from a `metadata` JSONB object.
@@ -249,6 +253,8 @@ mod tests {
         assert!(is_error_status("failed:business_rule"));
         assert!(is_error_status("conflict:duplicate"));
         assert!(is_error_status("conflict:concurrent_update"));
+        assert!(is_error_status("not_found:dns_server"));
+        assert!(is_error_status("not_found:user"));
         assert!(is_error_status("error"));
         assert!(!is_error_status("new"));
         assert!(!is_error_status("updated"));
