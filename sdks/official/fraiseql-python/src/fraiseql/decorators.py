@@ -36,7 +36,7 @@ _SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_
 def _validate_sql_identifier(value: str, param: str, context: str) -> None:
     """Raise ValueError if value is not a safe SQL identifier.
 
-    Valid: 'v_user', 'public.v_user', 'fn_create_post'
+    Valid: 'v_user', 'public.v_user', 'create_post'
     Invalid: anything containing ; " -- spaces or SQL syntax
     """
     if not isinstance(value, str) or not _SQL_IDENTIFIER_RE.match(value):

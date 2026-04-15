@@ -164,7 +164,7 @@ def _generate_create_op(
         "nullable": False,
         "arguments": [{"name": "input", "type": input_name, "nullable": False}],
         "description": f"Create a new {type_name}.",
-        "sql_source": f"fn_create_{snake}",
+        "sql_source": f"create_{snake}",
         "operation": "INSERT",
     }
     if cascade:
@@ -196,7 +196,7 @@ def _generate_update_op(  # noqa: PLR0913 — all parameters are meaningful
         "nullable": True,
         "arguments": [{"name": "input", "type": input_name, "nullable": False}],
         "description": f"Update an existing {type_name}.",
-        "sql_source": f"fn_update_{snake}",
+        "sql_source": f"update_{snake}",
         "operation": "UPDATE",
     }
     if cascade:
@@ -220,7 +220,7 @@ def _generate_delete_op(
             {"name": pk_name, "type": pk_info["type"], "nullable": False},
         ],
         "description": f"Delete a {type_name}.",
-        "sql_source": f"fn_delete_{snake}",
+        "sql_source": f"delete_{snake}",
         "operation": "DELETE",
     }
     if cascade:
