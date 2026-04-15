@@ -223,6 +223,92 @@ public class FieldMetadataTest {
     }
 
     // =========================================================================
+    // COMPUTED FIELD TESTS
+    // =========================================================================
+
+    @Test
+    @DisplayName("Computed field is extracted from annotation")
+    void testComputedFieldExtraction() {
+        var fields = TypeConverter.extractFields(EntityWithComputedField.class);
+
+        assertTrue(fields.containsKey("id"));
+        assertTrue(fields.containsKey("name"));
+        assertTrue(fields.containsKey("computedSlug"));
+
+        assertFalse(fields.get("id").computed);
+        assertFalse(fields.get("name").computed);
+        assertTrue(fields.get("computedSlug").computed);
+    }
+
+    @Test
+    @DisplayName("Computed fields are excluded from CreateXInput in CRUD generation")
+    void testComputedFieldsExcludedFromCreateInput() {
+        FraiseQL.registerType(EntityWithComputedField.class, true, null, false);
+
+        SchemaRegistry registry = SchemaRegistry.getInstance();
+        var createInputInfo = registry.getInputType("CreateEntityWithComputedFieldInput");
+
+        assertTrue(createInputInfo.isPresent());
+        var createFields = createInputInfo.get().fields;
+
+        // Should contain id and name, but not computedSlug
+        assertEquals(2, createFields.size());
+        assertTrue(createFields.containsKey("id"));
+        assertTrue(createFields.containsKey("name"));
+        assertFalse(createFields.containsKey("computedSlug"));
+    }
+
+    @Test
+    @DisplayName("Computed fields are excluded from UpdateXInput (non-PK only)")
+    void testComputedFieldsExcludedFromUpdateInput() {
+        FraiseQL.registerType(EntityWithComputedField.class, true, null, false);
+
+        SchemaRegistry registry = SchemaRegistry.getInstance();
+        var updateInputInfo = registry.getInputType("UpdateEntityWithComputedFieldInput");
+
+        assertTrue(updateInputInfo.isPresent());
+        var updateFields = updateInputInfo.get().fields;
+
+        // Should contain id (PK, required) and name (non-computed, nullable), but not computedSlug
+        assertEquals(2, updateFields.size());
+        assertTrue(updateFields.containsKey("id"));
+        assertTrue(updateFields.containsKey("name"));
+        assertFalse(updateFields.containsKey("computedSlug"));
+
+        // PK should be required (non-nullable), name should be nullable
+        assertFalse(updateFields.get("id").nullable);
+        assertTrue(updateFields.get("name").nullable);
+    }
+
+    @Test
+    @DisplayName("Multiple computed fields are excluded from both input types")
+    void testMultipleComputedFieldsExcluded() {
+        FraiseQL.registerType(EntityWithMultipleComputedFields.class, true, null, false);
+
+        SchemaRegistry registry = SchemaRegistry.getInstance();
+
+        // Check create input
+        var createInputInfo = registry.getInputType("CreateEntityWithMultipleComputedFieldsInput");
+        assertTrue(createInputInfo.isPresent());
+        var createFields = createInputInfo.get().fields;
+        assertEquals(2, createFields.size()); // Only id and title
+        assertTrue(createFields.containsKey("id"));
+        assertTrue(createFields.containsKey("title"));
+        assertFalse(createFields.containsKey("computedSlug"));
+        assertFalse(createFields.containsKey("computedTimestamp"));
+
+        // Check update input
+        var updateInputInfo = registry.getInputType("UpdateEntityWithMultipleComputedFieldsInput");
+        assertTrue(updateInputInfo.isPresent());
+        var updateFields = updateInputInfo.get().fields;
+        assertEquals(2, updateFields.size()); // Only id and title
+        assertTrue(updateFields.containsKey("id"));
+        assertTrue(updateFields.containsKey("title"));
+        assertFalse(updateFields.containsKey("computedSlug"));
+        assertFalse(updateFields.containsKey("computedTimestamp"));
+    }
+
+    // =========================================================================
     // TEST FIXTURES
     // =========================================================================
 
@@ -383,5 +469,32 @@ public class FieldMetadataTest {
     public static class DateTypeEntity {
         @GraphQLField
         public java.time.LocalDateTime createdAt;
+    }
+
+    @GraphQLType
+    public static class EntityWithComputedField {
+        @GraphQLField
+        public int id;
+
+        @GraphQLField
+        public String name;
+
+        @GraphQLField(computed = true, description = "Auto-generated slug from name")
+        public String computedSlug;
+    }
+
+    @GraphQLType
+    public static class EntityWithMultipleComputedFields {
+        @GraphQLField
+        public int id;
+
+        @GraphQLField
+        public String title;
+
+        @GraphQLField(computed = true, description = "URL-friendly slug")
+        public String computedSlug;
+
+        @GraphQLField(computed = true, description = "Auto-generated timestamp")
+        public java.time.LocalDateTime computedTimestamp;
     }
 }

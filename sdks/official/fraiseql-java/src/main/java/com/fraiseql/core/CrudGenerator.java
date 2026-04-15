@@ -90,7 +90,9 @@ public final class CrudGenerator {
         String createInputName = "Create" + typeName + "Input";
         Map<String, TypeConverter.GraphQLFieldInfo> createInputFields = new LinkedHashMap<>();
         for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fieldList) {
-            createInputFields.put(entry.getKey(), entry.getValue());
+            if (!entry.getValue().computed) {
+                createInputFields.put(entry.getKey(), entry.getValue());
+            }
         }
         registry.registerInputType(createInputName, createInputFields,
             "Input for creating a new " + typeName + ".");
@@ -107,10 +109,12 @@ public final class CrudGenerator {
         updateInputFields.put(pkName, pkEntry.getValue());
         for (int i = 1; i < fieldList.size(); i++) {
             Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry = fieldList.get(i);
-            TypeConverter.GraphQLFieldInfo original = entry.getValue();
-            TypeConverter.GraphQLFieldInfo nullableField = new TypeConverter.GraphQLFieldInfo(
-                original.name, original.type, true, original.description);
-            updateInputFields.put(entry.getKey(), nullableField);
+            if (!entry.getValue().computed) {
+                TypeConverter.GraphQLFieldInfo original = entry.getValue();
+                TypeConverter.GraphQLFieldInfo nullableField = new TypeConverter.GraphQLFieldInfo(
+                    original.name, original.type, true, original.description, original.requiresScope, original.requiresScopes, original.computed);
+                updateInputFields.put(entry.getKey(), nullableField);
+            }
         }
         registry.registerInputType(updateInputName, updateInputFields,
             "Input for updating an existing " + typeName + ".");

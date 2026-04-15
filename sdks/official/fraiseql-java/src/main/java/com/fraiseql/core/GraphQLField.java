@@ -90,4 +90,17 @@ public @interface GraphQLField {
      * Example: {"admin", "read:financial"}
      */
     String[] requiresScopes() default {"\u0000"};
+
+    /**
+     * Whether this field is computed and should be excluded from CRUD input types.
+     * Computed fields are typically auto-generated (like slugs, timestamps, etc.)
+     * and should not be set directly by users in create/update operations.
+     *
+     * When computed=true, the field will be excluded from:
+     * - CreateXInput types (all fields)
+     * - UpdateXInput types (non-PK fields only)
+     *
+     * The field remains visible in query results.
+     */
+    boolean computed() default false;
 }

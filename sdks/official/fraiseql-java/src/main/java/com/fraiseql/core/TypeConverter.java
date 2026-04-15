@@ -177,7 +177,8 @@ public class TypeConverter {
                 nullable,
                 annotation.description(),
                 requiresScope,
-                requiresScopes
+                requiresScopes,
+                annotation.computed()
             );
             fieldInfo.isList = isList;
 
@@ -259,11 +260,12 @@ public class TypeConverter {
         public final String description;
         public final String requiresScope;
         public final String[] requiresScopes;
+        public final boolean computed;
         public boolean isDeprecated;
         public boolean isList;
 
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description) {
-            this(name, type, nullable, description, null, null);
+            this(name, type, nullable, description, null, null, false);
         }
 
         /**
@@ -281,13 +283,14 @@ public class TypeConverter {
         }
 
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description,
-                              String requiresScope, String[] requiresScopes) {
+                               String requiresScope, String[] requiresScopes, boolean computed) {
             this.name = name;
             this.type = type;
             this.nullable = nullable;
             this.description = description;
             this.requiresScope = requiresScope;
             this.requiresScopes = requiresScopes;
+            this.computed = computed;
             this.isDeprecated = false;
         }
 
