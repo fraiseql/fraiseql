@@ -45,15 +45,53 @@ pub enum MutationOutcome {
     },
 }
 
-/// Parse a single row from `execute_function_call` into a `MutationOutcome`.
+/// Parse a `mutation_response` row, dispatching on `schema_version`.
 ///
-/// Expects the row to contain the standard `app.mutation_response` columns:
-/// `status`, `message`, `entity`, `entity_type`, `cascade`, `metadata`.
+/// Version support matrix:
+///
+/// | `schema_version` column | Parser                                 |
+/// |-------------------------|----------------------------------------|
+/// | absent or `1`           | [`parse_mutation_row_v1`] (legacy path) |
+/// | `2`                     | [`crate::runtime::mutation_result_v2::parse_mutation_row_v2`] |
+/// | anything else           | [`FraiseQLError::Validation`]          |
+///
+/// The v1 path remains available during the v2 migration (Phases 01–03 of the
+/// `app.mutation_response` v2 initiative). It will be removed in Phase 04 once
+/// all emitters are v2. See `docs/architecture/mutation-response.md`.
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Validation` if the `status` column is missing.
+/// Returns [`FraiseQLError::Validation`] if the row does not deserialize into
+/// a supported version shape (see the per-version parsers for specifics).
 pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
+    row: &HashMap<String, JsonValue, S>,
+) -> Result<MutationOutcome> {
+    let version = row.get("schema_version").and_then(JsonValue::as_i64);
+    match version {
+        None | Some(1) => parse_mutation_row_v1(row),
+        Some(2) => crate::runtime::mutation_result_v2::parse_mutation_row_v2(row),
+        Some(other) => Err(FraiseQLError::Validation {
+            message: format!("unsupported mutation_response schema_version: {other}"),
+            path:    None,
+        }),
+    }
+}
+
+/// Parse a v1 `app.mutation_response` row (legacy, string-typed `status`).
+///
+/// Retained as part of the [`parse_mutation_row`] version dispatcher to keep
+/// not-yet-migrated emitters working during the v2 migration. **Do not call
+/// directly from new code** — call [`parse_mutation_row`] and let it dispatch.
+/// This function will be gated behind a `legacy-mutation-v1` Cargo feature in
+/// the first Phase 04 release and deleted in the following one.
+///
+/// Expects the row to contain the v1 columns: `status`, `message`, `entity`,
+/// `entity_type`, `cascade`, `metadata`.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] if the `status` column is missing.
+pub fn parse_mutation_row_v1<S: ::std::hash::BuildHasher>(
     row: &HashMap<String, JsonValue, S>,
 ) -> Result<MutationOutcome> {
     let status = row
@@ -264,5 +302,75 @@ mod tests {
         assert!(!is_error_status("updated"));
         assert!(!is_error_status("deleted"));
         assert!(!is_error_status(""));
+    }
+
+    // ---- Version dispatch (Cycle 4) -----------------------------------------
+
+    #[test]
+    fn dispatch_absent_schema_version_uses_v1() {
+        let mut row = HashMap::new();
+        row.insert("status".to_string(), json!("new"));
+        row.insert("entity".to_string(), json!({"id": "abc"}));
+        let outcome = parse_mutation_row(&row).expect("v1 row parses");
+        assert!(matches!(outcome, MutationOutcome::Success { .. }));
+    }
+
+    #[test]
+    fn dispatch_schema_version_1_uses_v1() {
+        let mut row = HashMap::new();
+        row.insert("schema_version".to_string(), json!(1));
+        row.insert("status".to_string(), json!("failed:validation"));
+        row.insert("message".to_string(), json!("bad input"));
+        let outcome = parse_mutation_row(&row).expect("v1 row parses");
+        assert!(matches!(outcome, MutationOutcome::Error { .. }));
+    }
+
+    #[test]
+    fn dispatch_schema_version_2_uses_v2() {
+        let mut row = HashMap::new();
+        row.insert("schema_version".to_string(), json!(2));
+        row.insert("succeeded".to_string(), json!(true));
+        row.insert("state_changed".to_string(), json!(true));
+        row.insert("entity".to_string(), json!({"id": "abc"}));
+        row.insert("entity_type".to_string(), json!("User"));
+        let outcome = parse_mutation_row(&row).expect("v2 row parses");
+        match outcome {
+            MutationOutcome::Success { entity_type, .. } => {
+                assert_eq!(entity_type.as_deref(), Some("User"));
+            },
+            MutationOutcome::Error { .. } => panic!("expected Success"),
+        }
+    }
+
+    #[test]
+    fn dispatch_mixed_version_batch() {
+        // v1 and v2 rows parse correctly through the same public API.
+        let mut v1 = HashMap::new();
+        v1.insert("status".to_string(), json!("new"));
+        v1.insert("entity".to_string(), json!({"id": "v1"}));
+
+        let mut v2 = HashMap::new();
+        v2.insert("schema_version".to_string(), json!(2));
+        v2.insert("succeeded".to_string(), json!(true));
+        v2.insert("state_changed".to_string(), json!(true));
+        v2.insert("entity".to_string(), json!({"id": "v2"}));
+
+        let r1 = parse_mutation_row(&v1).expect("v1 parses");
+        let r2 = parse_mutation_row(&v2).expect("v2 parses");
+        assert!(matches!(r1, MutationOutcome::Success { .. }));
+        assert!(matches!(r2, MutationOutcome::Success { .. }));
+    }
+
+    #[test]
+    fn dispatch_unknown_schema_version_rejected() {
+        let mut row = HashMap::new();
+        row.insert("schema_version".to_string(), json!(99));
+        let err = parse_mutation_row(&row).expect_err("unknown version rejected");
+        match err {
+            FraiseQLError::Validation { message, .. } => {
+                assert!(message.contains("schema_version"), "got: {message}");
+            },
+            other => panic!("expected Validation, got {other:?}"),
+        }
     }
 }
