@@ -17,7 +17,7 @@ jobs:
   parity:
     name: Cross-SDK schema parity
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -153,29 +153,110 @@ jobs:
         run: mix test test/generate_parity_schema_test.exs
 
       # -----------------------------------------------------------------------
-      # Extended parity (Rust / PHP / Elixir) — soft gate for first landing.
-      # Any mismatch is reported but does not fail the build. Flip to strict
-      # in a follow-up PR once the baseline is clean.
+      # Java SDK (full parity)
+      # -----------------------------------------------------------------------
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        continue-on-error: true
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Generate schema via Java SDK
+        working-directory: sdks/official/fraiseql-java
+        continue-on-error: true
+        run: mvn -q test -Dtest=GenerateParitySchema -DschemaOutputFile=/tmp/schema_java.json
+
+      # -----------------------------------------------------------------------
+      # Ruby SDK (full parity)
+      # -----------------------------------------------------------------------
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        continue-on-error: true
+        with:
+          ruby-version: '3.3'
+          working-directory: sdks/official/fraiseql-ruby
+
+      - name: Generate schema via Ruby SDK
+        working-directory: sdks/official/fraiseql-ruby
+        continue-on-error: true
+        run: SCHEMA_OUTPUT_FILE=/tmp/schema_ruby.json ruby test/generate_parity_schema.rb
+
+      # -----------------------------------------------------------------------
+      # Dart SDK (full parity)
+      # -----------------------------------------------------------------------
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        continue-on-error: true
+        with:
+          sdk: stable
+
+      - name: Install Dart SDK dependencies
+        working-directory: sdks/official/fraiseql-dart
+        continue-on-error: true
+        run: dart pub get
+
+      - name: Generate schema via Dart SDK
+        working-directory: sdks/official/fraiseql-dart
+        env:
+          SCHEMA_OUTPUT_FILE: /tmp/schema_dart.json
+        continue-on-error: true
+        run: dart test test/generate_parity_schema_test.dart
+
+      # -----------------------------------------------------------------------
+      # C# + F# SDKs (full parity — shared dotnet toolchain)
+      # -----------------------------------------------------------------------
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        continue-on-error: true
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Generate schema via C# SDK
+        working-directory: sdks/official/fraiseql-csharp
+        env:
+          SCHEMA_OUTPUT_FILE: /tmp/schema_csharp.json
+        continue-on-error: true
+        run: dotnet test tests/FraiseQL.Tests/FraiseQL.Tests.csproj --filter GenerateParitySchema
+
+      - name: Generate schema via F# SDK
+        working-directory: sdks/official/fraiseql-fsharp
+        env:
+          SCHEMA_OUTPUT_FILE: /tmp/schema_fsharp.json
+        continue-on-error: true
+        run: dotnet test tests/FraiseQL.Tests/FraiseQL.Tests.fsproj --filter GenerateParitySchema
+
+      # -----------------------------------------------------------------------
+      # Extended parity (Rust / PHP / Elixir / Java / Ruby / Dart / C# / F#)
+      # Soft gate for first landing — mismatch reported but does not fail the
+      # build. Flip to strict in a follow-up PR once all baselines are clean.
       # -----------------------------------------------------------------------
       - name: Compare extended SDK schema outputs (soft)
         continue-on-error: true
         run: |
           compare_args=()
           types_only_args=()
-          if [ -s /tmp/schema_php.json ]; then
-            compare_args+=(/tmp/schema_php.json)
-          else
-            echo "::warning::PHP parity schema missing — skipping"
-          fi
-          if [ -s /tmp/schema_elixir.json ]; then
-            compare_args+=(/tmp/schema_elixir.json)
-          else
-            echo "::warning::Elixir parity schema missing — skipping"
-          fi
+
+          for schema_file in \
+              /tmp/schema_php.json \
+              /tmp/schema_elixir.json \
+              /tmp/schema_java.json \
+              /tmp/schema_ruby.json \
+              /tmp/schema_dart.json \
+              /tmp/schema_csharp.json \
+              /tmp/schema_fsharp.json; do
+            sdk=$(basename "$schema_file" .json | sed 's/schema_//')
+            if [ -s "$schema_file" ]; then
+              compare_args+=("$schema_file")
+            else
+              echo "::warning::${sdk} parity schema missing — skipping"
+            fi
+          done
+
           if [ -s /tmp/schema_rust.json ]; then
             types_only_args+=(/tmp/schema_rust.json)
           else
-            echo "::warning::Rust parity schema missing — skipping"
+            echo "::warning::rust parity schema missing — skipping"
           fi
 
           cmd=(python3 sdks/official/tests/compare_schemas.py --reference /tmp/schema_python.json)
@@ -199,4 +280,9 @@ jobs:
             /tmp/schema_rust.json
             /tmp/schema_php.json
             /tmp/schema_elixir.json
+            /tmp/schema_java.json
+            /tmp/schema_ruby.json
+            /tmp/schema_dart.json
+            /tmp/schema_csharp.json
+            /tmp/schema_fsharp.json
           retention-days: 7
