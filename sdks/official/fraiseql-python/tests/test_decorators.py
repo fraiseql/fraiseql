@@ -1408,3 +1408,81 @@ def test_crud_full_generates_both_input_types() -> None:
     assert create["arguments"][0]["name"] == "input"
     assert update["arguments"][0]["name"] == "input"
     assert delete["arguments"][0]["name"] == "pkOrder"
+
+
+# ── computed=True field marker tests (issue #222) ────────────────────────────
+
+
+def test_computed_field_excluded_from_create_input() -> None:
+    """computed=True fields are excluded from CreateXInput."""
+    from typing import Annotated
+
+    @fraiseql.type(crud=["create"], sql_source="v_order")
+    class Order:
+        pk_order: int
+        reference: Annotated[str, fraiseql.field(computed=True)]
+        quantity: int
+        total_amount: float
+        item_count: Annotated[int | None, fraiseql.field(computed=True)]
+
+    schema = SchemaRegistry.get_schema()
+    input_t = next(t for t in schema["input_types"] if t["name"] == "CreateOrderInput")
+    field_names = [f["name"] for f in input_t["fields"]]
+
+    # computed fields excluded
+    assert "reference" not in field_names
+    assert "itemCount" not in field_names
+    # writable fields present
+    assert "pkOrder" in field_names
+    assert "quantity" in field_names
+    assert "totalAmount" in field_names
+
+
+def test_computed_field_excluded_from_update_input() -> None:
+    """computed=True fields (non-PK) are excluded from UpdateXInput."""
+    from typing import Annotated
+
+    @fraiseql.type(crud=["update"], sql_source="v_item")
+    class Item:
+        pk_item: int
+        slug: Annotated[str, fraiseql.field(computed=True)]
+        label: str
+        n_reviews: Annotated[int | None, fraiseql.field(computed=True)]
+
+    schema = SchemaRegistry.get_schema()
+    input_t = next(t for t in schema["input_types"] if t["name"] == "UpdateItemInput")
+    field_names = [f["name"] for f in input_t["fields"]]
+
+    # PK always present and required
+    assert "pkItem" in field_names
+    pk_field = next(f for f in input_t["fields"] if f["name"] == "pkItem")
+    assert pk_field["nullable"] is False
+
+    # computed fields excluded
+    assert "slug" not in field_names
+    assert "nReviews" not in field_names
+    # writable field present
+    assert "label" in field_names
+
+
+def test_computed_field_excluded_from_both_inputs() -> None:
+    """crud=True: computed fields are absent from both Create and Update inputs."""
+    from typing import Annotated
+
+    @fraiseql.type(crud=True, sql_source="v_product")
+    class Product:
+        pk_product: int
+        reference: Annotated[str, fraiseql.field(computed=True)]
+        name: str
+        price: float
+
+    schema = SchemaRegistry.get_schema()
+
+    create_t = next(t for t in schema["input_types"] if t["name"] == "CreateProductInput")
+    update_t = next(t for t in schema["input_types"] if t["name"] == "UpdateProductInput")
+
+    for input_t in (create_t, update_t):
+        field_names = [f["name"] for f in input_t["fields"]]
+        assert "reference" not in field_names
+        assert "name" in field_names
+        assert "price" in field_names

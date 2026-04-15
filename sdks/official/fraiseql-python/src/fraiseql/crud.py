@@ -151,6 +151,7 @@ def _generate_create_op(
     input_fields = [
         {"name": name, "type": info["type"], "nullable": info["nullable"]}
         for name, info in field_list
+        if not info.get("computed", False)
     ]
     SchemaRegistry.register_input(
         name=input_name,
@@ -183,7 +184,8 @@ def _generate_update_op(  # noqa: PLR0913 — all parameters are meaningful
     input_name = f"Update{type_name}Input"
     input_fields = [{"name": pk_name, "type": pk_info["type"], "nullable": False}]
     for name, info in field_list[1:]:
-        input_fields.append({"name": name, "type": info["type"], "nullable": True})
+        if not info.get("computed", False):
+            input_fields.append({"name": name, "type": info["type"], "nullable": True})
     SchemaRegistry.register_input(
         name=input_name,
         fields=input_fields,

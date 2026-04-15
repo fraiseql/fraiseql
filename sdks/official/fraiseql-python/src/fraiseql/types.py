@@ -181,6 +181,8 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
                 field_info["deprecated"] = {"reason": config.deprecated}
             if config.description:
                 field_info["description"] = config.description
+            if config.computed:
+                field_info["computed"] = True
 
         fields[field_name] = field_info
 
