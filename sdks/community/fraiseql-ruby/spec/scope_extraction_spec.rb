@@ -285,7 +285,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
           type: 'String',
           requires_scope: 'scope2',
           description: 'Desc 2'
-        }
+        },
       ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
@@ -307,7 +307,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Invalid scopes should raise error
       expect do
         FraiseQL::Schema.register_type('InvalidScopeFormat', [
-          { name: 'field', type: 'String', requires_scope: 'invalid_scope_no_colon' }
+          { name: 'field', type: 'String', requires_scope: 'invalid_scope_no_colon' },
         ])
       end.to raise_error(RuntimeError)
     end
@@ -316,7 +316,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Empty string scope invalid
       expect do
         FraiseQL::Schema.register_type('EmptyScope', [
-          { name: 'field', type: 'String', requires_scope: '' }
+          { name: 'field', type: 'String', requires_scope: '' },
         ])
       end.to raise_error(RuntimeError)
     end
@@ -325,7 +325,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Empty array not allowed
       expect do
         FraiseQL::Schema.register_type('EmptyScopesArray', [
-          { name: 'field', type: 'String', requires_scopes: [] }
+          { name: 'field', type: 'String', requires_scopes: [] },
         ])
       end.to raise_error(RuntimeError)
     end
@@ -334,7 +334,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Hyphens in action prefix invalid
       expect do
         FraiseQL::Schema.register_type('InvalidActionWithHyphens', [
-          { name: 'field', type: 'String', requires_scope: 'invalid-action:resource' }
+          { name: 'field', type: 'String', requires_scope: 'invalid-action:resource' },
         ])
       end.to raise_error(RuntimeError)
     end
@@ -343,7 +343,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Hyphens in resource name invalid
       expect do
         FraiseQL::Schema.register_type('InvalidResourceWithHyphens', [
-          { name: 'field', type: 'String', requires_scope: 'read:invalid-resource-name' }
+          { name: 'field', type: 'String', requires_scope: 'read:invalid-resource-name' },
         ])
       end.to raise_error(RuntimeError)
     end
