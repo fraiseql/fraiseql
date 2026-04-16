@@ -83,7 +83,11 @@ class CrudGenerator {
       'returns_list': false,
       'nullable': true,
       'arguments': [
-        {'name': snakeToCamel(pkField['name'] as String), 'type': pkField['type'], 'nullable': false},
+        {
+          'name': snakeToCamel(pkField['name'] as String),
+          'type': pkField['type'],
+          'nullable': false,
+        },
       ],
       'description': 'Get $typeName by ID.',
       'sql_source': view,
@@ -129,7 +133,11 @@ class CrudGenerator {
 
     // Update — PK required, exclude computed non-PK fields
     final updateArgs = <Map<String, dynamic>>[
-      {'name': snakeToCamel(pkField['name'] as String), 'type': pkField['type'], 'nullable': false},
+      {
+        'name': snakeToCamel(pkField['name'] as String),
+        'type': pkField['type'],
+        'nullable': false,
+      },
       ...fields.skip(1).where((f) => f['computed'] != true).map((f) => {
             'name': snakeToCamel(f['name'] as String),
             'type': f['type'],
@@ -156,7 +164,11 @@ class CrudGenerator {
       'returns_list': false,
       'nullable': false,
       'arguments': [
-        {'name': snakeToCamel(pkField['name'] as String), 'type': pkField['type'], 'nullable': false},
+        {
+          'name': snakeToCamel(pkField['name'] as String),
+          'type': pkField['type'],
+          'nullable': false,
+        },
       ],
       'description': 'Delete a $typeName.',
       'sql_source': 'fn_delete_$snake',
