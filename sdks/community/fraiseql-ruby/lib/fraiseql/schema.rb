@@ -103,12 +103,14 @@ module FraiseQL
       resource = parts[1]
 
       unless valid_action?(action)
-        raise "Field #{type_name}.#{field_name} has invalid action in scope '#{scope}' (must be alphanumeric + underscore)"
+        raise "Field #{type_name}.#{field_name} has invalid action in scope '#{scope}' " \
+              '(must be alphanumeric + underscore)'
       end
 
       return if valid_resource?(resource)
 
-      raise "Field #{type_name}.#{field_name} has invalid resource in scope '#{scope}' (must be alphanumeric + underscore + dot, or *)"
+      raise "Field #{type_name}.#{field_name} has invalid resource in scope '#{scope}' " \
+            '(must be alphanumeric + underscore + dot, or *)'
     end
 
     def self.valid_action?(action)

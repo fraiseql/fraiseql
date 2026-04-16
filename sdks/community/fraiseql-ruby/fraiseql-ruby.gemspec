@@ -24,12 +24,9 @@ Gem::Specification.new do |spec|
   spec.bindir        = 'bin'
   spec.require_paths = ['lib']
 
-  spec.required_ruby_version = '>= 2.7.0'
+  spec.required_ruby_version = '~> 3.1'
 
-  spec.add_development_dependency 'bundler', '~> 2.0'
-  spec.add_development_dependency 'rake', '~> 13.0'
-  spec.add_development_dependency 'rspec', '~> 3.12'
-  spec.add_development_dependency 'rspec-its', '~> 1.3'
-  spec.add_development_dependency 'rubocop', '~> 1.40'
+  spec.add_dependency 'bundler', '~> 2.0'
+
   spec.metadata['rubygems_mfa_required'] = 'true'
 end
