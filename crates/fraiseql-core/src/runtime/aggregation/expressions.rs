@@ -27,7 +27,8 @@ impl AggregationSqlGenerator {
             let alias = match expr {
                 GroupByExpression::JsonbPath { alias, .. }
                 | GroupByExpression::TemporalBucket { alias, .. }
-                | GroupByExpression::CalendarPath { alias, .. } => alias,
+                | GroupByExpression::CalendarPath { alias, .. }
+                | GroupByExpression::NativeColumn { alias, .. } => alias,
             };
             columns.push(format!("{} AS {}", column, alias));
         }
@@ -69,6 +70,10 @@ impl AggregationSqlGenerator {
             } => {
                 // Calendar dimension: reuse JSONB extraction for all 4 databases
                 Ok(self.jsonb_extract_sql(calendar_column, json_key))
+            },
+            GroupByExpression::NativeColumn { column, .. } => {
+                // Direct column reference, dialect-quoted to handle reserved words
+                Ok(self.quote_identifier(column))
             },
         }
     }
@@ -431,11 +436,25 @@ impl AggregationSqlGenerator {
 
     /// Build ORDER BY clause.
     ///
+    /// All ORDER BY fields are quoted via `quote_identifier`, which produces the correct
+    /// dialect syntax (double-quotes, backticks, or brackets).  For native SQL columns,
+    /// this quoted identifier resolves to the SELECT alias emitted by `build_select_clause`,
+    /// so no JSONB path is ever generated in ORDER BY.
+    ///
+    /// The `_native_aliases` parameter is accepted for documentation purposes: its presence
+    /// makes explicit that native-column aliases are handled correctly by the existing
+    /// `quote_identifier` path, and guards against future refactors accidentally introducing
+    /// JSONB path generation for ORDER BY fields.
+    ///
     /// # Errors
     ///
     /// Currently infallible; reserved for future validation of column references
     /// against the aggregation plan.
-    pub(super) fn build_order_by_clause(&self, order_by: &[OrderByClause]) -> Result<String> {
+    pub(super) fn build_order_by_clause(
+        &self,
+        order_by: &[OrderByClause],
+        _native_aliases: &std::collections::HashSet<&str>,
+    ) -> Result<String> {
         let clauses: Vec<String> = order_by
             .iter()
             .map(|clause| {

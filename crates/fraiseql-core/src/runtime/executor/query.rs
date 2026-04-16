@@ -1512,22 +1512,7 @@ fn inject_param_where_clause(
 ///
 /// Returns `""` for text-like types that need no cast.
 fn pg_type_to_cast(data_type: &str) -> &'static str {
-    match data_type.to_lowercase().as_str() {
-        "uuid" => "uuid",
-        "integer" | "int" | "int4" => "int4",
-        "bigint" | "int8" => "int8",
-        "smallint" | "int2" => "int2",
-        "boolean" | "bool" => "bool",
-        "numeric" | "decimal" => "numeric",
-        "double precision" | "float8" => "float8",
-        "real" | "float4" => "float4",
-        "timestamp without time zone" | "timestamp" => "timestamp",
-        "timestamp with time zone" | "timestamptz" => "timestamptz",
-        "date" => "date",
-        "time without time zone" | "time" => "time",
-        // text, varchar, char(n), etc. — no cast needed.
-        _ => "",
-    }
+    crate::runtime::native_columns::pg_type_to_cast(data_type)
 }
 
 /// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into

@@ -7,6 +7,29 @@ use crate::compiler::{
     fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
 };
 
+/// Metadata helper for integration tests — includes `customer_id` as a native int8 column.
+fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableMetadata {
+    use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
+    crate::compiler::fact_table::FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "revenue".to_string(),
+            sql_type: SqlType::Decimal,
+            nullable: false,
+        }],
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
+        denormalized_filters: vec![FilterColumn {
+            name:     "customer_id".to_string(),
+            sql_type: SqlType::BigInt,
+            indexed:  true,
+        }],
+        calendar_dimensions:  vec![],
+    }
+}
+
 fn create_test_plan() -> AggregationPlan {
     let metadata = FactTableMetadata {
         table_name:           "tf_sales".to_string(),
@@ -141,6 +164,359 @@ fn test_order_by_clause() {
     let sql = generator.generate_parameterized(&plan).unwrap();
 
     assert!(sql.sql.contains("ORDER BY \"revenue_sum\" DESC"));
+}
+
+// ========================================
+// NativeField WHERE clause tests
+// ========================================
+
+mod native_where {
+    use super::*;
+    use fraiseql_db::where_clause::{WhereClause, WhereOperator};
+
+    fn plan_with_native_where(
+        column: &str,
+        pg_cast: &str,
+        value: serde_json::Value,
+    ) -> AggregationPlan {
+        let mut plan = create_test_plan();
+        plan.request.where_clause = Some(WhereClause::NativeField {
+            column:   column.to_string(),
+            pg_cast:  pg_cast.to_string(),
+            operator: WhereOperator::Eq,
+            value,
+        });
+        plan
+    }
+
+    #[test]
+    fn postgres_native_uuid_where() {
+        let plan = plan_with_native_where("order_id", "uuid", serde_json::json!("abc-123"));
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#""order_id" = $1::uuid"#), "got: {sql}");
+    }
+
+    #[test]
+    fn postgres_native_int_where() {
+        let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#""customer_id" = $1::int8"#), "got: {sql}");
+    }
+
+    #[test]
+    fn postgres_native_no_cast_where() {
+        let plan = plan_with_native_where("status", "", serde_json::json!("active"));
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#""status" = $1"#), "got: {sql}");
+        assert!(!sql.contains("::"), "unexpected cast: {sql}");
+    }
+
+    #[test]
+    fn mysql_native_where() {
+        let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains("`customer_id` = ?"), "got: {sql}");
+    }
+
+    #[test]
+    fn sqlite_native_where() {
+        let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
+        let gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#""customer_id" = ?"#), "got: {sql}");
+    }
+
+    #[test]
+    fn sqlserver_native_where() {
+        let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
+        let gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains("[customer_id] = @P1"), "got: {sql}");
+    }
+
+    #[test]
+    fn and_wrapping_native_field() {
+        let mut plan = create_test_plan();
+        plan.request.where_clause = Some(WhereClause::And(vec![
+            WhereClause::NativeField {
+                column:   "customer_id".to_string(),
+                pg_cast:  "int8".to_string(),
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!(1),
+            },
+            WhereClause::NativeField {
+                column:   "status".to_string(),
+                pg_cast:  "".to_string(),
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!("active"),
+            },
+        ]));
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#""customer_id" = $1::int8"#), "got: {sql}");
+        assert!(sql.contains(r#""status" = $2"#), "got: {sql}");
+    }
+}
+
+// ========================================
+// NativeColumn GROUP BY variant tests
+// ========================================
+
+mod native_groupby {
+    use super::*;
+    use crate::compiler::aggregation::GroupByExpression;
+
+    fn plan_with_native_groupby() -> AggregationPlan {
+        let mut plan = create_test_plan();
+        plan.group_by_expressions = vec![GroupByExpression::NativeColumn {
+            column:  "customer_id".to_string(),
+            pg_cast: "int8".to_string(),
+            alias:   "customer_id".to_string(),
+        }];
+        plan
+    }
+
+    #[test]
+    fn postgres_native_groupby_select_clause() {
+        let plan = plan_with_native_groupby();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#""customer_id" AS customer_id"#), "got: {sql}");
+        assert!(!sql.contains("data->>'customer_id'"), "unexpected JSONB ref: {sql}");
+    }
+
+    #[test]
+    fn postgres_native_groupby_group_by_clause() {
+        let plan = plan_with_native_groupby();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#"GROUP BY "customer_id""#), "got: {sql}");
+        assert!(!sql.contains("data->>'customer_id'"), "unexpected JSONB ref: {sql}");
+    }
+
+    #[test]
+    fn mixed_native_and_jsonb_groupby() {
+        let mut plan = create_test_plan();
+        plan.group_by_expressions = vec![
+            GroupByExpression::NativeColumn {
+                column:  "customer_id".to_string(),
+                pg_cast: "int8".to_string(),
+                alias:   "customer_id".to_string(),
+            },
+            GroupByExpression::JsonbPath {
+                jsonb_column: "data".to_string(),
+                path:         "status".to_string(),
+                alias:        "status".to_string(),
+            },
+        ];
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains(r#""customer_id" AS customer_id"#), "got: {sql}");
+        // PostgreSQL jsonb_extract_sql produces a trailing space before AS
+        assert!(sql.contains("data->>'status'"), "got: {sql}");
+        assert!(sql.contains("AS status"), "got: {sql}");
+        assert!(sql.contains(r#""customer_id""#), "got: {sql}");
+    }
+
+    #[test]
+    fn mysql_native_groupby() {
+        let plan = plan_with_native_groupby();
+        let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+        assert!(sql.contains("`customer_id` AS customer_id"), "got: {sql}");
+        assert!(sql.contains("GROUP BY `customer_id`"), "got: {sql}");
+    }
+}
+
+// ========================================
+// native_columns threading integration tests
+// ========================================
+
+mod native_columns_integration {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::{
+        compiler::aggregation::{AggregationPlanner, GroupByExpression},
+        runtime::aggregate_parser::AggregateQueryParser,
+    };
+    use fraiseql_db::where_clause::WhereClause;
+
+    fn native_cols() -> HashMap<String, String> {
+        [("customer_id".to_string(), "int8".to_string())]
+            .into_iter()
+            .collect()
+    }
+
+    #[test]
+    fn parser_emits_native_where_when_column_in_map() {
+        let query_json = serde_json::json!({
+            "table": "tf_sales",
+            "where": { "customer_id_eq": 42 },
+            "groupBy": { "status": true },
+            "aggregates": [{ "count": {} }]
+        });
+        let metadata = create_aggregation_test_metadata();
+        let native = native_cols();
+
+        let request = AggregateQueryParser::parse(&query_json, &metadata, &native).unwrap();
+
+        let where_clause = request.where_clause.unwrap();
+        let found_native = match &where_clause {
+            WhereClause::And(clauses) => clauses.iter().any(|c| {
+                matches!(c, WhereClause::NativeField { column, .. } if column == "customer_id")
+            }),
+            WhereClause::NativeField { column, .. } => column == "customer_id",
+            _ => false,
+        };
+        assert!(found_native, "expected NativeField for customer_id, got: {where_clause:?}");
+    }
+
+    #[test]
+    fn parser_emits_native_groupby_when_column_in_map() {
+        let query_json = serde_json::json!({
+            "table": "tf_sales",
+            "groupBy": { "customer_id": true, "status": true },
+            "aggregates": [{ "count": {} }]
+        });
+        let metadata = create_aggregation_test_metadata();
+        let native = native_cols();
+
+        let request = AggregateQueryParser::parse(&query_json, &metadata, &native).unwrap();
+        let plan = AggregationPlanner::plan(request, metadata).unwrap();
+
+        let has_native = plan.group_by_expressions.iter().any(|e| {
+            matches!(e, GroupByExpression::NativeColumn { column, .. } if column == "customer_id")
+        });
+        assert!(
+            has_native,
+            "expected NativeColumn for customer_id; got: {:?}",
+            plan.group_by_expressions
+        );
+
+        let has_jsonb = plan.group_by_expressions.iter().any(|e| {
+            matches!(e, GroupByExpression::JsonbPath { path, .. } if path == "status")
+        });
+        assert!(
+            has_jsonb,
+            "expected JsonbPath for status; got: {:?}",
+            plan.group_by_expressions
+        );
+    }
+
+    #[test]
+    fn full_sql_uses_native_column_references() {
+        let query_json = serde_json::json!({
+            "table": "tf_sales",
+            "where": { "customer_id_eq": 42 },
+            "groupBy": { "customer_id": true },
+            "aggregates": [{ "count": {} }]
+        });
+        let metadata = create_aggregation_test_metadata();
+        let native = native_cols();
+
+        let request = AggregateQueryParser::parse(&query_json, &metadata, &native).unwrap();
+        let plan = AggregationPlanner::plan(request, metadata).unwrap();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        assert!(result.sql.contains(r#""customer_id""#), "got: {}", result.sql);
+        assert!(result.sql.contains("$1::int8"), "got: {}", result.sql);
+        assert!(
+            !result.sql.contains("data->>'customer_id'"),
+            "unexpected JSONB: {}",
+            result.sql
+        );
+    }
+
+    #[test]
+    fn empty_native_map_falls_back_to_jsonb() {
+        let query_json = serde_json::json!({
+            "table": "tf_sales",
+            "groupBy": { "customer_id": true },
+            "aggregates": [{ "count": {} }]
+        });
+        let metadata = create_aggregation_test_metadata();
+        let empty: HashMap<String, String> = HashMap::new();
+
+        let request = AggregateQueryParser::parse(&query_json, &metadata, &empty).unwrap();
+        let plan = AggregationPlanner::plan(request, metadata).unwrap();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let result = gen.generate_parameterized(&plan).unwrap();
+
+        // Without native_columns, falls back to JSONB extraction
+        assert!(
+            result.sql.contains("data->>'customer_id'"),
+            "expected JSONB fallback: {}",
+            result.sql
+        );
+    }
+}
+
+// ========================================
+// native_aliases and ORDER BY tests
+// ========================================
+
+mod native_orderby {
+    use super::*;
+    use crate::compiler::aggregation::{GroupByExpression, OrderByClause, OrderDirection};
+
+    #[test]
+    fn order_by_native_column_uses_alias_not_jsonb() {
+        let mut plan = create_test_plan();
+        plan.group_by_expressions = vec![GroupByExpression::NativeColumn {
+            column:  "customer_id".to_string(),
+            pg_cast: "int8".to_string(),
+            alias:   "customer_id".to_string(),
+        }];
+        plan.request.order_by = vec![OrderByClause::new(
+            "customer_id".to_string(),
+            OrderDirection::Asc,
+        )];
+
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+
+        assert!(sql.contains(r#"ORDER BY "customer_id" ASC"#), "got: {sql}");
+        assert!(!sql.contains("data->>'customer_id'"), "unexpected JSONB in ORDER BY: {sql}");
+    }
+
+    #[test]
+    fn order_by_jsonb_dimension_unchanged() {
+        let mut plan = create_test_plan();
+        plan.request.order_by =
+            vec![OrderByClause::new("category".to_string(), OrderDirection::Desc)];
+
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+        let sql = gen.generate_parameterized(&plan).unwrap().sql;
+
+        assert!(sql.contains(r#"ORDER BY "category" DESC"#), "got: {sql}");
+    }
+
+    #[test]
+    fn native_aliases_helper_returns_correct_set() {
+        let mut plan = create_test_plan();
+        plan.group_by_expressions = vec![
+            GroupByExpression::NativeColumn {
+                column:  "customer_id".to_string(),
+                pg_cast: "int8".to_string(),
+                alias:   "customer_id".to_string(),
+            },
+            GroupByExpression::JsonbPath {
+                jsonb_column: "data".to_string(),
+                path:         "status".to_string(),
+                alias:        "status".to_string(),
+            },
+        ];
+
+        let aliases = plan.native_aliases();
+        assert!(aliases.contains("customer_id"), "expected customer_id in {aliases:?}");
+        assert!(!aliases.contains("status"), "status should not be native: {aliases:?}");
+    }
 }
 
 // ========================================

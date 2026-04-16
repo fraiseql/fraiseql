@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Native column support in aggregation `WHERE`, `GROUP BY`, and `ORDER BY`**.
+  Aggregation queries on views with both native SQL columns and a JSONB `data` column
+  now correctly reference native columns directly (`"col"`) instead of using JSONB
+  extraction (`data->>'col'`). This enables btree index usage and fixes the PostgreSQL
+  error `column "v_foo.data" must appear in the GROUP BY clause`
+  (fraiseql/fraiseql-python#337). All four database dialects are covered.
+
 ### Added
 
 - **Mutation response v2 parser with `schema_version` dispatch** (`ad60c4789`).

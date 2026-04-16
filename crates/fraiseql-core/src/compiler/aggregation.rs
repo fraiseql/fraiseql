@@ -115,6 +115,16 @@ pub enum GroupBySelection {
         /// Alias for result
         alias:           String,
     },
+    /// Group by a native SQL column (not JSONB-extracted).
+    ///
+    /// Produced by [`crate::runtime::AggregateQueryParser`] when the GROUP BY field
+    /// matches an entry in the query's `native_columns` map.
+    NativeDimension {
+        /// Column name as it appears in the CREATE VIEW DDL.
+        column:  String,
+        /// PostgreSQL type for cast expressions (e.g. `"int8"`).
+        pg_cast: String,
+    },
 }
 
 impl GroupBySelection {
@@ -125,6 +135,8 @@ impl GroupBySelection {
             Self::Dimension { alias, .. }
             | Self::TemporalBucket { alias, .. }
             | Self::CalendarDimension { alias, .. } => alias,
+            // NativeDimension uses the column name as its alias by convention.
+            Self::NativeDimension { column, .. } => column,
         }
     }
 }
@@ -235,6 +247,17 @@ pub enum GroupByExpression {
         /// Result alias
         alias:           String,
     },
+    /// A native SQL column on the view/fact table — referenced directly,
+    /// not via JSONB extraction. Generates a dialect-quoted column reference in
+    /// GROUP BY / SELECT, enabling btree index usage.
+    NativeColumn {
+        /// Column name as it appears in the CREATE VIEW DDL.
+        column: String,
+        /// PostgreSQL type suffix for casting (e.g. `"uuid"`, `"int8"`, `""`).
+        pg_cast: String,
+        /// Alias used in SELECT and referenced by ORDER BY.
+        alias: String,
+    },
 }
 
 /// Validated aggregate expression
@@ -295,6 +318,28 @@ pub struct ValidatedHavingCondition {
     pub operator:  HavingOperator,
     /// Value to compare against
     pub value:     serde_json::Value,
+}
+
+impl AggregationPlan {
+    /// Returns the set of alias strings that correspond to native SQL column
+    /// `GROUP BY` expressions (not JSONB-derived aliases).
+    ///
+    /// Used by the ORDER BY clause builder to document that native columns are
+    /// referenced by alias rather than JSONB path, preventing accidental regressions
+    /// if the ORDER BY logic is ever refactored.
+    #[must_use]
+    pub fn native_aliases(&self) -> std::collections::HashSet<&str> {
+        self.group_by_expressions
+            .iter()
+            .filter_map(|e| {
+                if let GroupByExpression::NativeColumn { alias, .. } = e {
+                    Some(alias.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }
 
 /// Aggregation plan generator
@@ -402,6 +447,14 @@ impl AggregationPlanner {
                         calendar_column: calendar_column.clone(),
                         json_key:        json_key.clone(),
                         alias:           alias.clone(),
+                    });
+                },
+                GroupBySelection::NativeDimension { column, pg_cast } => {
+                    // Native SQL column — alias equals the column name by convention.
+                    expressions.push(GroupByExpression::NativeColumn {
+                        alias:   column.clone(),
+                        column:  column.clone(),
+                        pg_cast: pg_cast.clone(),
                     });
                 },
             }

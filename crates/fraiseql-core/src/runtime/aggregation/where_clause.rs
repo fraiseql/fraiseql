@@ -55,6 +55,33 @@ impl AggregationSqlGenerator {
                 let s = self.where_clause_to_sql_parameterized(inner, metadata, params)?;
                 Ok(format!("NOT ({s})"))
             },
+            WhereClause::NativeField {
+                column,
+                pg_cast,
+                operator,
+                value,
+            } => {
+                // Direct column reference (no JSONB extraction) for native SQL columns.
+                // Use quote_identifier for dialect-correct quoting (MySQL backticks, SQL
+                // Server brackets, PG/SQLite double-quotes).
+                let col_ref = self.quote_identifier(column);
+                let pre_len = params.len();
+                let sql =
+                    self.generate_direct_column_where_parameterized(&col_ref, operator, value, params)?;
+
+                // For PostgreSQL with a non-empty type cast, append ::type to the single
+                // scalar placeholder that was just added.  IN / NOT IN push multiple params;
+                // IsNull pushes none — neither needs a cast suffix here.
+                if self.database_type == DatabaseType::PostgreSQL
+                    && !pg_cast.is_empty()
+                    && params.len() == pre_len + 1
+                {
+                    let ph = self.placeholder(pre_len);
+                    Ok(sql.replace(&ph, &format!("{ph}::{pg_cast}")))
+                } else {
+                    Ok(sql)
+                }
+            },
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => Err(crate::FraiseQLError::Validation {
                 message: "Unknown WhereClause variant".to_string(),

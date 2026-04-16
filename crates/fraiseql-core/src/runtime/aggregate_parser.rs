@@ -91,7 +91,16 @@ impl AggregateQueryParser {
     /// # Errors
     ///
     /// Returns error if the query structure is invalid or references non-existent measures.
-    pub fn parse(query_json: &Value, metadata: &FactTableMetadata) -> Result<AggregationRequest> {
+    ///
+    /// The `native_columns` map (column name → PostgreSQL cast string) controls whether
+    /// WHERE filters and GROUP BY fields are emitted as direct column references
+    /// (`WhereClause::NativeField`, `GroupBySelection::NativeDimension`) rather than
+    /// JSONB extraction variants.  Pass an empty map to get the old behaviour.
+    pub fn parse(
+        query_json: &Value,
+        metadata: &FactTableMetadata,
+        native_columns: &std::collections::HashMap<String, String>,
+    ) -> Result<AggregationRequest> {
         // Extract table name
         let table_name = query_json
             .get("table")
@@ -104,14 +113,14 @@ impl AggregateQueryParser {
 
         // Parse WHERE clause (if present)
         let where_clause = if let Some(where_obj) = query_json.get("where") {
-            Some(Self::parse_where_clause(where_obj)?)
+            Some(Self::parse_where_clause(where_obj, native_columns)?)
         } else {
             None
         };
 
         // Parse GROUP BY selections
         let group_by = if let Some(group_by_obj) = query_json.get("groupBy") {
-            Self::parse_group_by(group_by_obj, metadata)?
+            Self::parse_group_by(group_by_obj, metadata, native_columns)?
         } else {
             vec![]
         };
@@ -161,12 +170,19 @@ impl AggregateQueryParser {
         })
     }
 
-    /// Parse WHERE clause from JSON
+    /// Parse WHERE clause from JSON.
     ///
     /// For aggregate queries, WHERE works on denormalized filter columns only.
     /// Expected format: `{ "field_operator": value }`
     /// Example: `{ "customer_id_eq": "123", "occurred_at_gte": "2024-01-01" }`
-    fn parse_where_clause(where_obj: &Value) -> Result<WhereClause> {
+    ///
+    /// When a field name matches an entry in `native_columns`, the clause is emitted
+    /// as [`WhereClause::NativeField`] (direct column reference) rather than
+    /// [`WhereClause::Field`] (JSONB extraction).
+    fn parse_where_clause(
+        where_obj: &Value,
+        native_columns: &std::collections::HashMap<String, String>,
+    ) -> Result<WhereClause> {
         let Some(obj) = where_obj.as_object() else {
             return Ok(WhereClause::And(vec![]));
         };
@@ -179,11 +195,21 @@ impl AggregateQueryParser {
             if let Some((field, operator_str)) = Self::parse_where_field_and_operator(key)? {
                 let operator = WhereOperator::from_str(operator_str)?;
 
-                conditions.push(WhereClause::Field {
-                    path: vec![field.to_string()],
-                    operator,
-                    value: value.clone(),
-                });
+                let clause = if let Some(pg_cast) = native_columns.get(field) {
+                    WhereClause::NativeField {
+                        column:   field.to_string(),
+                        pg_cast:  pg_cast.clone(),
+                        operator,
+                        value:    value.clone(),
+                    }
+                } else {
+                    WhereClause::Field {
+                        path:     vec![field.to_string()],
+                        operator,
+                        value:    value.clone(),
+                    }
+                };
+                conditions.push(clause);
             }
         }
 
@@ -213,15 +239,19 @@ impl AggregateQueryParser {
         }
     }
 
-    /// Parse GROUP BY selections
+    /// Parse GROUP BY selections.
     ///
     /// Supports two formats:
     /// 1. Boolean true: {"category": true} -> regular dimension
     /// 2. Boolean true with suffix: {"`occurred_at_day"`: true} -> temporal bucket
     /// 3. String bucket name: {"`occurred_at"`: "day"} -> temporal bucket
+    ///
+    /// When a field name matches an entry in `native_columns`, the selection is emitted
+    /// as [`GroupBySelection::NativeDimension`] rather than [`GroupBySelection::Dimension`].
     fn parse_group_by(
         group_by_obj: &Value,
         metadata: &FactTableMetadata,
+        native_columns: &std::collections::HashMap<String, String>,
     ) -> Result<Vec<GroupBySelection>> {
         let mut selections = Vec::new();
 
@@ -235,8 +265,14 @@ impl AggregateQueryParser {
                     } else if let Some(bucket_sel) = Self::parse_temporal_bucket(key, metadata)? {
                         // Priority 2: Fall back to DATE_TRUNC if no calendar dimension
                         selections.push(bucket_sel);
+                    } else if let Some(pg_cast) = native_columns.get(key.as_str()) {
+                        // Priority 3: Native SQL column — direct reference, not JSONB
+                        selections.push(GroupBySelection::NativeDimension {
+                            column:  key.clone(),
+                            pg_cast: pg_cast.clone(),
+                        });
                     } else {
-                        // Priority 3: Regular dimension
+                        // Priority 4: Regular JSONB dimension
                         selections.push(GroupBySelection::Dimension {
                             path:  key.clone(),
                             alias: key.clone(),
@@ -699,7 +735,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.table_name, "tf_sales");
         assert_eq!(request.aggregates.len(), 1);
@@ -719,7 +755,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.group_by.len(), 1);
         match &request.group_by[0] {
@@ -744,7 +780,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.group_by.len(), 1);
         match &request.group_by[0] {
@@ -774,7 +810,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.aggregates.len(), 4);
         assert_eq!(request.aggregates[0].alias(), "count");
@@ -796,7 +832,7 @@ mod tests {
             }
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.having.len(), 1);
         assert_eq!(request.having[0].operator, HavingOperator::Gt);
@@ -816,7 +852,7 @@ mod tests {
             }
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.order_by.len(), 1);
         assert_eq!(request.order_by[0].field, "revenue_sum");
@@ -835,7 +871,7 @@ mod tests {
             "offset": 5
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.limit, Some(10));
         assert_eq!(request.offset, Some(5));
@@ -867,7 +903,7 @@ mod tests {
             "limit": 20
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.table_name, "tf_sales");
         assert_eq!(request.group_by.len(), 2);
@@ -887,7 +923,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.aggregates.len(), 1);
         match &request.aggregates[0] {
@@ -910,7 +946,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.aggregates.len(), 1);
         match &request.aggregates[0] {
@@ -932,7 +968,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.aggregates.len(), 1);
         match &request.aggregates[0] {
@@ -954,7 +990,7 @@ mod tests {
             ]
         });
 
-        let result = AggregateQueryParser::parse(&query, &metadata);
+        let result = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new());
 
         let err = result.expect_err("expected Err for invalid count_distinct field");
         match err {
@@ -981,7 +1017,7 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
         assert_eq!(request.aggregates.len(), 4);
         assert_eq!(request.aggregates[0].alias(), "count");

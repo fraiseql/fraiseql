@@ -100,7 +100,7 @@ fn test_parse_simple_aggregate_query() {
         ]
     });
 
-    let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
     assert_eq!(request.table_name, "tf_sales");
     assert_eq!(request.aggregates.len(), 1);
@@ -123,7 +123,7 @@ fn test_parse_group_by_with_aggregates() {
         ]
     });
 
-    let request = AggregateQueryParser::parse(&query, &metadata).unwrap();
+    let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
 
     assert_eq!(request.group_by.len(), 2);
     assert_eq!(request.aggregates.len(), 3);
