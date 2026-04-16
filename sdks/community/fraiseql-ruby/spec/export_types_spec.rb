@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'json'
 
-describe 'Export Types - Minimal Schema Export' do
+RSpec.describe 'Export Types - Minimal Schema Export' do
   before(:each) do
     FraiseQL::Schema.reset
   end
