@@ -33,29 +33,29 @@ use serde_json::json;
 
 fn mutation_success_row() -> HashMap<String, serde_json::Value> {
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("success"));
+    row.insert("schema_version".to_string(), json!(2));
+    row.insert("succeeded".to_string(), json!(true));
+    row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!("ok"));
     row.insert(
         "entity".to_string(),
         json!({"id": "abc-123", "email": "a@b.com", "name": "Alice"}),
     );
     row.insert("entity_type".to_string(), json!("User"));
-    row.insert("cascade".to_string(), serde_json::Value::Null);
-    row.insert("metadata".to_string(), serde_json::Value::Null);
     row
 }
 
 fn order_success_row() -> HashMap<String, serde_json::Value> {
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("success"));
+    row.insert("schema_version".to_string(), json!(2));
+    row.insert("succeeded".to_string(), json!(true));
+    row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!("ok"));
     row.insert(
         "entity".to_string(),
         json!({"id": "order-456", "tenant_id": "t-1", "amount": "99.99", "status": "pending"}),
     );
     row.insert("entity_type".to_string(), json!("Order"));
-    row.insert("cascade".to_string(), serde_json::Value::Null);
-    row.insert("metadata".to_string(), serde_json::Value::Null);
     row
 }
 
@@ -325,13 +325,13 @@ async fn mutation_executor_appends_inject_params_from_jwt() {
 
 fn mutation_error_row() -> HashMap<String, serde_json::Value> {
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("failed:duplicate"));
+    row.insert("schema_version".to_string(), json!(2));
+    row.insert("succeeded".to_string(), json!(false));
+    row.insert("state_changed".to_string(), json!(false));
+    row.insert("error_class".to_string(), json!("conflict"));
     row.insert("message".to_string(), json!("email already exists"));
-    row.insert("entity".to_string(), serde_json::Value::Null);
-    row.insert("entity_type".to_string(), serde_json::Value::Null);
-    row.insert("cascade".to_string(), serde_json::Value::Null);
     row.insert(
-        "metadata".to_string(),
+        "error_detail".to_string(),
         json!({
             "message": "email already exists",
             "conflicting_id": "existing-user-id",
@@ -386,10 +386,7 @@ async fn error_path_applies_selection_filtering() {
     );
 }
 
-/// Error path: array fields are correctly populated from metadata.
-///
-/// Prior to #214, array values in metadata were silently dropped because
-/// `populate_error_fields` only handled scalars and objects.
+/// Error path: array fields are correctly populated from `error_detail`.
 #[tokio::test]
 async fn error_path_populates_array_fields() {
     let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");
@@ -419,7 +416,7 @@ async fn error_path_populates_array_fields() {
     assert_eq!(arr[1], "id-2");
 }
 
-/// Error path: nested object field is populated from metadata.
+/// Error path: nested object field is correctly populated from `error_detail`.
 #[tokio::test]
 async fn error_path_populates_nested_object_fields() {
     let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");

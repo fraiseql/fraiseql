@@ -994,7 +994,9 @@ mod mutation {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             use serde_json::json;
             let mut row = std::collections::HashMap::new();
-            row.insert("status".to_string(), json!("success"));
+            row.insert("schema_version".to_string(), json!(2));
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
             row.insert(
                 "entity".to_string(),
                 json!({
@@ -1079,7 +1081,9 @@ mod mutation {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             use serde_json::json;
             let mut row = std::collections::HashMap::new();
-            row.insert("status".to_string(), json!("success"));
+            row.insert("schema_version".to_string(), json!(2));
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
             row.insert(
                 "entity".to_string(),
                 json!({
@@ -1376,7 +1380,7 @@ mod mutation {
     // SQL functions can use `input ? 'field'` to test key presence.
 
     /// Mock adapter that captures the args passed to `execute_function_call`.
-    /// Returns a minimal v1 `mutation_response` so the full execution path runs.
+    /// Returns a minimal v2 `mutation_response` so the full execution path runs.
     struct CapturingFunctionCallAdapter {
         captured_args: std::sync::Mutex<Vec<serde_json::Value>>,
     }
@@ -1403,7 +1407,9 @@ mod mutation {
             use serde_json::json;
             *self.captured_args.lock().unwrap() = args.to_vec();
             let mut row = std::collections::HashMap::new();
-            row.insert("status".to_string(), json!("success"));
+            row.insert("schema_version".to_string(), json!(2));
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
             row.insert("entity".to_string(), json!({"id": "1"}));
             row.insert("entity_type".to_string(), json!("User"));
             row.insert("message".to_string(), json!(""));

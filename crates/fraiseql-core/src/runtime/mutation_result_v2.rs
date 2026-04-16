@@ -148,42 +148,16 @@ fn outcome_from_v2(row: MutationResponseV2) -> Result<MutationOutcome> {
                 path:    None,
             });
         };
-        // Synthesize a v1-compatible `status` string so the executor's error-arm
-        // projection (which consumes `MutationOutcome::Error.status` only for
-        // logging / typename fallback) keeps working unmodified in Phase 01.
-        // The canonical classification is `class.to_cascade_code()`; Phase 05
-        // will thread it through as a first-class field on `MutationOutcome`.
-        let status = v1_compat_status(class).to_string();
         Ok(MutationOutcome::Error {
-            status,
-            message: row.message.unwrap_or_default(),
-            metadata: row.error_detail,
+            error_class: class,
+            message:     row.message.unwrap_or_default(),
+            metadata:    row.error_detail,
         })
     }
 }
 
 fn filter_null(v: JsonValue) -> Option<JsonValue> {
     if v.is_null() { None } else { Some(v) }
-}
-
-/// Map a v2 `MutationErrorClass` onto a v1-style status string.
-///
-/// Used only to feed the existing `MutationOutcome::Error.status` seam until
-/// Phase 05 threads the typed class through. The prefixes match the v1 set
-/// accepted by `is_error_status`.
-const fn v1_compat_status(class: MutationErrorClass) -> &'static str {
-    match class {
-        MutationErrorClass::Validation => "validation:v2",
-        MutationErrorClass::Conflict => "conflict:v2",
-        MutationErrorClass::NotFound => "not_found:v2",
-        MutationErrorClass::Unauthorized
-        | MutationErrorClass::Forbidden
-        | MutationErrorClass::Internal
-        | MutationErrorClass::TransactionFailed
-        | MutationErrorClass::Timeout
-        | MutationErrorClass::RateLimited
-        | MutationErrorClass::ServiceUnavailable => "failed:v2",
-    }
 }
 
 #[cfg(test)]
@@ -321,11 +295,11 @@ mod tests {
             .unwrap();
         match outcome {
             MutationOutcome::Error {
-                status,
+                error_class,
                 message,
                 metadata,
             } => {
-                assert_eq!(status, "conflict:v2");
+                assert_eq!(error_class, MutationErrorClass::Conflict);
                 assert_eq!(message, "duplicate");
                 // error_detail (not metadata) feeds the error-field projection.
                 assert_eq!(metadata, json!({"field": "email"}));
@@ -391,21 +365,21 @@ mod tests {
     }
 
     #[test]
-    fn v1_compat_status_prefixes_round_trip_through_is_error_status() {
-        use crate::runtime::mutation_result::is_error_status;
-        for class in [
-            MutationErrorClass::Validation,
-            MutationErrorClass::Conflict,
-            MutationErrorClass::NotFound,
-            MutationErrorClass::Unauthorized,
-            MutationErrorClass::Forbidden,
-            MutationErrorClass::Internal,
-            MutationErrorClass::TransactionFailed,
-            MutationErrorClass::Timeout,
-            MutationErrorClass::RateLimited,
-            MutationErrorClass::ServiceUnavailable,
-        ] {
-            assert!(is_error_status(v1_compat_status(class)), "class = {class:?}");
+    fn as_str_round_trips_all_error_classes() {
+        let cases = [
+            (MutationErrorClass::Validation, "validation"),
+            (MutationErrorClass::Conflict, "conflict"),
+            (MutationErrorClass::NotFound, "not_found"),
+            (MutationErrorClass::Unauthorized, "unauthorized"),
+            (MutationErrorClass::Forbidden, "forbidden"),
+            (MutationErrorClass::Internal, "internal"),
+            (MutationErrorClass::TransactionFailed, "transaction_failed"),
+            (MutationErrorClass::Timeout, "timeout"),
+            (MutationErrorClass::RateLimited, "rate_limited"),
+            (MutationErrorClass::ServiceUnavailable, "service_unavailable"),
+        ];
+        for (class, expected) in cases {
+            assert_eq!(class.as_str(), expected, "class = {class:?}");
         }
     }
 

@@ -73,6 +73,26 @@ pub enum CascadeErrorCode {
 }
 
 impl MutationErrorClass {
+    /// The snake_case string that identifies this class on the wire.
+    ///
+    /// Mirrors the `app.mutation_error_class` PostgreSQL enum label and the
+    /// `serde(rename_all = "snake_case")` serialisation form used in v2 rows.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Validation => "validation",
+            Self::Conflict => "conflict",
+            Self::NotFound => "not_found",
+            Self::Unauthorized => "unauthorized",
+            Self::Forbidden => "forbidden",
+            Self::Internal => "internal",
+            Self::TransactionFailed => "transaction_failed",
+            Self::Timeout => "timeout",
+            Self::RateLimited => "rate_limited",
+            Self::ServiceUnavailable => "service_unavailable",
+        }
+    }
+
     /// Map the error class to its graphql-cascade wire code (1:1, no fallbacks).
     #[must_use]
     pub const fn to_cascade_code(self) -> CascadeErrorCode {

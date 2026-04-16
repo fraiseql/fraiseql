@@ -1,6 +1,7 @@
 //! `DatabaseAdapter` and `SupportsMutations` implementations for `PostgresAdapter`.
 
 use async_trait::async_trait;
+use bytes::BufMut as _;
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
@@ -17,6 +18,84 @@ use crate::{
 
 /// PostgreSQL SQLSTATE 42703: undefined column.
 const PG_UNDEFINED_COLUMN: &str = "42703";
+
+/// A flexible SQL parameter that binds to any PostgreSQL type.
+///
+/// Solves the impedance mismatch between `serde_json::Value` (only accepts JSON/JSONB)
+/// and `Option<String>` (only accepts text-family types) when binding function-call
+/// arguments whose types are resolved at runtime from the function signature.
+///
+/// Serialisation strategy (binary wire format):
+/// - `JSONB`: 1-byte version header (1) + UTF-8 JSON bytes
+/// - `JSON`: UTF-8 JSON bytes
+/// - `UUID`: 16-byte big-endian UUID
+/// - `INT4`: 4-byte big-endian i32
+/// - `INT8`: 8-byte big-endian i64
+/// - `BOOL`: 1-byte (0 or 1)
+/// - All other types: UTF-8 bytes (PostgreSQL text binary = raw UTF-8)
+#[derive(Debug)]
+enum FlexParam {
+    /// SQL NULL — accepted by any PostgreSQL type.
+    Null,
+    /// A text-encoded value; binary-serialised according to the server-resolved type.
+    Text(String),
+}
+
+impl tokio_postgres::types::ToSql for FlexParam {
+    fn to_sql(
+        &self,
+        ty: &tokio_postgres::types::Type,
+        out: &mut bytes::BytesMut,
+    ) -> std::result::Result<tokio_postgres::types::IsNull, Box<dyn std::error::Error + Sync + Send>>
+    {
+        use tokio_postgres::types::{IsNull, Type};
+        match self {
+            Self::Null => Ok(IsNull::Yes),
+            Self::Text(s) => {
+                if *ty == Type::JSONB {
+                    // JSONB binary wire format: 1-byte version (1) + JSON bytes
+                    out.put_u8(1);
+                    out.extend_from_slice(s.as_bytes());
+                } else if *ty == Type::JSON {
+                    out.extend_from_slice(s.as_bytes());
+                } else if *ty == Type::UUID {
+                    let uuid = uuid::Uuid::parse_str(s)?;
+                    out.extend_from_slice(uuid.as_bytes());
+                } else if *ty == Type::INT4 {
+                    let n: i32 = s.parse()?;
+                    out.put_i32(n);
+                } else if *ty == Type::INT8 {
+                    let n: i64 = s.parse()?;
+                    out.put_i64(n);
+                } else if *ty == Type::BOOL {
+                    let b: bool = s.parse()?;
+                    out.put_u8(u8::from(b));
+                } else {
+                    // TEXT, VARCHAR, BPCHAR, NAME, UNKNOWN, and any user-defined type:
+                    // UTF-8 bytes are the binary wire representation for text-family types.
+                    out.extend_from_slice(s.as_bytes());
+                }
+                Ok(IsNull::No)
+            }
+        }
+    }
+
+    fn accepts(_ty: &tokio_postgres::types::Type) -> bool {
+        // Accepts all types; per-type serialisation is handled in `to_sql`.
+        true
+    }
+
+    fn to_sql_checked(
+        &self,
+        ty: &tokio_postgres::types::Type,
+        out: &mut bytes::BytesMut,
+    ) -> std::result::Result<tokio_postgres::types::IsNull, Box<dyn std::error::Error + Sync + Send>>
+    {
+        // `accepts()` returns true for all types, so the standard WrongType check is
+        // unnecessary.  Delegate directly to `to_sql`.
+        self.to_sql(ty, out)
+    }
+}
 
 /// Enrich a `FraiseQLError::Database` error for PostgreSQL SQLSTATE 42703 (undefined column)
 /// when the WHERE clause contains `NativeField` conditions.
@@ -255,9 +334,25 @@ impl DatabaseAdapter for PostgresAdapter {
 
         let mut client = self.acquire_connection_with_retry().await?;
 
-        // Bind each JSON argument as a text parameter (PostgreSQL can cast text→jsonb)
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-            args.iter().map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+        // Convert serde_json::Value arguments to FlexParam for binding.
+        //
+        // serde_json::Value only accepts JSON/JSONB types; Option<String> only accepts
+        // text-family types.  Neither works universally when the function signature
+        // contains a mix of JSONB, UUID, INT4, and TEXT parameters.  FlexParam accepts
+        // all PostgreSQL types and serialises each value in the correct binary wire
+        // format for the server-resolved parameter type.
+        let flex_args: Vec<FlexParam> = args
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::Null => FlexParam::Null,
+                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
+                _ => FlexParam::Text(v.to_string()),
+            })
+            .collect();
+        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
+            .iter()
+            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
 
         if self.mutation_timing_enabled {
             // Wrap in a transaction so SET LOCAL scopes the variable to this call only.
@@ -280,8 +375,9 @@ impl DatabaseAdapter for PostgresAdapter {
             })?;
 
             let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+                let detail = e.as_db_error().map(|d| d.message()).unwrap_or("");
                 FraiseQLError::Database {
-                    message:   format!("Function call {function_name} failed: {e}"),
+                    message:   format!("Function call {function_name} failed: {e}: {detail}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 }
             })?;
@@ -298,8 +394,9 @@ impl DatabaseAdapter for PostgresAdapter {
         } else {
             let rows: Vec<Row> =
                 client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
+                    let detail = e.as_db_error().map(|d| d.message()).unwrap_or("");
                     FraiseQLError::Database {
-                        message:   format!("Function call {function_name} failed: {e}"),
+                        message:   format!("Function call {function_name} failed: {e}: {detail}"),
                         sql_state: e.code().map(|c| c.code().to_string()),
                     }
                 })?;

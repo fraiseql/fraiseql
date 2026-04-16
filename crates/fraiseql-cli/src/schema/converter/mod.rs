@@ -163,6 +163,7 @@ impl SchemaConverter {
             debug_config: intermediate.debug_config,           // Debug config from TOML
             mcp_config: intermediate.mcp_config,               // MCP config from TOML
             naming_convention: intermediate.naming_convention,  // Naming convention from TOML
+            session_variables: intermediate.session_variables.unwrap_or_default(),
             schema_sdl: None,                                  // Raw GraphQL SDL
             custom_scalars: CustomTypeRegistry::default(),     // Custom scalar registry
             schema_format_version: Some(fraiseql_core::schema::CURRENT_SCHEMA_FORMAT_VERSION),
@@ -216,12 +217,24 @@ impl SchemaConverter {
             type_names.insert(input_type.name.clone());
         }
 
+        // Add union type names — valid as mutation/query return types
+        for union_def in &schema.unions {
+            type_names.insert(union_def.name.clone());
+        }
+
         // Add built-in scalars
-        type_names.insert("Int".to_string());
-        type_names.insert("Float".to_string());
-        type_names.insert("String".to_string());
-        type_names.insert("Boolean".to_string());
-        type_names.insert("ID".to_string());
+        for scalar in crate::schema::BUILTIN_SCALAR_NAMES {
+            type_names.insert((*scalar).to_string());
+        }
+
+        // Collect custom scalars implicitly: any type name used in object field definitions
+        // (e.g. IPAddress, Hostname, MACAddress, CIDR, Money, etc.)
+        for type_def in &schema.types {
+            for field in &type_def.fields {
+                let base = Self::extract_type_name(&field.field_type);
+                type_names.insert(base);
+            }
+        }
 
         // Validate queries
         for query in &schema.queries {

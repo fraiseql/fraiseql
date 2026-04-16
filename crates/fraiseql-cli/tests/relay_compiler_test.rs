@@ -90,6 +90,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     }
 }
 

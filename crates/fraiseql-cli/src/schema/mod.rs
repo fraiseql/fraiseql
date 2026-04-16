@@ -21,3 +21,10 @@ pub use merger::SchemaMerger;
 pub use multi_file_loader::MultiFileLoader;
 pub use optimizer::{OptimizationReport, SchemaOptimizer};
 pub use validator::SchemaValidator;
+
+/// GraphQL built-in scalar type names.
+///
+/// Used by the validator and converter to seed the known-type registry so
+/// fields typed as these names are never flagged as unknown.
+pub(crate) const BUILTIN_SCALAR_NAMES: &[&str] =
+    &["Int", "Float", "String", "Boolean", "ID", "JSON"];

@@ -8,6 +8,7 @@ use crate::{
     error::{FraiseQLError, Result},
     runtime::{
         FieldMapping, ProjectionMapper, ResultProjector, build_field_mappings_from_type,
+        cascade::MutationErrorClass,
         mutation_result::{MutationOutcome, parse_mutation_row},
         suggest_similar,
     },
@@ -525,8 +526,10 @@ impl<A: DatabaseAdapter> Executor<A> {
                 projected
             },
             MutationOutcome::Error {
-                status, metadata, ..
+                error_class, metadata, ..
             } => {
+                let status = error_class.as_str();
+
                 // Find the matching error type from the return union
                 let error_type = self.schema.find_union(&mutation_return_type).and_then(|u| {
                     u.member_types.iter().find_map(|t| {
@@ -555,7 +558,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         if let serde_json::Value::Object(ref mut map) = result {
                             map.insert(
                                 "status".to_string(),
-                                serde_json::Value::String(status),
+                                serde_json::Value::String(status.to_string()),
                             );
                         }
 

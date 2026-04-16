@@ -45,6 +45,7 @@ fn test_compile_schema_with_single_custom_scalar() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -103,6 +104,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -158,6 +160,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -200,6 +203,7 @@ fn test_custom_scalar_preserves_all_metadata() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -238,6 +242,7 @@ fn test_empty_custom_scalars_list() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");
@@ -280,6 +285,7 @@ fn test_custom_scalar_with_no_validation_rules() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(schema).expect("Failed to convert schema");

@@ -34,6 +34,7 @@ fn test_convert_minimal_schema() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -96,6 +97,7 @@ fn test_convert_type_with_fields() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -150,6 +152,7 @@ fn test_validate_unknown_type_reference() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -220,6 +223,7 @@ fn test_convert_query_with_arguments() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -281,6 +285,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -343,6 +348,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -412,6 +418,7 @@ fn test_convert_field_with_deprecated_directive() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -484,6 +491,7 @@ fn test_convert_enum() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -569,6 +577,7 @@ fn test_convert_input_object() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -624,6 +633,7 @@ fn test_rich_filter_types_generated() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -683,6 +693,7 @@ fn test_rich_filter_types_have_sql_templates() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -754,6 +765,7 @@ fn test_lookup_data_embedded_in_schema() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -848,6 +860,7 @@ fn test_convert_interface() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -929,6 +942,7 @@ fn test_convert_type_implements_interface() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -987,6 +1001,7 @@ fn test_validate_unknown_interface() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -1054,6 +1069,7 @@ fn test_validate_missing_interface_field() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -1129,6 +1145,7 @@ fn test_convert_union() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -1215,6 +1232,7 @@ fn test_convert_field_requires_scope() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");

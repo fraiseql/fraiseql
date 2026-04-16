@@ -21,7 +21,9 @@ pub use fragments::{
     IntermediateAppliedDirective, IntermediateDirective, IntermediateFragment,
     IntermediateFragmentField, IntermediateFragmentFieldDef,
 };
-use fraiseql_core::schema::{DebugConfig, McpConfig, SubscriptionsConfig, ValidationConfig};
+use fraiseql_core::schema::{
+    DebugConfig, McpConfig, SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
+};
 pub use operations::{
     IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
     IntermediateQueryDefaults,
@@ -164,6 +166,16 @@ pub struct IntermediateSchema {
     /// Compiled from `fraiseql.toml` top-level `naming_convention` setting.
     #[serde(default)]
     pub naming_convention: NamingConvention,
+
+    /// Session variable injection configuration.
+    ///
+    /// When populated, the executor calls `set_config()` before each query and
+    /// mutation to inject per-request values (JWT claims, HTTP headers, or literals)
+    /// as PostgreSQL transaction-scoped settings.
+    ///
+    /// Embedded verbatim from the `session_variables` key in `schema.json`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_variables: Option<SessionVariablesConfig>,
 }
 
 fn default_version() -> String {

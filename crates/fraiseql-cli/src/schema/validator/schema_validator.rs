@@ -59,12 +59,24 @@ impl SchemaValidator {
             type_names.insert(input_type.name.clone());
         }
 
+        // Add union type names — valid as mutation/query return types
+        for union_def in &schema.unions {
+            type_names.insert(union_def.name.clone());
+        }
+
         // Add built-in scalars
-        type_names.insert("Int".to_string());
-        type_names.insert("Float".to_string());
-        type_names.insert("String".to_string());
-        type_names.insert("Boolean".to_string());
-        type_names.insert("ID".to_string());
+        for scalar in crate::schema::BUILTIN_SCALAR_NAMES {
+            type_names.insert((*scalar).to_string());
+        }
+
+        // Collect custom scalars implicitly: any type name used in object field definitions
+        // that isn't already registered (e.g. IPAddress, Hostname, MACAddress, CIDR).
+        for type_def in &schema.types {
+            for field in &type_def.fields {
+                let base = extract_base_type(&field.field_type);
+                type_names.insert(base.to_string());
+            }
+        }
 
         // Validate queries
         let mut query_names = HashSet::new();

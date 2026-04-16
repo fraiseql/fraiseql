@@ -45,6 +45,7 @@ fn test_e2e_complete_compilation_pipeline() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -99,6 +100,7 @@ fn test_e2e_sql_templates_all_databases() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -159,6 +161,7 @@ fn test_e2e_lookup_data_comprehensive() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -216,6 +219,7 @@ fn test_e2e_all_operators_generated() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -281,6 +285,7 @@ fn test_e2e_compilation_deterministic() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled1 =
@@ -340,6 +345,7 @@ fn test_e2e_all_49_types_valid() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -466,6 +472,7 @@ fn test_e2e_full_field_assertion() {
         mcp_config:           None,
         query_defaults:       None,
         naming_convention: NamingConvention::default(),
+        session_variables:    None,
     };
 
     let schema = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
