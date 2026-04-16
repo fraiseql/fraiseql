@@ -278,7 +278,7 @@ public class TypeConverter {
          * @param description human-readable description
          */
         public GraphQLFieldInfo(String type, boolean nullable, boolean deprecated, String description) {
-            this("", type, nullable, description, null, null);
+            this("", type, nullable, description, null, null, false);
             this.isDeprecated = deprecated;
         }
 

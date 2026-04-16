@@ -77,7 +77,7 @@ defmodule FraiseQL.Client do
     end
   end
 
-  defp execute(%__MODULE__{} = client, gql_query, variables, operation_name \\ nil) do
+  defp execute(%__MODULE__{} = client, gql_query, variables, operation_name) do
     payload = %{query: gql_query, variables: variables}
     payload = if operation_name, do: Map.put(payload, :operationName, operation_name), else: payload
     body = Jason.encode!(payload)
