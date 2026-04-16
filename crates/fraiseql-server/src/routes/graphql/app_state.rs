@@ -11,6 +11,8 @@ use fraiseql_core::{
 };
 use tracing::info;
 
+use super::{tenant_key::DomainRegistry, tenant_registry::TenantExecutorRegistry};
+
 #[cfg(feature = "auth")]
 use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 use crate::{
@@ -83,6 +85,19 @@ pub struct AppState<A: DatabaseAdapter> {
     /// This reflects the adapter-level `CachedDatabaseAdapter` state, NOT the
     /// Arrow flight cache (`AppState::cache`).
     pub adapter_cache_enabled: bool,
+    /// Multi-tenant executor registry (optional).
+    ///
+    /// When `Some`, the server operates in multi-tenant mode: each request's
+    /// tenant key selects an executor from this registry. When `None`,
+    /// single-tenant mode is in effect and all requests use `self.executor`.
+    pub tenant_registry: Option<Arc<TenantExecutorRegistry<A>>>,
+    /// Factory for creating tenant executors from schema JSON + pool config.
+    ///
+    /// Type-erased so that the management API handler does not need
+    /// `A: FromPoolConfig` on its generic bounds.
+    pub tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
+    /// Domain-to-tenant mapping for Host header-based tenant resolution.
+    pub domain_registry: Arc<DomainRegistry>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -122,6 +137,9 @@ impl<A: DatabaseAdapter> AppState<A> {
             reload_adapter: None,
             reload_lock: Arc::new(tokio::sync::Mutex::new(())),
             adapter_cache_enabled: false,
+            tenant_registry: None,
+            tenant_executor_factory: None,
+            domain_registry: Arc::new(DomainRegistry::new()),
         }
     }
 
@@ -139,6 +157,70 @@ impl<A: DatabaseAdapter> AppState<A> {
     /// the old executor until their guard is dropped.
     pub fn swap_executor(&self, new_executor: Arc<Executor<A>>) {
         self.executor.store(new_executor);
+    }
+
+    /// Returns the executor for the given tenant key.
+    ///
+    /// In multi-tenant mode, delegates to the `TenantExecutorRegistry`. In
+    /// single-tenant mode (no registry), ignores the key and returns the
+    /// default executor.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Authorization` if multi-tenant mode is enabled
+    /// and the tenant key is explicit but not registered.
+    pub fn executor_for_tenant(
+        &self,
+        tenant_key: Option<&str>,
+    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor<A>>>> {
+        match &self.tenant_registry {
+            Some(registry) => registry.executor_for(tenant_key),
+            None => Ok(self.executor()),
+        }
+    }
+
+    /// Attach a multi-tenant executor registry.
+    #[must_use]
+    pub fn with_tenant_registry(mut self, registry: Arc<TenantExecutorRegistry<A>>) -> Self {
+        self.tenant_registry = Some(registry);
+        self
+    }
+
+    /// Get the tenant registry if multi-tenant mode is enabled.
+    #[must_use]
+    pub const fn tenant_registry(&self) -> Option<&Arc<TenantExecutorRegistry<A>>> {
+        self.tenant_registry.as_ref()
+    }
+
+    /// Attach a tenant executor factory for the management API.
+    #[must_use]
+    pub fn with_tenant_executor_factory(
+        mut self,
+        factory: crate::tenancy::TenantExecutorFactory<A>,
+    ) -> Self {
+        self.tenant_executor_factory = Some(factory);
+        self
+    }
+
+    /// Get the tenant executor factory if configured.
+    #[must_use]
+    pub const fn tenant_executor_factory(
+        &self,
+    ) -> Option<&crate::tenancy::TenantExecutorFactory<A>> {
+        self.tenant_executor_factory.as_ref()
+    }
+
+    /// Get the domain registry for Host header-based tenant resolution.
+    #[must_use]
+    pub const fn domain_registry(&self) -> &Arc<DomainRegistry> {
+        &self.domain_registry
+    }
+
+    /// Attach a custom domain registry.
+    #[must_use]
+    pub fn with_domain_registry(mut self, registry: Arc<DomainRegistry>) -> Self {
+        self.domain_registry = registry;
+        self
     }
 
     /// Configure reload support with a schema file path and database adapter.
@@ -557,5 +639,59 @@ mod tests {
         let result = state.reload_schema(std::path::Path::new("/tmp/test.json")).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("already in progress"));
+    }
+
+    // ── Multi-tenant dispatch tests ──────────────────────────────────────
+
+    #[test]
+    fn test_single_tenant_executor_for_tenant_ignores_key() {
+        let state = make_state();
+        // Single-tenant mode: no registry, any key returns default executor
+        let exec = state.executor_for_tenant(None).unwrap();
+        assert_eq!(exec.schema().queries.len(), 0);
+        let exec2 = state.executor_for_tenant(Some("anything")).unwrap();
+        assert_eq!(exec2.schema().queries.len(), 0);
+    }
+
+    #[test]
+    fn test_multi_tenant_dispatch_to_tenant() {
+        let state = make_state();
+        let registry = super::TenantExecutorRegistry::new(state.executor.clone());
+        let mut tenant_schema = CompiledSchema::default();
+        tenant_schema
+            .queries
+            .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
+        let tenant_exec = Arc::new(Executor::new(tenant_schema, Arc::new(StubAdapter)));
+        registry.upsert("tenant-abc", tenant_exec);
+
+        let state = state.with_tenant_registry(Arc::new(registry));
+
+        // No key → default (0 queries)
+        let exec = state.executor_for_tenant(None).unwrap();
+        assert_eq!(exec.schema().queries.len(), 0);
+
+        // tenant-abc → tenant executor (1 query)
+        let exec = state.executor_for_tenant(Some("tenant-abc")).unwrap();
+        assert_eq!(exec.schema().queries.len(), 1);
+    }
+
+    #[test]
+    fn test_multi_tenant_rejects_unknown_key() {
+        let state = make_state();
+        let registry = super::TenantExecutorRegistry::new(state.executor.clone());
+        let state = state.with_tenant_registry(Arc::new(registry));
+
+        let result = state.executor_for_tenant(Some("unknown"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tenant_registry_accessor() {
+        let state = make_state();
+        assert!(state.tenant_registry().is_none());
+
+        let registry = Arc::new(super::TenantExecutorRegistry::new(state.executor.clone()));
+        let state = state.with_tenant_registry(registry);
+        assert!(state.tenant_registry().is_some());
     }
 }

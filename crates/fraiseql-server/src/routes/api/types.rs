@@ -72,8 +72,10 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = match self.code.as_str() {
             "UNAUTHORIZED" => StatusCode::UNAUTHORIZED,
+            "FORBIDDEN" => StatusCode::FORBIDDEN,
             "NOT_FOUND" => StatusCode::NOT_FOUND,
             "VALIDATION_ERROR" | "PARSE_ERROR" => StatusCode::BAD_REQUEST,
+            "SERVICE_UNAVAILABLE" => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

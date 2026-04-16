@@ -461,8 +461,24 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     #[cfg(not(feature = "federation"))]
     let _cb_entity_types: Vec<String> = vec![];
 
+    // Resolve tenant key from JWT / X-Tenant-ID header / Host header.
+    let tenant_key = super::TenantKeyResolver::resolve(
+        security_context.as_ref(),
+        headers,
+        state.domain_registry(),
+    )
+    .map_err(|e| ErrorResponse::from_error(GraphQLError::new(
+        e.to_string(),
+        crate::error::ErrorCode::ValidationError,
+    )))?;
+
     // Execute query (defer error propagation to record circuit breaker outcome first)
-    let executor = state.executor();
+    let executor = state.executor_for_tenant(tenant_key.as_deref()).map_err(|e| {
+        ErrorResponse::from_error(GraphQLError::new(
+            e.to_string(),
+            crate::error::ErrorCode::Forbidden,
+        ))
+    })?;
     let exec_result = if let Some(sec_ctx) = security_context {
         executor
             .execute_with_security(&query, request.variables.as_ref(), &sec_ctx)

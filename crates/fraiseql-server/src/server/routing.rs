@@ -7,7 +7,7 @@ use axum::{
     Router,
     extract::DefaultBodyLimit,
     middleware,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
@@ -411,6 +411,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         post(api::admin::reload_schema_handler::<A>),
                     )
                     .route("/api/v1/admin/cache/clear", post(api::admin::cache_clear_handler::<A>))
+                    // Tenant management write endpoints (multi-tenant mode)
+                    .route(
+                        "/api/v1/admin/tenants/{key}",
+                        put(api::tenant_admin::upsert_tenant_handler::<A>)
+                            .delete(api::tenant_admin::delete_tenant_handler::<A>),
+                    )
+                    // Domain management write endpoints (multi-tenant mode)
+                    .route(
+                        "/api/v1/admin/domains/{domain}",
+                        put(api::tenant_admin::upsert_domain_handler::<A>)
+                            .delete(api::tenant_admin::delete_domain_handler::<A>),
+                    )
                     .route_layer(middleware::from_fn_with_state(write_auth, bearer_auth_middleware))
                     .with_state(state.clone());
                 app = app.merge(admin_write_router);
@@ -440,6 +452,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
                     .route("/api/v1/admin/explain", post(api::admin::explain_handler::<A>))
+                    // Tenant management read endpoints (multi-tenant mode)
+                    .route(
+                        "/api/v1/admin/tenants",
+                        get(api::tenant_admin::list_tenants_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/tenants/{key}",
+                        get(api::tenant_admin::get_tenant_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/tenants/{key}/health",
+                        get(api::tenant_admin::tenant_health_handler::<A>),
+                    )
+                    // Domain management read endpoints (multi-tenant mode)
+                    .route(
+                        "/api/v1/admin/domains",
+                        get(api::tenant_admin::list_domains_handler::<A>),
+                    )
                     // /api/v1/query/explain is here (not in the open api::routes()) so that
                     // query-plan details are always protected by an admin token (H13).
                     .route("/api/v1/query/explain", post(api::query::explain_handler::<A>))

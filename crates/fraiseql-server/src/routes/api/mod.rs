@@ -15,6 +15,7 @@ pub mod federation;
 pub mod openapi;
 pub mod query;
 pub mod schema;
+pub mod tenant_admin;
 pub mod types;
 
 // Re-export commonly used types
