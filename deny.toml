@@ -14,7 +14,7 @@ ignore = [
   {id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102: transitive via async-nats 0.40 (rustls 0.22); awaiting async-nats upgrade. Revisit by 2026-04-15."},
   {id = "RUSTSEC-2026-0097", reason = "rand 0.8.5 unsound with custom logger + thread_rng reseed; transitive dep, not triggered by our code. Revisit by 2026-05-01."},
   {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via async-nats 0.40 + aws-smithy-http-client (rustls 0.21/0.22). Revisit by 2026-05-15."},
-  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same transitive chain as RUSTSEC-2026-0098. Revisit by 2026-05-15."},
+  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same transitive chain as RUSTSEC-2026-0098. Revisit by 2026-05-15."}
 ]
 unmaintained = "workspace"
 

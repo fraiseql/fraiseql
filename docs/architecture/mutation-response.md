@@ -136,6 +136,7 @@ that want current state read `entity`.
 ### Extension policy
 
 Adding a value requires:
+
 1. ADR amendment to ADR-0013 recording the new value and its HTTP default.
 2. `ALTER TYPE app.mutation_error_class ADD VALUE '<name>'` in a migration.
 3. New arm in Rust `MutationErrorClass` + `CascadeErrorCode` mapping.
