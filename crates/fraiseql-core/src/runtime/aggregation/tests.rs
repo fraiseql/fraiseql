@@ -250,7 +250,7 @@ mod native_where {
             },
             WhereClause::NativeField {
                 column:   "status".to_string(),
-                pg_cast:  "".to_string(),
+                pg_cast:  String::new(),
                 operator: WhereOperator::Eq,
                 value:    serde_json::json!("active"),
             },
@@ -347,8 +347,7 @@ mod native_columns_integration {
     use fraiseql_db::where_clause::WhereClause;
 
     fn native_cols() -> HashMap<String, String> {
-        [("customer_id".to_string(), "int8".to_string())]
-            .into_iter()
+        std::iter::once(("customer_id".to_string(), "int8".to_string()))
             .collect()
     }
 

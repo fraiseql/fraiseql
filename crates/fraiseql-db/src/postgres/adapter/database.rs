@@ -375,7 +375,7 @@ impl DatabaseAdapter for PostgresAdapter {
             })?;
 
             let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
-                let detail = e.as_db_error().map(|d| d.message()).unwrap_or("");
+                let detail = e.as_db_error().map_or("", |d| d.message());
                 FraiseQLError::Database {
                     message:   format!("Function call {function_name} failed: {e}: {detail}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
@@ -394,7 +394,7 @@ impl DatabaseAdapter for PostgresAdapter {
         } else {
             let rows: Vec<Row> =
                 client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
-                    let detail = e.as_db_error().map(|d| d.message()).unwrap_or("");
+                    let detail = e.as_db_error().map_or("", |d| d.message());
                     FraiseQLError::Database {
                         message:   format!("Function call {function_name} failed: {e}: {detail}"),
                         sql_state: e.code().map(|c| c.code().to_string()),

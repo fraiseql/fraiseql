@@ -15,7 +15,7 @@ use crate::compiler::fact_table::{FilterColumn, SqlType};
 /// infers the type from context. Returns the canonical short name (e.g. `"int8"`,
 /// `"uuid"`) for all typed columns so bind parameters can be written as `$N::type`.
 #[must_use]
-pub(crate) fn pg_type_to_cast(data_type: &str) -> &'static str {
+pub fn pg_type_to_cast(data_type: &str) -> &'static str {
     match data_type.to_lowercase().as_str() {
         "uuid" => "uuid",
         "integer" | "int" | "int4" => "int4",
@@ -38,7 +38,7 @@ pub(crate) fn pg_type_to_cast(data_type: &str) -> &'static str {
 ///
 /// Returns `""` for text-like types that require no explicit cast.
 #[must_use]
-pub(crate) fn sql_type_to_pg_cast(sql_type: &SqlType) -> &'static str {
+pub const fn sql_type_to_pg_cast(sql_type: &SqlType) -> &'static str {
     match sql_type {
         SqlType::Uuid => "uuid",
         SqlType::Int => "int4",
@@ -63,7 +63,7 @@ pub(crate) fn sql_type_to_pg_cast(sql_type: &SqlType) -> &'static str {
 /// [`crate::compiler::aggregation::GroupBySelection::NativeDimension`] variants for
 /// native columns instead of JSONB extraction variants.
 #[must_use]
-pub(crate) fn filter_columns_to_native_map(
+pub fn filter_columns_to_native_map(
     filters: &[FilterColumn],
 ) -> HashMap<String, String> {
     filters

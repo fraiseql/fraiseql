@@ -793,7 +793,7 @@ pub struct SessionVariableMapping {
 /// mutation to inject per-request values (JWT claims, HTTP headers, or literals)
 /// as PostgreSQL transaction-scoped settings.  SQL functions and RLS policies can
 /// then read these via `current_setting('app.tenant_id', true)`.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionVariablesConfig {
     /// Per-request session variable mappings.
     #[serde(default)]
