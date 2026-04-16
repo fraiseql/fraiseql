@@ -18,6 +18,9 @@ defmodule FraiseQL.Client do
       end
   """
 
+  # Suppress Dialyzer warnings for Erlang :httpc.request/4 which has incomplete type stubs
+  @dialyzer {:nowarn_function, execute: 4}
+
   defstruct [:url, :authorization, :timeout, :retry, :headers]
 
   @type t :: %__MODULE__{
@@ -90,6 +93,7 @@ defmodule FraiseQL.Client do
 
     url = ensure_graphql_path(client.url)
 
+    # Reason: :httpc.request/4 is valid Erlang; Dialyzer type stubs may be incomplete
     case :httpc.request(
            :post,
            {String.to_charlist(url), headers_to_charlist(headers), ~c"application/json", body},

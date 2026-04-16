@@ -471,7 +471,7 @@ public class FieldMetadataTest {
         public java.time.LocalDateTime createdAt;
     }
 
-    @GraphQLType
+    @GraphQLType(crud = true)
     public static class EntityWithComputedField {
         @GraphQLField
         public int id;
@@ -483,7 +483,7 @@ public class FieldMetadataTest {
         public String computedSlug;
     }
 
-    @GraphQLType
+    @GraphQLType(crud = true)
     public static class EntityWithMultipleComputedFields {
         @GraphQLField
         public int id;
