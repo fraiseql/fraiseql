@@ -59,9 +59,9 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const { exec } = require('child_process');
+            const childProcess = require('child_process');
 
-            exec('git diff origin/main docs/', (error, stdout) => {
+            childProcess.exec('git diff origin/main docs/', (error, stdout) => {
               if (stdout && stdout.includes('```d2')) {
                 github.rest.issues.createComment({
                   issue_number: context.issue.number,
