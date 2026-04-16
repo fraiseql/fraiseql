@@ -741,9 +741,10 @@ async fn create_user_mutation_returns_mutation_response() {
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
 
-    // Canned function response: Trinity pattern returns status + entity_id.
+    // Canned function response: canonical mutation_response row.
     let mut function_row = std::collections::HashMap::new();
-    function_row.insert("status".to_string(), serde_json::json!("success"));
+    function_row.insert("succeeded".to_string(), serde_json::json!(true));
+    function_row.insert("state_changed".to_string(), serde_json::json!(true));
     function_row.insert("entity_id".to_string(), serde_json::json!("new-user-123"));
 
     let adapter =
@@ -795,7 +796,9 @@ async fn create_user_mutation_failure_returns_error_in_response() {
 
     // Canned function response: failure case.
     let mut function_row = std::collections::HashMap::new();
-    function_row.insert("status".to_string(), serde_json::json!("error"));
+    function_row.insert("succeeded".to_string(), serde_json::json!(false));
+    function_row.insert("state_changed".to_string(), serde_json::json!(false));
+    function_row.insert("error_class".to_string(), serde_json::json!("conflict"));
     function_row.insert("message".to_string(), serde_json::json!("email already exists"));
 
     let adapter =
@@ -860,7 +863,8 @@ async fn all_three_rpcs_are_callable() {
     let schema = build_grpc_schema(&desc_path);
 
     let mut function_row = std::collections::HashMap::new();
-    function_row.insert("status".to_string(), serde_json::json!("success"));
+    function_row.insert("succeeded".to_string(), serde_json::json!(true));
+    function_row.insert("state_changed".to_string(), serde_json::json!(true));
     function_row.insert("entity_id".to_string(), serde_json::json!("u-99"));
 
     let adapter = FailingAdapter::new()

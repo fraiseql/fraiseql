@@ -133,7 +133,8 @@ impl SupportsMutations for InnerMockAdapter {}
 
 fn order_success_row() -> HashMap<String, serde_json::Value> {
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("success"));
+    row.insert("succeeded".to_string(), json!(true));
+    row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!("ok"));
     row.insert(
         "entity".to_string(),
@@ -263,7 +264,9 @@ async fn failed_mutation_does_not_invalidate_cache() {
     }
 
     let mut failed_row = HashMap::new();
-    failed_row.insert("status".to_string(), json!("failed:conflict"));
+    failed_row.insert("succeeded".to_string(), json!(false));
+    failed_row.insert("state_changed".to_string(), json!(false));
+    failed_row.insert("error_class".to_string(), json!("conflict"));
     failed_row.insert("message".to_string(), json!("already exists"));
     failed_row.insert("entity".to_string(), serde_json::Value::Null);
     failed_row.insert("entity_type".to_string(), serde_json::Value::Null);

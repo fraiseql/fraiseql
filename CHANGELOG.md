@@ -16,17 +16,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   error `column "v_foo.data" must appear in the GROUP BY clause`
   (fraiseql/fraiseql-python#337). All four database dialects are covered.
 
+### Changed (breaking)
+
+- **Mutation response format consolidated** — the versioned `schema_version`
+  dispatch has been removed. `app.mutation_response` is now a single canonical
+  format with typed, column-per-concern fields (`succeeded`, `state_changed`,
+  `error_class`, `entity`, `cascade`, etc.). The old v1 string-status parser,
+  the v2 version-dispatch shim, and the `MutationOutcome::Error.status` string
+  field are all gone. `MutationOutcome::Error` carries a typed
+  `error_class: MutationErrorClass` directly.
+
+  **Why:** FraiseQL has no external consumers yet — we are the sole users.
+  Neither v1 nor cascade were ever used in production. Collapsing to a single
+  greenfield format removes ~300 lines of dead-weight parsing and version
+  negotiation, giving future users a clean starting point with no migration debt.
+
 ### Added
 
-- **Mutation response v2 parser with `schema_version` dispatch** (`ad60c4789`).
-  Mutation functions can now return a v2 envelope with `schema_version: 2`,
-  enabling richer response metadata including cascade JSONB. The parser
-  auto-detects v1 vs v2 based on the `schema_version` column in the result row.
-
-- **Cascade JSONB surfaced in mutation response envelope** (`57c6b5536`).
-  When a mutation function returns a v2 response with a `cascade` JSONB column,
-  the cascade data is forwarded through the response envelope to clients,
-  enabling downstream invalidation and event propagation.
+- **Multi-tenancy support** — per-tenant executor isolation with lock-free reads.
+  Each tenant gets its own compiled schema and database connection, dispatched via
+  `X-Tenant-ID` header, JWT `tenant_id` claim, or Host-header domain registry.
+  Management API: `PUT/DELETE /api/v1/admin/tenants/{key}` (upsert/remove),
+  `GET /api/v1/admin/tenants` (list), `GET /api/v1/admin/tenants/{key}/health`,
+  `PUT/DELETE /api/v1/admin/domains/{domain}`, `GET /api/v1/admin/domains`.
+  ArcSwap-based hot-reload: in-flight requests complete on the old executor while
+  new requests use the updated schema. Single-tenant mode is unaffected (zero overhead
+  when multi-tenancy is not configured). Security: explicit-but-unregistered tenant
+  keys return 403 Forbidden, never the default tenant's data.
 
 - **Three-state update semantics for CRUD mutations** (#221, `29a2c4da8`).
   Update mutations now distinguish between absent (field not mentioned),

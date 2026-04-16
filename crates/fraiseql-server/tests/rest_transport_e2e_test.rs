@@ -32,7 +32,8 @@ use tower::ServiceExt;
 /// Build a successful `mutation_response` row with an entity.
 fn mutation_success_row(entity: Value) -> Vec<HashMap<String, Value>> {
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("success"));
+    row.insert("succeeded".to_string(), json!(true));
+    row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!(""));
     row.insert("entity".to_string(), entity);
     row.insert("entity_type".to_string(), json!("User"));
@@ -43,7 +44,8 @@ fn mutation_success_row(entity: Value) -> Vec<HashMap<String, Value>> {
 /// Build a successful `mutation_response` row with a custom `entity_id`.
 fn mutation_success_row_with_id(entity: Value, entity_id: &str) -> Vec<HashMap<String, Value>> {
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("success"));
+    row.insert("succeeded".to_string(), json!(true));
+    row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!(""));
     row.insert("entity".to_string(), entity);
     row.insert("entity_type".to_string(), json!("User"));
@@ -612,7 +614,8 @@ async fn test_delete_with_prefer_return_representation() {
     let entity = json!({"pk_user_id": 42, "name": "Alice", "email": "alice@test.com"});
     let adapter = FailingAdapter::new().with_function_response("fn_delete_user", {
         let mut row = HashMap::new();
-        row.insert("status".to_string(), json!("success"));
+        row.insert("succeeded".to_string(), json!(true));
+        row.insert("state_changed".to_string(), json!(true));
         row.insert("message".to_string(), json!(""));
         row.insert("entity".to_string(), entity);
         row.insert("entity_type".to_string(), json!("User"));

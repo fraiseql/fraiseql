@@ -126,7 +126,9 @@ async fn mutation_error_status_produces_graphql_level_response() {
     let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
 
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("failed:conflict"));
+    row.insert("succeeded".to_string(), json!(false));
+    row.insert("state_changed".to_string(), json!(false));
+    row.insert("error_class".to_string(), json!("conflict"));
     row.insert("message".to_string(), json!("Email already exists"));
     row.insert("entity".to_string(), serde_json::Value::Null);
     row.insert("entity_type".to_string(), json!("DuplicateEmailError"));
@@ -171,7 +173,9 @@ async fn mutation_failed_conflict_returns_non_empty_response() {
     let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
 
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("failed:conflict"));
+    row.insert("succeeded".to_string(), json!(false));
+    row.insert("state_changed".to_string(), json!(false));
+    row.insert("error_class".to_string(), json!("conflict"));
     row.insert("message".to_string(), json!("Duplicate email"));
     row.insert("entity".to_string(), serde_json::Value::Null);
     row.insert("entity_type".to_string(), json!("DuplicateEmailError"));
@@ -199,7 +203,9 @@ async fn mutation_generic_error_status_produces_valid_response() {
     let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
 
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("error"));
+    row.insert("succeeded".to_string(), json!(false));
+    row.insert("state_changed".to_string(), json!(false));
+    row.insert("error_class".to_string(), json!("internal"));
     row.insert("message".to_string(), json!("Internal error"));
     row.insert("entity".to_string(), serde_json::Value::Null);
     row.insert("entity_type".to_string(), json!("ValidationError"));
@@ -238,7 +244,8 @@ async fn mutation_success_status_includes_entity_in_data() {
 
     let entity_id = "new-user-uuid-456";
     let mut row = HashMap::new();
-    row.insert("status".to_string(), json!("success"));
+    row.insert("succeeded".to_string(), json!(true));
+    row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!("created"));
     row.insert("entity".to_string(), json!({"id": entity_id, "email": "new@example.com"}));
     row.insert("entity_type".to_string(), json!("CreateUserSuccess"));

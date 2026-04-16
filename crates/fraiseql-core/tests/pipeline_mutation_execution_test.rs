@@ -33,7 +33,7 @@ use serde_json::json;
 
 fn mutation_success_row() -> HashMap<String, serde_json::Value> {
     let mut row = HashMap::new();
-    row.insert("schema_version".to_string(), json!(2));
+
     row.insert("succeeded".to_string(), json!(true));
     row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!("ok"));
@@ -47,7 +47,7 @@ fn mutation_success_row() -> HashMap<String, serde_json::Value> {
 
 fn order_success_row() -> HashMap<String, serde_json::Value> {
     let mut row = HashMap::new();
-    row.insert("schema_version".to_string(), json!(2));
+
     row.insert("succeeded".to_string(), json!(true));
     row.insert("state_changed".to_string(), json!(true));
     row.insert("message".to_string(), json!("ok"));
@@ -325,7 +325,7 @@ async fn mutation_executor_appends_inject_params_from_jwt() {
 
 fn mutation_error_row() -> HashMap<String, serde_json::Value> {
     let mut row = HashMap::new();
-    row.insert("schema_version".to_string(), json!(2));
+
     row.insert("succeeded".to_string(), json!(false));
     row.insert("state_changed".to_string(), json!(false));
     row.insert("error_class".to_string(), json!("conflict"));

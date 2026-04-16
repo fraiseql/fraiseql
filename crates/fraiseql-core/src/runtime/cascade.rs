@@ -1,12 +1,11 @@
 //! Cascade-spec error classification.
 //!
 //! `MutationErrorClass` mirrors the `app.mutation_error_class` PostgreSQL enum
-//! emitted by `app.mutation_response` v2 rows. `CascadeErrorCode` is the wire
+//! emitted by `app.mutation_response` rows. `CascadeErrorCode` is the wire
 //! representation used by the graphql-cascade error envelope. The mapping
 //! between them is 1:1 — no fallbacks, no HTTP-code tiebreakers.
 //!
-//! See `docs/architecture/mutation-response.md` (semantics table + mapping)
-//! and ADR-0013.
+//! See `docs/architecture/mutation-response.md` (semantics table + mapping).
 
 use serde::Deserialize;
 
@@ -73,7 +72,7 @@ pub enum CascadeErrorCode {
 }
 
 impl MutationErrorClass {
-    /// The snake_case string that identifies this class on the wire.
+    /// The `snake_case` string that identifies this class on the wire.
     ///
     /// Mirrors the `app.mutation_error_class` PostgreSQL enum label and the
     /// `serde(rename_all = "snake_case")` serialisation form used in v2 rows.

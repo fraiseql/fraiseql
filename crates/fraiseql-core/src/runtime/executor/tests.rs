@@ -994,7 +994,7 @@ mod mutation {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             use serde_json::json;
             let mut row = std::collections::HashMap::new();
-            row.insert("schema_version".to_string(), json!(2));
+
             row.insert("succeeded".to_string(), json!(true));
             row.insert("state_changed".to_string(), json!(true));
             row.insert(
@@ -1081,7 +1081,7 @@ mod mutation {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             use serde_json::json;
             let mut row = std::collections::HashMap::new();
-            row.insert("schema_version".to_string(), json!(2));
+
             row.insert("succeeded".to_string(), json!(true));
             row.insert("state_changed".to_string(), json!(true));
             row.insert(
@@ -1407,7 +1407,7 @@ mod mutation {
             use serde_json::json;
             *self.captured_args.lock().unwrap() = args.to_vec();
             let mut row = std::collections::HashMap::new();
-            row.insert("schema_version".to_string(), json!(2));
+
             row.insert("succeeded".to_string(), json!(true));
             row.insert("state_changed".to_string(), json!(true));
             row.insert("entity".to_string(), json!({"id": "1"}));

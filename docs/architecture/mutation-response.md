@@ -1,12 +1,10 @@
-# `app.mutation_response` v2
+# `app.mutation_response`
 
-Contributor reference for the typed, versioned PostgreSQL composite that every
-FraiseQL mutation function emits.
+Contributor reference for the typed PostgreSQL composite that every FraiseQL
+mutation function emits.
 
-Authoritative design record: [ADR-0013](../adr/0013-mutation-response-v2-schema.md).
-This document is the contributor-facing companion: DDL, semantics, mapping
-tables, migration contract, and the call-site inventory that sizes the
-cross-crate sweep.
+Historical design record: [ADR-0013](../adr/0013-mutation-response-v2-schema.md)
+(describes the original motivation for moving from string-status to typed columns).
 
 ---
 
@@ -16,18 +14,16 @@ cross-crate sweep.
    change, error class, and error detail do not share a column.
 2. **Typed classification, not string parsing.** `error_class` is a first-class
    PG enum. The Rust runtime reads it, never parses a prefix.
-3. **Versioned shape.** `schema_version` is the first column. The composite
-   evolves by bumping the version, not by silently changing column semantics.
-4. **Builder-enforced invariants.** The `succeeded × state_changed × error_class`
-   truth table is checked inside `core.build_mutation_response_v2`. Do not
+3. **Builder-enforced invariants.** The `succeeded × state_changed × error_class`
+   truth table is checked inside `core.build_mutation_response`. Do not
    bypass the builder.
-5. **Cross-database portability.** PG uses a native enum; MySQL / SQLite /
+4. **Cross-database portability.** PG uses a native enum; MySQL / SQLite /
    SQL Server use `TEXT + CHECK` with the same value set. The Rust parser is
    unified across adapters.
 
 ---
 
-## v2 DDL
+## DDL
 
 ```sql
 CREATE TYPE app.mutation_error_class AS ENUM (
@@ -44,7 +40,6 @@ CREATE TYPE app.mutation_error_class AS ENUM (
 );
 
 CREATE TYPE app.mutation_response AS (
-    schema_version  SMALLINT,                    -- always 2 for this shape
     succeeded       BOOLEAN,                     -- terminal outcome
     state_changed   BOOLEAN,                     -- did DB state actually change
     error_class     app.mutation_error_class,    -- NULL iff succeeded
@@ -62,7 +57,7 @@ CREATE TYPE app.mutation_response AS (
 ```
 
 PG composite types do not support `CHECK` directly. The invariant below is
-enforced by `core.build_mutation_response_v2`:
+enforced by `core.build_mutation_response`:
 
 ```sql
 -- Enforced in the builder, not in DDL
@@ -79,7 +74,7 @@ emits the row.
 
 | Column           | Type                        | Meaning |
 |------------------|-----------------------------|---------|
-| `schema_version` | `SMALLINT`                  | `2` for this shape. Written every row; Rust parser dispatches on it. |
+
 | `succeeded`      | `BOOLEAN`                   | Terminal outcome. `true` = operation completed (including noop). |
 | `state_changed`  | `BOOLEAN`                   | `true` iff the database actually changed. Independent of `succeeded`. |
 | `error_class`    | `app.mutation_error_class`  | `NULL` iff `succeeded`. Drives cascade code 1:1. |
@@ -116,9 +111,8 @@ boundary bug that the response shape is not the right place to paper over.
 
 ### Noop
 
-`noop:no_changes` in v1 is `succeeded=true, state_changed=false, entity={row}`
-in v2. Idempotent deletes — which v1 could not cleanly express — are
-`succeeded=true, state_changed=false` on a DELETE with no matching row.
+Idempotent calls are `succeeded=true, state_changed=false, entity={row}`.
+Idempotent deletes with no matching row are `succeeded=true, state_changed=false`.
 Callers that only want "did anything happen" read `state_changed`; callers
 that want current state read `entity`.
 
@@ -191,14 +185,13 @@ via the `operation` parameter passed in).
 
 ---
 
-## Rust struct (target shape for Phase 01)
+## Rust struct
 
 ```rust
-/// v2 mutation response — typed, versioned.
+/// Typed `app.mutation_response` row.
 ///
-/// Fields map 1:1 to `app.mutation_response` v2 columns.
-pub struct MutationResponseV2 {
-    pub schema_version: u16,
+/// Fields map 1:1 to the PostgreSQL composite columns.
+pub struct MutationResponse {
     pub succeeded:      bool,
     pub state_changed:  bool,
     pub error_class:    Option<MutationErrorClass>,
@@ -213,180 +206,10 @@ pub struct MutationResponseV2 {
     pub error_detail:   serde_json::Value,
     pub metadata:       serde_json::Value,
 }
-
-pub enum MutationErrorClass {
-    Validation,
-    Conflict,
-    NotFound,
-    Unauthorized,
-    Forbidden,
-    Internal,
-    TransactionFailed,
-    Timeout,
-    RateLimited,
-    ServiceUnavailable,
-}
 ```
 
 `http_status` is validated on ingest: out-of-range values become a
 `FraiseQLError::Validation` with the column name and observed value.
 
----
-
-## Migration contract
-
-### Coexistence strategy: parallel types
-
-During the transition, v1 and v2 coexist as two separate composite types:
-
-- `app.mutation_response_v1` — frozen v1 shape, used by not-yet-migrated functions.
-- `app.mutation_response`    — new v2 shape, used by migrated functions.
-
-`ALTER TYPE ... ADD ATTRIBUTE` was considered and rejected: v1 row semantics
-do not translate column-by-column to v2 (the `status TEXT` prefix conflates
-concerns that v2 splits), so mutating the existing type in place would leave
-rows in an ambiguous middle state.
-
-### Rust-side dispatch
-
-`parse_mutation_row` becomes a version dispatcher:
-
-```rust
-pub fn parse_mutation_row(row: &Row) -> Result<MutationOutcome> {
-    match row.get::<i16>("schema_version") {
-        Ok(2) => parse_v2(row).map(Into::into),
-        _     => parse_v1(row),   // existing prefix parser
-    }
-}
-```
-
-`MutationOutcome` (the existing seam in `runtime/executor/mutation.rs`) is
-preserved so Phase 01 does not churn every consumer. v2-specific richness
-(HTTP status, structured error detail, updated fields) is threaded through
-extended fields on `MutationOutcome` variants.
-
-### Retirement
-
-Phase 04 removes the v1 path once all emitters are v2. The dispatcher
-collapses to `parse_v2` only. `schema_version` stays — it signals to future
-readers that this composite is principled about evolution, and it costs two
-bytes per row.
-
-### Legacy-mutation-v1 feature flag
-
-Phase 04 ships in two releases:
-1. First release: v1 parser is gated behind a `legacy-mutation-v1` Cargo
-   feature (default: **on**). Downstream consumers still on v1 can opt out
-   of the feature to prove they have migrated.
-2. Following release: the feature and the v1 parser are deleted.
-
-Do not collapse the two releases. The gap is the only early-warning signal
-we have for out-of-tree v1 consumers.
-
----
-
-## Call sites (blast-radius inventory)
-
-Output of the Phase 00 grep-inventory. This sizes Phase 05.
-
-### Parser core (Phase 01)
-
-- `crates/fraiseql-core/src/runtime/mutation_result.rs` — `MutationOutcome`,
-  `parse_mutation_row`, `is_error_status`, `populate_error_fields`. Becomes
-  the version dispatcher.
-- `crates/fraiseql-core/src/runtime/executor/mutation.rs:11,341,351,368,452,491`
-  — primary consumer of `MutationOutcome`. Success/error arms project into
-  GraphQL response.
-
-No structural coupling in federation / cache / wire: the inventory found zero
-uses of `MutationOutcome` or `parse_mutation_row` in
-`crates/fraiseql-federation/`, `crates/fraiseql-core/src/cache/`, or
-`crates/fraiseql-wire/`. Phase 01's `MutationOutcome`-as-seam design is
-sufficient; no pre-Phase-01 escalation needed.
-
-### Downstream consumers (Phase 05 sweep — FraiseQL-internal only)
-
-**Server routes:**
-- `crates/fraiseql-server/src/routes/grpc/handler.rs:391,431,446` —
-  `encode_mutation_response` (protobuf encoder; post-parser; needs typed-
-  outcome threading only if v2 fields surface on the wire).
-- `crates/fraiseql-server/src/routes/grpc/mod.rs:333` — call-site.
-- `crates/fraiseql-server/src/routes/rest/response.rs:413,415` — extracts
-  entity from parsed outcome. No raw-composite coupling.
-- `crates/fraiseql-server/src/routes/rest/handler.rs:1339` — raw-form
-  pass-through for REST.
-- `crates/fraiseql-server/src/routes/rest/bulk.rs` — consumes
-  `mutation_result`.
-
-**DB trait doc comments:**
-- `crates/fraiseql-db/src/traits.rs:601,689` — references to
-  `app.mutation_response` column set.
-- `crates/fraiseql-db/src/dialect/capability.rs:16,36,62` —
-  capability docs referencing mutation_response.
-
-**Codegen:**
-- `crates/fraiseql-cli/src/codegen/proto_gen.rs:133,197,199,240,483,737,742`
-  — generates the protobuf `MutationResponse` message (the GraphQL-type /
-  wire message, distinct from the PG composite; naming collision only).
-
-**Integration tests (fixture rows):**
-- `crates/fraiseql-server/tests/rest_transport_e2e_test.rs:29,32,43`
-- `crates/fraiseql-server/tests/apq_mutation_e2e_test.rs:10,46`
-- `crates/fraiseql-server/tests/grpc_transport_e2e_test.rs:203,204,205,252,269,739,773,774,775,817,818`
-  (protobuf `MutationResponse`, not the PG composite)
-- `crates/fraiseql-core/tests/pipeline_mutation_error_type_test.rs:6,194`
-  (#294 regression on `is_error_status`)
-- `crates/fraiseql-core/tests/mutation_typename_integration.rs:133`
-- `crates/fraiseql-core/tests/mutation_nullability.rs:114,115`
-- `crates/fraiseql-core/tests/federation/mutation_response.rs` (wire-shape
-  tests; not the PG composite)
-- `crates/fraiseql-core/tests/federation_mutation_http.rs:175`
-- `crates/fraiseql-federation/src/mutation_http_client.rs:417,449` (HTTP
-  response size; no structural coupling to v1 shape)
-
-**Examples (SQL fixtures):**
-- `examples/blog_api/` — 1 file
-- `examples/cascade-create-post/` — 1 file
-- `examples/ecommerce_api/` — ~22 files (types + functions)
-- `examples/mutation-patterns/` — ~6 files
-- `examples/real_time_chat/` — 1 file
-
-**Docs:**
-- `docs/adr/0013-mutation-response-v2-schema.md` (this initiative's ADR)
-- `docs/database-compatibility.md`
-- `docs/features/mutation-timing.md`
-
-### Out of scope for this sweep
-
-External consumers outside this repository (including any private
-reference implementation). They migrate on their own schedule. The
-`schema_version`-gated dispatcher in Phase 01 plus the
-`legacy-mutation-v1` feature flag in Phase 04 give them a graceful path.
-
-### Non-PG adapter parity
-
-MySQL / SQLite / SQL Server continue to emit v1 until a follow-up
-initiative lands the `TEXT + CHECK` equivalents. The unified Rust parser
-reads typed columns on PG and falls back to v1 parsing on non-PG adapters
-until that follow-up ships. Tracking issue to be opened at Phase 00
-sign-off (see below).
-
----
-
-## Pointer: downstream PG reference implementation
-
-The canonical PG helpers that emit v2 rows (`core.build_mutation_response_v2`,
-`core.log_and_return_mutation_v2`, `core.error_detail_*_v2`) live in a private
-downstream repository. FraiseQL's compiler and runtime do not depend on that
-repository; Phases 02–03 of the migration plan describe its changes for
-context but are out of scope for this codebase.
-
----
-
-## Open sign-off items for Phase 00
-
-- [ ] Architecture doc (this file) + ADR-0013 reviewed by the user
-- [ ] DDL compiled against a scratch PG instance
-- [ ] Builder validation function demonstrably rejects the illegal combination
-- [ ] Tracking issue opened for non-PG adapter parity (MySQL / SQLite / SQL Server)
-- [ ] User sign-off before Phase 01 begins
+Extra columns in the row (e.g. from older DB functions) are silently ignored
+by the `serde` deserializer.

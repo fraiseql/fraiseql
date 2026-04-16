@@ -8,7 +8,6 @@ use crate::{
     error::{FraiseQLError, Result},
     runtime::{
         FieldMapping, ProjectionMapper, ResultProjector, build_field_mappings_from_type,
-        cascade::MutationErrorClass,
         mutation_result::{MutationOutcome, parse_mutation_row},
         suggest_similar,
     },

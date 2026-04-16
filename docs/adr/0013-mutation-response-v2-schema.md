@@ -1,6 +1,6 @@
-# ADR-0013: `app.mutation_response` v2 Composite Schema
+# ADR-0013: `app.mutation_response` Typed Composite Schema
 
-## Status: Proposed
+## Status: Accepted (consolidated — versioning removed, this is now the only format)
 
 ## Context
 
