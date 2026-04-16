@@ -5,6 +5,68 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Mutation response v2 parser with `schema_version` dispatch** (`ad60c4789`).
+  Mutation functions can now return a v2 envelope with `schema_version: 2`,
+  enabling richer response metadata including cascade JSONB. The parser
+  auto-detects v1 vs v2 based on the `schema_version` column in the result row.
+
+- **Cascade JSONB surfaced in mutation response envelope** (`57c6b5536`).
+  When a mutation function returns a v2 response with a `cascade` JSONB column,
+  the cascade data is forwarded through the response envelope to clients,
+  enabling downstream invalidation and event propagation.
+
+- **Three-state update semantics for CRUD mutations** (#221, `29a2c4da8`).
+  Update mutations now distinguish between absent (field not mentioned),
+  explicit null (set to NULL), and value (set to new value) via the GraphQL
+  variable-omission convention. CRUD naming configuration added to
+  `fraiseql.toml`.
+
+- **`computed=True` field marker for CRUD input exclusion** (#222). Python SDK
+  (`e6dab114e`), TypeScript (`0ebc702f2`), Java (`e62cf9b86`), C#, Dart,
+  Elixir, F#, PHP, Ruby (`ccb9607a4`) SDKs all support `computed` fields that
+  are excluded from generated CRUD input types (e.g. `created_at`,
+  `updated_at`).
+
+- **`not_found` error status for mutations** (`d6392732d`). Mutation responses
+  can now return a `not_found` status distinct from generic failure, enabling
+  clients to distinguish "entity does not exist" from other error conditions.
+
+- **Session variables injected before read queries** (#218, `45be17e34`).
+  `set_config()` session variable propagation now applies to read queries, not
+  only mutations, so RLS policies on SELECT can reference `current_setting()`.
+
+- **Cross-SDK parity CI** (`118bf496d`, `2660603bd`). Phase B generators and
+  CI jobs added for Java, Ruby, Dart, C#, F#, Rust, PHP, and Elixir SDKs.
+
+### Fixed
+
+- **`inject_params` now respects `native_columns`** (#219, `bdc00905f`).
+  Injected parameters (e.g. tenant isolation via `inject: { tenant_id:
+  "jwt:org_id" }`) previously always used JSONB extraction
+  (`data->>'col' = $N`). When the column exists as a native column on the
+  backing view, the query now emits `col = $N::type` instead, enabling
+  B-tree index usage.
+
+- **Python SDK CRUD `sql_source` no longer adds spurious `fn_` prefix**
+  (`c07e12875`). Auto-generated `sql_source` from `crud=True` mutations
+  dropped the `fn_` prefix that was incorrectly prepended.
+
+### Changed
+
+- **Vendored `graphql-parser` removed** (`a9221463c`, `36615f6e1`). The
+  in-tree vendored copy and drift tooling have been removed; the workspace
+  now depends on the upstream crates.io release.
+
+- **3 patched CVEs removed from `.trivyignore`** (`d85a3822b`).
+  CVE-2025-14104 (util-linux), CVE-2025-6141 (ncurses), and CVE-2024-56433
+  (shadow-utils) now have Debian fixes; next image rebuild picks them up.
+
+---
+
 ## [2.1.6] - 2026-04-14
 
 ### Added
