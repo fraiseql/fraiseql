@@ -48,8 +48,6 @@ module FraiseQL
       SchemaRegistry.instance.all_types
     end
 
-    private
-
     def self.print_export_summary(output_path)
       types_count = SchemaRegistry.instance.all_types.length
       puts "✅ Types exported to #{output_path}"
@@ -98,20 +96,19 @@ module FraiseQL
       raise "Field #{type_name}.#{field_name} has empty scope" if scope.empty?
       return if scope == '*'
 
-      unless scope.include?(':')
-        raise "Field #{type_name}.#{field_name} has invalid scope '#{scope}' (missing colon)"
-      end
+      raise "Field #{type_name}.#{field_name} has invalid scope '#{scope}' (missing colon)" unless scope.include?(':')
 
       parts = scope.split(':', 2)
-      action, resource = parts[0], parts[1]
+      action = parts[0]
+      resource = parts[1]
 
       unless valid_action?(action)
         raise "Field #{type_name}.#{field_name} has invalid action in scope '#{scope}' (must be alphanumeric + underscore)"
       end
 
-      unless valid_resource?(resource)
-        raise "Field #{type_name}.#{field_name} has invalid resource in scope '#{scope}' (must be alphanumeric + underscore + dot, or *)"
-      end
+      return if valid_resource?(resource)
+
+      raise "Field #{type_name}.#{field_name} has invalid resource in scope '#{scope}' (must be alphanumeric + underscore + dot, or *)"
     end
 
     def self.valid_action?(action)
@@ -126,5 +123,9 @@ module FraiseQL
 
       resource.match?(/\A[a-zA-Z_][a-zA-Z0-9_.]*\z/)
     end
+
+    private_class_method :print_export_summary, :validate_field, :validate_requires_scope,
+                         :validate_requires_scopes, :raise_if_both_scope_and_scopes,
+                         :validate_scope, :valid_action?, :valid_resource?
   end
 end

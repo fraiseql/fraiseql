@@ -25,7 +25,6 @@ module FraiseQL
         when :description then @description
         when :requires_scope then @requires_scope
         when :requires_scopes then @requires_scopes
-        else nil
         end
       end
 

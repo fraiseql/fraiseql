@@ -11,7 +11,7 @@ require_relative 'fraiseql/schema'
 
 # FraiseQL Ruby SDK — schema authoring and type export.
 module FraiseQL
-  VERSION = '2.0.0'.freeze
+  VERSION = '2.0.0'
 
   # Convenience methods for schema management
   def self.register_type(name, fields, description = nil)

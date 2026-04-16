@@ -243,7 +243,7 @@ public class FieldMetadataTest {
     @Test
     @DisplayName("Computed fields are excluded from CreateXInput in CRUD generation")
     void testComputedFieldsExcludedFromCreateInput() {
-        FraiseQL.registerType(EntityWithComputedField.class, true, null, false);
+        FraiseQL.registerType(EntityWithComputedField.class);
 
         SchemaRegistry registry = SchemaRegistry.getInstance();
         var createInputInfo = registry.getInputType("CreateEntityWithComputedFieldInput");
@@ -261,7 +261,7 @@ public class FieldMetadataTest {
     @Test
     @DisplayName("Computed fields are excluded from UpdateXInput (non-PK only)")
     void testComputedFieldsExcludedFromUpdateInput() {
-        FraiseQL.registerType(EntityWithComputedField.class, true, null, false);
+        FraiseQL.registerType(EntityWithComputedField.class);
 
         SchemaRegistry registry = SchemaRegistry.getInstance();
         var updateInputInfo = registry.getInputType("UpdateEntityWithComputedFieldInput");
@@ -283,7 +283,7 @@ public class FieldMetadataTest {
     @Test
     @DisplayName("Multiple computed fields are excluded from both input types")
     void testMultipleComputedFieldsExcluded() {
-        FraiseQL.registerType(EntityWithMultipleComputedFields.class, true, null, false);
+        FraiseQL.registerType(EntityWithMultipleComputedFields.class);
 
         SchemaRegistry registry = SchemaRegistry.getInstance();
 

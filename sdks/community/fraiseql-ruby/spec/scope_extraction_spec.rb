@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'json'
 
@@ -27,9 +29,9 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'extracts single scope from field configuration' do
       # RED: This test fails because FieldInfo doesn't store scope
       FraiseQL::Schema.register_type('UserWithScope', [
-        { name: 'id', type: 'Int' },
-        { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
-      ])
+                                       { name: 'id', type: 'Int' },
+                                       { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       expect(types).to have(1).item
@@ -45,11 +47,11 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'extracts multiple different scopes on different fields' do
       # RED: Tests extraction of different scopes on different fields
       FraiseQL::Schema.register_type('UserWithMultipleScopes', [
-        { name: 'id', type: 'Int' },
-        { name: 'email', type: 'String', requires_scope: 'read:user.email' },
-        { name: 'phone', type: 'String', requires_scope: 'read:user.phone' },
-        { name: 'ssn', type: 'String', requires_scope: 'read:user.ssn' }
-      ])
+                                       { name: 'id', type: 'Int' },
+                                       { name: 'email', type: 'String', requires_scope: 'read:user.email' },
+                                       { name: 'phone', type: 'String', requires_scope: 'read:user.phone' },
+                                       { name: 'ssn', type: 'String', requires_scope: 'read:user.ssn' }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       user_type = types[0]
@@ -62,10 +64,10 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'handles public fields without scope requirement' do
       # RED: Public fields should have nil/no scope
       FraiseQL::Schema.register_type('UserWithMixedFields', [
-        { name: 'id', type: 'Int' },
-        { name: 'name', type: 'String' },
-        { name: 'email', type: 'String', requires_scope: 'read:user.email' }
-      ])
+                                       { name: 'id', type: 'Int' },
+                                       { name: 'name', type: 'String' },
+                                       { name: 'email', type: 'String', requires_scope: 'read:user.email' }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       user_type = types[0]
@@ -83,9 +85,9 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'extracts multiple scopes on single field as array' do
       # RED: Field with requires_scopes array
       FraiseQL::Schema.register_type('AdminWithMultipleScopes', [
-        { name: 'id', type: 'Int' },
-        { name: 'admin_notes', type: 'String', requires_scopes: ['admin', 'auditor'] }
-      ])
+                                       { name: 'id', type: 'Int' },
+                                       { name: 'admin_notes', type: 'String', requires_scopes: %w[admin auditor] }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       user_type = types[0]
@@ -101,9 +103,10 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'mixes single-scope and multi-scope fields' do
       # RED: Type with both single-scope and multi-scope fields
       FraiseQL::Schema.register_type('MixedScopeTypes', [
-        { name: 'basic_field', type: 'String', requires_scope: 'read:basic' },
-        { name: 'advanced_field', type: 'String', requires_scopes: ['read:advanced', 'admin'] }
-      ])
+                                       { name: 'basic_field', type: 'String', requires_scope: 'read:basic' },
+                                       { name: 'advanced_field', type: 'String',
+                                         requires_scopes: ['read:advanced', 'admin'] }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       type_def = types[0]
@@ -115,8 +118,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'preserves scope array order' do
       # RED: Scopes array order must be preserved
       FraiseQL::Schema.register_type('OrderedScopes', [
-        { name: 'restricted', type: 'String', requires_scopes: ['first', 'second', 'third'] }
-      ])
+                                       { name: 'restricted', type: 'String', requires_scopes: %w[first second third] }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       type_def = types[0]
@@ -137,9 +140,9 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'supports resource-based scope pattern' do
       # RED: Resource pattern like read:User.email
       FraiseQL::Schema.register_type('ResourcePatternScopes', [
-        { name: 'email', type: 'String', requires_scope: 'read:User.email' },
-        { name: 'phone', type: 'String', requires_scope: 'read:User.phone' }
-      ])
+                                       { name: 'email', type: 'String', requires_scope: 'read:User.email' },
+                                       { name: 'phone', type: 'String', requires_scope: 'read:User.phone' }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       type_def = types[0]
@@ -150,9 +153,9 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'supports action-based scope pattern' do
       # RED: Action patterns like read:*, write:*, admin:*
       FraiseQL::Schema.register_type('ActionPatternScopes', [
-        { name: 'readable_field', type: 'String', requires_scope: 'read:User.*' },
-        { name: 'writable_field', type: 'String', requires_scope: 'write:User.*' }
-      ])
+                                       { name: 'readable_field', type: 'String', requires_scope: 'read:User.*' },
+                                       { name: 'writable_field', type: 'String', requires_scope: 'write:User.*' }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       type_def = types[0]
@@ -164,8 +167,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'supports global wildcard scope' do
       # RED: Global wildcard matching all scopes
       FraiseQL::Schema.register_type('GlobalWildcardScope', [
-        { name: 'admin_override', type: 'String', requires_scope: '*' }
-      ])
+                                       { name: 'admin_override', type: 'String', requires_scope: '*' }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       type_def = types[0]
@@ -182,8 +185,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'exports single scope to JSON' do
       # RED: Scope must appear in JSON export
       FraiseQL::Schema.register_type('ExportTestSingleScope', [
-        { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
-      ])
+                                       { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
+                                     ])
 
       json = FraiseQL::Schema.export_types(true)
       schema = JSON.parse(json)
@@ -199,8 +202,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'exports multiple scopes array to JSON' do
       # RED: requires_scopes array exported correctly
       FraiseQL::Schema.register_type('ExportTestMultipleScopes', [
-        { name: 'restricted', type: 'String', requires_scopes: ['scope1', 'scope2'] }
-      ])
+                                       { name: 'restricted', type: 'String', requires_scopes: %w[scope1 scope2] }
+                                     ])
 
       json = FraiseQL::Schema.export_types(true)
       schema = JSON.parse(json)
@@ -214,9 +217,9 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'omits scope fields for public fields in JSON' do
       # RED: Public fields should NOT have scope in JSON
       FraiseQL::Schema.register_type('ExportTestPublicField', [
-        { name: 'id', type: 'Int' },
-        { name: 'name', type: 'String' }
-      ])
+                                       { name: 'id', type: 'Int' },
+                                       { name: 'name', type: 'String' }
+                                     ])
 
       json = FraiseQL::Schema.export_types(true)
       schema = JSON.parse(json)
@@ -235,14 +238,14 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'preserves scope alongside other field metadata' do
       # RED: Scope doesn't interfere with type, nullable, description
       FraiseQL::Schema.register_type('ScopeWithMetadata', [
-        {
-          name: 'salary',
-          type: 'Float',
-          requires_scope: 'read:user.salary',
-          description: "User's annual salary",
-          nullable: false
-        }
-      ])
+                                       {
+                                         name: 'salary',
+                                         type: 'Float',
+                                         requires_scope: 'read:user.salary',
+                                         description: "User's annual salary",
+                                         nullable: false
+                                       }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       salary_field = types[0][:fields][0]
@@ -256,13 +259,13 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'works with nullable fields' do
       # RED: Scope works on nullable fields
       FraiseQL::Schema.register_type('ScopeWithNullable', [
-        {
-          name: 'optional_email',
-          type: 'String',
-          nullable: true,
-          requires_scope: 'read:user.email'
-        }
-      ])
+                                       {
+                                         name: 'optional_email',
+                                         type: 'String',
+                                         nullable: true,
+                                         requires_scope: 'read:user.email'
+                                       }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       email_field = types[0][:fields][0]
@@ -274,19 +277,19 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'maintains metadata independence across multiple scoped fields' do
       # RED: Each field's metadata is independent
       FraiseQL::Schema.register_type('MetadataIndependence', [
-        {
-          name: 'field1',
-          type: 'String',
-          requires_scope: 'scope1',
-          description: 'Desc 1'
-        },
-        {
-          name: 'field2',
-          type: 'String',
-          requires_scope: 'scope2',
-          description: 'Desc 2'
-        },
-      ])
+                                       {
+                                         name: 'field1',
+                                         type: 'String',
+                                         requires_scope: 'scope1',
+                                         description: 'Desc 1'
+                                       },
+                                       {
+                                         name: 'field2',
+                                         type: 'String',
+                                         requires_scope: 'scope2',
+                                         description: 'Desc 2'
+                                       }
+                                     ])
 
       types = FraiseQL::SchemaRegistry.instance.get_types
       fields = types[0][:fields]
@@ -307,8 +310,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Invalid scopes should raise error
       expect do
         FraiseQL::Schema.register_type('InvalidScopeFormat', [
-          { name: 'field', type: 'String', requires_scope: 'invalid_scope_no_colon' },
-        ])
+                                         { name: 'field', type: 'String', requires_scope: 'invalid_scope_no_colon' }
+                                       ])
       end.to raise_error(RuntimeError)
     end
 
@@ -316,8 +319,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Empty string scope invalid
       expect do
         FraiseQL::Schema.register_type('EmptyScope', [
-          { name: 'field', type: 'String', requires_scope: '' },
-        ])
+                                         { name: 'field', type: 'String', requires_scope: '' }
+                                       ])
       end.to raise_error(RuntimeError)
     end
 
@@ -325,8 +328,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Empty array not allowed
       expect do
         FraiseQL::Schema.register_type('EmptyScopesArray', [
-          { name: 'field', type: 'String', requires_scopes: [] },
-        ])
+                                         { name: 'field', type: 'String', requires_scopes: [] }
+                                       ])
       end.to raise_error(RuntimeError)
     end
 
@@ -334,8 +337,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Hyphens in action prefix invalid
       expect do
         FraiseQL::Schema.register_type('InvalidActionWithHyphens', [
-          { name: 'field', type: 'String', requires_scope: 'invalid-action:resource' },
-        ])
+                                         { name: 'field', type: 'String', requires_scope: 'invalid-action:resource' }
+                                       ])
       end.to raise_error(RuntimeError)
     end
 
@@ -343,8 +346,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Hyphens in resource name invalid
       expect do
         FraiseQL::Schema.register_type('InvalidResourceWithHyphens', [
-          { name: 'field', type: 'String', requires_scope: 'read:invalid-resource-name' },
-        ])
+                                         { name: 'field', type: 'String', requires_scope: 'read:invalid-resource-name' }
+                                       ])
       end.to raise_error(RuntimeError)
     end
 
@@ -352,13 +355,13 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Can't have both on same field
       expect do
         FraiseQL::Schema.register_type('ConflictingScopeAndScopes', [
-          {
-            name: 'field',
-            type: 'String',
-            requires_scope: 'read:user.email',
-            requires_scopes: ['admin', 'auditor']
-          }
-        ])
+                                         {
+                                           name: 'field',
+                                           type: 'String',
+                                           requires_scope: 'read:user.email',
+                                           requires_scopes: %w[admin auditor]
+                                         }
+                                       ])
       end.to raise_error(RuntimeError)
     end
   end
