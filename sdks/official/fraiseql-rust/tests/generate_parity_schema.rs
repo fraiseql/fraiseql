@@ -58,10 +58,7 @@ fn registry_to_parity_json(registry: &SchemaRegistry) -> String {
         .filter_map(|name| registry.get_type(name).map(|fields| (name, fields)))
         .map(|(name, fields)| {
             let field_jsons: Vec<String> = fields.iter().map(Field::to_json).collect();
-            format!(
-                "{{\"name\":\"{name}\",\"fields\":[{fields}]}}",
-                fields = field_jsons.join(",")
-            )
+            format!("{{\"name\":\"{name}\",\"fields\":[{fields}]}}", fields = field_jsons.join(","))
         })
         .collect();
 

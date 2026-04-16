@@ -25,6 +25,7 @@ let private singleField =
         nullable = false
         description = None
         scope = None
+        computed = false
     }
 
 let private singleType =
