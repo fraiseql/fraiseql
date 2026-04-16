@@ -47,16 +47,10 @@ impl Hs256Config {
     /// Returns an error string when the environment variable is unset or empty.
     pub fn load_secret(&self) -> Result<String, String> {
         let value = std::env::var(&self.secret_env).map_err(|_| {
-            format!(
-                "auth_hs256: environment variable `{}` is not set",
-                self.secret_env
-            )
+            format!("auth_hs256: environment variable `{}` is not set", self.secret_env)
         })?;
         if value.is_empty() {
-            return Err(format!(
-                "auth_hs256: environment variable `{}` is empty",
-                self.secret_env
-            ));
+            return Err(format!("auth_hs256: environment variable `{}` is empty", self.secret_env));
         }
         Ok(value)
     }

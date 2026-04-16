@@ -101,9 +101,7 @@ impl DatabaseAdapter for StubAdapter {
 
 fn make_executor(label: &str, query_name: &str) -> Arc<Executor<StubAdapter>> {
     let mut schema = CompiledSchema::default();
-    schema
-        .queries
-        .push(QueryDefinition::new(query_name, "Result"));
+    schema.queries.push(QueryDefinition::new(query_name, "Result"));
     Arc::new(Executor::new(schema, Arc::new(StubAdapter::new(label))))
 }
 
@@ -244,10 +242,7 @@ fn test_x_tenant_id_invalid_chars_rejected() {
 
     let domain_registry = DomainRegistry::new();
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "X-Tenant-ID",
-        HeaderValue::from_static("../../../etc/passwd"),
-    );
+    headers.insert("X-Tenant-ID", HeaderValue::from_static("../../../etc/passwd"));
 
     let result = TenantKeyResolver::resolve(None, &headers, &domain_registry);
     assert!(result.is_err(), "path traversal chars must be rejected");
@@ -260,10 +255,7 @@ fn test_x_tenant_id_too_long_rejected() {
     let domain_registry = DomainRegistry::new();
     let long_key = "a".repeat(200);
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "X-Tenant-ID",
-        HeaderValue::from_str(&long_key).unwrap(),
-    );
+    headers.insert("X-Tenant-ID", HeaderValue::from_str(&long_key).unwrap());
 
     let result = TenantKeyResolver::resolve(None, &headers, &domain_registry);
     assert!(result.is_err(), "oversized tenant key must be rejected");
@@ -316,12 +308,8 @@ async fn test_hot_reload_in_flight_requests_see_old_executor() {
 
     // Hot-reload: update tenant-a to schema v2 (1 query with different name)
     let mut schema_v2 = CompiledSchema::default();
-    schema_v2
-        .queries
-        .push(QueryDefinition::new("users_v2", "User"));
-    schema_v2
-        .queries
-        .push(QueryDefinition::new("orders_v2", "Order"));
+    schema_v2.queries.push(QueryDefinition::new("users_v2", "User"));
+    schema_v2.queries.push(QueryDefinition::new("orders_v2", "Order"));
     let v2_executor = Arc::new(Executor::new(schema_v2, Arc::new(StubAdapter::new("a-v2"))));
     let was_insert = registry.upsert("tenant-a", v2_executor);
     assert!(!was_insert, "should be an update, not insert");
@@ -354,10 +342,7 @@ async fn test_concurrent_reads_during_upsert() {
     }
 
     // Upsert mid-flight
-    registry.upsert(
-        "tenant-a",
-        make_executor("a-v2", "users_v2"),
-    );
+    registry.upsert("tenant-a", make_executor("a-v2", "users_v2"));
 
     // All reads must succeed (no panic, no data race)
     for h in handles {
@@ -399,10 +384,7 @@ fn test_domain_registry_register_lookup_remove() {
     assert_eq!(reg.lookup("api.unknown.com"), None);
 
     // Port stripping
-    assert_eq!(
-        reg.lookup("api.acme.com:8080"),
-        Some("tenant-acme".to_string())
-    );
+    assert_eq!(reg.lookup("api.acme.com:8080"), Some("tenant-acme".to_string()));
 
     // Remove
     assert!(reg.remove("api.acme.com"));
@@ -422,17 +404,17 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     domain_reg.register("api.acme.com", "from-host");
 
     let ctx = SecurityContext {
-        user_id: "u1".to_string(),
-        roles: vec![],
-        tenant_id: Some("from-jwt".to_string()),
-        scopes: vec![],
-        attributes: std::collections::HashMap::new(),
-        request_id: "r1".to_string(),
-        ip_address: None,
+        user_id:          "u1".to_string(),
+        roles:            vec![],
+        tenant_id:        Some("from-jwt".to_string()),
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "r1".to_string(),
+        ip_address:       None,
         authenticated_at: Utc::now(),
-        expires_at: Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
+        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
     };
 
     let mut headers = HeaderMap::new();
@@ -463,10 +445,7 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
 #[test]
 fn test_admin_endpoints_unavailable_single_tenant() {
     let state = make_single_tenant_state();
-    assert!(
-        state.tenant_registry().is_none(),
-        "single-tenant mode must not have a registry"
-    );
+    assert!(state.tenant_registry().is_none(), "single-tenant mode must not have a registry");
     // Domain registry always exists but starts empty
     assert!(state.domain_registry().is_empty());
 }

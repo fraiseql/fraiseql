@@ -984,7 +984,10 @@ mod unit_tests {
     fn relay_order_sql_forward_with_desc_custom_order() {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
-        let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Desc)];
+        let order_by = vec![OrderByClause::new(
+            "created_at".to_string(),
+            OrderDirection::Desc,
+        )];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), true);
         assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
         assert!(result.ends_with("`id` ASC"));
@@ -994,7 +997,10 @@ mod unit_tests {
     fn relay_order_sql_backward_flips_asc_to_desc() {
         use crate::types::sql_hints::{OrderByClause, OrderDirection};
         let quoted_col = quote_mysql_identifier("id");
-        let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Asc)];
+        let order_by = vec![OrderByClause::new(
+            "created_at".to_string(),
+            OrderDirection::Asc,
+        )];
         let result = build_mysql_relay_order_sql(&quoted_col, Some(&order_by), false);
         assert!(result.contains("JSON_UNQUOTE(JSON_EXTRACT(data, '$.created_at')) DESC"));
         assert!(result.ends_with("`id` DESC"));

@@ -883,7 +883,7 @@ mod inject {
             requires_role: None,
             rest_path: None,
             rest_method: None,
-            native_columns:      HashMap::new(),
+            native_columns: HashMap::new(),
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -1323,10 +1323,7 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         // Query with restricted selection: only id and name (plus implicit __typename)
-        let result = executor
-            .execute("mutation { createUser { id name } }", None)
-            .await
-            .unwrap();
+        let result = executor.execute("mutation { createUser { id name } }", None).await.unwrap();
 
         let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
 
@@ -1340,10 +1337,7 @@ mod mutation {
             data.get("email").is_none(),
             "response must NOT include non-selected field 'email'"
         );
-        assert!(
-            data.get("bio").is_none(),
-            "response must NOT include non-selected field 'bio'"
-        );
+        assert!(data.get("bio").is_none(), "response must NOT include non-selected field 'bio'");
     }
 
     /// When a mutation has an empty selection set (just the field name, no `{ ... }`),
@@ -1491,11 +1485,13 @@ mod mutation {
             metadata:    None,
         });
         schema.mutations.push(MutationDefinition {
-            name:       "update_user".to_string(),
+            name: "update_user".to_string(),
             return_type: "User".to_string(),
             sql_source: Some("update_user".to_string()),
-            operation:  MutationOperation::Update { table: "update_user".to_string() },
-            arguments:  vec![crate::schema::ArgumentDefinition {
+            operation: MutationOperation::Update {
+                table: "update_user".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
                 name:          "input".to_string(),
                 arg_type:      FieldType::Input("UpdateUserInput".to_string()),
                 nullable:      false,
@@ -1524,11 +1520,13 @@ mod mutation {
             metadata:    None,
         });
         schema.mutations.push(MutationDefinition {
-            name:       "create_user".to_string(),
+            name: "create_user".to_string(),
             return_type: "User".to_string(),
             sql_source: Some("create_user".to_string()),
-            operation:  MutationOperation::Insert { table: "create_user".to_string() },
-            arguments:  vec![crate::schema::ArgumentDefinition {
+            operation: MutationOperation::Insert {
+                table: "create_user".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
                 name:          "input".to_string(),
                 arg_type:      FieldType::Input("CreateUserInput".to_string()),
                 nullable:      false,
@@ -1745,10 +1743,7 @@ mod routing {
         let result = executor.execute("{ users { id type } }", None).await.unwrap();
 
         // v_user must return the user row, not the empty default.
-        assert_eq!(
-            result["data"]["users"][0]["type"], "user",
-            "expected user row from v_user"
-        );
+        assert_eq!(result["data"]["users"][0]["type"], "user", "expected user row from v_user");
     }
 }
 
@@ -1779,7 +1774,7 @@ mod auto_params {
             requires_role: None,
             rest_path: None,
             rest_method: None,
-            native_columns:      HashMap::new(),
+            native_columns: HashMap::new(),
         });
         schema
     }
@@ -1913,7 +1908,7 @@ mod rls_composition {
             requires_role: None,
             rest_path: None,
             rest_method: None,
-            native_columns:      HashMap::new(),
+            native_columns: HashMap::new(),
         });
         schema
     }
@@ -2053,7 +2048,10 @@ mod rls_composition {
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
             description:         None,
-            auto_params:         AutoParams { has_where: true, ..AutoParams::default() },
+            auto_params:         AutoParams {
+                has_where: true,
+                ..AutoParams::default()
+            },
             deprecation:         None,
             jsonb_column:        "data".to_string(),
             relay:               false,
@@ -2088,7 +2086,9 @@ mod rls_composition {
         let captured = adapter.captured_where();
         assert!(captured.is_some(), "inject with native_columns should produce WHERE");
         match captured.unwrap() {
-            WhereClause::NativeField { column, pg_cast, .. } => {
+            WhereClause::NativeField {
+                column, pg_cast, ..
+            } => {
                 assert_eq!(column, "tenant_id");
                 assert_eq!(pg_cast, "uuid");
             },
@@ -2507,9 +2507,8 @@ mod parse_cache {
 // ── mod session_variables: C-SV — set_session_variables called on reads ───
 
 mod session_variables {
-    use crate::schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig};
-
     use super::*;
+    use crate::schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig};
 
     /// Mock adapter that captures calls to `set_session_variables`.
     struct SessionVarCapturingAdapter {
@@ -2588,9 +2587,8 @@ mod session_variables {
         async fn execute_raw_query(
             &self,
             _sql: &str,
-        ) -> crate::error::Result<
-            Vec<std::collections::HashMap<String, serde_json::Value>>,
-        > {
+        ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>>
+        {
             Ok(vec![])
         }
 
@@ -2598,9 +2596,8 @@ mod session_variables {
             &self,
             _sql: &str,
             _params: &[serde_json::Value],
-        ) -> crate::error::Result<
-            Vec<std::collections::HashMap<String, serde_json::Value>>,
-        > {
+        ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>>
+        {
             Ok(vec![])
         }
 
@@ -2608,9 +2605,8 @@ mod session_variables {
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
-        ) -> crate::error::Result<
-            Vec<std::collections::HashMap<String, serde_json::Value>>,
-        > {
+        ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>>
+        {
             Ok(vec![])
         }
     }
@@ -2618,7 +2614,7 @@ mod session_variables {
     fn schema_with_session_vars() -> CompiledSchema {
         let mut schema = test_schema();
         schema.session_variables = SessionVariablesConfig {
-            variables:        vec![SessionVariableMapping {
+            variables:         vec![SessionVariableMapping {
                 name:   "app.tenant_id".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "tenant_id".to_string(),

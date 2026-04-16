@@ -50,8 +50,6 @@ ALLOWLIST=(
     "cors"
     # Database — marker for DB dependency inclusion
     "database"
-    # Rich filters — marker used by fuzz harness
-    "rich-filters"
 )
 
 is_allowlisted() {

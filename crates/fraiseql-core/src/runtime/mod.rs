@@ -47,7 +47,6 @@
 mod aggregate_parser;
 mod aggregate_projector;
 pub mod aggregation;
-pub(crate) mod native_columns;
 pub mod cascade;
 mod executor;
 pub mod executor_adapter;
@@ -57,6 +56,7 @@ pub mod input_validator;
 pub mod jsonb_strategy;
 mod matcher;
 pub mod mutation_result;
+pub(crate) mod native_columns;
 mod planner;
 mod projection;
 pub mod query_tracing;

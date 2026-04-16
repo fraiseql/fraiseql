@@ -483,8 +483,8 @@ fn test_auth_and_auth_hs256_are_mutually_exclusive() {
             auth: Some(OidcConfig::auth0("tenant.auth0.com", "my-api")),
             auth_hs256: Some(super::Hs256Config {
                 secret_env: env_name.to_string(),
-                issuer: Some("test".to_string()),
-                audience: None,
+                issuer:     Some("test".to_string()),
+                audience:   None,
             }),
             ..ServerConfig::default()
         };
@@ -503,8 +503,8 @@ fn test_auth_hs256_fails_when_secret_env_unset() {
         let config = ServerConfig {
             auth_hs256: Some(super::Hs256Config {
                 secret_env: env_name.to_string(),
-                issuer: None,
-                audience: None,
+                issuer:     None,
+                audience:   None,
             }),
             ..ServerConfig::default()
         };

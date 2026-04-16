@@ -340,7 +340,10 @@ mod tests {
                 function:     WindowFunctionType::RowNumber,
                 alias:        "rank".to_string(),
                 partition_by: vec!["data->>'category'".to_string()],
-                order_by:     vec![OrderByClause::new("revenue".to_string(), OrderDirection::Desc)],
+                order_by:     vec![OrderByClause::new(
+                    "revenue".to_string(),
+                    OrderDirection::Desc,
+                )],
                 frame:        None,
             }],
             where_clause: None,
@@ -378,7 +381,10 @@ mod tests {
                 },
                 alias:        "running_total".to_string(),
                 partition_by: vec![],
-                order_by:     vec![OrderByClause::new("occurred_at".to_string(), OrderDirection::Asc)],
+                order_by:     vec![OrderByClause::new(
+                    "occurred_at".to_string(),
+                    OrderDirection::Asc,
+                )],
                 frame:        Some(WindowFrame {
                     frame_type: FrameType::Rows,
                     start:      FrameBoundary::UnboundedPreceding,
@@ -414,7 +420,10 @@ mod tests {
                     },
                     alias:        "prev_revenue".to_string(),
                     partition_by: vec![],
-                    order_by:     vec![OrderByClause::new("occurred_at".to_string(), OrderDirection::Asc)],
+                    order_by:     vec![OrderByClause::new(
+                        "occurred_at".to_string(),
+                        OrderDirection::Asc,
+                    )],
                     frame:        None,
                 },
                 WindowFunction {
@@ -425,7 +434,10 @@ mod tests {
                     },
                     alias:        "next_revenue".to_string(),
                     partition_by: vec![],
-                    order_by:     vec![OrderByClause::new("occurred_at".to_string(), OrderDirection::Asc)],
+                    order_by:     vec![OrderByClause::new(
+                        "occurred_at".to_string(),
+                        OrderDirection::Asc,
+                    )],
                     frame:        None,
                 },
             ],
@@ -477,7 +489,10 @@ mod tests {
                 },
                 alias:        "moving_avg_7d".to_string(),
                 partition_by: vec![],
-                order_by:     vec![OrderByClause::new("occurred_at".to_string(), OrderDirection::Asc)],
+                order_by:     vec![OrderByClause::new(
+                    "occurred_at".to_string(),
+                    OrderDirection::Asc,
+                )],
                 frame:        Some(WindowFrame {
                     frame_type: FrameType::Rows,
                     start:      FrameBoundary::NPreceding { n: 6 },

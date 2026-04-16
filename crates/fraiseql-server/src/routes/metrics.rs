@@ -291,7 +291,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     // JWT replay prevention counters.
     {
         let rejected = fraiseql_core::security::oidc::jwt_replay_rejected_total();
-        let errors   = fraiseql_core::security::oidc::jwt_replay_cache_errors_total();
+        let errors = fraiseql_core::security::oidc::jwt_replay_cache_errors_total();
         let _ = write!(
             output,
             concat!(
@@ -305,7 +305,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 "fraiseql_jwt_replay_cache_errors_total {errors}\n",
             ),
             rejected = rejected,
-            errors   = errors,
+            errors = errors,
         );
     }
 

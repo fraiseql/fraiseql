@@ -75,10 +75,8 @@ where
                 // This is the standard multi-tenant pattern: the JWT org_id claim identifies
                 // which tenant's data the authenticated user may access.
                 if context.tenant_id.is_none() {
-                    if let Some(org_id) = authenticated_user
-                        .extra_claims
-                        .get("org_id")
-                        .and_then(|v| v.as_str())
+                    if let Some(org_id) =
+                        authenticated_user.extra_claims.get("org_id").and_then(|v| v.as_str())
                     {
                         context.tenant_id = Some(org_id.to_string());
                     }

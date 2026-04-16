@@ -24,10 +24,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use fraiseql_core::{
-    cache::CachedDatabaseAdapter,
-    db::postgres::PostgresAdapter,
-};
+use fraiseql_core::{cache::CachedDatabaseAdapter, db::postgres::PostgresAdapter};
 use fraiseql_server::{Server, ServerConfig, server_config::TlsServerConfig};
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
@@ -112,9 +109,10 @@ async fn run_once(
     println!("   Press Ctrl+C to stop");
     println!();
 
-    let server: Server<CachedDatabaseAdapter<PostgresAdapter>> = Server::new(config, schema, adapter, None)
-        .await
-        .context("Failed to initialize server")?;
+    let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
+        Server::new(config, schema, adapter, None)
+            .await
+            .context("Failed to initialize server")?;
 
     server.serve().await.context("Server error")
 }
@@ -149,9 +147,10 @@ async fn run_watch_loop(
         println!("   Watching {} for changes...  (Ctrl+C to stop)", input_path.display());
         println!();
 
-        let server: Server<CachedDatabaseAdapter<PostgresAdapter>> = Server::new(config, schema, adapter, None)
-            .await
-            .context("Failed to initialize server")?;
+        let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
+            Server::new(config, schema, adapter, None)
+                .await
+                .context("Failed to initialize server")?;
 
         // oneshot channel: file watcher signals server to shut down
         let (change_tx, change_rx) = tokio::sync::oneshot::channel::<()>();

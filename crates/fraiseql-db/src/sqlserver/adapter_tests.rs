@@ -97,7 +97,10 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_order_sql_backward_custom_order_by_desc_flips_to_asc() {
-        let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Desc)];
+        let order_by = vec![OrderByClause::new(
+            "created_at".to_string(),
+            OrderDirection::Desc,
+        )];
         let sql = build_relay_order_sql("[id]", Some(&order_by), false);
         assert_eq!(sql, " ORDER BY JSON_VALUE(data, '$.created_at') ASC, [id] DESC");
     }
@@ -145,7 +148,10 @@ mod relay_sql_tests {
 
     #[test]
     fn test_build_relay_backward_outer_order_sql_desc_preserved() {
-        let order_by = vec![OrderByClause::new("score".to_string(), OrderDirection::Desc)];
+        let order_by = vec![OrderByClause::new(
+            "score".to_string(),
+            OrderDirection::Desc,
+        )];
         let sql = build_relay_backward_outer_order_sql(Some(&order_by));
         assert_eq!(sql, " ORDER BY _relay_sort_0 DESC, _relay_cursor ASC");
     }

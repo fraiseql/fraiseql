@@ -76,7 +76,7 @@ impl tokio_postgres::types::ToSql for FlexParam {
                     out.extend_from_slice(s.as_bytes());
                 }
                 Ok(IsNull::No)
-            }
+            },
         }
     }
 
@@ -115,14 +115,13 @@ fn enrich_undefined_column_error(
     if sql_state.as_deref() != Some(PG_UNDEFINED_COLUMN) {
         return err;
     }
-    let native_cols: Vec<&str> = where_clause
-        .map(|wc| wc.native_column_names())
-        .unwrap_or_default();
+    let native_cols: Vec<&str> =
+        where_clause.map(|wc| wc.native_column_names()).unwrap_or_default();
     if native_cols.is_empty() {
         return err;
     }
     FraiseQLError::Database {
-        message: format!(
+        message:   format!(
             "Column(s) {:?} referenced as native column(s) on `{view}` do not exist. \
              These columns were auto-inferred from ID/UUID-typed query arguments. \
              Either add the column(s) to the table/view, or set \
@@ -195,9 +194,9 @@ impl DatabaseAdapter for PostgresAdapter {
             .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
-        self.execute_raw(&sql, &param_refs).await.map_err(|e| {
-            enrich_undefined_column_error(e, view, where_clause)
-        })
+        self.execute_raw(&sql, &param_refs)
+            .await
+            .map_err(|e| enrich_undefined_column_error(e, view, where_clause))
     }
 
     async fn explain_where_query(

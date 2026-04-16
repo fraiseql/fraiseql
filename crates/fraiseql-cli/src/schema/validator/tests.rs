@@ -34,7 +34,7 @@ fn test_validate_empty_schema() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -85,7 +85,7 @@ fn test_detect_unknown_return_type() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -166,7 +166,7 @@ fn test_detect_duplicate_query_names() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -226,7 +226,7 @@ fn test_warning_for_query_without_sql_source() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -289,7 +289,7 @@ fn test_valid_observer() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -340,7 +340,7 @@ fn test_observer_with_unknown_entity() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -399,7 +399,7 @@ fn test_observer_with_invalid_event() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -458,7 +458,7 @@ fn test_observer_with_invalid_action_type() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -517,7 +517,7 @@ fn test_observer_with_invalid_retry_config() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -577,7 +577,7 @@ fn test_query_injection_in_sql_source_rejected() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -637,7 +637,7 @@ fn test_query_schema_qualified_sql_source_passes() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 

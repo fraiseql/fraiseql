@@ -25,7 +25,7 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct TenantRegistrationRequest {
     /// Compiled schema JSON (the full `schema.compiled.json` contents).
-    pub schema: serde_json::Value,
+    pub schema:     serde_json::Value,
     /// Database connection configuration for this tenant.
     pub connection: TenantPoolConfig,
 }
@@ -34,7 +34,7 @@ pub struct TenantRegistrationRequest {
 #[derive(Debug, Serialize)]
 pub struct TenantResponse {
     /// The tenant key.
-    pub key: String,
+    pub key:    String,
     /// Whether this was `"created"`, `"updated"`, or `"removed"`.
     pub status: &'static str,
 }
@@ -43,9 +43,9 @@ pub struct TenantResponse {
 #[derive(Debug, Serialize)]
 pub struct TenantMetadata {
     /// The tenant key.
-    pub key: String,
+    pub key:            String,
     /// Number of queries in the tenant's compiled schema.
-    pub query_count: usize,
+    pub query_count:    usize,
     /// Number of mutations in the tenant's compiled schema.
     pub mutation_count: usize,
 }
@@ -56,14 +56,14 @@ pub struct TenantListResponse {
     /// All registered tenant keys.
     pub tenants: Vec<String>,
     /// Number of registered tenants.
-    pub count: usize,
+    pub count:   usize,
 }
 
 /// Response for `GET /api/v1/admin/tenants/{key}/health`.
 #[derive(Debug, Serialize)]
 pub struct TenantHealthResponse {
     /// The tenant key.
-    pub key: String,
+    pub key:    String,
     /// Health status.
     pub status: &'static str,
 }
@@ -79,9 +79,9 @@ pub struct DomainRegistrationRequest {
 #[derive(Debug, Serialize)]
 pub struct DomainResponse {
     /// The domain name.
-    pub domain: String,
+    pub domain:     String,
     /// Whether this was `"registered"` or `"removed"`.
-    pub status: &'static str,
+    pub status:     &'static str,
     /// The tenant key the domain maps to (omitted on removal).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant_key: Option<String>,
@@ -93,14 +93,14 @@ pub struct DomainListResponse {
     /// All registered domain → tenant key mappings.
     pub domains: Vec<DomainMapping>,
     /// Number of registered domains.
-    pub count: usize,
+    pub count:   usize,
 }
 
 /// A single domain → tenant key mapping.
 #[derive(Debug, Serialize)]
 pub struct DomainMapping {
     /// The custom domain.
-    pub domain: String,
+    pub domain:     String,
     /// The tenant key it resolves to.
     pub tenant_key: String,
 }
@@ -135,18 +135,14 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let schema_json = serde_json::to_string(&body.schema)
         .map_err(|e| ApiError::validation_error(format!("invalid schema JSON: {e}")))?;
 
-    let executor = factory(schema_json, body.connection).await.map_err(|e| {
-        match &e {
-            fraiseql_error::FraiseQLError::Parse { .. }
-            | fraiseql_error::FraiseQLError::Validation { .. } => {
-                ApiError::validation_error(e)
-            }
-            fraiseql_error::FraiseQLError::ConnectionPool { .. }
-            | fraiseql_error::FraiseQLError::Database { .. } => {
-                ApiError::new(format!("Connection failed: {e}"), "SERVICE_UNAVAILABLE")
-            }
-            _ => ApiError::internal_error(e),
-        }
+    let executor = factory(schema_json, body.connection).await.map_err(|e| match &e {
+        fraiseql_error::FraiseQLError::Parse { .. }
+        | fraiseql_error::FraiseQLError::Validation { .. } => ApiError::validation_error(e),
+        fraiseql_error::FraiseQLError::ConnectionPool { .. }
+        | fraiseql_error::FraiseQLError::Database { .. } => {
+            ApiError::new(format!("Connection failed: {e}"), "SERVICE_UNAVAILABLE")
+        },
+        _ => ApiError::internal_error(e),
     })?;
 
     let was_insert = registry.upsert(&key, executor);
@@ -173,9 +169,9 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .tenant_registry()
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
 
-    registry.remove(&key).map_err(|_| {
-        ApiError::not_found(format!("tenant '{key}'"))
-    })?;
+    registry
+        .remove(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
 
     info!(tenant_key = %key, "tenant executor removed");
 
@@ -201,9 +197,9 @@ pub async fn get_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'stat
         .tenant_registry()
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
 
-    let executor = registry.executor_for(Some(&key)).map_err(|_| {
-        ApiError::not_found(format!("tenant '{key}'"))
-    })?;
+    let executor = registry
+        .executor_for(Some(&key))
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
 
     Ok(Json(TenantMetadata {
         key,
@@ -246,13 +242,11 @@ pub async fn tenant_health_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .tenant_registry()
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
 
-    registry.health_check(&key).await.map_err(|e| {
-        match &e {
-            fraiseql_error::FraiseQLError::NotFound { .. } => {
-                ApiError::not_found(format!("tenant '{key}'"))
-            }
-            _ => ApiError::new(format!("Health check failed: {e}"), "SERVICE_UNAVAILABLE"),
-        }
+    registry.health_check(&key).await.map_err(|e| match &e {
+        fraiseql_error::FraiseQLError::NotFound { .. } => {
+            ApiError::not_found(format!("tenant '{key}'"))
+        },
+        _ => ApiError::new(format!("Health check failed: {e}"), "SERVICE_UNAVAILABLE"),
     })?;
 
     Ok(Json(TenantHealthResponse {
@@ -284,9 +278,9 @@ pub async fn upsert_domain_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
 
     // Verify the tenant key is actually registered
-    registry.executor_for(Some(&body.tenant_key)).map_err(|_| {
-        ApiError::not_found(format!("tenant '{}'", body.tenant_key))
-    })?;
+    registry
+        .executor_for(Some(&body.tenant_key))
+        .map_err(|_| ApiError::not_found(format!("tenant '{}'", body.tenant_key)))?;
 
     state.domain_registry().register(&domain, &body.tenant_key);
 

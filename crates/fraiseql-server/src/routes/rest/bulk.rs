@@ -575,7 +575,9 @@ mod tests {
 
     #[test]
     fn extract_entity_nested_format() {
-        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"createUser":{"entity":{"id":1,"name":"Alice"}}}}"#).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_str(r#"{"data":{"createUser":{"entity":{"id":1,"name":"Alice"}}}}"#)
+                .unwrap();
         let entity = extract_entity_from_result(&result).unwrap();
         assert_eq!(entity["id"], 1);
         assert_eq!(entity["name"], "Alice");
@@ -585,7 +587,8 @@ mod tests {
     fn extract_entity_executor_format() {
         let result: serde_json::Value = serde_json::from_str(
             r#"{"data":{"createUser":{"pk_user_id":1,"name":"Alice","__typename":"User"}}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         let entity = extract_entity_from_result(&result).unwrap();
         assert_eq!(entity["pk_user_id"], 1);
         assert!(entity.get("__typename").is_none());
@@ -593,7 +596,8 @@ mod tests {
 
     #[test]
     fn extract_entity_null() {
-        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"createUser":{"entity":null}}}"#).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_str(r#"{"data":{"createUser":{"entity":null}}}"#).unwrap();
         assert!(extract_entity_from_result(&result).is_none());
     }
 

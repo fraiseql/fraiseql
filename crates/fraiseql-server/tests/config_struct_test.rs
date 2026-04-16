@@ -148,7 +148,11 @@ fn test_config_custom_bind_addr() {
 #[test]
 fn pool_min_size_is_positive_in_default_config() {
     let cfg = ServerConfig::default();
-    assert!(cfg.pool_min_size > 0, "default pool_min_size should be > 0, got {}", cfg.pool_min_size);
+    assert!(
+        cfg.pool_min_size > 0,
+        "default pool_min_size should be > 0, got {}",
+        cfg.pool_min_size
+    );
     assert!(
         cfg.pool_min_size <= cfg.pool_max_size,
         "pool_min_size ({}) must not exceed pool_max_size ({})",

@@ -58,8 +58,7 @@ pub fn append_order_by(
             db_type.typed_json_field_expr(&key, clause.field_type)
         };
         // Reason: fmt::Write for String is infallible
-        write!(sql, "{expr} {}", clause.direction.as_sql())
-            .expect("write to String is infallible");
+        write!(sql, "{expr} {}", clause.direction.as_sql()).expect("write to String is infallible");
     }
     Ok(true)
 }
@@ -90,7 +89,10 @@ mod tests {
     #[test]
     fn test_append_order_by_single_clause_postgres() {
         let mut sql = "SELECT data FROM v_user".to_string();
-        let clauses = [OrderByClause::new("createdAt".to_string(), OrderDirection::Desc)];
+        let clauses = [OrderByClause::new(
+            "createdAt".to_string(),
+            OrderDirection::Desc,
+        )];
         let appended = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL).unwrap();
         assert!(appended);
         assert_eq!(sql, "SELECT data FROM v_user ORDER BY data->>'created_at' DESC");
@@ -114,7 +116,10 @@ mod tests {
     #[test]
     fn test_append_order_by_mysql() {
         let mut sql = "SELECT data FROM v_user".to_string();
-        let clauses = [OrderByClause::new("firstName".to_string(), OrderDirection::Asc)];
+        let clauses = [OrderByClause::new(
+            "firstName".to_string(),
+            OrderDirection::Asc,
+        )];
         let appended = append_order_by(&mut sql, Some(&clauses), DatabaseType::MySQL).unwrap();
         assert!(appended);
         assert_eq!(
@@ -126,31 +131,34 @@ mod tests {
     #[test]
     fn test_append_order_by_sqlite() {
         let mut sql = "SELECT data FROM v_user".to_string();
-        let clauses = [OrderByClause::new("firstName".to_string(), OrderDirection::Asc)];
+        let clauses = [OrderByClause::new(
+            "firstName".to_string(),
+            OrderDirection::Asc,
+        )];
         let appended = append_order_by(&mut sql, Some(&clauses), DatabaseType::SQLite).unwrap();
         assert!(appended);
-        assert_eq!(
-            sql,
-            "SELECT data FROM v_user ORDER BY json_extract(data, '$.first_name') ASC"
-        );
+        assert_eq!(sql, "SELECT data FROM v_user ORDER BY json_extract(data, '$.first_name') ASC");
     }
 
     #[test]
     fn test_append_order_by_sqlserver() {
         let mut sql = "SELECT data FROM v_user".to_string();
-        let clauses = [OrderByClause::new("firstName".to_string(), OrderDirection::Desc)];
+        let clauses = [OrderByClause::new(
+            "firstName".to_string(),
+            OrderDirection::Desc,
+        )];
         let appended = append_order_by(&mut sql, Some(&clauses), DatabaseType::SQLServer).unwrap();
         assert!(appended);
-        assert_eq!(
-            sql,
-            "SELECT data FROM v_user ORDER BY JSON_VALUE(data, '$.first_name') DESC"
-        );
+        assert_eq!(sql, "SELECT data FROM v_user ORDER BY JSON_VALUE(data, '$.first_name') DESC");
     }
 
     #[test]
     fn test_append_order_by_invalid_field_name() {
         let mut sql = "SELECT data FROM v_user".to_string();
-        let clauses = [OrderByClause::new("field'; DROP TABLE users; --".to_string(), OrderDirection::Asc)];
+        let clauses = [OrderByClause::new(
+            "field'; DROP TABLE users; --".to_string(),
+            OrderDirection::Asc,
+        )];
         let result = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL);
         assert!(result.is_err());
     }
@@ -173,12 +181,10 @@ mod tests {
         let mut sql = "SELECT data FROM v_order".to_string();
         let mut clause = OrderByClause::new("totalAmount".to_string(), OrderDirection::Desc);
         clause.field_type = OrderByFieldType::Numeric;
-        let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
+        let appended =
+            append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
         assert!(appended);
-        assert_eq!(
-            sql,
-            "SELECT data FROM v_order ORDER BY (data->>'total_amount')::numeric DESC"
-        );
+        assert_eq!(sql, "SELECT data FROM v_order ORDER BY (data->>'total_amount')::numeric DESC");
     }
 
     #[test]
@@ -248,12 +254,8 @@ mod tests {
                 c
             },
         ];
-        let appended =
-            append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL).unwrap();
+        let appended = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL).unwrap();
         assert!(appended);
-        assert_eq!(
-            sql,
-            "SELECT data FROM tv_user ORDER BY created_at DESC, data->>'name' ASC"
-        );
+        assert_eq!(sql, "SELECT data FROM tv_user ORDER BY created_at DESC, data->>'name' ASC");
     }
 }

@@ -427,24 +427,20 @@ pub struct AuthMeState {
 /// # Responses
 ///
 /// - `200` JSON `{ sub, user_id, expires_at, ...expose_claims }`
-/// - `401` when no valid session is present (enforced by `oidc_auth_middleware`
-///   before this handler is called).
+/// - `401` when no valid session is present (enforced by `oidc_auth_middleware` before this handler
+///   is called).
 pub async fn auth_me(
     axum::extract::State(state): axum::extract::State<std::sync::Arc<AuthMeState>>,
     axum::Extension(auth_user): axum::Extension<crate::middleware::AuthUser>,
 ) -> axum::response::Response {
-    use axum::Json;
-    use axum::response::IntoResponse as _;
+    use axum::{Json, response::IntoResponse as _};
 
     let user = &auth_user.0;
 
     let mut map = serde_json::Map::new();
     map.insert("sub".to_owned(), serde_json::Value::String(user.user_id.clone()));
     map.insert("user_id".to_owned(), serde_json::Value::String(user.user_id.clone()));
-    map.insert(
-        "expires_at".to_owned(),
-        serde_json::Value::String(user.expires_at.to_rfc3339()),
-    );
+    map.insert("expires_at".to_owned(), serde_json::Value::String(user.expires_at.to_rfc3339()));
 
     for claim_name in &state.expose_claims {
         if let Some(value) = user.extra_claims.get(claim_name) {
@@ -468,8 +464,7 @@ mod tests {
     use tower::ServiceExt as _;
 
     use super::*;
-    use crate::auth::PkceStateStore;
-    use crate::middleware::AuthUser;
+    use crate::{auth::PkceStateStore, middleware::AuthUser};
 
     fn mock_pkce_store() -> Arc<PkceStateStore> {
         Arc::new(PkceStateStore::new(600, None))
@@ -520,10 +515,7 @@ mod tests {
     async fn test_auth_me_expose_claims_filters_correctly() {
         let mut extra = std::collections::HashMap::new();
         extra.insert("email".to_owned(), serde_json::json!("alice@example.com"));
-        extra.insert(
-            "https://myapp.com/role".to_owned(),
-            serde_json::json!("admin"),
-        );
+        extra.insert("https://myapp.com/role".to_owned(), serde_json::json!("admin"));
 
         let app = Router::new()
             .route("/auth/me", get(auth_me))
@@ -536,10 +528,7 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(json["email"], "alice@example.com", "listed claim must appear");
-        assert!(
-            json.get("https://myapp.com/role").is_none(),
-            "unlisted claim must be absent"
-        );
+        assert!(json.get("https://myapp.com/role").is_none(), "unlisted claim must be absent");
     }
 
     #[tokio::test]

@@ -4,7 +4,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use moka::sync::Cache as MokaCache;
 
-use super::{QueryType, relay::{RelayDispatch, RelayDispatchImpl}};
+use super::{
+    QueryType,
+    relay::{RelayDispatch, RelayDispatchImpl},
+};
 use crate::{
     db::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
     graphql::ParsedQuery,

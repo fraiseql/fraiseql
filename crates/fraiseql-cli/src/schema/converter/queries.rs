@@ -158,7 +158,7 @@ impl SchemaConverter {
             requires_role: intermediate.requires_role,
             rest_path: None,
             rest_method: None,
-            native_columns:      HashMap::new(),
+            native_columns: HashMap::new(),
         })
     }
 

@@ -45,8 +45,7 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 
 /// Convert a query definition into an MCP tool.
 fn query_to_tool(query: &QueryDefinition, display_name: &str) -> Tool {
-    let description =
-        query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
+    let description = query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
 
     Tool {
         name:          Cow::Owned(display_name.to_string()),

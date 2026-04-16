@@ -71,25 +71,23 @@ fn build_typed_projection_fields(
             };
 
             // Recurse into Object types only — List fields fall back to full blob
-            let sub_fields = if is_composite
-                && !is_list
-                && !sel.nested_fields.is_empty()
-                && depth < MAX_DEPTH
-            {
-                let child_type = field_def.and_then(|fd| fd.field_type.type_name()).unwrap_or("");
-                if child_type.is_empty() {
-                    None
+            let sub_fields =
+                if is_composite && !is_list && !sel.nested_fields.is_empty() && depth < MAX_DEPTH {
+                    let child_type =
+                        field_def.and_then(|fd| fd.field_type.type_name()).unwrap_or("");
+                    if child_type.is_empty() {
+                        None
+                    } else {
+                        Some(build_typed_projection_fields(
+                            &sel.nested_fields,
+                            schema,
+                            child_type,
+                            depth + 1,
+                        ))
+                    }
                 } else {
-                    Some(build_typed_projection_fields(
-                        &sel.nested_fields,
-                        schema,
-                        child_type,
-                        depth + 1,
-                    ))
-                }
-            } else {
-                None
-            };
+                    None
+                };
 
             ProjectionField {
                 name: sel.response_key().to_string(),
@@ -106,8 +104,7 @@ fn build_typed_projection_fields(
 /// (strings, UUIDs, enums) or for composite/container types where a cast
 /// would be meaningless.
 const fn field_type_to_order_by_type(ft: &crate::schema::FieldType) -> crate::db::OrderByFieldType {
-    use crate::db::OrderByFieldType as OB;
-    use crate::schema::FieldType as FT;
+    use crate::{db::OrderByFieldType as OB, schema::FieldType as FT};
     match ft {
         FT::Int => OB::Integer,
         FT::Float | FT::Decimal => OB::Numeric,
@@ -207,8 +204,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         {
             let sv = &self.schema.session_variables;
             if !sv.variables.is_empty() || sv.inject_started_at {
-                let vars =
-                    crate::runtime::executor::security::resolve_session_variables(sv, security_context);
+                let vars = crate::runtime::executor::security::resolve_session_variables(
+                    sv,
+                    security_context,
+                );
                 if !vars.is_empty() {
                     let pairs: Vec<(&str, &str)> =
                         vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
@@ -223,11 +222,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
-        let response_cache_key = self
-            .response_cache
-            .as_ref()
-            .filter(|rc| rc.is_enabled())
-            .map(|_| {
+        let response_cache_key =
+            self.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
                 let query_key = Self::compute_response_cache_key(&query_match);
                 let sec_hash =
                     crate::cache::response_cache::hash_security_context(Some(security_context));
@@ -268,10 +264,9 @@ impl<A: DatabaseAdapter> Executor<A> {
                     path:    None,
                 })?;
 
-        // 6. Generate SQL projection hint for requested fields (optimization).
-        //    Build a recursive ProjectionField tree from the selection set so that
-        //    composite sub-fields are projected with nested jsonb_build_object instead
-        //    of returning the full blob.
+        // 6. Generate SQL projection hint for requested fields (optimization). Build a recursive
+        //    ProjectionField tree from the selection set so that composite sub-fields are projected
+        //    with nested jsonb_build_object instead of returning the full blob.
         let projection_hint = if !plan.projection_fields.is_empty()
             && plan.jsonb_strategy == JsonbStrategy::Project
         {
@@ -1386,12 +1381,8 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 5. Build projection hint from selections (mirrors regular query path).
         let projection_hint = if !selections.is_empty() {
-            let typed_fields = build_typed_projection_fields(
-                selections,
-                &self.schema,
-                &type_name,
-                0,
-            );
+            let typed_fields =
+                build_typed_projection_fields(selections, &self.schema, &type_name, 0);
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
                 .generate_typed_projection_sql(&typed_fields)
@@ -1422,11 +1413,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         // When the Arc is exclusively owned (uncached path, refcount = 1) we can move the
         // data out without copying.  When the cache also holds a reference (refcount ≥ 2)
         // we clone the single `serde_json::Value` for this one-row lookup.
-        let node_value = Arc::try_unwrap(rows)
-            .map_or_else(
-                |arc| arc.first().map_or(serde_json::Value::Null, |row| row.data.clone()),
-                |v| v.into_iter().next().map_or(serde_json::Value::Null, |row| row.data),
-            );
+        let node_value = Arc::try_unwrap(rows).map_or_else(
+            |arc| arc.first().map_or(serde_json::Value::Null, |row| row.data.clone()),
+            |v| v.into_iter().next().map_or(serde_json::Value::Null, |row| row.data),
+        );
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(response)
@@ -1472,7 +1462,9 @@ fn selections_contain_field(
 
 /// Auto-wired argument names that are handled by the `auto_params` system.
 /// These are never treated as explicit WHERE filters.
-const AUTO_PARAM_NAMES: &[&str] = &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
+const AUTO_PARAM_NAMES: &[&str] = &[
+    "where", "limit", "offset", "orderBy", "first", "last", "after", "before",
+];
 
 /// Build a `WhereClause` for a single inject param, respecting `native_columns`.
 fn inject_param_where_clause(
@@ -1482,14 +1474,14 @@ fn inject_param_where_clause(
 ) -> WhereClause {
     if let Some(pg_type) = native_columns.get(col) {
         WhereClause::NativeField {
-            column:   col.to_string(),
-            pg_cast:  pg_type_to_cast(pg_type).to_string(),
+            column: col.to_string(),
+            pg_cast: pg_type_to_cast(pg_type).to_string(),
             operator: WhereOperator::Eq,
             value,
         }
     } else {
         WhereClause::Field {
-            path:     vec![col.to_string()],
+            path: vec![col.to_string()],
             operator: WhereOperator::Eq,
             value,
         }
@@ -1736,7 +1728,12 @@ mod tests {
             operator: WhereOperator::Eq,
             value:    serde_json::json!("x"),
         });
-        let result = combine_explicit_arg_where(existing.clone(), &[], &std::collections::HashMap::new(), &std::collections::HashMap::new());
+        let result = combine_explicit_arg_where(
+            existing.clone(),
+            &[],
+            &std::collections::HashMap::new(),
+            &std::collections::HashMap::new(),
+        );
         assert_eq!(result, existing);
     }
 
@@ -1746,10 +1743,15 @@ mod tests {
         let mut provided = std::collections::HashMap::new();
         provided.insert("id".into(), serde_json::json!("uuid-123"));
 
-        let result = combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+        let result =
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
         assert!(result.is_some(), "explicit id arg should produce a WHERE clause");
         match result.expect("just asserted Some") {
-            WhereClause::Field { path, operator, value } => {
+            WhereClause::Field {
+                path,
+                operator,
+                value,
+            } => {
                 assert_eq!(path, vec!["id".to_string()]);
                 assert_eq!(operator, WhereOperator::Eq);
                 assert_eq!(value, serde_json::json!("uuid-123"));
@@ -1772,11 +1774,14 @@ mod tests {
             make_arg("id"),
         ];
         let mut provided = std::collections::HashMap::new();
-        for name in &["where", "limit", "offset", "orderBy", "first", "last", "after", "before", "id"] {
+        for name in &[
+            "where", "limit", "offset", "orderBy", "first", "last", "after", "before", "id",
+        ] {
             provided.insert((*name).to_string(), serde_json::json!("value"));
         }
 
-        let result = combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+        let result =
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
         // Only "id" should produce a WHERE — all auto-param names are skipped
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
@@ -1797,7 +1802,12 @@ mod tests {
         let mut provided = std::collections::HashMap::new();
         provided.insert("id".into(), serde_json::json!("uuid-456"));
 
-        let result = combine_explicit_arg_where(Some(existing), &args, &provided, &std::collections::HashMap::new());
+        let result = combine_explicit_arg_where(
+            Some(existing),
+            &args,
+            &provided,
+            &std::collections::HashMap::new(),
+        );
         match result.expect("should produce combined WHERE") {
             WhereClause::And(conditions) => {
                 assert_eq!(conditions.len(), 2, "should AND existing + explicit");
@@ -1813,7 +1823,8 @@ mod tests {
         // Only provide "id", not "slug"
         provided.insert("id".into(), serde_json::json!("uuid-789"));
 
-        let result = combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+        let result =
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
                 assert_eq!(path, vec!["id".to_string()]);

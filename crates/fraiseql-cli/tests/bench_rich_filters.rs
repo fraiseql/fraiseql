@@ -42,8 +42,8 @@ fn bench_compile_empty_schema_rich_types() {
             debug_config:         None,
             mcp_config:           None,
             query_defaults:       None,
-        naming_convention: NamingConvention::default(),
-        session_variables:    None,
+            naming_convention:    NamingConvention::default(),
+            session_variables:    None,
         };
 
         let _compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -91,7 +91,7 @@ fn bench_metadata_access_performance() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -146,7 +146,7 @@ fn bench_operator_metadata_parsing() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -205,7 +205,7 @@ fn bench_database_template_access() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -270,7 +270,7 @@ fn bench_lookup_data_access() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 
@@ -329,7 +329,7 @@ fn bench_full_operator_traversal() {
         debug_config:         None,
         mcp_config:           None,
         query_defaults:       None,
-        naming_convention: NamingConvention::default(),
+        naming_convention:    NamingConvention::default(),
         session_variables:    None,
     };
 

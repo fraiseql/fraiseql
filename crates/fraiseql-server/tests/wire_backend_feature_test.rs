@@ -190,11 +190,14 @@ async fn test_feature_gated_main_initialization_postgres() {
     };
 
     // Verify PostgreSQL initialization code path
-    use fraiseql_core::db::postgres::PoolPrewarmConfig;
-    use fraiseql_core::db::PostgresAdapter;
+    use fraiseql_core::db::{PostgresAdapter, postgres::PoolPrewarmConfig};
     let adapter = PostgresAdapter::with_pool_config(
         &db_url,
-        PoolPrewarmConfig { min_size: 5, max_size: 20, timeout_secs: None },
+        PoolPrewarmConfig {
+            min_size:     5,
+            max_size:     20,
+            timeout_secs: None,
+        },
     )
     .await;
     assert!(adapter.is_ok(), "PostgreSQL adapter initialization failed");

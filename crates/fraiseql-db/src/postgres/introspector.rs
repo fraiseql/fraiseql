@@ -3,7 +3,10 @@ use deadpool_postgres::Pool;
 use fraiseql_error::{FraiseQLError, Result};
 use tokio_postgres::Row;
 
-use crate::{DatabaseType, introspector::{DatabaseIntrospector, RelationInfo, RelationKind}};
+use crate::{
+    DatabaseType,
+    introspector::{DatabaseIntrospector, RelationInfo, RelationKind},
+};
 
 /// PostgreSQL introspector for fact table metadata.
 pub struct PostgresIntrospector {
@@ -189,7 +192,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 let schema: String = row.get(0);
                 let name: String = row.get(1);
                 let kind_str: String = row.get(2);
-                let kind = if kind_str == "view" { RelationKind::View } else { RelationKind::Table };
+                let kind = if kind_str == "view" {
+                    RelationKind::View
+                } else {
+                    RelationKind::Table
+                };
                 RelationInfo { schema, name, kind }
             })
             .collect();

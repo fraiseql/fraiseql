@@ -23,7 +23,7 @@ use fraiseql_core::{
 /// Report containing all database validation warnings and discovered metadata.
 pub struct DatabaseValidationReport {
     /// All warnings emitted during validation.
-    pub warnings: Vec<DatabaseWarning>,
+    pub warnings:       Vec<DatabaseWarning>,
     /// Native columns discovered per query during L2 validation.
     ///
     /// Key: query name. Value: map of argument name → PostgreSQL type string
@@ -93,7 +93,8 @@ pub enum DatabaseWarning {
         /// The snake_case key looked up in the JSON.
         json_key:    String,
     },
-    /// L2: a direct query argument has no matching native column — will fall back to JSONB extraction.
+    /// L2: a direct query argument has no matching native column — will fall back to JSONB
+    /// extraction.
     ///
     /// For best performance, consider adding a native column with the same name
     /// and an index on the `sql_source` table/view.
@@ -258,8 +259,9 @@ pub async fn validate_schema_against_database(
 ) -> fraiseql_core::Result<DatabaseValidationReport> {
     // Auto-wired argument names excluded from direct-arg native column detection.
     // Must stay in sync with AUTO_PARAM_NAMES in fraiseql-core/runtime/executor/query.rs.
-    const AUTO_PARAM_NAMES: &[&str] =
-        &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
+    const AUTO_PARAM_NAMES: &[&str] = &[
+        "where", "limit", "offset", "orderBy", "first", "last", "after", "before",
+    ];
 
     let mut warnings = Vec::new();
     let mut native_columns: HashMap<String, HashMap<String, String>> = HashMap::new();
@@ -391,7 +393,10 @@ pub async fn validate_schema_against_database(
         }
     }
 
-    Ok(DatabaseValidationReport { warnings, native_columns })
+    Ok(DatabaseValidationReport {
+        warnings,
+        native_columns,
+    })
 }
 
 /// Build lookup maps from the list of relations.

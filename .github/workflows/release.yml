@@ -212,7 +212,7 @@ jobs:
       - name: Verify all crates can be built
         run: |
           echo "Verifying Rust build compatibility..."
-          cargo check --features "arrow,grpc,kafka,mysql,postgres,redis-apq,rich-filters,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
+          cargo check --features "arrow,grpc,kafka,mysql,postgres,redis-apq,schema-lint,sqlite,sqlserver,test-utils,wire-backend"
           echo "✅ All crates build successfully"
 
       # Publish in strict topological dependency order

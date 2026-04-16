@@ -137,14 +137,8 @@ mod tests {
         }"#;
 
         let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
-        assert_eq!(
-            claims.extra.get("https://myapp.com/role"),
-            Some(&serde_json::json!("admin"))
-        );
-        assert_eq!(
-            claims.extra.get("tenant_id"),
-            Some(&serde_json::json!("acme-corp"))
-        );
+        assert_eq!(claims.extra.get("https://myapp.com/role"), Some(&serde_json::json!("admin")));
+        assert_eq!(claims.extra.get("tenant_id"), Some(&serde_json::json!("acme-corp")));
     }
 
     #[test]

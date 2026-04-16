@@ -232,8 +232,8 @@ pub async fn compile_to_schema(
         validate_indexed_columns(&schema, db_url).await?;
 
         info!("Validating native columns for direct query arguments...");
-        let pg_introspector =
-            build_postgres_introspector(db_url).context("Failed to connect for native column validation")?;
+        let pg_introspector = build_postgres_introspector(db_url)
+            .context("Failed to connect for native column validation")?;
         let db_report = validate_schema_against_database(&schema, &pg_introspector).await?;
         for w in &db_report.warnings {
             warn!("{w}");
@@ -597,8 +597,9 @@ async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Resu
 }
 
 /// Auto-param names excluded from `native_columns` inference and JSONB-extraction warnings.
-const NATIVE_COLUMN_SKIP_ARGS: &[&str] =
-    &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
+const NATIVE_COLUMN_SKIP_ARGS: &[&str] = &[
+    "where", "limit", "offset", "orderBy", "first", "last", "after", "before",
+];
 
 /// Infer `native_columns` for `ID`/`UUID`-typed arguments on JSONB-backed queries.
 ///
@@ -637,17 +638,15 @@ mod tests {
     use fraiseql_core::{
         schema::{
             ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition,
-            FieldDenyPolicy, FieldType, QueryDefinition, TypeDefinition,
+            FieldDenyPolicy, FieldType, MutationDefinition, QueryDefinition, TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
     use indexmap::IndexMap;
 
-    use super::infer_native_columns_from_arg_types;
-
-    use fraiseql_core::schema::MutationDefinition;
-
-    use super::{WIDE_FANOUT_THRESHOLD, wide_cascade_mutations};
+    use super::{
+        WIDE_FANOUT_THRESHOLD, infer_native_columns_from_arg_types, wide_cascade_mutations,
+    };
 
     fn mutation_with_fanout(
         name: &str,
@@ -882,18 +881,15 @@ mod tests {
         native_columns: std::collections::HashMap<String, String>,
     ) -> QueryDefinition {
         QueryDefinition {
-            name:                name.to_string(),
-            return_type:         "T".to_string(),
-            returns_list:        false,
-            nullable:            true,
-            arguments:           args
-                .into_iter()
-                .map(|(n, t)| ArgumentDefinition::new(n, t))
-                .collect(),
-            sql_source:          sql_source.map(str::to_string),
-            jsonb_column:        jsonb_column.to_string(),
+            name: name.to_string(),
+            return_type: "T".to_string(),
+            returns_list: false,
+            nullable: true,
+            arguments: args.into_iter().map(|(n, t)| ArgumentDefinition::new(n, t)).collect(),
+            sql_source: sql_source.map(str::to_string),
+            jsonb_column: jsonb_column.to_string(),
             native_columns,
-            auto_params:         AutoParams::default(),
+            auto_params: AutoParams::default(),
             ..Default::default()
         }
     }

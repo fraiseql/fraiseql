@@ -22,13 +22,13 @@ pub use fragments::{
     IntermediateFragmentField, IntermediateFragmentFieldDef,
 };
 use fraiseql_core::schema::{
-    DebugConfig, McpConfig, SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
+    DebugConfig, McpConfig, NamingConvention, SessionVariablesConfig, SubscriptionsConfig,
+    ValidationConfig,
 };
 pub use operations::{
     IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
     IntermediateQueryDefaults,
 };
-use fraiseql_core::schema::NamingConvention;
 use serde::{Deserialize, Serialize};
 pub use subscriptions::{
     IntermediateFilterCondition, IntermediateObserver, IntermediateObserverAction,

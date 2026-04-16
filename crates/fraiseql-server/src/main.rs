@@ -204,8 +204,8 @@ fn init_security(_schema: &CompiledSchema) -> anyhow::Result<()> {
 #[cfg(not(feature = "wire-backend"))]
 async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdapter>> {
     tracing::info!(
-        pool_min_size     = config.pool_min_size,
-        pool_max_size     = config.pool_max_size,
+        pool_min_size = config.pool_min_size,
+        pool_max_size = config.pool_max_size,
         pool_timeout_secs = config.pool_timeout_secs,
         "Initializing PostgreSQL connection pool"
     );
@@ -248,11 +248,7 @@ async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sql
 
     use sqlx::postgres::PgPoolOptions;
 
-    let pool_cfg = config
-        .observers
-        .as_ref()
-        .map(|o| o.pool.clone())
-        .unwrap_or_default();
+    let pool_cfg = config.observers.as_ref().map(|o| o.pool.clone()).unwrap_or_default();
 
     tracing::info!(
         min = pool_cfg.min_connections,

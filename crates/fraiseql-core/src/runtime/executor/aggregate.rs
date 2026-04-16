@@ -136,11 +136,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
     ) -> Result<serde_json::Value> {
-        // 1. Parse JSON query into AggregationRequest
-        //    Build native_columns from denormalized_filters so the parser can emit
-        //    direct column references instead of JSONB extraction for native columns.
-        let native_columns =
-            crate::runtime::native_columns::filter_columns_to_native_map(&metadata.denormalized_filters);
+        // 1. Parse JSON query into AggregationRequest Build native_columns from
+        //    denormalized_filters so the parser can emit direct column references instead of JSONB
+        //    extraction for native columns.
+        let native_columns = crate::runtime::native_columns::filter_columns_to_native_map(
+            &metadata.denormalized_filters,
+        );
         let request =
             super::super::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
 

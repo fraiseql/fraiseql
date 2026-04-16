@@ -77,10 +77,7 @@ fn validate_tenant_key(key: &str) -> Result<()> {
             "X-Tenant-ID exceeds maximum length of {MAX_TENANT_KEY_LEN} characters"
         )));
     }
-    if !key
-        .bytes()
-        .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-    {
+    if !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
         return Err(FraiseQLError::validation(
             "X-Tenant-ID contains invalid characters (allowed: a-zA-Z0-9_-)",
         ));
@@ -127,10 +124,7 @@ impl DomainRegistry {
     /// List all registered domain → tenant key mappings.
     #[must_use]
     pub fn domains(&self) -> Vec<(String, String)> {
-        self.domains
-            .iter()
-            .map(|e| (e.key().clone(), e.value().clone()))
-            .collect()
+        self.domains.iter().map(|e| (e.key().clone(), e.value().clone())).collect()
     }
 
     /// Number of registered domains.
@@ -175,21 +169,22 @@ mod tests {
     }
 
     fn ctx_with_tenant(tenant_id: &str) -> SecurityContext {
-        use chrono::Utc;
         use std::collections::HashMap;
 
+        use chrono::Utc;
+
         SecurityContext {
-            user_id: "test-user".to_string(),
-            roles: vec![],
-            tenant_id: Some(tenant_id.to_string()),
-            scopes: vec![],
-            attributes: HashMap::new(),
-            request_id: "test-req".to_string(),
-            ip_address: None,
+            user_id:          "test-user".to_string(),
+            roles:            vec![],
+            tenant_id:        Some(tenant_id.to_string()),
+            scopes:           vec![],
+            attributes:       HashMap::new(),
+            request_id:       "test-req".to_string(),
+            ip_address:       None,
             authenticated_at: Utc::now(),
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
         }
     }
 
@@ -274,10 +269,7 @@ mod tests {
     fn test_domain_registry_strips_port() {
         let reg = DomainRegistry::new();
         reg.register("api.acme.com", "tenant-acme");
-        assert_eq!(
-            reg.lookup("api.acme.com:8080"),
-            Some("tenant-acme".to_string())
-        );
+        assert_eq!(reg.lookup("api.acme.com:8080"), Some("tenant-acme".to_string()));
     }
 
     #[test]

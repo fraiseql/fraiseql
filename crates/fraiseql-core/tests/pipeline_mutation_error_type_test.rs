@@ -262,5 +262,8 @@ async fn mutation_success_status_includes_entity_in_data() {
         .expect("success mutation must succeed");
 
     assert!(result.get("data").is_some(), "success response must have 'data': {result}");
-    assert!(result.get("errors").is_none(), "success response must not have 'errors': {result}");
+    assert!(
+        result.get("errors").is_none(),
+        "success response must not have 'errors': {result}"
+    );
 }

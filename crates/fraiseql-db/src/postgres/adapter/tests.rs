@@ -40,7 +40,11 @@ fn test_escape_jsonb_key_doubles_single_quotes() {
 
 #[test]
 fn pool_prewarm_config_carries_all_fields() {
-    let cfg = PoolPrewarmConfig { min_size: 5, max_size: 20, timeout_secs: Some(30) };
+    let cfg = PoolPrewarmConfig {
+        min_size:     5,
+        max_size:     20,
+        timeout_secs: Some(30),
+    };
     assert_eq!(cfg.min_size, 5);
     assert_eq!(cfg.max_size, 20);
     assert_eq!(cfg.timeout_secs, Some(30));
@@ -48,20 +52,32 @@ fn pool_prewarm_config_carries_all_fields() {
 
 #[test]
 fn pool_prewarm_config_no_timeout_is_none() {
-    let cfg = PoolPrewarmConfig { min_size: 0, max_size: 10, timeout_secs: None };
+    let cfg = PoolPrewarmConfig {
+        min_size:     0,
+        max_size:     10,
+        timeout_secs: None,
+    };
     assert!(cfg.timeout_secs.is_none());
 }
 
 #[test]
 fn pool_prewarm_config_min_zero_is_valid() {
-    let cfg = PoolPrewarmConfig { min_size: 0, max_size: 5, timeout_secs: None };
+    let cfg = PoolPrewarmConfig {
+        min_size:     0,
+        max_size:     5,
+        timeout_secs: None,
+    };
     assert_eq!(cfg.min_size, 0);
     assert_eq!(cfg.max_size, 5);
 }
 
 #[test]
 fn pool_prewarm_config_min_equals_max_is_valid() {
-    let cfg = PoolPrewarmConfig { min_size: 10, max_size: 10, timeout_secs: Some(60) };
+    let cfg = PoolPrewarmConfig {
+        min_size:     10,
+        max_size:     10,
+        timeout_secs: Some(60),
+    };
     assert_eq!(cfg.min_size, cfg.max_size);
 }
 

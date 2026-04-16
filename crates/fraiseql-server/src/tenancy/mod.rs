@@ -2,12 +2,11 @@
 
 pub mod pool_factory;
 
-pub use pool_factory::{FromPoolConfig, TenantPoolConfig, create_tenant_executor};
-
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use fraiseql_core::runtime::Executor;
 use fraiseql_error::Result;
+pub use pool_factory::{FromPoolConfig, TenantPoolConfig, create_tenant_executor};
 
 /// Type-erased async factory for creating tenant executors.
 ///

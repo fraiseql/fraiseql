@@ -1332,7 +1332,10 @@ fn validate_put_body(body: &serde_json::Value, type_def: &TypeDefinition) -> Res
 ///
 /// Extracts `data.{mutation_name}.entity` from the executor result.
 /// Returns `None` if entity is null or unavailable.
-fn extract_delete_entity(result: &serde_json::Value, mutation_name: &str) -> Option<serde_json::Value> {
+fn extract_delete_entity(
+    result: &serde_json::Value,
+    mutation_name: &str,
+) -> Option<serde_json::Value> {
     let mutation_result = result.get("data")?.get(mutation_name)?;
 
     // The executor flattens entity fields directly under `data.{mutation_name}`.
@@ -2069,7 +2072,10 @@ mod tests {
 
     #[test]
     fn extract_entity_nested_format() {
-        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#).unwrap();
+        let result: serde_json::Value = serde_json::from_str(
+            r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#,
+        )
+        .unwrap();
         let entity = extract_delete_entity(&result, "deleteUser").unwrap();
         assert_eq!(entity["id"], 1);
         assert_eq!(entity["name"], "Alice");
@@ -2080,7 +2086,8 @@ mod tests {
         // Executor flattens entity fields + __typename directly under mutation name
         let result: serde_json::Value = serde_json::from_str(
             r#"{"data":{"delete_user":{"pk_user_id":42,"name":"Alice","__typename":"User"}}}"#,
-        ).unwrap();
+        )
+        .unwrap();
         let entity = extract_delete_entity(&result, "delete_user").unwrap();
         assert_eq!(entity["pk_user_id"], 42);
         assert_eq!(entity["name"], "Alice");
@@ -2090,13 +2097,16 @@ mod tests {
 
     #[test]
     fn extract_entity_null() {
-        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_str(r#"{"data":{"deleteUser":{"success":true,"entity":null}}}"#)
+                .unwrap();
         assert!(extract_delete_entity(&result, "deleteUser").is_none());
     }
 
     #[test]
     fn extract_entity_missing() {
-        let result: serde_json::Value = serde_json::from_str(r#"{"data":{"deleteUser":{}}}"#).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_str(r#"{"data":{"deleteUser":{}}}"#).unwrap();
         assert!(extract_delete_entity(&result, "deleteUser").is_none());
     }
 

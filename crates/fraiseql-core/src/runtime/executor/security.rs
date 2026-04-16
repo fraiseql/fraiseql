@@ -18,11 +18,11 @@ use crate::{
 /// session variables via `set_config()`.
 ///
 /// Resolution rules:
-/// - [`SessionVariableSource::Jwt`] — looks up the claim in
-///   `security_context.attributes`; falls back to `user_id` for `"sub"` and to
-///   `tenant_id` for `"tenant_id"`.  Missing claims are silently skipped.
-/// - [`SessionVariableSource::Header`] — looks up the header name in
-///   `security_context.attributes`.  Missing headers are silently skipped.
+/// - [`SessionVariableSource::Jwt`] — looks up the claim in `security_context.attributes`; falls
+///   back to `user_id` for `"sub"` and to `tenant_id` for `"tenant_id"`.  Missing claims are
+///   silently skipped.
+/// - [`SessionVariableSource::Header`] — looks up the header name in `security_context.attributes`.
+///   Missing headers are silently skipped.
 /// - [`SessionVariableSource::Literal`] — uses the fixed value as-is.
 ///
 /// When `config.inject_started_at` is `true`, the pair
@@ -63,16 +63,13 @@ pub fn resolve_session_variables(
             },
             SessionVariableSource::Header { header } => {
                 // HTTP headers are forwarded into attributes
-                security_context
-                    .attributes
-                    .get(header.as_str())
-                    .map(|v| {
-                        if let serde_json::Value::String(s) = v {
-                            s.clone()
-                        } else {
-                            v.to_string()
-                        }
-                    })
+                security_context.attributes.get(header.as_str()).map(|v| {
+                    if let serde_json::Value::String(s) = v {
+                        s.clone()
+                    } else {
+                        v.to_string()
+                    }
+                })
             },
             SessionVariableSource::Literal { value } => Some(value.clone()),
         };
@@ -308,7 +305,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::IntrospectionType(type_name) => {
                 Ok(self.introspection.get_type_response(&type_name))
             },
-            QueryType::Mutation { name, type_selections } => {
+            QueryType::Mutation {
+                name,
+                type_selections,
+            } => {
                 self.execute_mutation_query_with_security(
                     &name,
                     variables,
@@ -409,7 +409,10 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Errors
     ///
     /// Returns any error from `execute()`.
-    #[deprecated(since = "2.2.0", note = "use execute() directly — it now returns Value")]
+    #[deprecated(
+        since = "2.2.0",
+        note = "use execute() directly — it now returns Value"
+    )]
     pub async fn execute_json(
         &self,
         query: &str,
@@ -427,9 +430,7 @@ mod session_variable_tests {
 
     use super::resolve_session_variables;
     use crate::{
-        schema::{
-            SessionVariableMapping, SessionVariableSource, SessionVariablesConfig,
-        },
+        schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig},
         security::SecurityContext,
     };
 
@@ -439,17 +440,17 @@ mod session_variable_tests {
         attributes.insert("x-tenant-id".to_string(), serde_json::json!("header-tenant"));
         attributes.insert("region".to_string(), serde_json::json!("eu-west-1"));
         SecurityContext {
-            user_id:          "user-42".to_string(),
-            roles:            vec!["admin".to_string()],
-            tenant_id:        Some("tenant-123".to_string()),
-            scopes:           vec![],
+            user_id: "user-42".to_string(),
+            roles: vec!["admin".to_string()],
+            tenant_id: Some("tenant-123".to_string()),
+            scopes: vec![],
             attributes,
-            request_id:       "req-test".to_string(),
-            ip_address:       None,
+            request_id: "req-test".to_string(),
+            ip_address: None,
             authenticated_at: Utc::now(),
-            expires_at:       Utc::now(),
-            issuer:           None,
-            audience:         None,
+            expires_at: Utc::now(),
+            issuer: None,
+            audience: None,
         }
     }
 
@@ -457,7 +458,7 @@ mod session_variable_tests {
     fn resolve_session_variables_jwt_claim() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables: vec![SessionVariableMapping {
+            variables:         vec![SessionVariableMapping {
                 name:   "app.tenant_id".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "tenant_id".to_string(),
@@ -476,7 +477,7 @@ mod session_variable_tests {
     fn resolve_session_variables_jwt_well_known_sub() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables: vec![SessionVariableMapping {
+            variables:         vec![SessionVariableMapping {
                 name:   "app.user_id".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "sub".to_string(),
@@ -494,9 +495,11 @@ mod session_variable_tests {
     fn resolve_session_variables_literal() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables: vec![SessionVariableMapping {
+            variables:         vec![SessionVariableMapping {
                 name:   "app.locale".to_string(),
-                source: SessionVariableSource::Literal { value: "en".to_string() },
+                source: SessionVariableSource::Literal {
+                    value: "en".to_string(),
+                },
             }],
             inject_started_at: false,
         };
@@ -510,9 +513,11 @@ mod session_variable_tests {
     fn inject_started_at_prepended() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables: vec![SessionVariableMapping {
+            variables:         vec![SessionVariableMapping {
                 name:   "app.locale".to_string(),
-                source: SessionVariableSource::Literal { value: "en".to_string() },
+                source: SessionVariableSource::Literal {
+                    value: "en".to_string(),
+                },
             }],
             inject_started_at: true,
         };
@@ -541,7 +546,7 @@ mod session_variable_tests {
     fn resolve_session_variables_header() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables: vec![SessionVariableMapping {
+            variables:         vec![SessionVariableMapping {
                 name:   "app.tenant".to_string(),
                 source: SessionVariableSource::Header {
                     header: "x-tenant-id".to_string(),

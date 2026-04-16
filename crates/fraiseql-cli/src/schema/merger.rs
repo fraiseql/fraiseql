@@ -990,10 +990,13 @@ type = "ID"
     }
 
     fn write_temp_toml(content: &str) -> String {
-        let path = format!("/tmp/test_crud_merger_{}.toml", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .subsec_nanos());
+        let path = format!(
+            "/tmp/test_crud_merger_{}.toml",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        );
         std::fs::write(&path, content).unwrap();
         path
     }
@@ -1020,8 +1023,8 @@ return_type = "User"
 operation = "CREATE"
 "#;
         let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path)
-            .expect("should merge with crud naming");
+        let schema =
+            SchemaMerger::merge_toml_only(&temp_path).expect("should merge with crud naming");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_user").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("app.create_user"));
         let _ = std::fs::remove_file(&temp_path);

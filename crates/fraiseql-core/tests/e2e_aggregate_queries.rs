@@ -30,7 +30,12 @@ fn parse_plan_generate_full(query: &serde_json::Value) -> ParameterizedAggregati
             .insert("table".to_string(), json!("tf_sales"));
     }
 
-    let parsed = AggregateQueryParser::parse(&query_with_table, &metadata, &std::collections::HashMap::new()).unwrap();
+    let parsed = AggregateQueryParser::parse(
+        &query_with_table,
+        &metadata,
+        &std::collections::HashMap::new(),
+    )
+    .unwrap();
     let plan =
         fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
     generator.generate_parameterized(&plan).unwrap()
@@ -680,28 +685,32 @@ fn test_temporal_bucket_multi_database() {
 
     // PostgreSQL
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let pg_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
     assert!(pg_sql.sql.contains("DATE_TRUNC('day', occurred_at)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mysql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
     assert!(mysql_sql.sql.contains("DATE_FORMAT(occurred_at,"));
 
     // SQLite
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let sqlite_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
     let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
     assert!(sqlite_sql.sql.contains("strftime("));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mssql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
     assert!(mssql_sql.sql.contains("CAST(occurred_at AS DATE)"));
@@ -822,28 +831,32 @@ fn test_advanced_aggregates_multi_database() {
 
     // PostgreSQL
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let pg_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
     assert!(pg_sql.sql.contains("STRING_AGG(customer_id"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mysql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
     assert!(mysql_sql.sql.contains("GROUP_CONCAT(customer_id"));
 
     // SQLite
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let sqlite_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata.clone()).unwrap();
     let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
     assert!(sqlite_sql.sql.contains("GROUP_CONCAT(customer_id"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mssql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
     assert!(mssql_sql.sql.contains("STRING_AGG"));
@@ -874,21 +887,24 @@ fn test_stddev_postgres_mysql() {
 
     // PostgreSQL
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let pg_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
     assert!(pg_sql.sql.contains("STDDEV_SAMP(revenue)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mysql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
     assert!(mysql_sql.sql.contains("STDDEV_SAMP(revenue)"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mssql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
     assert!(mssql_sql.sql.contains("STDEV(revenue)"));
@@ -915,21 +931,24 @@ fn test_variance_postgres_mysql() {
 
     // PostgreSQL
     let pg_gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let pg_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let pg_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let pg_plan = AggregationPlanner::plan(pg_parsed, metadata.clone()).unwrap();
     let pg_sql = pg_gen.generate_parameterized(&pg_plan).unwrap();
     assert!(pg_sql.sql.contains("VAR_SAMP(revenue)"));
 
     // MySQL
     let mysql_gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
-    let mysql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mysql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mysql_plan = AggregationPlanner::plan(mysql_parsed, metadata.clone()).unwrap();
     let mysql_sql = mysql_gen.generate_parameterized(&mysql_plan).unwrap();
     assert!(mysql_sql.sql.contains("VAR_SAMP(revenue)"));
 
     // SQL Server
     let mssql_gen = AggregationSqlGenerator::new(DatabaseType::SQLServer);
-    let mssql_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let mssql_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let mssql_plan = AggregationPlanner::plan(mssql_parsed, metadata).unwrap();
     let mssql_sql = mssql_gen.generate_parameterized(&mssql_plan).unwrap();
     assert!(mssql_sql.sql.contains("VAR(revenue)"));
@@ -957,7 +976,8 @@ fn test_statistical_functions_sqlite_unsupported() {
 
     // SQLite - should return NULL placeholders
     let sqlite_gen = AggregationSqlGenerator::new(DatabaseType::SQLite);
-    let sqlite_parsed = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let sqlite_parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
     let sqlite_plan = AggregationPlanner::plan(sqlite_parsed, metadata).unwrap();
     let sqlite_sql = sqlite_gen.generate_parameterized(&sqlite_plan).unwrap();
 

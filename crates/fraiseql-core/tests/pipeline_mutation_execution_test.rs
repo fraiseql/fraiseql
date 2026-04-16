@@ -408,9 +408,7 @@ async fn error_path_populates_array_fields() {
     let data = &result["data"]["createUser"];
 
     assert_eq!(data["__typename"], "DuplicateEmailError");
-    let arr = data["affected_ids"]
-        .as_array()
-        .expect("affected_ids must be an array");
+    let arr = data["affected_ids"].as_array().expect("affected_ids must be an array");
     assert_eq!(arr.len(), 2);
     assert_eq!(arr[0], "id-1");
     assert_eq!(arr[1], "id-2");

@@ -66,8 +66,9 @@ impl AggregationSqlGenerator {
                 // Server brackets, PG/SQLite double-quotes).
                 let col_ref = self.quote_identifier(column);
                 let pre_len = params.len();
-                let sql =
-                    self.generate_direct_column_where_parameterized(&col_ref, operator, value, params)?;
+                let sql = self.generate_direct_column_where_parameterized(
+                    &col_ref, operator, value, params,
+                )?;
 
                 // For PostgreSQL with a non-empty type cast, append ::type to the single
                 // scalar placeholder that was just added.  IN / NOT IN push multiple params;

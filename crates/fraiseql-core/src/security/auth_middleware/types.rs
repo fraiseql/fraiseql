@@ -1,7 +1,6 @@
 //! Authentication types: `AuthenticatedUser`, `AuthRequest`, `TokenClaims`.
 
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;

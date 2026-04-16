@@ -75,7 +75,6 @@ pub enum WhereClause {
         /// Value to compare against.
         value:    serde_json::Value,
     },
-
 }
 
 impl WhereClause {
@@ -213,8 +212,7 @@ impl WhereClause {
                                 // e.g., { machine: { id: { eq: "..." } } }
                                 //   → path_prefix=["machine"], key="id", value={ eq: "..." }
                                 let nested_json = serde_json::json!({ op_str: op_val });
-                                let nested =
-                                    Self::parse_where_object(&nested_json, &field_path)?;
+                                let nested = Self::parse_where_object(&nested_json, &field_path)?;
                                 conditions.push(nested);
                             },
                             Err(e) => return Err(e),
@@ -798,7 +796,8 @@ mod tests {
 
     #[test]
     fn test_nested_relation_where_multiple_operators() {
-        let json = json!({ "machine": { "id": { "eq": "abc" } , "name": { "icontains": "test" } } });
+        let json =
+            json!({ "machine": { "id": { "eq": "abc" } , "name": { "icontains": "test" } } });
         let clause = WhereClause::from_graphql_json(&json).unwrap();
         // Two nested fields → AND combination
         match clause {
@@ -899,13 +898,13 @@ mod tests {
         assert_eq!(
             clause,
             WhereClause::Field {
-                path: vec![
+                path:     vec![
                     "items".to_string(),
                     "product".to_string(),
                     "category".to_string(),
                 ],
                 operator: WhereOperator::Eq,
-                value: json!("electronics"),
+                value:    json!("electronics"),
             }
         );
     }

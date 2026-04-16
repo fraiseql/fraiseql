@@ -91,12 +91,10 @@ impl ServerConfig {
 
         // OIDC and HS256 are mutually exclusive.
         if self.auth.is_some() && self.auth_hs256.is_some() {
-            return Err(
-                "Both [auth] (OIDC) and [auth_hs256] are configured. Pick one — \
+            return Err("Both [auth] (OIDC) and [auth_hs256] are configured. Pick one — \
                  HS256 is intended for integration testing and internal services; \
                  OIDC is intended for public-facing production."
-                    .to_string(),
-            );
+                .to_string());
         }
 
         // Validate HS256 config if present: the secret env var must be set.
@@ -154,12 +152,10 @@ impl ServerConfig {
             ));
         }
         if self.pool_timeout_secs == 0 {
-            return Err(
-                "pool_timeout_secs must be > 0. A zero-second timeout would cause every \
+            return Err("pool_timeout_secs must be > 0. A zero-second timeout would cause every \
                  connection acquisition to fail immediately. Use a positive value (e.g. 30) \
                  or remove the field to use the default (30s)."
-                    .to_string(),
-            );
+                .to_string());
         }
 
         // Validate database TLS config if present

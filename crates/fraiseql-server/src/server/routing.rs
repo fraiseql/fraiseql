@@ -20,9 +20,9 @@ use super::{
     metrics_middleware, oidc_auth_middleware, playground_handler, readiness_handler,
     require_json_content_type, subscription_handler, trace_layer,
 };
-use crate::middleware::{Hs256AuthState, hs256_auth_middleware};
 #[cfg(feature = "auth")]
 use super::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
+use crate::middleware::{Hs256AuthState, hs256_auth_middleware};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build application router and return the shared `AppState`.
@@ -222,10 +222,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     &self.config.graphql_path,
                     get(graphql_get_handler::<A>).post(graphql_handler::<A>),
                 )
-                .route_layer(middleware::from_fn_with_state(
-                    auth_state,
-                    hs256_auth_middleware,
-                ));
+                .route_layer(middleware::from_fn_with_state(auth_state, hs256_auth_middleware));
 
             if self.config.require_json_content_type {
                 router
@@ -569,11 +566,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "auth")]
         if let (Some(ref validator), Some(me_cfg)) = (
             &self.oidc_validator,
-            self.config
-                .auth
-                .as_ref()
-                .and_then(|a| a.me.as_ref())
-                .filter(|m| m.enabled),
+            self.config.auth.as_ref().and_then(|a| a.me.as_ref()).filter(|m| m.enabled),
         ) {
             let me_state = Arc::new(AuthMeState {
                 expose_claims: me_cfg.expose_claims.clone(),

@@ -726,8 +726,8 @@ mod tests {
         let now = Utc::now();
         let expires_at = now + chrono::Duration::hours(2);
         let user = AuthenticatedUser {
-            user_id:      "user123".to_string(),
-            scopes:       vec![],
+            user_id: "user123".to_string(),
+            scopes: vec![],
             expires_at,
             extra_claims: HashMap::new(),
         };

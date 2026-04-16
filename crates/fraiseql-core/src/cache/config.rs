@@ -375,7 +375,11 @@ impl From<bool> for CacheConfig {
     ///
     /// Used by `ServerBuilder` to derive a `CacheConfig` from `ServerConfig::cache_enabled`.
     fn from(enabled: bool) -> Self {
-        if enabled { Self::enabled() } else { Self::disabled() }
+        if enabled {
+            Self::enabled()
+        } else {
+            Self::disabled()
+        }
     }
 }
 

@@ -197,16 +197,16 @@ impl AggregateQueryParser {
 
                 let clause = if let Some(pg_cast) = native_columns.get(field) {
                     WhereClause::NativeField {
-                        column:   field.to_string(),
-                        pg_cast:  pg_cast.clone(),
+                        column: field.to_string(),
+                        pg_cast: pg_cast.clone(),
                         operator,
-                        value:    value.clone(),
+                        value: value.clone(),
                     }
                 } else {
                     WhereClause::Field {
-                        path:     vec![field.to_string()],
+                        path: vec![field.to_string()],
                         operator,
-                        value:    value.clone(),
+                        value: value.clone(),
                     }
                 };
                 conditions.push(clause);
@@ -735,7 +735,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.table_name, "tf_sales");
         assert_eq!(request.aggregates.len(), 1);
@@ -755,7 +757,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.group_by.len(), 1);
         match &request.group_by[0] {
@@ -780,7 +784,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.group_by.len(), 1);
         match &request.group_by[0] {
@@ -810,7 +816,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.aggregates.len(), 4);
         assert_eq!(request.aggregates[0].alias(), "count");
@@ -832,7 +840,9 @@ mod tests {
             }
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.having.len(), 1);
         assert_eq!(request.having[0].operator, HavingOperator::Gt);
@@ -852,7 +862,9 @@ mod tests {
             }
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.order_by.len(), 1);
         assert_eq!(request.order_by[0].field, "revenue_sum");
@@ -871,7 +883,9 @@ mod tests {
             "offset": 5
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.limit, Some(10));
         assert_eq!(request.offset, Some(5));
@@ -903,7 +917,9 @@ mod tests {
             "limit": 20
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.table_name, "tf_sales");
         assert_eq!(request.group_by.len(), 2);
@@ -923,7 +939,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.aggregates.len(), 1);
         match &request.aggregates[0] {
@@ -946,7 +964,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.aggregates.len(), 1);
         match &request.aggregates[0] {
@@ -968,7 +988,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.aggregates.len(), 1);
         match &request.aggregates[0] {
@@ -990,7 +1012,8 @@ mod tests {
             ]
         });
 
-        let result = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new());
+        let result =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new());
 
         let err = result.expect_err("expected Err for invalid count_distinct field");
         match err {
@@ -1017,7 +1040,9 @@ mod tests {
             ]
         });
 
-        let request = AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
 
         assert_eq!(request.aggregates.len(), 4);
         assert_eq!(request.aggregates[0].alias(), "count");

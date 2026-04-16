@@ -234,9 +234,7 @@ fn test_array_field_populated_from_metadata() {
 
     let result = project_error_metadata(&fields, &schema, &metadata, None);
 
-    let arr = result["affected_ids"]
-        .as_array()
-        .expect("array field should be populated");
+    let arr = result["affected_ids"].as_array().expect("array field should be populated");
     assert_eq!(arr.len(), 3, "all array elements should be preserved");
     assert_eq!(arr[0], "id-1");
 }
@@ -254,9 +252,7 @@ fn test_array_of_entity_objects_populated() {
 
     let result = project_error_metadata(&fields, &schema, &metadata, None);
 
-    let arr = result["blockers"]
-        .as_array()
-        .expect("array of entities should be populated");
+    let arr = result["blockers"].as_array().expect("array of entities should be populated");
     assert_eq!(arr.len(), 2);
     assert_eq!(arr[0]["id"], "b1");
     assert_eq!(arr[1]["name"], "session-2");
@@ -297,10 +293,7 @@ fn test_selection_filtering_only_returns_requested_fields() {
     assert_eq!(obj.len(), 2, "only requested fields should be present");
     assert_eq!(result["reason"], "blocked");
     assert_eq!(result["cascade_count"], 3);
-    assert!(
-        !obj.contains_key("last_activity_date"),
-        "unrequested field should be absent"
-    );
+    assert!(!obj.contains_key("last_activity_date"), "unrequested field should be absent");
 }
 
 // ---------------------------------------------------------------------------

@@ -252,11 +252,11 @@ pub enum GroupByExpression {
     /// GROUP BY / SELECT, enabling btree index usage.
     NativeColumn {
         /// Column name as it appears in the CREATE VIEW DDL.
-        column: String,
+        column:  String,
         /// PostgreSQL type suffix for casting (e.g. `"uuid"`, `"int8"`, `""`).
         pg_cast: String,
         /// Alias used in SELECT and referenced by ORDER BY.
-        alias: String,
+        alias:   String,
     },
 }
 

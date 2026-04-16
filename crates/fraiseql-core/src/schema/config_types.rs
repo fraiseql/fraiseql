@@ -548,8 +548,8 @@ mod tests {
     #[test]
     fn crud_function_schema_prefix_applied_to_custom_template() {
         let cfg = CrudNamingConfig {
-            function_schema:  Some("app".to_string()),
-            create_template:  Some("insert_{entity}".to_string()),
+            function_schema: Some("app".to_string()),
+            create_template: Some("insert_{entity}".to_string()),
             ..Default::default()
         };
         assert_eq!(cfg.resolve("CREATE", "order"), Some("app.insert_order".to_string()));
@@ -688,8 +688,7 @@ pub enum CrudNamingPreset {
 ///
 /// **Precedence** (highest first):
 /// 1. Explicit `sql_source` on the mutation — always wins.
-/// 2. Per-operation custom template (`create_template`, `update_template`,
-///    `delete_template`).
+/// 2. Per-operation custom template (`create_template`, `update_template`, `delete_template`).
 /// 3. Built-in preset (`function_naming = "trinity"`).
 ///
 /// `function_schema` is applied as a prefix to the resolved name
@@ -699,19 +698,19 @@ pub enum CrudNamingPreset {
 pub struct CrudNamingConfig {
     /// PostgreSQL schema prefix (e.g. `"app"` → `"app.create_user"`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub function_schema:   Option<String>,
+    pub function_schema: Option<String>,
     /// Built-in naming preset (expands to fixed templates).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub function_naming:   Option<CrudNamingPreset>,
+    pub function_naming: Option<CrudNamingPreset>,
     /// Custom template for CREATE mutations (e.g. `"insert_{entity}"`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub create_template:   Option<String>,
+    pub create_template: Option<String>,
     /// Custom template for UPDATE mutations.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub update_template:   Option<String>,
+    pub update_template: Option<String>,
     /// Custom template for DELETE mutations.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub delete_template:   Option<String>,
+    pub delete_template: Option<String>,
 }
 
 impl CrudNamingConfig {
@@ -726,24 +725,21 @@ impl CrudNamingConfig {
     #[must_use]
     pub fn resolve(&self, operation: &str, entity: &str) -> Option<String> {
         let template = match operation.to_uppercase().as_str() {
-            "CREATE" => self
-                .create_template
-                .as_deref()
-                .or_else(|| self.function_naming.map(|p| match p {
+            "CREATE" => self.create_template.as_deref().or_else(|| {
+                self.function_naming.map(|p| match p {
                     CrudNamingPreset::Trinity => "create_{entity}",
-                })),
-            "UPDATE" => self
-                .update_template
-                .as_deref()
-                .or_else(|| self.function_naming.map(|p| match p {
+                })
+            }),
+            "UPDATE" => self.update_template.as_deref().or_else(|| {
+                self.function_naming.map(|p| match p {
                     CrudNamingPreset::Trinity => "update_{entity}",
-                })),
-            "DELETE" => self
-                .delete_template
-                .as_deref()
-                .or_else(|| self.function_naming.map(|p| match p {
+                })
+            }),
+            "DELETE" => self.delete_template.as_deref().or_else(|| {
+                self.function_naming.map(|p| match p {
                     CrudNamingPreset::Trinity => "delete_{entity}",
-                })),
+                })
+            }),
             _ => None,
         }?;
 
@@ -797,7 +793,7 @@ pub struct SessionVariableMapping {
 pub struct SessionVariablesConfig {
     /// Per-request session variable mappings.
     #[serde(default)]
-    pub variables:        Vec<SessionVariableMapping>,
+    pub variables:         Vec<SessionVariableMapping>,
     /// Inject the built-in `fraiseql.started_at` timestamp before every mutation.
     #[serde(default = "session_default_true")]
     pub inject_started_at: bool,

@@ -8,8 +8,7 @@
 use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::to_snake_case;
-use crate::types::db_types::DatabaseType;
+use crate::{types::db_types::DatabaseType, utils::to_snake_case};
 
 /// SQL sort type for ORDER BY cast generation.
 ///
@@ -55,12 +54,12 @@ pub enum OrderByFieldType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderByClause {
     /// Field to order by (GraphQL camelCase name).
-    pub field:     String,
+    pub field:         String,
     /// Sort direction.
-    pub direction: OrderDirection,
+    pub direction:     OrderDirection,
     /// Field type for SQL cast generation. `Text` (default) means no cast.
     #[serde(default)]
-    pub field_type: OrderByFieldType,
+    pub field_type:    OrderByFieldType,
     /// Native column name if the view exposes this field as a typed column.
     /// When set, ORDER BY uses this column directly instead of JSONB extraction,
     /// enabling index support and correct typing without casts.
@@ -96,7 +95,7 @@ impl OrderByClause {
         Self {
             field,
             direction,
-            field_type:    OrderByFieldType::default(),
+            field_type: OrderByFieldType::default(),
             native_column: None,
         }
     }
@@ -269,8 +268,7 @@ mod tests {
 
     #[test]
     fn test_storage_key_long_camel() {
-        let clause =
-            OrderByClause::new("updatedAtTimestamp".into(), OrderDirection::Asc);
+        let clause = OrderByClause::new("updatedAtTimestamp".into(), OrderDirection::Asc);
         assert_eq!(clause.storage_key(), "updated_at_timestamp");
     }
 

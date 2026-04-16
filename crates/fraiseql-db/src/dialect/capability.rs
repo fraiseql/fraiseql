@@ -489,10 +489,7 @@ mod tests {
 
     #[test]
     fn test_json_field_expr_postgres() {
-        assert_eq!(
-            DatabaseType::PostgreSQL.json_field_expr("created_at"),
-            "data->>'created_at'"
-        );
+        assert_eq!(DatabaseType::PostgreSQL.json_field_expr("created_at"), "data->>'created_at'");
     }
 
     #[test]
@@ -505,10 +502,7 @@ mod tests {
 
     #[test]
     fn test_json_field_expr_sqlite() {
-        assert_eq!(
-            DatabaseType::SQLite.json_field_expr("email"),
-            "json_extract(data, '$.email')"
-        );
+        assert_eq!(DatabaseType::SQLite.json_field_expr("email"), "json_extract(data, '$.email')");
     }
 
     #[test]
@@ -549,7 +543,8 @@ mod tests {
     #[test]
     fn test_typed_expr_postgres_datetime() {
         assert_eq!(
-            DatabaseType::PostgreSQL.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
+            DatabaseType::PostgreSQL
+                .typed_json_field_expr("created_at", OrderByFieldType::DateTime),
             "(data->>'created_at')::timestamptz"
         );
     }

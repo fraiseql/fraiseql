@@ -8,7 +8,10 @@ use std::sync::Arc;
 use super::CachedDatabaseAdapter;
 use crate::{
     cache::key::{generate_projection_query_key, generate_view_query_key},
-    db::{DatabaseAdapter, WhereClause, types::{JsonbValue, sql_hints::OrderByClause}},
+    db::{
+        DatabaseAdapter, WhereClause,
+        types::{JsonbValue, sql_hints::OrderByClause},
+    },
     error::Result,
     schema::SqlProjectionHint,
 };
@@ -71,9 +74,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
         // key-generation allocations entirely for un-annotated views.
-        if !self.cache.is_enabled()
-            || (self.opt_in_mode && !self.cacheable_views.contains(view))
-        {
+        if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
                 .execute_with_projection(view, projection, where_clause, limit, offset, order_by)
@@ -82,8 +83,15 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         }
 
         // Generate cache key — zero heap allocations on the hot path.
-        let cache_key =
-            generate_projection_query_key(view, projection, where_clause, limit, offset, order_by, &self.schema_version);
+        let cache_key = generate_projection_query_key(
+            view,
+            projection,
+            where_clause,
+            limit,
+            offset,
+            order_by,
+            &self.schema_version,
+        );
 
         // Hit: return cached Arc directly — zero-copy, just one atomic increment.
         if let Some(cached_arc) = self.cache.get(cache_key)? {
@@ -139,8 +147,14 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         }
 
         // Generate cache key — zero heap allocations on the hot path.
-        let cache_key =
-            generate_view_query_key(view, where_clause, limit, offset, order_by, &self.schema_version);
+        let cache_key = generate_view_query_key(
+            view,
+            where_clause,
+            limit,
+            offset,
+            order_by,
+            &self.schema_version,
+        );
 
         // Hit: return cached Arc directly — zero-copy.
         if let Some(cached_arc) = self.cache.get(cache_key)? {

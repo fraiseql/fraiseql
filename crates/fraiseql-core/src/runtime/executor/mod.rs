@@ -163,7 +163,6 @@ pub mod pipeline;
 mod relay;
 
 use std::collections::HashMap;
-
 #[cfg(test)]
 use std::{sync::Arc, time::Duration};
 
@@ -224,12 +223,17 @@ enum QueryType {
     /// GraphQL mutation.
     /// Contains the root field name and per-type selection fields.
     /// Keys are type names (from `...on TypeName` fragments); `""` holds common fields.
-    Mutation { name: String, type_selections: HashMap<String, Vec<String>> },
+    Mutation {
+        name:            String,
+        type_selections: HashMap<String, Vec<String>>,
+    },
 
     /// Relay global node lookup: `node(id: ID!)`.
     /// Resolves any type that implements the Node interface by global opaque ID.
     /// Contains the field selections from the inline fragment for projection.
-    NodeQuery { selections: Vec<crate::graphql::FieldSelection> },
+    NodeQuery {
+        selections: Vec<crate::graphql::FieldSelection>,
+    },
 }
 
 /// Null out masked fields in a projected JSON result.

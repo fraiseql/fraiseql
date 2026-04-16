@@ -15,16 +15,16 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct TenantPoolConfig {
     /// Database connection string (e.g. `postgres://user:pass@host:5432/db`).
-    pub connection_string: String,
+    pub connection_string:    String,
     /// Maximum number of connections in the pool.
     #[serde(default = "default_max_connections")]
-    pub max_connections: u32,
+    pub max_connections:      u32,
     /// Connection timeout in seconds.
     #[serde(default = "default_connect_timeout")]
     pub connect_timeout_secs: u64,
     /// Idle connection timeout in seconds.
     #[serde(default = "default_idle_timeout")]
-    pub idle_timeout_secs: u64,
+    pub idle_timeout_secs:    u64,
 }
 
 const fn default_max_connections() -> u32 {
@@ -75,9 +75,9 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
         location: String::new(),
     })?;
 
-    schema.validate_format_version().map_err(|msg| {
-        FraiseQLError::validation(format!("Incompatible compiled schema: {msg}"))
-    })?;
+    schema
+        .validate_format_version()
+        .map_err(|msg| FraiseQLError::validation(format!("Incompatible compiled schema: {msg}")))?;
 
     // 2. Create database adapter/pool
     let adapter = A::from_pool_config(pool_config).await?;
@@ -172,10 +172,10 @@ mod tests {
 
     fn test_pool_config() -> TenantPoolConfig {
         TenantPoolConfig {
-            connection_string: "stub://localhost/test".to_string(),
-            max_connections: 5,
+            connection_string:    "stub://localhost/test".to_string(),
+            max_connections:      5,
             connect_timeout_secs: 5,
-            idle_timeout_secs: 300,
+            idle_timeout_secs:    300,
         }
     }
 
@@ -185,9 +185,8 @@ mod tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let executor = create_tenant_executor::<StubPoolAdapter>(&schema_json, &config)
-            .await
-            .unwrap();
+        let executor =
+            create_tenant_executor::<StubPoolAdapter>(&schema_json, &config).await.unwrap();
         assert_eq!(executor.schema().types.len(), 0);
     }
 
@@ -198,10 +197,7 @@ mod tests {
         else {
             panic!("expected Err for invalid JSON");
         };
-        assert!(
-            matches!(err, FraiseQLError::Parse { .. }),
-            "Expected Parse error, got: {err:?}"
-        );
+        assert!(matches!(err, FraiseQLError::Parse { .. }), "Expected Parse error, got: {err:?}");
     }
 
     #[tokio::test]
@@ -295,8 +291,7 @@ mod tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let Err(err) = create_tenant_executor::<FailingAdapter>(&schema_json, &config).await
-        else {
+        let Err(err) = create_tenant_executor::<FailingAdapter>(&schema_json, &config).await else {
             panic!("expected Err for unreachable DB");
         };
         assert!(

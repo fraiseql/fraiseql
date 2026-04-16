@@ -1395,7 +1395,11 @@ async fn test_non_cacheable_view_always_hits_db() {
 
     // Second call — should bypass the cache and hit the DB again.
     adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
-    assert_eq!(adapter.inner().call_count(), 2, "non-cacheable view must not be served from cache");
+    assert_eq!(
+        adapter.inner().call_count(),
+        2,
+        "non-cacheable view must not be served from cache"
+    );
 }
 
 /// A view that opts in via `cache_ttl_seconds` is still cached normally
@@ -1409,12 +1413,22 @@ async fn test_cacheable_view_is_still_cached() {
         .with_view_ttl_overrides(overrides);
 
     // First call — cache miss.
-    adapter.execute_where_query("v_expensive", None, None, None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_expensive", None, None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Second call — cache hit; DB must NOT be called again.
-    adapter.execute_where_query("v_expensive", None, None, None, None).await.unwrap();
-    assert_eq!(adapter.inner().call_count(), 1, "opt-in view must be served from cache on second call");
+    adapter
+        .execute_where_query("v_expensive", None, None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        adapter.inner().call_count(),
+        1,
+        "opt-in view must be served from cache on second call"
+    );
 }
 
 /// When no TTL overrides are set AND no schema was loaded (`opt_in_mode = false`),
@@ -1432,7 +1446,11 @@ async fn test_all_views_cacheable_when_no_overrides_set() {
 
     // Second call — cache hit.
     adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
-    assert_eq!(adapter.inner().call_count(), 1, "with no schema loaded all views must be cached");
+    assert_eq!(
+        adapter.inner().call_count(),
+        1,
+        "with no schema loaded all views must be cached"
+    );
 }
 
 /// Fixes #187: when a schema with NO `cache_ttl_seconds` annotations is loaded

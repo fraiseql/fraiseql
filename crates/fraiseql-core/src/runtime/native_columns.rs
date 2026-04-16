@@ -63,9 +63,7 @@ pub const fn sql_type_to_pg_cast(sql_type: &SqlType) -> &'static str {
 /// [`crate::compiler::aggregation::GroupBySelection::NativeDimension`] variants for
 /// native columns instead of JSONB extraction variants.
 #[must_use]
-pub fn filter_columns_to_native_map(
-    filters: &[FilterColumn],
-) -> HashMap<String, String> {
+pub fn filter_columns_to_native_map(filters: &[FilterColumn]) -> HashMap<String, String> {
     filters
         .iter()
         .map(|f| (f.name.clone(), sql_type_to_pg_cast(&f.sql_type).to_string()))

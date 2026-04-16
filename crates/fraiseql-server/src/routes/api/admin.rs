@@ -54,7 +54,11 @@ impl CacheStatus {
     )]
     pub const fn from_cache_enabled(cache_enabled: bool) -> Self {
         #[allow(deprecated)] // Reason: function itself is deprecated; returns deprecated variant
-        if cache_enabled { Self::RlsGuardOnly } else { Self::Disabled }
+        if cache_enabled {
+            Self::RlsGuardOnly
+        } else {
+            Self::Disabled
+        }
     }
 }
 
@@ -433,7 +437,11 @@ pub async fn config_handler<A: DatabaseAdapter>(
         let cache_active = state.adapter_cache_enabled;
 
         config.insert("cache_enabled".to_string(), cache_active.to_string());
-        let cache_status = if cache_active { CacheStatus::Active } else { CacheStatus::Disabled };
+        let cache_status = if cache_active {
+            CacheStatus::Active
+        } else {
+            CacheStatus::Disabled
+        };
         config.insert(
             "cache_status".to_string(),
             serde_json::to_string(&cache_status)
@@ -496,8 +504,7 @@ pub struct ExplainRequest {
 pub async fn grafana_dashboard_handler<A: DatabaseAdapter>(
     State(_state): State<AppState<A>>,
 ) -> impl axum::response::IntoResponse {
-    const DASHBOARD_JSON: &str =
-        include_str!("../../../resources/fraiseql-dashboard.json");
+    const DASHBOARD_JSON: &str = include_str!("../../../resources/fraiseql-dashboard.json");
 
     (
         axum::http::StatusCode::OK,
@@ -588,10 +595,9 @@ mod tests {
 
     #[test]
     fn test_grafana_dashboard_is_valid_json() {
-        let parsed: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../resources/fraiseql-dashboard.json"
-        ))
-        .expect("fraiseql-dashboard.json must be valid JSON");
+        let parsed: serde_json::Value =
+            serde_json::from_str(include_str!("../../../resources/fraiseql-dashboard.json"))
+                .expect("fraiseql-dashboard.json must be valid JSON");
 
         assert_eq!(parsed["title"], "FraiseQL Performance");
         assert_eq!(parsed["uid"], "fraiseql-perf-v1");

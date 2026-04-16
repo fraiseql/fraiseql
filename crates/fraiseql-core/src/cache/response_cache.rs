@@ -30,7 +30,6 @@ use std::{
 
 use dashmap::{DashMap, DashSet};
 use moka::sync::Cache as MokaCache;
-
 use serde_json::Value;
 
 use crate::{error::Result, security::SecurityContext};
@@ -90,8 +89,8 @@ pub struct ResponseCache {
     view_index: Arc<DashMap<String, DashSet<(u64, u64)>>>,
 
     enabled: bool,
-    hits: AtomicU64,
-    misses: AtomicU64,
+    hits:    AtomicU64,
+    misses:  AtomicU64,
 }
 
 impl ResponseCache {
@@ -101,16 +100,15 @@ impl ResponseCache {
         let view_index: Arc<DashMap<String, DashSet<(u64, u64)>>> = Arc::new(DashMap::new());
         let vi = Arc::clone(&view_index);
 
-        let mut builder =
-            MokaCache::builder().max_capacity(config.max_entries as u64).eviction_listener(
-                move |key: Arc<(u64, u64)>, value: Arc<ResponseEntry>, _cause| {
-                    for view in &value.accessed_views {
-                        if let Some(keys) = vi.get(view) {
-                            keys.remove(&*key);
-                        }
+        let mut builder = MokaCache::builder()
+            .max_capacity(config.max_entries as u64)
+            .eviction_listener(move |key: Arc<(u64, u64)>, value: Arc<ResponseEntry>, _cause| {
+                for view in &value.accessed_views {
+                    if let Some(keys) = vi.get(view) {
+                        keys.remove(&*key);
                     }
-                },
-            );
+                }
+            });
 
         if config.ttl_seconds > 0 {
             builder = builder.time_to_live(Duration::from_secs(config.ttl_seconds));
@@ -174,10 +172,7 @@ impl ResponseCache {
         // Update view → key reverse index before inserting into the store,
         // so invalidate_views() called concurrently won't miss the key.
         for view in &accessed_views {
-            self.view_index
-                .entry(view.clone())
-                .or_default()
-                .insert(key);
+            self.view_index.entry(view.clone()).or_default().insert(key);
         }
 
         let entry = Arc::new(ResponseEntry {
@@ -217,10 +212,7 @@ impl ResponseCache {
     /// Get cache hit/miss counts.
     #[must_use]
     pub fn metrics(&self) -> (u64, u64) {
-        (
-            self.hits.load(Ordering::Relaxed),
-            self.misses.load(Ordering::Relaxed),
-        )
+        (self.hits.load(Ordering::Relaxed), self.misses.load(Ordering::Relaxed))
     }
 }
 
@@ -310,8 +302,7 @@ mod tests {
 
         let admin_response =
             Arc::new(serde_json::json!({"data": {"users": [{"id": "1", "role": "admin"}]}}));
-        let user_response =
-            Arc::new(serde_json::json!({"data": {"users": [{"id": "1"}]}}));
+        let user_response = Arc::new(serde_json::json!({"data": {"users": [{"id": "1"}]}}));
 
         // Same query key (1), different security hashes
         cache
@@ -343,9 +334,7 @@ mod tests {
         // Flush pending moka writes before invalidation
         cache.store.run_pending_tasks();
 
-        let invalidated = cache
-            .invalidate_views(&["v_user".to_string()])
-            .expect("invalidate");
+        let invalidated = cache.invalidate_views(&["v_user".to_string()]).expect("invalidate");
         assert_eq!(invalidated, 1);
 
         // Flush invalidations
@@ -360,9 +349,7 @@ mod tests {
         let cache = ResponseCache::new(ResponseCacheConfig::default());
         assert!(!cache.is_enabled());
 
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("r")), vec![])
-            .expect("put disabled");
+        cache.put(1, 0, Arc::new(serde_json::json!("r")), vec![]).expect("put disabled");
         assert!(cache.get(1, 0).expect("get disabled").is_none());
     }
 
@@ -370,9 +357,7 @@ mod tests {
     fn test_metrics() {
         let cache = ResponseCache::new(enabled_config());
 
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("r")), vec![])
-            .expect("put");
+        cache.put(1, 0, Arc::new(serde_json::json!("r")), vec![]).expect("put");
         cache.store.run_pending_tasks();
         let _ = cache.get(1, 0); // hit
         let _ = cache.get(2, 0); // miss
@@ -441,14 +426,8 @@ mod tests {
         let t2 = make_security_context("alice", &[], Some("tenant-2"), &[]);
         let none = make_security_context("alice", &[], None, &[]);
 
-        assert_ne!(
-            hash_security_context(Some(&t1)),
-            hash_security_context(Some(&t2)),
-        );
-        assert_ne!(
-            hash_security_context(Some(&t1)),
-            hash_security_context(Some(&none)),
-        );
+        assert_ne!(hash_security_context(Some(&t1)), hash_security_context(Some(&t2)),);
+        assert_ne!(hash_security_context(Some(&t1)), hash_security_context(Some(&none)),);
     }
 
     #[test]
@@ -457,14 +436,8 @@ mod tests {
         let write = make_security_context("alice", &[], None, &["write:user"]);
         let both = make_security_context("alice", &[], None, &["read:user", "write:user"]);
 
-        assert_ne!(
-            hash_security_context(Some(&read)),
-            hash_security_context(Some(&write)),
-        );
-        assert_ne!(
-            hash_security_context(Some(&read)),
-            hash_security_context(Some(&both)),
-        );
+        assert_ne!(hash_security_context(Some(&read)), hash_security_context(Some(&write)),);
+        assert_ne!(hash_security_context(Some(&read)), hash_security_context(Some(&both)),);
     }
 
     #[test]
@@ -486,8 +459,7 @@ mod tests {
             .insert("department".to_string(), serde_json::json!("engineering"));
 
         let mut ctx2 = make_security_context("alice", &["admin"], None, &[]);
-        ctx2.attributes
-            .insert("department".to_string(), serde_json::json!("sales"));
+        ctx2.attributes.insert("department".to_string(), serde_json::json!("sales"));
 
         let ctx_no_attrs = make_security_context("alice", &["admin"], None, &[]);
 
@@ -551,9 +523,7 @@ mod tests {
             .expect("put anon");
         cache.store.run_pending_tasks();
 
-        let invalidated = cache
-            .invalidate_views(&["v_user".to_string()])
-            .expect("invalidate");
+        let invalidated = cache.invalidate_views(&["v_user".to_string()]).expect("invalidate");
         assert_eq!(invalidated, 3, "All entries for the view must be invalidated");
 
         cache.store.run_pending_tasks();
@@ -606,9 +576,7 @@ mod tests {
         cache.store.run_pending_tasks();
 
         // Invalidating either view should remove the entry
-        let invalidated = cache
-            .invalidate_views(&["v_post".to_string()])
-            .expect("invalidate");
+        let invalidated = cache.invalidate_views(&["v_post".to_string()]).expect("invalidate");
         assert_eq!(invalidated, 1);
 
         cache.store.run_pending_tasks();
@@ -655,10 +623,7 @@ mod tests {
         cache.store.run_pending_tasks();
 
         for sec_hash in 0_u64..10 {
-            let r = cache
-                .get(42, sec_hash)
-                .expect("get")
-                .expect("should be cached");
+            let r = cache.get(42, sec_hash).expect("get").expect("should be cached");
             assert_eq!(*r, serde_json::json!(format!("response_for_user_{sec_hash}")));
         }
     }

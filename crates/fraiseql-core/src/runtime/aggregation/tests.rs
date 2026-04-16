@@ -158,7 +158,10 @@ fn test_order_by_clause() {
     use crate::compiler::aggregation::OrderByClause;
 
     let mut plan = create_test_plan();
-    plan.request.order_by = vec![OrderByClause::new("revenue_sum".to_string(), OrderDirection::Desc)];
+    plan.request.order_by = vec![OrderByClause::new(
+        "revenue_sum".to_string(),
+        OrderDirection::Desc,
+    )];
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
     let sql = generator.generate_parameterized(&plan).unwrap();
@@ -171,8 +174,9 @@ fn test_order_by_clause() {
 // ========================================
 
 mod native_where {
-    use super::*;
     use fraiseql_db::where_clause::{WhereClause, WhereOperator};
+
+    use super::*;
 
     fn plan_with_native_where(
         column: &str,
@@ -181,8 +185,8 @@ mod native_where {
     ) -> AggregationPlan {
         let mut plan = create_test_plan();
         plan.request.where_clause = Some(WhereClause::NativeField {
-            column:   column.to_string(),
-            pg_cast:  pg_cast.to_string(),
+            column: column.to_string(),
+            pg_cast: pg_cast.to_string(),
             operator: WhereOperator::Eq,
             value,
         });
@@ -339,16 +343,16 @@ mod native_groupby {
 mod native_columns_integration {
     use std::collections::HashMap;
 
+    use fraiseql_db::where_clause::WhereClause;
+
     use super::*;
     use crate::{
         compiler::aggregation::{AggregationPlanner, GroupByExpression},
         runtime::aggregate_parser::AggregateQueryParser,
     };
-    use fraiseql_db::where_clause::WhereClause;
 
     fn native_cols() -> HashMap<String, String> {
-        std::iter::once(("customer_id".to_string(), "int8".to_string()))
-            .collect()
+        std::iter::once(("customer_id".to_string(), "int8".to_string())).collect()
     }
 
     #[test]
@@ -366,9 +370,9 @@ mod native_columns_integration {
 
         let where_clause = request.where_clause.unwrap();
         let found_native = match &where_clause {
-            WhereClause::And(clauses) => clauses.iter().any(|c| {
-                matches!(c, WhereClause::NativeField { column, .. } if column == "customer_id")
-            }),
+            WhereClause::And(clauses) => clauses.iter().any(
+                |c| matches!(c, WhereClause::NativeField { column, .. } if column == "customer_id"),
+            ),
             WhereClause::NativeField { column, .. } => column == "customer_id",
             _ => false,
         };
@@ -397,14 +401,11 @@ mod native_columns_integration {
             plan.group_by_expressions
         );
 
-        let has_jsonb = plan.group_by_expressions.iter().any(|e| {
-            matches!(e, GroupByExpression::JsonbPath { path, .. } if path == "status")
-        });
-        assert!(
-            has_jsonb,
-            "expected JsonbPath for status; got: {:?}",
-            plan.group_by_expressions
-        );
+        let has_jsonb = plan
+            .group_by_expressions
+            .iter()
+            .any(|e| matches!(e, GroupByExpression::JsonbPath { path, .. } if path == "status"));
+        assert!(has_jsonb, "expected JsonbPath for status; got: {:?}", plan.group_by_expressions);
     }
 
     #[test]
@@ -425,11 +426,7 @@ mod native_columns_integration {
 
         assert!(result.sql.contains(r#""customer_id""#), "got: {}", result.sql);
         assert!(result.sql.contains("$1::int8"), "got: {}", result.sql);
-        assert!(
-            !result.sql.contains("data->>'customer_id'"),
-            "unexpected JSONB: {}",
-            result.sql
-        );
+        assert!(!result.sql.contains("data->>'customer_id'"), "unexpected JSONB: {}", result.sql);
     }
 
     #[test]
@@ -487,8 +484,10 @@ mod native_orderby {
     #[test]
     fn order_by_jsonb_dimension_unchanged() {
         let mut plan = create_test_plan();
-        plan.request.order_by =
-            vec![OrderByClause::new("category".to_string(), OrderDirection::Desc)];
+        plan.request.order_by = vec![OrderByClause::new(
+            "category".to_string(),
+            OrderDirection::Desc,
+        )];
 
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = gen.generate_parameterized(&plan).unwrap().sql;
@@ -531,7 +530,10 @@ fn test_array_agg_postgres() {
     assert_eq!(sql, "ARRAY_AGG(product_id)");
 
     // Test with ORDER BY
-    let order_by = vec![OrderByClause::new("revenue".to_string(), OrderDirection::Desc)];
+    let order_by = vec![OrderByClause::new(
+        "revenue".to_string(),
+        OrderDirection::Desc,
+    )];
     let sql = generator.generate_array_agg_sql("product_id", Some(&order_by));
     assert_eq!(sql, "ARRAY_AGG(product_id ORDER BY \"revenue\" DESC)");
 }
@@ -561,7 +563,10 @@ fn test_string_agg_postgres() {
     assert_eq!(sql, "STRING_AGG(product_name, ', ')");
 
     // Test with ORDER BY
-    let order_by = vec![OrderByClause::new("revenue".to_string(), OrderDirection::Desc)];
+    let order_by = vec![OrderByClause::new(
+        "revenue".to_string(),
+        OrderDirection::Desc,
+    )];
     let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
     assert_eq!(sql, "STRING_AGG(product_name, ', ' ORDER BY \"revenue\" DESC)");
 }
@@ -570,7 +575,10 @@ fn test_string_agg_postgres() {
 fn test_string_agg_mysql() {
     let generator = AggregationSqlGenerator::new(DatabaseType::MySQL);
 
-    let order_by = vec![OrderByClause::new("revenue".to_string(), OrderDirection::Desc)];
+    let order_by = vec![OrderByClause::new(
+        "revenue".to_string(),
+        OrderDirection::Desc,
+    )];
     let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
     assert_eq!(sql, "GROUP_CONCAT(product_name ORDER BY `revenue` DESC SEPARATOR ', ')");
 }
@@ -579,7 +587,10 @@ fn test_string_agg_mysql() {
 fn test_string_agg_sqlserver() {
     let generator = AggregationSqlGenerator::new(DatabaseType::SQLServer);
 
-    let order_by = vec![OrderByClause::new("revenue".to_string(), OrderDirection::Desc)];
+    let order_by = vec![OrderByClause::new(
+        "revenue".to_string(),
+        OrderDirection::Desc,
+    )];
     let sql = generator.generate_string_agg_sql("product_name", ", ", Some(&order_by));
     assert!(sql.contains("STRING_AGG(CAST(product_name AS NVARCHAR(MAX)), ', ')"));
     assert!(sql.contains("WITHIN GROUP (ORDER BY [revenue] DESC)"));
@@ -591,7 +602,10 @@ fn test_json_agg_postgres() {
     let sql = generator.generate_json_agg_sql("data", None);
     assert_eq!(sql, "JSON_AGG(data)");
 
-    let order_by = vec![OrderByClause::new("created_at".to_string(), OrderDirection::Asc)];
+    let order_by = vec![OrderByClause::new(
+        "created_at".to_string(),
+        OrderDirection::Asc,
+    )];
     let sql = generator.generate_json_agg_sql("data", Some(&order_by));
     assert_eq!(sql, "JSON_AGG(data ORDER BY \"created_at\" ASC)");
 }
@@ -650,7 +664,10 @@ fn test_advanced_aggregate_full_query() {
         function:  AggregateFunction::ArrayAgg,
         alias:     "products".to_string(),
         delimiter: None,
-        order_by:  Some(vec![OrderByClause::new("revenue".to_string(), OrderDirection::Desc)]),
+        order_by:  Some(vec![OrderByClause::new(
+            "revenue".to_string(),
+            OrderDirection::Desc,
+        )]),
     });
 
     // Add a STRING_AGG aggregate

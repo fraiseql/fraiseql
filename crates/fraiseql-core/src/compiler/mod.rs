@@ -4,12 +4,12 @@
 //!
 //! This module contains:
 //!
-//! - **Parser / IR / Validator** — parse authoring-time JSON into an intermediate
-//!   representation (`AuthoringIR`) and validate it. Used by the CLI `validate-facts`
-//!   command and by `SchemaConverter` (in `fraiseql-cli`).
+//! - **Parser / IR / Validator** — parse authoring-time JSON into an intermediate representation
+//!   (`AuthoringIR`) and validate it. Used by the CLI `validate-facts` command and by
+//!   `SchemaConverter` (in `fraiseql-cli`).
 //!
-//! - **Runtime sub-modules** — aggregate types, aggregation planning, fact tables,
-//!   and window functions, consumed by the runtime executor.
+//! - **Runtime sub-modules** — aggregate types, aggregation planning, fact tables, and window
+//!   functions, consumed by the runtime executor.
 
 pub mod aggregate_types;
 pub mod aggregation;
@@ -36,8 +36,10 @@ pub use window_functions::{WindowExecutionPlan, WindowFunction, WindowFunctionPl
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
-    use crate::schema::CompiledSchema;
+    use crate::{
+        compiler::fact_table::{DimensionColumn, FactTableMetadata},
+        schema::CompiledSchema,
+    };
 
     #[test]
     fn test_compiled_schema_fact_table_operations() {

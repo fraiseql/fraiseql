@@ -46,16 +46,13 @@ pub struct AuthUser(pub AuthenticatedUser);
 /// `Authorization: Bearer` header is present, to support browser flows where
 /// the JWT is stored in an `HttpOnly` cookie inaccessible to client-side script.
 fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers
-        .get(header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies.split(';').find_map(|part| {
-                let part = part.trim();
-                part.strip_prefix("__Host-access_token=")
-                    .map(|v| v.trim_matches('"').to_owned())
-            })
+    headers.get(header::COOKIE).and_then(|v| v.to_str().ok()).and_then(|cookies| {
+        cookies.split(';').find_map(|part| {
+            let part = part.trim();
+            part.strip_prefix("__Host-access_token=")
+                .map(|v| v.trim_matches('"').to_owned())
         })
+    })
 }
 
 /// OIDC authentication middleware.
@@ -218,10 +215,7 @@ mod tests {
     #[test]
     fn test_cookie_fallback_strips_rfc6265_quotes() {
         let mut headers = axum::http::HeaderMap::new();
-        headers.insert(
-            header::COOKIE,
-            "__Host-access_token=\"my.jwt.token\"".parse().unwrap(),
-        );
+        headers.insert(header::COOKIE, "__Host-access_token=\"my.jwt.token\"".parse().unwrap());
 
         let token = extract_access_token_cookie(&headers);
         assert_eq!(token.as_deref(), Some("my.jwt.token"));

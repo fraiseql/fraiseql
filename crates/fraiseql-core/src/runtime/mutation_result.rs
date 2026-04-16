@@ -111,8 +111,7 @@ pub struct MutationResponse {
 /// Returns [`FraiseQLError::Validation`] if:
 /// - the row fails to deserialize into [`MutationResponse`];
 /// - `http_status` is outside `100..=599`;
-/// - `succeeded=false` with `state_changed=true` (illegal per the semantics
-///   table);
+/// - `succeeded=false` with `state_changed=true` (illegal per the semantics table);
 /// - `succeeded=false` with `error_class` missing.
 pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
     row: &HashMap<String, JsonValue, S>,
@@ -232,8 +231,7 @@ mod tests {
         row.insert("metadata".to_string(), json!({"trace_id": "abc"}));
 
         let obj: serde_json::Map<String, JsonValue> = row.into_iter().collect();
-        let parsed: MutationResponse =
-            serde_json::from_value(JsonValue::Object(obj)).unwrap();
+        let parsed: MutationResponse = serde_json::from_value(JsonValue::Object(obj)).unwrap();
 
         assert!(!parsed.succeeded);
         assert!(!parsed.state_changed);

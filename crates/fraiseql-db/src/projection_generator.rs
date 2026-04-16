@@ -39,7 +39,8 @@ use fraiseql_error::{FraiseQLError, Result};
 pub enum FieldKind {
     /// Text scalar — extracted with `->>` (String, ID).
     Text,
-    /// Native JSON scalar — extracted with `->` to preserve type (Int, Float, Boolean, DateTime, etc.).
+    /// Native JSON scalar — extracted with `->` to preserve type (Int, Float, Boolean, DateTime,
+    /// etc.).
     Native,
     /// Object or list — extracted with `->` to preserve JSONB structure.
     Composite,
@@ -303,8 +304,8 @@ impl PostgresProjectionGenerator {
     /// `jsonb_build_object`.
     ///
     /// * `field` — field to render
-    /// * `path`  — JSONB path prefix built so far (e.g. `"data"` at depth 0,
-    ///   `"data"->'author'` at depth 1)
+    /// * `path`  — JSONB path prefix built so far (e.g. `"data"` at depth 0, `"data"->'author'` at
+    ///   depth 1)
     /// * `depth` — current recursion depth (capped at [`MAX_PROJECTION_DEPTH`])
     fn render_field(field: &ProjectionField, path: &str, depth: usize) -> Result<String> {
         let resp_key = Self::escape_sql_string(&field.name);
@@ -315,7 +316,7 @@ impl PostgresProjectionGenerator {
         if depth < MAX_PROJECTION_DEPTH {
             if let Some(subs) = &field.sub_fields {
                 if !subs.is_empty() {
-                    let nested_path = format!("{}->'{}'" , path, safe_jsonb_key);
+                    let nested_path = format!("{}->'{}'", path, safe_jsonb_key);
                     let inner = subs
                         .iter()
                         .map(|sf| Self::render_field(sf, &nested_path, depth + 1))
@@ -327,7 +328,11 @@ impl PostgresProjectionGenerator {
 
         // Text: ->> (text cast, for String/ID).
         // Native / Composite: -> (preserves native JSONB type).
-        let op = if field.kind == FieldKind::Text { "->>" } else { "->" };
+        let op = if field.kind == FieldKind::Text {
+            "->>"
+        } else {
+            "->"
+        };
         Ok(format!("'{}', {}{}'{}'", resp_key, path, op, safe_jsonb_key))
     }
 
@@ -999,15 +1004,9 @@ mod tests {
         ];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
         // Native: -> (not ->>) to preserve native JSON type (boolean, int, etc.)
-        assert!(
-            sql.contains("->'is_active'"),
-            "native field must use -> operator, got: {sql}"
-        );
+        assert!(sql.contains("->'is_active'"), "native field must use -> operator, got: {sql}");
         // Text scalar still uses ->>
-        assert!(
-            sql.contains("->>'name'"),
-            "text scalar field must use ->> operator, got: {sql}"
-        );
+        assert!(sql.contains("->>'name'"), "text scalar field must use ->> operator, got: {sql}");
     }
 
     #[test]
@@ -1051,11 +1050,14 @@ mod tests {
         let fields = vec![
             ProjectionField::scalar("id"),
             ProjectionField::scalar("content"),
-            ProjectionField::composite_with_sub_fields("author", vec![
-                ProjectionField::scalar("id"),
-                ProjectionField::scalar("username"),
-                ProjectionField::scalar("fullName"),
-            ]),
+            ProjectionField::composite_with_sub_fields(
+                "author",
+                vec![
+                    ProjectionField::scalar("id"),
+                    ProjectionField::scalar("username"),
+                    ProjectionField::scalar("fullName"),
+                ],
+            ),
         ];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
         // author must use a nested jsonb_build_object instead of the full blob
@@ -1108,12 +1110,16 @@ mod tests {
         let generator = PostgresProjectionGenerator::new();
         let fields = vec![
             ProjectionField::scalar("id"),
-            ProjectionField::composite_with_sub_fields("author", vec![
-                ProjectionField::scalar("id"),
-                ProjectionField::composite_with_sub_fields("profile", vec![
-                    ProjectionField::scalar("bio"),
-                ]),
-            ]),
+            ProjectionField::composite_with_sub_fields(
+                "author",
+                vec![
+                    ProjectionField::scalar("id"),
+                    ProjectionField::composite_with_sub_fields(
+                        "profile",
+                        vec![ProjectionField::scalar("bio")],
+                    ),
+                ],
+            ),
         ];
         let sql = generator.generate_typed_projection_sql(&fields).unwrap();
         assert!(
@@ -1124,9 +1130,6 @@ mod tests {
             sql.contains("'profile', jsonb_build_object("),
             "profile must be nested inside author, got: {sql}"
         );
-        assert!(
-            sql.contains("'profile'->>'bio'"),
-            "bio must use depth-2 path, got: {sql}"
-        );
+        assert!(sql.contains("'profile'->>'bio'"), "bio must use depth-2 path, got: {sql}");
     }
 }

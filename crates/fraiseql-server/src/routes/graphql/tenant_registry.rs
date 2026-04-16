@@ -58,12 +58,10 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
             None => Ok(self.default.load()),
             Some(key) => {
                 let entry = self.tenants.get(key).ok_or_else(|| {
-                    FraiseQLError::unauthorized(format!(
-                        "Tenant '{key}' is not registered"
-                    ))
+                    FraiseQLError::unauthorized(format!("Tenant '{key}' is not registered"))
                 })?;
                 Ok(entry.value().load())
-            }
+            },
         }
     }
 
@@ -130,10 +128,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// Returns `FraiseQLError::NotFound` if the tenant key is not registered.
     /// Returns `FraiseQLError::Database` if the health check fails.
     pub async fn health_check(&self, key: &str) -> fraiseql_error::Result<()> {
-        let entry = self
-            .tenants
-            .get(key)
-            .ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
         let executor = entry.value().load();
         executor.adapter().health_check().await
     }

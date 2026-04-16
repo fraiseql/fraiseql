@@ -2,8 +2,8 @@
 //!
 //! Verifies that:
 //! 1. `Server::new` accepts an inner adapter and builds successfully.
-//! 2. `CachedDatabaseAdapter` (the wrapper that `Server::new` now uses internally) correctly
-//!    caches results: the second identical call is a cache hit and does not reach the DB.
+//! 2. `CachedDatabaseAdapter` (the wrapper that `Server::new` now uses internally) correctly caches
+//!    results: the second identical call is a cache hit and does not reach the DB.
 //! 3. When the cache is disabled (`CacheConfig::disabled()`), every call reaches the DB.
 //!
 //! **Execution engine:** in-memory (no database required)
@@ -25,8 +25,10 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
-    db::{DatabaseAdapter, DatabaseType, SupportsMutations, WhereClause},
-    db::types::{JsonbValue, OrderByClause, PoolMetrics},
+    db::{
+        DatabaseAdapter, DatabaseType, SupportsMutations, WhereClause,
+        types::{JsonbValue, OrderByClause, PoolMetrics},
+    },
     error::Result as FraiseQLResult,
     schema::{CompiledSchema, SqlProjectionHint},
 };
@@ -41,13 +43,20 @@ struct CountingAdapter {
 impl CountingAdapter {
     fn new() -> (Self, Arc<AtomicU64>) {
         let counter = Arc::new(AtomicU64::new(0));
-        (Self { call_count: Arc::clone(&counter) }, counter)
+        (
+            Self {
+                call_count: Arc::clone(&counter),
+            },
+            counter,
+        )
     }
 }
 
 impl Clone for CountingAdapter {
     fn clone(&self) -> Self {
-        Self { call_count: Arc::clone(&self.call_count) }
+        Self {
+            call_count: Arc::clone(&self.call_count),
+        }
     }
 }
 
@@ -63,7 +72,9 @@ impl DatabaseAdapter for CountingAdapter {
         _order_by: Option<&[OrderByClause]>,
     ) -> FraiseQLResult<Vec<JsonbValue>> {
         self.call_count.fetch_add(1, Ordering::SeqCst);
-        Ok(vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "test"}))])
+        Ok(vec![JsonbValue::new(
+            serde_json::json!({"id": 1, "name": "test"}),
+        )])
     }
 
     async fn execute_with_projection(
@@ -76,7 +87,9 @@ impl DatabaseAdapter for CountingAdapter {
         _order_by: Option<&[OrderByClause]>,
     ) -> FraiseQLResult<Vec<JsonbValue>> {
         self.call_count.fetch_add(1, Ordering::SeqCst);
-        Ok(vec![JsonbValue::new(serde_json::json!({"id": 1, "name": "test"}))])
+        Ok(vec![JsonbValue::new(
+            serde_json::json!({"id": 1, "name": "test"}),
+        )])
     }
 
     fn database_type(&self) -> DatabaseType {
@@ -117,21 +130,18 @@ async fn test_cached_adapter_cache_hit_on_second_query() {
     let (inner, counter) = CountingAdapter::new();
 
     let cache = QueryResultCache::new(CacheConfig::enabled());
-    let adapter =
-        CachedDatabaseAdapter::new(inner, cache, "test-schema-v1".to_string());
+    let adapter = CachedDatabaseAdapter::new(inner, cache, "test-schema-v1".to_string());
 
     // First call — cache miss.
-    let _ = adapter
-        .execute_where_query("v_item", None, None, None, None)
-        .await
-        .unwrap();
-    assert_eq!(counter.load(Ordering::SeqCst), 1, "first call must reach the underlying adapter");
+    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
+    assert_eq!(
+        counter.load(Ordering::SeqCst),
+        1,
+        "first call must reach the underlying adapter"
+    );
 
     // Second identical call — cache hit; underlying adapter NOT called again.
-    let _ = adapter
-        .execute_where_query("v_item", None, None, None, None)
-        .await
-        .unwrap();
+    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
     assert_eq!(
         counter.load(Ordering::SeqCst),
         1,
@@ -147,21 +157,18 @@ async fn test_cached_adapter_disabled_is_passthrough() {
     let (inner, counter) = CountingAdapter::new();
 
     let cache = QueryResultCache::new(CacheConfig::disabled());
-    let adapter =
-        CachedDatabaseAdapter::new(inner, cache, "test-schema-v1".to_string());
+    let adapter = CachedDatabaseAdapter::new(inner, cache, "test-schema-v1".to_string());
 
     // First call.
-    let _ = adapter
-        .execute_where_query("v_item", None, None, None, None)
-        .await
-        .unwrap();
-    assert_eq!(counter.load(Ordering::SeqCst), 1, "first call must reach the underlying adapter");
+    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
+    assert_eq!(
+        counter.load(Ordering::SeqCst),
+        1,
+        "first call must reach the underlying adapter"
+    );
 
     // Second call — cache disabled so adapter is hit again.
-    let _ = adapter
-        .execute_where_query("v_item", None, None, None, None)
-        .await
-        .unwrap();
+    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
     assert_eq!(
         counter.load(Ordering::SeqCst),
         2,
@@ -180,7 +187,10 @@ async fn test_server_new_wraps_adapter_successfully() {
         .queries
         .push(fraiseql_core::schema::QueryDefinition::new("items", "Item"));
 
-    let config = ServerConfig { cache_enabled: true, ..ServerConfig::default() };
+    let config = ServerConfig {
+        cache_enabled: true,
+        ..ServerConfig::default()
+    };
 
     // This compiles and runs only if Server::new correctly returns
     // Server<CachedDatabaseAdapter<CountingAdapter>>.
@@ -196,7 +206,10 @@ async fn test_server_new_cache_disabled_also_builds() {
     let (adapter, _counter) = CountingAdapter::new();
     let schema = CompiledSchema::default();
 
-    let config = ServerConfig { cache_enabled: false, ..ServerConfig::default() };
+    let config = ServerConfig {
+        cache_enabled: false,
+        ..ServerConfig::default()
+    };
 
     let _server = Server::new(config, schema, Arc::new(adapter), None)
         .await

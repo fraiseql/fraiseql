@@ -21,7 +21,10 @@ use crate::{
     identifier::quote_postgres_identifier,
     order_by::append_order_by,
     traits::DatabaseAdapter,
-    types::{DatabaseType, JsonbValue, QueryParam, sql_hints::{OrderByClause, SqlProjectionHint}},
+    types::{
+        DatabaseType, JsonbValue, QueryParam,
+        sql_hints::{OrderByClause, SqlProjectionHint},
+    },
     where_clause::WhereClause,
 };
 
@@ -78,14 +81,12 @@ pub struct PoolPrewarmConfig {
 /// # Errors
 ///
 /// Returns `FraiseQLError::ConnectionPool` if pool creation fails (e.g., unparseable URL).
-fn build_pool(
-    connection_string: &str,
-    max_size: usize,
-    timeout_secs: Option<u64>,
-) -> Result<Pool> {
+fn build_pool(connection_string: &str, max_size: usize, timeout_secs: Option<u64>) -> Result<Pool> {
     let mut cfg = Config::new();
     cfg.url = Some(connection_string.to_string());
-    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Fast });
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
 
     let mut pool_cfg = deadpool_postgres::PoolConfig::new(max_size);
     if let Some(secs) = timeout_secs {
@@ -96,9 +97,10 @@ fn build_pool(
     }
     cfg.pool = Some(pool_cfg);
 
-    cfg.create_pool(Some(Runtime::Tokio1), NoTls).map_err(|e| FraiseQLError::ConnectionPool {
-        message: format!("Failed to create connection pool: {e}"),
-    })
+    cfg.create_pool(Some(Runtime::Tokio1), NoTls)
+        .map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to create connection pool: {e}"),
+        })
 }
 
 /// Escape a JSONB key for use in a PostgreSQL string literal (`data->>'key'`).
@@ -183,7 +185,11 @@ impl PostgresAdapter {
     pub async fn new(connection_string: &str) -> Result<Self> {
         Self::with_pool_config(
             connection_string,
-            PoolPrewarmConfig { min_size: 0, max_size: DEFAULT_POOL_SIZE, timeout_secs: None },
+            PoolPrewarmConfig {
+                min_size:     0,
+                max_size:     DEFAULT_POOL_SIZE,
+                timeout_secs: None,
+            },
         )
         .await
     }
@@ -202,10 +208,7 @@ impl PostgresAdapter {
     ///
     /// Returns `FraiseQLError::ConnectionPool` if pool creation or the startup
     /// health check fails.
-    pub async fn with_pool_config(
-        connection_string: &str,
-        cfg: PoolPrewarmConfig,
-    ) -> Result<Self> {
+    pub async fn with_pool_config(connection_string: &str, cfg: PoolPrewarmConfig) -> Result<Self> {
         let pool = build_pool(connection_string, cfg.max_size, cfg.timeout_secs)?;
 
         // Startup health check — establishes the first connection.
@@ -250,7 +253,11 @@ impl PostgresAdapter {
     pub async fn with_pool_size(connection_string: &str, max_size: usize) -> Result<Self> {
         Self::with_pool_config(
             connection_string,
-            PoolPrewarmConfig { min_size: 0, max_size, timeout_secs: None },
+            PoolPrewarmConfig {
+                min_size: 0,
+                max_size,
+                timeout_secs: None,
+            },
         )
         .await
     }
@@ -365,10 +372,10 @@ impl PostgresAdapter {
 
     /// Acquire a connection from the pool with retry logic.
     ///
-    /// - `PoolError::Timeout`: the pool was exhausted for the full configured wait period.
-    ///   This is not transient — retrying would only multiply the wait. Fails immediately.
-    /// - `PoolError::Backend` / create errors: potentially transient. Retries with
-    ///   exponential backoff (up to `MAX_CONNECTION_RETRIES` attempts).
+    /// - `PoolError::Timeout`: the pool was exhausted for the full configured wait period. This is
+    ///   not transient — retrying would only multiply the wait. Fails immediately.
+    /// - `PoolError::Backend` / create errors: potentially transient. Retries with exponential
+    ///   backoff (up to `MAX_CONNECTION_RETRIES` attempts).
     ///
     /// # Errors
     ///
@@ -382,10 +389,7 @@ impl PostgresAdapter {
             match self.pool.get().await {
                 Ok(client) => {
                     if attempt > 0 {
-                        tracing::info!(
-                            attempt,
-                            "Successfully acquired connection after retries"
-                        );
+                        tracing::info!(attempt, "Successfully acquired connection after retries");
                     }
                     return Ok(client);
                 },
@@ -394,8 +398,8 @@ impl PostgresAdapter {
                     let metrics = self.pool_metrics();
                     tracing::error!(
                         available = metrics.idle_connections,
-                        active    = metrics.active_connections,
-                        max       = metrics.total_connections,
+                        active = metrics.active_connections,
+                        max = metrics.total_connections,
                         "Connection pool timeout: all connections busy"
                     );
                     return Err(FraiseQLError::ConnectionPool {
@@ -413,7 +417,7 @@ impl PostgresAdapter {
                         let delay = CONNECTION_RETRY_DELAY_MS * (u64::from(attempt) + 1);
                         tracing::warn!(
                             attempt = attempt + 1,
-                            total   = MAX_CONNECTION_RETRIES,
+                            total = MAX_CONNECTION_RETRIES,
                             delay_ms = delay,
                             "Transient connection error, retrying"
                         );
@@ -426,10 +430,10 @@ impl PostgresAdapter {
         // All retries for transient errors exhausted.
         let pool_metrics = self.pool_metrics();
         tracing::error!(
-            retries  = MAX_CONNECTION_RETRIES,
+            retries = MAX_CONNECTION_RETRIES,
             available = pool_metrics.idle_connections,
-            active    = pool_metrics.active_connections,
-            max       = pool_metrics.total_connections,
+            active = pool_metrics.active_connections,
+            max = pool_metrics.total_connections,
             "Failed to acquire connection after all retries"
         );
 

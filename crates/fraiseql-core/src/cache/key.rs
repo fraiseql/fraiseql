@@ -932,8 +932,7 @@ mod tests {
         use crate::db::{OrderByClause, OrderDirection};
 
         let by_name = [OrderByClause::new("name".into(), OrderDirection::Asc)];
-        let by_date =
-            [OrderByClause::new("createdAt".into(), OrderDirection::Asc)];
+        let by_date = [OrderByClause::new("createdAt".into(), OrderDirection::Asc)];
 
         let key_name = generate_view_query_key("v_user", None, None, None, Some(&by_name), "v1");
         let key_date = generate_view_query_key("v_user", None, None, None, Some(&by_date), "v1");

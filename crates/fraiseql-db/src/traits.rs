@@ -800,8 +800,8 @@ pub trait DatabaseAdapter: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `variables` - Slice of `(setting_name, value)` pairs to inject.
-    ///   Names must be safe PostgreSQL setting names (e.g. `"app.tenant_id"`).
+    /// * `variables` - Slice of `(setting_name, value)` pairs to inject. Names must be safe
+    ///   PostgreSQL setting names (e.g. `"app.tenant_id"`).
     ///
     /// # Default
     ///

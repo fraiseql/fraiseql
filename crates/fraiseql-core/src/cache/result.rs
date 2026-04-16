@@ -7,14 +7,14 @@
 //!
 //! ## Performance characteristics
 //!
-//! - **`get()` hot path** (cache hit): lock-free frequency-counter update (thread-local
-//!   ring buffer, drained lazily on writes), `Arc` clone (single atomic increment),
-//!   one atomic counter bump.
-//! - **`put()` path**: early-exit guards (disabled / list / size) before touching
-//!   the store. Reverse-index updates use `DashMap` (fine-grained sharding, no global lock).
+//! - **`get()` hot path** (cache hit): lock-free frequency-counter update (thread-local ring
+//!   buffer, drained lazily on writes), `Arc` clone (single atomic increment), one atomic counter
+//!   bump.
+//! - **`put()` path**: early-exit guards (disabled / list / size) before touching the store.
+//!   Reverse-index updates use `DashMap` (fine-grained sharding, no global lock).
 //! - **`metrics()`**: reads `store.entry_count()` directly — no shard scan.
-//! - **`invalidate_views()` / `invalidate_by_entity()`**: O(k) where k = matching entries
-//!   (via reverse indexes), not O(total entries).
+//! - **`invalidate_views()` / `invalidate_by_entity()`**: O(k) where k = matching entries (via
+//!   reverse indexes), not O(total entries).
 //!
 //! ## Reverse indexes
 //!
@@ -484,9 +484,9 @@ impl QueryResultCache {
     /// * `result` - Query result to cache
     /// * `accessed_views` - List of views accessed by this query
     /// * `ttl_override` - Per-entry TTL in seconds; `None` uses `CacheConfig::ttl_seconds`
-    /// * `entity_type` - Optional GraphQL type name (e.g. `"User"`) for entity-ID indexing.
-    ///   When provided, each row's `"id"` field is extracted and stored in `entity_index`
-    ///   so that `invalidate_by_entity()` can perform selective eviction.
+    /// * `entity_type` - Optional GraphQL type name (e.g. `"User"`) for entity-ID indexing. When
+    ///   provided, each row's `"id"` field is extracted and stored in `entity_index` so that
+    ///   `invalidate_by_entity()` can perform selective eviction.
     ///
     /// # Errors
     ///
@@ -1181,7 +1181,9 @@ mod tests {
     // ========================================================================
 
     fn entity_result(id: &str) -> Vec<JsonbValue> {
-        vec![JsonbValue::new(serde_json::json!({"id": id, "name": "test"}))]
+        vec![JsonbValue::new(
+            serde_json::json!({"id": id, "name": "test"}),
+        )]
     }
 
     #[test]
@@ -1209,13 +1211,7 @@ mod tests {
 
         // Cache a single-entity entry (entity_ref uses first row's id)
         cache
-            .put(
-                1_u64,
-                entity_result("uuid-a"),
-                vec!["v_user".to_string()],
-                None,
-                Some("User"),
-            )
+            .put(1_u64, entity_result("uuid-a"), vec!["v_user".to_string()], None, Some("User"))
             .unwrap();
 
         // Invalidate by User A
@@ -1260,13 +1256,7 @@ mod tests {
         let cache = QueryResultCache::new(CacheConfig::enabled());
 
         cache
-            .put(
-                1_u64,
-                entity_result("uuid-1"),
-                vec!["v_user".to_string()],
-                None,
-                Some("User"),
-            )
+            .put(1_u64, entity_result("uuid-1"), vec!["v_user".to_string()], None, Some("User"))
             .unwrap();
 
         // Invalidating by uuid-1 should evict the entry
@@ -1339,7 +1329,9 @@ mod tests {
 
         // Point lookup: single row
         let single = vec![JsonbValue::new(serde_json::json!({"id": "uuid-X"}))];
-        cache.put(0x001, single, vec!["v_user".to_string()], None, Some("User")).unwrap();
+        cache
+            .put(0x001, single, vec!["v_user".to_string()], None, Some("User"))
+            .unwrap();
 
         // List query: multiple rows
         let list = list_result(&["uuid-A", "uuid-B"]);

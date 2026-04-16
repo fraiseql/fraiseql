@@ -163,10 +163,7 @@ mod tests {
     #[test]
     fn observer_pool_config_defaults_are_sensible() {
         let cfg = ObserverPoolConfig::default();
-        assert!(
-            cfg.min_connections >= 1,
-            "observer pool needs at least 1 connection"
-        );
+        assert!(cfg.min_connections >= 1, "observer pool needs at least 1 connection");
         assert!(
             cfg.max_connections >= cfg.min_connections,
             "max_connections ({}) must be >= min_connections ({})",

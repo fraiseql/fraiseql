@@ -85,7 +85,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Extract selections from inline fragments (... on TypeName { fields })
         // so the execution layer can project only requested fields.
         if parsed.operation_type == "query" && root_field == "node" {
-            let selections = parsed.selections
+            let selections = parsed
+                .selections
                 .first()
                 .map(|node_sel| {
                     // Flatten inline fragments: `node { ... on Booking { id startDate } }`
@@ -115,11 +116,12 @@ impl<A: DatabaseAdapter> Executor<A> {
                     for f in &s.nested_fields {
                         if let Some(type_name) = f.name.strip_prefix("...on ") {
                             // Inline fragment: collect fields under the type name
-                            let fields: Vec<String> =
-                                f.nested_fields.iter().map(|nf| nf.response_key().to_string()).collect();
-                            map.entry(type_name.to_string())
-                                .or_default()
-                                .extend(fields);
+                            let fields: Vec<String> = f
+                                .nested_fields
+                                .iter()
+                                .map(|nf| nf.response_key().to_string())
+                                .collect();
+                            map.entry(type_name.to_string()).or_default().extend(fields);
                         } else {
                             // Common field (outside any inline fragment)
                             map.entry(String::new())
@@ -130,7 +132,13 @@ impl<A: DatabaseAdapter> Executor<A> {
                     map
                 })
                 .unwrap_or_default();
-            return Ok((QueryType::Mutation { name: root_field.clone(), type_selections }, None));
+            return Ok((
+                QueryType::Mutation {
+                    name: root_field.clone(),
+                    type_selections,
+                },
+                None,
+            ));
         }
 
         // Aggregate queries (root field ends with `_aggregate`).

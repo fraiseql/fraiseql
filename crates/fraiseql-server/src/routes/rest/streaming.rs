@@ -289,7 +289,10 @@ impl NdjsonBody {
 /// # Errors
 ///
 /// Returns `RestError` if the result cannot be parsed.
-fn extract_rows(result: &serde_json::Value, query_name: &str) -> Result<Vec<serde_json::Value>, RestError> {
+fn extract_rows(
+    result: &serde_json::Value,
+    query_name: &str,
+) -> Result<Vec<serde_json::Value>, RestError> {
     let data = result
         .get("data")
         .and_then(|d| d.get(query_name))

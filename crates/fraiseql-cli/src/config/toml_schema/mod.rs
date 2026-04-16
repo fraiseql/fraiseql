@@ -32,6 +32,7 @@ pub use federation::{
     FederationCircuitBreakerConfig, FederationConfig, FederationEntity,
     PerDatabaseCircuitBreakerOverride,
 };
+use fraiseql_core::schema::{CrudNamingConfig, NamingConvention};
 pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
 pub use operations::{MutationDefinition, QueryDefaults, QueryDefinition, SchemaMetadata};
@@ -42,7 +43,6 @@ pub use security::{
     StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode,
     TrustedDocumentsConfig,
 };
-use fraiseql_core::schema::{CrudNamingConfig, NamingConvention};
 use serde::{Deserialize, Serialize};
 pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};

@@ -15,18 +15,18 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// JSONB key name (source).
-    pub source:           String,
+    pub source:          String,
     /// Output key name (alias if different from source).
-    pub output:           String,
+    pub output:          String,
     /// Fallback source key to try when the primary `source` is not found.
     /// Used for mutation error metadata where the key may be either `camelCase`
     /// or `snake_case` depending on the backend.
-    pub source_fallback:  Option<String>,
+    pub source_fallback: Option<String>,
     /// For nested object fields, the typename to add.
     /// This enables `__typename` to be added recursively to nested objects.
-    pub nested_typename:  Option<String>,
+    pub nested_typename: Option<String>,
     /// Nested field mappings (for related objects).
-    pub nested_fields:    Option<Vec<FieldMapping>>,
+    pub nested_fields:   Option<Vec<FieldMapping>>,
 }
 
 impl FieldMapping {
@@ -76,11 +76,11 @@ impl FieldMapping {
     ) -> Self {
         let name = name.into();
         Self {
-            source:           name.clone(),
-            output:           name,
-            source_fallback:  None,
-            nested_typename:  Some(typename.into()),
-            nested_fields:    Some(fields),
+            source:          name.clone(),
+            output:          name,
+            source_fallback: None,
+            nested_typename: Some(typename.into()),
+            nested_fields:   Some(fields),
         }
     }
 
@@ -93,11 +93,11 @@ impl FieldMapping {
         fields: Vec<FieldMapping>,
     ) -> Self {
         Self {
-            source:           source.into(),
-            output:           alias.into(),
-            source_fallback:  None,
-            nested_typename:  Some(typename.into()),
-            nested_fields:    Some(fields),
+            source:          source.into(),
+            output:          alias.into(),
+            source_fallback: None,
+            nested_typename: Some(typename.into()),
+            nested_fields:   Some(fields),
         }
     }
 
@@ -144,7 +144,7 @@ impl ProjectionMapper {
     pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             fields,
-            typename:        None,
+            typename: None,
             federation_mode: false,
         }
     }
@@ -196,7 +196,10 @@ impl ProjectionMapper {
     /// # Errors
     ///
     /// Returns error if nested value projection fails.
-    pub fn project_json_object(&self, map: &serde_json::Map<String, JsonValue>) -> Result<JsonValue> {
+    pub fn project_json_object(
+        &self,
+        map: &serde_json::Map<String, JsonValue>,
+    ) -> Result<JsonValue> {
         let mut result = Map::new();
 
         // Add __typename first if configured (GraphQL convention)
@@ -206,9 +209,9 @@ impl ProjectionMapper {
 
         // Project fields with alias support and optional fallback key
         for field in &self.fields {
-            let value = map.get(&field.source).or_else(|| {
-                field.source_fallback.as_ref().and_then(|fb| map.get(fb))
-            });
+            let value = map
+                .get(&field.source)
+                .or_else(|| field.source_fallback.as_ref().and_then(|fb| map.get(fb)));
             if let Some(value) = value {
                 let projected_value = self.project_nested_value(value, field)?;
                 result.insert(field.output.clone(), projected_value);
@@ -339,7 +342,11 @@ impl ResultProjector {
         let wants_typename = selections
             .first()
             .is_some_and(|root| root.nested_fields.iter().any(|f| f.name == "__typename"));
-        if wants_typename { self.with_typename(entity_type) } else { self }
+        if wants_typename {
+            self.with_typename(entity_type)
+        } else {
+            self
+        }
     }
 
     /// Enable federation mode: `__typename` is always injected regardless of selection set.
@@ -520,9 +527,7 @@ pub fn build_field_mappings_from_type(
 ) -> Vec<FieldMapping> {
     fields
         .iter()
-        .filter(|f| {
-            requested.is_none_or(|r| r.iter().any(|name| name == f.name.as_str()))
-        })
+        .filter(|f| requested.is_none_or(|r| r.iter().any(|name| name == f.name.as_str())))
         .map(|field| {
             let source = to_camel_case(field.name.as_str());
             let output = field.name.to_string();
@@ -536,25 +541,21 @@ pub fn build_field_mappings_from_type(
             };
 
             // Resolve the innermost type (unwrap List wrapper if present)
-            let inner = field
-                .field_type
-                .inner_type()
-                .unwrap_or(&field.field_type);
+            let inner = field.field_type.inner_type().unwrap_or(&field.field_type);
 
             if let Some(type_name) = inner.type_name() {
                 // Object/Enum/Interface reference — try to resolve in schema
                 if let Some(td) = schema.find_type(type_name) {
                     if visited.insert(type_name.to_string()) {
-                        let nested = build_field_mappings_from_type(
-                            &td.fields, schema, None, visited,
-                        );
+                        let nested =
+                            build_field_mappings_from_type(&td.fields, schema, None, visited);
                         visited.remove(type_name);
                         return FieldMapping {
                             source,
                             output,
                             source_fallback,
                             nested_typename: Some(type_name.to_string()),
-                            nested_fields:   Some(nested),
+                            nested_fields: Some(nested),
                         };
                     }
                     // Cycle detected — return without recursion
@@ -566,7 +567,7 @@ pub fn build_field_mappings_from_type(
                 output,
                 source_fallback,
                 nested_typename: None,
-                nested_fields:   None,
+                nested_fields: None,
             }
         })
         .collect()

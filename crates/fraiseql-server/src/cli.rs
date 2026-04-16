@@ -12,8 +12,7 @@
 
 use std::net::SocketAddr;
 
-use clap::builder::BoolishValueParser;
-use clap::{Args, Parser};
+use clap::{Args, Parser, builder::BoolishValueParser};
 
 use crate::ServerConfig;
 
@@ -22,12 +21,9 @@ use crate::ServerConfig;
 /// Accepts `true`, `1`, `yes`, `on` (case-insensitive) as `Some(true)`;
 /// all other values as `Some(false)`.
 fn parse_bool_env_opt(var: &str) -> Option<bool> {
-    std::env::var(var).ok().map(|v| {
-        matches!(
-            v.to_ascii_lowercase().as_str(),
-            "true" | "1" | "yes" | "on"
-        )
-    })
+    std::env::var(var)
+        .ok()
+        .map(|v| matches!(v.to_ascii_lowercase().as_str(), "true" | "1" | "yes" | "on"))
 }
 
 // ── Top-level CLI ────────────────────────────────────────────────────────────
@@ -60,7 +56,6 @@ pub struct Cli {
 #[derive(Args, Debug, Clone, Default)]
 pub struct ServerArgs {
     // ── Core ─────────────────────────────────────────────────────────────
-
     /// Path to TOML configuration file.
     #[arg(long, env = "FRAISEQL_CONFIG")]
     pub config: Option<String>,
@@ -78,7 +73,6 @@ pub struct ServerArgs {
     pub schema_path: Option<String>,
 
     // ── Metrics ──────────────────────────────────────────────────────────
-
     /// Enable Prometheus metrics endpoint.
     #[arg(long, env = "FRAISEQL_METRICS_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub metrics_enabled: Option<bool>,
@@ -88,7 +82,6 @@ pub struct ServerArgs {
     pub metrics_token: Option<String>,
 
     // ── Admin API ────────────────────────────────────────────────────────
-
     /// Enable admin API endpoints.
     #[arg(long, env = "FRAISEQL_ADMIN_API_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub admin_api_enabled: Option<bool>,
@@ -98,7 +91,6 @@ pub struct ServerArgs {
     pub admin_token: Option<String>,
 
     // ── Introspection ────────────────────────────────────────────────────
-
     /// Enable GraphQL introspection endpoint.
     #[arg(long, env = "FRAISEQL_INTROSPECTION_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub introspection_enabled: Option<bool>,
@@ -108,7 +100,6 @@ pub struct ServerArgs {
     pub introspection_require_auth: Option<bool>,
 
     // ── Rate limiting ────────────────────────────────────────────────────
-
     /// Enable per-IP and per-user rate limiting.
     #[arg(long, env = "FRAISEQL_RATE_LIMITING_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub rate_limiting_enabled: Option<bool>,
@@ -126,7 +117,6 @@ pub struct ServerArgs {
     pub rate_limit_burst_size: Option<u32>,
 
     // ── Logging ──────────────────────────────────────────────────────────
-
     /// Log output format: `json` for structured JSON, `text` for
     /// human-readable (default).
     #[arg(long, env = "FRAISEQL_LOG_FORMAT")]
@@ -144,29 +134,29 @@ impl ServerArgs {
     /// generate overrides.
     pub fn from_env() -> Self {
         Self {
-            config:                    std::env::var("FRAISEQL_CONFIG").ok(),
-            database_url:             std::env::var("DATABASE_URL").ok(),
-            bind_addr:                std::env::var("FRAISEQL_BIND_ADDR")
+            config:                     std::env::var("FRAISEQL_CONFIG").ok(),
+            database_url:               std::env::var("DATABASE_URL").ok(),
+            bind_addr:                  std::env::var("FRAISEQL_BIND_ADDR")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            schema_path:              std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
-            metrics_enabled:          parse_bool_env_opt("FRAISEQL_METRICS_ENABLED"),
-            metrics_token:            std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
-            admin_api_enabled:        parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED"),
-            admin_token:              std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
-            introspection_enabled:    parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
+            schema_path:                std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
+            metrics_enabled:            parse_bool_env_opt("FRAISEQL_METRICS_ENABLED"),
+            metrics_token:              std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
+            admin_api_enabled:          parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED"),
+            admin_token:                std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
+            introspection_enabled:      parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
             introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH"),
-            rate_limiting_enabled:    parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
-            rate_limit_rps_per_ip:    std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
+            rate_limiting_enabled:      parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
+            rate_limit_rps_per_ip:      std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            rate_limit_rps_per_user:  std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER")
+            rate_limit_rps_per_user:    std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            rate_limit_burst_size:    std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE")
+            rate_limit_burst_size:      std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            log_format:               std::env::var("FRAISEQL_LOG_FORMAT").ok(),
+            log_format:                 std::env::var("FRAISEQL_LOG_FORMAT").ok(),
         }
     }
 
@@ -225,10 +215,7 @@ impl ServerArgs {
             return;
         }
 
-        let mut rate_config = config
-            .rate_limiting
-            .take()
-            .unwrap_or_default();
+        let mut rate_config = config.rate_limiting.take().unwrap_or_default();
 
         if let Some(enabled) = self.rate_limiting_enabled {
             rate_config.enabled = enabled;
@@ -248,9 +235,7 @@ impl ServerArgs {
 
     /// Whether the log format is JSON.
     pub fn is_json_log_format(&self) -> bool {
-        self.log_format
-            .as_deref()
-            .is_some_and(|v| v.eq_ignore_ascii_case("json"))
+        self.log_format.as_deref().is_some_and(|v| v.eq_ignore_ascii_case("json"))
     }
 }
 
@@ -258,9 +243,8 @@ impl ServerArgs {
 #[allow(clippy::field_reassign_with_default)] // Reason: test readability — explicit field-by-field overrides
 #[cfg(test)]
 mod tests {
-    use crate::middleware::RateLimitConfig;
-
     use super::*;
+    use crate::middleware::RateLimitConfig;
 
     // ── Cli::parse_from ──────────────────────────────────────────────────
 
@@ -272,20 +256,18 @@ mod tests {
 
     #[test]
     fn cli_parse_database_url_flag() {
-        let cli = Cli::parse_from(["fraiseql-server", "--database-url", "postgres://localhost/db"]);
-        assert_eq!(
-            cli.server.database_url.as_deref(),
-            Some("postgres://localhost/db")
-        );
+        let cli = Cli::parse_from([
+            "fraiseql-server",
+            "--database-url",
+            "postgres://localhost/db",
+        ]);
+        assert_eq!(cli.server.database_url.as_deref(), Some("postgres://localhost/db"));
     }
 
     #[test]
     fn cli_parse_bind_addr_flag() {
         let cli = Cli::parse_from(["fraiseql-server", "--bind-addr", "127.0.0.1:3000"]);
-        assert_eq!(
-            cli.server.bind_addr,
-            Some("127.0.0.1:3000".parse().unwrap())
-        );
+        assert_eq!(cli.server.bind_addr, Some("127.0.0.1:3000".parse().unwrap()));
     }
 
     #[test]
@@ -304,12 +286,10 @@ mod tests {
 
     #[test]
     fn cli_parse_bool_flag_with_value() {
-        let cli =
-            Cli::parse_from(["fraiseql-server", "--metrics-enabled", "true"]);
+        let cli = Cli::parse_from(["fraiseql-server", "--metrics-enabled", "true"]);
         assert_eq!(cli.server.metrics_enabled, Some(true));
 
-        let cli =
-            Cli::parse_from(["fraiseql-server", "--metrics-enabled", "false"]);
+        let cli = Cli::parse_from(["fraiseql-server", "--metrics-enabled", "false"]);
         assert_eq!(cli.server.metrics_enabled, Some(false));
     }
 

@@ -430,7 +430,10 @@ fn extract_mutation_data(result: &serde_json::Value) -> Result<serde_json::Value
 /// Extract entity data from a DELETE mutation response.
 ///
 /// Parses `data.{mutation_name}.entity` from the mutation result.
-fn extract_delete_entity(result: &serde_json::Value, mutation_name: &str) -> Option<serde_json::Value> {
+fn extract_delete_entity(
+    result: &serde_json::Value,
+    mutation_name: &str,
+) -> Option<serde_json::Value> {
     let entity = result.get("data")?.get(mutation_name)?.get("entity")?;
 
     if entity.is_null() {
@@ -960,7 +963,9 @@ mod tests {
     fn collection_cursor_has_next_page_meta() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = v(r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#);
+        let result = v(
+            r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#,
+        );
         let pagination = PaginationParams::Cursor {
             first:  Some(5),
             after:  None,
@@ -983,7 +988,9 @@ mod tests {
     fn collection_cursor_links_with_next() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = v(r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#);
+        let result = v(
+            r#"{"data":{"posts":{"edges":[{"cursor":"c1","node":{"id":1}}],"pageInfo":{"hasNextPage":true,"hasPreviousPage":false,"endCursor":"c1"}}}}"#,
+        );
         let pagination = PaginationParams::Cursor {
             first:  Some(10),
             after:  None,
@@ -1006,7 +1013,9 @@ mod tests {
     fn collection_cursor_no_next_link_when_no_next_page() {
         let config = default_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = v(r#"{"data":{"posts":{"edges":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}}}"#);
+        let result = v(
+            r#"{"data":{"posts":{"edges":[],"pageInfo":{"hasNextPage":false,"hasPreviousPage":false}}}}"#,
+        );
         let pagination = PaginationParams::Cursor {
             first:  Some(10),
             after:  None,
@@ -1097,7 +1106,9 @@ mod tests {
         let result = v(r#"{"data":{"createUser":{"entity":{"id":5}}}}"#);
         let id = json!(5);
 
-        let resp = formatter.format_created(&result, "/users", Some(&id), &empty_headers()).unwrap();
+        let resp = formatter
+            .format_created(&result, "/users", Some(&id), &empty_headers())
+            .unwrap();
 
         assert_eq!(resp.headers.get("location").unwrap().to_str().unwrap(), "/rest/v1/users/5");
     }
@@ -1167,7 +1178,8 @@ mod tests {
     fn deleted_200_entity_config() {
         let config = entity_delete_config();
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
+        let result =
+            v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
         let prefer = PreferHeader::default();
 
         let resp = formatter.format_deleted(&result, "deleteUser", &prefer, &empty_headers());
@@ -1181,7 +1193,8 @@ mod tests {
     fn deleted_prefer_return_representation_with_entity() {
         let config = default_config(); // NoContent default, but Prefer overrides
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
+        let result =
+            v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
         let prefer = PreferHeader {
             return_representation: true,
             ..Default::default()
@@ -1226,7 +1239,8 @@ mod tests {
     fn deleted_prefer_return_minimal_overrides_entity_config() {
         let config = entity_delete_config(); // Entity default, but Prefer overrides
         let formatter = RestResponseFormatter::new(&config, "/rest/v1");
-        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
+        let result =
+            v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
         let prefer = PreferHeader {
             return_minimal: true,
             ..Default::default()
@@ -1424,7 +1438,8 @@ mod tests {
 
     #[test]
     fn extract_delete_entity_present() {
-        let result = v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
+        let result =
+            v(r#"{"data":{"deleteUser":{"success":true,"entity":{"id":1,"name":"Alice"}}}}"#);
         let entity = extract_delete_entity(&result, "deleteUser").unwrap();
         assert_eq!(entity["id"], 1);
     }

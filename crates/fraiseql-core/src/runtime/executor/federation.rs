@@ -94,11 +94,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         // not stored in the database. The database_resolver injects it into results.
         let selection = match crate::federation::selection_parser::parse_field_selection(query) {
             Ok(sel) if !sel.fields.is_empty() => {
-                let fields: Vec<String> = sel
-                    .fields
-                    .into_iter()
-                    .filter(|f| f != "__typename")
-                    .collect();
+                let fields: Vec<String> =
+                    sel.fields.into_iter().filter(|f| f != "__typename").collect();
                 crate::federation::FieldSelection::new(fields)
             },
             _ => {

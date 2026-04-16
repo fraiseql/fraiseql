@@ -9,10 +9,10 @@
 //! 1. Build schema with `updateUser` mutation (`sql_source = "fn_updateUser"`)
 //! 2. Wire `FailingAdapter` with a canned `mutation_response` row
 //! 3. Attach `InMemoryApqStorage` to `AppState`
-//! 4. Send registration request: `{query, variables, extensions.persistedQuery.sha256Hash}`
-//!    → must return HTTP 200 with `data`
-//! 5. Send hash-only request: `{variables, extensions.persistedQuery.sha256Hash}`
-//!    → must return HTTP 200 with `data` (cache hit)
+//! 4. Send registration request: `{query, variables, extensions.persistedQuery.sha256Hash}` → must
+//!    return HTTP 200 with `data`
+//! 5. Send hash-only request: `{variables, extensions.persistedQuery.sha256Hash}` → must return
+//!    HTTP 200 with `data` (cache hit)
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::missing_panics_doc)] // Reason: test helpers
@@ -20,21 +20,14 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use axum::{
-    Router,
-    body::Body,
-    routing::post,
-};
+use axum::{Router, body::Body, routing::post};
 use fraiseql_core::{
     apq::{InMemoryApqStorage, hash_query},
     runtime::Executor,
     schema::{ArgumentDefinition, FieldType, MutationDefinition},
 };
 use fraiseql_server::routes::graphql::{AppState, graphql_handler};
-use fraiseql_test_utils::{
-    failing_adapter::FailingAdapter,
-    schema_builder::TestSchemaBuilder,
-};
+use fraiseql_test_utils::{failing_adapter::FailingAdapter, schema_builder::TestSchemaBuilder};
 use http::{Request, StatusCode};
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -174,7 +167,11 @@ async fn test_apq_mutation_registration_returns_data() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "APQ mutation registration must return HTTP 200; body: {body}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "APQ mutation registration must return HTTP 200; body: {body}"
+    );
     assert!(
         body.get("data").is_some(),
         "APQ mutation registration must return data; body: {body}"
@@ -211,8 +208,7 @@ async fn test_apq_mutation_hash_only_returns_data() {
     ];
     let schema = TestSchemaBuilder::new().with_mutation(mutation).build();
     let adapter = Arc::new(
-        FailingAdapter::new()
-            .with_function_response("fn_updateUser", mutation_success_row(entity)),
+        FailingAdapter::new().with_function_response("fn_updateUser", mutation_success_row(entity)),
     );
     let executor = Arc::new(Executor::new(schema, adapter));
     let state = AppState::new(executor).with_apq_store(apq_store);
@@ -237,7 +233,11 @@ async fn test_apq_mutation_hash_only_returns_data() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "APQ hash-only mutation request must return HTTP 200; body: {body}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "APQ hash-only mutation request must return HTTP 200; body: {body}"
+    );
     assert!(
         body.get("data").is_some(),
         "APQ hash-only mutation request must return data; body: {body}"
@@ -270,17 +270,15 @@ async fn test_apq_mutation_full_lifecycle() {
     ];
     let schema = TestSchemaBuilder::new().with_mutation(mutation).build();
     // The adapter must serve the same response across two calls
-    let adapter = Arc::new(
-        FailingAdapter::new().with_function_response(
-            "fn_updateUser",
-            // Two success rows: one for registration, one for the cache hit
-            {
-                let mut rows = mutation_success_row(entity.clone());
-                rows.extend(mutation_success_row(entity));
-                rows
-            },
-        ),
-    );
+    let adapter = Arc::new(FailingAdapter::new().with_function_response(
+        "fn_updateUser",
+        // Two success rows: one for registration, one for the cache hit
+        {
+            let mut rows = mutation_success_row(entity.clone());
+            rows.extend(mutation_success_row(entity));
+            rows
+        },
+    ));
     let executor = Arc::new(Executor::new(schema, adapter));
     let state = AppState::new(executor).with_apq_store(apq_store);
     let router = Router::new()
@@ -308,7 +306,11 @@ async fn test_apq_mutation_full_lifecycle() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "Step 1 (registration) must return HTTP 200; body: {body}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "Step 1 (registration) must return HTTP 200; body: {body}"
+    );
     assert!(body.get("data").is_some(), "Step 1 must return data; body: {body}");
     assert!(body.get("errors").is_none(), "Step 1 must not return errors; body: {body}");
 
@@ -327,7 +329,11 @@ async fn test_apq_mutation_full_lifecycle() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "Step 2 (hash-only hit) must return HTTP 200; body: {body}");
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "Step 2 (hash-only hit) must return HTTP 200; body: {body}"
+    );
     assert!(body.get("data").is_some(), "Step 2 must return data; body: {body}");
     assert!(body.get("errors").is_none(), "Step 2 must not return errors; body: {body}");
 }

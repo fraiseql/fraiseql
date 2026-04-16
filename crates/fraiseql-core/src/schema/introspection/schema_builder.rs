@@ -172,8 +172,11 @@ fn build_mutation_type(schema: &CompiledSchema) -> IntrospectionType {
 
 /// Build Subscription root type.
 fn build_subscription_type(schema: &CompiledSchema) -> IntrospectionType {
-    let fields: Vec<IntrospectionField> =
-        schema.subscriptions.iter().map(|s| build_subscription_field(s, schema)).collect();
+    let fields: Vec<IntrospectionField> = schema
+        .subscriptions
+        .iter()
+        .map(|s| build_subscription_field(s, schema))
+        .collect();
 
     IntrospectionType {
         kind:               TypeKind::Object,
@@ -402,7 +405,10 @@ fn build_node_query_field() -> IntrospectionField {
 }
 
 /// Build mutation field introspection.
-fn build_mutation_field(mutation: &MutationDefinition, schema: &CompiledSchema) -> IntrospectionField {
+fn build_mutation_field(
+    mutation: &MutationDefinition,
+    schema: &CompiledSchema,
+) -> IntrospectionField {
     // Mutations always return a single object (not a list)
     let return_type = type_ref(&mutation.return_type);
 
@@ -421,7 +427,10 @@ fn build_mutation_field(mutation: &MutationDefinition, schema: &CompiledSchema) 
 }
 
 /// Build subscription field introspection.
-fn build_subscription_field(subscription: &SubscriptionDefinition, schema: &CompiledSchema) -> IntrospectionField {
+fn build_subscription_field(
+    subscription: &SubscriptionDefinition,
+    schema: &CompiledSchema,
+) -> IntrospectionField {
     // Subscriptions typically return a single item per event
     let return_type = type_ref(&subscription.return_type);
 
@@ -490,17 +499,15 @@ impl IntrospectionResponses {
     /// Get response for `__type(name: "...")` query.
     #[must_use]
     pub fn get_type_response(&self, type_name: &str) -> serde_json::Value {
-        self.type_responses
-            .get(type_name)
-            .map_or_else(
-                || {
-                    serde_json::json!({
-                        "data": {
-                            "__type": null
-                        }
-                    })
-                },
-                |v| v.as_ref().clone(),
-            )
+        self.type_responses.get(type_name).map_or_else(
+            || {
+                serde_json::json!({
+                    "data": {
+                        "__type": null
+                    }
+                })
+            },
+            |v| v.as_ref().clone(),
+        )
     }
 }

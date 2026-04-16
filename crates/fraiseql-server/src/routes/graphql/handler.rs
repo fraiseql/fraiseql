@@ -467,10 +467,12 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         headers,
         state.domain_registry(),
     )
-    .map_err(|e| ErrorResponse::from_error(GraphQLError::new(
-        e.to_string(),
-        crate::error::ErrorCode::ValidationError,
-    )))?;
+    .map_err(|e| {
+        ErrorResponse::from_error(GraphQLError::new(
+            e.to_string(),
+            crate::error::ErrorCode::ValidationError,
+        ))
+    })?;
 
     // Execute query (defer error propagation to record circuit breaker outcome first)
     let executor = state.executor_for_tenant(tenant_key.as_deref()).map_err(|e| {

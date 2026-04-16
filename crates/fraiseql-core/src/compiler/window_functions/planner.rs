@@ -91,10 +91,7 @@ impl WindowFunctionPlanner {
                             Some("DESC") => OrderDirection::Desc,
                             _ => OrderDirection::Asc,
                         };
-                        Some(OrderByClause::new(
-                            item["field"].as_str()?.to_string(),
-                            direction,
-                        ))
+                        Some(OrderByClause::new(item["field"].as_str()?.to_string(), direction))
                     })
                     .collect()
             })
