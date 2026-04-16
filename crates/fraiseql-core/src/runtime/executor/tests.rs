@@ -1376,7 +1376,7 @@ mod mutation {
     // SQL functions can use `input ? 'field'` to test key presence.
 
     /// Mock adapter that captures the args passed to `execute_function_call`.
-    /// Returns a minimal v1 mutation_response so the full execution path runs.
+    /// Returns a minimal v1 `mutation_response` so the full execution path runs.
     struct CapturingFunctionCallAdapter {
         captured_args: std::sync::Mutex<Vec<serde_json::Value>>,
     }
@@ -1400,8 +1400,8 @@ mod mutation {
             _function_name: &str,
             args: &[serde_json::Value],
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            *self.captured_args.lock().unwrap() = args.to_vec();
             use serde_json::json;
+            *self.captured_args.lock().unwrap() = args.to_vec();
             let mut row = std::collections::HashMap::new();
             row.insert("status".to_string(), json!("success"));
             row.insert("entity".to_string(), json!({"id": "1"}));
@@ -2030,6 +2030,63 @@ mod rls_composition {
                 // Together: AND(AND(rls, inject), user_where)
             },
             _ => panic!("expected AND composition, got: {where_clause:?}"),
+        }
+    }
+    #[tokio::test]
+    async fn test_inject_params_respects_native_columns() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+        let mut schema = CompiledSchema::new();
+        let mut native_cols = HashMap::new();
+        native_cols.insert("tenant_id".to_string(), "uuid".to_string());
+        schema.queries.push(QueryDefinition {
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams { has_where: true, ..AutoParams::default() },
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       inject,
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      native_cols,
+        });
+        schema.types.push({
+            let mut t = TypeDefinition::new("User", "v_user");
+            t.fields = vec![
+                FieldDefinition::new("id", FieldType::Int),
+                FieldDefinition::new("name", FieldType::String),
+            ];
+            t
+        });
+
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = tenant_security_context();
+        let _result = executor
+            .execute_with_security("{ users { id name } }", None, &ctx)
+            .await
+            .unwrap();
+
+        let captured = adapter.captured_where();
+        assert!(captured.is_some(), "inject with native_columns should produce WHERE");
+        match captured.unwrap() {
+            WhereClause::NativeField { column, pg_cast, .. } => {
+                assert_eq!(column, "tenant_id");
+                assert_eq!(pg_cast, "uuid");
+            },
+            other => panic!("expected NativeField for native_columns inject, got: {other:?}"),
         }
     }
 }

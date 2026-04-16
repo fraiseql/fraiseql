@@ -316,11 +316,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .iter()
                 .map(|(col, source)| {
                     let value = resolve_inject_value(col, source, security_context)?;
-                    Ok(WhereClause::Field {
-                        path: vec![col.clone()],
-                        operator: WhereOperator::Eq,
-                        value,
-                    })
+                    Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -939,11 +935,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .iter()
                 .map(|(col, source)| {
                     let value = resolve_inject_value(col, source, ctx)?;
-                    Ok(WhereClause::Field {
-                        path: vec![col.clone()],
-                        operator: WhereOperator::Eq,
-                        value,
-                    })
+                    Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -1090,11 +1082,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .iter()
                 .map(|(col, source)| {
                     let value = resolve_inject_value(col, source, ctx)?;
-                    Ok(WhereClause::Field {
-                        path: vec![col.clone()],
-                        operator: WhereOperator::Eq,
-                        value,
-                    })
+                    Ok(inject_param_where_clause(col, value, &query_def.native_columns))
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -1485,6 +1473,28 @@ fn selections_contain_field(
 /// Auto-wired argument names that are handled by the `auto_params` system.
 /// These are never treated as explicit WHERE filters.
 const AUTO_PARAM_NAMES: &[&str] = &["where", "limit", "offset", "orderBy", "first", "last", "after", "before"];
+
+/// Build a `WhereClause` for a single inject param, respecting `native_columns`.
+fn inject_param_where_clause(
+    col: &str,
+    value: serde_json::Value,
+    native_columns: &std::collections::HashMap<String, String>,
+) -> WhereClause {
+    if let Some(pg_type) = native_columns.get(col) {
+        WhereClause::NativeField {
+            column:   col.to_string(),
+            pg_cast:  pg_type_to_cast(pg_type).to_string(),
+            operator: WhereOperator::Eq,
+            value,
+        }
+    } else {
+        WhereClause::Field {
+            path:     vec![col.to_string()],
+            operator: WhereOperator::Eq,
+            value,
+        }
+    }
+}
 
 /// Convert PostgreSQL `information_schema.data_type` to a safe SQL cast suffix.
 ///

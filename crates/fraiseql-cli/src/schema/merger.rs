@@ -41,13 +41,13 @@ fn pascal_to_snake(type_name: &str) -> String {
 /// Returns an error when neither is available, naming the offending mutation.
 fn resolve_mutation_sql_source(
     mutation_name: &str,
-    sql_source: &Option<String>,
+    sql_source: Option<&str>,
     operation: &str,
     return_type: &str,
     crud: Option<&CrudNamingConfig>,
 ) -> Result<String> {
     if let Some(src) = sql_source {
-        return Ok(src.clone());
+        return Ok(src.to_string());
     }
     if let Some(cfg) = crud {
         let entity = pascal_to_snake(return_type);
@@ -491,7 +491,7 @@ impl SchemaMerger {
         for (mutation_name, toml_mutation) in &toml_schema.mutations {
             let sql_source = resolve_mutation_sql_source(
                 mutation_name,
-                &toml_mutation.sql_source,
+                toml_mutation.sql_source.as_deref(),
                 &toml_mutation.operation,
                 &toml_mutation.return_type,
                 toml_schema.crud.as_ref(),
