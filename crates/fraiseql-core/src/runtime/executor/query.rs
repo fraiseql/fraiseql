@@ -195,26 +195,28 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // Inject session variables (transaction-scoped set_config) when configured.
+        // Resolve session variables once for all query methods.
         //
-        // Must run before any DB execution (including the relay branch below) so that
-        // PostgreSQL-native Row Level Security policies that rely on `current_setting()`
-        // values (e.g. `app.tenant_id`) are effective for read queries, matching the
-        // behaviour already in place for mutations.
-        {
+        // Session variables are now passed directly to each database adapter method
+        // (execute_where_query, execute_with_projection, etc.) instead of being set
+        // globally on the connection. This ensures variables are scoped to the
+        // transaction containing both SET and the query.
+        let session_vars: Vec<(String, String)> = {
             let sv = &self.schema.session_variables;
             if !sv.variables.is_empty() || sv.inject_started_at {
                 let vars = crate::runtime::executor::security::resolve_session_variables(
                     sv,
                     security_context,
                 );
-                if !vars.is_empty() {
-                    let pairs: Vec<(&str, &str)> =
-                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                    self.adapter.set_session_variables(&pairs).await?;
-                }
+                vars.into_iter().collect()
+            } else {
+                Vec::new()
             }
-        }
+        };
+        let session_var_refs: Vec<(&str, &str)> = session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
@@ -405,6 +407,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 limit,
                 offset,
                 order_by_clauses.as_deref(),
+                &session_var_refs,
             )
             .await?;
 
@@ -624,6 +627,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 limit,
                 offset,
                 order_by_clauses.as_deref(),
+                &[],
             )
             .await?;
 
@@ -757,6 +761,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 limit,
                 offset,
                 order_by_clauses.as_deref(),
+                &[],
             )
             .await?;
 
@@ -964,7 +969,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 4. Execute COUNT query via adapter
         let rows = self
             .adapter
-            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
+            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None, &[])
             .await?;
 
         // Return the row count
@@ -1039,14 +1044,37 @@ impl<A: DatabaseAdapter> Executor<A> {
                     path:    None,
                 })?;
 
+        // Resolve session variables once for all relay query methods.
+        let session_vars: Vec<(String, String)> = {
+            let sv = &self.schema.session_variables;
+            if !sv.variables.is_empty() || sv.inject_started_at {
+                if let Some(sc) = security_context {
+                    let vars = crate::runtime::executor::security::resolve_session_variables(
+                        sv,
+                        sc,
+                    );
+                    vars.into_iter().collect()
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            }
+        };
+        let session_var_refs: Vec<(&str, &str)> = session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+
         // Guard: relay pagination requires the executor to have been constructed
         // via `Executor::new_with_relay` with a `RelayDatabaseAdapter`.
         let relay = self.relay.as_ref().ok_or_else(|| FraiseQLError::Validation {
             message: format!(
                 "Relay pagination is not supported by the {} adapter. \
-                 Use a relay-capable adapter (e.g. PostgreSQL) and construct \
-                 the executor with `Executor::new_with_relay`.",
-                self.adapter.database_type()
+                  Use a relay-capable adapter (e.g. PostgreSQL) and construct \
+                  the executor with `Executor::new_with_relay`.",
+
+                self.adapter.database_type(),
             ),
             path:    None,
         })?;
@@ -1232,6 +1260,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 combined_where.as_ref(),
                 order_by.as_deref(),
                 include_total_count,
+                &session_var_refs,
             )
             .await?;
 
@@ -1406,6 +1435,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 Some(1),
                 None,
                 None,
+                &[],
             )
             .await?;
 

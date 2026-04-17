@@ -78,7 +78,7 @@ pub(super) fn map_mssql_error_code(code: u32) -> Option<String> {
 /// };
 ///
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None, &[])
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -257,15 +257,16 @@ impl DatabaseAdapter for SqlServerAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        projection: Option<&crate::types::SqlProjectionHint>,
+        projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by, &[]).await;
         }
 
         let Some(projection) = projection else {
@@ -343,6 +344,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
         // Build base query — SQL Server uses square brackets for identifiers.
         // TOP and OFFSET...FETCH are mutually exclusive in T-SQL.
@@ -497,6 +499,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         &self,
         sql: &str,
         params: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
             message: format!("Failed to acquire connection: {e}"),
@@ -784,6 +787,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
         where_clause: Option<&WhereClause>,
         order_by: Option<&[OrderByClause]>,
         include_total_count: bool,
+        _session_vars: &[(&str, &str)],
     ) -> Result<RelayPageResult> {
         let quoted_view = quote_sqlserver_identifier(view);
         let quoted_col = quote_sqlserver_identifier(cursor_column);
@@ -1177,7 +1181,7 @@ mod tests {
         // SQL Server requires ORDER BY for OFFSET...FETCH
         // This test just ensures parameterization works
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), Some(1), None)
+            .execute_where_query("v_user", None, Some(2), Some(1), None, &[])
             .await
             .expect("Failed to execute query");
 

@@ -17,7 +17,7 @@ mod wire_view_tests {
 
         println!("Querying v_user with limit 10...");
 
-        let results = adapter.execute_where_query("v_user", None, Some(10), None, None).await;
+        let results = adapter.execute_where_query("v_user", None, Some(10), None, None, &[]).await;
 
         match &results {
             Ok(rows) => {

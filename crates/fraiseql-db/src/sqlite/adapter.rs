@@ -58,7 +58,7 @@ use crate::{
 /// };
 ///
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None, &[])
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -211,15 +211,16 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        projection: Option<&crate::types::SqlProjectionHint>,
+        projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
         // If no projection provided, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by, &[]).await;
         }
 
         let Some(projection) = projection else {
@@ -275,6 +276,7 @@ impl DatabaseAdapter for SqliteAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
         // Build base query - SQLite uses double quotes for identifiers
         let mut sql = format!("SELECT data FROM {}", quote_sqlite_identifier(view));
@@ -494,6 +496,7 @@ impl DatabaseAdapter for SqliteAdapter {
         &self,
         sql: &str,
         params: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         let mut query = sqlx::query(sql);
         for param in params {
@@ -684,7 +687,7 @@ mod tests {
         }
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), None, None)
+            .execute_where_query("v_user", None, Some(2), None, None, &[])
             .await
             .expect("Failed to execute query");
 
@@ -713,7 +716,7 @@ mod tests {
         }
 
         let results = adapter
-            .execute_where_query("v_user", None, None, Some(2), None)
+            .execute_where_query("v_user", None, None, Some(2), None, &[])
             .await
             .expect("Failed to execute query");
 
@@ -742,7 +745,7 @@ mod tests {
         }
 
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), Some(1), None)
+            .execute_where_query("v_user", None, Some(2), Some(1), None, &[])
             .await
             .expect("Failed to execute query");
 
@@ -783,7 +786,7 @@ mod tests {
             value:    json!("user3"),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 1);
@@ -799,7 +802,7 @@ mod tests {
             value:    json!("user1"),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 2);
@@ -815,7 +818,7 @@ mod tests {
             value:    json!(23),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 2);
@@ -831,7 +834,7 @@ mod tests {
             value:    json!(23),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 3);
@@ -847,7 +850,7 @@ mod tests {
             value:    json!(23),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 2);
@@ -863,7 +866,7 @@ mod tests {
             value:    json!(23),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 3);
@@ -878,7 +881,7 @@ mod tests {
             value:    json!(["user1", "user3", "user5"]),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 3);
@@ -893,7 +896,7 @@ mod tests {
             value:    json!(["user1", "user2"]),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 3);
@@ -909,7 +912,7 @@ mod tests {
             value:    json!("user%"),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 5);
@@ -925,7 +928,7 @@ mod tests {
             value:    json!(true),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 3);
@@ -941,7 +944,7 @@ mod tests {
             value:    json!(false),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 0);
@@ -964,7 +967,7 @@ mod tests {
             },
         ]);
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 1);
@@ -988,7 +991,7 @@ mod tests {
             },
         ]);
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert_eq!(results.len(), 2);
@@ -1005,7 +1008,7 @@ mod tests {
             value:    json!("nonexistent"),
         };
         let results = adapter
-            .execute_where_query("v_user", Some(&clause), None, None, None)
+            .execute_where_query("v_user", Some(&clause), None, None, None, &[])
             .await
             .unwrap();
         assert!(results.is_empty());

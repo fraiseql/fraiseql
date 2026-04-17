@@ -514,6 +514,8 @@ mod tests {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+
+            _session_vars: &[(&str, &str)],
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -526,6 +528,8 @@ mod tests {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+
+            _session_vars: &[(&str, &str)],
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -552,7 +556,8 @@ mod tests {
         async fn execute_parameterized_aggregate(
             &self,
             _sql: &str,
-            _params: &[serde_json::Value],
+            _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
         ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }

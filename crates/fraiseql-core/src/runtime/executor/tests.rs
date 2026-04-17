@@ -66,9 +66,10 @@ impl DatabaseAdapter for CapturingMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, offset, None).await
+        self.execute_where_query(view, where_clause, limit, offset, None, &[]).await
     }
 
     async fn execute_where_query(
@@ -77,7 +78,8 @@ impl DatabaseAdapter for CapturingMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         *self.captured_where.lock().unwrap() = where_clause.cloned();
         *self.captured_limit.lock().unwrap() = limit;
@@ -112,7 +114,8 @@ impl DatabaseAdapter for CapturingMockAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -169,10 +172,11 @@ impl DatabaseAdapter for MockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         // Fall back to standard query for tests
-        self.execute_where_query(view, where_clause, limit, None, None).await
+        self.execute_where_query(view, where_clause, limit, None, None, &[]).await
     }
 
     async fn execute_where_query(
@@ -181,7 +185,8 @@ impl DatabaseAdapter for MockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         // Return per-view override if registered, otherwise fall back to uniform results.
         if let Some(results) = self.view_responses.get(view) {
@@ -217,7 +222,8 @@ impl DatabaseAdapter for MockAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -250,9 +256,10 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None, None).await
+        self.execute_where_query(view, where_clause, limit, None, None, &[]).await
     }
 
     async fn execute_where_query(
@@ -261,7 +268,8 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -293,7 +301,8 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -1021,7 +1030,8 @@ mod mutation {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1032,7 +1042,8 @@ mod mutation {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1064,7 +1075,8 @@ mod mutation {
         async fn execute_parameterized_aggregate(
             &self,
             _sql: &str,
-            _params: &[serde_json::Value],
+            _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
@@ -1108,7 +1120,8 @@ mod mutation {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1119,7 +1132,8 @@ mod mutation {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1151,7 +1165,8 @@ mod mutation {
         async fn execute_parameterized_aggregate(
             &self,
             _sql: &str,
-            _params: &[serde_json::Value],
+            _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
@@ -1422,7 +1437,8 @@ mod mutation {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1433,7 +1449,8 @@ mod mutation {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1465,7 +1482,8 @@ mod mutation {
         async fn execute_parameterized_aggregate(
             &self,
             _sql: &str,
-            _params: &[serde_json::Value],
+            _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
@@ -2509,13 +2527,13 @@ mod parse_cache {
     }
 }
 
-// ── mod session_variables: C-SV — set_session_variables called on reads ───
+// ── mod session_variables: C-SV — session vars passed to query methods on reads ───
 
 mod session_variables {
     use super::*;
     use crate::schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig};
 
-    /// Mock adapter that captures calls to `set_session_variables`.
+    /// Mock adapter that captures session vars passed to query methods.
     struct SessionVarCapturingAdapter {
         mock_results: Vec<JsonbValue>,
         captured:     std::sync::Mutex<Vec<(String, String)>>,
@@ -2532,6 +2550,13 @@ mod session_variables {
         fn captured_pairs(&self) -> Vec<(String, String)> {
             self.captured.lock().unwrap().clone()
         }
+
+        fn capture(&self, session_vars: &[(&str, &str)]) {
+            let mut guard = self.captured.lock().unwrap();
+            for (k, v) in session_vars {
+                guard.push(((*k).to_string(), (*v).to_string()));
+            }
+        }
     }
 
     // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -2546,7 +2571,9 @@ mod session_variables {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[crate::db::types::sql_hints::OrderByClause]>,
+            session_vars: &[(&str, &str)],
         ) -> crate::error::Result<Vec<JsonbValue>> {
+            self.capture(session_vars);
             Ok(self.mock_results.clone())
         }
 
@@ -2557,19 +2584,10 @@ mod session_variables {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[crate::db::types::sql_hints::OrderByClause]>,
+            session_vars: &[(&str, &str)],
         ) -> crate::error::Result<Vec<JsonbValue>> {
+            self.capture(session_vars);
             Ok(self.mock_results.clone())
-        }
-
-        async fn set_session_variables(
-            &self,
-            variables: &[(&str, &str)],
-        ) -> crate::error::Result<()> {
-            let mut guard = self.captured.lock().unwrap();
-            for (k, v) in variables {
-                guard.push(((*k).to_string(), (*v).to_string()));
-            }
-            Ok(())
         }
 
         async fn health_check(&self) -> crate::error::Result<()> {
@@ -2601,6 +2619,7 @@ mod session_variables {
             &self,
             _sql: &str,
             _params: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
         ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>>
         {
             Ok(vec![])
@@ -2647,7 +2666,7 @@ mod session_variables {
         }
     }
 
-    /// C-SV1: session variables are injected via `set_session_variables` before a read query.
+    /// C-SV1: session variables are passed directly to the query method on a read query.
     #[tokio::test]
     async fn test_session_variables_injected_on_read_query() {
         let schema = schema_with_session_vars();
@@ -2663,8 +2682,7 @@ mod session_variables {
         let pairs = adapter.captured_pairs();
         assert!(
             !pairs.is_empty(),
-            "set_session_variables must be called before a read query when session_variables are \
-             configured"
+            "session_vars must be passed to the query method when session_variables are configured"
         );
         assert!(
             pairs.iter().any(|(k, _)| k == "app.tenant_id"),
@@ -2672,7 +2690,7 @@ mod session_variables {
         );
     }
 
-    /// C-SV2: no `set_session_variables` call when `session_variables` config is empty.
+    /// C-SV2: no session vars passed when `session_variables` config is empty.
     #[tokio::test]
     async fn test_no_session_variables_injected_when_config_empty() {
         let schema = test_schema(); // session_variables defaults to empty
@@ -2687,7 +2705,7 @@ mod session_variables {
 
         assert!(
             adapter.captured_pairs().is_empty(),
-            "set_session_variables must not be called when no session_variables are configured"
+            "session_vars must be empty when no session_variables are configured"
         );
     }
 }

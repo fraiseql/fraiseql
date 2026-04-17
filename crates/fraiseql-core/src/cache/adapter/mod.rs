@@ -56,7 +56,7 @@
 //!
 //! // Use as normal DatabaseAdapter - caching is transparent
 //! let users = cached_adapter
-//!     .execute_where_query("v_user", None, Some(10), None, None)
+//!     .execute_where_query("v_user", None, Some(10), None, None, &[])
 //!     .await?;
 //! # Ok(())
 //! # }
@@ -120,10 +120,10 @@ pub use query::view_name_to_entity_type;
 /// let adapter = CachedDatabaseAdapter::new(db, cache, "1.0.0".to_string());
 ///
 /// // First query - cache miss (slower)
-/// let users1 = adapter.execute_where_query("v_user", None, None, None, None).await?;
+/// let users1 = adapter.execute_where_query("v_user", None, None, None, None, &[]).await?;
 ///
 /// // Second query - cache hit (fast!)
-/// let users2 = adapter.execute_where_query("v_user", None, None, None, None).await?;
+/// let users2 = adapter.execute_where_query("v_user", None, None, None, None, &[]).await?;
 ///
 /// // After mutation, invalidate
 /// let invalidation = InvalidationContext::for_mutation(
@@ -559,8 +559,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by, session_vars)
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -572,8 +573,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by)
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, session_vars)
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -586,8 +588,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by, session_vars)
             .await
     }
 
@@ -598,8 +601,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by).await
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, session_vars).await
     }
 
     fn database_type(&self) -> DatabaseType {
@@ -626,12 +630,13 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         &self,
         sql: &str,
         params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Parameterized aggregate results are not cacheable by SQL template alone;
         // delegate directly to the underlying adapter to avoid caching with an
         // incorrect key (the same SQL template with different params would return
         // different results).
-        self.adapter.execute_parameterized_aggregate(sql, params).await
+        self.adapter.execute_parameterized_aggregate(sql, params, session_vars).await
     }
 
     async fn execute_function_call(

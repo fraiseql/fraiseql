@@ -69,7 +69,8 @@ impl DatabaseAdapter for CountingAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> FraiseQLResult<Vec<JsonbValue>> {
         self.call_count.fetch_add(1, Ordering::SeqCst);
         Ok(vec![JsonbValue::new(
@@ -84,7 +85,8 @@ impl DatabaseAdapter for CountingAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> FraiseQLResult<Vec<JsonbValue>> {
         self.call_count.fetch_add(1, Ordering::SeqCst);
         Ok(vec![JsonbValue::new(
@@ -114,7 +116,8 @@ impl DatabaseAdapter for CountingAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> FraiseQLResult<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -133,7 +136,7 @@ async fn test_cached_adapter_cache_hit_on_second_query() {
     let adapter = CachedDatabaseAdapter::new(inner, cache, "test-schema-v1".to_string());
 
     // First call — cache miss.
-    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
+    let _ = adapter.execute_where_query("v_item", None, None, None, None, &[]).await.unwrap();
     assert_eq!(
         counter.load(Ordering::SeqCst),
         1,
@@ -141,7 +144,7 @@ async fn test_cached_adapter_cache_hit_on_second_query() {
     );
 
     // Second identical call — cache hit; underlying adapter NOT called again.
-    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
+    let _ = adapter.execute_where_query("v_item", None, None, None, None, &[]).await.unwrap();
     assert_eq!(
         counter.load(Ordering::SeqCst),
         1,
@@ -160,7 +163,7 @@ async fn test_cached_adapter_disabled_is_passthrough() {
     let adapter = CachedDatabaseAdapter::new(inner, cache, "test-schema-v1".to_string());
 
     // First call.
-    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
+    let _ = adapter.execute_where_query("v_item", None, None, None, None, &[]).await.unwrap();
     assert_eq!(
         counter.load(Ordering::SeqCst),
         1,
@@ -168,7 +171,7 @@ async fn test_cached_adapter_disabled_is_passthrough() {
     );
 
     // Second call — cache disabled so adapter is hit again.
-    let _ = adapter.execute_where_query("v_item", None, None, None, None).await.unwrap();
+    let _ = adapter.execute_where_query("v_item", None, None, None, None, &[]).await.unwrap();
     assert_eq!(
         counter.load(Ordering::SeqCst),
         2,

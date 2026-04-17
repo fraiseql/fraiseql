@@ -136,7 +136,7 @@ pub(super) fn escape_jsonb_key(key: &str) -> String {
 /// };
 ///
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None, &[])
 ///     .await?;
 ///
 /// println!("Found {} users", results.len());
@@ -346,6 +346,7 @@ impl PostgresAdapter {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Database` on query execution failure.
+    #[allow(dead_code)]
     pub(super) async fn execute_raw(
         &self,
         sql: &str,
@@ -509,10 +510,11 @@ impl PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
         // If no projection, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by, session_vars).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");
@@ -563,7 +565,53 @@ impl PostgresAdapter {
             .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
-        self.execute_raw(&sql, &param_refs).await
+        let mut client = self.acquire_connection_with_retry().await?;
+
+        if !session_vars.is_empty() {
+            let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to start transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            // Set all session variables
+            for (name, value) in session_vars {
+                txn.execute("SELECT set_config($1, $2, true)", &[name, value]).await.map_err(|e| FraiseQLError::Database {
+                    message: format!("Failed to set session variable {name}: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            }
+
+            // Execute query in same transaction
+            let rows: Vec<tokio_postgres::Row> = txn.query(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Query execution failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            txn.commit().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to commit transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            Ok(rows
+                .into_iter()
+                .map(|row| {
+                    let data: serde_json::Value = row.get(0);
+                    JsonbValue::new(data)
+                })
+                .collect())
+        } else {
+            // Fast path: no session vars, direct execution
+            let rows: Vec<tokio_postgres::Row> = client.query(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Query execution failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            Ok(rows
+                .into_iter()
+                .map(|row| {
+                    let data: serde_json::Value = row.get(0);
+                    JsonbValue::new(data)
+                })
+                .collect())
+        }
     }
 
     /// Execute query with SQL field projection optimization.
@@ -582,7 +630,7 @@ impl PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, None)
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, None, &[])
             .await
     }
 }
