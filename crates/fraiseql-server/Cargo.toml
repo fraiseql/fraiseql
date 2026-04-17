@@ -123,8 +123,8 @@ sqlx = {version = "0.8", features = ["runtime-tokio", "postgres"]}
 temp-env = {workspace = true}
 tempfile = "3.13"
 # Container-based integration tests
-testcontainers = {version = "0.26", features = ["watchdog"]}
-testcontainers-modules = {version = "0.14", features = ["postgres"]}
+testcontainers = {version = "0.27", features = ["watchdog"]}
+testcontainers-modules = {version = "0.15", features = ["postgres"]}
 tokio-postgres = {workspace = true}
 # Testing
 tokio-test = "0.4"

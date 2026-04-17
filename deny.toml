@@ -10,7 +10,6 @@ ignore = [
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only)
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path"},
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem"},
-  {id = "RUSTSEC-2026-0066", reason = "astral-tokio-tar: dev-only via testcontainers 0.26; testcontainers 0.27+ has bollard version conflicts. Revisit by 2026-05-15."},
   {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Revisit by 2026-06-15."},
   {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Revisit by 2026-06-15."}
 ]
