@@ -188,7 +188,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
                                      ])
 
-      json = FraiseQL::Schema.export_types(true)
+      json = FraiseQL::Schema.export_types(pretty: true)
       schema = JSON.parse(json)
 
       expect(schema).to have_key('types')
@@ -205,7 +205,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'restricted', type: 'String', requires_scopes: %w[scope1 scope2] }
                                      ])
 
-      json = FraiseQL::Schema.export_types(true)
+      json = FraiseQL::Schema.export_types(pretty: true)
       schema = JSON.parse(json)
 
       field = schema['types'][0]['fields'][0]
@@ -221,7 +221,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'name', type: 'String' }
                                      ])
 
-      json = FraiseQL::Schema.export_types(true)
+      json = FraiseQL::Schema.export_types(pretty: true)
       schema = JSON.parse(json)
 
       id_field = schema['types'][0]['fields'][0]

@@ -17,7 +17,7 @@ RSpec.describe 'Export Types - Minimal Schema Export' do
                                    ], 'User in the system')
 
     # Export minimal types
-    schema_json = FraiseQL::Schema.export_types(true)
+    schema_json = FraiseQL::Schema.export_types(pretty: true)
     parsed = JSON.parse(schema_json)
 
     # Should have types section
@@ -51,7 +51,7 @@ RSpec.describe 'Export Types - Minimal Schema Export' do
                                    ])
 
     # Export minimal
-    schema_json = FraiseQL::Schema.export_types(true)
+    schema_json = FraiseQL::Schema.export_types(pretty: true)
     parsed = JSON.parse(schema_json)
 
     # Check types count
@@ -72,7 +72,7 @@ RSpec.describe 'Export Types - Minimal Schema Export' do
     # But minimal export should only have types
 
     # Export minimal
-    schema_json = FraiseQL::Schema.export_types(true)
+    schema_json = FraiseQL::Schema.export_types(pretty: true)
     parsed = JSON.parse(schema_json)
 
     # Should have types
@@ -89,15 +89,15 @@ RSpec.describe 'Export Types - Minimal Schema Export' do
                                    ])
 
     # Export compact
-    schema_json = FraiseQL::Schema.export_types(false)
+    schema_json = FraiseQL::Schema.export_types(pretty: false)
 
     # Should be valid JSON
     parsed = JSON.parse(schema_json)
     expect(parsed).to have_key('types')
 
     # Compact JSON should be smaller than pretty-printed
-    compact = FraiseQL::Schema.export_types(false)
-    pretty = FraiseQL::Schema.export_types(true)
+    compact = FraiseQL::Schema.export_types(pretty: false)
+    pretty = FraiseQL::Schema.export_types(pretty: true)
     expect(compact.length).to be < pretty.length
   end
 
@@ -107,7 +107,7 @@ RSpec.describe 'Export Types - Minimal Schema Export' do
                                    ])
 
     # Export pretty
-    schema_json = FraiseQL::Schema.export_types(true)
+    schema_json = FraiseQL::Schema.export_types(pretty: true)
 
     # Should contain newlines (pretty format)
     expect(schema_json).to include("\n")
@@ -147,7 +147,7 @@ RSpec.describe 'Export Types - Minimal Schema Export' do
 
   it 'handles empty schema gracefully' do
     # Export with no types registered
-    schema_json = FraiseQL::Schema.export_types(true)
+    schema_json = FraiseQL::Schema.export_types(pretty: true)
     parsed = JSON.parse(schema_json)
 
     # Should still have types key (as empty array)
