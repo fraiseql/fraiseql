@@ -86,7 +86,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Field with requires_scopes array
       FraiseQL::Schema.register_type('AdminWithMultipleScopes', [
                                        { name: 'id', type: 'Int' },
-                                       { name: 'admin_notes', type: 'String', requires_scopes: %w[admin auditor] }
+                                       { name: 'admin_notes', type: 'String', requires_scopes: %w[admin:read auditor:read] }
                                      ])
 
       types = FraiseQL::SchemaRegistry.instance.all_types
@@ -96,8 +96,8 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       expect(admin_field).not_to be_nil
       expect(admin_field[:requires_scopes]).not_to be_nil
       expect(admin_field[:requires_scopes]).to have_length(2)
-      expect(admin_field[:requires_scopes]).to include('admin')
-      expect(admin_field[:requires_scopes]).to include('auditor')
+      expect(admin_field[:requires_scopes]).to include('admin:read')
+      expect(admin_field[:requires_scopes]).to include('auditor:read')
     end
 
     it 'mixes single-scope and multi-scope fields' do
@@ -105,7 +105,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       FraiseQL::Schema.register_type('MixedScopeTypes', [
                                        { name: 'basic_field', type: 'String', requires_scope: 'read:basic' },
                                        { name: 'advanced_field', type: 'String',
-                                         requires_scopes: ['read:advanced', 'admin'] }
+                                         requires_scopes: ['read:advanced', 'admin:read'] }
                                      ])
 
       types = FraiseQL::SchemaRegistry.instance.all_types
@@ -118,7 +118,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'preserves scope array order' do
       # RED: Scopes array order must be preserved
       FraiseQL::Schema.register_type('OrderedScopes', [
-                                       { name: 'restricted', type: 'String', requires_scopes: %w[first second third] }
+                                       { name: 'restricted', type: 'String', requires_scopes: %w[first:read second:read third:read] }
                                      ])
 
       types = FraiseQL::SchemaRegistry.instance.all_types
@@ -126,9 +126,9 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
 
       scopes = type_def[:fields][0][:requires_scopes]
       expect(scopes).to have_length(3)
-      expect(scopes[0]).to eq('first')
-      expect(scopes[1]).to eq('second')
-      expect(scopes[2]).to eq('third')
+      expect(scopes[0]).to eq('first:read')
+      expect(scopes[1]).to eq('second:read')
+      expect(scopes[2]).to eq('third:read')
     end
   end
 
@@ -202,7 +202,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'exports multiple scopes array to JSON' do
       # RED: requires_scopes array exported correctly
       FraiseQL::Schema.register_type('ExportTestMultipleScopes', [
-                                       { name: 'restricted', type: 'String', requires_scopes: %w[scope1 scope2] }
+                                       { name: 'restricted', type: 'String', requires_scopes: %w[scope1:read scope2:read] }
                                      ])
 
       json = FraiseQL::Schema.export_types(pretty: true)
@@ -280,13 +280,13 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        {
                                          name: 'field1',
                                          type: 'String',
-                                         requires_scope: 'scope1',
+                                         requires_scope: 'scope1:read',
                                          description: 'Desc 1'
                                        },
                                        {
                                          name: 'field2',
                                          type: 'String',
-                                         requires_scope: 'scope2',
+                                         requires_scope: 'scope2:read',
                                          description: 'Desc 2'
                                        }
                                      ])
@@ -294,9 +294,9 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       types = FraiseQL::SchemaRegistry.instance.all_types
       fields = types[0][:fields]
 
-      expect(fields[0][:requires_scope]).to eq('scope1')
+      expect(fields[0][:requires_scope]).to eq('scope1:read')
       expect(fields[0][:description]).to eq('Desc 1')
-      expect(fields[1][:requires_scope]).to eq('scope2')
+      expect(fields[1][:requires_scope]).to eq('scope2:read')
       expect(fields[1][:description]).to eq('Desc 2')
     end
   end
@@ -359,7 +359,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                            name: 'field',
                                            type: 'String',
                                            requires_scope: 'read:user.email',
-                                           requires_scopes: %w[admin auditor]
+                                           requires_scopes: %w[admin:read auditor:read]
                                          }
                                        ])
       end.to raise_error(RuntimeError)
