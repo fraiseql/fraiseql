@@ -33,11 +33,11 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'salary', type: 'Float', requires_scope: 'read:user.salary' }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
-      expect(types).to have(1).item
+      types = FraiseQL::SchemaRegistry.instance.all_types
+      expect(types.length).to eq(1)
 
       user_type = types[0]
-      expect(user_type[:fields]).to have(2).items
+      expect(user_type[:fields].length).to eq(2)
 
       salary_field = user_type[:fields].find { |f| f[:name] == 'salary' }
       expect(salary_field).not_to be_nil
@@ -53,7 +53,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'ssn', type: 'String', requires_scope: 'read:user.ssn' }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       user_type = types[0]
 
       expect(user_type[:fields].find { |f| f[:name] == 'email' }[:requires_scope]).to eq('read:user.email')
@@ -69,7 +69,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'email', type: 'String', requires_scope: 'read:user.email' }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       user_type = types[0]
 
       id_field = user_type[:fields].find { |f| f[:name] == 'id' }
@@ -89,13 +89,13 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'admin_notes', type: 'String', requires_scopes: %w[admin auditor] }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       user_type = types[0]
 
       admin_field = user_type[:fields].find { |f| f[:name] == 'admin_notes' }
       expect(admin_field).not_to be_nil
       expect(admin_field[:requires_scopes]).not_to be_nil
-      expect(admin_field[:requires_scopes]).to have(2).items
+      expect(admin_field[:requires_scopes]).to have_length(2)
       expect(admin_field[:requires_scopes]).to include('admin')
       expect(admin_field[:requires_scopes]).to include('auditor')
     end
@@ -108,11 +108,11 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                          requires_scopes: ['read:advanced', 'admin'] }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       type_def = types[0]
 
       expect(type_def[:fields].find { |f| f[:name] == 'basic_field' }[:requires_scope]).to eq('read:basic')
-      expect(type_def[:fields].find { |f| f[:name] == 'advanced_field' }[:requires_scopes]).to have(2).items
+      expect(type_def[:fields].find { |f| f[:name] == 'advanced_field' }[:requires_scopes]).to have_length(2)
     end
 
     it 'preserves scope array order' do
@@ -121,11 +121,11 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'restricted', type: 'String', requires_scopes: %w[first second third] }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       type_def = types[0]
 
       scopes = type_def[:fields][0][:requires_scopes]
-      expect(scopes).to have(3).items
+      expect(scopes).to have_length(3)
       expect(scopes[0]).to eq('first')
       expect(scopes[1]).to eq('second')
       expect(scopes[2]).to eq('third')
@@ -144,7 +144,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'phone', type: 'String', requires_scope: 'read:User.phone' }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       type_def = types[0]
 
       expect(type_def[:fields].find { |f| f[:name] == 'email' }[:requires_scope]).to eq('read:User.email')
@@ -157,7 +157,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'writable_field', type: 'String', requires_scope: 'write:User.*' }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       type_def = types[0]
 
       expect(type_def[:fields].find { |f| f[:name] == 'readable_field' }[:requires_scope]).to eq('read:User.*')
@@ -170,7 +170,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        { name: 'admin_override', type: 'String', requires_scope: '*' }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       type_def = types[0]
 
       expect(type_def[:fields][0][:requires_scope]).to eq('*')
@@ -192,7 +192,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       schema = JSON.parse(json)
 
       expect(schema).to have_key('types')
-      expect(schema['types']).to have(1).item
+      expect(schema['types']).to have_length(1)
 
       salary_field = schema['types'][0]['fields'][0]
       expect(salary_field).to have_key('requires_scope')
@@ -211,7 +211,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       field = schema['types'][0]['fields'][0]
       expect(field).to have_key('requires_scopes')
       expect(field['requires_scopes']).to be_an(Array)
-      expect(field['requires_scopes']).to have(2).items
+      expect(field['requires_scopes']).to have_length(2)
     end
 
     it 'omits scope fields for public fields in JSON' do
@@ -247,7 +247,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       salary_field = types[0][:fields][0]
 
       expect(salary_field[:type]).to eq('Float')
@@ -267,7 +267,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       email_field = types[0][:fields][0]
 
       expect(email_field[:nullable]).to be true
@@ -291,7 +291,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
                                        }
                                      ])
 
-      types = FraiseQL::SchemaRegistry.instance.get_types
+      types = FraiseQL::SchemaRegistry.instance.all_types
       fields = types[0][:fields]
 
       expect(fields[0][:requires_scope]).to eq('scope1')
