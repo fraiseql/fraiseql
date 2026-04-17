@@ -1,8 +1,8 @@
 # FraiseQL dependency policy
 # Run: cargo deny check
-# Skip entries last reviewed: 2026-03-30
+# Skip entries last reviewed: 2026-04-17
 # Pending resolution:
-# rustls 0.22  — async-nats 0.40 transitively requires (tracked: async-nats upgrade)
+# rustls 0.21  — aws-sdk-s3 (optional feature) transitively requires; EOL dependency
 
 [advisories]
 db-path = "~/.cargo/advisory-db"
@@ -10,11 +10,9 @@ ignore = [
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only)
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path"},
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem"},
-  {id = "RUSTSEC-2026-0066", reason = "astral-tokio-tar: dev-only dep via testcontainers 0.26; awaiting testcontainers 0.27 upgrade. Revisit by 2026-04-15."},
-  {id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102: transitive via async-nats 0.40 (rustls 0.22); awaiting async-nats upgrade. Revisit by 2026-04-15."},
-  {id = "RUSTSEC-2026-0097", reason = "rand 0.8.5 unsound with custom logger + thread_rng reseed; transitive dep, not triggered by our code. Revisit by 2026-05-01."},
-  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via async-nats 0.40 + aws-smithy-http-client (rustls 0.21/0.22). Revisit by 2026-05-15."},
-  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same transitive chain as RUSTSEC-2026-0098. Revisit by 2026-05-15."}
+  {id = "RUSTSEC-2026-0066", reason = "astral-tokio-tar: dev-only via testcontainers 0.26; testcontainers 0.27+ has bollard version conflicts. Revisit by 2026-05-15."},
+  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Revisit by 2026-06-15."},
+  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Revisit by 2026-06-15."}
 ]
 unmaintained = "workspace"
 
@@ -36,11 +34,6 @@ version = "=0.61.9"
 name = "hyper-rustls"
 reason = "aws-sdk-s3 via rustls 0.21 chain; upgrade tracked"
 version = "=0.24.2"
-
-[[bans.skip]]
-name = "rustls-native-certs"
-reason = "transitive via rustls 0.21/aws-sdk dependency chain"
-version = "=0.7.3"
 
 [[bans.skip]]
 name = "tokio-rustls"
@@ -76,16 +69,6 @@ version = "=0.3.4"
 name = "rand"
 reason = "transitive via quickcheck"
 version = "=0.7.3"
-
-[[bans.skip]]
-name = "rand"
-reason = "transitive via many dependencies not yet migrated to rand 0.9+"
-version = "=0.8.5"
-
-[[bans.skip]]
-name = "rand"
-reason = "transitive; ecosystem migrating to rand 0.10"
-version = "=0.9.3"
 
 [[bans.skip]]
 name = "rand_chacha"
@@ -188,21 +171,6 @@ reason = "transitive via older sha2/aes crate versions"
 version = "=0.2.17"
 
 [[bans.skip]]
-name = "core-foundation"
-reason = "transitive via security-framework 2.x (macOS)"
-version = "=0.9.4"
-
-[[bans.skip]]
-name = "security-framework"
-reason = "transitive via older native-tls dependency chain"
-version = "=2.11.1"
-
-[[bans.skip]]
-name = "openssl-probe"
-reason = "transitive via older native-tls dependency chain"
-version = "=0.1.6"
-
-[[bans.skip]]
 name = "chacha20"
 reason = "transitive via older chacha20poly1305 version"
 version = "=0.9.1"
@@ -226,11 +194,6 @@ version = "=0.1.0"
 name = "md-5"
 reason = "transitive via aws-smithy-checksums and sqlx-mysql"
 version = "=0.10.6"
-
-[[bans.skip]]
-name = "rustls-webpki"
-reason = "transitive via async-nats 0.40 (rustls 0.22 chain); awaiting async-nats upgrade"
-version = "=0.102.8"
 
 [[bans.skip]]
 name = "winnow"
