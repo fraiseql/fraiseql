@@ -121,6 +121,7 @@ impl DatabaseAdapter for CapturingMockAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -225,6 +226,7 @@ impl DatabaseAdapter for MockAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -991,6 +993,7 @@ mod mutation {
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             use serde_json::json;
             let mut row = std::collections::HashMap::new();
@@ -1078,6 +1081,7 @@ mod mutation {
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             use serde_json::json;
             let mut row = std::collections::HashMap::new();
@@ -1397,6 +1401,7 @@ mod mutation {
             &self,
             _function_name: &str,
             args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             use serde_json::json;
             *self.captured_args.lock().unwrap() = args.to_vec();
@@ -2605,6 +2610,7 @@ mod session_variables {
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
         ) -> crate::error::Result<Vec<std::collections::HashMap<String, serde_json::Value>>>
         {
             Ok(vec![])

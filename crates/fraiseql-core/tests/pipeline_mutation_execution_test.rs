@@ -166,6 +166,7 @@ impl DatabaseAdapter for RecordingMockAdapter {
         &self,
         function_name: &str,
         args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         *self.called_fn.lock().unwrap() = Some(function_name.to_string());
         *self.called_args.lock().unwrap() = args.to_vec();

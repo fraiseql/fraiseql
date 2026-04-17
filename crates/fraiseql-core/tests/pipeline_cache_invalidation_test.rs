@@ -113,6 +113,7 @@ impl DatabaseAdapter for InnerMockAdapter {
         &self,
         function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         // When the executor calls `bump_tf_version` for fact table version bumping,
         // return a row with the new version number.

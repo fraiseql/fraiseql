@@ -117,6 +117,7 @@ impl DatabaseAdapter for MockAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -1248,6 +1249,7 @@ impl DatabaseAdapter for BumpAdapter {
         &self,
         function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         if function_name == "bump_tf_version" {
             let n = self.bump_call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

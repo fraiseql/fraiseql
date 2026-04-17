@@ -405,6 +405,7 @@ impl DatabaseAdapter for FailingAdapter {
         &self,
         function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         self.check_failure(function_name)?;
         let responses = self.function_responses.lock().unwrap();

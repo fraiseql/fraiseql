@@ -527,6 +527,7 @@ impl DatabaseAdapter for MySqlAdapter {
         &self,
         function_name: &str,
         args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // MySQL's binary protocol (prepared statements) does not reliably return
         // row data from stored procedures that use CALL.  Use text protocol

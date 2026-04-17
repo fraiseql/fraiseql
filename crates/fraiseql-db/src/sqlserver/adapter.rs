@@ -549,6 +549,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         &self,
         function_name: &str,
         args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Build: EXEC [fn_name] @p1, @p2, ...
         // Stored procedures in SQL Server must be called with EXEC, not SELECT FROM.

@@ -321,6 +321,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         function_name: &str,
         args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Build: SELECT * FROM "fn_name"($1, $2, ...)
         // Use the standard identifier quoting utility so that schema-qualified
@@ -353,26 +354,42 @@ impl DatabaseAdapter for PostgresAdapter {
             .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
-        if self.mutation_timing_enabled {
-            // Wrap in a transaction so SET LOCAL scopes the variable to this call only.
-            // `set_config(name, value, is_local)` with is_local=true is equivalent to
-            // SET LOCAL and is parameterized to avoid SQL injection.
+        // Wrap in a transaction if there are session variables or timing is enabled.
+        // `set_config(name, value, is_local)` with is_local=true is equivalent to
+        // SET LOCAL and is parameterized to avoid SQL injection.
+        // Both session variables and the function call run in the same transaction
+        // on the same connection, so SET LOCAL is correctly scoped.
+        if !session_vars.is_empty() || self.mutation_timing_enabled {
             let txn =
                 client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                    message:   format!("Failed to start mutation timing transaction: {e}"),
+                    message:   format!("Failed to start mutation transaction: {e}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
 
-            txn.execute(
-                "SELECT set_config($1, clock_timestamp()::text, true)",
-                &[&self.timing_variable_name],
-            )
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+            // Set user-provided session variables first
+            for (name, value) in session_vars {
+                txn.execute("SELECT set_config($1, $2, true)", &[name, value])
+                    .await
+                    .map_err(|e| FraiseQLError::Database {
+                        message:   format!("Failed to set session variable {name}: {e}"),
+                        sql_state: e.code().map(|c| c.code().to_string()),
+                    })?;
+            }
 
+            // Then set the mutation timing variable if enabled
+            if self.mutation_timing_enabled {
+                txn.execute(
+                    "SELECT set_config($1, clock_timestamp()::text, true)",
+                    &[&self.timing_variable_name],
+                )
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to set mutation timing variable: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            }
+
+            // Execute the function call within the same transaction
             let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
                 let detail = e.as_db_error().map_or("", |d| d.message());
                 FraiseQLError::Database {
@@ -382,7 +399,7 @@ impl DatabaseAdapter for PostgresAdapter {
             })?;
 
             txn.commit().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to commit mutation timing transaction: {e}"),
+                message:   format!("Failed to commit mutation transaction: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -391,6 +408,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             Ok(results)
         } else {
+            // Fast path: no session variables or timing — execute directly without transaction
             let rows: Vec<Row> =
                 client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
                     let detail = e.as_db_error().map_or("", |d| d.message());

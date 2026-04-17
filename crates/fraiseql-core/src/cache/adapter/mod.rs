@@ -638,9 +638,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         &self,
         function_name: &str,
         args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Mutations are never cached — always delegate to the underlying adapter
-        self.adapter.execute_function_call(function_name, args).await
+        self.adapter.execute_function_call(function_name, args, session_vars).await
     }
 
     async fn invalidate_views(&self, views: &[String]) -> Result<u64> {

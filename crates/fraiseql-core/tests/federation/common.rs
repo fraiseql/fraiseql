@@ -116,6 +116,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, Value>>> {
         Ok(vec![])
     }
@@ -198,6 +199,7 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, Value>>> {
         Ok(vec![])
     }

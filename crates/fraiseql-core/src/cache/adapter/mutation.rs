@@ -36,7 +36,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             // validates as a safe SQL identifier — no string interpolation needed.
             let rows = self
                 .adapter
-                .execute_function_call("bump_tf_version", &[serde_json::json!(table)])
+                .execute_function_call("bump_tf_version", &[serde_json::json!(table)], &[])
                 .await?;
 
             // Extract the new version number from the function result.

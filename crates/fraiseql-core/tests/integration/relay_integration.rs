@@ -153,6 +153,7 @@ impl DatabaseAdapter for RelayMockAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -751,6 +752,7 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -1128,6 +1130,7 @@ mod relay_security {
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }

@@ -337,24 +337,33 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3b. Inject session variables (transaction-scoped set_config) when configured.
         //
-        // Only called when there are variables to inject or inject_started_at is enabled,
-        // and only on the authenticated path (security context present). The no-op default
-        // on non-PostgreSQL adapters means this call is effectively free there.
-        {
+        // 3b. Resolve session variables to pass to execute_function_call.
+        // Session variables are now passed directly to the function call and executed
+        // on the same connection within the same transaction, ensuring SET LOCAL
+        // variables are correctly scoped.
+        let session_vars: Vec<(String, String)> = {
             let sv = &self.schema.session_variables;
             if !sv.variables.is_empty() || sv.inject_started_at {
                 if let Some(ctx) = security_ctx {
                     let vars =
                         crate::runtime::executor::security::resolve_session_variables(sv, ctx);
-                    let pairs: Vec<(&str, &str)> =
-                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                    self.adapter.set_session_variables(&pairs).await?;
+                    vars.into_iter().collect()
+                } else {
+                    Vec::new()
                 }
+            } else {
+                Vec::new()
             }
-        }
+        };
+        let session_var_refs: Vec<(&str, &str)> = session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
-        // 4. Call the database function
-        let rows = self.adapter.execute_function_call(sql_source, &args).await?;
+        // 4. Call the database function with session variables
+        // PostgreSQL will execute these within the same transaction on the same connection.
+        // Other adapters inherit the default (variables ignored, as session variables are not yet supported).
+        let rows = self.adapter.execute_function_call(sql_source, &args, session_var_refs.as_slice()).await?;
 
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {

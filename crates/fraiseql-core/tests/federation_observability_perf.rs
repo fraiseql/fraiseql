@@ -147,6 +147,7 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, Value>>> {
         Ok(vec![])
     }
