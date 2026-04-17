@@ -86,7 +86,11 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       # RED: Field with requires_scopes array
       FraiseQL::Schema.register_type('AdminWithMultipleScopes', [
                                        { name: 'id', type: 'Int' },
-                                       { name: 'admin_notes', type: 'String', requires_scopes: %w[admin:read auditor:read] }
+                                       {
+                                         name: 'admin_notes',
+                                         type: 'String',
+                                         requires_scopes: %w[admin:read auditor:read]
+                                       }
                                      ])
 
       types = FraiseQL::SchemaRegistry.instance.all_types
@@ -118,7 +122,11 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'preserves scope array order' do
       # RED: Scopes array order must be preserved
       FraiseQL::Schema.register_type('OrderedScopes', [
-                                       { name: 'restricted', type: 'String', requires_scopes: %w[first:read second:read third:read] }
+                                       {
+                                         name: 'restricted',
+                                         type: 'String',
+                                         requires_scopes: %w[first:read second:read third:read]
+                                       }
                                      ])
 
       types = FraiseQL::SchemaRegistry.instance.all_types
@@ -202,7 +210,11 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
     it 'exports multiple scopes array to JSON' do
       # RED: requires_scopes array exported correctly
       FraiseQL::Schema.register_type('ExportTestMultipleScopes', [
-                                       { name: 'restricted', type: 'String', requires_scopes: %w[scope1:read scope2:read] }
+                                       {
+                                         name: 'restricted',
+                                         type: 'String',
+                                         requires_scopes: %w[scope1:read scope2:read]
+                                       }
                                      ])
 
       json = FraiseQL::Schema.export_types(pretty: true)
