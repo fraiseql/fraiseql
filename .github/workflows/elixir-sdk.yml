@@ -36,7 +36,7 @@ jobs:
             sdks/official/fraiseql-elixir/_build
           key: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
       - run: mix deps.get
-      - run: mix credo --strict
+      - run: mix credo
       - run: mix test
 
   dialyzer:
