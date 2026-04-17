@@ -99,7 +99,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       admin_field = user_type[:fields].find { |f| f[:name] == 'admin_notes' }
       expect(admin_field).not_to be_nil
       expect(admin_field[:requires_scopes]).not_to be_nil
-      expect(admin_field[:requires_scopes]).length.eq(2)
+      expect(admin_field[:requires_scopes]).to have_length(2)
       expect(admin_field[:requires_scopes]).to include('admin:read')
       expect(admin_field[:requires_scopes]).to include('auditor:read')
     end
@@ -116,7 +116,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       type_def = types[0]
 
       expect(type_def[:fields].find { |f| f[:name] == 'basic_field' }[:requires_scope]).to eq('read:basic')
-      expect(type_def[:fields].find { |f| f[:name] == 'advanced_field' }[:requires_scopes]).length.eq(2)
+      expect(type_def[:fields].find { |f| f[:name] == 'advanced_field' }[:requires_scopes]).to have_length(2)
     end
 
     it 'preserves scope array order' do
@@ -133,7 +133,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       type_def = types[0]
 
       scopes = type_def[:fields][0][:requires_scopes]
-      expect(scopes).length.eq(3)
+      expect(scopes).to have_length(3)
       expect(scopes[0]).to eq('first:read')
       expect(scopes[1]).to eq('second:read')
       expect(scopes[2]).to eq('third:read')
@@ -223,7 +223,7 @@ RSpec.describe 'Ruby SDK Field Scope Extraction & Export' do
       field = schema['types'][0]['fields'][0]
       expect(field).to have_key('requires_scopes')
       expect(field['requires_scopes']).to be_an(Array)
-      expect(field['requires_scopes']).length.eq(2)
+      expect(field['requires_scopes']).to have_length(2)
     end
 
     it 'omits scope fields for public fields in JSON' do
