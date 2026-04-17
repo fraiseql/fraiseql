@@ -13,6 +13,7 @@ use crate::{
     },
     schema::MutationOperation,
     security::SecurityContext,
+    utils::to_snake_case,
 };
 
 /// Compile-time enforcement: `SqliteAdapter` must NOT implement `SupportsMutations`.
@@ -268,9 +269,16 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         if is_update && input_type_name.is_some() {
             // Pass the entire input object as a single JSONB arg.
+            // Convert camelCase GraphQL field names → snake_case so that
+            // `jsonb_populate_record` and `input_payload ? 'field_name'` checks
+            // work correctly against PostgreSQL composite type column names.
             let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
             if let Some(obj) = input_obj {
-                args.push(serde_json::Value::Object(obj.clone()));
+                let snake_obj: serde_json::Map<String, serde_json::Value> = obj
+                    .iter()
+                    .map(|(k, v)| (to_snake_case(k), v.clone()))
+                    .collect();
+                args.push(serde_json::Value::Object(snake_obj));
             } else if !mutation_def.arguments[0].nullable {
                 missing_required.push("input");
             }

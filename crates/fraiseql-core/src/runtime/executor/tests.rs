@@ -1664,6 +1664,81 @@ mod mutation {
             "absent field 'email' must NOT appear in JSONB (leave DB value unchanged)"
         );
     }
+
+    /// camelCase GraphQL field names in an update input must be converted to
+    /// snake_case before passing to the SQL function, so that
+    /// `jsonb_populate_record` and `input_payload ? 'field_name'` checks work
+    /// against PostgreSQL composite type column names.
+    #[tokio::test]
+    async fn update_mutation_converts_camel_case_keys_to_snake_case() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation,
+        };
+        // Build a schema whose input type has multi-word camelCase field names.
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "UpdateOrderInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("customerId", "ID!"),
+                InputFieldDefinition::new("productId", "ID!"),
+                InputFieldDefinition::new("unitPrice", "Float"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "update_order".to_string(),
+            return_type: "Order".to_string(),
+            sql_source: Some("update_order".to_string()),
+            operation: MutationOperation::Update {
+                table: "update_order".to_string(),
+            },
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("UpdateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("update_order", "Order")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": {
+                "customerId": "cust-1",
+                "productId":  "prod-2",
+                "unitPrice":  9.99
+            }
+        });
+        executor
+            .execute_mutation("update_order", Some(&vars), &HashMap::new())
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "update mutation must pass exactly one JSONB arg");
+        let obj = captured[0].as_object().unwrap();
+
+        // camelCase keys must have been rewritten to snake_case
+        assert!(obj.contains_key("customer_id"), "expected 'customer_id', got keys: {:?}", obj.keys().collect::<Vec<_>>());
+        assert!(obj.contains_key("product_id"),  "expected 'product_id'");
+        assert!(obj.contains_key("unit_price"),  "expected 'unit_price'");
+
+        // original camelCase keys must NOT be present
+        assert!(!obj.contains_key("customerId"), "camelCase 'customerId' must not be in JSONB");
+        assert!(!obj.contains_key("productId"),  "camelCase 'productId' must not be in JSONB");
+        assert!(!obj.contains_key("unitPrice"),  "camelCase 'unitPrice' must not be in JSONB");
+
+        assert_eq!(obj["customer_id"], "cust-1");
+        assert_eq!(obj["product_id"],  "prod-2");
+        assert_eq!(obj["unit_price"],  9.99);
+    }
 }
 
 // ── mod security: DoS protection (alias / depth / complexity limits) ──────
