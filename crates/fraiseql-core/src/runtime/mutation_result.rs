@@ -19,6 +19,15 @@ const HTTP_STATUS_MIN: i16 = 100;
 /// Maximum legal HTTP status code (end of 5xx range).
 const HTTP_STATUS_MAX: i16 = 599;
 
+/// Deserializes an optional JSON array: both `null` and a missing key become the
+/// type's `Default`. Used on `Vec<String>` fields that map to nullable SQL arrays.
+fn null_as_empty_vec<'de, D>(d: D) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<Vec<String>>::deserialize(d).map(|opt| opt.unwrap_or_default())
+}
+
 /// Outcome of parsing a single `mutation_response` row.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -82,7 +91,7 @@ pub struct MutationResponse {
     #[serde(default)]
     pub entity:         JsonValue,
     /// GraphQL field names that changed. Empty on noop.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_vec")]
     pub updated_fields: Vec<String>,
     /// Cascade operations (see the graphql-cascade specification).
     #[serde(default)]
@@ -422,5 +431,29 @@ mod tests {
             .parse()
             .unwrap();
         assert!(matches!(outcome, MutationOutcome::Success { .. }));
+    }
+
+    #[test]
+    fn updated_fields_explicit_null_deserializes_as_empty() {
+        // Reproduces the production error: row_to_map emits null for a SQL-NULL
+        // TEXT[] column; serde's #[serde(default)] does NOT cover explicit null.
+        let result: std::result::Result<MutationResponse, _> = serde_json::from_value(json!({
+            "succeeded": true,
+            "state_changed": false,
+            "updated_fields": null,
+        }));
+        assert!(result.is_ok(), "expected Ok but got: {result:?}");
+        assert!(result.unwrap().updated_fields.is_empty());
+    }
+
+    #[test]
+    fn updated_fields_empty_array_deserializes_correctly() {
+        let parsed: MutationResponse = serde_json::from_value(json!({
+            "succeeded": true,
+            "state_changed": false,
+            "updated_fields": [],
+        }))
+        .unwrap();
+        assert!(parsed.updated_fields.is_empty());
     }
 }

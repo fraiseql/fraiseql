@@ -161,6 +161,33 @@ impl<'a> tokio_postgres::types::FromSql<'a> for EnumText {
 ///
 /// Tries each PostgreSQL type in priority order; falls back to `Null` for
 /// types that cannot be represented as JSON.
+///
+/// ## Supported Types
+///
+/// - **Numeric**: INT4 (i32), INT8 (i64), FLOAT8 (f64)
+/// - **Text**: TEXT, VARCHAR
+/// - **Boolean**: BOOL
+/// - **JSON**: JSONB, JSON
+/// - **Arrays**: TEXT[], VARCHAR[] (including NULL arrays)
+/// - **Enums**: PostgreSQL ENUM types (custom defined)
+///
+/// NULL values are represented as `serde_json::Value::Null` in all cases.
+///
+/// ## Known Gaps (Future Work)
+///
+/// The following PostgreSQL types currently fall through to `Null` and should be
+/// expanded in a future issue:
+///
+/// - Array types (INT4[], BOOL[], UUID[], FLOAT8[], etc.)
+/// - Temporal types (DATE, TIME, TIMESTAMP, TIMESTAMPTZ, INTERVAL)
+/// - UUID type
+/// - BYTEA
+/// - COMPOSITE types (besides mutation_response)
+/// - Range types (INT4RANGE, TSRANGE, etc.)
+/// - Network types (INET, CIDR, MACADDR, etc.)
+///
+/// See [fraiseql#XXX](https://github.com/getfraiseql/fraiseql/issues/XXX) for
+/// tracking expansion of type coverage.
 fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value> {
     let mut map = std::collections::HashMap::new();
     for (idx, column) in row.columns().iter().enumerate() {
@@ -177,10 +204,17 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
             serde_json::json!(v)
         } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
             v
-        } else if let Ok(v) = row.try_get::<_, Vec<String>>(idx) {
+        } else if let Ok(v) = row.try_get::<_, Option<Vec<String>>>(idx) {
             // Handle TEXT[] / VARCHAR[] columns (e.g. mutation_response.updated_fields).
             // Must come after JSONB to avoid shadowing; TEXT[] is not a JSON type.
-            serde_json::Value::Array(v.into_iter().map(serde_json::Value::String).collect())
+            // Option wrapper lets NULL arrays return Ok(None) instead of Err,
+            // so they produce Value::Null intentionally rather than via the catch-all.
+            match v {
+                Some(arr) => serde_json::Value::Array(
+                    arr.into_iter().map(serde_json::Value::String).collect(),
+                ),
+                None => serde_json::Value::Null,
+            }
         } else if let Ok(EnumText(v)) = row.try_get::<_, EnumText>(idx) {
             // Handle PostgreSQL ENUM columns (e.g. mutation_response.error_class).
             // postgres-types 0.2.x String::accepts() does not include Kind::Enum,
