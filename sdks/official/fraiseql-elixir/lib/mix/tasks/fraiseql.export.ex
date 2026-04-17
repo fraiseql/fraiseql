@@ -68,6 +68,7 @@ defmodule Mix.Tasks.Fraiseql.Export do
     end
   end
 
+  @dialyzer {:nowarn_function, usage_error!: 1}
   defp usage_error!(msg) do
     Mix.raise(
       "fraiseql.export: #{msg}\n\n" <>
