@@ -12,7 +12,6 @@
     {Credo.Check.Consistency.TabsOrSpaces, []},
 
     # Design checks
-    {Credo.Check.Design.AliasUsage, false},  # Disabled: test code uses nested modules
     {Credo.Check.Design.DuplicatedCode, [excluded_macros: [:test]]},
     {Credo.Check.Design.IfThenElse, []},
     {Credo.Check.Design.TagFQN, [all: true]},
@@ -44,7 +43,6 @@
     # Refactor checks
     {Credo.Check.Refactor.AppendSingleItem, []},
     {Credo.Check.Refactor.CondReductions, []},
-    {Credo.Check.Refactor.CyclomaticComplexity, false},  # Disabled: complex validation functions in SDK
     {Credo.Check.Refactor.FunctionArity, [max_arity: 8, excluded_macros: []]},
     {Credo.Check.Refactor.LongQuoteBlocks, []},
     {Credo.Check.Refactor.MapInto, []},
