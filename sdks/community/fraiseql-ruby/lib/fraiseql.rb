@@ -18,8 +18,8 @@ module FraiseQL
     Schema.register_type(name, fields, description)
   end
 
-  def self.export_types(pretty: true)
-    Schema.export_types(pretty: pretty)
+  def self.export_types(pretty = true)
+    Schema.export_types(pretty)
   end
 
   def self.export_types_file(path)

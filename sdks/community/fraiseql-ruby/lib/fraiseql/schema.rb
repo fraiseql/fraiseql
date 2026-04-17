@@ -8,7 +8,7 @@ module FraiseQL
   # Schema management and type export for TOML-based workflow
   class Schema
     # Export types to minimal JSON (TOML workflow)
-    def self.export_types(pretty: true)
+    def self.export_types(pretty = true)
       registry = SchemaRegistry.instance
       types = registry.all_types
 
@@ -27,7 +27,7 @@ module FraiseQL
 
     # Export types to a file
     def self.export_types_file(output_path)
-      types_json = export_types(pretty: true)
+      types_json = export_types(true)
       File.write(output_path, types_json)
       print_export_summary(output_path)
     end
