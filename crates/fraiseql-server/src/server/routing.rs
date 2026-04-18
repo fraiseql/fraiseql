@@ -265,15 +265,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .merge(graphql_router);
 
         // Mount REST transport if compiled and configured.
-        // Uses `rest_query_router` (read-only GET + SSE) because `Server<A>` does not require
-        // `SupportsMutations`. If the adapter also implements `SupportsMutations`, operators
-        // should use `rest_router` directly via a custom server setup.
+        // `rest_router` mounts all routes (GET + mutation). Mutation handlers
+        // include a runtime `supports_mutations()` guard so read-only adapters
+        // get a clean error response instead of silently dropping mutations.
         #[cfg(feature = "rest")]
         {
-            use crate::routes::rest::rest_query_router;
+            use crate::routes::rest::rest_router;
 
-            if let Some(rest) = rest_query_router(&state, self.config.compression_enabled) {
-                info!("REST query transport mounted");
+            if let Some(rest) = rest_router(&state, self.config.compression_enabled) {
+                info!("REST transport mounted");
                 app = app.merge(rest);
             }
         }

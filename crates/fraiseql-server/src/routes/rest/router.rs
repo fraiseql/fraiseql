@@ -15,7 +15,7 @@ use axum::{
     routing::{delete, get, patch, post, put},
 };
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, SupportsMutations},
+    db::traits::DatabaseAdapter,
     runtime::Executor,
 };
 use serde_json::json;
@@ -192,8 +192,8 @@ where
 /// Returns `None` if `rest_config` is absent or `enabled` is `false`, or if
 /// route derivation fails.
 ///
-/// Requires `SupportsMutations` because mutation handlers call
-/// `Executor::execute_mutation()` which has the same compile-time bound.
+/// Mutation handlers include a runtime `supports_mutations()` check; read-only
+/// adapters will return appropriate error responses.
 ///
 /// The returned router is *not* nested — the caller must merge it into the
 /// application router.  Middleware applied at the server level (auth, rate
@@ -204,7 +204,7 @@ where
 /// Returns `None` (with a warning log) if the route table cannot be derived.
 pub fn rest_router<A>(state: &AppState<A>, compression_enabled: bool) -> Option<Router>
 where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
     let (base_path, route_table, rest_state) = derive_rest_context(state)?;
     let executor = state.executor();
@@ -396,7 +396,7 @@ async fn rest_post_handler<A>(
     request: Request<Body>,
 ) -> Response
 where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
     let (parts, body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
@@ -425,7 +425,7 @@ async fn rest_put_handler<A>(
     request: Request<Body>,
 ) -> Response
 where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
     let (parts, body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
@@ -453,7 +453,7 @@ async fn rest_patch_handler<A>(
     request: Request<Body>,
 ) -> Response
 where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
     let (parts, body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
@@ -491,7 +491,7 @@ async fn rest_delete_handler<A>(
     request: Request<Body>,
 ) -> Response
 where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
     let (parts, _body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
