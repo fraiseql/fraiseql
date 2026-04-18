@@ -452,6 +452,28 @@ mod introspection {
         // Unknown type returns null
         assert!(result["data"]["__type"].is_null());
     }
+
+    #[tokio::test]
+    async fn test_introspection_includes_mutation_error() {
+        let schema = test_schema();
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor = Executor::new(schema, adapter);
+
+        let query = r#"{ __schema { types { name kind fields { name type { name } } } } }"#;
+        let result = executor.execute(query, None).await.unwrap();
+
+        let types = result["data"]["__schema"]["types"].as_array().unwrap();
+        let mutation_error = types.iter().find(|t| t["name"] == "MutationError").unwrap();
+
+        assert_eq!(mutation_error["kind"], "OBJECT");
+
+        let fields = mutation_error["fields"].as_array().unwrap();
+        let field_names: std::collections::HashSet<_> = fields.iter().map(|f| f["name"].as_str().unwrap()).collect();
+
+        assert!(field_names.contains("message"));
+        assert!(field_names.contains("status"));
+        assert!(field_names.contains("metadata"));
+    }
 }
 
 // ── mod classify: query type detection ───────────────────────────────────

@@ -18,6 +18,8 @@ use crate::{
 
 /// Compile-time enforcement: `SqliteAdapter` must NOT implement `SupportsMutations`.
 ///
+/// GraphQL type name for the built-in mutation error fallback.
+pub const BUILTIN_MUTATION_ERROR_TYPE: &str = "MutationError";
 /// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
 /// because `SqliteAdapter` does not implement the `SupportsMutations` marker trait.
 ///
@@ -545,18 +547,27 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             MutationOutcome::Error {
                 error_class,
+                message,
                 metadata,
-                ..
             } => {
                 let status = error_class.as_str();
 
                 // Find the matching error type from the return union
-                let error_type = self.schema.find_union(&mutation_return_type).and_then(|u| {
-                    u.member_types.iter().find_map(|t| {
-                        let td = self.schema.find_type(t)?;
-                        if td.is_error { Some(td) } else { None }
+                let error_type = self
+                    // Step 1: explicit union with @fraiseql.error member (unchanged behaviour)
+                    .schema
+                    .find_union(&mutation_return_type)
+                    .and_then(|u| {
+                        u.member_types.iter().find_map(|t| {
+                            let td = self.schema.find_type(t)?;
+                            if td.is_error { Some(td) } else { None }
+                        })
                     })
-                });
+                    // Step 2: naming convention — look for {ReturnType}Error declared with @fraiseql.error
+                    .or_else(|| {
+                        let convention_name = format!("{}Error", mutation_return_type);
+                        self.schema.find_type(&convention_name).filter(|td| td.is_error)
+                    });
 
                 match error_type {
                     Some(td) => {
@@ -577,19 +588,26 @@ impl<A: DatabaseAdapter> Executor<A> {
                         let obj = metadata.as_object().cloned().unwrap_or_default();
                         let mut result = mapper.project_json_object(&obj)?;
 
-                        // Inject status (not in type definition, but required by clients)
+                        // Inject status and message (not in error_detail JSONB, but required by clients)
                         if let serde_json::Value::Object(ref mut map) = result {
-                            map.insert(
-                                "status".to_string(),
-                                serde_json::Value::String(status.to_string()),
-                            );
+                            map.insert("status".to_string(), serde_json::Value::String(status.to_string()));
+                            // Only inject message if not already projected from metadata
+                            map.entry("message".to_string())
+                                .or_insert_with(|| serde_json::Value::String(message.clone()));
                         }
 
                         result
                     },
                     None => {
-                        // No error type defined: surface the status as a plain object
-                        serde_json::json!({ "__typename": mutation_return_type, "status": status })
+                        // No union and no {ReturnType}Error declared.
+                        // Fall back to the built-in MutationError type which carries the
+                        // standard mutation_response fields.
+                        serde_json::json!({
+                            "__typename": BUILTIN_MUTATION_ERROR_TYPE,
+                            "message":    message,
+                            "status":     status,
+                            "metadata":   metadata,
+                        })
                     },
                 }
             },
