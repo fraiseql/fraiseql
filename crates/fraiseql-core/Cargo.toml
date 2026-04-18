@@ -57,6 +57,7 @@ dhat = {version = "0.3", optional = true}
 # Database abstraction layer (adapters, collation, introspector, filters)
 fraiseql-db = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true}
+fraiseql-validators = {workspace = true}
 # Federation support (Apollo Federation v2)
 fraiseql-federation = {workspace = true, optional = true}
 futures = {workspace = true}

@@ -2621,7 +2621,7 @@ dependencies = [
  "fraiseql-arrow",
  "fraiseql-cli",
  "fraiseql-core",
- "fraiseql-error",
+ "fraiseql-error 2.2.0",
  "fraiseql-observers",
  "fraiseql-server",
  "fraiseql-wire",
@@ -2758,9 +2758,10 @@ dependencies = [
  "deadpool-postgres",
  "dhat",
  "fraiseql-db",
- "fraiseql-error",
+ "fraiseql-error 2.2.0",
  "fraiseql-federation",
  "fraiseql-test-utils",
+ "fraiseql-validators",
  "fraiseql-wire",
  "futures",
  "graphql-parser",
@@ -2818,7 +2819,7 @@ dependencies = [
  "dashmap",
  "deadpool",
  "deadpool-postgres",
- "fraiseql-error",
+ "fraiseql-error 2.2.0",
  "fraiseql-wire",
  "futures",
  "insta",
@@ -2851,6 +2852,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-error"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "794038a52c7acb0b3fc122bb79f64983c742176b9364c41152d8bafc728007ce"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "toml",
+]
+
+[[package]]
 name = "fraiseql-federation"
 version = "2.2.0"
 dependencies = [
@@ -2859,7 +2873,7 @@ dependencies = [
  "deadpool",
  "deadpool-postgres",
  "fraiseql-db",
- "fraiseql-error",
+ "fraiseql-error 2.2.0",
  "proptest",
  "reqwest",
  "serde",
@@ -2961,7 +2975,7 @@ dependencies = [
  "fraiseql-arrow",
  "fraiseql-auth",
  "fraiseql-core",
- "fraiseql-error",
+ "fraiseql-error 2.2.0",
  "fraiseql-observers",
  "fraiseql-secrets",
  "fraiseql-test-utils",
@@ -3035,6 +3049,16 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "fraiseql-validators"
+version = "0.2.0"
+dependencies = [
+ "csv",
+ "fraiseql-error 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "once_cell",
+ "regex-lite",
 ]
 
 [[package]]
