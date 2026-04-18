@@ -9,6 +9,7 @@ pub mod federation;
 pub mod observability;
 pub mod observers;
 pub mod operations;
+pub mod rest;
 pub mod security;
 pub mod server_settings;
 pub mod subscriptions;
@@ -171,6 +172,10 @@ pub struct TomlSchema {
     /// ```
     #[serde(default)]
     pub crud: Option<CrudNamingConfig>,
+
+    /// REST transport configuration.
+    #[serde(default)]
+    pub rest: Option<rest::RestTomlConfig>,
 }
 
 impl TomlSchema {
