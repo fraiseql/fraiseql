@@ -52,6 +52,7 @@ fn base_schema_with_query(
         federation_config: None,
         debug_config: None,
         mcp_config: None,
+        rest_config: None,
         query_defaults,
         naming_convention: NamingConvention::default(),
         session_variables: None,

@@ -642,6 +642,38 @@ impl SchemaMerger {
                 serde_json::to_value(&toml_schema.mcp).context("Failed to serialize MCP config")?;
         }
 
+        // Embed REST config when enabled
+        if let Some(ref rest) = toml_schema.rest {
+            if rest.enabled {
+                use fraiseql_core::schema::{DeleteResponse, RestConfig};
+                let delete_response = match rest.delete_response.as_str() {
+                    "returning" => DeleteResponse::Entity,
+                    _ => DeleteResponse::NoContent,
+                };
+                let rest_config = RestConfig {
+                    enabled:                 true,
+                    path:                    rest.path.clone(),
+                    max_page_size:           rest.max_page_size,
+                    default_page_size:       rest.default_page_size,
+                    ndjson_batch_size:       rest.ndjson_batch_size,
+                    max_bulk_affected:       rest.max_bulk_affected,
+                    max_filter_bytes:        rest.max_filter_bytes,
+                    delete_response,
+                    default_cache_ttl:       rest.default_cache_ttl,
+                    cdn_max_age:             rest.cdn_max_age,
+                    require_auth:            rest.require_auth,
+                    sse_heartbeat_seconds:   rest.sse_heartbeat_seconds,
+                    max_embedding_depth:     rest.max_embedding_depth,
+                    include:                 rest.include.clone(),
+                    exclude:                 rest.exclude.clone(),
+                    etag:                    rest.etag,
+                    idempotency_ttl_seconds: rest.idempotency_ttl_seconds,
+                };
+                merged["rest_config"] = serde_json::to_value(&rest_config)
+                    .context("Failed to serialize REST config")?;
+            }
+        }
+
         // Embed naming convention
         merged["naming_convention"] = serde_json::to_value(toml_schema.naming_convention)
             .context("Failed to serialize naming_convention")?;
