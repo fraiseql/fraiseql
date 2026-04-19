@@ -127,6 +127,7 @@ fn test_validate_unknown_type_reference() {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_user".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,
