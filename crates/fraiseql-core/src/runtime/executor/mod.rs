@@ -240,6 +240,7 @@ enum QueryType {
 ///
 /// Walks the result (which may be a single object or an array of objects)
 /// and sets each masked field's value to `null`.
+#[allow(dead_code)]
 fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
     match value {
         serde_json::Value::Object(map) => {

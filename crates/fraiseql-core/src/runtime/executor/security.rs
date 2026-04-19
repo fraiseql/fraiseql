@@ -366,6 +366,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Returns `FraiseQLError::Forbidden` if any requested field has `on_deny = Reject`
     /// and the user lacks the required scope.
+    #[allow(dead_code)]
     pub(super) fn apply_field_rbac_filtering(
         &self,
         return_type: &str,

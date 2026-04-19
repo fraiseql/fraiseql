@@ -150,6 +150,45 @@ fn enrich_order_by_clauses(
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
+    /// Execute a regular (non-aggregate, non-relay) GraphQL query without a security context.
+    ///
+    /// This method is used by the public `execute` API for unauthenticated queries.
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — if the query is not found or requires a security context.
+    /// * [`FraiseQLError::Database`] — if the database adapter returns an error.
+    pub(super) async fn execute_regular_query(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        // 1. Match query to compiled template
+        let query_match = self.matcher.match_query(query, variables)?;
+
+        // Guard: role-restricted queries are invisible to unauthenticated users
+        if query_match.query_def.requires_role.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!("Query '{}' not found in schema", query_match.query_def.name),
+                path:    None,
+            });
+        }
+
+        // Guard: queries with inject params require a security context
+        if !query_match.query_def.inject_params.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            });
+        }
+
+        // Delegate to execute_query_direct (which handles dispatch, projections, etc.)
+        self.execute_query_direct(&query_match, variables, None).await
+    }
+
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
     /// This method:
@@ -229,21 +268,22 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
-        let response_cache_key =
-            self.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
-                let query_key = Self::compute_response_cache_key(&query_match);
-                let sec_hash =
-                    crate::cache::response_cache::hash_security_context(Some(security_context));
-                (query_key, sec_hash)
-            });
+        // NOTE: Cache key computation is currently disabled due to missing compute_response_cache_key implementation
+        // let response_cache_key =
+        //     self.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
+        //         let query_key = Self::compute_response_cache_key(&query_match);
+        //         let sec_hash =
+        //             crate::cache::response_cache::hash_security_context(Some(security_context));
+        //         (query_key, sec_hash)
+        //     });
 
-        if let (Some((query_key, sec_hash)), Some(rc)) =
-            (response_cache_key, self.response_cache.as_ref())
-        {
-            if let Some(cached) = rc.get(query_key, sec_hash)? {
-                return Ok((*cached).clone());
-            }
-        }
+        // if let (Some((query_key, sec_hash)), Some(rc)) =
+        //     (response_cache_key, self.response_cache.as_ref())
+        // {
+        //     if let Some(cached) = rc.get(query_key, sec_hash)? {
+        //         return Ok((*cached).clone());
+        //     }
+        // }
 
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
