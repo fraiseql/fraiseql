@@ -747,12 +747,44 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Build projection hint (same as execute_regular_query) so the adapter
+        // extracts fields from JSONB at the SQL level instead of returning raw blobs.
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
+            let root_fields = query_match
+                .selections
+                .first()
+                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+            let typed_fields = build_typed_projection_fields(
+                root_fields,
+                &self.schema,
+                &query_match.query_def.return_type,
+                0,
+            );
+
+            let generator = PostgresProjectionGenerator::new();
+            let projection_sql = generator
+                .generate_typed_projection_sql(&typed_fields)
+                .unwrap_or_else(|_| "data".to_string());
+
+            Some(SqlProjectionHint {
+                database:                    self.adapter.database_type(),
+                projection_template:         projection_sql,
+                estimated_reduction_percent: compute_projection_reduction(
+                    plan.projection_fields.len(),
+                ),
+            })
+        } else {
+            None
+        };
+
         // Execute.
         let results = self
             .adapter
             .execute_with_projection_arc(
                 sql_source,
-                None,
+                projection_hint.as_ref(),
                 composed_where.as_ref(),
                 limit,
                 offset,

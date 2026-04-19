@@ -425,9 +425,15 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
 
         let params = extractor.extract(&path_pairs, query_pairs)?;
 
-        // Build field names from RestFieldSpec
+        // Build field names from RestFieldSpec.
+        // When no explicit `?select=` is provided, expand to all type fields so
+        // the projector extracts them from the JSONB `data` column.
         let field_names = match &params.field_selection {
-            RestFieldSpec::All => Vec::new(),
+            RestFieldSpec::All => {
+                type_def
+                    .map(|td| td.fields.iter().map(|f| f.name.to_string()).collect())
+                    .unwrap_or_default()
+            },
             RestFieldSpec::Fields(fields) => fields.clone(),
         };
 
