@@ -47,6 +47,14 @@ def _validate_sql_identifier(value: str, param: str, context: str) -> None:
         )
 
 
+def _to_camel_case(snake_str: str) -> str:
+    """Convert snake_case string to camelCase."""
+    if not snake_str:
+        return snake_str
+    parts = snake_str.split("_")
+    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+
+
 def _validate_inject(
     inject: dict[str, str],
     arg_names: set[str],
@@ -391,7 +399,9 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     return decorator(cls)
 
 
-def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
+def query(  # noqa: PLR0915 — public API with many configuration options
+    func: F | None = None, **config_kwargs: Any
+) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL query.
 
     This decorator registers the function with the schema registry for JSON export.
@@ -400,6 +410,16 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
     Args:
         func: Python function with type annotations
         **config_kwargs: Configuration options. Common keys:
+
+            - ``sql_source``: override the default SQL view/table name.
+            - ``sql_source_dispatch``: Map from enum argument values to SQL table/view names.
+              Outer key = argument name, inner dict = enum value to table name.
+              Mutually exclusive with ``sql_source`` and ``sql_source_template``.
+              Example: ``{"timeInterval": {"DAY": "tf_orders_day", "MONTH": "tf_orders_month"}}``
+            - ``sql_source_template``: Template string with ``{placeholder}`` for enum values.
+              Placeholder becomes snake_case argument name converted to camelCase.
+              Mutually exclusive with ``sql_source`` and ``sql_source_dispatch``.
+              Example: ``"tf_orders_{time_interval}"`` (requires ``timeInterval`` argument)
 
             - ``sql_source``: override the default SQL view/table name.
             - ``auto_params``: dict of ``{limit, offset, where, order_by}`` booleans,
@@ -440,7 +460,7 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         - Returns T | None for nullable results
     """
 
-    def decorator(f: F) -> F:  # noqa: PLR0912 — each branch validates a distinct query config parameter
+    def decorator(f: F) -> F:  # noqa: PLR0912,PLR0915 — each branch validates a distinct query config parameter
         # Extract function signature
         signature = extract_function_signature(f)
 
@@ -453,6 +473,95 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         # sql_source validation — block injection at authoring time
         if sql_source := cfg.get("sql_source"):
             _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.query on {f.__name__!r}")
+
+        # sql_source_dispatch / sql_source_template validation — fail fast at authoring time
+        sql_source_dispatch = cfg.get("sql_source_dispatch")
+        sql_source_template = cfg.get("sql_source_template")
+
+        # Mutual exclusivity
+        if sql_source and (sql_source_dispatch or sql_source_template):
+            raise ValueError(
+                f"@query '{f.__name__}': cannot set sql_source together with "
+                "sql_source_dispatch or sql_source_template"
+            )
+        if sql_source_dispatch and sql_source_template:
+            raise ValueError(
+                f"@query '{f.__name__}': cannot set both sql_source_dispatch and "
+                "sql_source_template"
+            )
+
+        # Normalize sql_source_dispatch
+        if sql_source_dispatch:
+            if not isinstance(sql_source_dispatch, dict):
+                msg = (
+                    f"@fraiseql.query sql_source_dispatch= on {f.__name__!r} must be a dict "
+                    f"(got {sql_source_dispatch.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            if len(sql_source_dispatch) != 1:
+                raise ValueError(
+                    f"@query '{f.__name__}': sql_source_dispatch must have exactly one argument key"
+                )
+            arg_name = next(iter(sql_source_dispatch))
+            mapping = sql_source_dispatch[arg_name]
+
+            # Validate argument exists and is required
+            arg_def = next((a for a in signature["arguments"] if a["name"] == arg_name), None)
+            if arg_def is None:
+                raise ValueError(
+                    f"@query '{f.__name__}': dispatch argument '{arg_name}' not in query arguments"
+                )
+            if arg_def.get("nullable", False):
+                raise ValueError(
+                    f"@query '{f.__name__}': dispatch argument '{arg_name}' must be required"
+                )
+
+            # Validate SQL identifiers
+            for enum_val, table in mapping.items():
+                if not isinstance(table, str) or not _SQL_IDENTIFIER_RE.match(table):
+                    raise ValueError(
+                        f"@query '{f.__name__}': dispatch table '{table}' (for {enum_val}) "
+                        "is not a safe SQL identifier"
+                    )
+
+            cfg["sql_source_dispatch"] = {
+                "argument": arg_name,
+                "mapping": mapping,
+            }
+
+        elif sql_source_template:
+            if not isinstance(sql_source_template, str):
+                msg = (
+                    f"@fraiseql.query sql_source_template= on {f.__name__!r} must be a str "
+                    f"(got {sql_source_template.__class__.__name__!r})."
+                )
+                raise TypeError(msg)
+            # Extract argument name from template placeholder
+            placeholders = re.findall(r"\{(\w+)\}", sql_source_template)
+            if len(placeholders) != 1:
+                raise ValueError(
+                    f"@query '{f.__name__}': sql_source_template must contain exactly "
+                    "one {{placeholder}}"
+                )
+            # Convert snake_case placeholder to camelCase argument name
+            placeholder = placeholders[0]
+            arg_name = _to_camel_case(placeholder)
+
+            arg_def = next((a for a in signature["arguments"] if a["name"] == arg_name), None)
+            if arg_def is None:
+                raise ValueError(
+                    f"@query '{f.__name__}': template placeholder '{placeholder}' does not match "
+                    f"any argument (expected argument '{arg_name}')"
+                )
+            if arg_def.get("nullable", False):
+                raise ValueError(
+                    f"@query '{f.__name__}': dispatch argument '{arg_name}' must be required"
+                )
+
+            cfg["sql_source_dispatch"] = {
+                "argument": arg_name,
+                "template": sql_source_template,
+            }
 
         # Inject validation — fail fast at authoring time
         if inject := cfg.get("inject"):
