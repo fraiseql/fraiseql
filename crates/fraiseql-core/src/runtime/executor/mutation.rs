@@ -246,11 +246,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
         let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
 
-        // Detect single-input-object pattern
+        // Detect single-input-object pattern.
+        //
+        // The compiler's `parse_field_type` function defaults all unknown types to
+        // `FieldType::Object`, so input object types (e.g. `CreateMachineInput`) are
+        // compiled as `Object("CreateMachineInput")` rather than `Input("CreateMachineInput")`.
+        // Accept both variants here so that Update JSONB path is taken regardless of
+        // how the compiler classified the argument type.
         let input_type_name =
             if mutation_def.arguments.len() == 1 && mutation_def.arguments[0].name == "input" {
                 match &mutation_def.arguments[0].arg_type {
-                    crate::schema::FieldType::Input(name) => Some(name.as_str()),
+                    crate::schema::FieldType::Input(name)
+                    | crate::schema::FieldType::Object(name) => Some(name.as_str()),
                     _ => None,
                 }
             } else {
@@ -496,6 +503,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 entity,
                 entity_type,
                 cascade,
+                updated_fields,
                 ..
             } => {
                 // Determine the GraphQL __typename
@@ -514,14 +522,32 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .unwrap_or_else(|| mutation_return_type.clone());
 
                 // Build projection mappings from the selection set.
-                // Success entities use snake_case keys (from DB), so source == output.
+                // The schema exposes fields as camelCase (e.g. `customerContractId`) but the
+                // entity JSONB from the DB tview uses snake_case (e.g. `customer_contract_id`).
+                // Map each camelCase selection field to its snake_case source key so that the
+                // client receives the expected camelCase field names in the response.
                 let requested = selection_for_type(&typename);
                 let mappings: Vec<FieldMapping> = match &requested {
                     Some(fields) => {
-                        fields.iter().map(|f| FieldMapping::simple(f.clone())).collect()
+                        fields.iter().map(|f| {
+                            let snake = to_snake_case(f);
+                            if snake != *f {
+                                // camelCase GraphQL field → snake_case JSONB key, return as camelCase
+                                // source_fallback handles tviews that already return camelCase
+                                FieldMapping {
+                                    source:          snake,
+                                    output:          f.clone(),
+                                    source_fallback: Some(f.clone()),
+                                    nested_typename: None,
+                                    nested_fields:   None,
+                                }
+                            } else {
+                                FieldMapping::simple(f.clone())
+                            }
+                        }).collect()
                     },
                     None => {
-                        // No selection filtering — pass all fields
+                        // No selection filtering — pass all fields as-is (snake_case from DB)
                         entity
                             .as_object()
                             .map(|m| m.keys().map(|k| FieldMapping::simple(k.clone())).collect())
@@ -541,6 +567,21 @@ impl<A: DatabaseAdapter> Executor<A> {
                     if let serde_json::Value::Object(ref mut map) = projected {
                         map.insert("cascade".to_string(), cascade_json);
                     }
+                }
+
+                // Inject updatedFields into the projected object.
+                // The DB function returns this as an array of snake_case field names
+                // that actually changed. Clients use it to know which fields to refresh.
+                if let serde_json::Value::Object(ref mut map) = projected {
+                    map.insert(
+                        "updatedFields".to_string(),
+                        serde_json::Value::Array(
+                            updated_fields
+                                .into_iter()
+                                .map(serde_json::Value::String)
+                                .collect(),
+                        ),
+                    );
                 }
 
                 projected

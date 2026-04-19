@@ -35,17 +35,19 @@ pub enum MutationOutcome {
     /// The mutation succeeded; the result entity is available.
     Success {
         /// The entity JSONB returned by the function.
-        entity:      JsonValue,
+        entity:         JsonValue,
         /// GraphQL type name for the entity (from the `entity_type` column).
-        entity_type: Option<String>,
+        entity_type:    Option<String>,
         /// UUID string of the mutated entity (from the `entity_id` column).
         ///
         /// Present for UPDATE and DELETE mutations. Used for entity-aware cache
         /// invalidation: only cache entries containing this UUID are evicted,
         /// leaving unrelated entries warm.
-        entity_id:   Option<String>,
+        entity_id:      Option<String>,
         /// Cascade operations associated with this mutation.
-        cascade:     Option<JsonValue>,
+        cascade:        Option<JsonValue>,
+        /// GraphQL field names that changed. Empty on noop.
+        updated_fields: Vec<String>,
     },
     /// The mutation failed; error metadata is available.
     Error {
@@ -157,10 +159,11 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
             });
         }
         Ok(MutationOutcome::Success {
-            entity:      row.entity,
-            entity_type: row.entity_type,
-            entity_id:   row.entity_id.map(|u| u.to_string()),
-            cascade:     filter_null(row.cascade),
+            entity:         row.entity,
+            entity_type:    row.entity_type,
+            entity_id:      row.entity_id.map(|u| u.to_string()),
+            cascade:        filter_null(row.cascade),
+            updated_fields: row.updated_fields,
         })
     } else {
         if row.state_changed {
@@ -286,6 +289,7 @@ mod tests {
                 entity_type,
                 entity_id,
                 cascade,
+                ..
             } => {
                 assert_eq!(e, entity);
                 assert_eq!(entity_type.as_deref(), Some("Machine"));

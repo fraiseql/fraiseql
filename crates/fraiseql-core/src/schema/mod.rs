@@ -59,7 +59,7 @@ mod subscription_types;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
-    QueryDefinition, is_safe_sql_identifier,
+    QueryDefinition, SqlSourceDispatch, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,

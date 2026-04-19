@@ -142,6 +142,7 @@ impl SchemaConverter {
             nullable: intermediate.nullable,
             arguments,
             sql_source: intermediate.sql_source,
+            sql_source_dispatch: None,
             description: intermediate.description,
             auto_params,
             deprecation,
