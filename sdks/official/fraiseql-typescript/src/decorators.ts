@@ -109,8 +109,15 @@ export function Type(_config?: TypeConfig) {
 /**
  * Configuration for Query and Mutation decorators.
  */
+export interface SqlSourceDispatchConfig {
+  argument: string;
+  mapping?: Record<string, string>;
+  template?: string;
+}
+
 export interface OperationConfig {
   sqlSource?: string;
+  sqlSourceDispatch?: SqlSourceDispatchConfig;
   autoParams?: Record<string, boolean>;
   operation?: string;
   jsonbColumn?: string;
