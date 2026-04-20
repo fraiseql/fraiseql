@@ -65,7 +65,7 @@ pub fn validate_sql_identifier(
                     segment.len(),
                 ),
                 path:       path.to_string(),
-                severity:   ErrorSeverity::Error,
+                severity:   ErrorSeverity::Warning,
                 suggestion: Some("Shorten the identifier to 63 characters or fewer.".to_string()),
             });
         }
@@ -123,29 +123,30 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_64_bytes_rejected() {
+    fn test_identifier_64_bytes_warns() {
         let ident = "a".repeat(64);
         let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
         assert!(err.message.contains("exceeds the PostgreSQL maximum"));
         assert!(err.message.contains("63 bytes"));
+        assert_eq!(err.severity, ErrorSeverity::Warning);
     }
 
     #[test]
-    fn test_schema_segment_64_bytes_rejected() {
-        // The schema part (before the dot) is 64 chars — should fail on that segment.
+    fn test_schema_segment_64_bytes_warns() {
         let schema_part = "a".repeat(64);
         let ident = format!("{schema_part}.v_user");
         let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
         assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+        assert_eq!(err.severity, ErrorSeverity::Warning);
     }
 
     #[test]
-    fn test_name_segment_64_bytes_rejected() {
-        // The name part (after the dot) is 64 chars — should fail on that segment.
+    fn test_name_segment_64_bytes_warns() {
         let name_part = "a".repeat(64);
         let ident = format!("public.{name_part}");
         let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
         assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+        assert_eq!(err.severity, ErrorSeverity::Warning);
     }
 
     #[test]
