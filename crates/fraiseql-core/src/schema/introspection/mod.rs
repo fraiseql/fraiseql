@@ -85,6 +85,7 @@ mod tests {
             rest_path:           None,
             rest_method:         None,
             native_columns:      HashMap::new(),
+            sql_source_dispatch: None,
         });
 
         // Add a user query with argument
@@ -116,6 +117,7 @@ mod tests {
             rest_path:           None,
             rest_method:         None,
             native_columns:      HashMap::new(),
+            sql_source_dispatch: None,
         });
 
         schema
@@ -790,6 +792,7 @@ mod tests {
             rest_path:           None,
             rest_method:         None,
             native_columns:      HashMap::new(),
+            sql_source_dispatch: None,
         });
 
         // Add a non-deprecated query with a deprecated argument
@@ -833,6 +836,7 @@ mod tests {
             rest_path:           None,
             rest_method:         None,
             native_columns:      HashMap::new(),
+            sql_source_dispatch: None,
         });
 
         let introspection = IntrospectionBuilder::build(&schema);

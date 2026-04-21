@@ -52,7 +52,7 @@ pub(super) fn is_default_cursor_type(ct: &CursorType) -> bool {
 pub struct SqlSourceDispatch {
     /// The GraphQL argument name used for dispatch (e.g., "timeInterval").
     pub argument: String,
-    /// Map from enum value (e.g., "MONTH") to SQL table/view name (e.g., "tf_orders_month").
+    /// Map from enum value (e.g., "MONTH") to SQL table/view name (e.g., `tf_orders_month`).
     pub mapping: HashMap<String, String>,
 }
 

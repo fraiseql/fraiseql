@@ -308,12 +308,14 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation {
                 name,
                 type_selections,
+                arguments,
             } => {
                 self.execute_mutation_query_with_security(
                     &name,
                     variables,
                     Some(security_context),
                     &type_selections,
+                    &arguments,
                 )
                 .await
             },
@@ -366,7 +368,6 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Returns `FraiseQLError::Forbidden` if any requested field has `on_deny = Reject`
     /// and the user lacks the required scope.
-    #[allow(dead_code)]
     pub(super) fn apply_field_rbac_filtering(
         &self,
         return_type: &str,

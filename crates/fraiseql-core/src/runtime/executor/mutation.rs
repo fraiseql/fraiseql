@@ -62,8 +62,14 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     ) -> Result<serde_json::Value> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
-        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections)
-            .await
+        self.execute_mutation_query_with_security(
+            mutation_name,
+            variables,
+            None,
+            type_selections,
+            &[],
+        )
+        .await
     }
 }
 
@@ -125,6 +131,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         type_selections: &HashMap<String, Vec<String>>,
+        inline_arguments: &[crate::graphql::GraphQLArgument],
     ) -> Result<serde_json::Value> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
@@ -142,8 +149,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                 path:    None,
             });
         }
-        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections)
-            .await
+        self.execute_mutation_query_with_security(
+            mutation_name,
+            variables,
+            None,
+            type_selections,
+            inline_arguments,
+        )
+        .await
     }
 
     /// Internal implementation shared by `execute_mutation_query` and the
@@ -172,6 +185,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_ctx: Option<&SecurityContext>,
         type_selections: &HashMap<String, Vec<String>>,
+        inline_arguments: &[crate::graphql::GraphQLArgument],
     ) -> Result<serde_json::Value> {
         // 1. Locate the mutation definition
         let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
@@ -240,7 +254,37 @@ impl<A: DatabaseAdapter> Executor<A> {
         //    unwrap the object's fields and pass them positionally in the order defined by the
         //    input type's field list.  This keeps the SQL function signature flat while letting
         //    the GraphQL API use the standard input object pattern.
-        let vars_obj = variables.and_then(|v| v.as_object());
+        //
+        //    Inline argument merging: inline arguments from the GraphQL query string (e.g.
+        //    `createUser(email: "a@b.com")`) are resolved and merged with explicit variables.
+        //    Explicit variables take precedence over inline arguments when both provide the
+        //    same key.
+        let merged_vars_storage: serde_json::Map<String, serde_json::Value>;
+        let vars_obj = if inline_arguments.is_empty() {
+            variables.and_then(|v| v.as_object())
+        } else {
+            let var_map: std::collections::HashMap<String, serde_json::Value> = variables
+                .and_then(|v| v.as_object())
+                .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default();
+            let mut merged = serde_json::Map::new();
+            // Resolve inline arguments (literals and $variable references)
+            for arg in inline_arguments {
+                if let Some(val) =
+                    crate::runtime::matcher::resolve_inline_arg(arg, &var_map)
+                {
+                    merged.insert(arg.name.clone(), val);
+                }
+            }
+            // Overlay explicit variables (take precedence)
+            if let Some(obj) = variables.and_then(|v| v.as_object()) {
+                for (k, v) in obj {
+                    merged.insert(k.clone(), v.clone());
+                }
+            }
+            merged_vars_storage = merged;
+            Some(&merged_vars_storage)
+        };
 
         let mut missing_required: Vec<&str> = Vec::new();
         let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();

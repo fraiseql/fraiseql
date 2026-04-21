@@ -226,6 +226,7 @@ enum QueryType {
     Mutation {
         name:            String,
         type_selections: HashMap<String, Vec<String>>,
+        arguments:       Vec<crate::graphql::GraphQLArgument>,
     },
 
     /// Relay global node lookup: `node(id: ID!)`.
@@ -240,8 +241,7 @@ enum QueryType {
 ///
 /// Walks the result (which may be a single object or an array of objects)
 /// and sets each masked field's value to `null`.
-#[allow(dead_code)]
-fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
+pub(super) fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
     match value {
         serde_json::Value::Object(map) => {
             for field_name in masked {

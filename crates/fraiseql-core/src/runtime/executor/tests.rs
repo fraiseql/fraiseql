@@ -15,8 +15,8 @@ use crate::{
     },
     runtime::{JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig},
     schema::{
-        AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldDenyPolicy, FieldType,
-        InjectedParamSource, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition,
+        ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldDenyPolicy, FieldType,
+        InjectedParamSource, QueryDefinition, RoleDefinition, SecurityConfig, SqlSourceDispatch, TypeDefinition,
     },
     security::{DefaultRLSPolicy, SecurityContext},
 };
@@ -334,7 +334,8 @@ fn test_schema() -> CompiledSchema {
         requires_role:       None,
         rest_path:           None,
         rest_method:         None,
-        native_columns:      HashMap::new(),
+        native_columns:         HashMap::new(),
+        sql_source_dispatch: None,
     });
     schema
 }
@@ -459,7 +460,7 @@ mod introspection {
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        let query = r#"{ __schema { types { name kind fields { name type { name } } } } }"#;
+        let query = r"{ __schema { types { name kind fields { name type { name } } } } }";
         let result = executor.execute(query, None).await.unwrap();
 
         let types = result["data"]["__schema"]["types"].as_array().unwrap();
@@ -917,6 +918,7 @@ mod inject {
             rest_path: None,
             rest_method: None,
             native_columns: HashMap::new(),
+            sql_source_dispatch: None,
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -1688,7 +1690,7 @@ mod mutation {
     }
 
     /// camelCase GraphQL field names in an update input must be converted to
-    /// snake_case before passing to the SQL function, so that
+    /// `snake_case` before passing to the SQL function, so that
     /// `jsonb_populate_record` and `input_payload ? 'field_name'` checks work
     /// against PostgreSQL composite type column names.
     #[tokio::test]
@@ -1760,6 +1762,120 @@ mod mutation {
         assert_eq!(obj["customer_id"], "cust-1");
         assert_eq!(obj["product_id"],  "prod-2");
         assert_eq!(obj["unit_price"],  9.99);
+    }
+    // ── Inline mutation argument tests (issue #236) ─────────────────────────
+
+    /// Schema with a Custom mutation that takes flat (non-input-object) arguments,
+    /// matching the pattern from issue #236 where `create_entity(p_name TEXT, ...)`.
+    fn schema_with_flat_arg_mutation() -> CompiledSchema {
+        use crate::schema::{FieldType, MutationDefinition, MutationOperation};
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            name:        "createUser".to_string(),
+            return_type: "User".to_string(),
+            sql_source:  Some("fn_create_user".to_string()),
+            operation:   MutationOperation::Custom,
+            arguments:   vec![
+                crate::schema::ArgumentDefinition {
+                    name:          "email".to_string(),
+                    arg_type:      FieldType::Scalar("String".to_string()),
+                    nullable:      false,
+                    default_value: None,
+                    description:   None,
+                    deprecation:   None,
+                },
+                crate::schema::ArgumentDefinition {
+                    name:          "name".to_string(),
+                    arg_type:      FieldType::Scalar("String".to_string()),
+                    nullable:      true,
+                    default_value: None,
+                    description:   None,
+                    deprecation:   None,
+                },
+            ],
+            ..MutationDefinition::new("createUser", "User")
+        });
+        schema
+    }
+
+    /// Inline literal arguments in the GraphQL query string must be passed through
+    /// to the SQL function call. This is the core fix for issue #236.
+    #[tokio::test]
+    async fn inline_literal_args_passed_to_mutation_function() {
+        let schema = schema_with_flat_arg_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        executor
+            .execute(
+                r#"mutation { createUser(email: "alice@example.com", name: "Alice") { id } }"#,
+                None,
+            )
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 2, "mutation must pass two positional args, got: {captured:?}");
+        assert_eq!(captured[0], "alice@example.com");
+        assert_eq!(captured[1], "Alice");
+    }
+
+    /// Variable references in inline mutation arguments (e.g. `createUser(email: $e)`)
+    /// must be resolved from the variables JSON object.
+    #[tokio::test]
+    async fn inline_variable_ref_args_resolved_from_variables() {
+        let schema = schema_with_flat_arg_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "e": "bob@example.com",
+            "n": "Bob"
+        });
+        executor
+            .execute(
+                r"mutation($e: String!, $n: String) { createUser(email: $e, name: $n) { id } }",
+                Some(&vars),
+            )
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 2, "mutation must pass two positional args, got: {captured:?}");
+        assert_eq!(captured[0], "bob@example.com");
+        assert_eq!(captured[1], "Bob");
+    }
+
+    /// Explicit GraphQL variables must take precedence over inline literal arguments
+    /// when both provide the same key.
+    #[tokio::test]
+    async fn explicit_variables_override_inline_args() {
+        let schema = schema_with_flat_arg_mutation();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "email": "override@example.com"
+        });
+        // Inline has email="inline@example.com", but variables has email="override@example.com"
+        executor
+            .execute(
+                r#"mutation { createUser(email: "inline@example.com", name: "Charlie") { id } }"#,
+                Some(&vars),
+            )
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 2, "mutation must pass two positional args");
+        assert_eq!(
+            captured[0], "override@example.com",
+            "explicit variable must override inline arg"
+        );
+        assert_eq!(captured[1], "Charlie");
     }
 }
 
@@ -1854,6 +1970,7 @@ mod routing {
             rest_path:           None,
             rest_method:         None,
             native_columns:      HashMap::new(),
+            sql_source_dispatch: None,
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
@@ -1895,6 +2012,7 @@ mod auto_params {
             rest_path: None,
             rest_method: None,
             native_columns: HashMap::new(),
+            sql_source_dispatch: None,
         });
         schema
     }
@@ -2029,6 +2147,7 @@ mod rls_composition {
             rest_path: None,
             rest_method: None,
             native_columns: HashMap::new(),
+            sql_source_dispatch: None,
         });
         schema
     }
@@ -2184,6 +2303,7 @@ mod rls_composition {
             rest_path:           None,
             rest_method:         None,
             native_columns:      native_cols,
+            sql_source_dispatch: None,
         });
         schema.types.push({
             let mut t = TypeDefinition::new("User", "v_user");
@@ -2245,6 +2365,7 @@ mod field_rbac {
             rest_path:           None,
             rest_method:         None,
             native_columns:      HashMap::new(),
+            sql_source_dispatch: None,
         });
         let mut user_type = TypeDefinition::new("User", "v_user");
         user_type.fields = vec![
@@ -2804,5 +2925,308 @@ mod session_variables {
             adapter.captured_pairs().is_empty(),
             "session_vars must be empty when no session_variables are configured"
         );
+    }
+}
+
+// ── mod sql_source_dispatch: dynamic table routing tests ──────────────────────
+
+mod sql_source_dispatch {
+    use super::*;
+
+    fn dispatch_test_schema() -> CompiledSchema {
+        use crate::schema::{EnumDefinition, EnumValueDefinition};
+
+        let mut schema = CompiledSchema::new();
+
+        // Add enum type for TimeInterval
+        schema.enums.push(
+            EnumDefinition::new("TimeInterval")
+                .with_value(EnumValueDefinition::new("DAY"))
+                .with_value(EnumValueDefinition::new("WEEK"))
+                .with_value(EnumValueDefinition::new("MONTH")),
+        );
+
+        // Add Order type
+        let mut order_type = TypeDefinition::new("Order", "v_order");
+        order_type.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::new("amount", FieldType::Float),
+        ];
+        schema.types.push(order_type);
+
+        // Add query with explicit mapping dispatch
+        schema.queries.push(QueryDefinition {
+            name: "orders".to_string(),
+            return_type: "Order".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![ArgumentDefinition {
+                name: "timeInterval".to_string(),
+                arg_type: FieldType::Enum("TimeInterval".to_string()),
+                nullable: false,
+                default_value: None,
+                description: None,
+                deprecation: None,
+            }],
+            sql_source: None,
+            sql_source_dispatch: Some(SqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping: HashMap::from([
+                    ("DAY".to_string(), "orders_day".to_string()),
+                    ("WEEK".to_string(), "orders_week".to_string()),
+                    ("MONTH".to_string(), "orders_month".to_string()),
+                ]),
+            }),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
+            relay_cursor_column: None,
+            relay_cursor_type: CursorType::Int64,
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec!["orders_day".to_string(), "orders_week".to_string(), "orders_month".to_string()],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
+        });
+
+        // Add query with template dispatch
+        schema.queries.push(QueryDefinition {
+            name: "sales".to_string(),
+            return_type: "Order".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![ArgumentDefinition {
+                name: "period".to_string(),
+                arg_type: FieldType::Enum("TimeInterval".to_string()),
+                nullable: false,
+                default_value: None,
+                description: None,
+                deprecation: None,
+            }],
+            sql_source: None,
+            sql_source_dispatch: Some(SqlSourceDispatch {
+                argument: "period".to_string(),
+                mapping: HashMap::from([
+                    ("DAY".to_string(), "tf_sales_day".to_string()),
+                    ("WEEK".to_string(), "tf_sales_week".to_string()),
+                    ("MONTH".to_string(), "tf_sales_month".to_string()),
+                ]),
+            }),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
+            relay_cursor_column: None,
+            relay_cursor_type: CursorType::Int64,
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec!["tf_sales_day".to_string(), "tf_sales_week".to_string(), "tf_sales_month".to_string()],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
+        });
+
+        schema
+    }
+
+    fn mock_orders_results(table_name: &str) -> Vec<JsonbValue> {
+        match table_name {
+            "orders_day" => vec![
+                JsonbValue::new(serde_json::json!({"id": "1", "amount": 100.0})),
+                JsonbValue::new(serde_json::json!({"id": "2", "amount": 200.0})),
+            ],
+            "orders_week" => vec![
+                JsonbValue::new(serde_json::json!({"id": "3", "amount": 300.0})),
+                JsonbValue::new(serde_json::json!({"id": "4", "amount": 400.0})),
+            ],
+            "orders_month" => vec![
+                JsonbValue::new(serde_json::json!({"id": "5", "amount": 500.0})),
+                JsonbValue::new(serde_json::json!({"id": "6", "amount": 600.0})),
+            ],
+            "tf_sales_day" => vec![
+                JsonbValue::new(serde_json::json!({"id": "7", "amount": 150.0})),
+            ],
+            "tf_sales_week" => vec![
+                JsonbValue::new(serde_json::json!({"id": "8", "amount": 250.0})),
+            ],
+            "tf_sales_month" => vec![
+                JsonbValue::new(serde_json::json!({"id": "9", "amount": 350.0})),
+            ],
+            _ => vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_explicit_mapping_day() {
+        let schema = dispatch_test_schema();
+        let adapter = Arc::new(
+            MockAdapter::new(vec![])  // Empty default results
+                .with_view("orders_day", mock_orders_results("orders_day"))
+        );
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"
+            query($timeInterval: TimeInterval!) {
+                orders(timeInterval: $timeInterval) {
+                    id
+                    amount
+                }
+            }
+        ";
+        let variables = serde_json::json!({ "timeInterval": "DAY" });
+        let result = executor.execute(query, Some(&variables)).await.unwrap();
+
+        assert!(result.get("data").is_some());
+        assert!(result["data"].get("orders").is_some());
+        let orders = &result["data"]["orders"];
+        assert_eq!(orders.as_array().unwrap().len(), 2);
+        assert_eq!(orders[0]["id"], "1");
+        assert_eq!(orders[0]["amount"], 100.0);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_explicit_mapping_week() {
+        let schema = dispatch_test_schema();
+        let adapter = Arc::new(
+            MockAdapter::new(vec![])
+                .with_view("orders_week", mock_orders_results("orders_week"))
+        );
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"
+            query($timeInterval: TimeInterval!) {
+                orders(timeInterval: $timeInterval) {
+                    id
+                    amount
+                }
+            }
+        ";
+        let variables = serde_json::json!({ "timeInterval": "WEEK" });
+        let result = executor.execute(query, Some(&variables)).await.unwrap();
+
+        assert!(result.get("data").is_some());
+        assert!(result["data"].get("orders").is_some());
+        let orders = &result["data"]["orders"];
+        assert_eq!(orders.as_array().unwrap().len(), 2);
+        assert_eq!(orders[0]["id"], "3");
+        assert_eq!(orders[0]["amount"], 300.0);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_explicit_mapping_month() {
+        let schema = dispatch_test_schema();
+        let adapter = Arc::new(
+            MockAdapter::new(vec![])
+                .with_view("orders_month", mock_orders_results("orders_month"))
+        );
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"
+            query($timeInterval: TimeInterval!) {
+                orders(timeInterval: $timeInterval) {
+                    id
+                    amount
+                }
+            }
+        ";
+        let variables = serde_json::json!({ "timeInterval": "MONTH" });
+        let result = executor.execute(query, Some(&variables)).await.unwrap();
+
+        assert!(result.get("data").is_some());
+        assert!(result["data"].get("orders").is_some());
+        let orders = &result["data"]["orders"];
+        assert_eq!(orders.as_array().unwrap().len(), 2);
+        assert_eq!(orders[0]["id"], "5");
+        assert_eq!(orders[0]["amount"], 500.0);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_template_expansion_day() {
+        let schema = dispatch_test_schema();
+        let adapter = Arc::new(
+            MockAdapter::new(vec![])
+                .with_view("tf_sales_day", mock_orders_results("tf_sales_day"))
+        );
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"
+            query($period: TimeInterval!) {
+                sales(period: $period) {
+                    id
+                    amount
+                }
+            }
+        ";
+        let variables = serde_json::json!({ "period": "DAY" });
+        let result = executor.execute(query, Some(&variables)).await.unwrap();
+
+        assert!(result.get("data").is_some());
+        assert!(result["data"].get("sales").is_some());
+        let sales = &result["data"]["sales"];
+        assert_eq!(sales.as_array().unwrap().len(), 1);
+        assert_eq!(sales[0]["id"], "7");
+        assert_eq!(sales[0]["amount"], 150.0);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_template_expansion_week() {
+        let schema = dispatch_test_schema();
+        let adapter = Arc::new(
+            MockAdapter::new(vec![])
+                .with_view("tf_sales_week", mock_orders_results("tf_sales_week"))
+        );
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"
+            query($period: TimeInterval!) {
+                sales(period: $period) {
+                    id
+                    amount
+                }
+            }
+        ";
+        let variables = serde_json::json!({ "period": "WEEK" });
+        let result = executor.execute(query, Some(&variables)).await.unwrap();
+
+        assert!(result.get("data").is_some());
+        assert!(result["data"].get("sales").is_some());
+        let sales = &result["data"]["sales"];
+        assert_eq!(sales.as_array().unwrap().len(), 1);
+        assert_eq!(sales[0]["id"], "8");
+        assert_eq!(sales[0]["amount"], 250.0);
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_template_expansion_month() {
+        let schema = dispatch_test_schema();
+        let adapter = Arc::new(
+            MockAdapter::new(vec![])
+                .with_view("tf_sales_month", mock_orders_results("tf_sales_month"))
+        );
+        let executor = Executor::new(schema, adapter);
+
+        let query = r"
+            query($period: TimeInterval!) {
+                sales(period: $period) {
+                    id
+                    amount
+                }
+            }
+        ";
+        let variables = serde_json::json!({ "period": "MONTH" });
+        let result = executor.execute(query, Some(&variables)).await.unwrap();
+
+        assert!(result.get("data").is_some());
+        assert!(result["data"].get("sales").is_some());
+        let sales = &result["data"]["sales"];
+        assert_eq!(sales.as_array().unwrap().len(), 1);
+        assert_eq!(sales[0]["id"], "9");
+        assert_eq!(sales[0]["amount"], 350.0);
     }
 }

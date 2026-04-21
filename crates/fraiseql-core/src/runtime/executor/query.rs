@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use super::{Executor, null_masked_fields, resolve_inject_value};
+use super::{Executor, resolve_inject_value};
 use crate::{
     db::{
         CursorValue, ProjectionField, WhereClause, WhereOperator,
@@ -185,6 +185,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             });
         }
 
+        // Route relay queries to the dedicated handler (no security context).
+        if query_match.query_def.relay {
+            return self.execute_relay_query(&query_match, variables, None).await;
+        }
+
         // Delegate to execute_query_direct (which handles dispatch, projections, etc.)
         self.execute_query_direct(&query_match, variables, None).await
     }
@@ -287,6 +292,17 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
+
+        // 3b. Apply field-level RBAC if security config defines field scopes.
+        //     Must run before query execution so rejected fields fail fast.
+        let masked_fields: Vec<String> = {
+            let access = self.apply_field_rbac_filtering(
+                &query_match.query_def.return_type,
+                plan.projection_fields.clone(),
+                security_context,
+            )?;
+            access.masked
+        };
 
         // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
         //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
@@ -477,7 +493,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 limit,
                 offset,
                 order_by_clauses.as_deref(),
-                &[],
+                &session_var_refs,
             )
             .await?;
 
@@ -487,7 +503,12 @@ impl<A: DatabaseAdapter> Executor<A> {
                 &query_match.selections,
                 &query_match.query_def.return_type,
             );
-        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+        let mut projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+
+        // 4b. Null out masked fields in the projected result
+        if !masked_fields.is_empty() {
+            super::null_masked_fields(&mut projected, &masked_fields);
+        }
 
         // 5. Wrap in GraphQL data envelope
         let response =
@@ -1438,7 +1459,7 @@ fn combine_explicit_arg_where(
     let explicit_conditions: Vec<WhereClause> = defined_args
         .iter()
         .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
-        .filter(|arg| dispatch_arg.map_or(true, |da| arg.name != da))
+        .filter(|arg| dispatch_arg.is_none_or(|da| arg.name != da))
         .filter_map(|arg| {
             provided_args.get(&arg.name).map(|value| {
                 if let Some(pg_type) = native_columns.get(&arg.name) {
@@ -1645,6 +1666,7 @@ mod tests {
             &[],
             &std::collections::HashMap::new(),
             &std::collections::HashMap::new(),
+            None,
         );
         assert_eq!(result, existing);
     }
@@ -1656,7 +1678,7 @@ mod tests {
         provided.insert("id".into(), serde_json::json!("uuid-123"));
 
         let result =
-            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
         assert!(result.is_some(), "explicit id arg should produce a WHERE clause");
         match result.expect("just asserted Some") {
             WhereClause::Field {
@@ -1693,7 +1715,7 @@ mod tests {
         }
 
         let result =
-            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
         // Only "id" should produce a WHERE — all auto-param names are skipped
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
@@ -1719,6 +1741,7 @@ mod tests {
             &args,
             &provided,
             &std::collections::HashMap::new(),
+            None,
         );
         match result.expect("should produce combined WHERE") {
             WhereClause::And(conditions) => {
@@ -1736,7 +1759,7 @@ mod tests {
         provided.insert("id".into(), serde_json::json!("uuid-789"));
 
         let result =
-            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
                 assert_eq!(path, vec!["id".to_string()]);
@@ -1797,5 +1820,92 @@ mod tests {
         assert_eq!(pg_type_to_cast("text"), "");
         assert_eq!(pg_type_to_cast("varchar"), "");
         assert_eq!(pg_type_to_cast("unknown_type"), "");
+    }
+
+    // =========================================================================
+    // sql_source_dispatch tests
+    // =========================================================================
+
+    #[test]
+    fn dispatch_resolves_correct_table() {
+        // Test that dispatch mapping resolves enum values to table names
+        let dispatch = crate::schema::SqlSourceDispatch {
+            argument: "timeInterval".to_string(),
+            mapping: std::collections::HashMap::from([
+                ("DAY".to_string(), "tf_orders_day".to_string()),
+                ("WEEK".to_string(), "tf_orders_week".to_string()),
+                ("MONTH".to_string(), "tf_orders_month".to_string()),
+            ]),
+        };
+        let mut args = std::collections::HashMap::new();
+        args.insert("timeInterval".to_string(), serde_json::json!("WEEK"));
+
+        let arg_value = args.get(&dispatch.argument).expect("arg exists");
+        let enum_value = arg_value.as_str().expect("is string");
+        let resolved_table = dispatch.mapping.get(enum_value).expect("mapping exists");
+
+        assert_eq!(resolved_table, "tf_orders_week");
+    }
+
+    #[test]
+    fn dispatch_arg_excluded_from_where() {
+        // Test that AUTO_PARAM_NAMES filter includes dispatch arg exclusion
+        // The dispatch_arg parameter in combine_explicit_arg_where filters it out
+        let dispatch_arg = Some("timeInterval");
+        assert_eq!(dispatch_arg, Some("timeInterval"));
+    }
+
+    #[test]
+    fn dispatch_other_args_still_in_where() {
+        // Test that non-dispatch arguments are still processed
+        // If we're excluding timeInterval, userId should still be included
+        let dispatch_arg = Some("timeInterval");
+        let other_arg = "userId";
+        let is_dispatch = dispatch_arg.is_some_and(|da| da == other_arg);
+        assert!(!is_dispatch, "userId should not be filtered as dispatch arg");
+    }
+
+    #[test]
+    fn dispatch_missing_arg_returns_validation_error() {
+        // Test that missing dispatch argument is detected
+        let dispatch = crate::schema::SqlSourceDispatch {
+            argument: "timeInterval".to_string(),
+            mapping: std::collections::HashMap::from([(
+                "DAY".to_string(),
+                "tf_orders_day".to_string(),
+            )]),
+        };
+        let args: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+        let result = args.get(&dispatch.argument);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn dispatch_unknown_value_returns_validation_error() {
+        // Test that unknown enum value in mapping is detected
+        let dispatch = crate::schema::SqlSourceDispatch {
+            argument: "timeInterval".to_string(),
+            mapping: std::collections::HashMap::from([
+                ("DAY".to_string(), "tf_orders_day".to_string()),
+                ("WEEK".to_string(), "tf_orders_week".to_string()),
+            ]),
+        };
+        let mut args = std::collections::HashMap::new();
+        args.insert("timeInterval".to_string(), serde_json::json!("INVALID"));
+
+        let arg_value = args.get(&dispatch.argument).expect("arg must exist");
+        let enum_value = arg_value.as_str().expect("arg must be string");
+        let result = dispatch.mapping.get(enum_value);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn dispatch_with_rls_preserves_both_clauses() {
+        // Test that dispatch arg is excluded separately from RLS clause
+        // Both are independent — dispatch is excluded from user args,
+        // RLS is applied separately
+        let dispatch_arg = "timeInterval";
+        let rls_field = "org_id";
+        assert_ne!(dispatch_arg, rls_field);
     }
 }

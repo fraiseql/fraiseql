@@ -521,10 +521,10 @@ fn mutation_error_row_for_fallback() -> HashMap<String, serde_json::Value> {
     row
 }
 
-/// Test 3a: None branch produces MutationError
+/// Test 3a: None branch produces `MutationError`
 ///
-/// When a mutation returns "Order", no union is declared, and no "OrderError" type exists,
-/// the executor must fall back to the built-in MutationError type.
+/// When a mutation returns "Order", no union is declared, and no `OrderError` type exists,
+/// the executor must fall back to the built-in `MutationError` type.
 #[tokio::test]
 async fn mutation_error_fallback_to_mutation_error() {
     use fraiseql_core::schema::{ArgumentDefinition, FieldType, MutationDefinition, MutationOperation};
