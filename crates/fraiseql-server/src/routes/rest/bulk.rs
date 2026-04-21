@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, SupportsMutations},
+    db::traits::DatabaseAdapter,
     runtime::{Executor, QueryMatch},
     schema::{CompiledSchema, MutationOperation, RestConfig},
     security::SecurityContext,
@@ -45,7 +45,7 @@ pub struct BulkHandler<'a, A: DatabaseAdapter> {
     route_table: &'a RestRouteTable,
 }
 
-impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
+impl<'a, A: DatabaseAdapter> BulkHandler<'a, A> {
     /// Create a new bulk handler.
     pub const fn new(
         executor: &'a Arc<Executor<A>>,

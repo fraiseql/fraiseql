@@ -162,6 +162,7 @@ impl SchemaConverter {
             validation_config: intermediate.validation_config, // Validation limits from TOML
             debug_config: intermediate.debug_config,           // Debug config from TOML
             mcp_config: intermediate.mcp_config,               // MCP config from TOML
+            rest_config: intermediate.rest_config,             // REST config from TOML
             naming_convention: intermediate.naming_convention, // Naming convention from TOML
             session_variables: intermediate.session_variables.unwrap_or_default(),
             schema_sdl: None,                              // Raw GraphQL SDL

@@ -264,6 +264,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_state(state.clone())
             .merge(graphql_router);
 
+        // Mount REST transport if compiled and configured.
+        // `rest_router` mounts all routes (GET + mutation). Mutation handlers
+        // include a runtime `supports_mutations()` guard so read-only adapters
+        // get a clean error response instead of silently dropping mutations.
+        #[cfg(feature = "rest")]
+        {
+            use crate::routes::rest::rest_router;
+
+            if let Some(rest) = rest_router(&state, self.config.compression_enabled) {
+                info!("REST transport mounted");
+                app = app.merge(rest);
+            }
+        }
+
         // Conditionally add playground route
         if self.config.playground_enabled {
             let playground_state =

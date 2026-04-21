@@ -747,12 +747,44 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
+        // Build projection hint (same as execute_regular_query) so the adapter
+        // extracts fields from JSONB at the SQL level instead of returning raw blobs.
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
+            let root_fields = query_match
+                .selections
+                .first()
+                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+            let typed_fields = build_typed_projection_fields(
+                root_fields,
+                &self.schema,
+                &query_match.query_def.return_type,
+                0,
+            );
+
+            let generator = PostgresProjectionGenerator::new();
+            let projection_sql = generator
+                .generate_typed_projection_sql(&typed_fields)
+                .unwrap_or_else(|_| "data".to_string());
+
+            Some(SqlProjectionHint {
+                database:                    self.adapter.database_type(),
+                projection_template:         projection_sql,
+                estimated_reduction_percent: compute_projection_reduction(
+                    plan.projection_fields.len(),
+                ),
+            })
+        } else {
+            None
+        };
+
         // Execute.
         let results = self
             .adapter
             .execute_with_projection_arc(
                 sql_source,
-                None,
+                projection_hint.as_ref(),
                 composed_where.as_ref(),
                 limit,
                 offset,
@@ -789,23 +821,39 @@ impl<A: DatabaseAdapter> Executor<A> {
         arguments: &serde_json::Value,
         security_context: Option<&crate::security::SecurityContext>,
     ) -> crate::error::Result<serde_json::Value> {
-        // Build a synthetic GraphQL mutation query and delegate to execute()
-        let args_str = if let Some(obj) = arguments.as_object() {
-            obj.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(", ")
+        // Call the mutation executor directly instead of building a synthetic
+        // GraphQL string. This avoids field-selection mismatches (the old code
+        // hardcoded `{ status entity_id message }` which are mutation_response
+        // columns, not entity fields) and sidesteps the JSON-in-GraphQL parsing
+        // bug entirely.
+        //
+        // Auto-wrap: when the mutation expects a single `input` argument but the
+        // caller sends flat keys (e.g. REST DELETE sending `{"id":"..."}` from
+        // path params), wrap them into `{"input": {...}}` so the mutation executor
+        // can find the argument.
+        let effective_args;
+        let args_ref = if let Some(def) = self.schema.find_mutation(mutation_name) {
+            if def.arguments.len() == 1
+                && def.arguments[0].name == "input"
+                && arguments.as_object().map_or(false, |o| !o.contains_key("input"))
+            {
+                effective_args = serde_json::json!({ "input": arguments });
+                &effective_args
+            } else {
+                arguments
+            }
         } else {
-            String::new()
-        };
-        let query = if args_str.is_empty() {
-            format!("mutation {{ {mutation_name} {{ status entity_id message }} }}")
-        } else {
-            format!("mutation {{ {mutation_name}({args_str}) {{ status entity_id message }} }}")
+            arguments
         };
 
-        if let Some(ctx) = security_context {
-            self.execute_with_security(&query, None, ctx).await
-        } else {
-            self.execute(&query, None).await
-        }
+        let empty_selections = std::collections::HashMap::new();
+        self.execute_mutation_query_with_security(
+            mutation_name,
+            Some(args_ref),
+            security_context,
+            &empty_selections,
+        )
+        .await
     }
 
     /// Execute a batch of mutations (for REST bulk insert).

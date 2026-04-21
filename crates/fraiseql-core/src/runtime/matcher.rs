@@ -46,7 +46,10 @@ impl QueryMatch {
         arguments: HashMap<String, serde_json::Value>,
         _type_def: Option<&crate::schema::TypeDefinition>,
     ) -> Result<Self> {
-        let selections = fields
+        // Build a root selection wrapping the field list as nested_fields,
+        // matching the structure the GraphQL parser produces:
+        // [{ name: "queryName", nested_fields: [{ name: "id" }, { name: "language" }, ...] }]
+        let nested = fields
             .iter()
             .map(|f| FieldSelection {
                 name:          f.clone(),
@@ -56,6 +59,13 @@ impl QueryMatch {
                 directives:    Vec::new(),
             })
             .collect();
+        let selections = vec![FieldSelection {
+            name:          query_def.name.clone(),
+            alias:         None,
+            arguments:     Vec::new(),
+            nested_fields: nested,
+            directives:    Vec::new(),
+        }];
 
         let parsed_query = ParsedQuery {
             operation_type: "query".to_string(),
