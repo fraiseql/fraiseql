@@ -1763,6 +1763,166 @@ mod mutation {
         assert_eq!(obj["product_id"],  "prod-2");
         assert_eq!(obj["unit_price"],  9.99);
     }
+    // ── Custom mutation JSONB input tests (issue #238) ─────────────────────
+
+    fn schema_with_custom_mutation_input_type() -> CompiledSchema {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateEntityInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("name", "String!"),
+                InputFieldDefinition::new("category", "String"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createEntity".to_string(),
+            return_type: "Entity".to_string(),
+            sql_source: Some("create_entity".to_string()),
+            operation: MutationOperation::Custom,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateEntityInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createEntity", "Entity")
+        });
+        schema
+    }
+
+    /// Custom mutations with an input object type must pass the entire input as a
+    /// single JSONB argument, not flatten it to positional args.  This matches the
+    /// common SQL pattern `CREATE FUNCTION create_entity(p_input JSONB)`.
+    /// Regression test for issue #238.
+    #[tokio::test]
+    async fn custom_mutation_passes_input_as_single_jsonb_arg() {
+        let schema = schema_with_custom_mutation_input_type();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "name": "Test Entity", "category": "widgets" }
+        });
+        executor
+            .execute_mutation("createEntity", Some(&vars), &HashMap::new())
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(
+            captured.len(),
+            1,
+            "custom mutation must pass exactly one JSONB arg, got {} args: {captured:?}",
+            captured.len()
+        );
+        assert!(
+            captured[0].is_object(),
+            "the single arg must be a JSON object (JSONB), got: {:?}",
+            captured[0]
+        );
+        assert_eq!(captured[0]["name"], "Test Entity");
+        assert_eq!(captured[0]["category"], "widgets");
+    }
+
+    /// Custom mutations with an input object must convert camelCase keys to
+    /// `snake_case`, like Update mutations.
+    #[tokio::test]
+    async fn custom_mutation_converts_camel_case_keys_to_snake_case() {
+        use crate::schema::{
+            FieldType, InputFieldDefinition, InputObjectDefinition, MutationDefinition,
+            MutationOperation,
+        };
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateWidgetInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("widgetName", "String!"),
+                InputFieldDefinition::new("unitPrice", "Float"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            name: "createWidget".to_string(),
+            return_type: "Widget".to_string(),
+            sql_source: Some("create_widget".to_string()),
+            operation: MutationOperation::Custom,
+            arguments: vec![crate::schema::ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateWidgetInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createWidget", "Widget")
+        });
+
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "widgetName": "Sprocket", "unitPrice": 12.5 }
+        });
+        executor
+            .execute_mutation("createWidget", Some(&vars), &HashMap::new())
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(captured.len(), 1, "custom mutation must pass exactly one JSONB arg");
+        let obj = captured[0].as_object().unwrap();
+        assert!(
+            obj.contains_key("widget_name"),
+            "expected 'widget_name', got keys: {:?}",
+            obj.keys().collect::<Vec<_>>()
+        );
+        assert!(obj.contains_key("unit_price"), "expected 'unit_price'");
+        assert!(!obj.contains_key("widgetName"), "camelCase must not be in JSONB");
+    }
+
+    /// Custom mutations via the full `execute()` path (GraphQL string with `$input`
+    /// variable reference) must also pass the input as a single JSONB arg.
+    #[tokio::test]
+    async fn custom_mutation_via_graphql_string_passes_input_as_jsonb() {
+        let schema = schema_with_custom_mutation_input_type();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+
+        let vars = serde_json::json!({
+            "input": { "name": "From GQL", "category": "tools" }
+        });
+        executor
+            .execute(
+                r"mutation createEntity($input: CreateEntityInput!) { createEntity(input: $input) { id } }",
+                Some(&vars),
+            )
+            .await
+            .unwrap();
+
+        let captured = adapter_ref.args();
+        assert_eq!(
+            captured.len(),
+            1,
+            "custom mutation via GraphQL must pass one JSONB arg, got {} args: {captured:?}",
+            captured.len()
+        );
+        assert!(captured[0].is_object(), "arg must be a JSON object");
+        assert_eq!(captured[0]["name"], "From GQL");
+        assert_eq!(captured[0]["category"], "tools");
+    }
+
     // ── Inline mutation argument tests (issue #236) ─────────────────────────
 
     /// Schema with a Custom mutation that takes flat (non-input-object) arguments,

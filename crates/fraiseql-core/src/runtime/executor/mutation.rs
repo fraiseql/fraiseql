@@ -308,19 +308,27 @@ impl<A: DatabaseAdapter> Executor<A> {
                 None
             };
 
-        // Update mutations pass the entire input object as a single JSONB arg, which
-        // preserves all three field states that typed positional args cannot express:
+        // Update and Custom mutations pass the entire input object as a single JSONB
+        // arg.  For Updates this preserves the three field states that typed positional
+        // args cannot express:
         //   - key absent            → leave the database value unchanged
         //   - key present, null     → SET field = NULL
         //   - key present, value    → SET field = <value>
-        // SQL update functions use `input_payload ? 'field'` to test key presence.
         //
-        // Insert / Delete / Custom flatten the Input type fields to positional args as
-        // before (no three-state problem: absent ≡ NULL for creates; deletes need only
+        // Custom mutations receive the same treatment because their SQL function
+        // signature is developer-controlled.  The typical pattern is a single JSONB
+        // parameter (`p_input JSONB`), and flattening fields to positional args would
+        // produce a mismatched call arity — the database would report "function X()
+        // does not exist" when the number of positional args differs from the SQL
+        // function's parameter count.
+        //
+        // Insert / Delete flatten the Input type fields to positional args as before
+        // (no three-state problem: absent ≡ NULL for creates; deletes need only
         // the PK).
         let is_update = matches!(&mutation_def.operation, MutationOperation::Update { .. });
+        let is_custom = matches!(&mutation_def.operation, MutationOperation::Custom);
 
-        if is_update && input_type_name.is_some() {
+        if (is_update || is_custom) && input_type_name.is_some() {
             // Pass the entire input object as a single JSONB arg.
             // Convert camelCase GraphQL field names → snake_case so that
             // `jsonb_populate_record` and `input_payload ? 'field_name'` checks
@@ -338,7 +346,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         } else if let Some(input_type) =
             input_type_name.and_then(|n| self.schema.find_input_type(n))
         {
-            // Insert / Delete / Custom: flatten Input type fields to positional typed args.
+            // Insert / Delete: flatten Input type fields to positional typed args.
             let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
             if let Some(input_obj) = input_obj {
                 for field in &input_type.fields {
