@@ -263,8 +263,24 @@ impl PostgresProjectionGenerator {
             })
             .collect();
 
-        // Format: jsonb_build_object('field1', data->>'field1', 'field2', data->>'field2', ...)
-        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
+        Ok(Self::build_chunked_jsonb_object(&field_pairs))
+    }
+
+    /// Build a `jsonb_build_object(...)` expression, splitting into multiple calls
+    /// merged with `||` when there are more than [`PG_MAX_FUNC_ARGS_PAIRS`] field pairs.
+    /// PostgreSQL limits all functions to 100 arguments; each field pair consumes 2.
+    fn build_chunked_jsonb_object(field_pairs: &[String]) -> String {
+        const PG_MAX_FUNC_ARGS_PAIRS: usize = 50;
+
+        if field_pairs.len() <= PG_MAX_FUNC_ARGS_PAIRS {
+            return format!("jsonb_build_object({})", field_pairs.join(","));
+        }
+
+        field_pairs
+            .chunks(PG_MAX_FUNC_ARGS_PAIRS)
+            .map(|chunk| format!("jsonb_build_object({})", chunk.join(",")))
+            .collect::<Vec<_>>()
+            .join(" || ")
     }
 
     /// Generate type-aware PostgreSQL projection SQL.
@@ -297,7 +313,7 @@ impl PostgresProjectionGenerator {
             .map(|field| Self::render_field(field, &path, 0))
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
+        Ok(Self::build_chunked_jsonb_object(&field_pairs))
     }
 
     /// Recursively render one projection field as a `'key', <expr>` pair for
@@ -1131,5 +1147,32 @@ mod tests {
             "profile must be nested inside author, got: {sql}"
         );
         assert!(sql.contains("'profile'->>'bio'"), "bio must use depth-2 path, got: {sql}");
+    }
+
+    #[test]
+    fn test_chunked_projection_over_50_fields() {
+        let gen = PostgresProjectionGenerator::new();
+        let fields: Vec<String> = (0..81).map(|i| format!("field{i}")).collect();
+        let sql = gen.generate_projection_sql(&fields).unwrap();
+        // Should produce two jsonb_build_object calls joined with ||
+        assert!(
+            sql.contains(" || "),
+            "81 fields should be split into chunks joined with ||, got: {}",
+            &sql[..200]
+        );
+        let count = sql.matches("jsonb_build_object").count();
+        assert_eq!(count, 2, "81 fields should produce 2 chunks, got {count}");
+    }
+
+    #[test]
+    fn test_exactly_50_fields_no_chunking() {
+        let gen = PostgresProjectionGenerator::new();
+        let fields: Vec<String> = (0..50).map(|i| format!("field{i}")).collect();
+        let sql = gen.generate_projection_sql(&fields).unwrap();
+        assert!(
+            !sql.contains(" || "),
+            "50 fields should fit in one call"
+        );
+        assert_eq!(sql.matches("jsonb_build_object").count(), 1);
     }
 }
