@@ -59,6 +59,11 @@ impl SchemaValidator {
             type_names.insert(input_type.name.clone());
         }
 
+        // Add enum names — valid as query/mutation argument types
+        for enum_def in &schema.enums {
+            type_names.insert(enum_def.name.clone());
+        }
+
         // Add union type names — valid as mutation/query return types
         for union_def in &schema.unions {
             type_names.insert(union_def.name.clone());
@@ -141,8 +146,11 @@ impl SchemaValidator {
                 }
             }
 
-            // Warning for queries without SQL source
-            if query.sql_source.is_none() && query.returns_list {
+            // Warning for queries without SQL source (sql_source_dispatch is an acceptable alternative)
+            if query.sql_source.is_none()
+                && query.sql_source_dispatch.is_none()
+                && query.returns_list
+            {
                 report.errors.push(ValidationError {
                     message:    format!(
                         "Query '{}' returns a list but has no sql_source",
@@ -150,7 +158,9 @@ impl SchemaValidator {
                     ),
                     path:       format!("queries[{idx}]"),
                     severity:   ErrorSeverity::Warning,
-                    suggestion: Some("Add sql_source for SQL-backed queries".to_string()),
+                    suggestion: Some(
+                        "Add sql_source or sql_source_dispatch for SQL-backed queries".to_string(),
+                    ),
                 });
             }
         }

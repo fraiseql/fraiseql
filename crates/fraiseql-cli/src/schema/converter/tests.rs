@@ -194,6 +194,7 @@ fn test_convert_query_with_arguments() {
             }],
             description:       Some("Get users".to_string()),
             sql_source:        Some("v_user".to_string()),
+            sql_source_dispatch: None,
             auto_params:       Some(IntermediateAutoParams {
                 limit:        Some(true),
                 offset:       Some(true),
@@ -261,6 +262,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_item".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,
@@ -324,6 +326,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_item".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,

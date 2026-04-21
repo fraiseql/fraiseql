@@ -541,7 +541,7 @@ def query(  # noqa: PLR0915 — public API with many configuration options
             if len(placeholders) != 1:
                 raise ValueError(
                     f"@query '{f.__name__}': sql_source_template must contain exactly "
-                    "one {{placeholder}}"
+                    "one {placeholder}"
                 )
             # Convert snake_case placeholder to camelCase argument name
             placeholder = placeholders[0]

@@ -222,6 +222,11 @@ impl SchemaConverter {
             type_names.insert(input_type.name.clone());
         }
 
+        // Add enum names — valid as query/mutation argument types
+        for enum_def in &schema.enums {
+            type_names.insert(enum_def.name.clone());
+        }
+
         // Add union type names — valid as mutation/query return types
         for union_def in &schema.unions {
             type_names.insert(union_def.name.clone());
