@@ -1473,7 +1473,7 @@ fn combine_explicit_arg_where(
                     }
                 } else {
                     WhereClause::Field {
-                        path:     vec![arg.name.clone()],
+                        path:     vec![crate::utils::casing::to_snake_case(&arg.name)],
                         operator: WhereOperator::Eq,
                         value:    value.clone(),
                     }
@@ -1750,6 +1750,25 @@ mod tests {
                 assert_eq!(conditions.len(), 2, "should AND existing + explicit");
             },
             other => panic!("expected And, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn camel_case_arg_name_is_converted_to_snake_case_in_path() {
+        let args = vec![make_arg("emailSentId")];
+        let mut provided = std::collections::HashMap::new();
+        provided.insert("emailSentId".into(), serde_json::json!("uuid-abc"));
+
+        let result =
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
+        match result.expect("camelCase arg should produce WHERE") {
+            WhereClause::Field { path, operator, value } => {
+                // Must be snake_case so JSONB extraction matches the stored key
+                assert_eq!(path, vec!["email_sent_id".to_string()]);
+                assert_eq!(operator, WhereOperator::Eq);
+                assert_eq!(value, serde_json::json!("uuid-abc"));
+            },
+            other => panic!("expected Field, got {other:?}"),
         }
     }
 
