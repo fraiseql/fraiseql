@@ -9,7 +9,7 @@ use axum::{
     middleware,
     routing::{get, post, put},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::db::traits::{DatabaseAdapter, SupportsMutations};
 use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
 use tracing::{info, warn};
 
@@ -25,12 +25,55 @@ use super::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
 use crate::middleware::{Hs256AuthState, hs256_auth_middleware};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
-    /// Build application router and return the shared `AppState`.
+    /// Build application router with full REST support (mutations included).
+    ///
+    /// Requires `SupportsMutations` so that the full `rest_router` can be mounted.
+    /// The returned `AppState` is needed by the lifecycle module for SIGUSR1 schema
+    /// reload handling.
+    pub(super) fn build_router(&self) -> (Router, AppState<A>)
+    where
+        A: SupportsMutations,
+    {
+        #[cfg(feature = "rest")]
+        let make_rest = |state: &AppState<A>, compress: bool| {
+            crate::routes::rest::rest_router(state, compress)
+        };
+        #[cfg(not(feature = "rest"))]
+        let make_rest = |_state: &AppState<A>, _compress: bool| -> Option<Router> { None };
+        self.build_base_router(make_rest)
+    }
+
+    /// Build application router for read-only adapters (GET + SSE REST only).
+    ///
+    /// Mounts `rest_query_router` instead of the full `rest_router`, so no
+    /// `SupportsMutations` bound is required.  Use this for `SqliteAdapter` or
+    /// `FraiseWireAdapter`-backed servers.
+    ///
+    /// The returned `AppState` is needed by the lifecycle module for SIGUSR1 schema
+    /// reload handling.
+    pub(super) fn build_readonly_router(&self) -> (Router, AppState<A>) {
+        #[cfg(feature = "rest")]
+        let make_rest = |state: &AppState<A>, compress: bool| {
+            crate::routes::rest::rest_query_router(state, compress)
+        };
+        #[cfg(not(feature = "rest"))]
+        let make_rest = |_state: &AppState<A>, _compress: bool| -> Option<Router> { None };
+        self.build_base_router(make_rest)
+    }
+
+    /// Internal router builder shared by [`build_router`] and [`build_readonly_router`].
+    ///
+    /// `make_rest` is called once with the fully-initialized `AppState` and the
+    /// compression flag.  The caller supplies either `rest_router` (full REST,
+    /// requires `SupportsMutations`) or `rest_query_router` (read-only).
     ///
     /// The returned `AppState` is needed by the lifecycle module for
     /// SIGUSR1 schema reload handling.
     #[allow(clippy::cognitive_complexity)] // Reason: route construction with many optional middleware layers and feature-gated endpoints
-    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
+    fn build_base_router<F>(&self, make_rest: F) -> (Router, AppState<A>)
+    where
+        F: FnOnce(&AppState<A>, bool) -> Option<Router>,
+    {
         let mut state = AppState::new(self.executor.clone())
             .with_reload_config(self.config.schema_path.clone(), self.executor.adapter().clone());
 
@@ -659,6 +702,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
                 }
             }
+        }
+
+        // REST transport — GET queries, SSE streams, OpenAPI spec, and (when the
+        // adapter supports it) mutation routes (POST/PUT/PATCH/DELETE).
+        // `make_rest` is provided by the caller: `build_router` supplies the full
+        // `rest_router` (requires `SupportsMutations`); `build_readonly_router` supplies
+        // `rest_query_router` (GET + SSE only, no `SupportsMutations` required).
+        if let Some(rest) = make_rest(&state, self.config.compression_enabled) {
+            app = app.merge(rest);
         }
 
         // Remaining API routes (query intelligence, federation)
