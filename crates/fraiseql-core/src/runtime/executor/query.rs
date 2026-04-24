@@ -497,8 +497,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             )
             .await?;
 
-        // 4. Project results
-        let projector = ResultProjector::new(plan.projection_fields)
+        // 4. Project results — use from_graphql_fields so snake_case JSONB keys from raw
+        //    views are mapped to the expected camelCase GraphQL field names.  The
+        //    source_fallback handles the SQL-projection path where keys are already camelCase.
+        let projector = ResultProjector::from_graphql_fields(plan.projection_fields)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -666,8 +668,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             )
             .await?;
 
-        // Project results.
-        let projector = ResultProjector::new(plan.projection_fields)
+        // Project results — same snake_case → camelCase mapping as the main execute path.
+        let projector = ResultProjector::from_graphql_fields(plan.projection_fields)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
