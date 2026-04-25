@@ -27,7 +27,7 @@ use crate::{
     identifier::quote_sqlite_identifier,
     order_by::append_order_by,
     traits::{DatabaseAdapter, DirectMutationContext, MutationStrategy},
-    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
+    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::{OrderByClause, SqlProjectionHint}},
     where_clause::WhereClause,
 };
 

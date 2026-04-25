@@ -19,7 +19,7 @@ use crate::{
     },
     types::{
         DatabaseType, JsonbValue, PoolMetrics,
-        sql_hints::{OrderByClause, OrderDirection},
+        sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
     },
     where_clause::WhereClause,
 };
