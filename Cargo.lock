@@ -3054,6 +3054,8 @@ dependencies = [
 [[package]]
 name = "fraiseql-validators"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "054fba83f40df9ac597413fe8caccf634132abaa740a363c565162cc345b64ac"
 dependencies = [
  "csv",
  "fraiseql-error 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
