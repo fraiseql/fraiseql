@@ -5,9 +5,58 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.2.0] - 2026-04-16
+## [2.2.0] - 2026-04-25
+
+### Added
+
+- **Velocitybench regression gate** — new CI workflow (`.github/workflows/benchmark-velocity.yml`)
+  checks out `evoludigit/velocitybench`, builds the fraiseql-server release binary, injects it
+  into the bench harness, runs the `fraiseql-tv` scenario for 30 s at 40 concurrent workers, and
+  compares results against `benchmarks/baseline.json`. Blocks merge on >5% RPS drop or >10% p95
+  increase. Posts a before/after table as a sticky PR comment. Triggered on push to `dev` and on
+  PRs labeled `perf`. Local equivalent: `make bench-check-regression`.
+
+- **Consolidated lint harness** (`tools/lint.sh`) — replaces seven separate `make lint-*` targets
+  with a single script that runs all 8 custom checks: test-imports, crate-sizes,
+  no-unwrap-in-lib, expect-documented, async-trait-budget, lint-gate-db, lint-gate-core, and
+  dep-gate-federation-server. Run `make lint` or `bash tools/lint.sh [check-name]`.
+
+- **Dependency risk acceptance policy** (`docs/dependency-risk-policy.md`) — formal policy for
+  accepting CVEs that have no upstream fix: criteria, current accepted advisories table (including
+  deadlines and mitigation strategies), upgrade SLA by change type, and skip-list review procedure.
+
+- **Federation architecture docs** — new `docs/architecture/federation.md` (component map, data
+  flow, security notes, Prometheus metrics) and developer guides at
+  `docs/guides/federation-saga.md` (Saga pattern for cross-subgraph mutations) and
+  `docs/guides/circuit-breaker.md` (CLOSED/OPEN/HALF-OPEN tuning guide with PromQL alert rule).
+
+- **Features quick-start decision guide** — new table at the top of `docs/features.md` maps
+  use-cases to feature flags so developers can identify the minimal feature set for their scenario.
+
+### Changed
+
+- **CI fast-path for doc-only PRs** — `dorny/paths-filter@v3` job added to `ci.yml`; the `fmt`,
+  `check-test-imports`, `clippy`, and `test` jobs are skipped when only documentation files
+  change, saving 25+ minutes of Rust compilation per PR.
+
+- **CVE deadlines in `deny.toml`** — all four `[[advisories.ignore]]` entries now carry
+  `DEADLINE:` and `Blocked on:` comments. `deny.toml` header updated with resolution tracking
+  notes for RUSTSEC-2023-0071 (sqlx 0.9 stable) and RUSTSEC-2026-0098/0099 (aws-sdk-s3
+  rustls 0.23 migration).
+
+- **Trivy `ignore-unfixed`** — `security-compliance.yml` now passes `ignore-unfixed: true` to
+  the Trivy detailed scan so advisories with no available fix do not block the workflow.
+
+- **`fraiseql-federation` MSRV alignment** — `rust-version.workspace = true` added to
+  `Cargo.toml` (was the only crate in the workspace missing the workspace MSRV pin).
+
+- **`fraiseql-error` two-layer rustdoc** — `FraiseQLError` vs `RuntimeError` distinction,
+  conversion rules, HTTP status mapping table, and security note now documented in-crate.
 
 ### Fixed
+
+- **Native column support in aggregation `WHERE`, `GROUP BY`, and `ORDER BY`**.
+  Aggregation queries on views with both native SQL columns and a JSONB `data` column
 
 - **Native column support in aggregation `WHERE`, `GROUP BY`, and `ORDER BY`**.
   Aggregation queries on views with both native SQL columns and a JSONB `data` column

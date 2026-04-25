@@ -24,9 +24,39 @@ env:
   RUSTC_WRAPPER: "sccache"
 
 jobs:
+  # Detect which parts of the codebase changed to skip expensive jobs on doc-only PRs
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      docs: ${{ steps.filter.outputs.docs }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'tools/**'
+              - '.github/actions/**'
+            docs:
+              - 'docs/**'
+              - '**.md'
+              - 'sdks/**/*.md'
+            workflows:
+              - '.github/workflows/**'
+
   # Check code formatting
   fmt:
     name: Format Check
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -45,6 +75,8 @@ jobs:
   # Enforce test utility adoption (no bare DATABASE_URL in test files)
   check-test-imports:
     name: Check Test Imports
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -56,6 +88,8 @@ jobs:
   # Lint with Clippy
   clippy:
     name: Clippy Lints
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     # Full workspace compilation + linting
     timeout-minutes: 25
@@ -123,6 +157,8 @@ jobs:
   # Build and test on multiple platforms
   test:
     name: Test Suite
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
