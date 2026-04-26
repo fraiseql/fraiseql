@@ -8,26 +8,20 @@ import org.junit.jupiter.api.Test;
 
 public class DispatchTest {
 
+    private SchemaRegistry registry;
+
     @BeforeEach
     void setUp() {
-        SchemaRegistry.clear();
+        registry = SchemaRegistry.getInstance();
+        registry.clear();
     }
 
     @Test
     void testDispatchExplicitMapping() {
         // Register enum
-        FraiseQL.registerEnum(
+        registry.registerEnum(
             "TimeInterval",
-            Arrays.asList("DAY", "WEEK", "MONTH"),
-            null
-        );
-
-        // Register type
-        FraiseQL.registerType(
-            "Order",
-            Arrays.asList(
-                new SchemaRegistry.FieldInfo("id", "Int", false)
-            ),
+            new LinkedHashMap<String, String>() {{ put("DAY", "day"); put("WEEK", "week"); put("MONTH", "month"); }},
             null
         );
 
@@ -56,18 +50,9 @@ public class DispatchTest {
     @Test
     void testDispatchTemplate() {
         // Register enum
-        FraiseQL.registerEnum(
+        registry.registerEnum(
             "Environment",
-            Arrays.asList("STAGING", "PRODUCTION"),
-            null
-        );
-
-        // Register type
-        FraiseQL.registerType(
-            "User",
-            Arrays.asList(
-                new SchemaRegistry.FieldInfo("id", "Int", false)
-            ),
+            new LinkedHashMap<String, String>() {{ put("STAGING", "staging"); put("PRODUCTION", "production"); }},
             null
         );
 
@@ -91,18 +76,9 @@ public class DispatchTest {
     @Test
     void testDispatchWithOtherArguments() {
         // Register enum
-        FraiseQL.registerEnum(
+        registry.registerEnum(
             "Shard",
-            Arrays.asList("S1", "S2"),
-            null
-        );
-
-        // Register type
-        FraiseQL.registerType(
-            "Item",
-            Arrays.asList(
-                new SchemaRegistry.FieldInfo("id", "Int", false)
-            ),
+            new LinkedHashMap<String, String>() {{ put("S1", "shard1"); put("S2", "shard2"); }},
             null
         );
 
@@ -134,18 +110,9 @@ public class DispatchTest {
     @Test
     void testDispatchBuilderChaining() {
         // Register enum
-        FraiseQL.registerEnum(
+        registry.registerEnum(
             "Type",
-            Arrays.asList("A", "B"),
-            null
-        );
-
-        // Register type
-        FraiseQL.registerType(
-            "Item",
-            Arrays.asList(
-                new SchemaRegistry.FieldInfo("id", "Int", false)
-            ),
+            new LinkedHashMap<String, String>() {{ put("A", "a"); put("B", "b"); }},
             null
         );
 
@@ -172,25 +139,15 @@ public class DispatchTest {
 
     @Test
     void testMultipleDispatchQueries() {
-        // Register multiple enums
-        FraiseQL.registerEnum(
+        // Register enums
+        registry.registerEnum(
             "Region",
-            Arrays.asList("US", "EU", "ASIA"),
+            new LinkedHashMap<String, String>() {{ put("US", "us"); put("EU", "eu"); put("ASIA", "asia"); }},
             null
         );
-
-        FraiseQL.registerEnum(
+        registry.registerEnum(
             "Environment",
-            Arrays.asList("DEV", "PROD"),
-            null
-        );
-
-        // Register types
-        FraiseQL.registerType(
-            "Data",
-            Arrays.asList(
-                new SchemaRegistry.FieldInfo("id", "Int", false)
-            ),
+            new LinkedHashMap<String, String>() {{ put("DEV", "dev"); put("PROD", "prod"); }},
             null
         );
 
