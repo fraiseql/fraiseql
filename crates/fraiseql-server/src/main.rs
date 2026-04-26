@@ -385,6 +385,11 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "arrow"))]
     tracing::info!("FraiseQL Server {} starting (HTTP only)", env!("CARGO_PKG_VERSION"));
 
+    // FraiseWireAdapter is a read-only streaming adapter; it does not implement
+    // SupportsMutations, so we use serve_readonly() instead of serve().
+    #[cfg(feature = "wire-backend")]
+    server.serve_readonly().await?;
+    #[cfg(not(feature = "wire-backend"))]
     server.serve().await?;
     Ok(())
 }
