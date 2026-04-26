@@ -361,4 +361,84 @@ mod tests {
 
         assert!(cache.get("user-1").is_none());
     }
+
+    // ── Security: adversarial inputs ────────────────────────────────────
+
+    #[test]
+    fn sql_injection_in_claim_value_is_bound_not_interpolated() {
+        let mut claims = HashMap::new();
+        claims.insert(
+            "email".to_owned(),
+            serde_json::json!("'; DROP TABLE users; --"),
+        );
+
+        let bound = prepare_enrichment_query(
+            "SELECT role FROM users WHERE email = $email",
+            &claims,
+        )
+        .unwrap();
+
+        // The malicious value must appear as a bind parameter, not in the SQL
+        assert_eq!(bound.sql, "SELECT role FROM users WHERE email = $1");
+        assert_eq!(bound.binds[0], serde_json::json!("'; DROP TABLE users; --"));
+        assert!(!bound.sql.contains("DROP"));
+    }
+
+    #[test]
+    fn sql_comment_in_claim_value_is_bound_not_interpolated() {
+        let mut claims = HashMap::new();
+        claims.insert("sub".to_owned(), serde_json::json!("user /* */ OR 1=1"));
+
+        let bound =
+            prepare_enrichment_query("SELECT role FROM users WHERE sub = $sub", &claims).unwrap();
+
+        assert_eq!(bound.sql, "SELECT role FROM users WHERE sub = $1");
+        assert_eq!(bound.binds[0], serde_json::json!("user /* */ OR 1=1"));
+        assert!(!bound.sql.contains("/*"));
+    }
+
+    #[test]
+    fn overlapping_param_names_are_distinguished() {
+        // $email vs $email_verified — ensure greedy match doesn't
+        // treat $email_verified as "$email" + "verified"
+        let mut claims = HashMap::new();
+        claims.insert("email".to_owned(), serde_json::json!("a@b.com"));
+        claims.insert("email_verified".to_owned(), serde_json::json!(true));
+
+        let bound = prepare_enrichment_query(
+            "SELECT * FROM users WHERE email = $email AND verified = $email_verified",
+            &claims,
+        )
+        .unwrap();
+
+        assert_eq!(
+            bound.sql,
+            "SELECT * FROM users WHERE email = $1 AND verified = $2"
+        );
+        assert_eq!(bound.binds.len(), 2);
+        assert_eq!(bound.binds[0], serde_json::json!("a@b.com"));
+        assert_eq!(bound.binds[1], serde_json::json!(true));
+    }
+
+    #[test]
+    fn param_at_end_of_query() {
+        let mut claims = HashMap::new();
+        claims.insert("sub".to_owned(), serde_json::json!("u1"));
+
+        let bound =
+            prepare_enrichment_query("SELECT * FROM users WHERE sub = $sub", &claims).unwrap();
+
+        assert_eq!(bound.sql, "SELECT * FROM users WHERE sub = $1");
+    }
+
+    #[test]
+    fn unicode_claim_value_is_bound() {
+        let mut claims = HashMap::new();
+        claims.insert("sub".to_owned(), serde_json::json!("用户-émoji-🍓"));
+
+        let bound =
+            prepare_enrichment_query("SELECT role FROM users WHERE sub = $sub", &claims).unwrap();
+
+        assert_eq!(bound.binds[0], serde_json::json!("用户-émoji-🍓"));
+    }
 }
