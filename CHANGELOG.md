@@ -5,6 +5,35 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-04-26
+
+### Added
+
+- **ChangelogConsumer Python SDK** (#241) — pull-based event loop for `tb_entity_change_log`.
+  `ChangelogConsumer` class with `.on(entity_type, operation, handler)` registration, automatic
+  Debezium envelope unwrapping, `CheckpointStore` protocol with HTTP-backed default, exponential
+  backoff, and startup modes (`from_checkpoint`, `from_beginning`, `from_latest`).
+
+- **Changelog + checkpoint REST endpoints** (#241) — `GET /api/changelog`, `GET/PUT
+  /api/changelog/checkpoint/:consumer_id` for server-side cursor-based polling and atomic
+  checkpoint persistence. Behind `#[cfg(feature = "observers")]` and admin auth.
+
+- **Claims enrichment for `/auth/me`** (#242) — TOML-configured SQL query executed after JWT
+  verification to augment the `/auth/me` response with application-specific fields (roles,
+  permissions, plan tier). Named parameters (`$sub`, `$email`) rewritten to positional `$1`, `$2`
+  and bound via `sqlx` — never interpolated. Per-`sub` cache with configurable TTL. Optional
+  column renaming via `[auth.me.enrichment.map]`. Graceful degradation on failure.
+
+- **Observer delivery status HTTP API** (#243) — `GET /api/observers/delivery/status`,
+  per-observer breakdown, DLQ listing with pagination, single and bulk retry endpoints.
+  Completes the at-least-once delivery feature set (DLQ, retry, replay, metrics were already
+  in place).
+
+### Fixed
+
+- Pre-existing clippy warnings in `fraiseql-error` (`doc_markdown`) and `fraiseql-db`
+  (`unused_variables`).
+
 ## [2.2.0] - 2026-04-25
 
 ### Added

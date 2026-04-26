@@ -2616,12 +2616,12 @@ dependencies = [
 
 [[package]]
 name = "fraiseql"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "fraiseql-arrow",
  "fraiseql-cli",
  "fraiseql-core",
- "fraiseql-error 2.2.0",
+ "fraiseql-error 2.2.1",
  "fraiseql-observers",
  "fraiseql-server",
  "fraiseql-wire",
@@ -2630,7 +2630,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -2664,7 +2664,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2703,7 +2703,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cli"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2743,7 +2743,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "ahash",
  "arrow",
@@ -2758,7 +2758,7 @@ dependencies = [
  "deadpool-postgres",
  "dhat",
  "fraiseql-db",
- "fraiseql-error 2.2.0",
+ "fraiseql-error 2.2.1",
  "fraiseql-federation",
  "fraiseql-test-utils",
  "fraiseql-validators",
@@ -2808,7 +2808,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "async-trait",
  "bb8",
@@ -2819,7 +2819,7 @@ dependencies = [
  "dashmap",
  "deadpool",
  "deadpool-postgres",
- "fraiseql-error 2.2.0",
+ "fraiseql-error 2.2.1",
  "fraiseql-wire",
  "futures",
  "insta",
@@ -2842,18 +2842,6 @@ dependencies = [
 [[package]]
 name = "fraiseql-error"
 version = "2.2.0"
-dependencies = [
- "axum",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror 2.0.18",
- "toml",
-]
-
-[[package]]
-name = "fraiseql-error"
-version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "794038a52c7acb0b3fc122bb79f64983c742176b9364c41152d8bafc728007ce"
 dependencies = [
@@ -2865,15 +2853,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-error"
+version = "2.2.1"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "toml",
+]
+
+[[package]]
 name = "fraiseql-federation"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "chrono",
  "criterion",
  "deadpool",
  "deadpool-postgres",
  "fraiseql-db",
- "fraiseql-error 2.2.0",
+ "fraiseql-error 2.2.1",
  "proptest",
  "reqwest",
  "serde",
@@ -2887,7 +2887,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "arrow",
  "async-nats",
@@ -2927,7 +2927,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -2954,7 +2954,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2975,7 +2975,7 @@ dependencies = [
  "fraiseql-arrow",
  "fraiseql-auth",
  "fraiseql-core",
- "fraiseql-error 2.2.0",
+ "fraiseql-error 2.2.1",
  "fraiseql-observers",
  "fraiseql-secrets",
  "fraiseql-test-utils",
@@ -3041,7 +3041,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-test-utils"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "async-trait",
  "fraiseql-core",
@@ -3058,14 +3058,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "054fba83f40df9ac597413fe8caccf634132abaa740a363c565162cc345b64ac"
 dependencies = [
  "csv",
- "fraiseql-error 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fraiseql-error 2.2.0",
  "once_cell",
  "regex-lite",
 ]
 
 [[package]]
 name = "fraiseql-webhooks"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -3090,7 +3090,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-wire"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "base64 0.22.1",
  "bytes",
