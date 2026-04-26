@@ -5,6 +5,9 @@ use axum::{
     routing::{get, post},
 };
 
+use super::changelog_handlers::{
+    ChangelogState, changelog_list_handler, checkpoint_get_handler, checkpoint_save_handler,
+};
 use super::dlq_handlers::{
     DlqState, delivery_health_handler, dlq_get_handler, dlq_list_handler, dlq_retry_all_handler,
     dlq_retry_handler,
@@ -106,6 +109,23 @@ pub fn observer_dlq_routes(state: DlqState) -> Router {
         .route("/dlq/retry-all", post(dlq_retry_all_handler))
         .route("/dlq/:id", get(dlq_get_handler))
         .route("/dlq/:id/retry", post(dlq_retry_handler))
+        .with_state(state)
+}
+
+/// Create the changelog and checkpoint router.
+///
+/// # Routes
+///
+/// - `GET /changelog`                  - Poll changelog entries (paginated, filterable)
+/// - `GET /checkpoint/:listener_id`    - Read a listener's checkpoint
+/// - `PUT /checkpoint/:listener_id`    - Save / update a listener's checkpoint
+pub fn observer_changelog_routes(state: ChangelogState) -> Router {
+    Router::new()
+        .route("/changelog", get(changelog_list_handler))
+        .route(
+            "/checkpoint/:listener_id",
+            get(checkpoint_get_handler).put(checkpoint_save_handler),
+        )
         .with_state(state)
 }
 

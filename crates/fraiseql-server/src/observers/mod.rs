@@ -25,6 +25,7 @@
 //! - Multi-tenancy support via `fk_customer_org`
 //! - Soft delete support
 
+pub mod changelog_handlers;
 pub mod config;
 pub mod dlq_handlers;
 pub mod handlers;
@@ -34,10 +35,13 @@ pub mod runtime;
 
 use chrono::{DateTime, Utc};
 pub use config::ObserverManagementConfig;
+pub use changelog_handlers::ChangelogState;
 pub use dlq_handlers::DlqState;
 pub use handlers::{ObserverState, RuntimeHealthState};
 pub use repository::ObserverRepository;
-pub use routes::{observer_dlq_routes, observer_routes, observer_runtime_routes};
+pub use routes::{
+    observer_changelog_routes, observer_dlq_routes, observer_routes, observer_runtime_routes,
+};
 pub use runtime::{ObserverRuntime, ObserverRuntimeConfig, RuntimeHealth};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
