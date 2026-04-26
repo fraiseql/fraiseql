@@ -1563,7 +1563,7 @@ def test_query_sql_source_dispatch_mutual_exclusivity_with_template() -> None:
 def test_query_sql_source_dispatch_invalid_mapping_type() -> None:
     """Test that sql_source_dispatch must be a dict."""
 
-    with pytest.raises(TypeError, match="sql_source_dispatch=.*must be a dict"):
+    with pytest.raises(TypeError, match=r"sql_source_dispatch=.*must be a dict"):
         @fraiseql.query(sql_source_dispatch="invalid")
         def orders(timeInterval: str) -> list[dict]:
             pass
@@ -1572,7 +1572,7 @@ def test_query_sql_source_dispatch_invalid_mapping_type() -> None:
 def test_query_sql_source_template_invalid_type() -> None:
     """Test that sql_source_template must be a str."""
 
-    with pytest.raises(TypeError, match="sql_source_template=.*must be a str"):
+    with pytest.raises(TypeError, match=r"sql_source_template=.*must be a str"):
         @fraiseql.query(sql_source_template=123)
         def orders(timeInterval: str) -> list[dict]:
             pass
@@ -1608,7 +1608,7 @@ def test_query_sql_source_dispatch_argument_nullable() -> None:
 def test_query_sql_source_dispatch_invalid_table_name() -> None:
     """Test that dispatch table names must be valid SQL identifiers."""
 
-    with pytest.raises(ValueError, match="dispatch table 'invalid table' .* is not a safe SQL identifier"):
+    with pytest.raises(ValueError, match=r"dispatch table 'invalid table' .* is not a safe SQL identifier"):
         @fraiseql.query(sql_source_dispatch={"timeInterval": {"DAY": "invalid table"}})
         def orders(timeInterval: str) -> list[dict]:
             pass

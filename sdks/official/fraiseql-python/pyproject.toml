@@ -106,6 +106,8 @@ select = [
 "tests/**/*.py" = [
   "ANN",  # Don't require type annotations in tests
   "ARG",  # Mock handler signatures must accept unused arguments (e.g., request)
+  "E501",  # Long lines OK in tests — inline decorator fixtures are clearer on one line
+  "N803",  # camelCase arg names intentional — tests mirror GraphQL naming conventions
   "PLC0415",  # Deferred imports in test functions are intentional (registry isolation)
   "PLR2004"  # Magic values OK in tests
 ]

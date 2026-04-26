@@ -36,7 +36,7 @@ func TestDispatchExplicitMapping(t *testing.T) {
 		ID int `fraiseql:"id,type=Int"`
 	}
 
-	fraiseql.RegisterType("Order", Order{}, nil)
+	fraiseql.RegisterTypes(Order{})
 
 	// Register query with dispatch mapping
 	fraiseql.NewQuery("orders").
@@ -80,7 +80,7 @@ func TestDispatchTemplate(t *testing.T) {
 		ID int `fraiseql:"id,type=Int"`
 	}
 
-	fraiseql.RegisterType("User", User{}, nil)
+	fraiseql.RegisterTypes(User{})
 
 	// Register query with dispatch template
 	fraiseql.NewQuery("users").
@@ -111,7 +111,7 @@ func TestDispatchMutualExclusivity(t *testing.T) {
 		ID int `fraiseql:"id,type=Int"`
 	}
 
-	fraiseql.RegisterType("Data", Data{}, nil)
+	fraiseql.RegisterTypes(Data{})
 
 	// This should ideally error, but for now we just ensure both can be set
 	// The compiler will validate mutual exclusivity
@@ -130,7 +130,8 @@ func TestDispatchMutualExclusivity(t *testing.T) {
 	q := schema.Queries[0]
 
 	// Both should be present - compiler validates mutual exclusivity
-	if q.Config["sql_source"] == nil {
+	// sql_source is extracted to SqlSource field by Register(); dispatch stays in Config
+	if q.SqlSource == "" {
 		t.Error("sql_source should be present")
 	}
 	if q.Config["sql_source_dispatch"] == nil {
@@ -150,7 +151,7 @@ func TestDispatchWithOtherArguments(t *testing.T) {
 		ID int `fraiseql:"id,type=Int"`
 	}
 
-	fraiseql.RegisterType("Item", Item{}, nil)
+	fraiseql.RegisterTypes(Item{})
 
 	// Register query with dispatch and other arguments
 	fraiseql.NewQuery("items").
@@ -191,7 +192,7 @@ func TestDispatchConfigBuilderChaining(t *testing.T) {
 		ID int `fraiseql:"id,type=Int"`
 	}
 
-	fraiseql.RegisterType("Item", Item{}, nil)
+	fraiseql.RegisterTypes(Item{})
 
 	// Test that builder chaining works
 	fraiseql.NewQuery("typed_items").

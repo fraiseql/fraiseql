@@ -11,7 +11,7 @@ use futures::stream::StreamExt;
 
 use super::{
     traits::DatabaseAdapter,
-    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
+    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::{OrderByClause, SqlProjectionHint}},
     where_clause::WhereClause,
     where_sql_generator::WhereSqlGenerator,
     wire_pool::WireClientFactory,

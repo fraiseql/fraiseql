@@ -1,4 +1,4 @@
-import { SchemaRegistry, enum_, interface_, union, input } from "../src/index";
+import { SchemaRegistry, enum_, interface_, union, input, registerQuery } from "../src/index";
 
 describe("Type System Decorators", () => {
   beforeEach(() => {
@@ -280,7 +280,7 @@ describe("Type System Decorators", () => {
         MONTH: "month",
       });
 
-      const { registerQuery } = require("../src/index");
+
       registerQuery("orders", {
         returnType: "Order",
         returnsList: true,
@@ -310,7 +310,7 @@ describe("Type System Decorators", () => {
         PRODUCTION: "production",
       });
 
-      const { registerQuery } = require("../src/index");
+
       registerQuery("users", {
         returnType: "User",
         returnsList: true,
@@ -332,7 +332,7 @@ describe("Type System Decorators", () => {
     it("should not allow both sqlSource and sqlSourceDispatch", () => {
       enum_("Region", { US: "us", EU: "eu" });
 
-      const { registerQuery } = require("../src/index");
+
       expect(() => {
         registerQuery("data", {
           returnType: "Data",
@@ -352,7 +352,7 @@ describe("Type System Decorators", () => {
     it("should validate dispatch argument exists", () => {
       enum_("Type", { A: "a", B: "b" });
 
-      const { registerQuery } = require("../src/index");
+
       expect(() => {
         registerQuery("items", {
           returnType: "Item",
@@ -371,7 +371,7 @@ describe("Type System Decorators", () => {
     it("should not allow nullable dispatch argument", () => {
       enum_("Status", { ACTIVE: "active", INACTIVE: "inactive" });
 
-      const { registerQuery } = require("../src/index");
+
       expect(() => {
         registerQuery("records", {
           returnType: "Record",
@@ -390,7 +390,7 @@ describe("Type System Decorators", () => {
     it("should validate mapping values are safe SQL identifiers", () => {
       enum_("Shard", { S1: "shard1", S2: "shard2" });
 
-      const { registerQuery } = require("../src/index");
+
       expect(() => {
         registerQuery("sharded", {
           returnType: "Data",
