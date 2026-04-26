@@ -611,8 +611,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             &self.oidc_validator,
             self.config.auth.as_ref().and_then(|a| a.me.as_ref()).filter(|m| m.enabled),
         ) {
+            // Build enrichment state if configured and a pool is available
+            let enrichment = me_cfg.enrichment.as_ref().and_then(|enr_cfg| {
+                if let Some(ref pool) = self.enrichment_pool {
+                    Some(crate::routes::AuthMeEnrichmentState {
+                        config: enr_cfg.clone(),
+                        pool: pool.clone(),
+                        cache: Arc::new(crate::routes::enrichment::EnrichmentCache::new()),
+                    })
+                } else {
+                    tracing::warn!(
+                        "Claims enrichment configured but no database pool available — \
+                         enrichment will be skipped"
+                    );
+                    None
+                }
+            });
+
             let me_state = Arc::new(AuthMeState {
                 expose_claims: me_cfg.expose_claims.clone(),
+                enrichment,
             });
             let auth_state = OidcAuthState::new(Arc::clone(validator));
             let me_router = Router::new()
@@ -622,6 +640,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.merge(me_router);
             info!(
                 expose_claims = ?me_cfg.expose_claims,
+                enrichment = me_cfg.enrichment.is_some(),
                 "Session identity route mounted: GET /auth/me"
             );
         }
