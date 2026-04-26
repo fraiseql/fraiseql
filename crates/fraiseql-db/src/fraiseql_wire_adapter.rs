@@ -221,7 +221,7 @@ impl DatabaseAdapter for FraiseWireAdapter {
     async fn execute_with_projection(
         &self,
         view: &str,
-        projection: Option<&SqlProjectionHint>,
+        _projection: Option<&SqlProjectionHint>,
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         offset: Option<u32>,

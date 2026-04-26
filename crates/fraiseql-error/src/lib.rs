@@ -44,7 +44,7 @@
 //! - `NotFound`             → `RuntimeError::NotFound` (HTTP 404)
 //! - Everything else        → `RuntimeError::Internal` (HTTP 500)
 //!
-//! # RuntimeError → HTTP mapping
+//! # `RuntimeError` → HTTP mapping
 //!
 //! | `RuntimeError` variant            | HTTP status                  |
 //! |-----------------------------------|------------------------------|
