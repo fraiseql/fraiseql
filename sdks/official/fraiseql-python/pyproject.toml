@@ -103,13 +103,18 @@ select = [
 "src/fraiseql/integrations/llamaindex.py" = [
   "TC001"  # Runtime import used in __init__ constructor
 ]
+"src/fraiseql/changelog_consumer.py" = [
+  "PERF203",  # try-except in dispatch loop is intentional for handler error isolation
+  "PLR0913"   # ChangelogConsumer.__init__ needs many configuration parameters
+]
 "tests/**/*.py" = [
   "ANN",  # Don't require type annotations in tests
   "ARG",  # Mock handler signatures must accept unused arguments (e.g., request)
   "E501",  # Long lines OK in tests — inline decorator fixtures are clearer on one line
   "N803",  # camelCase arg names intentional — tests mirror GraphQL naming conventions
   "PLC0415",  # Deferred imports in test functions are intentional (registry isolation)
-  "PLR2004"  # Magic values OK in tests
+  "PLR2004",  # Magic values OK in tests
+  "PLR0913"  # Test helpers may have many kwargs for convenience
 ]
 
 [tool.ty.environment]
