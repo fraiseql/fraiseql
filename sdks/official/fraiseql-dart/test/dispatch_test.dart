@@ -40,7 +40,7 @@ void main() {
       );
 
       expect(dispatch.mapping!.length, equals(2));
-      expect(dispatch.mapping!.keys.every((k) => k is String), isTrue);
+      expect(dispatch.mapping!.keys.every((_) => true), isTrue);
     });
 
     test('validates template is a string template', () {

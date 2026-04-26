@@ -476,42 +476,107 @@ export function registerTypeFields(
 }
 
 /**
+ * Config object form for registerQuery.
+ */
+export interface RegisterQueryConfig {
+  returnType: string;
+  returnsList?: boolean;
+  nullable?: boolean;
+  arguments?: ArgumentDefinition[];
+  description?: string;
+  sqlSource?: string;
+  sqlSourceDispatch?: {
+    argument: string;
+    mapping?: Record<string, string>;
+    template?: string;
+  };
+  [key: string]: unknown;
+}
+
+/** Safe SQL identifier pattern — letters, digits, underscores, dollar signs only. */
+const SAFE_SQL_IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
+
+/**
  * Helper function to manually register query with full metadata.
  *
- * @param name - Query name
- * @param returnType - Return type name
- * @param returnsList - Whether query returns a list
- * @param nullable - Whether result can be null
- * @param args - Argument definitions
- * @param description - Optional query description
- * @param config - Additional configuration
+ * Accepts either the classic positional style:
+ *   registerQuery(name, returnType, returnsList, nullable, args, description?, config?)
+ *
+ * Or a compact object style:
+ *   registerQuery(name, { returnType, returnsList?, nullable?, arguments?, sqlSourceDispatch?, ... })
  *
  * @example
  * ```ts
- * registerQuery(
- *   "users",
- *   "User",
- *   true,
- *   false,
- *   [
- *     { name: "limit", type: "Int", nullable: false, default: 10 },
- *     { name: "offset", type: "Int", nullable: false, default: 0 }
- *   ],
- *   "Get list of users",
- *   { sql_source: "v_user" }
- * );
+ * registerQuery("orders", {
+ *   returnType: "Order",
+ *   returnsList: true,
+ *   sqlSourceDispatch: {
+ *     argument: "interval",
+ *     mapping: { DAY: "tf_orders_day", WEEK: "tf_orders_week" },
+ *   },
+ *   arguments: [{ name: "interval", type: "TimeInterval", nullable: false }],
+ * });
  * ```
  */
 export function registerQuery(
   name: string,
-  returnType: string,
-  returnsList: boolean,
-  nullable: boolean,
-  args: ArgumentDefinition[],
+  returnTypeOrConfig: string | RegisterQueryConfig,
+  returnsList?: boolean,
+  nullable?: boolean,
+  args?: ArgumentDefinition[],
   description?: string,
   config?: Record<string, unknown>
 ): void {
-  SchemaRegistry.registerQuery(name, returnType, returnsList, nullable, args, description, config);
+  if (typeof returnTypeOrConfig === "object" && returnTypeOrConfig !== null) {
+    // Object-style call
+    const cfg = returnTypeOrConfig;
+    const dispatch = cfg.sqlSourceDispatch;
+
+    if (dispatch !== undefined) {
+      if (cfg.sqlSource !== undefined) {
+        throw new Error(
+          `registerQuery('${name}'): sqlSource and sqlSourceDispatch are mutually exclusive.`
+        );
+      }
+      const dispatchArg = dispatch.argument;
+      const queryArgs = cfg.arguments ?? [];
+      const argDef = queryArgs.find((a) => a.name === dispatchArg);
+      if (argDef === undefined) {
+        throw new Error(
+          `registerQuery('${name}'): sqlSourceDispatch argument '${dispatchArg}' not found in arguments list.`
+        );
+      }
+      if (argDef.nullable) {
+        throw new Error(
+          `registerQuery('${name}'): sqlSourceDispatch argument '${dispatchArg}' must be non-nullable.`
+        );
+      }
+      if (dispatch.mapping !== undefined) {
+        for (const [key, value] of Object.entries(dispatch.mapping)) {
+          if (!SAFE_SQL_IDENT.test(value)) {
+            throw new Error(
+              `registerQuery('${name}'): sql_source_dispatch mapping value '${value}' for key '${key}' is not a safe SQL identifier.`
+            );
+          }
+        }
+      }
+    }
+
+    const { returnType, returnsList: rl, nullable: nl, arguments: qArgs, description: desc, ...rest } = cfg;
+    SchemaRegistry.registerQuery(
+      name,
+      returnType,
+      rl ?? false,
+      nl ?? false,
+      qArgs ?? [],
+      desc,
+      rest as Record<string, unknown>
+    );
+    return;
+  }
+
+  // Classic positional-style call
+  SchemaRegistry.registerQuery(name, returnTypeOrConfig, returnsList ?? false, nullable ?? false, args ?? [], description, config);
 }
 
 /**

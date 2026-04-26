@@ -6,21 +6,6 @@ import (
 	"github.com/fraiseql/fraiseql-go/fraiseql"
 )
 
-// Test helper to extract dispatch config from query
-func getDispatchConfig(t *testing.T, queryName string) map[string]interface{} {
-	t.Helper()
-	schema := fraiseql.GetSchema()
-	for _, q := range schema.Queries {
-		if q.Name == queryName {
-			// The dispatch config would be in q.Config or a separate field
-			// For this test, we're verifying the builder accepts the config
-			return q.Config
-		}
-	}
-	t.Fatalf("query %s not found", queryName)
-	return nil
-}
-
 func TestDispatchExplicitMapping(t *testing.T) {
 	fraiseql.ClearRegistry()
 

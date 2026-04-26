@@ -127,9 +127,7 @@ def extract_field_config(field_type: Any) -> FieldConfig | None:
     return None
 
 
-def _resolve_string_annotations(
-    cls: type, str_annotations: dict[str, str]
-) -> dict[str, Any]:
+def _resolve_string_annotations(cls: type, str_annotations: dict[str, str]) -> dict[str, Any]:
     """Evaluate string annotations against the class's module globals.
 
     Falls back to the raw string for any annotation that cannot be resolved;
@@ -163,9 +161,7 @@ def _get_class_annotations(cls: type) -> dict[str, Any]:
     if sys.version_info >= (3, 14):
         import annotationlib  # noqa: PLC0415 — only available on 3.14+
 
-        str_annotations = annotationlib.get_annotations(
-            cls, format=annotationlib.Format.STRING
-        )
+        str_annotations = annotationlib.get_annotations(cls, format=annotationlib.Format.STRING)
         if not str_annotations:
             return {}
         return _resolve_string_annotations(cls, str_annotations)

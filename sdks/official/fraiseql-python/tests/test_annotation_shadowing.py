@@ -33,6 +33,7 @@ from fraiseql.types import extract_field_info
 # without the fix this would raise TypeError when extract_field_info accesses
 # the annotations.
 
+
 class _EventWithShadow:
     name: str
     year_end: date | None = None
@@ -51,6 +52,7 @@ class _MultiShadow:
 
 
 # -- Tests -------------------------------------------------------------------
+
 
 def test_field_name_shadows_imported_type() -> None:
     """Field named 'date' should not break 'date' type resolution (#233)."""
