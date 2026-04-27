@@ -10,6 +10,7 @@ __all__ = [
 ]
 
 import inspect
+import sys
 from typing import TYPE_CHECKING, Annotated, Any, Union, get_args, get_origin
 
 if TYPE_CHECKING:
@@ -126,6 +127,58 @@ def extract_field_config(field_type: Any) -> FieldConfig | None:
     return None
 
 
+def _resolve_string_annotations(cls: type, str_annotations: dict[str, str]) -> dict[str, Any]:
+    """Evaluate string annotations against the class's module globals.
+
+    Falls back to the raw string for any annotation that cannot be resolved;
+    ``python_type_to_graphql`` handles bare strings as forward references.
+    """
+    module = sys.modules.get(cls.__module__)
+    globalns = vars(module) if module else {}
+
+    resolved: dict[str, Any] = {}
+    for name, annotation_str in str_annotations.items():
+        try:
+            resolved[name] = eval(annotation_str, globalns)
+        except Exception:  # noqa: PERF203
+            resolved[name] = annotation_str
+    return resolved
+
+
+def _get_class_annotations(cls: type) -> dict[str, Any]:
+    """Get resolved annotations for a class, safe on Python 3.14+.
+
+    Python 3.14 changed annotation evaluation to check the class ``__dict__``
+    before module globals. When a field name shadows a type name (e.g.
+    ``date: date | None = None``), accessing ``cls.__annotations__`` raises
+    ``TypeError``. On 3.14+ we use ``annotationlib`` to obtain raw annotation
+    strings and evaluate them against only the module globals, bypassing the
+    class dict entirely.
+
+    On older Pythons, ``from __future__ import annotations`` also produces
+    string annotations — we resolve those the same way for consistency.
+    """
+    if sys.version_info >= (3, 14):
+        import annotationlib  # noqa: PLC0415 — only available on 3.14+
+
+        str_annotations = annotationlib.get_annotations(cls, format=annotationlib.Format.STRING)
+        if not str_annotations:
+            return {}
+        return _resolve_string_annotations(cls, str_annotations)
+
+    if not hasattr(cls, "__annotations__"):
+        return {}
+
+    raw = dict(cls.__annotations__)
+
+    # When ``from __future__ import annotations`` is active, annotations are
+    # strings.  Resolve them so downstream code receives real type objects.
+    if raw and all(isinstance(v, str) for v in raw.values()):
+        return _resolve_string_annotations(cls, raw)
+
+    return raw
+
+
 def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     """Extract field information from a class with type annotations.
 
@@ -159,11 +212,12 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
             "salary": {"type": "Int", "nullable": False, "requires_scope": "hr:compensation"}
         }
     """
-    if not hasattr(cls, "__annotations__"):
+    annotations = _get_class_annotations(cls)
+    if not annotations:
         return {}
 
     fields = {}
-    for field_name, field_type in cls.__annotations__.items():
+    for field_name, field_type in annotations.items():
         graphql_type, nullable = python_type_to_graphql(field_type)
         field_info: dict[str, Any] = {
             "type": graphql_type,

@@ -1,0 +1,28 @@
+{
+  "version": "2.2.0",
+  "recorded_at": "2026-04-25T00:00:00Z",
+  "git_sha": "ca788682f",
+  "source": "velocitybench sequential isolation run (2026-04-19)",
+  "config": {
+    "workers": 40,
+    "duration_secs": 30,
+    "dataset": "medium",
+    "fraiseql_variant": "fraiseql-tv",
+    "velocitybench_dir": "~/code/velocitybench"
+  },
+  "results": {
+    "Q1":  { "rps": 9547,  "p50_ms": 3.6,  "p95_ms": 8.9,  "p99_ms": 12.2 },
+    "Q2":  { "rps": 9887,  "p50_ms": 3.5,  "p95_ms": 8.7,  "p99_ms": 12.1 },
+    "Q2b": { "rps": 8988,  "p50_ms": 3.9,  "p95_ms": 9.3,  "p99_ms": 12.7 },
+    "Q3":  { "rps": 4489,  "p50_ms": 7.9,  "p95_ms": 18.0, "p99_ms": 24.3 },
+    "C3":  { "rps": 7710,  "p50_ms": 4.2,  "p95_ms": 12.2, "p99_ms": 19.6 },
+    "HC3": { "rps": 7810,  "p50_ms": 4.0,  "p95_ms": 11.0, "p99_ms": 17.8 },
+    "M1":  { "rps": 9121,  "p50_ms": 3.7,  "p95_ms": 9.5,  "p99_ms": 13.2 },
+    "F1":  { "rps": 8599,  "p50_ms": 3.7,  "p95_ms": 9.2,  "p99_ms": 12.9 },
+    "F2":  { "rps": 6221,  "p50_ms": 4.5,  "p95_ms": 11.3, "p99_ms": 16.7 }
+  },
+  "thresholds": {
+    "rps_regression_pct": 5.0,
+    "p95_regression_pct": 10.0
+  }
+}

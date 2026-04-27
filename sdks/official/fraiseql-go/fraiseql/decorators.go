@@ -143,6 +143,31 @@ func (qb *QueryBuilder) SqlSource(source string) *QueryBuilder {
 	return qb
 }
 
+// SqlSourceDispatch configures dynamic table routing based on an enum argument.
+// Maps enum values to table names for compile-time routing.
+// The argument must be non-nullable and of enum type.
+func (qb *QueryBuilder) SqlSourceDispatch(argument string, mapping map[string]string) *QueryBuilder {
+	dispatchConfig := map[string]interface{}{
+		"argument": argument,
+		"mapping":  mapping,
+	}
+	qb.config["sql_source_dispatch"] = dispatchConfig
+	return qb
+}
+
+// SqlSourceDispatchWithTemplate configures dynamic table routing using a template.
+// The template string uses {argument_name} as a placeholder for the enum value.
+// Example: "v_orders_{interval}" with enum values "day", "week", "month"
+// produces "v_orders_day", "v_orders_week", "v_orders_month"
+func (qb *QueryBuilder) SqlSourceDispatchWithTemplate(argument string, template string) *QueryBuilder {
+	dispatchConfig := map[string]interface{}{
+		"argument": argument,
+		"template": template,
+	}
+	qb.config["sql_source_dispatch"] = dispatchConfig
+	return qb
+}
+
 // Relay marks the query as a Relay connection query.
 // Requires ReturnsArray(true) and a sql_source set via Config or SqlSource.
 // The compiler derives the cursor column from the return type name (e.g. User -> pk_user).

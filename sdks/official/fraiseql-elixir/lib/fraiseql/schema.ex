@@ -161,6 +161,8 @@ defmodule FraiseQL.Schema do
 
     * `:return_type` — (required) the GraphQL return type name string
     * `:sql_source` — (required) the underlying view/table name
+    * `:sql_source_dispatch` — optional map for dynamic source selection via enum argument
+      Example: `%{argument: "timeInterval", mapping: %{"DAY" => "tf_orders_day", "WEEK" => "tf_orders_week"}}`
     * `:returns_list` — boolean (default `false`)
     * `:nullable` — boolean (default `false`)
     * `:cache_ttl_seconds` — optional integer TTL for caching
@@ -178,6 +180,12 @@ defmodule FraiseQL.Schema do
       fraiseql_query :author, return_type: "Author", sql_source: "v_author" do
         argument :id, :id, nullable: false
       end
+
+      # With dispatch
+      fraiseql_query :orders, return_type: "Order", returns_list: true,
+        sql_source_dispatch: %{argument: "timeInterval", mapping: %{"DAY" => "tf_orders_day", "WEEK" => "tf_orders_week"}} do
+        argument :time_interval, :string, nullable: false
+      end
   """
   defmacro fraiseql_query(name, opts) do
     {block, query_opts} = Keyword.pop(opts, :do)
@@ -194,6 +202,7 @@ defmodule FraiseQL.Schema do
           name: unquote(query_name),
           return_type: unquote(query_opts[:return_type]),
           sql_source: unquote(query_opts[:sql_source]),
+          sql_source_dispatch: unquote(query_opts[:sql_source_dispatch]),
           returns_list: unquote(Keyword.get(query_opts, :returns_list, false)),
           nullable: unquote(Keyword.get(query_opts, :nullable, false)),
           arguments: Enum.reverse(@__fraiseql_arg_buffer),
@@ -212,6 +221,7 @@ defmodule FraiseQL.Schema do
           name: unquote(query_name),
           return_type: unquote(query_opts[:return_type]),
           sql_source: unquote(query_opts[:sql_source]),
+          sql_source_dispatch: unquote(query_opts[:sql_source_dispatch]),
           returns_list: unquote(Keyword.get(query_opts, :returns_list, false)),
           nullable: unquote(Keyword.get(query_opts, :nullable, false)),
           arguments: [],
@@ -241,6 +251,8 @@ defmodule FraiseQL.Schema do
 
     * `:return_type` — (required) the GraphQL return type name string
     * `:sql_source` — (required) the underlying function name
+    * `:sql_source_dispatch` — optional map for dynamic source selection via enum argument
+      Example: `%{argument: "operation_type", mapping: %{"create" => "fn_create", "update" => "fn_update"}}`
     * `:operation` — (required) one of `"insert"`, `"update"`, `"delete"`
     * `:description` — optional human-readable description
 
@@ -276,6 +288,7 @@ defmodule FraiseQL.Schema do
           name: unquote(mutation_name),
           return_type: unquote(mutation_opts[:return_type]),
           sql_source: unquote(mutation_opts[:sql_source]),
+          sql_source_dispatch: unquote(mutation_opts[:sql_source_dispatch]),
           operation: unquote(mutation_opts[:operation]),
           arguments: Enum.reverse(@__fraiseql_arg_buffer),
           description: unquote(mutation_opts[:description]),
@@ -292,6 +305,7 @@ defmodule FraiseQL.Schema do
           name: unquote(mutation_name),
           return_type: unquote(mutation_opts[:return_type]),
           sql_source: unquote(mutation_opts[:sql_source]),
+          sql_source_dispatch: unquote(mutation_opts[:sql_source_dispatch]),
           operation: unquote(mutation_opts[:operation]),
           arguments: [],
           description: unquote(mutation_opts[:description]),

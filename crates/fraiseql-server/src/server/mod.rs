@@ -96,6 +96,10 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "observers")]
     pub(super) db_pool: Option<sqlx::PgPool>,
 
+    /// PostgreSQL pool for claims enrichment queries (independent of observers).
+    #[cfg(feature = "auth")]
+    pub(super) enrichment_pool: Option<sqlx::PgPool>,
+
     #[cfg(feature = "arrow")]
     pub(super) flight_service: Option<FraiseQLFlightService>,
 

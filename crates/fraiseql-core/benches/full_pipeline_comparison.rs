@@ -37,7 +37,7 @@ async fn verify_benchmark_data(conn_str: &str) -> bool {
         match PostgresAdapter::new(conn_str).await {
             Ok(adapter) => {
                 match adapter
-                    .execute_where_query("v_benchmark_data", None, Some(1), None, None)
+                    .execute_where_query("v_benchmark_data", None, Some(1), None, None, &[])
                     .await
                 {
                     Ok(results) => !results.is_empty(),
@@ -134,7 +134,7 @@ fn bench_postgres_full_pipeline_10k(c: &mut Criterion) {
 
             // Step 1: Execute database query
             let results = adapter
-                .execute_where_query("v_benchmark_data", None, Some(10_000), None, None)
+                .execute_where_query("v_benchmark_data", None, Some(10_000), None, None, &[])
                 .await
                 .unwrap();
 
@@ -178,7 +178,7 @@ fn bench_wire_full_pipeline_10k(c: &mut Criterion) {
 
             // Step 1: Execute database query (streaming)
             let results = adapter
-                .execute_where_query("v_benchmark_data", None, Some(10_000), None, None)
+                .execute_where_query("v_benchmark_data", None, Some(10_000), None, None, &[])
                 .await
                 .unwrap();
 
@@ -223,7 +223,7 @@ fn bench_postgres_full_pipeline_100k(c: &mut Criterion) {
 
             let start = Instant::now();
             let results = adapter
-                .execute_where_query("v_benchmark_data", None, Some(100_000), None, None)
+                .execute_where_query("v_benchmark_data", None, Some(100_000), None, None, &[])
                 .await
                 .unwrap();
 
@@ -263,7 +263,7 @@ fn bench_wire_full_pipeline_100k(c: &mut Criterion) {
 
             let start = Instant::now();
             let results = adapter
-                .execute_where_query("v_benchmark_data", None, Some(100_000), None, None)
+                .execute_where_query("v_benchmark_data", None, Some(100_000), None, None, &[])
                 .await
                 .unwrap();
 
@@ -307,7 +307,7 @@ fn bench_postgres_full_pipeline_1m(c: &mut Criterion) {
 
             let start = Instant::now();
             let results = adapter
-                .execute_where_query("v_benchmark_data", None, Some(1_000_000), None, None)
+                .execute_where_query("v_benchmark_data", None, Some(1_000_000), None, None, &[])
                 .await
                 .unwrap();
 
@@ -347,7 +347,7 @@ fn bench_wire_full_pipeline_1m(c: &mut Criterion) {
 
             let start = Instant::now();
             let results = adapter
-                .execute_where_query("v_benchmark_data", None, Some(1_000_000), None, None)
+                .execute_where_query("v_benchmark_data", None, Some(1_000_000), None, None, &[])
                 .await
                 .unwrap();
 

@@ -181,6 +181,7 @@ public class FraiseQL {
         private String description = "";
         private boolean relay = false;
         private String sqlSource = null;
+        private Map<String, Object> sqlSourceDispatch = null;
         private Long cacheTtlSeconds = null;
         private Map<String, String> injectParams = null;
         private List<String> additionalViews = null;
@@ -285,6 +286,39 @@ public class FraiseQL {
         }
 
         /**
+         * Configure dynamic table routing based on an enum argument.
+         * Maps enum values to table names for compile-time routing.
+         * The argument must be non-nullable and of enum type.
+         *
+         * @param argument the dispatch argument name
+         * @param mapping map of enum values to table names
+         * @return this builder for chaining
+         */
+        public QueryBuilder sqlSourceDispatch(String argument, Map<String, String> mapping) {
+            this.sqlSourceDispatch = new LinkedHashMap<>();
+            this.sqlSourceDispatch.put("argument", argument);
+            this.sqlSourceDispatch.put("mapping", new LinkedHashMap<>(mapping));
+            return this;
+        }
+
+        /**
+         * Configure dynamic table routing using a template.
+         * The template string uses {argument_name} as a placeholder for the enum value.
+         * Example: "v_orders_{interval}" with enum values "day", "week", "month"
+         * produces "v_orders_day", "v_orders_week", "v_orders_month".
+         *
+         * @param argument the dispatch argument name
+         * @param template template string with {argument_name} placeholder
+         * @return this builder for chaining
+         */
+        public QueryBuilder sqlSourceDispatchTemplate(String argument, String template) {
+            this.sqlSourceDispatch = new LinkedHashMap<>();
+            this.sqlSourceDispatch.put("argument", argument);
+            this.sqlSourceDispatch.put("template", template);
+            return this;
+        }
+
+        /**
          * Set the cache TTL for query results.
          *
          * @param seconds TTL in seconds (0 = no cache)
@@ -358,10 +392,10 @@ public class FraiseQL {
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
             // Apply default REST method when restPath is set but restMethod is not
             String effectiveRestMethod = restPath != null && restMethod == null ? "GET" : restMethod;
-            if (sqlSource != null || cacheTtlSeconds != null || injectParams != null
+            if (sqlSource != null || sqlSourceDispatch != null || cacheTtlSeconds != null || injectParams != null
                     || additionalViews != null || restPath != null) {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay,
-                    sqlSource, cacheTtlSeconds, injectParams, additionalViews,
+                    sqlSource, sqlSourceDispatch, cacheTtlSeconds, injectParams, additionalViews,
                     restPath, effectiveRestMethod);
             } else {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay);

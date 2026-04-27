@@ -9,17 +9,19 @@ namespace FraiseQL.Models;
 /// <param name="Name">The mutation name.</param>
 /// <param name="ReturnType">The GraphQL return type name.</param>
 /// <param name="SqlSource">The backing SQL function (e.g. <c>fn_create_author</c>).</param>
+/// <param name="SqlSourceDispatch">Optional dispatch config for dynamic SQL source selection via enum argument, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Operation">The operation kind: <c>"insert"</c>, <c>"update"</c>, <c>"delete"</c>, or <c>"upsert"</c>.</param>
 /// <param name="Arguments">Ordered list of mutation arguments (always present, empty array if none).</param>
 /// <param name="Description">Optional description, omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Cascade">When <see langword="true"/>, enables cascade deletion. Omitted from JSON when <see langword="null"/>.</param>
 /// <param name="Rest">Optional REST endpoint annotation, omitted from JSON when <see langword="null"/>.</param>
 public record IntermediateMutation(
-    [property: JsonPropertyName("name")]        string Name,
-    [property: JsonPropertyName("return_type")] string ReturnType,
-    [property: JsonPropertyName("sql_source")]  string SqlSource,
-    [property: JsonPropertyName("operation")]   string Operation,
-    [property: JsonPropertyName("arguments")]   IReadOnlyList<IntermediateArgument> Arguments,
-    [property: JsonPropertyName("description")] string? Description = null,
-    [property: JsonPropertyName("cascade")]     bool? Cascade = null,
-    [property: JsonPropertyName("rest")]        RestAnnotation? Rest = null);
+    [property: JsonPropertyName("name")]                  string Name,
+    [property: JsonPropertyName("return_type")]           string ReturnType,
+    [property: JsonPropertyName("sql_source")]            string SqlSource,
+    [property: JsonPropertyName("operation")]             string Operation,
+    [property: JsonPropertyName("arguments")]             IReadOnlyList<IntermediateArgument> Arguments,
+    [property: JsonPropertyName("sql_source_dispatch")]   System.Collections.Generic.Dictionary<string, object>? SqlSourceDispatch = null,
+    [property: JsonPropertyName("description")]           string? Description = null,
+    [property: JsonPropertyName("cascade")]               bool? Cascade = null,
+    [property: JsonPropertyName("rest")]                  RestAnnotation? Rest = null);

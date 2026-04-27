@@ -257,31 +257,12 @@ impl QueryMatcher {
 
     /// Resolve an inline GraphQL argument to a JSON value.
     ///
-    /// Handles both literal values (`limit: 3` → `value_json = "3"`) and
-    /// variable references (`limit: $limit` → `value_json = "\"$limit\""`),
-    /// looking up the latter in the already-extracted variables map.
-    ///
-    /// Variable references are serialized by the parser as JSON-quoted strings
-    /// (e.g. `Variable("myLimit")` → `"\"$myLimit\""`), so we must parse the
-    /// JSON first and then check for the `$` prefix on the inner string.
+    /// Delegates to the free function [`resolve_inline_arg`].
     fn resolve_inline_arg(
         arg: &crate::graphql::GraphQLArgument,
         variables: &HashMap<String, serde_json::Value>,
     ) -> Option<serde_json::Value> {
-        // Try raw `$varName` first (defensive, in case any code path produces unquoted refs)
-        if let Some(var_name) = arg.value_json.strip_prefix('$') {
-            return variables.get(var_name).cloned();
-        }
-        // Parse the JSON value
-        let parsed: serde_json::Value = serde_json::from_str(&arg.value_json).ok()?;
-        // Check if the parsed value is a string starting with "$" (variable reference)
-        if let Some(s) = parsed.as_str() {
-            if let Some(var_name) = s.strip_prefix('$') {
-                return variables.get(var_name).cloned();
-            }
-        }
-        // Literal value (number, boolean, string, object, array, null)
-        Some(parsed)
+        resolve_inline_arg(arg, variables)
     }
 
     /// Get the compiled schema.
@@ -289,6 +270,35 @@ impl QueryMatcher {
     pub const fn schema(&self) -> &CompiledSchema {
         &self.schema
     }
+}
+
+/// Resolve an inline GraphQL argument to a JSON value.
+///
+/// Handles both literal values (`limit: 3` → `value_json = "3"`) and
+/// variable references (`limit: $limit` → `value_json = "\"$limit\""`),
+/// looking up the latter in the already-extracted variables map.
+///
+/// Variable references are serialized by the parser as JSON-quoted strings
+/// (e.g. `Variable("myLimit")` → `"\"$myLimit\""`), so we must parse the
+/// JSON first and then check for the `$` prefix on the inner string.
+pub fn resolve_inline_arg(
+    arg: &crate::graphql::GraphQLArgument,
+    variables: &HashMap<String, serde_json::Value>,
+) -> Option<serde_json::Value> {
+    // Try raw `$varName` first (defensive, in case any code path produces unquoted refs)
+    if let Some(var_name) = arg.value_json.strip_prefix('$') {
+        return variables.get(var_name).cloned();
+    }
+    // Parse the JSON value
+    let parsed: serde_json::Value = serde_json::from_str(&arg.value_json).ok()?;
+    // Check if the parsed value is a string starting with "$" (variable reference)
+    if let Some(s) = parsed.as_str() {
+        if let Some(var_name) = s.strip_prefix('$') {
+            return variables.get(var_name).cloned();
+        }
+    }
+    // Literal value (number, boolean, string, object, array, null)
+    Some(parsed)
 }
 
 /// Return candidates from `haystack` whose edit distance to `needle` is ≤ 2.
@@ -365,6 +375,7 @@ mod tests {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
+            sql_source_dispatch: None,
             description:         None,
             auto_params:         crate::schema::AutoParams::default(),
             deprecation:         None,
@@ -568,6 +579,7 @@ mod tests {
             nullable:            true,
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
+            sql_source_dispatch: None,
             description:         None,
             auto_params:         crate::schema::AutoParams::default(),
             deprecation:         None,
@@ -602,6 +614,7 @@ mod tests {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          Some("v_user".to_string()),
+            sql_source_dispatch: None,
             description:         None,
             auto_params:         crate::schema::AutoParams::default(),
             deprecation:         None,

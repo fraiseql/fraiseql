@@ -58,18 +58,19 @@ dashmap = "6.0"
 deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
-fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.2.0"}
-fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.2.0"}
-fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.2.0"}
-fraiseql-core = {path = "crates/fraiseql-core", version = "2.2.0", default-features = false}
-fraiseql-db = {path = "crates/fraiseql-db", version = "2.2.0", default-features = false}
-fraiseql-error = {path = "crates/fraiseql-error", version = "2.2.0", default-features = false}
-fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.2.0"}
-fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.2.0"}
-fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.2.0"}
-fraiseql-server = {path = "crates/fraiseql-server", version = "2.2.0"}
-fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.2.0"}
-fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.2.0"}
+fraiseql-arrow = {path = "crates/fraiseql-arrow", version = "2.2.1"}
+fraiseql-auth = {path = "crates/fraiseql-auth", version = "2.2.1"}
+fraiseql-cli = {path = "crates/fraiseql-cli", version = "2.2.1"}
+fraiseql-core = {path = "crates/fraiseql-core", version = "2.2.1", default-features = false}
+fraiseql-db = {path = "crates/fraiseql-db", version = "2.2.1", default-features = false}
+fraiseql-error = {path = "crates/fraiseql-error", version = "2.2.1", default-features = false}
+fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.2.1"}
+fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.2.1"}
+fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.2.1"}
+fraiseql-server = {path = "crates/fraiseql-server", version = "2.2.1"}
+fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.2.1"}
+fraiseql-validators = {version = "0.2", features = ["fraiseql", "contact", "geographic", "identifiers"]}
+fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.2.1"}
 futures = "0.3"
 graphql-parser = "0.4"
 hex = "0.4"
@@ -229,4 +230,4 @@ keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
 rust-version = "1.92"  # MSRV — fraiseql-error@2.1.0 on crates.io requires 1.92
-version = "2.2.0"
+version = "2.2.1"

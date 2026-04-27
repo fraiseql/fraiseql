@@ -79,6 +79,8 @@ type QueryDefinition =
         nullable: bool
         /// The SQL view or function backing this query.
         sql_source: string
+        /// Optional dispatch config for dynamic SQL source selection via enum argument.
+        sql_source_dispatch: System.Collections.Generic.Dictionary<string, obj> option
         /// Arguments accepted by this query.
         arguments: ArgumentDefinition list
         /// Optional cache TTL in seconds; None means no caching.
@@ -99,6 +101,8 @@ type MutationDefinition =
         return_type: string
         /// The SQL function backing this mutation.
         sql_source: string
+        /// Optional dispatch config for dynamic SQL source selection via enum argument.
+        sql_source_dispatch: System.Collections.Generic.Dictionary<string, obj> option
         /// The operation kind: "insert", "update", "delete", or "custom".
         operation: string
         /// Arguments accepted by this mutation.

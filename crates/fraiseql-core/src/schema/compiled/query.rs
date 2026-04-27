@@ -30,6 +30,32 @@ pub(super) fn is_default_cursor_type(ct: &CursorType) -> bool {
     *ct == CursorType::Int64
 }
 
+/// Dispatches `sql_source` dynamically based on an enum argument value.
+///
+/// Instead of a single static `sql_source`, the runtime resolves the table/view
+/// name from the provided argument. The dispatch argument is consumed at
+/// resolution time and never forwarded as a WHERE condition.
+///
+/// # Example (compiled JSON)
+///
+/// ```json
+/// {
+///   "argument": "timeInterval",
+///   "mapping": {
+///     "DAY": "tf_orders_day",
+///     "WEEK": "tf_orders_week",
+///     "MONTH": "tf_orders_month"
+///   }
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SqlSourceDispatch {
+    /// The GraphQL argument name used for dispatch (e.g., "timeInterval").
+    pub argument: String,
+    /// Map from enum value (e.g., "MONTH") to SQL table/view name (e.g., `tf_orders_month`).
+    pub mapping: HashMap<String, String>,
+}
+
 /// A query definition compiled from `@fraiseql.query`.
 ///
 /// Queries are declarative bindings to database views/tables.
@@ -65,6 +91,11 @@ pub struct QueryDefinition {
     /// SQL source table/view (for direct table queries).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql_source: Option<String>,
+
+    /// Dynamic SQL source dispatch based on an enum argument.
+    /// Mutually exclusive with `sql_source`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sql_source_dispatch: Option<SqlSourceDispatch>,
 
     /// Description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -203,6 +234,7 @@ impl QueryDefinition {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          None,
+            sql_source_dispatch: None,
             description:         None,
             auto_params:         AutoParams::default(),
             deprecation:         None,

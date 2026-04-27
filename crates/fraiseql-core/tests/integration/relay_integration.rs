@@ -81,7 +81,8 @@ impl DatabaseAdapter for RelayMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         let mut out: Vec<JsonbValue> = match where_clause {
             // Filter by `id` equality — used for node queries.
@@ -112,9 +113,10 @@ impl DatabaseAdapter for RelayMockAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None, None).await
+        self.execute_where_query(view, where_clause, limit, None, None, &[]).await
     }
 
     async fn health_check(&self) -> Result<()> {
@@ -144,7 +146,8 @@ impl DatabaseAdapter for RelayMockAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -153,6 +156,7 @@ impl DatabaseAdapter for RelayMockAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -179,7 +183,8 @@ impl RelayDatabaseAdapter for RelayMockAdapter {
         forward: bool,
         _where_clause: Option<&fraiseql_core::db::WhereClause>,
         _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
-        include_total_count: bool,
+        include_total_count: bool,        _session_vars: &[(&str, &str)],
+
     ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
         // totalCount: full connection size, cursor ignored (Relay spec).
         let total_count = if include_total_count {
@@ -698,7 +703,8 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -710,7 +716,8 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -742,7 +749,8 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -751,6 +759,7 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -769,7 +778,8 @@ impl RelayDatabaseAdapter for UuidRelayMockAdapter {
         forward: bool,
         _where_clause: Option<&fraiseql_core::db::WhereClause>,
         _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
-        include_total_count: bool,
+        include_total_count: bool,        _session_vars: &[(&str, &str)],
+
     ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
         let total_count = if include_total_count {
             Some(self.rows.len() as u64)
@@ -1075,7 +1085,8 @@ mod relay_security {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1087,7 +1098,8 @@ mod relay_security {
             _where_clause: Option<&WhereClause>,
             _limit: Option<u32>,
             _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
+            _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -1119,7 +1131,8 @@ mod relay_security {
         async fn execute_parameterized_aggregate(
             &self,
             _sql: &str,
-            _params: &[serde_json::Value],
+            _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
@@ -1128,6 +1141,7 @@ mod relay_security {
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
@@ -1146,7 +1160,8 @@ mod relay_security {
             forward: bool,
             where_clause: Option<&fraiseql_core::db::WhereClause>,
             _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
-            include_total_count: bool,
+            include_total_count: bool,        _session_vars: &[(&str, &str)],
+
         ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
             // Record the WHERE clause for assertion.
             self.recorded_where.lock().unwrap().push(where_clause.map(|w| format!("{w:?}")));

@@ -212,6 +212,7 @@ mod tests {
                 nullable:            false,
                 arguments:           Vec::new(),
                 sql_source:          Some("v_user".to_string()),
+                sql_source_dispatch: None,
                 description:         None,
                 auto_params:         AutoParams::default(),
                 deprecation:         None,

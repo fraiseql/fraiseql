@@ -144,12 +144,12 @@ async fn same_query_returns_same_fields_on_pg_and_mysql() {
     let (my, _my_c) = setup_mysql().await;
 
     let pg_rows = pg
-        .execute_where_query("v_cross_item", None, Some(10), None, None)
+        .execute_where_query("v_cross_item", None, Some(10), None, None, &[])
         .await
         .expect("PG query failed");
 
     let my_rows = my
-        .execute_where_query("v_cross_item", None, Some(10), None, None)
+        .execute_where_query("v_cross_item", None, Some(10), None, None, &[])
         .await
         .expect("MySQL query failed");
 
@@ -195,12 +195,12 @@ async fn where_eq_operator_returns_same_results_on_pg_and_mysql() {
     };
 
     let pg_rows = pg
-        .execute_where_query("v_cross_item", Some(&clause), None, None, None)
+        .execute_where_query("v_cross_item", Some(&clause), None, None, None, &[])
         .await
         .expect("PG query failed");
 
     let my_rows = my
-        .execute_where_query("v_cross_item", Some(&clause), None, None, None)
+        .execute_where_query("v_cross_item", Some(&clause), None, None, None, &[])
         .await
         .expect("MySQL query failed");
 
@@ -235,12 +235,12 @@ async fn where_gte_operator_returns_same_count_on_pg_and_mysql() {
     };
 
     let pg_rows = pg
-        .execute_where_query("v_cross_item", Some(&clause), None, None, None)
+        .execute_where_query("v_cross_item", Some(&clause), None, None, None, &[])
         .await
         .expect("PG query failed");
 
     let my_rows = my
-        .execute_where_query("v_cross_item", Some(&clause), None, None, None)
+        .execute_where_query("v_cross_item", Some(&clause), None, None, None, &[])
         .await
         .expect("MySQL query failed");
 
@@ -273,12 +273,12 @@ async fn null_fields_represented_identically_across_adapters() {
     };
 
     let pg_rows = pg
-        .execute_where_query("v_cross_item", Some(&clause), None, None, None)
+        .execute_where_query("v_cross_item", Some(&clause), None, None, None, &[])
         .await
         .expect("PG query failed");
 
     let my_rows = my
-        .execute_where_query("v_cross_item", Some(&clause), None, None, None)
+        .execute_where_query("v_cross_item", Some(&clause), None, None, None, &[])
         .await
         .expect("MySQL query failed");
 
@@ -306,12 +306,12 @@ async fn limit_is_respected_consistently_across_adapters() {
     let (my, _my_c) = setup_mysql().await;
 
     let pg_rows = pg
-        .execute_where_query("v_cross_item", None, Some(2), None, None)
+        .execute_where_query("v_cross_item", None, Some(2), None, None, &[])
         .await
         .expect("PG query failed");
 
     let my_rows = my
-        .execute_where_query("v_cross_item", None, Some(2), None, None)
+        .execute_where_query("v_cross_item", None, Some(2), None, None, &[])
         .await
         .expect("MySQL query failed");
 

@@ -29,6 +29,9 @@ use tower::ServiceExt;
 // Helper: build a mutation_response row for the FailingAdapter
 // ---------------------------------------------------------------------------
 
+/// Canonical test entity UUID used in mutation_response rows.
+const TEST_ENTITY_UUID: &str = "00000000-0000-0000-0000-000000000001";
+
 /// Build a successful `mutation_response` row with an entity.
 fn mutation_success_row(entity: Value) -> Vec<HashMap<String, Value>> {
     let mut row = HashMap::new();
@@ -37,7 +40,7 @@ fn mutation_success_row(entity: Value) -> Vec<HashMap<String, Value>> {
     row.insert("message".to_string(), json!(""));
     row.insert("entity".to_string(), entity);
     row.insert("entity_type".to_string(), json!("User"));
-    row.insert("entity_id".to_string(), json!("42"));
+    row.insert("entity_id".to_string(), json!(TEST_ENTITY_UUID));
     vec![row]
 }
 
@@ -576,7 +579,7 @@ async fn test_post_custom_action_returns_200() {
 #[tokio::test]
 async fn test_delete_returns_204() {
     let adapter = FailingAdapter::new()
-        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), "42"));
+        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), TEST_ENTITY_UUID));
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
@@ -619,7 +622,7 @@ async fn test_delete_with_prefer_return_representation() {
         row.insert("message".to_string(), json!(""));
         row.insert("entity".to_string(), entity);
         row.insert("entity_type".to_string(), json!("User"));
-        row.insert("entity_id".to_string(), json!("42"));
+        row.insert("entity_id".to_string(), json!(TEST_ENTITY_UUID));
         vec![row]
     });
 
@@ -884,7 +887,7 @@ async fn test_patch_with_invalid_content_type_returns_400() {
 #[tokio::test]
 async fn test_delete_with_prefer_return_minimal() {
     let adapter = FailingAdapter::new()
-        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), "42"));
+        .with_function_response("fn_delete_user", mutation_success_row_with_id(json!(null), TEST_ENTITY_UUID));
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);

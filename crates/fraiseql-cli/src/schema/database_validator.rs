@@ -798,6 +798,7 @@ mod tests {
             nullable:            false,
             arguments:           vec![],
             sql_source:          Some(sql_source.to_string()),
+            sql_source_dispatch: None,
             description:         None,
             auto_params:         AutoParams::default(),
             deprecation:         None,

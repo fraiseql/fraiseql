@@ -13,10 +13,13 @@ use crate::{
     },
     schema::MutationOperation,
     security::SecurityContext,
+    utils::to_snake_case,
 };
 
 /// Compile-time enforcement: `SqliteAdapter` must NOT implement `SupportsMutations`.
 ///
+/// GraphQL type name for the built-in mutation error fallback.
+pub const BUILTIN_MUTATION_ERROR_TYPE: &str = "MutationError";
 /// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
 /// because `SqliteAdapter` does not implement the `SupportsMutations` marker trait.
 ///
@@ -59,8 +62,14 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     ) -> Result<serde_json::Value> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
-        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections)
-            .await
+        self.execute_mutation_query_with_security(
+            mutation_name,
+            variables,
+            None,
+            type_selections,
+            &[],
+        )
+        .await
     }
 }
 
@@ -122,6 +131,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         type_selections: &HashMap<String, Vec<String>>,
+        inline_arguments: &[crate::graphql::GraphQLArgument],
     ) -> Result<serde_json::Value> {
         // Runtime guard: verify this adapter supports mutations.
         // Note: this is a runtime check, not compile-time enforcement.
@@ -139,8 +149,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                 path:    None,
             });
         }
-        self.execute_mutation_query_with_security(mutation_name, variables, None, type_selections)
-            .await
+        self.execute_mutation_query_with_security(
+            mutation_name,
+            variables,
+            None,
+            type_selections,
+            inline_arguments,
+        )
+        .await
     }
 
     /// Internal implementation shared by `execute_mutation_query` and the
@@ -169,6 +185,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_ctx: Option<&SecurityContext>,
         type_selections: &HashMap<String, Vec<String>>,
+        inline_arguments: &[crate::graphql::GraphQLArgument],
     ) -> Result<serde_json::Value> {
         // 1. Locate the mutation definition
         let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
@@ -237,47 +254,99 @@ impl<A: DatabaseAdapter> Executor<A> {
         //    unwrap the object's fields and pass them positionally in the order defined by the
         //    input type's field list.  This keeps the SQL function signature flat while letting
         //    the GraphQL API use the standard input object pattern.
-        let vars_obj = variables.and_then(|v| v.as_object());
+        //
+        //    Inline argument merging: inline arguments from the GraphQL query string (e.g.
+        //    `createUser(email: "a@b.com")`) are resolved and merged with explicit variables.
+        //    Explicit variables take precedence over inline arguments when both provide the
+        //    same key.
+        let merged_vars_storage: serde_json::Map<String, serde_json::Value>;
+        let vars_obj = if inline_arguments.is_empty() {
+            variables.and_then(|v| v.as_object())
+        } else {
+            let var_map: std::collections::HashMap<String, serde_json::Value> = variables
+                .and_then(|v| v.as_object())
+                .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default();
+            let mut merged = serde_json::Map::new();
+            // Resolve inline arguments (literals and $variable references)
+            for arg in inline_arguments {
+                if let Some(val) =
+                    crate::runtime::matcher::resolve_inline_arg(arg, &var_map)
+                {
+                    merged.insert(arg.name.clone(), val);
+                }
+            }
+            // Overlay explicit variables (take precedence)
+            if let Some(obj) = variables.and_then(|v| v.as_object()) {
+                for (k, v) in obj {
+                    merged.insert(k.clone(), v.clone());
+                }
+            }
+            merged_vars_storage = merged;
+            Some(&merged_vars_storage)
+        };
 
         let mut missing_required: Vec<&str> = Vec::new();
         let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
         let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
 
-        // Detect single-input-object pattern
+        // Detect single-input-object pattern.
+        //
+        // The compiler's `parse_field_type` function defaults all unknown types to
+        // `FieldType::Object`, so input object types (e.g. `CreateMachineInput`) are
+        // compiled as `Object("CreateMachineInput")` rather than `Input("CreateMachineInput")`.
+        // Accept both variants here so that Update JSONB path is taken regardless of
+        // how the compiler classified the argument type.
         let input_type_name =
             if mutation_def.arguments.len() == 1 && mutation_def.arguments[0].name == "input" {
                 match &mutation_def.arguments[0].arg_type {
-                    crate::schema::FieldType::Input(name) => Some(name.as_str()),
+                    crate::schema::FieldType::Input(name)
+                    | crate::schema::FieldType::Object(name) => Some(name.as_str()),
                     _ => None,
                 }
             } else {
                 None
             };
 
-        // Update mutations pass the entire input object as a single JSONB arg, which
-        // preserves all three field states that typed positional args cannot express:
+        // Update and Custom mutations pass the entire input object as a single JSONB
+        // arg.  For Updates this preserves the three field states that typed positional
+        // args cannot express:
         //   - key absent            → leave the database value unchanged
         //   - key present, null     → SET field = NULL
         //   - key present, value    → SET field = <value>
-        // SQL update functions use `input_payload ? 'field'` to test key presence.
         //
-        // Insert / Delete / Custom flatten the Input type fields to positional args as
-        // before (no three-state problem: absent ≡ NULL for creates; deletes need only
+        // Custom mutations receive the same treatment because their SQL function
+        // signature is developer-controlled.  The typical pattern is a single JSONB
+        // parameter (`p_input JSONB`), and flattening fields to positional args would
+        // produce a mismatched call arity — the database would report "function X()
+        // does not exist" when the number of positional args differs from the SQL
+        // function's parameter count.
+        //
+        // Insert / Delete flatten the Input type fields to positional args as before
+        // (no three-state problem: absent ≡ NULL for creates; deletes need only
         // the PK).
         let is_update = matches!(&mutation_def.operation, MutationOperation::Update { .. });
+        let is_custom = matches!(&mutation_def.operation, MutationOperation::Custom);
 
-        if is_update && input_type_name.is_some() {
+        if (is_update || is_custom) && input_type_name.is_some() {
             // Pass the entire input object as a single JSONB arg.
+            // Convert camelCase GraphQL field names → snake_case so that
+            // `jsonb_populate_record` and `input_payload ? 'field_name'` checks
+            // work correctly against PostgreSQL composite type column names.
             let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
             if let Some(obj) = input_obj {
-                args.push(serde_json::Value::Object(obj.clone()));
+                let snake_obj: serde_json::Map<String, serde_json::Value> = obj
+                    .iter()
+                    .map(|(k, v)| (to_snake_case(k), v.clone()))
+                    .collect();
+                args.push(serde_json::Value::Object(snake_obj));
             } else if !mutation_def.arguments[0].nullable {
                 missing_required.push("input");
             }
         } else if let Some(input_type) =
             input_type_name.and_then(|n| self.schema.find_input_type(n))
         {
-            // Insert / Delete / Custom: flatten Input type fields to positional typed args.
+            // Insert / Delete: flatten Input type fields to positional typed args.
             let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
             if let Some(input_obj) = input_obj {
                 for field in &input_type.fields {
@@ -337,24 +406,33 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3b. Inject session variables (transaction-scoped set_config) when configured.
         //
-        // Only called when there are variables to inject or inject_started_at is enabled,
-        // and only on the authenticated path (security context present). The no-op default
-        // on non-PostgreSQL adapters means this call is effectively free there.
-        {
+        // 3b. Resolve session variables to pass to execute_function_call.
+        // Session variables are now passed directly to the function call and executed
+        // on the same connection within the same transaction, ensuring SET LOCAL
+        // variables are correctly scoped.
+        let session_vars: Vec<(String, String)> = {
             let sv = &self.schema.session_variables;
             if !sv.variables.is_empty() || sv.inject_started_at {
                 if let Some(ctx) = security_ctx {
                     let vars =
                         crate::runtime::executor::security::resolve_session_variables(sv, ctx);
-                    let pairs: Vec<(&str, &str)> =
-                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                    self.adapter.set_session_variables(&pairs).await?;
+                    vars.into_iter().collect()
+                } else {
+                    Vec::new()
                 }
+            } else {
+                Vec::new()
             }
-        }
+        };
+        let session_var_refs: Vec<(&str, &str)> = session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
-        // 4. Call the database function
-        let rows = self.adapter.execute_function_call(sql_source, &args).await?;
+        // 4. Call the database function with session variables
+        // PostgreSQL will execute these within the same transaction on the same connection.
+        // Other adapters inherit the default (variables ignored, as session variables are not yet supported).
+        let rows = self.adapter.execute_function_call(sql_source, &args, session_var_refs.as_slice()).await?;
 
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
@@ -477,6 +555,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 entity,
                 entity_type,
                 cascade,
+                updated_fields,
                 ..
             } => {
                 // Determine the GraphQL __typename
@@ -495,14 +574,32 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .unwrap_or_else(|| mutation_return_type.clone());
 
                 // Build projection mappings from the selection set.
-                // Success entities use snake_case keys (from DB), so source == output.
+                // The schema exposes fields as camelCase (e.g. `customerContractId`) but the
+                // entity JSONB from the DB tview uses snake_case (e.g. `customer_contract_id`).
+                // Map each camelCase selection field to its snake_case source key so that the
+                // client receives the expected camelCase field names in the response.
                 let requested = selection_for_type(&typename);
                 let mappings: Vec<FieldMapping> = match &requested {
                     Some(fields) => {
-                        fields.iter().map(|f| FieldMapping::simple(f.clone())).collect()
+                        fields.iter().map(|f| {
+                            let snake = to_snake_case(f);
+                            if snake != *f {
+                                // camelCase GraphQL field → snake_case JSONB key, return as camelCase
+                                // source_fallback handles tviews that already return camelCase
+                                FieldMapping {
+                                    source:          snake,
+                                    output:          f.clone(),
+                                    source_fallback: Some(f.clone()),
+                                    nested_typename: None,
+                                    nested_fields:   None,
+                                }
+                            } else {
+                                FieldMapping::simple(f.clone())
+                            }
+                        }).collect()
                     },
                     None => {
-                        // No selection filtering — pass all fields
+                        // No selection filtering — pass all fields as-is (snake_case from DB)
                         entity
                             .as_object()
                             .map(|m| m.keys().map(|k| FieldMapping::simple(k.clone())).collect())
@@ -524,22 +621,46 @@ impl<A: DatabaseAdapter> Executor<A> {
                     }
                 }
 
+                // Inject updatedFields into the projected object.
+                // The DB function returns this as an array of snake_case field names
+                // that actually changed. Clients use it to know which fields to refresh.
+                if let serde_json::Value::Object(ref mut map) = projected {
+                    map.insert(
+                        "updatedFields".to_string(),
+                        serde_json::Value::Array(
+                            updated_fields
+                                .into_iter()
+                                .map(serde_json::Value::String)
+                                .collect(),
+                        ),
+                    );
+                }
+
                 projected
             },
             MutationOutcome::Error {
                 error_class,
+                message,
                 metadata,
-                ..
             } => {
                 let status = error_class.as_str();
 
                 // Find the matching error type from the return union
-                let error_type = self.schema.find_union(&mutation_return_type).and_then(|u| {
-                    u.member_types.iter().find_map(|t| {
-                        let td = self.schema.find_type(t)?;
-                        if td.is_error { Some(td) } else { None }
+                let error_type = self
+                    // Step 1: explicit union with @fraiseql.error member (unchanged behaviour)
+                    .schema
+                    .find_union(&mutation_return_type)
+                    .and_then(|u| {
+                        u.member_types.iter().find_map(|t| {
+                            let td = self.schema.find_type(t)?;
+                            if td.is_error { Some(td) } else { None }
+                        })
                     })
-                });
+                    // Step 2: naming convention — look for {ReturnType}Error declared with @fraiseql.error
+                    .or_else(|| {
+                        let convention_name = format!("{}Error", mutation_return_type);
+                        self.schema.find_type(&convention_name).filter(|td| td.is_error)
+                    });
 
                 match error_type {
                     Some(td) => {
@@ -560,19 +681,26 @@ impl<A: DatabaseAdapter> Executor<A> {
                         let obj = metadata.as_object().cloned().unwrap_or_default();
                         let mut result = mapper.project_json_object(&obj)?;
 
-                        // Inject status (not in type definition, but required by clients)
+                        // Inject status and message (not in error_detail JSONB, but required by clients)
                         if let serde_json::Value::Object(ref mut map) = result {
-                            map.insert(
-                                "status".to_string(),
-                                serde_json::Value::String(status.to_string()),
-                            );
+                            map.insert("status".to_string(), serde_json::Value::String(status.to_string()));
+                            // Only inject message if not already projected from metadata
+                            map.entry("message".to_string())
+                                .or_insert_with(|| serde_json::Value::String(message.clone()));
                         }
 
                         result
                     },
                     None => {
-                        // No error type defined: surface the status as a plain object
-                        serde_json::json!({ "__typename": mutation_return_type, "status": status })
+                        // No union and no {ReturnType}Error declared.
+                        // Fall back to the built-in MutationError type which carries the
+                        // standard mutation_response fields.
+                        serde_json::json!({
+                            "__typename": BUILTIN_MUTATION_ERROR_TYPE,
+                            "message":    message,
+                            "status":     status,
+                            "metadata":   metadata,
+                        })
                     },
                 }
             },
