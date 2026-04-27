@@ -3112,10 +3112,12 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "tempfile",
+ "testcontainers",
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",
  "tracing",
+ "uuid",
  "walkdir",
 ]
 

@@ -28,8 +28,6 @@ impl LocalBackend {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Storage` if the upload fails.
-
-    /// Uploads data and returns the storage key.
     pub async fn upload(&self, key: &str, data: &[u8], _content_type: &str) -> Result<String> {
         let path = self.key_path(key)?;
         if let Some(parent) = path.parent() {

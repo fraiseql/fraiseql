@@ -39,6 +39,8 @@ aws-config = { version = "1", optional = true }
 tokio-test = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }
+testcontainers = { version = "0.27", features = ["watchdog"] }
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["postgres"]
