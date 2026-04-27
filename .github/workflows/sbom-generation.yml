@@ -59,11 +59,20 @@ jobs:
 
     - name: Generate SBOM (CycloneDX JSON)
       run: |
-        cargo cyclonedx --format json --top-level \
-          --override-filename "fraiseql-${{ steps.version.outputs.version }}-sbom"
-        # cargo-cyclonedx writes the file in the workspace root with .cdx.json suffix
-        mv "fraiseql-${{ steps.version.outputs.version }}-sbom.cdx.json" \
-           "fraiseql-${{ steps.version.outputs.version }}-sbom.json"
+        VERSION="${{ steps.version.outputs.version }}"
+        # Generate per-crate SBOMs (cargo-cyclonedx v0.5+ writes per-crate files)
+        cargo cyclonedx --format json --all \
+          --override-filename "sbom"
+        # Merge all per-crate SBOMs into a single workspace SBOM:
+        # take the first file as the base, then collect all unique components
+        jq -s '{
+          bomFormat: .[0].bomFormat,
+          specVersion: .[0].specVersion,
+          version: 1,
+          metadata: .[0].metadata,
+          components: [.[].components[]?] | unique_by(.name + "/" + .version)
+        }' crates/*/sbom.json > "fraiseql-${VERSION}-sbom.json"
+        rm -f crates/*/sbom.json
 
     - name: Validate SBOM schema
       run: |
