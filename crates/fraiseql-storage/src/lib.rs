@@ -19,6 +19,7 @@ pub mod backend;
 pub mod config;
 pub mod graphql;
 pub mod metadata;
+pub mod migrations;
 pub mod rls;
 pub mod routes;
 pub mod service;
