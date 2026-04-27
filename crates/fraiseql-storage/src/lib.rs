@@ -36,7 +36,7 @@ pub use backend::PresignCapable;
 pub use config::{BucketConfig, BucketAccess, StorageConfig};
 pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 pub use service::BucketService;
-pub use metadata::StorageMetadataRepo;
+pub use metadata::{StorageMetadataRepo, StorageMetadataRow, NewStorageObject};
 pub use rls::StorageRlsEvaluator;
 
 #[cfg(feature = "aws-s3")]

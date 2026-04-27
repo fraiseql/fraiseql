@@ -3311,6 +3311,7 @@ dependencies = [
  "sqlx",
  "tempfile",
  "testcontainers",
+ "testcontainers-modules",
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",

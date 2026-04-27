@@ -16,7 +16,7 @@ publish = true
 fraiseql-error = { path = "../fraiseql-error", version = "2.2" }
 
 bytes = "1"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono"] }
 tokio = { version = "1", features = ["fs", "io-util", "rt"] }
 axum = "0.7"
 serde = { version = "1", features = ["derive"] }
@@ -44,6 +44,7 @@ tokio-test = "0.4"
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }
 testcontainers = { version = "0.27", features = ["watchdog"] }
+testcontainers-modules = { version = "0.15", features = ["postgres"] }
 uuid = { version = "1", features = ["v4"] }
 
 [features]
