@@ -169,4 +169,61 @@ impl S3Backend {
             .map_err(|e| storage_err("presigned URL", e))?;
         Ok(presigned.uri().to_string())
     }
+
+    /// Lists objects in the bucket by prefix with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` on backend failures.
+    pub async fn list(
+        &self,
+        prefix: &str,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<super::types::ListResult> {
+        let mut objects = Vec::new();
+        let mut continuation_token: Option<String> = cursor.map(|s| s.to_string());
+
+        // Use list_objects_v2 with the provided cursor as continuation token
+        let resp = self
+            .client
+            .list_objects_v2()
+            .bucket(&self.bucket)
+            .prefix(prefix)
+            .max_keys(limit as i32)
+            .set_continuation_token(continuation_token)
+            .send()
+            .await
+            .map_err(|e| storage_err("list_objects_v2", e))?;
+
+        if let Some(contents) = resp.contents() {
+            for obj in contents {
+                let key = obj.key().unwrap_or("").to_string();
+                let size = obj.size().unwrap_or(0) as u64;
+                let etag = obj.e_tag().unwrap_or("").to_string();
+                let last_modified = obj
+                    .last_modified()
+                    .and_then(|dt| Some(dt.to_chrono_datetime()?.to_rfc3339()))
+                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+
+                objects.push(super::types::ObjectInfo {
+                    key,
+                    size,
+                    content_type: "application/octet-stream".to_string(),
+                    etag,
+                    last_modified,
+                });
+            }
+        }
+
+        let next_cursor = resp
+            .next_continuation_token()
+            .filter(|t| !t.is_empty())
+            .map(|t| t.to_string());
+
+        Ok(super::types::ListResult {
+            objects,
+            next_cursor,
+        })
+    }
 }

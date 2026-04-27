@@ -3,8 +3,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use fraiseql_error::{FraiseQLError, Result};
-
-use super::validate_key;
+use super::{validate_key, types::{ListResult, ObjectInfo}};
 
 /// Stores files on the local filesystem under a root directory.
 pub struct LocalBackend {
@@ -119,4 +118,129 @@ impl LocalBackend {
             code: Some("unsupported".to_string()),
         })
     }
+
+    /// Lists objects in the bucket by prefix with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` on I/O failures.
+    /// Lists objects in the bucket by prefix with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` on I/O failures.
+    pub async fn list(
+        &self,
+        prefix: &str,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<ListResult> {
+        // Walk the directory tree
+        let mut objects = Vec::new();
+        let prefix_path = self.root.join(prefix);
+
+        // If prefix directory doesn't exist, return empty list
+        if !prefix_path.exists() {
+            return Ok(ListResult {
+                objects: Vec::new(),
+                next_cursor: None,
+            });
+        }
+
+        // Walk the directory and collect matching files
+        for entry in walkdir::WalkDir::new(&prefix_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+        {
+            let full_path = entry.path();
+            let relative_path = full_path
+                .strip_prefix(&self.root)
+                .map_err(|_| FraiseQLError::Storage {
+                    message: "Failed to compute relative path".to_string(),
+                    code: Some("io_error".to_string()),
+                })?
+                .to_string_lossy()
+                .into_owned();
+
+            // Normalize path separators to forward slashes
+            let key = relative_path.replace('\\', "/");
+
+            // Get file metadata
+            let metadata = tokio::fs::metadata(full_path)
+                .await
+                .map_err(|e| FraiseQLError::Storage {
+                    message: format!("Failed to read file metadata: {e}"),
+                    code: Some("io_error".to_string()),
+                })?;
+
+            let size = metadata.len();
+            let last_modified = metadata
+                .modified()
+                .ok()
+                .and_then(|t| {
+                    let duration = t.duration_since(std::time::UNIX_EPOCH).ok()?;
+                    chrono::DateTime::from_timestamp(
+                        duration.as_secs() as i64,
+                        duration.subsec_nanos(),
+                    )
+                })
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+
+            // Generate simple etag from size and mtime
+            let etag = format!("{:x}", fnv1a_hash(&format!("{}-{}", size, last_modified)));
+
+            objects.push((
+                key.clone(),
+                ObjectInfo {
+                    key,
+                    size,
+                    content_type: "application/octet-stream".to_string(), // Default for local storage
+                    etag,
+                    last_modified,
+                },
+            ));
+        }
+
+        // Sort by key
+        objects.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Apply cursor pagination
+        let start_idx = if let Some(c) = cursor {
+            objects.iter().position(|(k, _)| k == c).map(|i| i + 1).unwrap_or(0)
+        } else {
+            0
+        };
+
+        let end_idx = (start_idx + limit).min(objects.len());
+        let page: Vec<ObjectInfo> = objects[start_idx..end_idx]
+            .iter()
+            .map(|(_, info)| info.clone())
+            .collect();
+
+        let next_cursor = if end_idx < objects.len() {
+            page.last().map(|o| o.key.clone())
+        } else {
+            None
+        };
+
+        Ok(ListResult {
+            objects: page,
+            next_cursor,
+        })
+    }
+}
+
+/// Simple FNV-1a hash function
+fn fnv1a_hash(data: &str) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+
+    let mut hash = FNV_OFFSET_BASIS;
+    for byte in data.bytes() {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
 }

@@ -311,4 +311,22 @@ impl GcsBackend {
             code:  None,
         })
     }
+
+    /// Lists objects in the bucket by prefix with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` with code "not_implemented" since list
+    /// is not yet implemented for GCS.
+    pub async fn list(
+        &self,
+        _prefix: &str,
+        _cursor: Option<&str>,
+        _limit: usize,
+    ) -> Result<super::types::ListResult> {
+        Err(FraiseQLError::Storage {
+            message: "list not yet implemented for GCS".to_string(),
+            code: Some("not_implemented".to_string()),
+        })
+    }
 }

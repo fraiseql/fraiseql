@@ -1,5 +1,15 @@
 //! Bucket configuration and validation.
 
+/// Access control policy for a bucket.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum BucketAccess {
+    /// All operations require authentication.
+    Private,
+    /// Read operations are public; write operations require authentication.
+    PublicRead,
+}
+
 /// Bucket configuration.
 ///
 /// Defines size limits, allowed MIME types, and access policies for a bucket.
@@ -7,6 +17,15 @@
 pub struct BucketConfig {
     /// Name of the bucket.
     pub name: String,
+
+    /// Maximum object size in bytes (None = unlimited).
+    pub max_object_bytes: Option<u64>,
+
+    /// Allowed MIME types (None = any; Some([]) = none allowed).
+    pub allowed_mime_types: Option<Vec<String>>,
+
+    /// Access control policy.
+    pub access: BucketAccess,
 }
 
 /// Storage configuration (from fraiseql-server config).

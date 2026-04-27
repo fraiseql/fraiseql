@@ -3104,6 +3104,7 @@ dependencies = [
  "aws-sdk-s3",
  "axum 0.7.9",
  "bytes",
+ "chrono",
  "fraiseql-error 2.2.1",
  "hex",
  "serde",
@@ -3115,6 +3116,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
+ "walkdir",
 ]
 
 [[package]]

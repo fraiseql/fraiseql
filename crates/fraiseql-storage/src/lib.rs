@@ -20,12 +20,18 @@ pub mod config;
 pub mod metadata;
 pub mod rls;
 pub mod routes;
+pub mod service;
 
 // Re-exports for convenience
 pub use backend::{
     StorageBackend, LocalBackend,
-    validate_key, create_backend
+    validate_key, create_backend,
+    types::{ListResult, ObjectInfo, ObjectMetadata, StorageObject, PutResult},
 };
+pub use config::{BucketConfig, BucketAccess, StorageConfig};
+pub use service::BucketService;
+pub use metadata::StorageMetadataRepo;
+pub use rls::StorageRlsEvaluator;
 
 #[cfg(feature = "aws-s3")]
 pub use backend::S3Backend;
@@ -35,7 +41,3 @@ pub use backend::GcsBackend;
 
 #[cfg(feature = "azure-blob")]
 pub use backend::AzureBackend;
-
-pub use config::BucketConfig;
-pub use metadata::StorageMetadataRepo;
-pub use rls::StorageRlsEvaluator;

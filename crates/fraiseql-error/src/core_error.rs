@@ -239,7 +239,7 @@ pub enum FraiseQLError {
     Storage {
         /// Error message.
         message: String,
-        /// Optional error code (e.g., "not_found", "permission_denied").
+        /// Optional error code (e.g., `"not_found"`, `"permission_denied"`).
         code: Option<String>,
     },
 

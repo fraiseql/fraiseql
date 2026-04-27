@@ -9,6 +9,7 @@ use std::time::Duration;
 use fraiseql_error::Result;
 
 pub mod local;
+pub mod types;
 
 #[cfg(feature = "aws-s3")]
 pub mod s3;
@@ -18,6 +19,9 @@ pub mod gcs;
 
 #[cfg(feature = "azure-blob")]
 pub mod azure;
+
+#[cfg(test)]
+mod tests;
 
 pub use local::LocalBackend;
 
@@ -165,6 +169,31 @@ impl StorageBackend {
             Self::Azure(b) => b.presigned_url(key, expiry).await,
         }
     }
+
+    /// Lists objects in the bucket by prefix with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` on I/O or backend failures.
+    pub async fn list(
+        &self,
+        prefix: &str,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<types::ListResult> {
+        match self {
+            Self::Local(b) => b.list(prefix, cursor, limit).await,
+            #[cfg(feature = "aws-s3")]
+            Self::S3(b) | Self::Hetzner(b) | Self::Scaleway(b) | Self::Ovh(b)
+            | Self::Exoscale(b) | Self::Backblaze(b) | Self::R2(b) => {
+                b.list(prefix, cursor, limit).await
+            }
+            #[cfg(feature = "gcs")]
+            Self::Gcs(b) => b.list(prefix, cursor, limit).await,
+            #[cfg(feature = "azure-blob")]
+            Self::Azure(b) => b.list(prefix, cursor, limit).await,
+        }
+    }
 }
 
 /// Validates that a storage key is safe (no path traversal).
@@ -190,9 +219,11 @@ pub fn validate_key(key: &str) -> Result<()> {
 }
 
 /// Returns a well-known endpoint template for S3-compatible providers.
-#[cfg(any(feature = "aws-s3", test))]
+///
 /// The `region` placeholder is substituted with the configured region.  If the
 /// config already provides an explicit `endpoint`, it takes precedence.
+#[cfg(any(feature = "aws-s3", test))]
+#[allow(dead_code)] // Reason: only used when aws-s3 feature is enabled
 fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
     match backend {
         "r2" => {
