@@ -848,8 +848,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         // Mount storage routes when StorageState was pre-built during server construction.
+        // If OIDC is configured, protect storage with auth and map AuthUser → StorageUser.
         if let Some(ref storage_state) = self.storage_state {
+            use crate::middleware::oidc_auth::AuthUser;
+
             let storage = fraiseql_storage::storage_router(storage_state.clone());
+            let storage = if let Some(ref validator) = self.oidc_validator {
+                let auth_state = OidcAuthState::new(validator.clone());
+                storage
+                    .layer(middleware::from_fn(
+                        |mut request: axum::extract::Request, next: axum::middleware::Next| async move {
+                            // Map AuthUser (set by OIDC middleware) to StorageUser for handlers.
+                            let storage_user = request
+                                .extensions()
+                                .get::<AuthUser>()
+                                .map(|auth| fraiseql_storage::StorageUser {
+                                    user_id: Some(auth.0.user_id.clone()),
+                                    roles: auth.0.scopes.clone(),
+                                });
+                            if let Some(user) = storage_user {
+                                request.extensions_mut().insert(user);
+                            }
+                            next.run(request).await
+                        },
+                    ))
+                    .layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+            } else {
+                storage
+            };
             app = app.merge(storage);
             info!("Storage API routes mounted");
         }
