@@ -59,10 +59,9 @@ jobs:
 
     - name: Generate SBOM (CycloneDX JSON)
       run: |
-        cargo cyclonedx --format json --all \
+        cargo cyclonedx --format json --top-level \
           --override-filename "fraiseql-${{ steps.version.outputs.version }}-sbom"
-        # cargo-cyclonedx writes per-crate files with .cdx.json suffix;
-        # find the workspace-level one and rename to expected path
+        # cargo-cyclonedx writes the file in the workspace root with .cdx.json suffix
         mv "fraiseql-${{ steps.version.outputs.version }}-sbom.cdx.json" \
            "fraiseql-${{ steps.version.outputs.version }}-sbom.json"
 
