@@ -15,7 +15,7 @@ use crate::output::OutputFormatter;
 const HELPERS_VERSION: &str = "2.2.0";
 
 /// The SQL helper library content embedded as a const
-const MUTATION_RESPONSE_SQL: &str = include_str!("../../../../sql/helpers/mutation_response.sql");
+const MUTATION_RESPONSE_SQL: &str = include_str!("../../sql/helpers/mutation_response.sql");
 
 /// Run the setup command to install helpers to a database.
 ///

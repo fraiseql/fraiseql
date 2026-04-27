@@ -172,6 +172,20 @@ check_dep_gate() {
 run_check "dep-gate-federation-server" check_dep_gate
 
 # ---------------------------------------------------------------------------
+# Check: sql-helpers-sync — canonical SQL helpers match CLI-embedded copies
+# ---------------------------------------------------------------------------
+check_sql_helpers_sync() {
+    if ! diff -q sql/helpers/mutation_response.sql \
+                  crates/fraiseql-cli/sql/helpers/mutation_response.sql \
+                  > /dev/null 2>&1; then
+        fail "sql/helpers/mutation_response.sql and crates/fraiseql-cli/sql/helpers/mutation_response.sql have diverged — copy the canonical file"
+        return
+    fi
+    pass "SQL helper files in sync"
+}
+run_check "sql-helpers-sync" check_sql_helpers_sync
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
