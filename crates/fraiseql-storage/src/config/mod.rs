@@ -59,7 +59,7 @@ pub struct BucketConfig {
 ///
 /// This struct represents the storage backend configuration that specifies
 /// which storage provider to use and its settings.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageConfig {
     /// Storage backend type: "local", "s3", "gcs", "azure"
     pub backend: String,

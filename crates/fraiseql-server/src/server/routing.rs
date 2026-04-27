@@ -847,6 +847,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .layer(Extension(limiter.clone()));
         }
 
+        // Mount storage routes when StorageState was pre-built during server construction.
+        if let Some(ref storage_state) = self.storage_state {
+            let storage = fraiseql_storage::storage_router(storage_state.clone());
+            app = app.merge(storage);
+            info!("Storage API routes mounted");
+        }
+
         // Wire admission controller into the router via Extension so that handlers
         // can extract `Extension<Arc<AdmissionController>>` when needed.
         // Full Tower middleware wiring (returning 503 before the handler runs) is

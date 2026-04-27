@@ -345,6 +345,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             db_pool: db_pool.clone(),
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool,
+            storage_state: None,
             flight_service,
             adapter_cache_enabled: false,
         })

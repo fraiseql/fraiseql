@@ -106,6 +106,12 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "mcp")]
     pub(super) mcp_config: Option<fraiseql_core::schema::McpConfig>,
 
+    /// Pre-built storage state for mounting storage routes.
+    ///
+    /// Populated during server construction when `[storage]` is configured and
+    /// a PostgreSQL pool is available for metadata tracking.
+    pub(super) storage_state: Option<fraiseql_storage::StorageState>,
+
     /// Pool pressure monitoring configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
     pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,
 

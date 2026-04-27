@@ -4,7 +4,7 @@
 //! - `PUT /storage/v1/object/{bucket}/{*key}` — upload
 //! - `GET /storage/v1/object/{bucket}/{*key}` — download
 //! - `DELETE /storage/v1/object/{bucket}/{*key}` — delete
-//! - `GET /storage/v1/object/{bucket}` — list
+//! - `GET /storage/v1/list/{bucket}` — list
 //! - `POST /storage/v1/presign/{bucket}/{*key}` — presigned URL
 //! - `GET /storage/v1/render/{bucket}/{*key}` — image transform
 
@@ -126,11 +126,11 @@ pub struct StorageUser {
 pub fn storage_router(state: StorageState) -> Router {
     Router::new()
         .route(
-            "/storage/v1/object/:bucket/*key",
+            "/storage/v1/object/{bucket}/{*key}",
             put(put_handler).get(get_handler).delete(delete_handler),
         )
-        .route("/storage/v1/list/:bucket", get(list_handler))
-        .route("/storage/v1/presign/:bucket/*key", post(presign_handler))
+        .route("/storage/v1/list/{bucket}", get(list_handler))
+        .route("/storage/v1/presign/{bucket}/{*key}", post(presign_handler))
         .with_state(state)
 }
 

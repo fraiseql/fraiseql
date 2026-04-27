@@ -365,6 +365,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             });
         }
 
+        // Initialize storage subsystem when [storage] buckets are configured.
+        let storage_state = if !config.storage.is_empty() {
+            if let Some(ref pool) = db_pool {
+                match Self::build_storage_state(&config, pool.clone()).await {
+                    Ok(state) => {
+                        info!(
+                            buckets = config.storage.len(),
+                            "Storage subsystem initialized"
+                        );
+                        Some(state)
+                    }
+                    Err(e) => {
+                        warn!(error = %e, "Failed to initialize storage backend — storage routes disabled");
+                        None
+                    }
+                }
+            } else {
+                warn!(
+                    "Storage config present but no PostgreSQL pool available — \
+                     storage routes disabled (provide db_pool to Server::new)"
+                );
+                None
+            }
+        } else {
+            None
+        };
+
         // Reason: state_encryption/pkce_store/oidc_server_client are only stored when
         //         feature = "auth" is enabled; without it they are legitimately unused.
         #[cfg(not(feature = "auth"))]
@@ -398,7 +425,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             db_pool: db_pool.clone(),
             #[cfg(feature = "auth")]
-            enrichment_pool: db_pool,
+            enrichment_pool: db_pool.clone(),
+            storage_state,
             #[cfg(feature = "arrow")]
             flight_service,
             #[cfg(feature = "mcp")]
