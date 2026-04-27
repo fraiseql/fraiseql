@@ -35,7 +35,7 @@ members = [
   "crates/fraiseql-webhooks",
   "crates/fraiseql-federation",  # Apollo Federation v2 support
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
-]
+, "crates/fraiseql-functions"]
 resolver = "2"
 
 [workspace.dependencies]

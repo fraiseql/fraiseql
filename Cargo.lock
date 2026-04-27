@@ -3082,6 +3082,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-functions"
+version = "2.2.1"
+dependencies = [
+ "bytes",
+ "chrono",
+ "fraiseql-error 2.2.1",
+ "fraiseql-observers",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "tracing",
+ "trait-variant",
+]
+
+[[package]]
 name = "fraiseql-observers"
 version = "2.2.1"
 dependencies = [
@@ -8189,6 +8205,17 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "trait-variant"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70977707304198400eb4835a78f6a9f928bf41bba420deb8fdb175cd965d77a7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
