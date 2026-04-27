@@ -234,6 +234,15 @@ pub enum FraiseQLError {
         message: String,
     },
 
+    /// Object storage error.
+    #[error("Storage error: {message}")]
+    Storage {
+        /// Error message.
+        message: String,
+        /// Optional error code (e.g., "not_found", "permission_denied").
+        code: Option<String>,
+    },
+
     // ========================================================================
     // Internal Errors
     // ========================================================================
@@ -366,6 +375,7 @@ impl FraiseQLError {
                 | Self::Timeout { .. }
                 | Self::Cancelled { .. }
                 | Self::Configuration { .. }
+                | Self::Storage { .. }
                 | Self::Unsupported { .. }
                 | Self::Internal { .. }
         )
@@ -397,6 +407,7 @@ impl FraiseQLError {
             Self::Database { .. }
             | Self::ConnectionPool { .. }
             | Self::Configuration { .. }
+            | Self::Storage { .. }
             | Self::Internal { .. } => 500,
             Self::Unsupported { .. } => 501,
         }
@@ -420,6 +431,7 @@ impl FraiseQLError {
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",
+            Self::Storage { .. } => "STORAGE_ERROR",
             Self::Unsupported { .. } => "UNSUPPORTED_OPERATION",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",
         }

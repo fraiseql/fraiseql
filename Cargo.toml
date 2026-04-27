@@ -30,6 +30,7 @@ members = [
   "crates/fraiseql-observers",
   "crates/fraiseql-secrets",
   "crates/fraiseql-server",
+  "crates/fraiseql-storage",  # Object storage abstraction
   "crates/fraiseql-test-utils",
   "crates/fraiseql-webhooks",
   "crates/fraiseql-federation",  # Apollo Federation v2 support
@@ -68,6 +69,7 @@ fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.2.1"}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.2.1"}
 fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.2.1"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.2.1"}
+fraiseql-storage = {path = "crates/fraiseql-storage", version = "2.2.0"}
 fraiseql-webhooks = {path = "crates/fraiseql-webhooks", version = "2.2.1"}
 fraiseql-validators = {version = "0.2", features = ["fraiseql", "contact", "geographic", "identifiers"]}
 fraiseql-wire = {path = "crates/fraiseql-wire", version = "2.2.1"}

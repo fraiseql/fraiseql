@@ -38,6 +38,8 @@ fraiseql-auth = {workspace = true, optional = true}
 # FraiseQL core
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-error = {workspace = true, features = ["axum-compat"]}
+# FraiseQL object storage
+fraiseql-storage = {workspace = true}
 # FraiseQL observers (optional)
 fraiseql-observers = {workspace = true, optional = true}
 # Secrets management and encryption
