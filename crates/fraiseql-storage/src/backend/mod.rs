@@ -119,7 +119,7 @@ pub use self::s3::S3Backend;
 ///
 /// # Errors
 ///
-/// All methods return [`FraiseQLError::Storage`] on failure.
+/// All methods return [`fraiseql_error::FraiseQLError::Storage`] on failure.
 #[non_exhaustive]
 pub enum StorageBackend {
     /// Local filesystem storage.

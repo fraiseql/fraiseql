@@ -1,171 +1,184 @@
 //! Tests for GraphQL schema type generation.
 
-#[cfg(test)]
-mod graphql_tests {
-    use crate::config::{BucketConfig, BucketAccess};
-    use super::super::StorageSchemaTypes;
+use crate::config::{BucketAccess, BucketConfig};
+use super::StorageSchemaTypes;
 
-    fn sample_bucket() -> BucketConfig {
+fn sample_bucket() -> BucketConfig {
+    BucketConfig {
+        name: "avatars".to_string(),
+        max_object_bytes: Some(5_000_000),
+        allowed_mime_types: Some(vec!["image/jpeg".to_string(), "image/png".to_string()]),
+        access: BucketAccess::PublicRead,
+        transform_presets: None,
+    }
+}
+
+// --- bucket_type_name ---
+
+#[test]
+fn test_bucket_type_name_snake_case() {
+    assert_eq!(
+        StorageSchemaTypes::bucket_type_name("user_avatars"),
+        "UserAvatars"
+    );
+}
+
+#[test]
+fn test_bucket_type_name_kebab_case() {
+    assert_eq!(
+        StorageSchemaTypes::bucket_type_name("product-images"),
+        "ProductImages"
+    );
+}
+
+#[test]
+fn test_bucket_type_name_single_word() {
+    assert_eq!(StorageSchemaTypes::bucket_type_name("files"), "Files");
+}
+
+// --- storage_object_type ---
+
+#[test]
+fn test_storage_object_type_definition() {
+    let bucket = sample_bucket();
+    let type_def = StorageSchemaTypes::storage_object_type(&bucket);
+
+    assert_eq!(type_def["name"], "AvatarsStorageObject");
+    assert_eq!(type_def["sql_source"], "t_storage_avatars");
+    assert_eq!(type_def["jsonb_column"], "data");
+
+    let fields = type_def["fields"].as_array().unwrap();
+    let field_names: Vec<_> = fields.iter().filter_map(|f| f["name"].as_str()).collect();
+    assert_eq!(
+        field_names,
+        &["key", "size", "content_type", "created_at", "updated_at"]
+    );
+
+    // Scalar field_type is a bare string, not a nested object
+    assert_eq!(fields[0]["field_type"], "String");
+    assert_eq!(fields[1]["field_type"], "Int");
+    assert_eq!(fields[3]["field_type"], "DateTime");
+
+    // Only updated_at is nullable
+    assert!(fields[4]["nullable"].as_bool().unwrap());
+    assert!(fields[0].get("nullable").is_none());
+}
+
+// --- upload_url_mutation ---
+
+#[test]
+fn test_upload_url_mutation_definition() {
+    let bucket = sample_bucket();
+    let mutation = StorageSchemaTypes::upload_url_mutation(&bucket);
+
+    assert_eq!(mutation["name"], "generateAvatarsUploadUrl");
+    assert_eq!(mutation["operation"], "Custom");
+    assert_eq!(mutation["return_type"], "PresignedUrlResponse");
+
+    // Arguments use arg_type, not field_type
+    let args = mutation["arguments"].as_array().unwrap();
+    let arg_names: Vec<_> = args.iter().filter_map(|a| a["name"].as_str()).collect();
+    assert_eq!(arg_names, &["key", "content_type"]);
+    assert_eq!(args[0]["arg_type"], "String");
+}
+
+// --- list_query ---
+
+#[test]
+fn test_list_query_definition() {
+    let bucket = sample_bucket();
+    let query = StorageSchemaTypes::list_query(&bucket);
+
+    assert_eq!(query["name"], "listAvatarsObjects");
+    assert_eq!(query["return_type"], "AvatarsStorageObject");
+    assert!(query["returns_list"].as_bool().unwrap());
+    assert_eq!(query["sql_source"], "t_storage_avatars");
+
+    let args = query["arguments"].as_array().unwrap();
+    let arg_names: Vec<_> = args.iter().filter_map(|a| a["name"].as_str()).collect();
+    assert_eq!(arg_names, &["prefix", "limit", "cursor"]);
+
+    // All query arguments are nullable
+    for arg in args {
+        assert!(arg["nullable"].as_bool().unwrap());
+    }
+
+    // Arguments use arg_type
+    assert_eq!(args[0]["arg_type"], "String");
+    assert_eq!(args[1]["arg_type"], "Int");
+}
+
+// --- generate (batch) ---
+
+#[test]
+fn test_generate_empty_buckets_returns_empty() {
+    let entries = StorageSchemaTypes::generate(&[]);
+    assert!(entries.types.is_empty());
+    assert!(entries.mutations.is_empty());
+    assert!(entries.queries.is_empty());
+}
+
+#[test]
+fn test_generate_produces_entries_per_bucket() {
+    let buckets = vec![
+        sample_bucket(),
         BucketConfig {
-            name: "avatars".to_string(),
-            max_object_bytes: Some(5_000_000),
-            allowed_mime_types: Some(vec!["image/jpeg".to_string(), "image/png".to_string()]),
-            access: BucketAccess::PublicRead,
-            transform_presets: None,
-        }
-    }
-
-    #[test]
-    fn test_storage_object_type_definition() {
-        let bucket = sample_bucket();
-        let type_def = StorageSchemaTypes::storage_object_type(&bucket);
-
-        // Verify it's a valid JSON object
-        assert!(type_def.is_object());
-
-        // Verify required fields exist
-        assert!(type_def.get("name").is_some());
-        assert!(type_def.get("sql_source").is_some());
-        assert!(type_def.get("jsonb_column").is_some());
-        assert!(type_def.get("fields").is_some());
-
-        // Verify name follows PascalCase convention
-        assert_eq!(type_def["name"], "AvatarsStorageObject");
-
-        // Verify it has required fields
-        let fields = type_def["fields"].as_array().unwrap();
-        let field_names: Vec<_> = fields.iter()
-            .filter_map(|f| f["name"].as_str())
-            .collect();
-
-        assert!(field_names.contains(&"key"));
-        assert!(field_names.contains(&"size"));
-        assert!(field_names.contains(&"content_type"));
-        assert!(field_names.contains(&"created_at"));
-        assert!(field_names.contains(&"updated_at"));
-    }
-
-    #[test]
-    fn test_upload_url_mutation_definition() {
-        let bucket = sample_bucket();
-        let mutation_def = StorageSchemaTypes::upload_url_mutation(&bucket);
-
-        // Verify it's a valid JSON object
-        assert!(mutation_def.is_object());
-
-        // Verify required fields exist
-        assert!(mutation_def.get("name").is_some());
-        assert!(mutation_def.get("description").is_some());
-        assert!(mutation_def.get("parameters").is_some());
-        assert!(mutation_def.get("return_type").is_some());
-
-        // Verify name follows convention
-        assert_eq!(mutation_def["name"], "generateAvatarsUploadUrl");
-
-        // Verify parameters
-        let params = mutation_def["parameters"].as_array().unwrap();
-        let param_names: Vec<_> = params.iter()
-            .filter_map(|p| p["name"].as_str())
-            .collect();
-
-        assert!(param_names.contains(&"key"));
-        assert!(param_names.contains(&"content_type"));
-
-        // Verify return type is PresignedUrlResponse
-        assert_eq!(mutation_def["return_type"]["object_name"], "PresignedUrlResponse");
-    }
-
-    #[test]
-    fn test_list_query_definition() {
-        let bucket = sample_bucket();
-        let query_def = StorageSchemaTypes::list_query(&bucket);
-
-        // Verify it's a valid JSON object
-        assert!(query_def.is_object());
-
-        // Verify required fields exist
-        assert!(query_def.get("name").is_some());
-        assert!(query_def.get("description").is_some());
-        assert!(query_def.get("parameters").is_some());
-        assert!(query_def.get("return_type").is_some());
-
-        // Verify name follows convention
-        assert_eq!(query_def["name"], "listAvatarsObjects");
-
-        // Verify parameters
-        let params = query_def["parameters"].as_array().unwrap();
-        let param_names: Vec<_> = params.iter()
-            .filter_map(|p| p["name"].as_str())
-            .collect();
-
-        assert!(param_names.contains(&"prefix"));
-        assert!(param_names.contains(&"limit"));
-        assert!(param_names.contains(&"cursor"));
-
-        // Verify return type is a list of storage objects
-        assert_eq!(query_def["return_type"]["type"], "List");
-        assert_eq!(query_def["return_type"]["of"]["object_name"], "AvatarsStorageObject");
-    }
-
-    #[test]
-    fn test_storage_types_only_emitted_when_buckets_defined() {
-        // This test verifies that storage types are only generated when buckets are configured
-        // In a full integration test, this would be verified in the compiler
-        // For now, we just verify the generator works with valid inputs
-
-        let bucket = sample_bucket();
-        let obj_type = StorageSchemaTypes::storage_object_type(&bucket);
-        let mutation = StorageSchemaTypes::upload_url_mutation(&bucket);
-        let query = StorageSchemaTypes::list_query(&bucket);
-
-        // All should be valid JSON objects
-        assert!(obj_type.is_object());
-        assert!(mutation.is_object());
-        assert!(query.is_object());
-    }
-
-    #[test]
-    fn test_storage_object_type_with_multiple_buckets() {
-        let bucket1 = BucketConfig {
-            name: "user_avatars".to_string(),
-            max_object_bytes: Some(5_000_000),
-            allowed_mime_types: Some(vec!["image/jpeg".to_string()]),
-            access: BucketAccess::PublicRead,
-            transform_presets: None,
-        };
-
-        let bucket2 = BucketConfig {
-            name: "product-images".to_string(),
-            max_object_bytes: Some(10_000_000),
-            allowed_mime_types: Some(vec!["image/png".to_string()]),
+            name: "documents".to_string(),
+            max_object_bytes: None,
+            allowed_mime_types: None,
             access: BucketAccess::Private,
             transform_presets: None,
-        };
+        },
+    ];
 
-        let type1 = StorageSchemaTypes::storage_object_type(&bucket1);
-        let type2 = StorageSchemaTypes::storage_object_type(&bucket2);
+    let entries = StorageSchemaTypes::generate(&buckets);
+    assert_eq!(entries.types.len(), 2);
+    assert_eq!(entries.mutations.len(), 2);
+    assert_eq!(entries.queries.len(), 2);
 
-        // Each bucket should get its own type with unique name
-        assert_eq!(type1["name"], "UserAvatarsStorageObject");
-        assert_eq!(type2["name"], "ProductImagesStorageObject");
+    assert_eq!(entries.types[0]["name"], "AvatarsStorageObject");
+    assert_eq!(entries.types[1]["name"], "DocumentsStorageObject");
+}
 
-        // Names should be different
-        assert_ne!(type1["name"], type2["name"]);
-    }
+// --- multi-bucket ---
 
-    #[test]
-    fn test_mutation_and_query_names_are_deterministic() {
-        let bucket = sample_bucket();
+#[test]
+fn test_storage_object_type_with_multiple_buckets() {
+    let bucket1 = BucketConfig {
+        name: "user_avatars".to_string(),
+        max_object_bytes: Some(5_000_000),
+        allowed_mime_types: Some(vec!["image/jpeg".to_string()]),
+        access: BucketAccess::PublicRead,
+        transform_presets: None,
+    };
 
-        // Generate multiple times and verify names are consistent
-        let mutation1 = StorageSchemaTypes::upload_url_mutation(&bucket);
-        let mutation2 = StorageSchemaTypes::upload_url_mutation(&bucket);
+    let bucket2 = BucketConfig {
+        name: "product-images".to_string(),
+        max_object_bytes: Some(10_000_000),
+        allowed_mime_types: Some(vec!["image/png".to_string()]),
+        access: BucketAccess::Private,
+        transform_presets: None,
+    };
 
-        assert_eq!(mutation1["name"], mutation2["name"]);
+    let type1 = StorageSchemaTypes::storage_object_type(&bucket1);
+    let type2 = StorageSchemaTypes::storage_object_type(&bucket2);
 
-        let query1 = StorageSchemaTypes::list_query(&bucket);
-        let query2 = StorageSchemaTypes::list_query(&bucket);
+    assert_eq!(type1["name"], "UserAvatarsStorageObject");
+    assert_eq!(type2["name"], "ProductImagesStorageObject");
+    assert_ne!(type1["name"], type2["name"]);
+}
 
-        assert_eq!(query1["name"], query2["name"]);
-    }
+// --- determinism ---
+
+#[test]
+fn test_mutation_and_query_names_are_deterministic() {
+    let bucket = sample_bucket();
+
+    let m1 = StorageSchemaTypes::upload_url_mutation(&bucket);
+    let m2 = StorageSchemaTypes::upload_url_mutation(&bucket);
+    assert_eq!(m1["name"], m2["name"]);
+
+    let q1 = StorageSchemaTypes::list_query(&bucket);
+    let q2 = StorageSchemaTypes::list_query(&bucket);
+    assert_eq!(q1["name"], q2["name"]);
 }
