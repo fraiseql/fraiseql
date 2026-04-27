@@ -17,6 +17,7 @@
 
 pub mod backend;
 pub mod config;
+pub mod graphql;
 pub mod metadata;
 pub mod rls;
 pub mod routes;
@@ -33,6 +34,7 @@ pub use backend::{
 #[cfg(feature = "aws-s3")]
 pub use backend::PresignCapable;
 pub use config::{BucketConfig, BucketAccess, StorageConfig};
+pub use graphql::StorageSchemaTypes;
 pub use service::BucketService;
 pub use metadata::StorageMetadataRepo;
 pub use rls::StorageRlsEvaluator;
