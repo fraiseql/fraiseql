@@ -96,16 +96,16 @@ select = [
 "examples/**/*.py" = [
   "ERA001"  # Field grouping comments are not commented-out code
 ]
+"src/fraiseql/changelog_consumer.py" = [
+  "PERF203",  # try-except in dispatch loop is intentional for handler error isolation
+  "PLR0913"  # ChangelogConsumer.__init__ needs many configuration parameters
+]
 "src/fraiseql/integrations/langchain.py" = [
   "ARG002",  # run_manager is part of LangChain abstract interface; must be accepted but is unused
   "TC002"  # Runtime try/except imports cannot be moved to TYPE_CHECKING
 ]
 "src/fraiseql/integrations/llamaindex.py" = [
   "TC001"  # Runtime import used in __init__ constructor
-]
-"src/fraiseql/changelog_consumer.py" = [
-  "PERF203",  # try-except in dispatch loop is intentional for handler error isolation
-  "PLR0913"   # ChangelogConsumer.__init__ needs many configuration parameters
 ]
 "tests/**/*.py" = [
   "ANN",  # Don't require type annotations in tests

@@ -4,13 +4,13 @@
 #
 # Pending resolution (tracked with deadlines in the [advisories] section):
 # - rustls 0.21  — aws-sdk-s3 (optional feature) transitively requires; EOL dependency.
-#                  Blocked on aws-sdk-s3 migrating to hyper-rustls 0.27 (rustls 0.23).
-#                  Deadline: 2026-10-01
+# Blocked on aws-sdk-s3 migrating to hyper-rustls 0.27 (rustls 0.23).
+# Deadline: 2026-10-01
 # - sqlx 0.8     — sqlx 0.9.0 is alpha as of 2026-04-25; upgrade when stable.
-#                  Will resolve RUSTSEC-2023-0071 (rsa Marvin Attack via mysql_async).
-#                  Deadline: 2026-10-01
+# Will resolve RUSTSEC-2023-0071 (rsa Marvin Attack via mysql_async).
+# Deadline: 2026-10-01
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
-#                   Deadline: 2026-12-01 — migrate off graphql-parser if still blocked.
+# Deadline: 2026-12-01 — migrate off graphql-parser if still blocked.
 #
 # See docs/dependency-risk-policy.md for the full acceptance policy.
 
