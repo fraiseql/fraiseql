@@ -139,6 +139,7 @@ pub fn storage_router(state: StorageState) -> Router {
 // ---------------------------------------------------------------------------
 
 /// Upload an object.
+#[tracing::instrument(skip(state, user, headers, body), fields(bucket = %bucket_name, key = %key))]
 async fn put_handler(
     State(state): State<StorageState>,
     user: Option<Extension<StorageUser>>,
@@ -212,6 +213,7 @@ async fn put_handler(
 }
 
 /// Download an object.
+#[tracing::instrument(skip(state, user), fields(bucket = %bucket_name, key = %key))]
 async fn get_handler(
     State(state): State<StorageState>,
     user: Option<Extension<StorageUser>>,
@@ -258,6 +260,7 @@ async fn get_handler(
 }
 
 /// Delete an object.
+#[tracing::instrument(skip(state, user), fields(bucket = %bucket_name, key = %key))]
 async fn delete_handler(
     State(state): State<StorageState>,
     user: Option<Extension<StorageUser>>,
@@ -295,6 +298,7 @@ async fn delete_handler(
 }
 
 /// List objects in a bucket.
+#[tracing::instrument(skip(state, user, query), fields(bucket = %bucket_name))]
 async fn list_handler(
     State(state): State<StorageState>,
     user: Option<Extension<StorageUser>>,
@@ -340,6 +344,7 @@ async fn list_handler(
 }
 
 /// Generate a presigned URL.
+#[tracing::instrument(skip(state, request), fields(bucket = %bucket_name, key = %key))]
 async fn presign_handler(
     State(state): State<StorageState>,
     Path((bucket_name, key)): Path<(String, String)>,
