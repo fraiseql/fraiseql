@@ -131,6 +131,72 @@ pub async fn presign_handler(
     Ok(PresignResponse::from(presigned_url))
 }
 
+/// Render handler for on-the-fly image transforms with caching.
+///
+/// This handler:
+/// 1. Fetches the original image from storage
+/// 2. Applies the requested transform (resize, format conversion, etc.)
+/// 3. Caches the result for future requests
+/// 4. Returns the transformed image with appropriate headers
+///
+/// # Arguments
+///
+/// * `cache` - Transform cache for storing and retrieving cached results
+/// * `key` - Object key (storage path)
+/// * `width` - Optional target width for resizing
+/// * `preset` - Optional preset name for predefined transforms
+///
+/// # Returns
+///
+/// Transformed image output with content type and dimensions
+///
+/// # Errors
+///
+/// Returns error if:
+/// - Object doesn't exist (404)
+/// - Input is not a valid image (400)
+/// - Transform fails
+#[cfg(all(feature = "transforms", test))]
+pub async fn render_handler(
+    cache: &crate::transforms::cache::TransformCache,
+    key: &str,
+    width: Option<u32>,
+    preset: Option<&str>,
+) -> fraiseql_error::Result<crate::transforms::TransformOutput> {
+    use crate::transforms::TransformParams;
+
+    // Fetch original image
+    let source_data = cache.get_source(key).await?;
+
+    // Build transform params
+    let params = if let Some(_preset_name) = preset {
+        // Look up preset - for now, use direct width if available
+        // Phase 2, Cycle 5: Implement preset lookup from config
+        TransformParams {
+            width,
+            height: None,
+            format: None,
+            quality: None,
+        }
+    } else {
+        TransformParams {
+            width,
+            height: None,
+            format: None,
+            quality: None,
+        }
+    };
+
+    // Get or transform
+    cache
+        .get_or_transform(key, &source_data, &params)
+        .await?
+        .ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
+            message: "Failed to transform image".to_string(),
+            code: Some("transform_failed".to_string()),
+        })
+}
+
 /// Storage router setup.
 ///
 /// This function would mount HTTP routes in a real HTTP server integration.

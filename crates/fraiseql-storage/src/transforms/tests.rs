@@ -378,3 +378,219 @@ fn test_apply_preset_format_conversion() {
     let avif_params = ImageTransformer::apply_preset("avif", Some(&presets)).unwrap();
     assert_eq!(avif_params.format, Some(OutputFormat::Avif));
 }
+
+// ============================================================================
+// Phase 2, Cycle 4: Transform Caching & HTTP Route Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_render_cache_stores_and_retrieves_transform() {
+    use crate::transforms::cache::TransformCache;
+    use crate::backend::LocalBackend;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
+
+    // Upload original image
+    let original = create_test_image_1000x800();
+    let _key = backend.upload("test.jpg", &original, "image/jpeg").await.unwrap();
+
+    // Create cache
+    let cache = TransformCache::new(backend.clone());
+
+    // First call should cache miss
+    let params = TransformParams {
+        width: Some(500),
+        height: None,
+        format: None,
+        quality: None,
+    };
+
+    let result = cache
+        .get_or_transform("test.jpg", &original, &params)
+        .await
+        .unwrap();
+
+    assert!(result.is_some());
+    let output = result.unwrap();
+    assert_eq!(output.width, 500);
+
+    // Second call should retrieve from cache
+    let cached_result = cache
+        .get_or_transform("test.jpg", &original, &params)
+        .await
+        .unwrap();
+
+    assert!(cached_result.is_some());
+    assert_eq!(cached_result.unwrap().body, output.body);
+}
+
+#[tokio::test]
+async fn test_render_cache_invalidated_on_source_change() {
+    use crate::transforms::cache::TransformCache;
+    use crate::backend::LocalBackend;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
+
+    let original_1 = create_test_image_1000x800();
+    let original_2 = create_test_png_with_alpha();
+
+    backend.upload("test.jpg", &original_1, "image/jpeg").await.unwrap();
+
+    let cache = TransformCache::new(backend.clone());
+
+    let params = TransformParams {
+        width: Some(500),
+        height: None,
+        format: None,
+        quality: None,
+    };
+
+    // First transform
+    let result_1 = cache
+        .get_or_transform("test.jpg", &original_1, &params)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Invalidate cache (simulate re-upload)
+    cache.invalidate("test.jpg").await.unwrap();
+
+    // Second transform with different image should not return cached result
+    let result_2 = cache
+        .get_or_transform("test.jpg", &original_2, &params)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Results should differ (different source images)
+    assert_ne!(result_1.body, result_2.body);
+}
+
+#[test]
+fn test_render_cache_key_format() {
+    use crate::transforms::cache::TransformCache;
+
+    let params = TransformParams {
+        width: Some(500),
+        height: Some(400),
+        format: Some(OutputFormat::Webp),
+        quality: Some(85),
+    };
+
+    let key = TransformCache::build_cache_key("my-image.jpg", &params);
+
+    // Key should be predictable and include all transform parameters
+    assert!(key.contains("500"));
+    assert!(key.contains("400"));
+    assert!(key.contains("webp"));
+    assert!(key.contains("85"));
+}
+
+#[tokio::test]
+async fn test_render_cache_with_preset_lookup() {
+    use crate::transforms::cache::TransformCache;
+    use crate::backend::LocalBackend;
+    use crate::config::TransformPreset;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
+
+    let original = create_test_image_1000x800();
+    backend.upload("test.jpg", &original, "image/jpeg").await.unwrap();
+
+    let cache = TransformCache::new(backend.clone());
+
+    let presets = vec![TransformPreset {
+        name: "thumbnail".to_string(),
+        width: Some(150),
+        height: Some(150),
+        format: Some("webp".to_string()),
+        quality: Some(80),
+    }];
+
+    // Apply preset and cache result
+    let preset_params = ImageTransformer::apply_preset("thumbnail", Some(&presets)).unwrap();
+    let result = cache
+        .get_or_transform("test.jpg", &original, &preset_params)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Original is 1000x800, so 150x150 preset with aspect ratio preservation
+    // results in 150x120 (150 * 800 / 1000 = 120)
+    assert_eq!(result.width, 150);
+    assert_eq!(result.height, 120);
+    assert_eq!(result.content_type, "image/webp");
+}
+
+#[tokio::test]
+async fn test_render_handler_nonexistent_object() {
+    use crate::routes::render_handler;
+    use crate::backend::LocalBackend;
+    use crate::transforms::cache::TransformCache;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
+    let cache = TransformCache::new(backend.clone());
+
+    // Try to render non-existent object
+    let result = render_handler(&cache, "nonexistent.jpg", None, None).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_render_handler_non_image_file() {
+    use crate::routes::render_handler;
+    use crate::backend::LocalBackend;
+    use crate::transforms::cache::TransformCache;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
+
+    let pdf_data = create_test_pdf();
+    backend.upload("document.pdf", &pdf_data, "application/pdf").await.unwrap();
+
+    let cache = TransformCache::new(backend.clone());
+
+    // Try to render non-image file
+    let result = render_handler(&cache, "document.pdf", Some(200), None).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_render_handler_with_dimensions() {
+    use crate::routes::render_handler;
+    use crate::backend::LocalBackend;
+    use crate::transforms::cache::TransformCache;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
+
+    let original = create_test_image_1000x800();
+    backend.upload("test.jpg", &original, "image/jpeg").await.unwrap();
+
+    let cache = TransformCache::new(backend.clone());
+
+    // Render with width specified
+    let result = render_handler(&cache, "test.jpg", Some(500), None).await;
+
+    assert!(result.is_ok());
+    let output = result.unwrap();
+    assert_eq!(output.width, 500);
+}

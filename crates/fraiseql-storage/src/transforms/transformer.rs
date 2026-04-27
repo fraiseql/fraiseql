@@ -2,9 +2,12 @@
 
 use fraiseql_error::{FraiseQLError, Result};
 use image::ImageReader;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::io::Cursor;
 
 /// Output format for transformed images
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OutputFormat {
     /// WebP format (modern, efficient)
     Webp,
@@ -56,7 +59,7 @@ pub struct TransformParams {
 }
 
 /// Output from image transformation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransformOutput {
     /// Transformed image bytes
     pub body: Vec<u8>,
@@ -66,6 +69,12 @@ pub struct TransformOutput {
     pub width: u32,
     /// Actual output height in pixels
     pub height: u32,
+    /// ETag for cache validation (SHA256 hash of transformed bytes)
+    #[serde(default)]
+    pub etag: Option<String>,
+    /// Cache control header value for HTTP response
+    #[serde(default)]
+    pub cache_control: Option<String>,
 }
 
 /// Image transformation engine
@@ -170,7 +179,6 @@ impl ImageTransformer {
 
         // Encode to output format
         let mut output_bytes = Vec::new();
-        use std::io::Cursor;
 
         match output_format {
             OutputFormat::Webp => {
@@ -215,11 +223,21 @@ impl ImageTransformer {
             }
         }
 
+        // Compute ETag from output bytes (SHA256 hash)
+        let etag = {
+            let mut hasher = Sha256::new();
+            hasher.update(&output_bytes);
+            format!("\"{}\"", hex::encode(hasher.finalize()))
+        };
+
         Ok(TransformOutput {
             body: output_bytes,
             content_type: output_format.mime_type().to_string(),
             width: output_width,
             height: output_height,
+            etag: Some(etag),
+            // Cache transformed images for 30 days (they're deterministic based on source + params)
+            cache_control: Some("public, max-age=2592000, immutable".to_string()),
         })
     }
 
