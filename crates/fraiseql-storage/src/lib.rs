@@ -24,10 +24,13 @@ pub mod service;
 
 // Re-exports for convenience
 pub use backend::{
-    StorageBackend, LocalBackend,
+    StorageBackend, LocalBackend, PresignedUrl,
     validate_key, create_backend,
     types::{ListResult, ObjectInfo, ObjectMetadata, StorageObject, PutResult},
 };
+
+#[cfg(feature = "aws-s3")]
+pub use backend::PresignCapable;
 pub use config::{BucketConfig, BucketAccess, StorageConfig};
 pub use service::BucketService;
 pub use metadata::StorageMetadataRepo;

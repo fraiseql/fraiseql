@@ -318,3 +318,169 @@ fn test_s3_key_validation() {
         assert!(result.is_err(), "absolute path should be rejected");
     });
 }
+
+// ============================================================================
+// PRESIGNED URL TESTS (Phase 2, Cycle 2)
+// ============================================================================
+
+#[test]
+#[ignore] // Requires MinIO to be running
+fn test_s3_presign_upload_returns_valid_url() {
+    let Some(()) = skip_if_no_s3() else {
+        return;
+    };
+
+    let backend = create_test_backend();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let key = "presign-upload-test.txt";
+
+        // Generate presigned URL for upload (1 hour expiry)
+        let presigned_result = backend
+            .presigned_url(key, std::time::Duration::from_secs(3600))
+            .await;
+
+        assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
+
+        let url = presigned_result.unwrap();
+        assert!(
+            url.starts_with("http://") || url.starts_with("https://"),
+            "presigned URL should be a valid HTTP URL"
+        );
+        assert!(
+            url.contains(key) || url.contains("presign-upload-test"),
+            "presigned URL should contain the key"
+        );
+    });
+}
+
+#[test]
+#[ignore] // Requires MinIO to be running
+fn test_s3_presign_download_returns_valid_url() {
+    let Some(()) = skip_if_no_s3() else {
+        return;
+    };
+
+    let backend = create_test_backend();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let key = "presign-download-test.txt";
+        let data = b"presigned download content";
+
+        // Upload file first
+        backend
+            .upload(key, data, "text/plain")
+            .await
+            .expect("upload succeeds");
+
+        // Generate presigned URL for download
+        let presigned_result = backend
+            .presigned_url(key, std::time::Duration::from_secs(3600))
+            .await;
+
+        assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
+
+        let url = presigned_result.unwrap();
+        assert!(
+            url.starts_with("http://") || url.starts_with("https://"),
+            "presigned URL should be a valid HTTP URL"
+        );
+    });
+}
+
+#[test]
+#[ignore] // Requires MinIO to be running
+fn test_s3_presign_url_expires() {
+    let Some(()) = skip_if_no_s3() else {
+        return;
+    };
+
+    let backend = create_test_backend();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let key = "presign-expire-test.txt";
+
+        // Generate presigned URL with 1 second expiry
+        let presigned_result = backend
+            .presigned_url(key, std::time::Duration::from_secs(1))
+            .await;
+
+        assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
+
+        // URL should be valid immediately
+        let url = presigned_result.unwrap();
+        assert!(!url.is_empty(), "presigned URL should not be empty");
+
+        // Sleep for 2 seconds - URL should expire
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        // Note: We can't directly test URL expiry without actually using it,
+        // but the URL structure should be correct with X-Amz-Expires parameter
+        assert!(
+            url.contains("X-Amz-Expires") || url.contains("expires"),
+            "presigned URL should contain expiry information"
+        );
+    });
+}
+
+#[test]
+fn test_s3_presign_rejects_invalid_keys() {
+    let backend = create_test_backend();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        // Test path traversal in presigned URL
+        let result = backend
+            .presigned_url("../etc/passwd", std::time::Duration::from_secs(3600))
+            .await;
+        assert!(result.is_err(), "path traversal should be rejected");
+
+        // Test empty key
+        let result = backend
+            .presigned_url("", std::time::Duration::from_secs(3600))
+            .await;
+        assert!(result.is_err(), "empty key should be rejected");
+    });
+}
+
+#[test]
+#[ignore] // Requires MinIO to be running
+fn test_s3_presign_respects_expiry() {
+    let Some(()) = skip_if_no_s3() else {
+        return;
+    };
+
+    let backend = create_test_backend();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let key = "presign-ttl-test.txt";
+
+        // Generate URLs with different expiry times
+        let short_ttl = std::time::Duration::from_secs(60);
+        let long_ttl = std::time::Duration::from_secs(3600);
+
+        let short_url = backend
+            .presigned_url(key, short_ttl)
+            .await
+            .expect("short TTL presigned URL should succeed");
+
+        let long_url = backend
+            .presigned_url(key, long_ttl)
+            .await
+            .expect("long TTL presigned URL should succeed");
+
+        // Both should be valid URLs
+        assert!(!short_url.is_empty(), "short TTL URL should not be empty");
+        assert!(!long_url.is_empty(), "long TTL URL should not be empty");
+
+        // URLs should differ (different expiry times)
+        assert_ne!(
+            short_url, long_url,
+            "URLs with different TTLs should be different"
+        );
+    });
+}

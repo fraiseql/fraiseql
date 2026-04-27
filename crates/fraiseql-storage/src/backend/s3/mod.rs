@@ -228,3 +228,69 @@ impl S3Backend {
         })
     }
 }
+
+/// Implementation of PresignCapable for S3Backend.
+///
+/// Enables time-limited direct access URLs for S3 objects, allowing clients
+/// to upload/download without going through the FraiseQL server.
+impl super::PresignCapable for S3Backend {
+    async fn presign_put(
+        &self,
+        key: &str,
+        content_type: &str,
+        expires_in: Duration,
+    ) -> Result<super::PresignedUrl> {
+        validate_key(key)?;
+
+        let presigning_config = aws_sdk_s3::presigning::PresigningConfig::expires_in(expires_in)
+            .map_err(|e| storage_err("presigning config", e))?;
+
+        let presigned = self
+            .client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .content_type(content_type)
+            .presigned(presigning_config)
+            .await
+            .map_err(|e| storage_err("presigned PUT URL", e))?;
+
+        let expires_at = chrono::Utc::now() + chrono::Duration::from_std(expires_in)
+            .map_err(|e| storage_err("duration conversion", e))?;
+
+        Ok(super::PresignedUrl::new(
+            presigned.uri().to_string(),
+            expires_at,
+            "PUT",
+        ))
+    }
+
+    async fn presign_get(
+        &self,
+        key: &str,
+        expires_in: Duration,
+    ) -> Result<super::PresignedUrl> {
+        validate_key(key)?;
+
+        let presigning_config = aws_sdk_s3::presigning::PresigningConfig::expires_in(expires_in)
+            .map_err(|e| storage_err("presigning config", e))?;
+
+        let presigned = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .presigned(presigning_config)
+            .await
+            .map_err(|e| storage_err("presigned GET URL", e))?;
+
+        let expires_at = chrono::Utc::now() + chrono::Duration::from_std(expires_in)
+            .map_err(|e| storage_err("duration conversion", e))?;
+
+        Ok(super::PresignedUrl::new(
+            presigned.uri().to_string(),
+            expires_at,
+            "GET",
+        ))
+    }
+}

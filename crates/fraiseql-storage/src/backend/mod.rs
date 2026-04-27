@@ -6,10 +6,90 @@
 
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use fraiseql_error::Result;
+use serde::{Deserialize, Serialize};
 
 pub mod local;
 pub mod types;
+
+/// Presigned URL for time-limited direct access to an object.
+///
+/// Can be used for direct uploads (PUT) or downloads (GET) without going through
+/// the FraiseQL server, reducing server load and enabling client-side uploads.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresignedUrl {
+    /// The complete presigned URL (including query parameters)
+    pub url: String,
+    /// When the URL expires (UTC)
+    pub expires_at: DateTime<Utc>,
+    /// HTTP method this URL is valid for (GET or PUT)
+    pub method: String,
+}
+
+impl PresignedUrl {
+    /// Creates a new presigned URL.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The complete presigned URL
+    /// * `expires_at` - When the URL expires
+    /// * `method` - HTTP method (GET or PUT)
+    pub fn new(url: String, expires_at: DateTime<Utc>, method: &str) -> Self {
+        Self {
+            url,
+            expires_at,
+            method: method.to_uppercase(),
+        }
+    }
+}
+
+/// Capability trait for backends that support presigned URLs.
+///
+/// Not all backends support presigned URLs. For example, `LocalBackend` cannot
+/// generate presigned URLs for direct client access (it's a filesystem, not a service).
+///
+/// This trait is implemented separately from `StorageBackend` to make it optional.
+/// Check if a backend implements this trait before using presigned URL features.
+#[cfg(feature = "aws-s3")]
+#[allow(async_fn_in_trait)] // Reason: native async syntax as specified in Phase 2, Cycle 2
+pub trait PresignCapable {
+    /// Generates a presigned URL for uploading an object (PUT).
+    ///
+    /// The returned URL can be used directly by clients to upload files without
+    /// credentials, useful for browser-based uploads.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The object key (storage path)
+    /// * `content_type` - The MIME type for the upload
+    /// * `expires_in` - How long the URL remains valid
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if URL generation fails.
+    async fn presign_put(
+        &self,
+        key: &str,
+        content_type: &str,
+        expires_in: Duration,
+    ) -> Result<PresignedUrl>;
+
+    /// Generates a presigned URL for downloading an object (GET).
+    ///
+    /// The returned URL can be used directly by clients to download files,
+    /// useful for serving content from S3 directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The object key (storage path)
+    /// * `expires_in` - How long the URL remains valid
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if URL generation fails.
+    async fn presign_get(&self, key: &str, expires_in: Duration) -> Result<PresignedUrl>;
+}
 
 #[cfg(feature = "aws-s3")]
 pub mod s3;
