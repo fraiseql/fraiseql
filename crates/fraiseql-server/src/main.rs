@@ -338,7 +338,33 @@ async fn main() -> anyhow::Result<()> {
     init_security(&schema)?;
 
     let adapter = build_adapter(&config).await?;
-    let db_pool = build_observer_pool(&config).await?;
+    // The db_pool is shared by observers and auth enrichment.
+    // When the `observers` feature is enabled, build_observer_pool creates
+    // a dedicated pool with observer-tuned settings.  When it is disabled,
+    // enrichment still needs a pool — build a small one from DATABASE_URL.
+    let db_pool = {
+        let observer_pool = build_observer_pool(&config).await?;
+        if observer_pool.is_some() {
+            observer_pool
+        } else if config.auth.as_ref().is_some_and(|a| {
+            a.me.as_ref()
+                .is_some_and(|m| m.enabled && m.enrichment.is_some())
+        }) {
+            // Enrichment needs a pool but observers feature is off — build a
+            // small dedicated pool so `/auth/me` enrichment works.
+            use std::time::Duration;
+            tracing::info!("Initializing enrichment-only PostgreSQL pool (2 connections)");
+            let pool = sqlx::postgres::PgPoolOptions::new()
+                .min_connections(1)
+                .max_connections(2)
+                .acquire_timeout(Duration::from_secs(5))
+                .connect(&config.database_url)
+                .await?;
+            Some(pool)
+        } else {
+            None
+        }
+    };
 
     // Create server — arrow path adds an Arrow Flight gRPC endpoint.
     #[cfg(feature = "arrow")]
