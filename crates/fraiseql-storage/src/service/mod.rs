@@ -146,6 +146,7 @@ mod tests {
             max_object_bytes: max_size,
             allowed_mime_types: allowed_types,
             access: BucketAccess::Private,
+            transform_presets: None,
         };
         (BucketService::new(backend, config), tmpdir)
     }

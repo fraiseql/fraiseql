@@ -1,5 +1,7 @@
 //! Bucket configuration and validation.
 
+use serde::{Deserialize, Serialize};
+
 /// Access control policy for a bucket.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
@@ -10,9 +12,31 @@ pub enum BucketAccess {
     PublicRead,
 }
 
+/// Image transform preset for predefined transformations.
+///
+/// Allows defining common image transformations (e.g., thumbnails, previews)
+/// that can be applied by name via the render endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransformPreset {
+    /// Name of the preset (e.g., "thumbnail", "medium", "preview")
+    pub name: String,
+
+    /// Target width in pixels
+    pub width: Option<u32>,
+
+    /// Target height in pixels
+    pub height: Option<u32>,
+
+    /// Output format (e.g., "webp", "jpeg", "png")
+    pub format: Option<String>,
+
+    /// Quality for lossy formats (1-100)
+    pub quality: Option<u8>,
+}
+
 /// Bucket configuration.
 ///
-/// Defines size limits, allowed MIME types, and access policies for a bucket.
+/// Defines size limits, allowed MIME types, access policies, and transform presets for a bucket.
 #[derive(Debug, Clone)]
 pub struct BucketConfig {
     /// Name of the bucket.
@@ -26,6 +50,9 @@ pub struct BucketConfig {
 
     /// Access control policy.
     pub access: BucketAccess,
+
+    /// Predefined image transform presets
+    pub transform_presets: Option<Vec<TransformPreset>>,
 }
 
 /// Storage configuration (from fraiseql-server config).

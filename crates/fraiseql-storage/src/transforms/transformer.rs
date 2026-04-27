@@ -287,3 +287,40 @@ impl std::fmt::Display for OutputFormat {
         write!(f, "{}", self.mime_type())
     }
 }
+
+impl ImageTransformer {
+    /// Apply a transform preset to get a TransformParams
+    ///
+    /// Presets are named sets of transform parameters that can be defined in bucket configuration.
+    /// This helper converts a preset into TransformParams for use with the transform method.
+    ///
+    /// # Arguments
+    /// - `preset_name` - Name of the preset to look up
+    /// - `presets` - Available presets (typically from BucketConfig.transform_presets)
+    ///
+    /// # Returns
+    /// - `Some(TransformParams)` if preset is found
+    /// - `None` if preset is not found
+    pub fn apply_preset(
+        preset_name: &str,
+        presets: Option<&[crate::config::TransformPreset]>,
+    ) -> Option<TransformParams> {
+        let presets = presets?;
+        let preset = presets.iter().find(|p| p.name == preset_name)?;
+
+        let format = preset.format.as_ref().and_then(|f| match f.to_lowercase().as_str() {
+            "webp" => Some(OutputFormat::Webp),
+            "jpeg" | "jpg" => Some(OutputFormat::Jpeg),
+            "png" => Some(OutputFormat::Png),
+            "avif" => Some(OutputFormat::Avif),
+            _ => None,
+        });
+
+        Some(TransformParams {
+            width: preset.width,
+            height: preset.height,
+            format,
+            quality: preset.quality,
+        })
+    }
+}

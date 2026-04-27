@@ -287,3 +287,94 @@ fn test_transform_empty_input_returns_error() {
     let result = ImageTransformer::transform(&input, &params);
     assert!(result.is_err());
 }
+
+#[test]
+fn test_apply_preset_thumbnail() {
+    use crate::config::TransformPreset;
+
+    let presets = vec![
+        TransformPreset {
+            name: "thumbnail".to_string(),
+            width: Some(150),
+            height: Some(150),
+            format: Some("webp".to_string()),
+            quality: Some(80),
+        },
+        TransformPreset {
+            name: "medium".to_string(),
+            width: Some(800),
+            height: Some(600),
+            format: Some("jpeg".to_string()),
+            quality: Some(85),
+        },
+    ];
+
+    let params = ImageTransformer::apply_preset("thumbnail", Some(&presets));
+    assert!(params.is_some());
+
+    let p = params.unwrap();
+    assert_eq!(p.width, Some(150));
+    assert_eq!(p.height, Some(150));
+    assert_eq!(p.format, Some(OutputFormat::Webp));
+    assert_eq!(p.quality, Some(80));
+}
+
+#[test]
+fn test_apply_preset_not_found() {
+    use crate::config::TransformPreset;
+
+    let presets = vec![TransformPreset {
+        name: "thumbnail".to_string(),
+        width: Some(150),
+        height: Some(150),
+        format: Some("webp".to_string()),
+        quality: Some(80),
+    }];
+
+    let params = ImageTransformer::apply_preset("nonexistent", Some(&presets));
+    assert!(params.is_none());
+}
+
+#[test]
+fn test_apply_preset_none_presets() {
+    let params = ImageTransformer::apply_preset("any", None);
+    assert!(params.is_none());
+}
+
+#[test]
+fn test_apply_preset_format_conversion() {
+    use crate::config::TransformPreset;
+
+    let presets = vec![
+        TransformPreset {
+            name: "png".to_string(),
+            width: None,
+            height: None,
+            format: Some("png".to_string()),
+            quality: None,
+        },
+        TransformPreset {
+            name: "jpg".to_string(),
+            width: None,
+            height: None,
+            format: Some("jpg".to_string()),
+            quality: None,
+        },
+        TransformPreset {
+            name: "avif".to_string(),
+            width: None,
+            height: None,
+            format: Some("avif".to_string()),
+            quality: None,
+        },
+    ];
+
+    let png_params = ImageTransformer::apply_preset("png", Some(&presets)).unwrap();
+    assert_eq!(png_params.format, Some(OutputFormat::Png));
+
+    let jpg_params = ImageTransformer::apply_preset("jpg", Some(&presets)).unwrap();
+    assert_eq!(jpg_params.format, Some(OutputFormat::Jpeg));
+
+    let avif_params = ImageTransformer::apply_preset("avif", Some(&presets)).unwrap();
+    assert_eq!(avif_params.format, Some(OutputFormat::Avif));
+}
