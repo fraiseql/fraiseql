@@ -39,6 +39,7 @@ pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 pub use service::BucketService;
 pub use metadata::{StorageMetadataRepo, StorageMetadataRow, NewStorageObject};
 pub use rls::StorageRlsEvaluator;
+pub use routes::{StorageState, StorageUser, storage_router};
 
 #[cfg(feature = "aws-s3")]
 pub use backend::S3Backend;

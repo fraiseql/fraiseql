@@ -250,6 +250,51 @@ impl StorageBackend {
         }
     }
 
+    /// Generates a presigned URL for uploading an object (PUT).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the backend does not support presigned
+    /// URLs or if URL generation fails.
+    #[cfg(feature = "aws-s3")]
+    pub async fn presign_put(
+        &self,
+        key: &str,
+        content_type: &str,
+        expires_in: Duration,
+    ) -> Result<PresignedUrl> {
+        match self {
+            Self::S3(b) | Self::Hetzner(b) | Self::Scaleway(b) | Self::Ovh(b)
+            | Self::Exoscale(b) | Self::Backblaze(b) | Self::R2(b) => {
+                b.presign_put(key, content_type, expires_in).await
+            }
+            _ => Err(FraiseQLError::Storage {
+                message: "presigned PUT not supported by this backend".to_string(),
+                code: Some("not_supported".to_string()),
+            }),
+        }
+    }
+
+    /// Generates a presigned URL for downloading an object (GET).
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the backend does not support presigned
+    /// URLs or if URL generation fails.
+    #[cfg(feature = "aws-s3")]
+    pub async fn presign_get(&self, key: &str, expires_in: Duration) -> Result<PresignedUrl> {
+        match self {
+            Self::S3(b) | Self::Hetzner(b) | Self::Scaleway(b) | Self::Ovh(b)
+            | Self::Exoscale(b) | Self::Backblaze(b) | Self::R2(b) => {
+                b.presign_get(key, expires_in).await
+            }
+            _ => Err(FraiseQLError::Storage {
+                message: "presigned GET not supported by this backend".to_string(),
+                code: Some("not_supported".to_string()),
+            }),
+        }
+    }
+
     /// Lists objects in the bucket by prefix with pagination.
     ///
     /// # Errors
