@@ -96,7 +96,7 @@ pub enum LogLevel {
 }
 
 /// A single log entry from function execution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogEntry {
     /// Log level.
     pub level: LogLevel,

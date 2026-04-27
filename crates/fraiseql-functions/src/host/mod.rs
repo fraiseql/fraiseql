@@ -1,6 +1,6 @@
 //! Host context trait for function runtime access to FraiseQL services.
 
-use crate::types::{EventPayload, LogLevel};
+use crate::types::{EventPayload, LogEntry, LogLevel};
 use fraiseql_error::Result;
 use std::future::Future;
 
@@ -108,14 +108,32 @@ pub trait HostContext: Send + Sync {
 }
 
 /// A no-op host context for testing WASM execution without real backends.
+///
+/// All I/O methods return `Unsupported` errors. Logs are captured in-memory for test verification.
 pub struct NoopHostContext {
     event_payload: EventPayload,
+    logs: std::sync::Arc<std::sync::Mutex<Vec<LogEntry>>>,
 }
 
 impl NoopHostContext {
     /// Create a new no-op host context for testing.
-    pub const fn new(event_payload: EventPayload) -> Self {
-        Self { event_payload }
+    pub fn new(event_payload: EventPayload) -> Self {
+        Self {
+            event_payload,
+            logs: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Get a copy of all captured logs (for test verification).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the Mutex is poisoned (should never happen in normal operation).
+    pub fn captured_logs(&self) -> Vec<LogEntry> {
+        self.logs
+            .lock()
+            .expect("log mutex poisoned")
+            .clone()
     }
 }
 
@@ -188,7 +206,84 @@ impl HostContext for NoopHostContext {
         &self.event_payload
     }
 
-    fn log(&self, _level: LogLevel, _message: &str) {
-        // No-op
+    fn log(&self, level: LogLevel, message: &str) {
+        let entry = LogEntry {
+            level,
+            message: message.to_string(),
+            timestamp: chrono::Utc::now(),
+        };
+        self.logs
+            .lock()
+            .expect("log mutex poisoned")
+            .push(entry);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_noop_host_context_returns_unsupported() {
+        let payload = EventPayload {
+            trigger_type: "test".to_string(),
+            entity: "Test".to_string(),
+            event_kind: "created".to_string(),
+            data: serde_json::json!({}),
+            timestamp: chrono::Utc::now(),
+        };
+        let ctx = NoopHostContext::new(payload);
+
+        // Non-async methods should return Unsupported
+        assert!(ctx.auth_context().is_err());
+        assert!(ctx.env_var("TEST").is_ok());
+    }
+
+    #[test]
+    fn test_noop_host_context_log_captures_entries() {
+        let payload = EventPayload {
+            trigger_type: "test".to_string(),
+            entity: "Test".to_string(),
+            event_kind: "created".to_string(),
+            data: serde_json::json!({}),
+            timestamp: chrono::Utc::now(),
+        };
+        let ctx = NoopHostContext::new(payload);
+
+        // Log some messages at different levels
+        ctx.log(LogLevel::Debug, "debug message");
+        ctx.log(LogLevel::Info, "info message");
+        ctx.log(LogLevel::Warn, "warning message");
+        ctx.log(LogLevel::Error, "error message");
+
+        // Verify all logs were captured
+        let logs = ctx.captured_logs();
+        assert_eq!(logs.len(), 4);
+        assert_eq!(logs[0].level, LogLevel::Debug);
+        assert_eq!(logs[0].message, "debug message");
+        assert_eq!(logs[1].level, LogLevel::Info);
+        assert_eq!(logs[1].message, "info message");
+        assert_eq!(logs[2].level, LogLevel::Warn);
+        assert_eq!(logs[2].message, "warning message");
+        assert_eq!(logs[3].level, LogLevel::Error);
+        assert_eq!(logs[3].message, "error message");
+    }
+
+    #[test]
+    fn test_event_payload_available_in_context() {
+        let payload = EventPayload {
+            trigger_type: "mutation".to_string(),
+            entity: "User".to_string(),
+            event_kind: "updated".to_string(),
+            data: serde_json::json!({"id": 42}),
+            timestamp: chrono::Utc::now(),
+        };
+        let ctx = NoopHostContext::new(payload);
+
+        let retrieved = ctx.event_payload();
+        assert_eq!(retrieved.trigger_type, "mutation");
+        assert_eq!(retrieved.entity, "User");
+        assert_eq!(retrieved.event_kind, "updated");
+        assert_eq!(retrieved.data, serde_json::json!({"id": 42}));
     }
 }
