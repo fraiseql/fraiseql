@@ -21,6 +21,7 @@ pub mod metadata;
 pub mod rls;
 pub mod routes;
 pub mod service;
+pub mod transforms;
 
 // Re-exports for convenience
 pub use backend::{
@@ -44,3 +45,6 @@ pub use backend::GcsBackend;
 
 #[cfg(feature = "azure-blob")]
 pub use backend::AzureBackend;
+
+#[cfg(feature = "transforms")]
+pub use transforms::{ImageTransformer, OutputFormat, TransformOutput, TransformParams, TransformCache};

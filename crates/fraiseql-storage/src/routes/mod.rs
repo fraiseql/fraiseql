@@ -3,15 +3,18 @@
 //! This module provides handler functions for common storage operations.
 //! Route mounting and HTTP server integration is handled by fraiseql-server.
 
-use std::time::Duration;
-
-use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::{PresignedUrl, StorageRlsEvaluator};
+use crate::PresignedUrl;
 
 #[cfg(feature = "aws-s3")]
-use crate::PresignCapable;
+use std::time::Duration;
+
+#[cfg(feature = "aws-s3")]
+use fraiseql_error::{FraiseQLError, Result};
+
+#[cfg(feature = "aws-s3")]
+use crate::{StorageRlsEvaluator, PresignCapable};
 
 /// Request body for presigned URL generation.
 ///
