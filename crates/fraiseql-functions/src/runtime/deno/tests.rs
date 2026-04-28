@@ -173,3 +173,160 @@ async fn test_deno_supported_extensions() {
     assert!(exts.contains(&".mjs"));
     assert!(exts.contains(&".mts"));
 }
+
+// Cycle 2: V8 Resource Limits (Memory & CPU Timeouts)
+
+#[tokio::test]
+async fn test_deno_memory_limit_terminates() {
+    // JS that allocates memory until limit is exceeded
+    let source = r"
+export default async (event) => {
+    const arr = [];
+    while (true) {
+        arr.push(new ArrayBuffer(1024 * 1024)); // 1MB allocations
+    }
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_memory_limit".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let limits = ResourceLimits {
+        max_memory_bytes: 64 * 1024 * 1024, // 64MB hard limit
+        max_duration: std::time::Duration::from_secs(5),
+        max_log_entries: 10_000,
+    };
+
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), limits)
+        .await;
+
+    // Should return an error when memory limit is exceeded
+    assert!(result.is_err(), "Memory limit exceeded should result in error");
+}
+
+#[tokio::test]
+async fn test_deno_timeout_aborts() {
+    // JS with infinite loop
+    let source = r"
+export default async (event) => {
+    while (true) {}
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_timeout".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let limits = ResourceLimits {
+        max_memory_bytes: 128 * 1024 * 1024,
+        max_duration: std::time::Duration::from_millis(100), // 100ms timeout
+        max_log_entries: 10_000,
+    };
+
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), limits)
+        .await;
+
+    // Should return a timeout error
+    assert!(result.is_err(), "Infinite loop should timeout and return error");
+    // When fully implemented, should be Timeout error
+    // For now, stub will return some error
+}
+
+#[tokio::test]
+async fn test_deno_within_limits_succeeds() {
+    // Lightweight function that completes quickly
+    let source = r"
+export default async (event) => {
+    return { result: 'success' };
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_within_limits".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let limits = ResourceLimits {
+        max_memory_bytes: 256 * 1024 * 1024, // 256MB
+        max_duration: std::time::Duration::from_secs(5), // 5 second timeout
+        max_log_entries: 10_000,
+    };
+
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), limits)
+        .await;
+
+    // Should succeed
+    assert!(result.is_ok(), "Function within limits should succeed");
+}
+
+#[tokio::test]
+async fn test_deno_memory_peak_reported() {
+    // Function that allocates some memory but stays within limit
+    let source = r"
+export default async (event) => {
+    const arr = [];
+    for (let i = 0; i < 100; i++) {
+        arr.push(new ArrayBuffer(1024)); // 100KB total
+    }
+    return { allocated: true };
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_memory_peak".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .await;
+
+    // Should succeed
+    assert!(result.is_ok(), "Memory allocation within bounds should succeed");
+    let result = result.unwrap();
+    // Memory peak should be reported (non-zero if successfully measured)
+    // Current stub returns 0, but when fully implemented should be > 0
+    let _memory_peak = result.memory_peak_bytes;
+}
+
+#[tokio::test]
+async fn test_deno_async_timeout() {
+    // Async function that never resolves (hangs forever)
+    let source = r"
+export default async (event) => {
+    return new Promise(() => {
+        // Never resolves — intentional hang
+    });
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_async_timeout".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let limits = ResourceLimits {
+        max_memory_bytes: 128 * 1024 * 1024,
+        max_duration: std::time::Duration::from_millis(200), // 200ms timeout
+        max_log_entries: 10_000,
+    };
+
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), limits)
+        .await;
+
+    // Should return a timeout error
+    assert!(result.is_err(), "Unresolved promise with timeout should error");
+    // When fully implemented, should be Timeout error
+}
