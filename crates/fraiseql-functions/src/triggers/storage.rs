@@ -2,7 +2,27 @@
 //!
 //! Handles `after:storage:<bucket>:<operation>` triggers that fire when objects
 //! are uploaded or deleted from object storage.
-
+//!
+//! ## Operations
+//!
+//! - `upload`: Fires after successful file upload
+//! - `delete`: Fires after successful file deletion
+//! - `all`: Fires for both upload and delete operations
+//!
+//! ## Event Payload
+//!
+//! The function receives metadata about the storage operation:
+//! - Bucket name
+//! - Object key (path)
+//! - File size
+//! - Content type (MIME type)
+//! - Owner (user ID or service account)
+//! - Operation type
+//!
+//! ## Async Dispatch
+//!
+//! Storage triggers fire asynchronously after the storage operation completes.
+//! Failures in the trigger function do not affect the storage operation result.
 use crate::types::EventPayload;
 use serde::{Deserialize, Serialize};
 

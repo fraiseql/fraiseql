@@ -1,6 +1,20 @@
 //! Cron-scheduled triggers.
 //!
-//! Handles `cron:<function-name>` triggers that fire on a schedule using cron expressions.
+//! Handles `cron:<expression>` triggers that fire on a schedule using POSIX cron expressions.
+//!
+//! ## Features
+//!
+//! - **Stateful**: Last execution time is persisted to `_fraiseql_cron_state` table
+//! - **Missed Fire Detection**: Detects missed executions on restart
+//! - **Configurable Replay**: Optionally replay missed fires on startup
+//! - **Timezone Support**: Execute in specific timezone (defaults to UTC)
+//!
+//! ## Example Expressions
+//!
+//! - `0 * * * *` - Every hour
+//! - `0 2 * * *` - Daily at 2 AM
+//! - `*/5 * * * *` - Every 5 minutes
+//! - `0 0 1 * *` - First day of every month
 
 use crate::types::EventPayload;
 use chrono::{Datelike, Timelike};

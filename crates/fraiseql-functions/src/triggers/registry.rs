@@ -61,6 +61,10 @@ pub enum ParsedTrigger {
 
 impl ParsedTrigger {
     /// Parse a trigger string into a structured trigger configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RegistryError` if the trigger string format is invalid or unrecognized.
     pub fn parse(trigger: &str) -> Result<Self, RegistryError> {
         let parts: Vec<&str> = trigger.split(':').collect();
 
@@ -104,7 +108,7 @@ impl ParsedTrigger {
     }
 
     /// Get the trigger type name (e.g., "after:mutation", "http").
-    pub fn trigger_type(&self) -> &'static str {
+    pub const fn trigger_type(&self) -> &'static str {
         match self {
             ParsedTrigger::AfterMutation { .. } => "after:mutation",
             ParsedTrigger::BeforeMutation { .. } => "before:mutation",
@@ -115,27 +119,27 @@ impl ParsedTrigger {
     }
 
     /// Check if this is an after:mutation trigger.
-    pub fn is_after_mutation(&self) -> bool {
+    pub const fn is_after_mutation(&self) -> bool {
         matches!(self, ParsedTrigger::AfterMutation { .. })
     }
 
     /// Check if this is a before:mutation trigger.
-    pub fn is_before_mutation(&self) -> bool {
+    pub const fn is_before_mutation(&self) -> bool {
         matches!(self, ParsedTrigger::BeforeMutation { .. })
     }
 
     /// Check if this is an HTTP trigger.
-    pub fn is_http(&self) -> bool {
+    pub const fn is_http(&self) -> bool {
         matches!(self, ParsedTrigger::Http { .. })
     }
 
     /// Check if this is a cron trigger.
-    pub fn is_cron(&self) -> bool {
+    pub const fn is_cron(&self) -> bool {
         matches!(self, ParsedTrigger::Cron { .. })
     }
 
     /// Check if this is an after:storage trigger.
-    pub fn is_after_storage(&self) -> bool {
+    pub const fn is_after_storage(&self) -> bool {
         matches!(self, ParsedTrigger::AfterStorage { .. })
     }
 }
@@ -160,6 +164,10 @@ impl TriggerRegistry {
     }
 
     /// Load triggers from function definitions.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RegistryError` if any function's trigger string is invalid or if loading a trigger type fails.
     pub fn load_from_definitions(functions: &[FunctionDefinition]) -> Result<Self, RegistryError> {
         let mut registry = Self::new();
         registry.function_count = functions.len();
@@ -224,13 +232,13 @@ impl TriggerRegistry {
     }
 
     /// Get the number of after:mutation triggers.
-    pub fn after_mutation_count(&self) -> usize {
+    pub const fn after_mutation_count(&self) -> usize {
         // This is approximate; TriggerMatcher doesn't expose count
         0
     }
 
     /// Get the number of before:mutation triggers.
-    pub fn before_mutation_count(&self) -> usize {
+    pub const fn before_mutation_count(&self) -> usize {
         self.before_mutation_triggers.len()
     }
 

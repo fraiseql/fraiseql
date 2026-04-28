@@ -3,6 +3,29 @@
 //! HTTP triggers mount custom endpoints on the FraiseQL server that invoke
 //! functions to handle requests and generate responses.
 //!
+//! ## Routing
+//!
+//! Routes are mounted under `/functions/v1/` prefix:
+//! - `GET /functions/v1/users/:id` → `http:GET:/users/:id`
+//! - `POST /functions/v1/process` → `http:POST:/process`
+//!
+//! Path parameters are extracted and passed to the function in the event payload.
+//!
+//! ## Request Handling
+//!
+//! The function receives an `HttpTriggerPayload` containing:
+//! - HTTP method and path
+//! - Query parameters
+//! - Path parameters (from `:id` patterns)
+//! - Request headers and body
+//! - Authentication context (if required)
+//!
+//! ## Response Format
+//!
+//! Functions return `HttpTriggerResponse` with:
+//! - Optional status code (default 200)
+//! - Optional custom headers
+//! - Response body (serialized as JSON)
 //! # Trigger Format
 //!
 //! ```text
@@ -88,13 +111,13 @@ impl HttpTriggerRoute {
     }
 
     /// Builder method to require authentication.
-    pub fn with_auth(mut self) -> Self {
+    pub const fn with_auth(mut self) -> Self {
         self.requires_auth = true;
         self
     }
 
     /// Builder method to not require authentication.
-    pub fn without_auth(mut self) -> Self {
+    pub const fn without_auth(mut self) -> Self {
         self.requires_auth = false;
         self
     }
@@ -205,7 +228,7 @@ impl HttpTriggerPayload {
     }
 
     /// Get the request body as JSON.
-    pub fn json_body(&self) -> Option<&serde_json::Value> {
+    pub const fn json_body(&self) -> Option<&serde_json::Value> {
         self.body.as_ref()
     }
 
@@ -326,7 +349,7 @@ pub struct HttpTriggerMatcher {
 
 impl HttpTriggerMatcher {
     /// Create a new empty HTTP trigger matcher.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             routes: Vec::new(),
         }

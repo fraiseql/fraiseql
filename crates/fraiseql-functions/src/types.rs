@@ -86,7 +86,7 @@ pub struct EventPayload {
 pub struct FunctionDefinition {
     /// Unique name for this function.
     pub name: String,
-    /// Trigger type and configuration (e.g., "after:mutation:createUser", "cron:0 * * * *", "http:GET:/users/:id").
+    /// Trigger type and configuration (e.g., "after:mutation:createUser", "cron:0 * * * *", "<http:GET:/users/:id>").
     pub trigger: String,
     /// Which runtime executes this function.
     pub runtime: RuntimeType,
@@ -108,7 +108,7 @@ impl FunctionDefinition {
     }
 
     /// Set a custom timeout for this function.
-    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+    pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
     }

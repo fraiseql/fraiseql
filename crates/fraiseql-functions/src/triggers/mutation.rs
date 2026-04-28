@@ -1,4 +1,20 @@
 //! Mutation triggers: `after:mutation` and `before:mutation`.
+//!
+//! ## `after:mutation` Triggers
+//!
+//! Fire asynchronously after a mutation completes (insert, update, or delete).
+//! The function receives the old and new row data. Failures do not block the mutation.
+//!
+//! ## `before:mutation` Triggers
+//!
+//! Fire synchronously before a mutation executes. The function can:
+//! - Return `Proceed(modified_input)` to allow the mutation with possibly modified input
+//! - Return `Abort(error_message)` to cancel the mutation
+//!
+//! Multiple before-hooks execute in declaration order. The first abort short-circuits remaining hooks.
+//!
+//! **Timeout**: Defaults to 500ms (shorter than general function timeout of 5s)
+//! because before-hooks are on the critical mutation path.
 
 use crate::types::EventPayload;
 use serde::{Deserialize, Serialize};
