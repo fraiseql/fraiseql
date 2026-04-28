@@ -16,12 +16,73 @@
 //! 5. Properly cleans up the isolate after execution
 
 pub mod executor;
+pub mod ops;
 pub mod tests;
 
 use crate::runtime::FunctionRuntime;
 use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
 use crate::HostContext;
 use fraiseql_error::Result;
+
+/// TypeScript type declarations for FraiseQL host operations.
+///
+/// This is embedded as a constant string for Deno's type checker to understand
+/// the available operations and their signatures. Guest developers using TypeScript
+/// will get type checking and IDE autocomplete for these operations.
+pub const FRAISEQL_HOST_TYPES: &str = r"
+// FraiseQL host operations type definitions for TypeScript
+// These are available on Deno.core.ops
+
+interface HttpResponse {
+  status: number;
+  headers: Array<[string, string]>;
+  body: Uint8Array;
+}
+
+// Execute a GraphQL query
+async function fraiseql_query(
+  graphql: string,
+  variables: string, // JSON string
+): Promise<string>; // JSON string
+
+// Execute a raw SQL query
+async function fraiseql_sql_query(
+  sql: string,
+  params: string, // JSON array string
+): Promise<string>; // JSON array string
+
+// Make an HTTP request
+async function fraiseql_http_request(
+  method: string,
+  url: string,
+  headers: Array<[string, string]>,
+  body: Uint8Array | null,
+): Promise<HttpResponse>;
+
+// Retrieve an object from storage
+async function fraiseql_storage_get(
+  bucket: string,
+  key: string,
+): Promise<Uint8Array>;
+
+// Store an object to storage
+async function fraiseql_storage_put(
+  bucket: string,
+  key: string,
+  body: Uint8Array,
+  content_type: string,
+): Promise<void>;
+
+// Get the current authenticated user's context
+function fraiseql_auth_context(): string; // JSON string
+
+// Get an environment variable
+function fraiseql_env_var(name: string): string | null;
+
+// Log a message
+function fraiseql_log(level: number, message: string): void;
+// Levels: 0=debug, 1=info, 2=warn, 3=error
+";
 
 /// Configuration for the Deno runtime.
 ///

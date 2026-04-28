@@ -7,6 +7,9 @@ use std::future::Future;
 #[cfg(feature = "host-live")]
 pub mod live;
 
+#[cfg(feature = "host-live")]
+pub mod factory;
+
 /// Response from an HTTP request.
 #[derive(Debug, Clone)]
 pub struct HttpResponse {

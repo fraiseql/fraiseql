@@ -29,7 +29,7 @@ pub enum RejectionReason {
     PrivilegeEscalation,
     /// Procedural block (DO $$ ... $$).
     ProceduralBlock,
-    /// Procedure call (CALL procedure()).
+    /// Procedure call (CALL `procedure()`).
     ProcedureCall,
     /// COPY statement (can write).
     CopyStatement,
@@ -72,6 +72,10 @@ impl std::fmt::Display for RejectionReason {
 /// - `Ok(SqlClassification::ReadOnly)` if the statement is safe
 /// - `Ok(SqlClassification::Rejected(reason))` if the statement is not allowed
 /// - `Err` if parsing fails
+///
+/// # Errors
+///
+/// Returns a validation error if the SQL cannot be parsed.
 pub fn classify_sql(sql: &str) -> Result<SqlClassification> {
     use sqlparser::parser::Parser;
     use sqlparser::dialect::PostgreSqlDialect;
@@ -88,7 +92,7 @@ pub fn classify_sql(sql: &str) -> Result<SqlClassification> {
     for stmt in statements {
         let classification = classify_statement(&stmt)?;
         match classification {
-            SqlClassification::ReadOnly => continue,
+            SqlClassification::ReadOnly => {}
             SqlClassification::Rejected(reason) => return Ok(SqlClassification::Rejected(reason)),
         }
     }
@@ -219,27 +223,11 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
         }
 
         // Reject privilege escalation
-        Statement::SetVariable { .. } => {
-            Ok(SqlClassification::Rejected(
-                RejectionReason::PrivilegeEscalation,
-            ))
-        }
-        Statement::SetRole { .. } => {
-            Ok(SqlClassification::Rejected(
-                RejectionReason::PrivilegeEscalation,
-            ))
-        }
-        Statement::SetTimeZone { .. } => {
-            Ok(SqlClassification::Rejected(
-                RejectionReason::PrivilegeEscalation,
-            ))
-        }
-        Statement::SetNames { .. } => {
-            Ok(SqlClassification::Rejected(
-                RejectionReason::PrivilegeEscalation,
-            ))
-        }
-        Statement::SetNamesDefault { .. } => {
+        Statement::SetVariable { .. }
+        | Statement::SetRole { .. }
+        | Statement::SetTimeZone { .. }
+        | Statement::SetNames { .. }
+        | Statement::SetNamesDefault { .. } => {
             Ok(SqlClassification::Rejected(
                 RejectionReason::PrivilegeEscalation,
             ))
@@ -251,10 +239,7 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
         }
 
         // Reject COPY
-        Statement::Copy { .. } => {
-            Ok(SqlClassification::Rejected(RejectionReason::CopyStatement))
-        }
-        Statement::CopyIntoSnowflake { .. } => {
+        Statement::Copy { .. } | Statement::CopyIntoSnowflake { .. } => {
             Ok(SqlClassification::Rejected(RejectionReason::CopyStatement))
         }
 
