@@ -10,6 +10,8 @@
 #[cfg(test)]
 mod tests;
 
+pub mod sql_classifier;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -133,12 +135,25 @@ impl HostContext for LiveHostContext {
 
     async fn sql_query(
         &self,
-        _sql: &str,
-        _params: &[serde_json::Value],
+        sql: &str,
+        params: &[serde_json::Value],
     ) -> Result<Vec<serde_json::Value>> {
-        Err(fraiseql_error::FraiseQLError::Unsupported {
-            message: "LiveHostContext::sql_query not yet implemented".to_string(),
-        })
+        // Classify the SQL statement first
+        let classification = sql_classifier::classify_sql(sql)?;
+        match classification {
+            sql_classifier::SqlClassification::ReadOnly => {
+                // Would execute query here (not yet implemented)
+                // For now, return a placeholder
+                Ok(vec![])
+            }
+            sql_classifier::SqlClassification::Rejected(reason) => {
+                Err(fraiseql_error::FraiseQLError::Authorization {
+                    message: format!("SQL query not allowed: {}", reason),
+                    action: Some("execute_sql_query".to_string()),
+                    resource: None,
+                })
+            }
+        }
     }
 
     async fn http_request(

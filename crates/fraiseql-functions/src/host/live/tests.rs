@@ -161,3 +161,270 @@ async fn test_host_query_without_executor_returns_unsupported() {
         _ => panic!("expected Unsupported error"),
     }
 }
+
+// SQL Query Tests
+
+#[tokio::test]
+async fn test_host_sql_query_returns_rows() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query("SELECT id, name FROM users WHERE active = $1", &[serde_json::json!(true)])
+        .await;
+
+    // Should succeed (SELECT is allowed)
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_insert() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query("INSERT INTO users (name) VALUES ($1)", &[serde_json::json!("Alice")])
+        .await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Authorization { message, .. }) => {
+            assert!(message.contains("not allowed"));
+        }
+        other => panic!("expected Authorization error, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_update() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query(
+            "UPDATE users SET name = $1 WHERE id = $2",
+            &[serde_json::json!("Bob"), serde_json::json!(1)],
+        )
+        .await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Authorization { .. }) => (),
+        other => panic!("expected Authorization error, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_delete() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx.sql_query("DELETE FROM users WHERE id = $1", &[serde_json::json!(1)]).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_ddl() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx.sql_query("DROP TABLE users", &[]).await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Authorization { message, .. }) => {
+            assert!(message.contains("not allowed"));
+        }
+        other => panic!("expected Authorization error, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_copy() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query("COPY users FROM '/tmp/data.csv'", &[])
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_create_extension() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query("CREATE EXTENSION IF NOT EXISTS pgcrypto", &[])
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_set_role() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx.sql_query("SET ROLE admin", &[]).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_call() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx.sql_query("CALL delete_all_users()", &[]).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_truncate() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx.sql_query("TRUNCATE users", &[]).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_allows_explain_without_analyze() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query("EXPLAIN SELECT * FROM users", &[])
+        .await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_host_sql_query_rejects_explain_analyze() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query("EXPLAIN ANALYZE SELECT * FROM users", &[])
+        .await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Authorization { message, .. }) => {
+            assert!(message.contains("not allowed"));
+        }
+        other => panic!("expected Authorization error, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_host_sql_query_invalid_returns_validation_error() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx.sql_query("INVALID SYNTAX HERE", &[]).await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Validation { .. }) => (),
+        other => panic!("expected Validation error, got {:?}", other),
+    }
+}
