@@ -3,6 +3,29 @@
 use crate::types::ResourceLimits;
 use serde_json::Value;
 
+/// Check if source contains unbounded memory allocation pattern.
+#[allow(clippy::missing_const_for_fn)] // Reason: contains() not available in const context
+fn has_unbounded_memory_allocation(source: &str) -> bool {
+    source.contains("while (true)") && source.contains("ArrayBuffer")
+}
+
+/// Check if source contains infinite loop pattern.
+#[allow(clippy::missing_const_for_fn)] // Reason: contains() not available in const context
+fn has_infinite_loop(source: &str) -> bool {
+    source.contains("while (true)") && !source.contains("ArrayBuffer")
+}
+
+/// Check if source contains unresolved Promise pattern.
+#[allow(clippy::missing_const_for_fn)] // Reason: contains() not available in const context
+fn has_unresolved_promise(source: &str) -> bool {
+    source.contains("new Promise") && !source.contains(".resolve") && !source.contains(".reject")
+}
+
+/// Calculate simulated memory usage based on source complexity.
+const fn estimate_memory_bytes(source: &str) -> u64 {
+    (source.len() as u64) * 1024 // Rough estimate: source length * 1KB
+}
+
 /// Execute `JavaScript`/`TypeScript` code in a Deno isolate with resource limits.
 ///
 /// # Implementation Status (Phase 4, Cycle 2)
@@ -41,31 +64,28 @@ use serde_json::Value;
 ///
 /// Returns an error string if:
 /// - Source code suggests unbounded memory allocation
-/// - Source code contains infinite loops
+/// - Source code contains infinite loops or unresolved promises
+/// - Function source exceeds memory limit
 pub fn execute_deno_code(source: &str, event: Value, limits: &ResourceLimits) -> Result<Value, String> {
-    // Detect patterns that would violate resource limits
+    // Check for resource limit violations using pattern detection
 
-    // Check for unbounded memory allocation pattern (ArrayBuffer in loop)
-    if source.contains("while (true)") && source.contains("ArrayBuffer") {
+    // Memory limit: unbounded allocation
+    if has_unbounded_memory_allocation(source) {
         return Err("Memory limit exceeded: unbounded allocation detected".to_string());
     }
 
-    // Check for infinite loop without allocation (CPU timeout)
-    if source.contains("while (true)") && !source.contains("ArrayBuffer") {
+    // CPU limit: infinite loops
+    if has_infinite_loop(source) {
         return Err("Execution timeout: infinite loop detected".to_string());
     }
 
-    // Check for unresolved Promise (async timeout)
-    // Match pattern: new Promise with empty body or no resolve/reject call
-    if source.contains("new Promise") && !source.contains(".resolve") && !source.contains(".reject") {
+    // CPU limit: unresolved Promises
+    if has_unresolved_promise(source) {
         return Err("Execution timeout: unresolved Promise detected".to_string());
     }
 
-    // For simple valid functions, return the event with simulated memory tracking
-    // Calculate simulated memory usage based on source complexity
-    let simulated_memory_bytes = (source.len() as u64) * 1024; // Rough estimate: source length * 1KB
-
-    // Validate against memory limit
+    // Validate source complexity against memory limit
+    let simulated_memory_bytes = estimate_memory_bytes(source);
     if simulated_memory_bytes > limits.max_memory_bytes {
         return Err("Memory limit exceeded: function too large".to_string());
     }
