@@ -744,3 +744,274 @@ fn test_after_storage_payload_includes_metadata() {
     assert!(payload.data["content_type"].is_string());
     assert!(payload.data["owner_id"].is_string());
 }
+
+// ============================================================================
+// Cycle 4: cron Trigger Tests (RED Phase)
+// ============================================================================
+
+use crate::triggers::cron::{CronTrigger, CronSchedule, CronExecutionState};
+
+/// Test: cron trigger parses valid cron expression (daily at 2 AM)
+#[test]
+fn test_cron_trigger_parses_daily_expression() {
+    let trigger = CronTrigger {
+        function_name: "dailyCleanup".to_string(),
+        schedule: "0 2 * * *".to_string(), // 2 AM every day
+        timezone: "UTC".to_string(),
+    };
+
+    assert_eq!(trigger.function_name, "dailyCleanup");
+    assert_eq!(trigger.schedule, "0 2 * * *");
+    assert_eq!(trigger.timezone, "UTC");
+}
+
+/// Test: cron trigger parses valid cron expression (every hour)
+#[test]
+fn test_cron_trigger_parses_hourly_expression() {
+    let trigger = CronTrigger {
+        function_name: "hourlySync".to_string(),
+        schedule: "0 * * * *".to_string(), // Every hour at :00
+        timezone: "UTC".to_string(),
+    };
+
+    assert_eq!(trigger.function_name, "hourlySync");
+    assert_eq!(trigger.schedule, "0 * * * *");
+}
+
+/// Test: cron trigger parses valid cron expression (every 5 minutes)
+#[test]
+fn test_cron_trigger_parses_every_5_minutes() {
+    let trigger = CronTrigger {
+        function_name: "frequentCheck".to_string(),
+        schedule: "*/5 * * * *".to_string(), // Every 5 minutes
+        timezone: "UTC".to_string(),
+    };
+
+    assert_eq!(trigger.schedule, "*/5 * * * *");
+}
+
+/// Test: cron schedule evaluates to true for matching time
+#[test]
+fn test_cron_schedule_matches_exact_time() {
+    let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
+
+    // 2024-03-15 02:00:00 UTC should match "0 2 * * *"
+    let matching_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
+        .expect("parse datetime")
+        .with_timezone(&chrono::Utc);
+
+    assert!(schedule.matches(&matching_time));
+}
+
+/// Test: cron schedule does not match non-matching time
+#[test]
+fn test_cron_schedule_does_not_match_wrong_hour() {
+    let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
+
+    // 2024-03-15 03:00:00 UTC should NOT match "0 2 * * *"
+    let non_matching_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T03:00:00+00:00")
+        .expect("parse datetime")
+        .with_timezone(&chrono::Utc);
+
+    assert!(!schedule.matches(&non_matching_time));
+}
+
+/// Test: cron schedule matches on specific minutes
+#[test]
+fn test_cron_schedule_matches_every_5_minutes() {
+    let schedule = CronSchedule::parse("*/5 * * * *").expect("parse cron");
+
+    // Should match at :00, :05, :10, :15, :20, etc.
+    let time_00 = chrono::DateTime::parse_from_rfc3339("2024-03-15T10:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    let time_05 = chrono::DateTime::parse_from_rfc3339("2024-03-15T10:05:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    let time_03 = chrono::DateTime::parse_from_rfc3339("2024-03-15T10:03:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    assert!(schedule.matches(&time_00));
+    assert!(schedule.matches(&time_05));
+    assert!(!schedule.matches(&time_03));
+}
+
+/// Test: cron trigger tracks last execution time
+#[test]
+fn test_cron_trigger_tracks_last_execution() {
+    let mut state = CronExecutionState::new();
+
+    // Initially, last_executed is None
+    assert!(state.last_executed.is_none());
+
+    // Record an execution
+    let now = chrono::Utc::now();
+    state.record_execution(now);
+
+    assert_eq!(state.last_executed, Some(now));
+}
+
+/// Test: cron trigger detects if it should execute (first time)
+#[test]
+fn test_cron_trigger_should_execute_first_time() {
+    let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
+    let state = CronExecutionState::new();
+
+    // First execution time
+    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    // Should execute if no prior execution
+    assert!(state.should_execute(&schedule, &exec_time));
+}
+
+/// Test: cron trigger prevents duplicate execution in same window
+#[test]
+fn test_cron_trigger_prevents_duplicate_in_window() {
+    let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
+    let mut state = CronExecutionState::new();
+
+    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    // First execution succeeds
+    assert!(state.should_execute(&schedule, &exec_time));
+    state.record_execution(exec_time);
+
+    // Same window (2:05 is still in the 2 AM hour) should NOT execute again
+    let within_window = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:05:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    assert!(!state.should_execute(&schedule, &within_window));
+}
+
+/// Test: cron trigger allows execution in next window
+#[test]
+fn test_cron_trigger_allows_next_window() {
+    let schedule = CronSchedule::parse("0 * * * *").expect("parse cron");
+    let mut state = CronExecutionState::new();
+
+    // Execute at 2:00
+    let time_200 = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(state.should_execute(&schedule, &time_200));
+    state.record_execution(time_200);
+
+    // Execute at 3:00 (next hour)
+    let time_300 = chrono::DateTime::parse_from_rfc3339("2024-03-15T03:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    assert!(state.should_execute(&schedule, &time_300));
+}
+
+/// Test: cron trigger catches up on missed executions
+#[test]
+fn test_cron_trigger_catches_up_missed_executions() {
+    let schedule = CronSchedule::parse("0 * * * *").expect("parse cron");
+    let state = CronExecutionState::new();
+
+    // Server was down from 2:00 to 3:00, now it's 3:30
+    let last_known = chrono::DateTime::parse_from_rfc3339("2024-03-15T01:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    let now = chrono::DateTime::parse_from_rfc3339("2024-03-15T03:30:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    let missed = state.find_missed_executions(&schedule, &last_known, &now);
+
+    // Should find 2:00 and 3:00 as missed executions
+    assert_eq!(missed.len(), 2);
+}
+
+/// Test: cron trigger payload includes schedule and function info
+#[test]
+fn test_cron_trigger_payload_includes_schedule_info() {
+    let trigger = CronTrigger {
+        function_name: "dailyCleanup".to_string(),
+        schedule: "0 2 * * *".to_string(),
+        timezone: "UTC".to_string(),
+    };
+
+    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    let payload = trigger.build_payload(&exec_time);
+
+    assert_eq!(payload.trigger_type, "cron:dailyCleanup");
+    assert_eq!(payload.entity, "cron");
+    assert_eq!(payload.event_kind, "scheduled");
+    assert_eq!(payload.data["schedule"], "0 2 * * *");
+    assert_eq!(payload.data["timezone"], "UTC");
+}
+
+/// Test: cron trigger payload includes execution timestamp
+#[test]
+fn test_cron_trigger_payload_includes_execution_time() {
+    let trigger = CronTrigger {
+        function_name: "hourlySync".to_string(),
+        schedule: "0 * * * *".to_string(),
+        timezone: "UTC".to_string(),
+    };
+
+    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T14:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+
+    let payload = trigger.build_payload(&exec_time);
+
+    assert!(payload.data.is_object());
+    assert!(payload.data["executed_at"].is_string());
+    assert_eq!(payload.data["executed_at"], "2024-03-15T14:00:00Z");
+}
+
+/// Test: cron trigger handles timezone offset
+#[test]
+fn test_cron_trigger_with_specific_timezone() {
+    let trigger = CronTrigger {
+        function_name: "morningReport".to_string(),
+        schedule: "0 9 * * *".to_string(), // 9 AM in specified timezone
+        timezone: "America/New_York".to_string(),
+    };
+
+    assert_eq!(trigger.timezone, "America/New_York");
+}
+
+/// Test: cron trigger serialization/deserialization
+#[test]
+fn test_cron_trigger_serialization() {
+    let trigger = CronTrigger {
+        function_name: "dailyCleanup".to_string(),
+        schedule: "0 2 * * *".to_string(),
+        timezone: "UTC".to_string(),
+    };
+
+    let json = serde_json::to_string(&trigger).expect("serialize");
+    let restored: CronTrigger = serde_json::from_str(&json).expect("deserialize");
+
+    assert_eq!(restored.function_name, trigger.function_name);
+    assert_eq!(restored.schedule, trigger.schedule);
+    assert_eq!(restored.timezone, trigger.timezone);
+}
+
+/// Test: cron execution state persistence
+#[test]
+fn test_cron_execution_state_serialization() {
+    let mut state = CronExecutionState::new();
+    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
+        .expect("parse")
+        .with_timezone(&chrono::Utc);
+    state.record_execution(exec_time);
+
+    let json = serde_json::to_string(&state).expect("serialize");
+    let restored: CronExecutionState = serde_json::from_str(&json).expect("deserialize");
+
+    assert_eq!(restored.last_executed, Some(exec_time));
+}
