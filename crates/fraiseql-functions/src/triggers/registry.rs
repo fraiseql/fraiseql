@@ -102,6 +102,42 @@ impl ParsedTrigger {
             }),
         }
     }
+
+    /// Get the trigger type name (e.g., "after:mutation", "http").
+    pub fn trigger_type(&self) -> &'static str {
+        match self {
+            ParsedTrigger::AfterMutation { .. } => "after:mutation",
+            ParsedTrigger::BeforeMutation { .. } => "before:mutation",
+            ParsedTrigger::AfterStorage { .. } => "after:storage",
+            ParsedTrigger::Cron { .. } => "cron",
+            ParsedTrigger::Http { .. } => "http",
+        }
+    }
+
+    /// Check if this is an after:mutation trigger.
+    pub fn is_after_mutation(&self) -> bool {
+        matches!(self, ParsedTrigger::AfterMutation { .. })
+    }
+
+    /// Check if this is a before:mutation trigger.
+    pub fn is_before_mutation(&self) -> bool {
+        matches!(self, ParsedTrigger::BeforeMutation { .. })
+    }
+
+    /// Check if this is an HTTP trigger.
+    pub fn is_http(&self) -> bool {
+        matches!(self, ParsedTrigger::Http { .. })
+    }
+
+    /// Check if this is a cron trigger.
+    pub fn is_cron(&self) -> bool {
+        matches!(self, ParsedTrigger::Cron { .. })
+    }
+
+    /// Check if this is an after:storage trigger.
+    pub fn is_after_storage(&self) -> bool {
+        matches!(self, ParsedTrigger::AfterStorage { .. })
+    }
 }
 
 /// Central registry for all triggers in the system.
@@ -202,6 +238,31 @@ impl TriggerRegistry {
     pub fn http_route_count(&self) -> usize {
         self.http_routes.routes().len()
     }
+
+    /// Get all HTTP routes.
+    pub fn http_routes(&self) -> &[HttpTriggerRoute] {
+        self.http_routes.routes()
+    }
+
+    /// Find an HTTP route by method and path.
+    pub fn find_http_route(&self, method: &str, path: &str) -> Option<HttpTriggerRoute> {
+        self.http_routes.find(method, path)
+    }
+
+    /// Get all before:mutation triggers for a specific mutation.
+    pub fn before_mutation_triggers_for(&self, mutation_name: &str) -> Vec<&BeforeMutationTrigger> {
+        self.before_mutation_triggers
+            .iter()
+            .filter(|t| t.mutation_name == mutation_name)
+            .collect()
+    }
+
+    /// Check if there are any before:mutation triggers for a mutation.
+    pub fn has_before_mutation_triggers(&self, mutation_name: &str) -> bool {
+        self.before_mutation_triggers
+            .iter()
+            .any(|t| t.mutation_name == mutation_name)
+    }
 }
 
 #[cfg(test)]
@@ -296,5 +357,38 @@ mod tests {
         let route = registry.http_routes.find("GET", "/users/123");
         assert!(route.is_some());
         assert_eq!(route.expect("route found").function_name, "getUser");
+    }
+
+    #[test]
+    fn test_parsed_trigger_type_detection() {
+        let after_mut = ParsedTrigger::parse("after:mutation:createUser").expect("parse");
+        assert!(after_mut.is_after_mutation());
+        assert_eq!(after_mut.trigger_type(), "after:mutation");
+
+        let http = ParsedTrigger::parse("http:POST:/data").expect("parse");
+        assert!(http.is_http());
+        assert_eq!(http.trigger_type(), "http");
+    }
+
+    #[test]
+    fn test_registry_before_mutation_lookup() {
+        use crate::{FunctionDefinition, RuntimeType};
+
+        let functions = vec![
+            FunctionDefinition::new("validate1", "before:mutation:createUser", RuntimeType::Deno),
+            FunctionDefinition::new("validate2", "before:mutation:createUser", RuntimeType::Deno),
+            FunctionDefinition::new("validate3", "before:mutation:deleteUser", RuntimeType::Deno),
+        ];
+
+        let registry = TriggerRegistry::load_from_definitions(&functions)
+            .expect("load registry");
+
+        assert_eq!(registry.before_mutation_count(), 3);
+        assert!(registry.has_before_mutation_triggers("createUser"));
+        assert!(registry.has_before_mutation_triggers("deleteUser"));
+        assert!(!registry.has_before_mutation_triggers("updateUser"));
+
+        let create_user_triggers = registry.before_mutation_triggers_for("createUser");
+        assert_eq!(create_user_triggers.len(), 2);
     }
 }
