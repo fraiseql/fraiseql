@@ -94,7 +94,7 @@ impl FunctionRuntime for DenoRuntime {
         module: &FunctionModule,
         event: EventPayload,
         _host: &H,
-        _limits: ResourceLimits,
+        limits: ResourceLimits,
     ) -> impl std::future::Future<Output = Result<FunctionResult>> + Send
     where
         H: HostContext + ?Sized,
@@ -107,7 +107,7 @@ impl FunctionRuntime for DenoRuntime {
 
             // Execute in a blocking task since JsRuntime is not Send
             let result = tokio::task::spawn_blocking(move || {
-                executor::execute_deno_code(source, event_value)
+                executor::execute_deno_code(&source, event_value, &limits)
             })
             .await;
 
