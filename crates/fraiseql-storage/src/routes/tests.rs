@@ -241,3 +241,169 @@ async fn test_unknown_bucket_returns_404() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+// ---------------------------------------------------------------------------
+// Cycle 7: Observability — error condition tests
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_mime_type_rejection_returns_415() {
+    let (state, _keep) = test_state("images-only", BucketAccess::PublicRead).await;
+
+    // Reconfigure bucket with restricted MIME types
+    let mut buckets = HashMap::new();
+    buckets.insert(
+        "images-only".to_string(),
+        BucketConfig {
+            name: "images-only".to_string(),
+            max_object_bytes: None,
+            allowed_mime_types: Some(vec!["image/*".to_string()]),
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
+        },
+    );
+    let state = StorageState {
+        buckets: Arc::new(buckets),
+        ..state
+    };
+    let app = authenticated_router(state);
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/images-only/file.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("not an image"))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
+
+// ---------------------------------------------------------------------------
+// Cycle 6: OIDC-Aware Auth Tests
+// ---------------------------------------------------------------------------
+
+/// Anonymous router: no StorageUser extension injected.
+fn anonymous_router(state: StorageState) -> axum::Router {
+    storage_router(state)
+}
+
+#[tokio::test]
+async fn test_anonymous_read_on_public_bucket_succeeds() {
+    let (state, _keep) = test_state("public-files", BucketAccess::PublicRead).await;
+
+    // Upload as authenticated user first
+    let app = authenticated_router(state.clone());
+    let upload = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/public-files/hello.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("public content"))
+        .unwrap();
+    app.oneshot(upload).await.unwrap();
+
+    // Read as anonymous — should succeed on public bucket
+    let app = anonymous_router(state);
+    let download = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/public-files/hello.txt")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(download).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_anonymous_read_on_private_bucket_denied() {
+    let (state, _keep) = test_state("private-files", BucketAccess::Private).await;
+
+    // Upload as authenticated user
+    let app = authenticated_router(state.clone());
+    let upload = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/private-files/secret.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("secret content"))
+        .unwrap();
+    app.oneshot(upload).await.unwrap();
+
+    // Read as anonymous — should be denied on private bucket
+    let app = anonymous_router(state);
+    let download = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/private-files/secret.txt")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(download).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_anonymous_upload_denied() {
+    let (state, _keep) = test_state("files", BucketAccess::PublicRead).await;
+    let app = anonymous_router(state);
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/files/nope.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("should fail"))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_authenticated_user_reads_own_object_on_private_bucket() {
+    let (state, _keep) = test_state("private-files", BucketAccess::Private).await;
+
+    // Upload as test-user
+    let app = authenticated_router(state.clone());
+    let upload = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/private-files/mine.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("my data"))
+        .unwrap();
+    app.oneshot(upload).await.unwrap();
+
+    // Read as same user — should work
+    let app = authenticated_router(state);
+    let download = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/private-files/mine.txt")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(download).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_different_user_denied_on_private_bucket() {
+    let (state, _keep) = test_state("private-files", BucketAccess::Private).await;
+
+    // Upload as test-user
+    let app = authenticated_router(state.clone());
+    let upload = Request::builder()
+        .method("PUT")
+        .uri("/storage/v1/object/private-files/owned.txt")
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Body::from("owned by test-user"))
+        .unwrap();
+    app.oneshot(upload).await.unwrap();
+
+    // Read as different user — should be denied
+    let other_user = StorageUser {
+        user_id: Some("other-user".to_string()),
+        roles: vec!["user".to_string()],
+    };
+    let app = storage_router(state).layer(Extension(other_user));
+    let download = Request::builder()
+        .method("GET")
+        .uri("/storage/v1/object/private-files/owned.txt")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(download).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}

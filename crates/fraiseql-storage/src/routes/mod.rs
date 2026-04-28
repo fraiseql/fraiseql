@@ -155,12 +155,24 @@ async fn put_handler(
 
     // RLS: check write permission
     if !state.rls.can_write(user.user_id.as_deref(), &user.roles, bucket) {
+        tracing::warn!(
+            bucket = %bucket_name,
+            user_id = ?user.user_id,
+            "Storage upload denied: authentication required"
+        );
         return error_response(StatusCode::UNAUTHORIZED, "unauthorized", "Authentication required");
     }
 
     // Validate size
     if let Some(max_bytes) = bucket.max_object_bytes {
         if body.len() as u64 > max_bytes {
+            tracing::warn!(
+                bucket = %bucket_name,
+                key = %key,
+                size = body.len(),
+                max_bytes = max_bytes,
+                "Storage upload rejected: payload too large"
+            );
             return error_response(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "payload_too_large",
@@ -178,6 +190,12 @@ async fn put_handler(
     // Validate MIME type
     if let Some(ref allowed) = bucket.allowed_mime_types {
         if !allowed.is_empty() && !allowed.iter().any(|m| mime_matches(m, content_type)) {
+            tracing::warn!(
+                bucket = %bucket_name,
+                key = %key,
+                content_type = %content_type,
+                "Storage upload rejected: MIME type not allowed"
+            );
             return error_response(
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 "mime_type_rejected",
@@ -234,6 +252,12 @@ async fn get_handler(
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
     if !state.rls.can_read(user.user_id.as_deref(), &user.roles, bucket, &row) {
+        tracing::warn!(
+            bucket = %bucket_name,
+            key = %key,
+            user_id = ?user.user_id,
+            "Storage download denied: access forbidden"
+        );
         return error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied");
     }
 
@@ -281,6 +305,12 @@ async fn delete_handler(
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
     if !state.rls.can_delete(user.user_id.as_deref(), &user.roles, bucket, &row) {
+        tracing::warn!(
+            bucket = %bucket_name,
+            key = %key,
+            user_id = ?user.user_id,
+            "Storage delete denied: access forbidden"
+        );
         return error_response(StatusCode::FORBIDDEN, "forbidden", "Access denied");
     }
 
@@ -456,15 +486,25 @@ fn storage_error_response(err: FraiseQLError) -> Response {
             let status = match code.as_deref() {
                 Some("not_found") => StatusCode::NOT_FOUND,
                 Some("permission_denied") => StatusCode::FORBIDDEN,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+                _ => {
+                    tracing::error!(
+                        error_code = ?code,
+                        error_message = %message,
+                        "Storage backend error"
+                    );
+                    StatusCode::INTERNAL_SERVER_ERROR
+                }
             };
             error_response(status, code.as_deref().unwrap_or("storage_error"), message)
         }
-        _ => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            &err.to_string(),
-        ),
+        _ => {
+            tracing::error!(error = %err, "Unexpected storage error");
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &err.to_string(),
+            )
+        }
     }
 }
 
