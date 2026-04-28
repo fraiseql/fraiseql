@@ -53,14 +53,14 @@ impl FunctionObserver {
     pub async fn invoke<H>(
         &self,
         module: &FunctionModule,
-        event: EventPayload,
-        host: &H,
-        limits: ResourceLimits,
+        _event: EventPayload,
+        _host: &H,
+        _limits: ResourceLimits,
     ) -> Result<FunctionResult>
     where
         H: HostContext + ?Sized,
     {
-        let runtime_box = self
+        let _runtime_box = self
             .runtimes
             .get(&module.runtime)
             .ok_or_else(|| fraiseql_error::FraiseQLError::Unsupported {

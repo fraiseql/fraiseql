@@ -8,7 +8,9 @@
 //! - `http`: Custom HTTP endpoints
 
 pub mod mutation;
+pub mod storage;
 #[cfg(test)]
 mod tests;
 
 pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};
+pub use storage::{StorageTrigger, StorageOperation, StorageEventPayload};

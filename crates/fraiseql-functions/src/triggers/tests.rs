@@ -324,11 +324,12 @@ fn test_before_mutation_proceed_allows_mutation() {
         "email": "alice@example.com"
     });
 
-    let result = BeforeMutationResult::Proceed(input.clone());
+    let result = BeforeMutationResult::Proceed(input);
 
     match result {
         BeforeMutationResult::Proceed(modified) => {
-            assert_eq!(modified, input);
+            assert_eq!(modified["name"], "Alice");
+            assert_eq!(modified["email"], "alice@example.com");
         }
         BeforeMutationResult::Abort(_) => {
             panic!("Expected Proceed, got Abort");
@@ -339,23 +340,18 @@ fn test_before_mutation_proceed_allows_mutation() {
 /// Test: before:mutation proceed with modified input
 #[test]
 fn test_before_mutation_proceed_with_modified_input() {
-    let input = serde_json::json!({
-        "name": "alice",
-        "email": "alice@example.com"
-    });
-
-    // Function modifies name to uppercase
+    // Function receives and modifies input
     let modified = serde_json::json!({
         "name": "ALICE",
         "email": "alice@example.com"
     });
 
-    let result = BeforeMutationResult::Proceed(modified.clone());
+    let result = BeforeMutationResult::Proceed(modified);
 
     match result {
         BeforeMutationResult::Proceed(output) => {
             assert_eq!(output["name"], "ALICE");
-            assert_ne!(output["name"], input["name"]);
+            assert_ne!(output["name"], "alice");
         }
         BeforeMutationResult::Abort(_) => {
             panic!("Expected Proceed, got Abort");
@@ -538,4 +534,213 @@ fn test_before_mutation_chain_abort_simulation() {
             panic!("Expected abort");
         }
     }
+}
+
+// ============================================================================
+// Cycle 3: after:storage Trigger Tests (RED Phase)
+// ============================================================================
+
+use crate::triggers::storage::{StorageTrigger, StorageOperation, StorageEventPayload};
+
+/// Test: after:storage fires on upload
+#[test]
+fn test_after_storage_upload_fires() {
+    let trigger = StorageTrigger {
+        function_name: "onAvatarUpload".to_string(),
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
+    };
+
+    let storage_event = StorageEventPayload {
+        bucket: "avatars".to_string(),
+        key: "users/alice/avatar.jpg".to_string(),
+        size_bytes: 204_800,
+        content_type: "image/jpeg".to_string(),
+        owner_id: Some("user123".to_string()),
+        operation: StorageOperation::Upload,
+    };
+
+    let payload = trigger.build_payload(&storage_event);
+
+    assert_eq!(payload.trigger_type, "after:storage:avatars:upload");
+    assert_eq!(payload.entity, "avatars");
+    assert_eq!(payload.event_kind, "upload");
+    assert_eq!(payload.data["bucket"], "avatars");
+    assert_eq!(payload.data["key"], "users/alice/avatar.jpg");
+    assert_eq!(payload.data["size_bytes"], 204_800);
+    assert_eq!(payload.data["content_type"], "image/jpeg");
+    assert_eq!(payload.data["owner_id"], "user123");
+}
+
+/// Test: after:storage fires on delete
+#[test]
+fn test_after_storage_delete_fires() {
+    let trigger = StorageTrigger {
+        function_name: "onDocumentDelete".to_string(),
+        bucket: "documents".to_string(),
+        operation: StorageOperation::Delete,
+    };
+
+    let storage_event = StorageEventPayload {
+        bucket: "documents".to_string(),
+        key: "reports/2024/report.pdf".to_string(),
+        size_bytes: 0,
+        content_type: "application/pdf".to_string(),
+        owner_id: Some("user456".to_string()),
+        operation: StorageOperation::Delete,
+    };
+
+    let payload = trigger.build_payload(&storage_event);
+
+    assert_eq!(payload.trigger_type, "after:storage:documents:delete");
+    assert_eq!(payload.entity, "documents");
+    assert_eq!(payload.event_kind, "delete");
+    assert_eq!(payload.data["bucket"], "documents");
+    assert_eq!(payload.data["key"], "reports/2024/report.pdf");
+    assert_eq!(payload.data["operation"], "delete");
+}
+
+/// Test: storage trigger matches bucket correctly
+#[test]
+fn test_after_storage_matches_bucket() {
+    let avatar_trigger = StorageTrigger {
+        function_name: "onAvatarUpload".to_string(),
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
+    };
+
+    // Event for avatars bucket
+    let avatar_event = StorageEventPayload {
+        bucket: "avatars".to_string(),
+        key: "user/avatar.jpg".to_string(),
+        size_bytes: 100_000,
+        content_type: "image/jpeg".to_string(),
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
+    };
+
+    // Event for documents bucket
+    let doc_event = StorageEventPayload {
+        bucket: "documents".to_string(),
+        key: "report.pdf".to_string(),
+        size_bytes: 500_000,
+        content_type: "application/pdf".to_string(),
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
+    };
+
+    assert!(avatar_trigger.matches(&avatar_event));
+    assert!(!avatar_trigger.matches(&doc_event));
+}
+
+/// Test: storage trigger matches operation correctly
+#[test]
+fn test_after_storage_matches_operation() {
+    let upload_trigger = StorageTrigger {
+        function_name: "onAvatarUpload".to_string(),
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
+    };
+
+    let upload_event = StorageEventPayload {
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 100_000,
+        content_type: "image/jpeg".to_string(),
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
+    };
+
+    let delete_event = StorageEventPayload {
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 0,
+        content_type: "image/jpeg".to_string(),
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Delete,
+    };
+
+    assert!(upload_trigger.matches(&upload_event));
+    assert!(!upload_trigger.matches(&delete_event));
+}
+
+/// Test: storage trigger with Any operation matches all events
+#[test]
+fn test_after_storage_matches_any_operation() {
+    let any_trigger = StorageTrigger {
+        function_name: "onStorageEvent".to_string(),
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Any,
+    };
+
+    let upload_event = StorageEventPayload {
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 100_000,
+        content_type: "image/jpeg".to_string(),
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
+    };
+
+    let delete_event = StorageEventPayload {
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 0,
+        content_type: "image/jpeg".to_string(),
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Delete,
+    };
+
+    assert!(any_trigger.matches(&upload_event));
+    assert!(any_trigger.matches(&delete_event));
+}
+
+/// Test: storage trigger ignores transform cache operations
+#[test]
+fn test_after_storage_ignores_transform_cache() {
+    let trigger = StorageTrigger {
+        function_name: "onAvatarUpload".to_string(),
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
+    };
+
+    // Transform cache operations have _transforms/ prefix
+    let transform_event = StorageEventPayload {
+        bucket: "avatars".to_string(),
+        key: "_transforms/avatar-thumb.jpg".to_string(),
+        size_bytes: 50000,
+        content_type: "image/jpeg".to_string(),
+        owner_id: None,
+        operation: StorageOperation::Upload,
+    };
+
+    assert!(!trigger.should_fire(&transform_event));
+}
+
+/// Test: storage trigger payload includes all metadata
+#[test]
+fn test_after_storage_payload_includes_metadata() {
+    let trigger = StorageTrigger {
+        function_name: "onUpload".to_string(),
+        bucket: "documents".to_string(),
+        operation: StorageOperation::Upload,
+    };
+
+    let storage_event = StorageEventPayload {
+        bucket: "documents".to_string(),
+        key: "invoices/INV-001.pdf".to_string(),
+        size_bytes: 1_024_000,
+        content_type: "application/pdf".to_string(),
+        owner_id: Some("company_789".to_string()),
+        operation: StorageOperation::Upload,
+    };
+
+    let payload = trigger.build_payload(&storage_event);
+
+    assert!(payload.data.is_object());
+    assert!(payload.data["bucket"].is_string());
+    assert!(payload.data["key"].is_string());
+    assert!(payload.data["size_bytes"].is_number());
+    assert!(payload.data["content_type"].is_string());
+    assert!(payload.data["owner_id"].is_string());
 }

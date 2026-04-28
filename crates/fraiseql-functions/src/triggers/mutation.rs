@@ -18,7 +18,7 @@ pub enum EventKind {
 
 impl EventKind {
     /// Convert to string representation.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             EventKind::Insert => "insert",
             EventKind::Update => "update",
@@ -93,11 +93,10 @@ impl AfterMutationTrigger {
         self.entity_type == entity
             && self
                 .event_filter
-                .map(|filter| filter == event_kind)
-                .unwrap_or(true)
+                .is_none_or(|filter| filter == event_kind)
     }
 
-    /// Build an EventPayload from an entity event.
+    /// Build an `EventPayload` from an entity event.
     pub fn build_payload(&self, event: &EntityEvent) -> EventPayload {
         EventPayload {
             trigger_type: format!("after:mutation:{}", self.function_name),
@@ -197,15 +196,15 @@ pub struct BeforeMutationChain {
     pub triggers: Vec<BeforeMutationTrigger>,
 }
 
-/// Matcher for efficiently finding triggers by (entity_type, event_kind).
+/// Matcher for efficiently finding triggers by (`entity_type`, `event_kind`).
 ///
-/// Uses a nested HashMap for O(1) lookup:
-/// - entity_type → event_kind → Vec<AfterMutationTrigger>
-/// - When event_kind is None (matches all), stored separately for fallback
+/// Uses a nested `HashMap` for O(1) lookup:
+/// - `entity_type` → `event_kind` → `Vec<AfterMutationTrigger>`
+/// - When `event_kind` is None (matches all), stored separately for fallback
 ///
-/// # Integration with FunctionObserver
+/// # Integration with `FunctionObserver`
 ///
-/// When the FunctionObserver receives an `EntityEvent` from the mutation pipeline,
+/// When the `FunctionObserver` receives an `EntityEvent` from the mutation pipeline,
 /// it calls `find()` to get all matching `AfterMutationTrigger`s. For each matching
 /// trigger, the observer spawns an async task to invoke the function without blocking
 /// the mutation response. Task completion is tracked to prevent leaks on shutdown.
@@ -228,9 +227,9 @@ pub struct BeforeMutationChain {
 /// ```
 #[derive(Debug, Clone)]
 pub struct TriggerMatcher {
-    /// Map of entity_type → event_kind → triggers
+    /// Map of `entity_type` → `event_kind` → triggers
     specific: HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
-    /// Map of entity_type → triggers that match all event kinds
+    /// Map of `entity_type` → triggers that match all event kinds
     all_kinds: HashMap<String, Vec<AfterMutationTrigger>>,
 }
 
@@ -249,15 +248,15 @@ impl TriggerMatcher {
             Some(event_kind) => {
                 self.specific
                     .entry(trigger.entity_type.clone())
-                    .or_insert_with(HashMap::new)
+                    .or_default()
                     .entry(event_kind.as_str().to_string())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(trigger);
             }
             None => {
                 self.all_kinds
                     .entry(trigger.entity_type.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(trigger);
             }
         }
@@ -380,7 +379,7 @@ mod tests {
             event_filter: Some(EventKind::Insert),
         };
 
-        matcher.add(trigger.clone());
+        matcher.add(trigger);
         let results = matcher.find("User", EventKind::Insert);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].function_name, "onUserCreated");
