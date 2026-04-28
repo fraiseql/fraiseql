@@ -13,11 +13,13 @@
 pub mod host;
 pub mod observer;
 pub mod runtime;
+pub mod triggers;
 pub mod types;
 
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
+pub use triggers::mutation::{AfterMutationTrigger, BeforeMutationTrigger, EventKind, EntityEvent};
 pub use types::{
     EventPayload, FunctionModule, FunctionResult, LogEntry, LogLevel, ResourceLimits,
     RuntimeType,
