@@ -256,4 +256,32 @@ impl SubscriptionManager {
             .get(connection_id)
             .map_or(0, |subs| subs.len())
     }
+
+    /// Get all subscribers for an entity with their subscription details.
+    ///
+    /// Returns a vec of `(connection_id, details)` pairs, or `None` if no
+    /// connections are subscribed to this entity.
+    #[must_use]
+    pub fn get_subscribers(&self, entity: &str) -> Option<Vec<(ConnectionId, SubscriptionDetails)>> {
+        let subscriber_set = self.entity_subscribers.get(entity)?;
+        if subscriber_set.is_empty() {
+            return None;
+        }
+
+        let mut result = Vec::with_capacity(subscriber_set.len());
+        for conn_id_ref in subscriber_set.iter() {
+            let conn_id = conn_id_ref.key().clone();
+            if let Some(subs) = self.connection_subscriptions.get(&conn_id) {
+                if let Some(details) = subs.get(entity) {
+                    result.push((conn_id, details.clone()));
+                }
+            }
+        }
+
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
 }

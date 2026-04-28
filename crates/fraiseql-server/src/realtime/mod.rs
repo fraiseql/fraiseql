@@ -13,6 +13,7 @@
 //! all mutations). Different protocols, different use cases.
 
 pub mod connections;
+pub mod delivery;
 pub mod protocol;
 pub mod server;
 pub mod subscriptions;

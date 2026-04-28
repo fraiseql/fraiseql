@@ -207,14 +207,14 @@ async fn handle_realtime_connection(
     let connection_id = uuid::Uuid::new_v4().to_string();
     let config = &server.config;
 
-    // Register connection
+    // Register connection (returns event receiver for delivery pipeline)
     let conn_state = ConnectionState::new(
         connection_id.clone(),
         token_info.user_id.clone(),
         token_info.context_hash,
         token_info.expires_at,
     );
-    server.connections.insert(conn_state);
+    let mut event_rx = server.connections.insert(conn_state);
 
     info!(
         connection_id = %connection_id,
@@ -276,6 +276,13 @@ async fn handle_realtime_connection(
                     reason: "idle timeout".into(),
                 }))).await;
                 break;
+            }
+
+            // Events from delivery pipeline
+            Some(event_json) = event_rx.recv() => {
+                if sender.send(Message::Text(event_json.into())).await.is_err() {
+                    break;
+                }
             }
 
             // Client messages

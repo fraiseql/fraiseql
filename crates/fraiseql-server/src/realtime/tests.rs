@@ -1,12 +1,14 @@
-//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–2).
+//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–3).
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{Router, routing::get};
 use futures::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
+use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite};
 
+use super::delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde, RlsEvaluator};
 use super::server::{
     RealtimeConfig, RealtimeServer, RealtimeState, TokenInfo, TokenValidator, ws_handler,
 };
@@ -669,6 +671,385 @@ async fn test_duplicate_subscribe_is_idempotent() {
     // Second subscribe should also succeed (idempotent, no error)
     assert_eq!(reply["type"], "subscribed");
     assert_eq!(reply["entity"], "Post");
+
+    ws.close(None).await.ok();
+}
+
+// ── Cycle 3: Event Delivery with RLS Tests ─────────────────────────────
+
+/// RLS evaluator that allows all access.
+struct AllowAllRls;
+impl RlsEvaluator for AllowAllRls {
+    async fn can_access(&self, _context_hash: u64, _entity: &str, _row: &serde_json::Value) -> bool {
+        true
+    }
+}
+
+/// RLS evaluator that denies all access.
+struct DenyAllRls;
+impl RlsEvaluator for DenyAllRls {
+    async fn can_access(&self, _context_hash: u64, _entity: &str, _row: &serde_json::Value) -> bool {
+        false
+    }
+}
+
+/// RLS evaluator that tracks how many times it's called.
+struct CountingRls {
+    call_count: std::sync::atomic::AtomicUsize,
+}
+impl CountingRls {
+    fn new() -> Self {
+        Self {
+            call_count: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+    fn count(&self) -> usize {
+        self.call_count.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+impl RlsEvaluator for CountingRls {
+    async fn can_access(&self, _context_hash: u64, _entity: &str, _row: &serde_json::Value) -> bool {
+        self.call_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        true
+    }
+}
+
+/// Helper to spawn a server + delivery pipeline and return (addr, event_tx).
+async fn spawn_server_with_delivery<R: RlsEvaluator>(
+    config: RealtimeConfig,
+    validator: TestValidator,
+    entities: HashSet<String>,
+    rls: Arc<R>,
+) -> (SocketAddr, mpsc::Sender<EntityEvent>) {
+    let server = Arc::new(RealtimeServer::with_entities(config, entities));
+    let (event_tx, event_rx) = mpsc::channel(1000);
+
+    // Spawn the delivery pipeline
+    let pipeline = EventDeliveryPipeline::new(
+        server.subscriptions.clone(),
+        server.connections.clone(),
+        rls,
+        event_rx,
+    );
+    tokio::spawn(pipeline.run());
+
+    let state = RealtimeState {
+        server,
+        validator: Arc::new(validator),
+    };
+
+    let app = Router::new()
+        .route("/realtime/v1", get(ws_handler::<TestValidator>))
+        .with_state(state);
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    (addr, event_tx)
+}
+
+fn make_post_event(event_kind: EventKindSerde, author_id: i64) -> EntityEvent {
+    EntityEvent {
+        entity: "Post".to_owned(),
+        event_kind,
+        new: Some(serde_json::json!({"id": 1, "author_id": author_id, "title": "Hello"})),
+        old: None,
+        timestamp: "2026-04-28T12:00:00Z".to_owned(),
+    }
+}
+
+#[tokio::test]
+async fn test_event_delivered_to_subscribed_client() {
+    let (addr, event_tx) = spawn_server_with_delivery(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-alice"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Subscribe to Post
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+
+    // Send an event through the pipeline
+    event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
+
+    // Client should receive the change event
+    let msg = next_msg(&mut ws).await;
+    assert_eq!(msg["type"], "change");
+    assert_eq!(msg["entity"], "Post");
+    assert_eq!(msg["event"], "INSERT");
+    assert_eq!(msg["new"]["author_id"], 42);
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_event_not_delivered_to_unsubscribed_client() {
+    let (addr, event_tx) = spawn_server_with_delivery(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    // Connect but do NOT subscribe
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-bob"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Send an event
+    event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
+
+    // Give delivery time to process
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Client should NOT receive anything (use timeout to verify)
+    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    assert!(result.is_err(), "Expected timeout (no message), got a message");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_event_rls_filters_unauthorized() {
+    let (addr, event_tx) = spawn_server_with_delivery(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(DenyAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-carol"))).await.unwrap();
+    let _ = next_msg(&mut ws).await;
+
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    // Send event — RLS denies all
+    event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
+
+    // Should NOT receive the event (silently dropped by RLS)
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    assert!(result.is_err(), "Expected no message (RLS denied), got a message");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_event_rls_allows_authorized() {
+    // Use AllowAllRls — client should receive
+    let (addr, event_tx) = spawn_server_with_delivery(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-dave"))).await.unwrap();
+    let _ = next_msg(&mut ws).await;
+
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    event_tx.send(make_post_event(EventKindSerde::Update, 99)).await.unwrap();
+
+    let msg = next_msg(&mut ws).await;
+    assert_eq!(msg["type"], "change");
+    assert_eq!(msg["event"], "UPDATE");
+    assert_eq!(msg["new"]["author_id"], 99);
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_event_rls_grouping_by_context_hash() {
+    // The TestValidator hashes user_id, so same user = same hash.
+    // Different users = different hashes = separate RLS evaluations.
+    let counting_rls = Arc::new(CountingRls::new());
+    let config = RealtimeConfig {
+        max_connections_per_context: 100,
+        ..RealtimeConfig::default()
+    };
+    let (addr, event_tx) = spawn_server_with_delivery(
+        config,
+        TestValidator::new(),
+        test_entities(),
+        counting_rls.clone(),
+    )
+    .await;
+
+    // Connect 3 clients with same user (same context hash)
+    let mut same_user_ws = Vec::new();
+    for i in 0..3 {
+        let (mut ws, _) = connect_async(ws_url(addr, Some("valid-sameuser"))).await.unwrap();
+        let _ = next_msg(&mut ws).await;
+        send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+        let reply = next_msg(&mut ws).await;
+        assert_eq!(reply["type"], "subscribed", "client {i} failed to subscribe");
+        same_user_ws.push(ws);
+    }
+
+    // Connect 2 clients with different users (different hashes)
+    let (mut ws_diff1, _) = connect_async(ws_url(addr, Some("valid-other1"))).await.unwrap();
+    let _ = next_msg(&mut ws_diff1).await;
+    send_json(&mut ws_diff1, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws_diff1).await;
+
+    let (mut ws_diff2, _) = connect_async(ws_url(addr, Some("valid-other2"))).await.unwrap();
+    let _ = next_msg(&mut ws_diff2).await;
+    send_json(&mut ws_diff2, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws_diff2).await;
+
+    // Send event
+    event_tx.send(make_post_event(EventKindSerde::Insert, 1)).await.unwrap();
+
+    // Wait for delivery
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Should have 3 RLS evaluations (3 distinct context hashes: sameuser, other1, other2)
+    // NOT 5 (one per connection)
+    let rls_calls = counting_rls.count();
+    assert_eq!(
+        rls_calls, 3,
+        "Expected 3 RLS evaluations (one per distinct context hash), got {rls_calls}"
+    );
+
+    // All 5 clients should have received the event
+    for ws in &mut same_user_ws {
+        let msg = next_msg(ws).await;
+        assert_eq!(msg["type"], "change");
+    }
+    let msg = next_msg(&mut ws_diff1).await;
+    assert_eq!(msg["type"], "change");
+    let msg = next_msg(&mut ws_diff2).await;
+    assert_eq!(msg["type"], "change");
+
+    for ws in &mut same_user_ws {
+        ws.close(None).await.ok();
+    }
+    ws_diff1.close(None).await.ok();
+    ws_diff2.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_event_field_filter_applied() {
+    let (addr, event_tx) = spawn_server_with_delivery(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-eve"))).await.unwrap();
+    let _ = next_msg(&mut ws).await;
+
+    // Subscribe with field filter: only author_id=123
+    send_json(
+        &mut ws,
+        serde_json::json!({"type": "subscribe", "entity": "Post", "filter": "author_id=eq.123"}),
+    )
+    .await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    // Send event with author_id=456 — should NOT be delivered
+    event_tx.send(make_post_event(EventKindSerde::Insert, 456)).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    assert!(result.is_err(), "Expected no message for author_id=456");
+
+    // Send event with author_id=123 — SHOULD be delivered
+    event_tx.send(make_post_event(EventKindSerde::Insert, 123)).await.unwrap();
+    let msg = next_msg(&mut ws).await;
+    assert_eq!(msg["type"], "change");
+    assert_eq!(msg["new"]["author_id"], 123);
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_event_type_filter_applied() {
+    let (addr, event_tx) = spawn_server_with_delivery(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-frank"))).await.unwrap();
+    let _ = next_msg(&mut ws).await;
+
+    // Subscribe to INSERT only
+    send_json(
+        &mut ws,
+        serde_json::json!({"type": "subscribe", "entity": "Post", "event": "INSERT"}),
+    )
+    .await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    // Send UPDATE event — should NOT be delivered
+    event_tx.send(make_post_event(EventKindSerde::Update, 42)).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    assert!(result.is_err(), "Expected no message for UPDATE event");
+
+    // Send INSERT event — SHOULD be delivered
+    event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
+    let msg = next_msg(&mut ws).await;
+    assert_eq!(msg["type"], "change");
+    assert_eq!(msg["event"], "INSERT");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_event_payload_format() {
+    let (addr, event_tx) = spawn_server_with_delivery(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-grace"))).await.unwrap();
+    let _ = next_msg(&mut ws).await;
+
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    // Send a DELETE event with old data
+    let event = EntityEvent {
+        entity: "Post".to_owned(),
+        event_kind: EventKindSerde::Delete,
+        new: None,
+        old: Some(serde_json::json!({"id": 7, "title": "Deleted post"})),
+        timestamp: "2026-04-28T15:30:00Z".to_owned(),
+    };
+    event_tx.send(event).await.unwrap();
+
+    let msg = next_msg(&mut ws).await;
+    // Verify full payload format
+    assert_eq!(msg["type"], "change");
+    assert_eq!(msg["entity"], "Post");
+    assert_eq!(msg["event"], "DELETE");
+    assert!(msg["new"].is_null());
+    assert_eq!(msg["old"]["id"], 7);
+    assert_eq!(msg["old"]["title"], "Deleted post");
+    assert_eq!(msg["timestamp"], "2026-04-28T15:30:00Z");
 
     ws.close(None).await.ok();
 }
