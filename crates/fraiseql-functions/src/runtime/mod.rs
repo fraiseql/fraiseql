@@ -3,6 +3,9 @@
 #[cfg(feature = "runtime-wasm")]
 pub mod wasm;
 
+#[cfg(feature = "runtime-deno")]
+pub mod deno;
+
 use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
 use crate::HostContext;
 use fraiseql_error::Result;

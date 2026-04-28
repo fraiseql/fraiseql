@@ -28,11 +28,16 @@ tokio = {workspace = true, features = ["full"]}
 
 [features]
 runtime-wasm = ["wasmtime"]
+runtime-deno = ["deno_core"]
 
 [dependencies.wasmtime]
 version = "18"
 optional = true
 features = ["component-model"]
+
+[dependencies.deno_core]
+version = "0.290"
+optional = true
 
 [lints]
 workspace = true
