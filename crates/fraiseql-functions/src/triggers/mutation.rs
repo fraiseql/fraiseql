@@ -114,6 +114,26 @@ impl AfterMutationTrigger {
 }
 
 /// Result of a before-mutation trigger execution.
+///
+/// # Semantics
+///
+/// - `Proceed`: Allows mutation to continue with the provided input
+///   - Input may be modified from original
+///   - Passed to next trigger in chain (if any)
+/// - `Abort`: Prevents mutation from executing
+///   - Returns error to client immediately
+///   - Short-circuits remaining triggers in chain
+///   - Side-effects from aborted triggers are NOT rolled back
+///
+/// # Important: Side-Effects Not Rolled Back
+///
+/// If a `before:mutation` trigger abort is triggered, any side-effects
+/// (HTTP calls, storage writes, logs) from earlier triggers in the chain
+/// are NOT rolled back. Only the mutation itself is prevented.
+///
+/// This is by design: function side-effects are intended to be independent
+/// of mutation success. For example, if a function logs an audit entry and
+/// then a later trigger aborts, the audit entry remains.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum BeforeMutationResult {
