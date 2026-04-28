@@ -15,6 +15,7 @@
 //! 4. Captures logs and enforces resource limits throughout
 //! 5. Properly cleans up the isolate after execution
 
+pub mod executor;
 pub mod tests;
 
 use crate::runtime::FunctionRuntime;
@@ -87,41 +88,59 @@ impl FunctionRuntime for DenoRuntime {
     /// 3. Calls the default export with the event as a JS object
     /// 4. Captures logs and enforces resource limits
     /// 5. Properly cleans up the isolate after execution
-    ///
-    /// # Phase 4, Cycle 1 Status
-    ///
-    /// Basic execution framework in place. Full implementation with proper
-    /// Promise handling, resource limits, and error handling in progress.
     #[allow(clippy::manual_async_fn)]  // Reason: impl Future syntax for trait compatibility
     fn invoke<H>(
         &self,
-        _module: &FunctionModule,
-        _event: EventPayload,
+        module: &FunctionModule,
+        event: EventPayload,
         _host: &H,
         _limits: ResourceLimits,
     ) -> impl std::future::Future<Output = Result<FunctionResult>> + Send
     where
         H: HostContext + ?Sized,
     {
+        let source = String::from_utf8_lossy(&module.bytecode).to_string();
+        let event_value = serde_json::to_value(&event).unwrap_or(serde_json::json!({}));
+
         async move {
-            // TODO(Phase 4, Cycle 1): Implement DenoRuntime execution
-            //
-            // RED phase defines expected behavior via tests. GREEN phase implementation
-            // requires proper deno_core V8 initialization and Promise handling.
-            //
-            // Current blockers:
-            // 1. JsRuntime is not Send, requires spawn_blocking wrapper
-            // 2. V8 initialization causes segfaults in test context
-            // 3. Async event loop integration with tokio needs careful handling
-            //
-            // Strategy for full implementation:
-            // - Use a dedicated deno_core module loader for type-safe module loading
-            // - Implement proper Promise await handling via event loop
-            // - Add resource limit callbacks for memory/timeout enforcement
-            // - Handle both sync and async function exports
-            Err(fraiseql_error::FraiseQLError::Unsupported {
-                message: "DenoRuntime not yet implemented (Phase 4, Cycle 1)".to_string(),
+            let start = std::time::Instant::now();
+
+            // Execute in a blocking task since JsRuntime is not Send
+            let result = tokio::task::spawn_blocking(move || {
+                executor::execute_deno_code(source, event_value)
             })
+            .await;
+
+            let duration = start.elapsed();
+
+            match result {
+                Ok(Ok(value)) => {
+                    Ok(FunctionResult {
+                        value: Some(value),
+                        logs: vec![],
+                        duration,
+                        memory_peak_bytes: 0,
+                    })
+                }
+                Ok(Err(e)) => {
+                    // Check if it's a syntax error
+                    if e.contains("SyntaxError") || e.contains("Parse") {
+                        Err(fraiseql_error::FraiseQLError::Validation {
+                            message: format!("Syntax error: {}", e),
+                            path: None,
+                        })
+                    } else {
+                        Err(fraiseql_error::FraiseQLError::Unsupported {
+                            message: format!("Execution error: {}", e),
+                        })
+                    }
+                }
+                Err(e) => {
+                    Err(fraiseql_error::FraiseQLError::Unsupported {
+                        message: format!("Task execution error: {}", e),
+                    })
+                }
+            }
         }
     }
 
