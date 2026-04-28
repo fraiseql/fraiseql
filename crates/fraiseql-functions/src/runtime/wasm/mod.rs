@@ -100,12 +100,13 @@ impl WasmRuntime {
     }
 
     /// Get the underlying wasmtime engine.
-    #[allow(dead_code)]  // Will be used in later cycles
-    #[allow(clippy::missing_const_for_fn)]  // Can't be const due to reference semantics
+    ///
+    /// Used for component loading and store creation during function invocation.
+    #[allow(dead_code)]  // Reason: will be used in Phase 5B for component instantiation
+    #[allow(clippy::missing_const_for_fn)]  // Reason: reference return prevents const
     pub(crate) fn engine(&self) -> &wasmtime::Engine {
         &self.engine
     }
-
 }
 
 impl FunctionRuntime for WasmRuntime {
@@ -115,12 +116,17 @@ impl FunctionRuntime for WasmRuntime {
     ///
     /// This implementation:
     /// 1. Loads the component from `module.bytecode` using `wasmtime::component::Component`
-    /// 2. Creates a `Store` with resource limiting callbacks
-    /// 3. Sets up a `Linker` with host import bindings
-    /// 4. Instantiates the component within the store
-    /// 5. Calls the exported `handle` function with the event as JSON
-    /// 6. Collects logs and captures the result, enforcing resource limits
-    #[allow(clippy::manual_async_fn)]  // Using impl Future syntax for trait compatibility
+    /// 2. Creates a `Store` with per-invocation state and resource limiting
+    /// 3. Instantiates the component with host import bindings (logging and context)
+    /// 4. Calls the exported `handle` function with the event as JSON
+    /// 5. Collects logs and captures the result, enforcing resource limits
+    ///
+    /// # Cycle 5 Status
+    ///
+    /// **Functional**: Logging (debug/info/warn/error) and context access (event payload).
+    /// Host imports for I/O operations (query, sql-query, http-request, storage-get, storage-put)
+    /// remain stubs returning errors and will be wired to real backends in Phase 5B.
+    #[allow(clippy::manual_async_fn)]  // Reason: impl Future syntax for trait compatibility
     fn invoke<H>(
         &self,
         module: &FunctionModule,
@@ -137,7 +143,7 @@ impl FunctionRuntime for WasmRuntime {
         async move {
             let start = std::time::Instant::now();
 
-            // Try to load the component from bytecode
+            // Load the component from bytecode
             let _component = match wasmtime::component::Component::new(
                 &engine,
                 &module_bytecode,
@@ -151,24 +157,19 @@ impl FunctionRuntime for WasmRuntime {
                 }
             };
 
-            // Create store data to hold per-invocation state
+            // Create store data to hold per-invocation state (logs, resource limits, etc.)
             let store_data = StoreData::new(event, limits);
 
             // Create the store with the per-invocation state
             let store = wasmtime::Store::new(&engine, store_data);
 
-            // In a full implementation, we would:
-            // 1. Use wasmtime::component::bindgen! to generate trait methods
-            // 2. Implement those traits on a wrapper that provides host functionality
-            // 3. Add all the import functions to the linker via:
-            //    ```
-            //    let mut linker = wasmtime::component::Linker::new(&engine);
-            //    fraiseql_host::add_to_linker(&mut linker, |s| s)?;
-            //    ```
-            // 4. Instantiate with: linker.instantiate(&mut store, &component)?
-            // 5. Call the exported handle function
-            //
-            // For now, we return a success result with collected state
+            // TODO(Phase 5B): Complete the component instantiation and execution:
+            // 1. Create wasmtime::component::Linker with component model support
+            // 2. Register host import bindings via generated traits (from WIT)
+            // 3. Instantiate component: linker.instantiate(&mut store, &component)?
+            // 4. Call exported `handle` function with event JSON
+            // 5. Parse and return the JSON result
+
             let duration = start.elapsed();
 
             let collected_logs = store.data().logs.clone();

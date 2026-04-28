@@ -88,19 +88,29 @@ impl StoreData {
 
     /// Get the auth context (if available) as JSON or an error string.
     ///
+    /// # Implementation Note
+    ///
+    /// Stub implementation. Auth context extraction from the host is deferred to Phase 5B
+    /// when the `LiveHostContext` bridge is implemented. For now, always returns an error.
+    ///
     /// # Errors
     ///
-    /// Returns `Err` since auth context is not yet implemented (Cycle 5b).
+    /// Always returns an error since auth context is not yet available.
     pub fn get_auth_context_json(&self) -> wasmtime::Result<String> {
         Err(wasmtime::Error::msg("auth context not available"))
     }
 
-    /// Get an environment variable.
+    /// Get an environment variable value.
+    ///
+    /// # Implementation Note
+    ///
+    /// Stub implementation. Environment variable access is deferred to Phase 5B
+    /// when the `LiveHostContext` bridge is implemented. For now, always returns `None`.
     ///
     /// # Errors
     ///
-    /// Never errors; returns `None` if variable is not set.
-    #[allow(clippy::missing_const_for_fn)]  // Reason: returns Result with String type
+    /// Never returns an error.
+    #[allow(clippy::missing_const_for_fn)]  // Reason: returns Result with generic type
     pub fn get_env_var_value(&self, _name: &str) -> wasmtime::Result<Option<String>> {
         Ok(None)
     }
