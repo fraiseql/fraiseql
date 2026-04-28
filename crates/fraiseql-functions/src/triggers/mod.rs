@@ -8,11 +8,13 @@
 //! - `http`: Custom HTTP endpoints
 
 pub mod cron;
+pub mod http;
 pub mod mutation;
 pub mod storage;
 #[cfg(test)]
 mod tests;
 
 pub use cron::{CronTrigger, CronSchedule, CronExecutionState};
+pub use http::{HttpTriggerRoute, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerMatcher};
 pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};
 pub use storage::{StorageTrigger, StorageOperation, StorageEventPayload};

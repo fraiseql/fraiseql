@@ -23,8 +23,8 @@ pub use triggers::mutation::{
     AfterMutationTrigger, BeforeMutationTrigger, EntityEvent, EventKind, TriggerMatcher,
 };
 pub use types::{
-    EventPayload, FunctionModule, FunctionResult, LogEntry, LogLevel, ResourceLimits,
-    RuntimeType,
+    EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,
+    ResourceLimits, RuntimeType,
 };
 
 #[cfg(test)]

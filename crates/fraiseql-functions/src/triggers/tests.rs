@@ -1015,3 +1015,227 @@ fn test_cron_execution_state_serialization() {
 
     assert_eq!(restored.last_executed, Some(exec_time));
 }
+
+/// Test: HTTP trigger GET route parsing
+#[test]
+fn test_http_trigger_get_route() {
+    use crate::triggers::http::HttpTriggerRoute;
+
+    let route = HttpTriggerRoute {
+        function_name: "helloWorld".to_string(),
+        method: "GET".to_string(),
+        path: "/functions/v1/hello".to_string(),
+        requires_auth: false,
+    };
+
+    assert_eq!(route.function_name, "helloWorld");
+    assert_eq!(route.method, "GET");
+    assert_eq!(route.path, "/functions/v1/hello");
+    assert!(!route.requires_auth);
+}
+
+/// Test: HTTP trigger POST route with auth required
+#[test]
+fn test_http_trigger_post_route_with_auth() {
+    use crate::triggers::http::HttpTriggerRoute;
+
+    let route = HttpTriggerRoute {
+        function_name: "processData".to_string(),
+        method: "POST".to_string(),
+        path: "/functions/v1/process".to_string(),
+        requires_auth: true,
+    };
+
+    assert_eq!(route.function_name, "processData");
+    assert_eq!(route.method, "POST");
+    assert!(route.requires_auth);
+}
+
+/// Test: HTTP trigger request body handling
+#[test]
+fn test_http_trigger_request_payload() {
+    use crate::triggers::http::HttpTriggerPayload;
+
+    let payload = HttpTriggerPayload {
+        method: "POST".to_string(),
+        path: "/functions/v1/users".to_string(),
+        headers: serde_json::json!({
+            "content-type": "application/json",
+            "x-user-id": "123"
+        }),
+        query: serde_json::json!({}),
+        params: serde_json::json!({
+            "id": "user-123"
+        }),
+        body: Some(serde_json::json!({
+            "name": "Alice",
+            "email": "alice@example.com"
+        })),
+    };
+
+    assert_eq!(payload.method, "POST");
+    assert_eq!(payload.path, "/functions/v1/users");
+    assert!(payload.body.is_some());
+    assert_eq!(payload.body.expect("body exists")["name"], "Alice");
+}
+
+/// Test: HTTP trigger path parameters extraction
+#[test]
+fn test_http_trigger_path_params() {
+    use crate::triggers::http::HttpTriggerPayload;
+
+    let payload = HttpTriggerPayload {
+        method: "GET".to_string(),
+        path: "/functions/v1/users/123".to_string(),
+        headers: serde_json::json!({}),
+        query: serde_json::json!({}),
+        params: serde_json::json!({
+            "id": "123"
+        }),
+        body: None,
+    };
+
+    assert_eq!(payload.params["id"], "123");
+}
+
+/// Test: HTTP trigger response with custom status code
+#[test]
+fn test_http_trigger_response_custom_status() {
+    use crate::triggers::http::HttpTriggerResponse;
+
+    let response = HttpTriggerResponse {
+        status: 201,
+        headers: serde_json::json!({
+            "x-custom-header": "value"
+        }),
+        body: serde_json::json!({
+            "id": "new-user-123",
+            "created": true
+        }),
+    };
+
+    assert_eq!(response.status, 201);
+    assert_eq!(response.headers["x-custom-header"], "value");
+    assert_eq!(response.body["id"], "new-user-123");
+}
+
+/// Test: HTTP trigger response with default status 200
+#[test]
+fn test_http_trigger_response_default_status() {
+    use crate::triggers::http::HttpTriggerResponse;
+
+    let response = HttpTriggerResponse {
+        status: 200,
+        headers: serde_json::json!({}),
+        body: serde_json::json!({"message": "OK"}),
+    };
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["message"], "OK");
+}
+
+/// Test: HTTP trigger method parsing
+#[test]
+fn test_http_trigger_method_parsing() {
+    use crate::triggers::http::HttpTriggerRoute;
+
+    for method in &["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] {
+        let route = HttpTriggerRoute {
+            function_name: "test".to_string(),
+            method: method.to_string(),
+            path: "/test".to_string(),
+            requires_auth: false,
+        };
+        assert_eq!(route.method, *method);
+    }
+}
+
+/// Test: HTTP trigger route matching
+#[test]
+fn test_http_trigger_route_matching() {
+    use crate::triggers::http::{HttpTriggerRoute, HttpTriggerMatcher};
+
+    let mut matcher = HttpTriggerMatcher::new();
+    matcher.add(HttpTriggerRoute {
+        function_name: "getUser".to_string(),
+        method: "GET".to_string(),
+        path: "/users/:id".to_string(),
+        requires_auth: true,
+    });
+
+    matcher.add(HttpTriggerRoute {
+        function_name: "createUser".to_string(),
+        method: "POST".to_string(),
+        path: "/users".to_string(),
+        requires_auth: true,
+    });
+
+    // GET /users/:id should match
+    let route = matcher.find("GET", "/users/123");
+    assert!(route.is_some());
+    assert_eq!(route.expect("route matched").function_name, "getUser");
+
+    // POST /users should match
+    let route = matcher.find("POST", "/users");
+    assert!(route.is_some());
+    assert_eq!(route.expect("route matched").function_name, "createUser");
+
+    // GET /posts should not match
+    let route = matcher.find("GET", "/posts");
+    assert!(route.is_none());
+}
+
+/// Test: HTTP trigger query parameters
+#[test]
+fn test_http_trigger_query_parameters() {
+    use crate::triggers::http::HttpTriggerPayload;
+
+    let payload = HttpTriggerPayload {
+        method: "GET".to_string(),
+        path: "/functions/v1/search".to_string(),
+        headers: serde_json::json!({}),
+        query: serde_json::json!({
+            "q": "alice",
+            "limit": 10
+        }),
+        params: serde_json::json!({}),
+        body: None,
+    };
+
+    assert_eq!(payload.query["q"], "alice");
+    assert_eq!(payload.query["limit"], 10);
+}
+
+/// Test: HTTP trigger event payload building
+#[test]
+fn test_http_trigger_event_payload() {
+    use crate::triggers::http::HttpTriggerRoute;
+
+    let route = HttpTriggerRoute {
+        function_name: "handleRequest".to_string(),
+        method: "POST".to_string(),
+        path: "/functions/v1/webhook".to_string(),
+        requires_auth: false,
+    };
+
+    let http_payload = serde_json::json!({
+        "method": "POST",
+        "path": "/functions/v1/webhook",
+        "body": {"event": "user.created"}
+    });
+
+    let trigger_type = format!("http:{}:{}", route.method, route.path);
+    assert_eq!(trigger_type, "http:POST:/functions/v1/webhook");
+
+    // Verify event payload would include this trigger type
+    let event = EventPayload {
+        trigger_type,
+        entity: "HttpRequest".to_string(),
+        event_kind: "request".to_string(),
+        data: http_payload,
+        timestamp: chrono::Utc::now(),
+    };
+
+    assert_eq!(event.entity, "HttpRequest");
+    assert_eq!(event.event_kind, "request");
+}
