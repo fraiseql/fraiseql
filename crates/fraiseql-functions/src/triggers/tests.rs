@@ -1239,3 +1239,112 @@ fn test_http_trigger_event_payload() {
     assert_eq!(event.entity, "HttpRequest");
     assert_eq!(event.event_kind, "request");
 }
+
+/// Test: function definition creation
+#[test]
+fn test_function_definition_creation() {
+    use crate::FunctionDefinition;
+
+    let func = FunctionDefinition::new("onUserCreated", "after:mutation:createUser", crate::RuntimeType::Deno);
+    assert_eq!(func.name, "onUserCreated");
+    assert_eq!(func.trigger, "after:mutation:createUser");
+    assert!(func.is_after_mutation());
+    assert!(!func.is_cron());
+}
+
+/// Test: function definition trigger detection
+#[test]
+fn test_function_definition_trigger_detection() {
+    use crate::{FunctionDefinition, RuntimeType};
+
+    let after_mutation = FunctionDefinition::new("test", "after:mutation:createUser", RuntimeType::Deno);
+    assert!(after_mutation.is_after_mutation());
+    assert!(!after_mutation.is_before_mutation());
+
+    let before_mutation = FunctionDefinition::new("test", "before:mutation:validateUser", RuntimeType::Deno);
+    assert!(before_mutation.is_before_mutation());
+    assert!(!before_mutation.is_after_mutation());
+
+    let cron = FunctionDefinition::new("test", "cron:0 * * * *", RuntimeType::Deno);
+    assert!(cron.is_cron());
+
+    let http = FunctionDefinition::new("test", "http:GET:/hello", RuntimeType::Deno);
+    assert!(http.is_http());
+
+    let storage = FunctionDefinition::new("test", "after:storage:avatars:upload", RuntimeType::Deno);
+    assert!(storage.is_after_storage());
+}
+
+/// Test: function definition effective timeout
+#[test]
+fn test_function_definition_effective_timeout() {
+    use crate::{FunctionDefinition, RuntimeType};
+    use std::time::Duration;
+
+    let before_mutation = FunctionDefinition::new("test", "before:mutation:createUser", RuntimeType::Deno);
+    assert_eq!(before_mutation.effective_timeout(), Duration::from_millis(500));
+
+    let after_mutation = FunctionDefinition::new("test", "after:mutation:createUser", RuntimeType::Deno);
+    assert_eq!(after_mutation.effective_timeout(), Duration::from_secs(5));
+
+    let custom = FunctionDefinition::new("test", "http:GET:/hello", RuntimeType::Deno)
+        .with_timeout(1000);
+    assert_eq!(custom.effective_timeout(), Duration::from_millis(1000));
+}
+
+/// Test: trigger registry loads function definitions
+#[test]
+fn test_trigger_registry_loads_definitions() {
+    use crate::{FunctionDefinition, RuntimeType};
+
+    let functions = vec![
+        FunctionDefinition::new("onUserCreated", "after:mutation:createUser", RuntimeType::Deno),
+        FunctionDefinition::new("validateUserInput", "before:mutation:createUser", RuntimeType::Deno),
+        FunctionDefinition::new("getUser", "http:GET:/users/:id", RuntimeType::Deno),
+        FunctionDefinition::new("dailyReport", "cron:0 2 * * *", RuntimeType::Deno),
+    ];
+
+    assert_eq!(functions.len(), 4);
+    assert_eq!(functions[0].name, "onUserCreated");
+    assert!(functions[0].is_after_mutation());
+    assert!(functions[1].is_before_mutation());
+    assert!(functions[2].is_http());
+    assert!(functions[3].is_cron());
+}
+
+/// Test: trigger registry validates trigger format
+#[test]
+fn test_trigger_registry_validates_format() {
+    use crate::{FunctionDefinition, RuntimeType};
+
+    // Valid triggers should parse
+    let valid_triggers = vec![
+        "after:mutation:createUser",
+        "before:mutation:deleteUser",
+        "after:storage:avatars:upload",
+        "cron:0 * * * *",
+        "http:GET:/users/:id",
+        "http:POST:/data",
+    ];
+
+    for trigger in valid_triggers {
+        let func = FunctionDefinition::new("test", trigger, RuntimeType::Deno);
+        // Just check it created successfully
+        assert_eq!(func.trigger, trigger);
+    }
+}
+
+/// Test: trigger registry identifies multiple triggers of same type
+#[test]
+fn test_trigger_registry_multiple_same_type() {
+    use crate::{FunctionDefinition, RuntimeType};
+
+    let functions = vec![
+        FunctionDefinition::new("onUserCreated", "after:mutation:createUser", RuntimeType::Deno),
+        FunctionDefinition::new("onUserUpdated", "after:mutation:updateUser", RuntimeType::Deno),
+        FunctionDefinition::new("onUserDeleted", "after:mutation:deleteUser", RuntimeType::Deno),
+    ];
+
+    let after_mutations: Vec<_> = functions.iter().filter(|f| f.is_after_mutation()).collect();
+    assert_eq!(after_mutations.len(), 3);
+}

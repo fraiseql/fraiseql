@@ -10,6 +10,7 @@
 pub mod cron;
 pub mod http;
 pub mod mutation;
+pub mod registry;
 pub mod storage;
 #[cfg(test)]
 mod tests;
@@ -17,4 +18,5 @@ mod tests;
 pub use cron::{CronTrigger, CronSchedule, CronExecutionState};
 pub use http::{HttpTriggerRoute, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerMatcher};
 pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};
+pub use registry::{TriggerRegistry, ParsedTrigger, RegistryError};
 pub use storage::{StorageTrigger, StorageOperation, StorageEventPayload};
