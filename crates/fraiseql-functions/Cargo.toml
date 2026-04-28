@@ -14,6 +14,9 @@ version.workspace = true
 [dependencies]
 fraiseql-error.workspace = true
 fraiseql-observers.workspace = true
+fraiseql-core = {workspace = true, optional = true}
+fraiseql-db = {workspace = true, optional = true}
+fraiseql-storage = {workspace = true, optional = true}
 bytes.workspace = true
 serde = {workspace = true, features = ["derive"]}
 serde_json.workspace = true
@@ -22,13 +25,18 @@ tokio.workspace = true
 trait-variant = "0.1"
 chrono = {workspace = true, features = ["serde"]}
 sha2.workspace = true
+sqlparser = {version = "0.46", optional = true}
+reqwest = {version = "0.12", optional = true}
 
 [dev-dependencies]
 tokio = {workspace = true, features = ["full"]}
+wiremock = "0.6"
 
 [features]
 runtime-wasm = ["wasmtime"]
 runtime-deno = ["deno_core"]
+host-live = ["fraiseql-core", "fraiseql-db", "sqlparser", "reqwest"]
+host-storage = ["fraiseql-storage"]
 
 [dependencies.wasmtime]
 version = "18"
