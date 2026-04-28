@@ -636,3 +636,117 @@ async fn test_host_http_invalid_url() {
 
     assert!(result.is_err());
 }
+
+// Storage Tests
+
+#[tokio::test]
+async fn test_host_storage_get_returns_bytes() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let backend = super::storage::MockStorageBackend::new();
+    let test_data = b"hello world".to_vec();
+    backend.store("documents", "file.txt", test_data.clone());
+
+    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    ctx.storage_backend = Some(backend as Arc<dyn super::storage::StorageBackend>);
+
+    let result = ctx.storage_get("documents", "file.txt").await;
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), test_data);
+}
+
+#[tokio::test]
+async fn test_host_storage_put_creates_object() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let backend = super::storage::MockStorageBackend::new();
+    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    ctx.storage_backend = Some(backend.clone() as Arc<dyn super::storage::StorageBackend>);
+
+    let test_data = b"test file content".as_slice();
+    let result = ctx
+        .storage_put("documents", "newfile.txt", test_data, "text/plain")
+        .await;
+
+    assert!(result.is_ok());
+    // Verify the data was stored
+    assert_eq!(
+        backend.get_stored("documents", "newfile.txt"),
+        Some(test_data.to_vec())
+    );
+}
+
+#[tokio::test]
+async fn test_host_storage_get_nonexistent_returns_not_found() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let backend = super::storage::MockStorageBackend::new();
+    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    ctx.storage_backend = Some(backend as Arc<dyn super::storage::StorageBackend>);
+
+    let result = ctx.storage_get("documents", "nonexistent.txt").await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Storage { message, .. }) => {
+            assert!(message.contains("not found") || message.contains("does not exist"));
+        }
+        other => panic!("expected Storage error, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_host_storage_put_respects_size_limit() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let backend = super::storage::MockStorageBackend::new();
+
+    // Create config with very small size limit
+    let mut config = HostContextConfig::default();
+    config.max_storage_upload_bytes = 10; // 10 bytes limit
+
+    let mut ctx = LiveHostContext::new(payload, config);
+    ctx.storage_backend = Some(backend as Arc<dyn super::storage::StorageBackend>);
+
+    // Try to upload larger than limit
+    let oversized_data = vec![0u8; 100];
+    let result = ctx
+        .storage_put("documents", "large.txt", &oversized_data, "text/plain")
+        .await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Validation { message, .. }) => {
+            assert!(message.contains("exceeds") || message.contains("size limit"));
+        }
+        other => panic!("expected Validation error, got {:?}", other),
+    }
+}
+
+// Note: test_host_storage_without_backend_returns_unsupported is in host/mod.rs
+// as a trait-level test since it doesn't require a real storage backend

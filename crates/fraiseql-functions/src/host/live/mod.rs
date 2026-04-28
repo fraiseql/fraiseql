@@ -12,6 +12,7 @@ mod tests;
 
 pub mod sql_classifier;
 pub mod http_validator;
+pub mod storage;
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -37,6 +38,9 @@ pub struct HostContextConfig {
 
     /// Read timeout for HTTP requests (milliseconds).
     pub http_read_timeout_ms: u64,
+
+    /// Maximum size for storage uploads (bytes).
+    pub max_storage_upload_bytes: usize,
 }
 
 impl Default for HostContextConfig {
@@ -47,6 +51,7 @@ impl Default for HostContextConfig {
             max_http_response_bytes: 10 * 1024 * 1024, // 10 MB
             http_connect_timeout_ms: 5000,
             http_read_timeout_ms: 30000,
+            max_storage_upload_bytes: 100 * 1024 * 1024, // 100 MB
         }
     }
 }
@@ -78,6 +83,9 @@ pub struct LiveHostContext {
 
     /// HTTP client for outbound requests.
     http_client: Option<Arc<reqwest::Client>>,
+
+    /// Storage backend for file operations.
+    pub storage_backend: Option<Arc<dyn storage::StorageBackend>>,
 }
 
 impl LiveHostContext {
@@ -89,6 +97,7 @@ impl LiveHostContext {
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: None,
             http_client: None,
+            storage_backend: None,
         }
     }
 
@@ -104,6 +113,7 @@ impl LiveHostContext {
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: Some(executor),
             http_client: None,
+            storage_backend: None,
         }
     }
 
@@ -119,6 +129,7 @@ impl LiveHostContext {
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: None,
             http_client: Some(http_client),
+            storage_backend: None,
         }
     }
 
@@ -291,24 +302,44 @@ impl HostContext for LiveHostContext {
 
     async fn storage_get(
         &self,
-        _bucket: &str,
-        _key: &str,
+        bucket: &str,
+        key: &str,
     ) -> Result<Vec<u8>> {
-        Err(fraiseql_error::FraiseQLError::Unsupported {
-            message: "LiveHostContext::storage_get not yet implemented".to_string(),
-        })
+        let backend = self.storage_backend.as_ref().ok_or_else(|| {
+            fraiseql_error::FraiseQLError::Unsupported {
+                message: "storage backend not configured".to_string(),
+            }
+        })?;
+
+        backend.get(bucket, key).await
     }
 
     async fn storage_put(
         &self,
-        _bucket: &str,
-        _key: &str,
-        _body: &[u8],
-        _content_type: &str,
+        bucket: &str,
+        key: &str,
+        body: &[u8],
+        content_type: &str,
     ) -> Result<()> {
-        Err(fraiseql_error::FraiseQLError::Unsupported {
-            message: "LiveHostContext::storage_put not yet implemented".to_string(),
-        })
+        // Check size limit
+        if body.len() > self.config.max_storage_upload_bytes {
+            return Err(fraiseql_error::FraiseQLError::Validation {
+                message: format!(
+                    "upload size {} exceeds limit {}",
+                    body.len(),
+                    self.config.max_storage_upload_bytes
+                ),
+                path: None,
+            });
+        }
+
+        let backend = self.storage_backend.as_ref().ok_or_else(|| {
+            fraiseql_error::FraiseQLError::Unsupported {
+                message: "storage backend not configured".to_string(),
+            }
+        })?;
+
+        backend.put(bucket, key, body, content_type).await
     }
 
     fn auth_context(&self) -> Result<serde_json::Value> {
