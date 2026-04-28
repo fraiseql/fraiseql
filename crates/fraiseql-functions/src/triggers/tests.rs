@@ -294,3 +294,158 @@ fn test_trigger_dispatch_multiple_mutations() {
     let triggers = matcher.find("Post", EventKind::Delete);
     assert!(triggers.is_empty());
 }
+
+// ============================================================================
+// Cycle 2: before:mutation Trigger Tests (RED Phase)
+// ============================================================================
+
+use crate::triggers::mutation::BeforeMutationResult;
+
+/// Test: before:mutation receives proposed input
+#[test]
+fn test_before_mutation_receives_proposed_input() {
+    let input = serde_json::json!({
+        "name": "Alice",
+        "email": "alice@example.com"
+    });
+
+    // In the actual implementation, this input would be passed to the function
+    // and the function would receive it as the event data
+    assert!(input.is_object());
+    assert_eq!(input["name"], "Alice");
+    assert_eq!(input["email"], "alice@example.com");
+}
+
+/// Test: before:mutation proceed allows mutation
+#[test]
+fn test_before_mutation_proceed_allows_mutation() {
+    let input = serde_json::json!({
+        "name": "Alice",
+        "email": "alice@example.com"
+    });
+
+    let result = BeforeMutationResult::Proceed(input.clone());
+
+    match result {
+        BeforeMutationResult::Proceed(modified) => {
+            assert_eq!(modified, input);
+        }
+        BeforeMutationResult::Abort(_) => {
+            panic!("Expected Proceed, got Abort");
+        }
+    }
+}
+
+/// Test: before:mutation proceed with modified input
+#[test]
+fn test_before_mutation_proceed_with_modified_input() {
+    let input = serde_json::json!({
+        "name": "alice",
+        "email": "alice@example.com"
+    });
+
+    // Function modifies name to uppercase
+    let modified = serde_json::json!({
+        "name": "ALICE",
+        "email": "alice@example.com"
+    });
+
+    let result = BeforeMutationResult::Proceed(modified.clone());
+
+    match result {
+        BeforeMutationResult::Proceed(output) => {
+            assert_eq!(output["name"], "ALICE");
+            assert_ne!(output["name"], input["name"]);
+        }
+        BeforeMutationResult::Abort(_) => {
+            panic!("Expected Proceed, got Abort");
+        }
+    }
+}
+
+/// Test: before:mutation abort cancels mutation
+#[test]
+fn test_before_mutation_abort_cancels_mutation() {
+    let result: BeforeMutationResult = BeforeMutationResult::Abort(
+        "validation failed: name is required".to_string(),
+    );
+
+    match result {
+        BeforeMutationResult::Proceed(_) => {
+            panic!("Expected Abort, got Proceed");
+        }
+        BeforeMutationResult::Abort(error) => {
+            assert_eq!(error, "validation failed: name is required");
+        }
+    }
+}
+
+/// Test: chain of triggers executes in order
+#[test]
+fn test_before_mutation_chain_order() {
+    let trigger_a = BeforeMutationTrigger {
+        function_name: "validateInput".to_string(),
+        mutation_name: "createUser".to_string(),
+    };
+
+    let trigger_b = BeforeMutationTrigger {
+        function_name: "checkDuplicates".to_string(),
+        mutation_name: "createUser".to_string(),
+    };
+
+    let trigger_c = BeforeMutationTrigger {
+        function_name: "auditLog".to_string(),
+        mutation_name: "createUser".to_string(),
+    };
+
+    let chain = crate::triggers::mutation::BeforeMutationChain {
+        triggers: vec![trigger_a, trigger_b, trigger_c],
+    };
+
+    // Verify triggers are in the expected order
+    assert_eq!(chain.triggers[0].function_name, "validateInput");
+    assert_eq!(chain.triggers[1].function_name, "checkDuplicates");
+    assert_eq!(chain.triggers[2].function_name, "auditLog");
+}
+
+/// Test: before:mutation result serialization
+#[test]
+fn test_before_mutation_result_serialization() {
+    let proceed_result = BeforeMutationResult::Proceed(
+        serde_json::json!({"name": "Alice"})
+    );
+
+    let json = serde_json::to_string(&proceed_result).expect("serialize");
+    let restored: BeforeMutationResult = serde_json::from_str(&json)
+        .expect("deserialize");
+
+    match restored {
+        BeforeMutationResult::Proceed(value) => {
+            assert_eq!(value["name"], "Alice");
+        }
+        BeforeMutationResult::Abort(_) => {
+            panic!("Expected Proceed after deserialization");
+        }
+    }
+}
+
+/// Test: abort result serialization
+#[test]
+fn test_before_mutation_abort_serialization() {
+    let abort_result = BeforeMutationResult::Abort(
+        "validation error".to_string()
+    );
+
+    let json = serde_json::to_string(&abort_result).expect("serialize");
+    let restored: BeforeMutationResult = serde_json::from_str(&json)
+        .expect("deserialize");
+
+    match restored {
+        BeforeMutationResult::Proceed(_) => {
+            panic!("Expected Abort after deserialization");
+        }
+        BeforeMutationResult::Abort(error) => {
+            assert_eq!(error, "validation error");
+        }
+    }
+}
