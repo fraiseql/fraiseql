@@ -2,6 +2,7 @@
 
 use crate::types::EventPayload;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Types of mutations that can trigger events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -117,6 +118,75 @@ pub struct BeforeMutationChain {
     pub triggers: Vec<BeforeMutationTrigger>,
 }
 
+/// Matcher for efficiently finding triggers by (entity_type, event_kind).
+///
+/// Uses a nested HashMap for O(1) lookup:
+/// - entity_type → event_kind → Vec<AfterMutationTrigger>
+/// - When event_kind is None (matches all), stored separately for fallback
+#[derive(Debug, Clone)]
+pub struct TriggerMatcher {
+    /// Map of entity_type → event_kind → triggers
+    specific: HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
+    /// Map of entity_type → triggers that match all event kinds
+    all_kinds: HashMap<String, Vec<AfterMutationTrigger>>,
+}
+
+impl TriggerMatcher {
+    /// Create a new empty trigger matcher.
+    pub fn new() -> Self {
+        Self {
+            specific: HashMap::new(),
+            all_kinds: HashMap::new(),
+        }
+    }
+
+    /// Add a trigger to the matcher.
+    pub fn add(&mut self, trigger: AfterMutationTrigger) {
+        match trigger.event_filter {
+            Some(event_kind) => {
+                self.specific
+                    .entry(trigger.entity_type.clone())
+                    .or_insert_with(HashMap::new)
+                    .entry(event_kind.as_str().to_string())
+                    .or_insert_with(Vec::new)
+                    .push(trigger);
+            }
+            None => {
+                self.all_kinds
+                    .entry(trigger.entity_type.clone())
+                    .or_insert_with(Vec::new)
+                    .push(trigger);
+            }
+        }
+    }
+
+    /// Find all triggers matching the given entity and event kind.
+    pub fn find(&self, entity: &str, event_kind: EventKind) -> Vec<AfterMutationTrigger> {
+        let event_str = event_kind.as_str();
+        let mut result = Vec::new();
+
+        // Get specific triggers for this event kind
+        if let Some(entity_map) = self.specific.get(entity) {
+            if let Some(triggers) = entity_map.get(event_str) {
+                result.extend(triggers.clone());
+            }
+        }
+
+        // Get all-kinds triggers for this entity
+        if let Some(triggers) = self.all_kinds.get(entity) {
+            result.extend(triggers.clone());
+        }
+
+        result
+    }
+}
+
+impl Default for TriggerMatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +259,113 @@ mod tests {
 
         assert!(trigger.matches("createUser"));
         assert!(!trigger.matches("updateUser"));
+    }
+
+    #[test]
+    fn test_trigger_matcher_empty() {
+        let matcher = TriggerMatcher::new();
+        let results = matcher.find("User", EventKind::Insert);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_trigger_matcher_specific_event_kind() {
+        let mut matcher = TriggerMatcher::new();
+        let trigger = AfterMutationTrigger {
+            function_name: "onUserCreated".to_string(),
+            entity_type: "User".to_string(),
+            event_filter: Some(EventKind::Insert),
+        };
+
+        matcher.add(trigger.clone());
+        let results = matcher.find("User", EventKind::Insert);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].function_name, "onUserCreated");
+
+        // Should not match other event kinds
+        let results = matcher.find("User", EventKind::Update);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_trigger_matcher_all_kinds() {
+        let mut matcher = TriggerMatcher::new();
+        let trigger = AfterMutationTrigger {
+            function_name: "onUserChanged".to_string(),
+            entity_type: "User".to_string(),
+            event_filter: None,
+        };
+
+        matcher.add(trigger);
+        assert_eq!(matcher.find("User", EventKind::Insert).len(), 1);
+        assert_eq!(matcher.find("User", EventKind::Update).len(), 1);
+        assert_eq!(matcher.find("User", EventKind::Delete).len(), 1);
+    }
+
+    #[test]
+    fn test_trigger_matcher_mixed_specific_and_all() {
+        let mut matcher = TriggerMatcher::new();
+
+        // Add specific triggers
+        matcher.add(AfterMutationTrigger {
+            function_name: "onUserCreated".to_string(),
+            entity_type: "User".to_string(),
+            event_filter: Some(EventKind::Insert),
+        });
+
+        // Add all-kinds trigger
+        matcher.add(AfterMutationTrigger {
+            function_name: "onUserChanged".to_string(),
+            entity_type: "User".to_string(),
+            event_filter: None,
+        });
+
+        // Insert should return both
+        let results = matcher.find("User", EventKind::Insert);
+        assert_eq!(results.len(), 2);
+
+        // Update should return only all-kinds
+        let results = matcher.find("User", EventKind::Update);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].function_name, "onUserChanged");
+    }
+
+    #[test]
+    fn test_trigger_matcher_multiple_entities() {
+        let mut matcher = TriggerMatcher::new();
+
+        matcher.add(AfterMutationTrigger {
+            function_name: "onUserCreated".to_string(),
+            entity_type: "User".to_string(),
+            event_filter: Some(EventKind::Insert),
+        });
+
+        matcher.add(AfterMutationTrigger {
+            function_name: "onPostCreated".to_string(),
+            entity_type: "Post".to_string(),
+            event_filter: Some(EventKind::Insert),
+        });
+
+        let user_results = matcher.find("User", EventKind::Insert);
+        assert_eq!(user_results.len(), 1);
+        assert_eq!(user_results[0].function_name, "onUserCreated");
+
+        let post_results = matcher.find("Post", EventKind::Insert);
+        assert_eq!(post_results.len(), 1);
+        assert_eq!(post_results[0].function_name, "onPostCreated");
+    }
+
+    #[test]
+    fn test_trigger_matcher_no_cross_entity_match() {
+        let mut matcher = TriggerMatcher::new();
+
+        matcher.add(AfterMutationTrigger {
+            function_name: "onUserCreated".to_string(),
+            entity_type: "User".to_string(),
+            event_filter: Some(EventKind::Insert),
+        });
+
+        let post_results = matcher.find("Post", EventKind::Insert);
+        assert!(post_results.is_empty());
     }
 }

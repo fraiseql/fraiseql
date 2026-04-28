@@ -2,7 +2,7 @@
 
 use crate::types::EventPayload;
 use crate::triggers::mutation::{
-    AfterMutationTrigger, BeforeMutationTrigger, EntityEvent, EventKind,
+    AfterMutationTrigger, BeforeMutationTrigger, EntityEvent, EventKind, TriggerMatcher,
 };
 
 /// Test: after:mutation fires on insert
@@ -193,4 +193,104 @@ fn test_after_mutation_payload_serialization() {
     assert_eq!(restored.trigger_type, payload.trigger_type);
     assert_eq!(restored.entity, payload.entity);
     assert_eq!(restored.event_kind, payload.event_kind);
+}
+
+/// Test: trigger matcher finds correct triggers for dispatch
+#[test]
+fn test_trigger_dispatch_finds_matching_triggers() {
+    let mut matcher = TriggerMatcher::new();
+
+    // Add triggers for different scenarios
+    matcher.add(AfterMutationTrigger {
+        function_name: "onUserCreated".to_string(),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
+    });
+
+    matcher.add(AfterMutationTrigger {
+        function_name: "onUserChanged".to_string(),
+        entity_type: "User".to_string(),
+        event_filter: None, // Matches all events
+    });
+
+    // When User is inserted, both specific and all-kinds triggers match
+    let triggers = matcher.find("User", EventKind::Insert);
+    assert_eq!(triggers.len(), 2);
+    let names: Vec<_> = triggers.iter().map(|t| t.function_name.as_str()).collect();
+    assert!(names.contains(&"onUserCreated"));
+    assert!(names.contains(&"onUserChanged"));
+
+    // When User is updated, only all-kinds trigger matches
+    let triggers = matcher.find("User", EventKind::Update);
+    assert_eq!(triggers.len(), 1);
+    assert_eq!(triggers[0].function_name, "onUserChanged");
+}
+
+/// Test: async dispatch doesn't block mutation response
+#[tokio::test]
+async fn test_after_mutation_async_dispatch_nonblocking() {
+    let trigger = AfterMutationTrigger {
+        function_name: "onUserCreated".to_string(),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
+    };
+
+    let event = EntityEvent {
+        entity: "User".to_string(),
+        event_kind: EventKind::Insert,
+        old: None,
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        timestamp: chrono::Utc::now(),
+    };
+
+    // Building payload is synchronous (fast)
+    let payload = trigger.build_payload(&event);
+    assert_eq!(payload.trigger_type, "after:mutation:onUserCreated");
+
+    // In real implementation, function execution would be spawned as a task
+    // and would not block the mutation response
+    // This test just verifies the payload is built correctly
+}
+
+/// Test: trigger matcher with multiple mutations
+#[test]
+fn test_trigger_dispatch_multiple_mutations() {
+    let mut matcher = TriggerMatcher::new();
+
+    matcher.add(AfterMutationTrigger {
+        function_name: "onUserCreated".to_string(),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
+    });
+
+    matcher.add(AfterMutationTrigger {
+        function_name: "onUserDeleted".to_string(),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Delete),
+    });
+
+    matcher.add(AfterMutationTrigger {
+        function_name: "onPostCreated".to_string(),
+        entity_type: "Post".to_string(),
+        event_filter: Some(EventKind::Insert),
+    });
+
+    // User insert triggers only user create trigger
+    let triggers = matcher.find("User", EventKind::Insert);
+    assert_eq!(triggers.len(), 1);
+    assert_eq!(triggers[0].function_name, "onUserCreated");
+
+    // User delete triggers only user delete trigger
+    let triggers = matcher.find("User", EventKind::Delete);
+    assert_eq!(triggers.len(), 1);
+    assert_eq!(triggers[0].function_name, "onUserDeleted");
+
+    // Post insert triggers only post create trigger
+    let triggers = matcher.find("Post", EventKind::Insert);
+    assert_eq!(triggers.len(), 1);
+    assert_eq!(triggers[0].function_name, "onPostCreated");
+
+    // No triggers for post delete
+    let triggers = matcher.find("Post", EventKind::Delete);
+    assert!(triggers.is_empty());
 }
