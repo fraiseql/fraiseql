@@ -15,6 +15,7 @@
 pub mod connections;
 pub mod protocol;
 pub mod server;
+pub mod subscriptions;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable

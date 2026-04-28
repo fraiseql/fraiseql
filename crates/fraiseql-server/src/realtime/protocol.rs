@@ -12,6 +12,29 @@ use serde::{Deserialize, Serialize};
 pub enum ClientMessage {
     /// Heartbeat response from client.
     Pong,
+
+    /// Subscribe to entity change events.
+    Subscribe {
+        /// Entity name to subscribe to (e.g., `"Post"`).
+        entity: String,
+        /// Event type filter: `"*"`, `"INSERT"`, `"UPDATE"`, or `"DELETE"`.
+        #[serde(default = "default_event_filter")]
+        event: String,
+        /// Optional field filter in `field=op.value` format (e.g., `"author_id=eq.123"`).
+        #[serde(default)]
+        filter: Option<String>,
+    },
+
+    /// Unsubscribe from entity change events.
+    Unsubscribe {
+        /// Entity name to unsubscribe from.
+        entity: String,
+    },
+}
+
+/// Default event filter: all events.
+fn default_event_filter() -> String {
+    "*".to_owned()
 }
 
 /// Message sent by the server to the client.
@@ -30,6 +53,18 @@ pub enum ServerMessage {
 
     /// Authentication token has expired; connection will close.
     TokenExpired,
+
+    /// Subscription confirmed.
+    Subscribed {
+        /// Entity that was subscribed to.
+        entity: String,
+    },
+
+    /// Unsubscription confirmed.
+    Unsubscribed {
+        /// Entity that was unsubscribed from.
+        entity: String,
+    },
 
     /// Error message.
     Error {

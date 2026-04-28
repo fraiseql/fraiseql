@@ -1,6 +1,6 @@
-//! Tests for the realtime `WebSocket` connection lifecycle (Phase 7, Cycle 1).
+//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–2).
 
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{Router, routing::get};
 use futures::{SinkExt, StreamExt};
@@ -84,12 +84,64 @@ fn ws_url(addr: SocketAddr, token: Option<&str>) -> String {
     }
 }
 
+/// Spawn a test server with known entities.
+async fn spawn_test_server_with_entities(
+    config: RealtimeConfig,
+    validator: TestValidator,
+    entities: HashSet<String>,
+) -> SocketAddr {
+    let server = Arc::new(RealtimeServer::with_entities(config, entities));
+    let state = RealtimeState {
+        server,
+        validator: Arc::new(validator),
+    };
+
+    let app = Router::new()
+        .route("/realtime/v1", get(ws_handler::<TestValidator>))
+        .with_state(state);
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    addr
+}
+
 /// Parse a server message from a tungstenite message.
 fn parse_server_msg(msg: &tungstenite::Message) -> serde_json::Value {
     match msg {
         tungstenite::Message::Text(text) => serde_json::from_str(text).unwrap(),
         other => panic!("Expected text message, got {other:?}"),
     }
+}
+
+/// Send a JSON message over the WebSocket.
+async fn send_json(
+    ws: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    msg: serde_json::Value,
+) {
+    ws.send(tungstenite::Message::Text(msg.to_string().into()))
+        .await
+        .unwrap();
+}
+
+/// Read the next text message, with a timeout.
+async fn next_msg(
+    ws: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) -> serde_json::Value {
+    let msg = tokio::time::timeout(Duration::from_secs(5), ws.next())
+        .await
+        .expect("timed out waiting for message")
+        .expect("stream ended")
+        .expect("WebSocket error");
+    parse_server_msg(&msg)
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -393,4 +445,230 @@ async fn test_websocket_token_revalidation_interval() {
         }
     }
     assert!(got_expired, "Expected token_expired from revalidation");
+}
+
+// ── Cycle 2: Subscription Protocol Tests ───────────────────────────────
+
+fn test_entities() -> HashSet<String> {
+    ["Post", "Comment"].iter().map(|s| (*s).to_owned()).collect()
+}
+
+#[tokio::test]
+async fn test_subscribe_to_entity() {
+    let addr = spawn_test_server_with_entities(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-alice"))).await.unwrap();
+    let connected = next_msg(&mut ws).await;
+    assert_eq!(connected["type"], "connected");
+
+    // Subscribe to Post
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post", "event": "*"}))
+        .await;
+
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+    assert_eq!(reply["entity"], "Post");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_subscribe_with_event_filter() {
+    let addr = spawn_test_server_with_entities(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-bob"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Subscribe with INSERT-only filter
+    send_json(
+        &mut ws,
+        serde_json::json!({"type": "subscribe", "entity": "Post", "event": "INSERT"}),
+    )
+    .await;
+
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+    assert_eq!(reply["entity"], "Post");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_subscribe_with_field_filter() {
+    let addr = spawn_test_server_with_entities(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-carol"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Subscribe with field filter
+    send_json(
+        &mut ws,
+        serde_json::json!({"type": "subscribe", "entity": "Post", "filter": "author_id=eq.123"}),
+    )
+    .await;
+
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+    assert_eq!(reply["entity"], "Post");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_unsubscribe() {
+    let addr = spawn_test_server_with_entities(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-dave"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Subscribe then unsubscribe
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+
+    send_json(&mut ws, serde_json::json!({"type": "unsubscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "unsubscribed");
+    assert_eq!(reply["entity"], "Post");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_subscribe_to_nonexistent_entity_returns_error() {
+    let addr = spawn_test_server_with_entities(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-eve"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Subscribe to unknown entity
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Foo"})).await;
+
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "error");
+    assert!(
+        reply["message"].as_str().unwrap().contains("unknown entity"),
+        "Expected 'unknown entity' error, got: {}",
+        reply["message"]
+    );
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_subscribe_exceeds_fan_out_limit() {
+    let config = RealtimeConfig {
+        max_subscriptions_per_entity: 2,
+        max_connections_per_context: 100,
+        ..RealtimeConfig::default()
+    };
+    let addr =
+        spawn_test_server_with_entities(config, TestValidator::new(), test_entities()).await;
+
+    // Connect 3 different users and subscribe each to Post
+    let (mut ws1, _) = connect_async(ws_url(addr, Some("valid-user1"))).await.unwrap();
+    let _ = next_msg(&mut ws1).await;
+    send_json(&mut ws1, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws1).await;
+    assert_eq!(reply["type"], "subscribed");
+
+    let (mut ws2, _) = connect_async(ws_url(addr, Some("valid-user2"))).await.unwrap();
+    let _ = next_msg(&mut ws2).await;
+    send_json(&mut ws2, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws2).await;
+    assert_eq!(reply["type"], "subscribed");
+
+    // Third subscription should hit the limit
+    let (mut ws3, _) = connect_async(ws_url(addr, Some("valid-user3"))).await.unwrap();
+    let _ = next_msg(&mut ws3).await;
+    send_json(&mut ws3, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws3).await;
+    assert_eq!(reply["type"], "error");
+    assert!(
+        reply["message"].as_str().unwrap().contains("limit"),
+        "Expected fan-out limit error, got: {}",
+        reply["message"]
+    );
+
+    ws1.close(None).await.ok();
+    ws2.close(None).await.ok();
+    ws3.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_multiple_subscriptions_same_client() {
+    let addr = spawn_test_server_with_entities(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-frank"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Subscribe to Post
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+    assert_eq!(reply["entity"], "Post");
+
+    // Subscribe to Comment
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Comment"})).await;
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+    assert_eq!(reply["entity"], "Comment");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_duplicate_subscribe_is_idempotent() {
+    let addr = spawn_test_server_with_entities(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-grace"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    // Subscribe to Post twice
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws).await;
+    assert_eq!(reply["type"], "subscribed");
+
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let reply = next_msg(&mut ws).await;
+    // Second subscribe should also succeed (idempotent, no error)
+    assert_eq!(reply["type"], "subscribed");
+    assert_eq!(reply["entity"], "Post");
+
+    ws.close(None).await.ok();
 }

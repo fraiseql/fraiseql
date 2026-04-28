@@ -1,9 +1,14 @@
 //! Realtime `WebSocket` server and configuration.
 //!
 //! `RealtimeServer` manages `WebSocket` connections, authenticates clients,
-//! handles heartbeats and idle timeouts, and enforces connection limits.
+//! handles heartbeats and idle timeouts, enforces connection limits, and
+//! processes subscription requests for entity change events.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
     extract::{
@@ -20,6 +25,7 @@ use tracing::{debug, info, warn};
 use super::{
     connections::{ConnectionManager, ConnectionState},
     protocol::{ClientMessage, ServerMessage},
+    subscriptions::{EventKind, SubscriptionDetails, SubscriptionManager, parse_filter},
 };
 
 /// Configuration for the realtime `WebSocket` server.
@@ -94,6 +100,10 @@ pub struct RealtimeState<V: TokenValidator> {
 pub struct RealtimeServer {
     /// Active connection manager.
     pub(crate) connections: Arc<ConnectionManager>,
+    /// Subscription manager for entity change subscriptions.
+    pub(crate) subscriptions: Arc<SubscriptionManager>,
+    /// Set of entity names that accept realtime subscriptions.
+    pub(crate) known_entities: HashSet<String>,
     /// Server configuration.
     pub(crate) config: RealtimeConfig,
 }
@@ -102,8 +112,23 @@ impl RealtimeServer {
     /// Create a new realtime server with the given configuration.
     #[must_use]
     pub fn new(config: RealtimeConfig) -> Self {
+        let max_subs = config.max_subscriptions_per_entity;
         Self {
             connections: Arc::new(ConnectionManager::new()),
+            subscriptions: Arc::new(SubscriptionManager::new(max_subs)),
+            known_entities: HashSet::new(),
+            config,
+        }
+    }
+
+    /// Create a new realtime server with known entities for subscription validation.
+    #[must_use]
+    pub fn with_entities(config: RealtimeConfig, entities: HashSet<String>) -> Self {
+        let max_subs = config.max_subscriptions_per_entity;
+        Self {
+            connections: Arc::new(ConnectionManager::new()),
+            subscriptions: Arc::new(SubscriptionManager::new(max_subs)),
+            known_entities: entities,
             config,
         }
     }
@@ -172,12 +197,13 @@ pub async fn ws_handler<V: TokenValidator>(
 }
 
 /// Handle an authenticated realtime `WebSocket` connection.
-#[allow(clippy::cognitive_complexity)] // Reason: WebSocket event loop with heartbeat, idle timeout, and token expiry checks
+#[allow(clippy::cognitive_complexity)] // Reason: WebSocket event loop with heartbeat, idle timeout, token expiry, and subscription handling
 async fn handle_realtime_connection(
     socket: WebSocket,
     server: Arc<RealtimeServer>,
     token_info: TokenInfo,
 ) {
+    let context_hash = token_info.context_hash;
     let connection_id = uuid::Uuid::new_v4().to_string();
     let config = &server.config;
 
@@ -259,8 +285,37 @@ async fn handle_realtime_connection(
                         // Reset idle timer on any message
                         idle_deadline = tokio::time::Instant::now() + config.idle_timeout;
 
-                        if matches!(serde_json::from_str(&text), Ok(ClientMessage::Pong)) {
-                            debug!(connection_id = %connection_id, "Received pong");
+                        match serde_json::from_str::<ClientMessage>(&text) {
+                            Ok(ClientMessage::Pong) => {
+                                debug!(connection_id = %connection_id, "Received pong");
+                            }
+                            Ok(ClientMessage::Subscribe { entity, event, filter }) => {
+                                let reply = handle_subscribe(
+                                    &server,
+                                    &connection_id,
+                                    context_hash,
+                                    &entity,
+                                    &event,
+                                    filter.as_deref(),
+                                );
+                                if let Ok(json) = reply.to_json() {
+                                    if sender.send(Message::Text(json.into())).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Ok(ClientMessage::Unsubscribe { entity }) => {
+                                server.subscriptions.unsubscribe(&connection_id, &entity);
+                                let reply = ServerMessage::Unsubscribed { entity };
+                                if let Ok(json) = reply.to_json() {
+                                    if sender.send(Message::Text(json.into())).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                // Unknown message, ignore
+                            }
                         }
                     }
                     Some(Ok(Message::Close(_))) => {
@@ -282,7 +337,58 @@ async fn handle_realtime_connection(
         }
     }
 
-    // Cleanup
+    // Cleanup: remove all subscriptions and connection state
+    server.subscriptions.unsubscribe_all(&connection_id);
     server.connections.remove(&connection_id);
     info!(connection_id = %connection_id, "Realtime WebSocket disconnected");
+}
+
+/// Handle a subscribe request from a client.
+fn handle_subscribe(
+    server: &RealtimeServer,
+    connection_id: &str,
+    context_hash: u64,
+    entity: &str,
+    event: &str,
+    filter: Option<&str>,
+) -> ServerMessage {
+    // Validate entity exists in schema
+    if !server.known_entities.is_empty() && !server.known_entities.contains(entity) {
+        return ServerMessage::Error {
+            message: format!("unknown entity: {entity}"),
+        };
+    }
+
+    // Parse event filter
+    let event_filter = if event == "*" {
+        None
+    } else {
+        match EventKind::parse(event) {
+            Ok(kind) => Some(kind),
+            Err(e) => return ServerMessage::Error { message: e },
+        }
+    };
+
+    // Parse field filters
+    let field_filters = if let Some(f) = filter {
+        match parse_filter(f) {
+            Ok(filters) => filters,
+            Err(e) => return ServerMessage::Error { message: e },
+        }
+    } else {
+        Vec::new()
+    };
+
+    let details = SubscriptionDetails {
+        event_filter,
+        field_filters,
+        security_context_hash: context_hash,
+    };
+
+    match server.subscriptions.subscribe(connection_id, entity, details) {
+        Ok(_) => ServerMessage::Subscribed {
+            entity: entity.to_owned(),
+        },
+        Err(e) => ServerMessage::Error { message: e },
+    }
 }
