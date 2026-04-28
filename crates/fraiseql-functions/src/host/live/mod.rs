@@ -11,6 +11,7 @@
 mod tests;
 
 pub mod sql_classifier;
+pub mod http_validator;
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -74,6 +75,9 @@ pub struct LiveHostContext {
 
     /// Query executor for GraphQL execution.
     query_executor: Option<Arc<dyn QueryExecutor>>,
+
+    /// HTTP client for outbound requests.
+    http_client: Option<Arc<reqwest::Client>>,
 }
 
 impl LiveHostContext {
@@ -84,6 +88,7 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: None,
+            http_client: None,
         }
     }
 
@@ -98,6 +103,22 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: Some(executor),
+            http_client: None,
+        }
+    }
+
+    /// Create a new live host context with an HTTP client.
+    pub fn with_http_client(
+        event_payload: EventPayload,
+        config: HostContextConfig,
+        http_client: Arc<reqwest::Client>,
+    ) -> Self {
+        Self {
+            event_payload,
+            config,
+            logs: Arc::new(std::sync::Mutex::new(Vec::new())),
+            query_executor: None,
+            http_client: Some(http_client),
         }
     }
 
@@ -136,7 +157,7 @@ impl HostContext for LiveHostContext {
     async fn sql_query(
         &self,
         sql: &str,
-        params: &[serde_json::Value],
+        _params: &[serde_json::Value],
     ) -> Result<Vec<serde_json::Value>> {
         // Classify the SQL statement first
         let classification = sql_classifier::classify_sql(sql)?;
@@ -158,13 +179,113 @@ impl HostContext for LiveHostContext {
 
     async fn http_request(
         &self,
-        _method: &str,
-        _url: &str,
-        _headers: &[(String, String)],
-        _body: Option<&[u8]>,
+        method: &str,
+        url: &str,
+        headers: &[(String, String)],
+        body: Option<&[u8]>,
     ) -> Result<crate::host::HttpResponse> {
-        Err(fraiseql_error::FraiseQLError::Unsupported {
-            message: "LiveHostContext::http_request not yet implemented".to_string(),
+        // Validate URL for SSRF attacks
+        let http_config = http_validator::HttpClientConfig {
+            allowed_domains: self.config.allowed_domains.clone(),
+            max_response_bytes: self.config.max_http_response_bytes,
+            connect_timeout_ms: self.config.http_connect_timeout_ms,
+            read_timeout_ms: self.config.http_read_timeout_ms,
+        };
+        http_validator::validate_outbound_url(url, &http_config)?;
+
+        // Get or create HTTP client
+        let client = match &self.http_client {
+            Some(client) => client.clone(),
+            None => {
+                // Create a new client with configured timeouts
+                let client = reqwest::Client::builder()
+                    .connect_timeout(std::time::Duration::from_millis(
+                        self.config.http_connect_timeout_ms,
+                    ))
+                    .timeout(std::time::Duration::from_millis(
+                        self.config.http_read_timeout_ms,
+                    ))
+                    .build()
+                    .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+                        message: format!("failed to create HTTP client: {}", e),
+                        source: None,
+                    })?;
+                Arc::new(client)
+            }
+        };
+
+        // Build request
+        let mut req = match method.to_uppercase().as_str() {
+            "GET" => client.get(url),
+            "POST" => client.post(url),
+            "PUT" => client.put(url),
+            "PATCH" => client.patch(url),
+            "DELETE" => client.delete(url),
+            "HEAD" => client.head(url),
+            _ => {
+                return Err(fraiseql_error::FraiseQLError::Validation {
+                    message: format!("unsupported HTTP method: {}", method),
+                    path: None,
+                })
+            }
+        };
+
+        // Add headers
+        for (key, value) in headers {
+            req = req.header(key.clone(), value.clone());
+        }
+
+        // Add body if present
+        if let Some(body_bytes) = body {
+            req = req.body(body_bytes.to_vec());
+        }
+
+        // Execute request
+        let response = req.send().await.map_err(|e| {
+            fraiseql_error::FraiseQLError::Internal {
+                message: format!("HTTP request failed: {}", e),
+                source: None,
+            }
+        })?;
+
+        let status = response.status().as_u16();
+
+        // Collect response headers
+        let response_headers: Vec<(String, String)> = response
+            .headers()
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.to_string(),
+                    v.to_str().unwrap_or("").to_string(),
+                )
+            })
+            .collect();
+
+        // Read response body with size limit
+        let body_bytes = response
+            .bytes()
+            .await
+            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+                message: format!("failed to read response body: {}", e),
+                source: None,
+            })?;
+
+        if body_bytes.len() > self.config.max_http_response_bytes {
+            return Err(fraiseql_error::FraiseQLError::Validation {
+                message: format!(
+                    "response body too large: {} > {}",
+                    body_bytes.len(),
+                    self.config.max_http_response_bytes
+                ),
+                path: None,
+            });
+        }
+
+        Ok(crate::host::HttpResponse {
+            status,
+            headers: response_headers,
+            body: body_bytes.to_vec(),
         })
     }
 

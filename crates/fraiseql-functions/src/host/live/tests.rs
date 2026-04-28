@@ -1,6 +1,7 @@
 //! Tests for `LiveHostContext` `GraphQL` query execution.
 
 use super::*;
+use std::sync::Arc;
 
 /// Mock query executor for testing.
 struct MockQueryExecutor {
@@ -427,4 +428,211 @@ async fn test_host_sql_query_invalid_returns_validation_error() {
         Err(fraiseql_error::FraiseQLError::Validation { .. }) => (),
         other => panic!("expected Validation error, got {:?}", other),
     }
+}
+
+// HTTP Request Tests
+
+#[tokio::test]
+async fn test_host_http_valid_domain_passes_validation() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    // Configure to allow a specific domain
+    let mut config = HostContextConfig::default();
+    config.allowed_domains = vec!["api.example.com".to_string()];
+
+    let client = Arc::new(
+        reqwest::Client::builder()
+            .build()
+            .expect("failed to create client"),
+    );
+    let ctx = LiveHostContext::with_http_client(payload, config, client);
+
+    // This URL passes domain allowlist but will fail connection (expected)
+    let result = ctx
+        .http_request("GET", "https://api.example.com/api/test", &[], None)
+        .await;
+
+    // Should not be blocked by domain allowlist; error is from connection attempt
+    match result {
+        Ok(_) => {}, // Success (unexpected but ok)
+        Err(fraiseql_error::FraiseQLError::Authorization { message, .. }) => {
+            panic!("should not block allowed domain: {}", message);
+        }
+        Err(_) => {}, // Connection error is expected (domain doesn't exist)
+    }
+}
+
+#[tokio::test]
+async fn test_host_http_subdomain_glob_pattern() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    // Configure with glob pattern
+    let mut config = HostContextConfig::default();
+    config.allowed_domains = vec!["*.example.com".to_string()];
+
+    let client = Arc::new(
+        reqwest::Client::builder()
+            .build()
+            .expect("failed to create client"),
+    );
+    let ctx = LiveHostContext::with_http_client(payload, config, client);
+
+    // Should pass domain check
+    let result = ctx
+        .http_request("GET", "https://api.example.com/test", &[], None)
+        .await;
+
+    match result {
+        Ok(_) => {},
+        Err(fraiseql_error::FraiseQLError::Authorization { message, .. }) if message.contains("domain") => {
+            panic!("should allow subdomain matching glob pattern: {}", message);
+        }
+        Err(_) => {}, // Connection error is expected
+    }
+}
+
+#[tokio::test]
+async fn test_host_http_blocks_disallowed_domain() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let mut config = HostContextConfig::default();
+    config.allowed_domains = vec!["allowed.com".to_string()];
+    let ctx = LiveHostContext::new(payload, config);
+
+    let result = ctx
+        .http_request("GET", "https://blocked.com/api", &[], None)
+        .await;
+
+    assert!(result.is_err());
+    match result {
+        Err(fraiseql_error::FraiseQLError::Authorization { .. }) => (),
+        other => panic!("expected Authorization error, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn test_host_http_blocks_private_ipv4() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let private_ips = vec![
+        "http://127.0.0.1/api",
+        "http://10.0.0.1/api",
+        "http://192.168.1.1/api",
+        "http://172.16.0.1/api",
+    ];
+
+    for ip_url in private_ips {
+        let result = ctx.http_request("GET", ip_url, &[], None).await;
+        assert!(result.is_err(), "should block {}", ip_url);
+    }
+}
+
+#[tokio::test]
+async fn test_host_http_blocks_ipv6_loopback() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .http_request("GET", "http://[::1]/api", &[], None)
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_http_blocks_ipv6_link_local() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .http_request("GET", "http://[fe80::1]/api", &[], None)
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_host_http_allows_public_ipv4() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    // This will fail because the IP doesn't respond, but it should pass the SSRF check
+    let result = ctx
+        .http_request("GET", "http://8.8.8.8/api", &[], None)
+        .await;
+
+    // The request itself may fail (DNS, connection), but not due to SSRF
+    match result {
+        Ok(_) => {}, // Request succeeded (unlikely in test environment)
+        Err(fraiseql_error::FraiseQLError::Authorization { .. }) => {
+            panic!("should not block public IP")
+        }
+        Err(_) => {}, // Other error is fine (connection, DNS, etc.)
+    }
+}
+
+#[tokio::test]
+async fn test_host_http_invalid_url() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .http_request("GET", "not a valid url", &[], None)
+        .await;
+
+    assert!(result.is_err());
 }
