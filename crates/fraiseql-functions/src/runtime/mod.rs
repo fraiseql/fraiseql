@@ -1,5 +1,8 @@
 //! Function runtime trait and implementations.
 
+#[cfg(feature = "runtime-wasm")]
+pub mod wasm;
+
 use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
 use crate::HostContext;
 use fraiseql_error::Result;

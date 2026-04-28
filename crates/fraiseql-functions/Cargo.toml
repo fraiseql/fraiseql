@@ -26,5 +26,13 @@ sha2.workspace = true
 [dev-dependencies]
 tokio = {workspace = true, features = ["full"]}
 
+[features]
+runtime-wasm = ["wasmtime"]
+
+[dependencies.wasmtime]
+version = "18"
+optional = true
+features = ["component-model"]
+
 [lints]
 workspace = true

@@ -36,6 +36,10 @@ members = [
   "crates/fraiseql-federation",  # Apollo Federation v2 support
   "crates/fraiseql-wire"  # Streaming JSON query engine for Postgres
 , "crates/fraiseql-functions"]
+exclude = [
+  "tests/fixtures/functions/guest-identity",
+  "tests/fixtures/functions/guest-transform",
+]
 resolver = "2"
 
 [workspace.dependencies]
