@@ -34,6 +34,16 @@ impl std::fmt::Display for EventKind {
 }
 
 /// Entity event with old and new row data.
+///
+/// Represents a mutation event from the database. Used by the observer pipeline
+/// to dispatch to `after:mutation` triggers asynchronously.
+///
+/// # Dispatch Semantics
+///
+/// - Fire after mutation completes (mutation response already sent)
+/// - Async dispatch: doesn't block mutation response
+/// - Failure doesn't affect mutation (error logged only)
+/// - Execution order: in declaration order from schema
 #[derive(Debug, Clone)]
 pub struct EntityEvent {
     /// Entity type (e.g., "User", "Post").
@@ -49,6 +59,24 @@ pub struct EntityEvent {
 }
 
 /// Trigger that fires after a mutation completes.
+///
+/// When a mutation completes, the observer pipeline emits an `EntityEvent`.
+/// If an `AfterMutationTrigger` matches the entity type and event kind,
+/// the corresponding function is invoked asynchronously without blocking
+/// the mutation response.
+///
+/// # Matching
+///
+/// - Must match `entity_type` exactly
+/// - If `event_filter` is `None`, matches all event kinds (Insert/Update/Delete)
+/// - If `event_filter` is `Some`, matches only that specific event kind
+///
+/// # Dispatch
+///
+/// - Invoked in declaration order from `schema.compiled.json`
+/// - Spawned as an async task (mutation response returns immediately)
+/// - Function execution timeout: 5s default (can be overridden per function)
+/// - Failure doesn't affect mutation (error logged to tracing subscriber)
 #[derive(Debug, Clone)]
 pub struct AfterMutationTrigger {
     /// Name of the function to invoke.
@@ -123,6 +151,30 @@ pub struct BeforeMutationChain {
 /// Uses a nested HashMap for O(1) lookup:
 /// - entity_type → event_kind → Vec<AfterMutationTrigger>
 /// - When event_kind is None (matches all), stored separately for fallback
+///
+/// # Integration with FunctionObserver
+///
+/// When the FunctionObserver receives an `EntityEvent` from the mutation pipeline,
+/// it calls `find()` to get all matching `AfterMutationTrigger`s. For each matching
+/// trigger, the observer spawns an async task to invoke the function without blocking
+/// the mutation response. Task completion is tracked to prevent leaks on shutdown.
+///
+/// # Example
+///
+/// ```ignore
+/// let mut matcher = TriggerMatcher::new();
+/// matcher.add(AfterMutationTrigger {
+///     function_name: "onUserCreated".to_string(),
+///     entity_type: "User".to_string(),
+///     event_filter: Some(EventKind::Insert),
+/// });
+///
+/// // Later, when a User insert occurs:
+/// let triggers = matcher.find("User", EventKind::Insert);
+/// for trigger in triggers {
+///     // Spawn async task to invoke function
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct TriggerMatcher {
     /// Map of entity_type → event_kind → triggers
