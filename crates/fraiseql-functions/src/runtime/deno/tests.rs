@@ -330,3 +330,146 @@ export default async (event) => {
     assert!(result.is_err(), "Unresolved promise with timeout should error");
     // When fully implemented, should be Timeout error
 }
+
+// Cycle 3: Deno Host Ops (Structured Logging)
+
+#[tokio::test]
+async fn test_deno_guest_can_call_log() {
+    // JavaScript that calls the fraiseql_log host op
+    let source = r"
+export default async (event) => {
+    Deno.core.ops.fraiseql_log(1, 'hello from deno');
+    return { logged: true };
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_log".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .await;
+
+    // Should succeed and have a log entry
+    assert!(result.is_ok(), "Log call should execute successfully");
+    let result = result.unwrap();
+    assert!(!result.logs.is_empty(), "Result should have at least one log entry");
+
+    // Check the log entry
+    let log = &result.logs[0];
+    assert_eq!(log.level, crate::LogLevel::Info);
+    assert_eq!(log.message, "hello from deno");
+}
+
+#[tokio::test]
+async fn test_deno_guest_log_levels() {
+    // JavaScript that logs at different levels
+    let source = r"
+export default async (event) => {
+    Deno.core.ops.fraiseql_log(0, 'debug message');
+    Deno.core.ops.fraiseql_log(1, 'info message');
+    Deno.core.ops.fraiseql_log(2, 'warn message');
+    Deno.core.ops.fraiseql_log(3, 'error message');
+    return { logged: true };
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_log_levels".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .await;
+
+    assert!(result.is_ok(), "Log calls should execute successfully");
+    let result = result.unwrap();
+    assert_eq!(result.logs.len(), 4, "Should have 4 log entries");
+
+    // Verify each log level
+    assert_eq!(result.logs[0].level, crate::LogLevel::Debug);
+    assert_eq!(result.logs[0].message, "debug message");
+
+    assert_eq!(result.logs[1].level, crate::LogLevel::Info);
+    assert_eq!(result.logs[1].message, "info message");
+
+    assert_eq!(result.logs[2].level, crate::LogLevel::Warn);
+    assert_eq!(result.logs[2].message, "warn message");
+
+    assert_eq!(result.logs[3].level, crate::LogLevel::Error);
+    assert_eq!(result.logs[3].message, "error message");
+}
+
+#[tokio::test]
+async fn test_deno_guest_log_with_timestamp() {
+    // JavaScript that logs a message
+    // Verify that each log entry has a proper timestamp
+    let source = r"
+export default async (event) => {
+    Deno.core.ops.fraiseql_log(1, 'test message with timestamp');
+    return { done: true };
+};
+"
+    .to_string();
+
+    let module = FunctionModule::from_source("test_log_timestamp".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let before = chrono::Utc::now();
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .await;
+    let after = chrono::Utc::now();
+
+    // Should succeed and have captured log with proper timestamp
+    assert!(result.is_ok(), "Log call should execute successfully");
+    let result = result.unwrap();
+    assert_eq!(result.logs.len(), 1);
+    assert_eq!(result.logs[0].message, "test message with timestamp");
+
+    // Verify timestamp is within the invocation period
+    assert!(result.logs[0].timestamp >= before);
+    assert!(result.logs[0].timestamp <= after);
+}
+
+#[tokio::test]
+async fn test_deno_guest_log_limit_enforced() {
+    // Generate JavaScript with many individual log calls (can't use a loop in stub)
+    use std::fmt::Write;
+    let mut source = String::from("export default async (event) => {\n");
+    for i in 0..1500 {
+        writeln!(source, "    Deno.core.ops.fraiseql_log(1, 'log entry {}');", i)
+            .expect("write to string");
+    }
+    source.push_str("    return { logged: true };\n};\n");
+
+    let module = FunctionModule::from_source("test_log_limit".to_string(), source, RuntimeType::Deno);
+    let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
+        .expect("Failed to create DenoRuntime");
+
+    let event = test_event();
+    let limits = ResourceLimits {
+        max_memory_bytes: 128 * 1024 * 1024,
+        max_duration: std::time::Duration::from_secs(5),
+        max_log_entries: 1000, // Only allow 1000 logs
+    };
+
+    let result = runtime
+        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), limits)
+        .await;
+
+    // Should succeed but with limited logs
+    assert!(result.is_ok(), "Log calls should execute successfully");
+    let result = result.unwrap();
+    assert_eq!(result.logs.len(), 1000, "Should cap logs at max_log_entries");
+
+    // Verify the last captured log
+    assert_eq!(result.logs[999].message, "log entry 999");
+}

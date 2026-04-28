@@ -114,10 +114,10 @@ impl FunctionRuntime for DenoRuntime {
             let duration = start.elapsed();
 
             match result {
-                Ok(Ok(value)) => {
+                Ok(Ok(execution_result)) => {
                     Ok(FunctionResult {
-                        value: Some(value),
-                        logs: vec![],
+                        value: Some(execution_result.value),
+                        logs: execution_result.logs,
                         duration,
                         memory_peak_bytes: 0,
                     })
