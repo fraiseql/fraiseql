@@ -20,6 +20,7 @@ use std::sync::Arc;
 use crate::types::{EventPayload, LogEntry, LogLevel};
 use crate::HostContext;
 use fraiseql_error::Result;
+use fraiseql_core::security::SecurityContext;
 
 /// Configuration for host context operations.
 #[derive(Debug, Clone)]
@@ -86,6 +87,9 @@ pub struct LiveHostContext {
 
     /// Storage backend for file operations.
     pub storage_backend: Option<Arc<dyn storage::StorageBackend>>,
+
+    /// Security context for the authenticated user.
+    pub security_context: SecurityContext,
 }
 
 impl LiveHostContext {
@@ -98,6 +102,7 @@ impl LiveHostContext {
             query_executor: None,
             http_client: None,
             storage_backend: None,
+            security_context: Self::default_security_context(),
         }
     }
 
@@ -114,6 +119,7 @@ impl LiveHostContext {
             query_executor: Some(executor),
             http_client: None,
             storage_backend: None,
+            security_context: Self::default_security_context(),
         }
     }
 
@@ -130,6 +136,31 @@ impl LiveHostContext {
             query_executor: None,
             http_client: Some(http_client),
             storage_backend: None,
+            security_context: Self::default_security_context(),
+        }
+    }
+
+    /// Create a default security context for testing.
+    fn default_security_context() -> SecurityContext {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+
+        SecurityContext {
+            user_id: "anonymous".to_string(),
+            roles: vec![],
+            tenant_id: None,
+            scopes: vec![],
+            attributes: std::collections::HashMap::new(),
+            request_id: format!("req-{}", now),
+            ip_address: None,
+            authenticated_at: chrono::Utc::now(),
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
+            issuer: None,
+            audience: None,
         }
     }
 
@@ -343,9 +374,17 @@ impl HostContext for LiveHostContext {
     }
 
     fn auth_context(&self) -> Result<serde_json::Value> {
-        Err(fraiseql_error::FraiseQLError::Unsupported {
-            message: "LiveHostContext::auth_context not yet implemented".to_string(),
-        })
+        // Build auth context JSON from security context
+        // Excludes sensitive fields like ip_address, raw tokens, etc.
+        Ok(serde_json::json!({
+            "sub": self.security_context.user_id,
+            "user_id": self.security_context.user_id, // Alias for convenience
+            "roles": self.security_context.roles,
+            "scopes": self.security_context.scopes,
+            "tenant_id": self.security_context.tenant_id,
+            "expires_at": self.security_context.expires_at.to_rfc3339(),
+            "authenticated_at": self.security_context.authenticated_at.to_rfc3339(),
+        }))
     }
 
     fn env_var(&self, name: &str) -> Result<Option<String>> {

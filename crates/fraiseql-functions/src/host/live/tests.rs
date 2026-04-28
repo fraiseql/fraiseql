@@ -750,3 +750,185 @@ async fn test_host_storage_put_respects_size_limit() {
 
 // Note: test_host_storage_without_backend_returns_unsupported is in host/mod.rs
 // as a trait-level test since it doesn't require a real storage backend
+
+// Auth & Environment Tests
+
+#[tokio::test]
+async fn test_host_auth_context_returns_claims() {
+    use fraiseql_core::security::SecurityContext;
+
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    ctx.security_context = SecurityContext {
+        user_id: "user123".to_string(),
+        roles: vec!["admin".to_string(), "user".to_string()],
+        scopes: vec!["read:users".to_string(), "write:users".to_string()],
+        tenant_id: Some("tenant456".to_string()),
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: chrono::Utc::now(),
+        request_id: "req-123".to_string(),
+        ip_address: None,
+        attributes: std::collections::HashMap::new(),
+        issuer: None,
+        audience: None,
+    };
+
+    let result = ctx.auth_context();
+
+    assert!(result.is_ok());
+    let value = result.unwrap();
+    assert_eq!(value["sub"], "user123");
+    assert!(value["roles"].is_array());
+    assert_eq!(value["roles"][0], "admin");
+    assert!(value["scopes"].is_array());
+    assert!(value["expires_at"].is_string());
+}
+
+#[tokio::test]
+async fn test_host_auth_context_redacts_sensitive() {
+    use fraiseql_core::security::SecurityContext;
+
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    ctx.security_context = SecurityContext {
+        user_id: "user123".to_string(),
+        roles: vec!["admin".to_string()],
+        scopes: vec!["read:users".to_string()],
+        tenant_id: Some("tenant456".to_string()),
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: chrono::Utc::now(),
+        request_id: "req-123".to_string(),
+        ip_address: Some("192.168.1.1".to_string()),
+        attributes: std::collections::HashMap::new(),
+        issuer: None,
+        audience: None,
+    };
+
+    let result = ctx.auth_context();
+
+    assert!(result.is_ok());
+    let value = result.unwrap();
+    // Should NOT include ip_address or raw tokens
+    assert!(value.get("ip_address").is_none());
+    assert!(value.get("raw_token").is_none());
+    assert!(value.get("token").is_none());
+}
+
+#[tokio::test]
+async fn test_host_env_var_returns_allowed() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "Config".to_string(),
+        event_kind: "accessed".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let mut config = HostContextConfig::default();
+    config.allowed_env_vars = vec!["APP_URL".to_string(), "APP_NAME".to_string()]
+        .into_iter()
+        .collect();
+
+    let ctx = LiveHostContext::new(payload, config);
+
+    // Set the environment variable for the test
+    std::env::set_var("APP_URL", "https://example.com");
+
+    let result = ctx.env_var("APP_URL");
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), Some("https://example.com".to_string()));
+
+    std::env::remove_var("APP_URL");
+}
+
+#[tokio::test]
+async fn test_host_env_var_blocks_disallowed() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "Config".to_string(),
+        event_kind: "accessed".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let mut config = HostContextConfig::default();
+    config.allowed_env_vars = vec!["ALLOWED_VAR".to_string()].into_iter().collect();
+
+    let ctx = LiveHostContext::new(payload, config);
+
+    // Set an env var that's not in allowlist
+    std::env::set_var("DATABASE_URL", "postgres://secret:password@localhost/db");
+
+    let result = ctx.env_var("DATABASE_URL");
+
+    assert!(result.is_ok());
+    // Should return None silently, not error
+    assert_eq!(result.unwrap(), None);
+
+    std::env::remove_var("DATABASE_URL");
+}
+
+#[tokio::test]
+async fn test_host_env_var_nonexistent_returns_none() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "Config".to_string(),
+        event_kind: "accessed".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let mut config = HostContextConfig::default();
+    config.allowed_env_vars = vec!["NONEXISTENT_VAR".to_string()].into_iter().collect();
+
+    let ctx = LiveHostContext::new(payload, config);
+
+    // Make sure the variable doesn't exist
+    std::env::remove_var("NONEXISTENT_VAR");
+
+    let result = ctx.env_var("NONEXISTENT_VAR");
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), None);
+}
+
+#[tokio::test]
+async fn test_host_event_payload_returns_trigger_data() {
+    let event_data = serde_json::json!({
+        "id": "123",
+        "name": "Test Event",
+        "status": "active"
+    });
+
+    let payload = EventPayload {
+        trigger_type: "user.created".to_string(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: event_data.clone(),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload.clone(), HostContextConfig::default());
+
+    let returned_payload = ctx.event_payload();
+
+    assert_eq!(returned_payload.trigger_type, "user.created");
+    assert_eq!(returned_payload.entity, "User");
+    assert_eq!(returned_payload.event_kind, "created");
+    assert_eq!(returned_payload.data, event_data);
+}
