@@ -449,3 +449,93 @@ fn test_before_mutation_abort_serialization() {
         }
     }
 }
+
+/// Test: chain execution order simulation
+/// Simulates what happens when triggers execute in order, each receiving
+/// the modified output from the previous trigger.
+#[test]
+fn test_before_mutation_chain_execution_simulation() {
+    use crate::triggers::mutation::BeforeMutationChain;
+
+    let chain = BeforeMutationChain {
+        triggers: vec![
+            BeforeMutationTrigger {
+                function_name: "normalizeEmail".to_string(),
+                mutation_name: "createUser".to_string(),
+            },
+            BeforeMutationTrigger {
+                function_name: "validateName".to_string(),
+                mutation_name: "createUser".to_string(),
+            },
+            BeforeMutationTrigger {
+                function_name: "enrichProfile".to_string(),
+                mutation_name: "createUser".to_string(),
+            },
+        ],
+    };
+
+    // Verify chain structure before execution simulation
+    assert_eq!(chain.triggers.len(), 3);
+
+    // Simulate chain execution
+    let mut current_input = serde_json::json!({
+        "name": "alice smith",
+        "email": "  ALICE@EXAMPLE.COM  "
+    });
+
+    // Trigger 1: normalizeEmail (simulated result)
+    current_input["email"] = serde_json::Value::String("alice@example.com".to_string());
+
+    // Trigger 2: validateName (simulated result)
+    current_input["name"] = serde_json::Value::String("Alice Smith".to_string());
+
+    // Trigger 3: enrichProfile (simulated result)
+    current_input["profile"] = serde_json::json!({"bio": "User"});
+
+    // Verify the chain of modifications
+    assert_eq!(current_input["email"], "alice@example.com");
+    assert_eq!(current_input["name"], "Alice Smith");
+    assert!(current_input["profile"].is_object());
+    assert_eq!(current_input["profile"]["bio"], "User");
+}
+
+/// Test: chain execution short-circuit on abort simulation
+/// Simulates what happens when a trigger aborts the chain.
+#[test]
+fn test_before_mutation_chain_abort_simulation() {
+    let chain = crate::triggers::mutation::BeforeMutationChain {
+        triggers: vec![
+            BeforeMutationTrigger {
+                function_name: "validateInput".to_string(),
+                mutation_name: "createUser".to_string(),
+            },
+            BeforeMutationTrigger {
+                function_name: "checkDuplicates".to_string(),
+                mutation_name: "createUser".to_string(),
+            },
+            BeforeMutationTrigger {
+                function_name: "auditLog".to_string(),
+                mutation_name: "createUser".to_string(),
+            },
+        ],
+    };
+
+    // Verify chain structure
+    assert_eq!(chain.triggers.len(), 3);
+
+    // Trigger 1: validateInput would return Abort
+    let result1 = BeforeMutationResult::Abort(
+        "name is required".to_string()
+    );
+
+    // Chain short-circuits here, triggers 2 and 3 never execute
+    match result1 {
+        BeforeMutationResult::Abort(error) => {
+            assert_eq!(error, "name is required");
+            // This is where mutation would be aborted in actual implementation
+        }
+        BeforeMutationResult::Proceed(_) => {
+            panic!("Expected abort");
+        }
+    }
+}

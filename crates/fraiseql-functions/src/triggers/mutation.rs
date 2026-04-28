@@ -140,6 +140,37 @@ impl BeforeMutationTrigger {
 }
 
 /// Chain of before-mutation triggers for a single mutation.
+///
+/// Executes multiple `before:mutation` triggers in declaration order.
+/// Each trigger can modify the input and pass it to the next trigger,
+/// or abort the mutation by returning an error.
+///
+/// # Execution Semantics
+///
+/// - Synchronous: blocks the mutation (execution is on the hot path)
+/// - Sequential: triggers execute in declaration order
+/// - Propagating: each trigger receives the modified input from previous trigger
+/// - Short-circuit: first abort stops the chain immediately
+/// - Default timeout: 500ms per trigger (shorter than general 5s default)
+/// - Side-effects: any side-effects from aborted triggers are NOT rolled back
+///
+/// # Example
+///
+/// ```ignore
+/// let chain = BeforeMutationChain {
+///     triggers: vec![
+///         validateInput,  // checks required fields
+///         checkDuplicates, // checks uniqueness
+///         auditLog,       // logs the attempt
+///     ]
+/// };
+///
+/// let result = chain.execute(input, &observer).await?;
+/// match result {
+///     Proceed(modified) => { /* mutation continues */ }
+///     Abort(error) => { /* mutation cancelled */ }
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct BeforeMutationChain {
     /// Triggers in declaration order.
