@@ -109,6 +109,7 @@ defmodule FraiseQL.QueryDefinition do
     * `:name` — the GraphQL query field name, e.g. `"authors"`
     * `:return_type` — the GraphQL return type name, e.g. `"Author"`
     * `:sql_source` — the underlying view or table name
+    * `:sql_source_dispatch` — optional dispatch config for dynamic SQL source selection
     * `:returns_list` — whether the query returns a list; defaults to `false`
     * `:nullable` — whether the query result can be null; defaults to `false`
     * `:arguments` — list of `FraiseQL.ArgumentDefinition` structs
@@ -122,6 +123,7 @@ defmodule FraiseQL.QueryDefinition do
     :name,
     :return_type,
     :sql_source,
+    sql_source_dispatch: nil,
     returns_list: false,
     nullable: false,
     arguments: [],
@@ -136,6 +138,7 @@ defmodule FraiseQL.QueryDefinition do
           name: String.t(),
           return_type: String.t(),
           sql_source: String.t(),
+          sql_source_dispatch: map() | nil,
           returns_list: boolean(),
           nullable: boolean(),
           arguments: [FraiseQL.ArgumentDefinition.t()],
@@ -156,6 +159,7 @@ defmodule FraiseQL.MutationDefinition do
     * `:name` — the GraphQL mutation field name in camelCase, e.g. `"createAuthor"`
     * `:return_type` — the GraphQL return type name
     * `:sql_source` — the underlying function name, e.g. `"fn_create_author"`
+    * `:sql_source_dispatch` — optional dispatch config for dynamic SQL source selection
     * `:operation` — the mutation operation type: `"insert"`, `"update"`, or `"delete"`
     * `:arguments` — list of `FraiseQL.ArgumentDefinition` structs
     * `:description` — optional human-readable description
@@ -163,12 +167,13 @@ defmodule FraiseQL.MutationDefinition do
   """
 
   @enforce_keys [:name, :return_type, :sql_source, :operation]
-  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], description: nil, rest_path: nil, rest_method: nil, cascade: false]
+  defstruct [:name, :return_type, :sql_source, :operation, arguments: [], sql_source_dispatch: nil, description: nil, rest_path: nil, rest_method: nil, cascade: false]
 
   @type t :: %__MODULE__{
           name: String.t(),
           return_type: String.t(),
           sql_source: String.t(),
+          sql_source_dispatch: map() | nil,
           operation: String.t(),
           arguments: [FraiseQL.ArgumentDefinition.t()],
           description: String.t() | nil,

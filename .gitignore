@@ -91,9 +91,6 @@ docs/.buildinfo
 site/
 .doctrees/
 
-# Development phase documentation (not shipped in releases)
-.phases/
-
 # AI session work artifacts (kept locally for context, not committed)
 .claude/plans/
 .claude/worktrees/

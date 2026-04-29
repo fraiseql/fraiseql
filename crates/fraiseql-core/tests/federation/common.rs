@@ -53,9 +53,10 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None, None).await
+        self.execute_where_query(view, where_clause, limit, None, None, &[]).await
     }
 
     async fn execute_where_query(
@@ -64,7 +65,8 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         Ok(Vec::new())
     }
@@ -107,7 +109,8 @@ impl DatabaseAdapter for MockDatabaseAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -116,6 +119,7 @@ impl DatabaseAdapter for MockDatabaseAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, Value>>> {
         Ok(vec![])
     }
@@ -149,9 +153,10 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query(view, where_clause, limit, None, None).await
+        self.execute_where_query(view, where_clause, limit, None, None, &[]).await
     }
 
     async fn execute_where_query(
@@ -160,7 +165,8 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         Ok(Vec::new())
     }
@@ -189,7 +195,8 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -198,6 +205,7 @@ impl DatabaseAdapter for MockMutationDatabaseAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, Value>>> {
         Ok(vec![])
     }

@@ -39,6 +39,12 @@ Example:
 """
 
 from fraiseql.async_client import AsyncFraiseQLClient
+from fraiseql.changelog_consumer import (
+    ChangelogConsumer,
+    ChangelogEvent,
+    CheckpointStore,
+    HttpCheckpointStore,
+)
 from fraiseql.client import (
     FraiseQLAuthError,
     FraiseQLClient,
@@ -86,6 +92,9 @@ __all__ = [
     "UUID",
     "AsyncFraiseQLClient",
     "AuthenticationError",
+    "ChangelogConsumer",
+    "ChangelogEvent",
+    "CheckpointStore",
     "CustomScalar",
     "Date",
     "DateTime",
@@ -99,6 +108,7 @@ __all__ = [
     "FraiseQLRateLimitError",
     "FraiseQLUnsupportedError",
     "GraphQLError",
+    "HttpCheckpointStore",
     "Json",
     "NetworkError",
     "RetryConfig",

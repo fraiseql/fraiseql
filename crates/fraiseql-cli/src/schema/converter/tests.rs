@@ -3,7 +3,8 @@ use indexmap::IndexMap;
 
 use super::*;
 use crate::schema::intermediate::{
-    IntermediateArgument, IntermediateAutoParams, IntermediateField, IntermediateQuery,
+    operations::IntermediateSqlSourceDispatch, IntermediateArgument, IntermediateAutoParams,
+    IntermediateEnum, IntermediateEnumValue, IntermediateField, IntermediateQuery,
     IntermediateSchema, IntermediateType,
 };
 
@@ -126,6 +127,7 @@ fn test_validate_unknown_type_reference() {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_user".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,
@@ -192,6 +194,7 @@ fn test_convert_query_with_arguments() {
             }],
             description:       Some("Get users".to_string()),
             sql_source:        Some("v_user".to_string()),
+            sql_source_dispatch: None,
             auto_params:       Some(IntermediateAutoParams {
                 limit:        Some(true),
                 offset:       Some(true),
@@ -259,6 +262,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_item".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,
@@ -322,6 +326,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_item".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,
@@ -1257,4 +1262,945 @@ fn test_convert_field_requires_scope() {
     // ssn field - requires admin scope
     assert_eq!(employee_type.fields[3].name, "ssn");
     assert_eq!(employee_type.fields[3].requires_scope, Some("admin".to_string()));
+}
+
+// ── sql_source_dispatch tests ─────────────────────────────────────────────
+
+#[test]
+fn test_dispatch_explicit_mapping() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(),   description: None, deprecated: None },
+                IntermediateEnumValue { name: "WEEK".to_string(),  description: None, deprecated: None },
+                IntermediateEnumValue { name: "MONTH".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([
+                    ("DAY".to_string(),   "tf_orders_day".to_string()),
+                    ("WEEK".to_string(),  "tf_orders_week".to_string()),
+                    ("MONTH".to_string(), "tf_orders_month".to_string()),
+                ]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("test");
+    assert_eq!(compiled.queries.len(), 1);
+    let query = &compiled.queries[0];
+    assert!(query.sql_source_dispatch.is_some());
+    let dispatch = query.sql_source_dispatch.as_ref().expect("sql_source_dispatch should be set");
+    assert_eq!(dispatch.argument, "timeInterval");
+    assert_eq!(dispatch.mapping.get("DAY"), Some(&"tf_orders_day".to_string()));
+    assert_eq!(dispatch.mapping.get("WEEK"), Some(&"tf_orders_week".to_string()));
+    assert_eq!(dispatch.mapping.get("MONTH"), Some(&"tf_orders_month".to_string()));
+}
+
+#[test]
+fn test_dispatch_template_expansion() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(),   description: None, deprecated: None },
+                IntermediateEnumValue { name: "WEEK".to_string(),  description: None, deprecated: None },
+                IntermediateEnumValue { name: "MONTH".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::new(),
+                template: Some("tf_orders_{time_interval}".to_string()),
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("test");
+    let query = &compiled.queries[0];
+    let dispatch = query.sql_source_dispatch.as_ref().expect("sql_source_dispatch should be set");
+    assert_eq!(dispatch.mapping.get("DAY"), Some(&"tf_orders_day".to_string()));
+    assert_eq!(dispatch.mapping.get("WEEK"), Some(&"tf_orders_week".to_string()));
+    assert_eq!(dispatch.mapping.get("MONTH"), Some(&"tf_orders_month".to_string()));
+}
+
+#[test]
+fn test_dispatch_additional_views_populated() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(),   description: None, deprecated: None },
+                IntermediateEnumValue { name: "WEEK".to_string(),  description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([
+                    ("DAY".to_string(),  "tf_orders_day".to_string()),
+                    ("WEEK".to_string(), "tf_orders_week".to_string()),
+                ]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("test");
+    let query = &compiled.queries[0];
+    assert!(query.additional_views.contains(&"tf_orders_day".to_string()));
+    assert!(query.additional_views.contains(&"tf_orders_week".to_string()));
+}
+
+#[test]
+fn test_dispatch_additional_views_dedup() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(),   description: None, deprecated: None },
+                IntermediateEnumValue { name: "WEEK".to_string(),  description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([
+                    ("DAY".to_string(),  "tf_orders_day".to_string()),
+                    ("WEEK".to_string(), "tf_orders_week".to_string()),
+                ]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec!["tf_orders_day".to_string()],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let compiled = SchemaConverter::convert(intermediate).expect("test");
+    let query = &compiled.queries[0];
+    // Should have DAY once and WEEK, not duplicated
+    assert_eq!(query.additional_views.iter().filter(|v| v == &&"tf_orders_day".to_string()).count(), 1);
+    assert!(query.additional_views.contains(&"tf_orders_week".to_string()));
+}
+
+#[test]
+fn test_dispatch_err_mutual_exclusivity() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        Some("v_orders".to_string()),
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([("DAY".to_string(), "tf_orders_day".to_string())]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("cannot set both sql_source and sql_source_dispatch"));
+}
+
+#[test]
+fn test_dispatch_err_missing_argument() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([("DAY".to_string(), "tf_orders_day".to_string())]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("timeInterval"));
+}
+
+#[test]
+fn test_dispatch_err_nullable_argument() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   true,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([("DAY".to_string(), "tf_orders_day".to_string())]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("must be required"));
+}
+
+#[test]
+fn test_dispatch_err_non_enum_argument() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "String".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([("DAY".to_string(), "tf_orders_day".to_string())]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("scalar type"));
+}
+
+#[test]
+fn test_dispatch_err_unknown_enum_type() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "UnknownEnum".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([("DAY".to_string(), "tf_orders_day".to_string())]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("not a known enum"));
+}
+
+#[test]
+fn test_dispatch_err_incomplete_mapping() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(),   description: None, deprecated: None },
+                IntermediateEnumValue { name: "WEEK".to_string(),  description: None, deprecated: None },
+                IntermediateEnumValue { name: "MONTH".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([
+                    ("DAY".to_string(),  "tf_orders_day".to_string()),
+                    ("WEEK".to_string(), "tf_orders_week".to_string()),
+                ]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("missing entry for enum value 'MONTH'"));
+}
+
+#[test]
+fn test_dispatch_err_template_and_mapping() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([("DAY".to_string(), "tf_orders_day".to_string())]),
+                template: Some("tf_orders_{time_interval}".to_string()),
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("cannot have both mapping and template"));
+}
+
+#[test]
+fn test_dispatch_err_unsafe_sql_identifier() {
+    let intermediate = IntermediateSchema {
+        security:             None,
+        version:              "2.0.0".to_string(),
+        types:                vec![IntermediateType {
+            name:          "Order".to_string(),
+            fields:        vec![],
+            description:   None,
+            implements:    vec![],
+            requires_role: None,
+            is_error:      false,
+            relay:         false,
+        }],
+        enums:                vec![IntermediateEnum {
+            name:        "TimeInterval".to_string(),
+            values:      vec![
+                IntermediateEnumValue { name: "DAY".to_string(), description: None, deprecated: None },
+            ],
+            description: None,
+        }],
+        input_types:          vec![],
+        interfaces:           vec![],
+        unions:               vec![],
+        queries:              vec![IntermediateQuery {
+            name:              "orders".to_string(),
+            return_type:       "Order".to_string(),
+            returns_list:      true,
+            nullable:          false,
+            arguments:         vec![IntermediateArgument {
+                name:       "timeInterval".to_string(),
+                arg_type:   "TimeInterval".to_string(),
+                nullable:   false,
+                default:    None,
+                deprecated: None,
+            }],
+            description:       None,
+            sql_source:        None,
+            sql_source_dispatch: Some(IntermediateSqlSourceDispatch {
+                argument: "timeInterval".to_string(),
+                mapping:  IndexMap::from([("DAY".to_string(), "invalid table".to_string())]),
+                template: None,
+            }),
+            auto_params:       None,
+            deprecated:        None,
+            jsonb_column:      None,
+            relay:             false,
+            inject:            IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views:  vec![],
+            requires_role:     None,
+            relay_cursor_type: None,
+        }],
+        mutations:            vec![],
+        subscriptions:        vec![],
+        fragments:            None,
+        directives:           None,
+        fact_tables:          None,
+        aggregate_queries:    None,
+        observers:            None,
+        custom_scalars:       None,
+        observers_config:     None,
+        subscriptions_config: None,
+        validation_config:    None,
+        federation_config:    None,
+        debug_config:         None,
+        mcp_config:           None,
+        query_defaults:       None,
+        naming_convention:    NamingConvention::default(),
+        session_variables:    None,
+    };
+
+    let result = SchemaConverter::convert(intermediate);
+    assert!(result.is_err());
+    assert!(format!("{:#}", result.expect_err("test")).contains("not a safe SQL identifier"));
 }

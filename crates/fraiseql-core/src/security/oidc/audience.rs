@@ -44,14 +44,14 @@ pub struct JwtClaims {
     /// Permissions (array, common in Auth0)
     pub permissions: Option<Vec<String>>,
 
-    /// Email claim
-    pub email: Option<String>,
-
-    /// Email verified
-    pub email_verified: Option<bool>,
-
-    /// Name claim
-    pub name: Option<String>,
+    // NOTE: `email`, `email_verified`, and `name` are intentionally NOT
+    // named fields. Some providers (e.g. Hanko) emit `email` as a nested
+    // object `{"address": "…", "is_verified": true}` rather than a flat
+    // string.  Keeping them as named `Option<String>` fields would fail
+    // serde deserialization for those providers.  By omitting them, both
+    // flat strings and nested objects fall through to the `extra` catch-all
+    // (`HashMap<String, serde_json::Value>`) and are available via
+    // `expose_claims` and enrichment parameter binding.
 
     /// Arbitrary extra claims not captured by named fields above.
     ///
@@ -142,8 +142,10 @@ mod tests {
     }
 
     #[test]
-    fn test_named_claim_not_duplicated_in_extra() {
-        // Named fields (sub, exp, email, etc.) must not appear in extra.
+    fn test_email_and_name_land_in_extra() {
+        // email, email_verified, and name are NOT named fields — they fall
+        // through to `extra` so that providers emitting objects (Hanko) and
+        // providers emitting strings (Auth0) both deserialize correctly.
         let claims_json = r#"{
             "sub": "user123",
             "exp": 1735689600,
@@ -152,9 +154,23 @@ mod tests {
         }"#;
 
         let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
-        assert_eq!(claims.email, Some("user@example.com".to_string()));
-        assert!(!claims.extra.contains_key("email"), "named claim must not appear in extra");
-        assert!(!claims.extra.contains_key("name"), "named claim must not appear in extra");
+        assert_eq!(claims.extra.get("email"), Some(&serde_json::json!("user@example.com")));
+        assert_eq!(claims.extra.get("name"), Some(&serde_json::json!("Alice")));
+    }
+
+    #[test]
+    fn test_email_as_nested_object_deserializes() {
+        // Hanko emits email as {"address": "…", "is_primary": true, "is_verified": true}
+        let claims_json = r#"{
+            "sub": "user123",
+            "exp": 1735689600,
+            "email": {"address": "user@example.com", "is_primary": true, "is_verified": true}
+        }"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        let email = claims.extra.get("email").unwrap();
+        assert_eq!(email["address"], "user@example.com");
+        assert_eq!(email["is_verified"], true);
     }
 
     #[test]

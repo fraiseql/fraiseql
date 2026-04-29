@@ -164,7 +164,7 @@ pub struct RelayPageResult {
 ///
 /// // Execute query with parameters
 /// let results = adapter
-///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None)
+///     .execute_where_query("v_user", Some(&where_clause), Some(10), None, None, &[])
 ///     .await?;
 ///
 /// println!("Found {} users matching filter", results.len());
@@ -237,7 +237,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // Simple query without WHERE clause
     /// let all_users = adapter
-    ///     .execute_where_query("v_user", None, Some(10), Some(0), None)
+    ///     .execute_where_query("v_user", None, Some(10), Some(0), None, &[])
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -249,6 +249,7 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>>;
 
     /// Execute a WHERE query with SQL field projection optimization.
@@ -374,6 +375,7 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>>;
 
     /// Like `execute_where_query` but returns the result wrapped in an `Arc`.
@@ -396,8 +398,9 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query(view, where_clause, limit, offset, order_by)
+        self.execute_where_query(view, where_clause, limit, offset, order_by, session_vars)
             .await
             .map(Arc::new)
     }
@@ -420,8 +423,9 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection(view, projection, where_clause, limit, offset, order_by)
+        self.execute_with_projection(view, projection, where_clause, limit, offset, order_by, session_vars)
             .await
             .map(Arc::new)
     }
@@ -589,6 +593,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         sql: &str,
         params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>>;
 
     /// Execute a database function call and return all columns as rows.
@@ -616,6 +621,7 @@ pub trait DatabaseAdapter: Send + Sync {
         &self,
         function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Err(FraiseQLError::Unsupported {
             message: format!(
@@ -1004,6 +1010,7 @@ pub trait RelayDatabaseAdapter: DatabaseAdapter {
         where_clause: Option<&'a WhereClause>,
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
+        session_vars: &'a [(&'a str, &'a str)],
     ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a;
 }
 

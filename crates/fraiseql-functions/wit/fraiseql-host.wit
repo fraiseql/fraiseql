@@ -1,0 +1,34 @@
+package fraiseql:host@0.1.0;
+
+interface logging {
+    enum log-level { debug, info, warn, error }
+    log: func(level: log-level, message: string);
+}
+
+interface context {
+    get-event-payload: func() -> string;  // JSON
+    get-auth-context: func() -> result<string, string>;  // JSON or error
+    get-env-var: func(name: string) -> option<string>;
+}
+
+interface io {
+    record http-response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: list<u8>,
+    }
+
+    query: func(graphql: string, variables: string) -> result<string, string>;
+    sql-query: func(sql: string, params: string) -> result<string, string>;
+    http-request: func(method: string, url: string, headers: list<tuple<string, string>>, body: option<list<u8>>) -> result<http-response, string>;
+    storage-get: func(bucket: string, key: string) -> result<list<u8>, string>;
+    storage-put: func(bucket: string, key: string, body: list<u8>, content-type: string) -> result<_, string>;
+}
+
+world fraiseql-function {
+    import logging;
+    import context;
+    import io;
+
+    export handle: func(event-json: string) -> result<string, string>;
+}

@@ -11,7 +11,7 @@ use super::{
     },
     field_resolver::{build_field, build_validation_rule, type_ref},
     types::{
-        IntrospectionEnumValue, IntrospectionInputValue, IntrospectionType, IntrospectionTypeRef,
+        IntrospectionEnumValue, IntrospectionField, IntrospectionInputValue, IntrospectionType, IntrospectionTypeRef,
         TypeKind,
     },
 };
@@ -52,6 +52,79 @@ pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
         ),
         scalar_type("Decimal", "Decimal number"),
     ]
+}
+
+// =============================================================================
+// Built-in object types
+// =============================================================================
+
+/// Return the `IntrospectionType` for the built-in `MutationError` object type.
+///
+/// `MutationError` is the implicit error member for mutations that declare
+/// neither a `@fraiseql.union` nor a `{ReturnType}Error` convention type.
+/// Clients can use `... on MutationError { message status metadata }` in any
+/// mutation selection set without any schema-level declaration.
+pub(super) fn builtin_mutation_error_type() -> IntrospectionType {
+    let make_string_field = |name: &str, description: &str| IntrospectionField {
+        name:               name.to_string(),
+        description:        Some(description.to_string()),
+        args:               vec![],
+        field_type:         non_null_string(),
+        is_deprecated:      false,
+        deprecation_reason: None,
+    };
+
+    let message_field = make_string_field(
+        "message",
+        "Human-readable error summary safe to show to end users.",
+    );
+    let status_field = make_string_field(
+        "status",
+        "Machine-readable error class (e.g. \"validation\", \"not_found\").",
+    );
+    let metadata_field = IntrospectionField {
+        name:               "metadata".to_string(),
+        description:        Some(
+            "Structured error payload from error_detail (may be null).".to_string(),
+        ),
+        args:               vec![],
+        field_type:         type_ref("JSON"),  // nullable JSON
+        is_deprecated:      false,
+        deprecation_reason: None,
+    };
+
+    IntrospectionType {
+        kind:               TypeKind::Object,
+        name:               Some("MutationError".to_string()),
+        description:        Some(
+            "Built-in error type for mutations without an explicit @fraiseql.union. \
+             Use `... on MutationError { message status metadata }` in your selection set."
+                .to_string(),
+        ),
+        fields:             Some(vec![message_field, status_field, metadata_field]),
+        interfaces:         Some(vec![]),
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
+        specified_by_u_r_l: None,
+    }
+}
+
+/// Convenience: `String!` (non-null String) introspection type.
+fn non_null_string() -> IntrospectionType {
+    IntrospectionType {
+        kind:               TypeKind::NonNull,
+        name:               None,
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            Some(Box::new(type_ref("String"))),
+        specified_by_u_r_l: None,
+    }
 }
 
 /// Create a scalar type introspection without a `specifiedByURL`.

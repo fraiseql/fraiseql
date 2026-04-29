@@ -18,7 +18,7 @@ async fn test_query_cancellation_via_tokio_timeout() {
 
     let adapter_clone = Arc::clone(&adapter);
     let result = tokio::time::timeout(Duration::from_millis(50), async move {
-        adapter_clone.execute_where_query("v_user", None, None, None, None).await
+        adapter_clone.execute_where_query("v_user", None, None, None, None, &[]).await
     })
     .await;
 
@@ -44,13 +44,13 @@ async fn test_aborted_task_doesnt_corrupt_adapter_state() {
     // Spawn and immediately abort a task
     let adapter_clone = Arc::clone(&adapter);
     let handle = tokio::spawn(async move {
-        adapter_clone.execute_where_query("v_user", None, None, None, None).await
+        adapter_clone.execute_where_query("v_user", None, None, None, None, &[]).await
     });
     handle.abort();
     let _ = handle.await; // Ignore result (JoinError if aborted)
 
     // Adapter should still be functional
-    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None, &[]).await;
     assert!(result.is_ok(), "adapter must remain usable after task abort");
 }
 
@@ -62,7 +62,7 @@ async fn test_concurrent_queries_with_one_cancelled() {
     for _ in 0..10 {
         let adapter = Arc::clone(&adapter);
         handles.push(tokio::spawn(async move {
-            adapter.execute_where_query("v_user", None, None, None, None).await
+            adapter.execute_where_query("v_user", None, None, None, None, &[]).await
         }));
     }
 
@@ -91,7 +91,7 @@ async fn test_rapid_spawn_and_cancel_cycle() {
     for _ in 0..100 {
         let adapter = Arc::clone(&adapter);
         let handle = tokio::spawn(async move {
-            adapter.execute_where_query("v_user", None, None, None, None).await
+            adapter.execute_where_query("v_user", None, None, None, None, &[]).await
         });
         handle.abort();
         let _ = handle.await;
@@ -103,6 +103,6 @@ async fn test_rapid_spawn_and_cancel_cycle() {
     assert!(count <= 100, "query count should not exceed spawn count, got {count}");
 
     // Adapter must still work after rapid spawn/cancel cycles
-    let result = adapter.execute_where_query("v_user", None, None, None, None).await;
+    let result = adapter.execute_where_query("v_user", None, None, None, None, &[]).await;
     assert!(result.is_ok(), "adapter must remain usable after rapid cancel cycles");
 }

@@ -429,6 +429,7 @@ fn test_e2e_full_field_assertion() {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_user".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,

@@ -273,11 +273,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
         revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
         trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
-        // `db_pool` is forwarded to the observer runtime; unused when the `observers` feature is
-        // off.
-        #[cfg_attr(not(feature = "observers"), allow(unused_variables))] db_pool: Option<
-            sqlx::PgPool,
-        >,
+        // `db_pool` is forwarded to the observer runtime and/or auth enrichment.
+        #[cfg_attr(
+            not(any(feature = "observers", feature = "auth")),
+            allow(unused_variables)
+        )]
+        db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
@@ -364,6 +365,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             });
         }
 
+        // Initialize storage subsystem when [storage] buckets are configured.
+        let storage_state = if !config.storage.is_empty() {
+            if let Some(ref pool) = db_pool {
+                match Self::build_storage_state(&config, pool.clone()).await {
+                    Ok(state) => {
+                        info!(
+                            buckets = config.storage.len(),
+                            "Storage subsystem initialized"
+                        );
+                        Some(state)
+                    }
+                    Err(e) => {
+                        warn!(error = %e, "Failed to initialize storage backend — storage routes disabled");
+                        None
+                    }
+                }
+            } else {
+                warn!(
+                    "Storage config present but no PostgreSQL pool available — \
+                     storage routes disabled (provide db_pool to Server::new)"
+                );
+                None
+            }
+        } else {
+            None
+        };
+
         // Reason: state_encryption/pkce_store/oidc_server_client are only stored when
         //         feature = "auth" is enabled; without it they are legitimately unused.
         #[cfg(not(feature = "auth"))]
@@ -395,7 +423,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
-            db_pool,
+            db_pool: db_pool.clone(),
+            #[cfg(feature = "auth")]
+            enrichment_pool: db_pool.clone(),
+            storage_state,
+            realtime_state: None,
             #[cfg(feature = "arrow")]
             flight_service,
             #[cfg(feature = "mcp")]
@@ -437,6 +469,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config.validate()?;
         self.pool_tuning_config = Some(config);
         Ok(self)
+    }
+
+    /// Attach a pre-built realtime `WebSocket` state to the server.
+    ///
+    /// When set, `build_base_router` will merge `realtime_router(state)` at
+    /// `/realtime/v1`.  Call this after constructing the server but before
+    /// calling `serve` or `serve_with_shutdown`.
+    #[must_use]
+    pub fn with_realtime(mut self, state: crate::realtime::server::RealtimeState) -> Self {
+        self.realtime_state = Some(state);
+        self
     }
 
     /// Set secrets manager for the server.

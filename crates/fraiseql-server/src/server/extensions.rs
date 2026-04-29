@@ -342,7 +342,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "observers")]
             observer_runtime,
             #[cfg(feature = "observers")]
-            db_pool,
+            db_pool: db_pool.clone(),
+            #[cfg(feature = "auth")]
+            enrichment_pool: db_pool,
+            storage_state: None,
+            realtime_state: None,
             flight_service,
             adapter_cache_enabled: false,
         })

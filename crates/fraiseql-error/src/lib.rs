@@ -2,22 +2,49 @@
 //!
 //! All runtime crates depend on this crate for error handling.
 //!
-//! # Error bridging contract
+//! # Two-Layer Error Design
 //!
-//! [`RuntimeError`] is the domain-level error enum that aggregates all business-logic errors
-//! (auth, webhooks, files, notifications, etc.). It implements [`axum::response::IntoResponse`]
-//! via the `http` module's `IntoResponse` impl, which converts it to an [`ErrorResponse`] JSON body
-//! with the appropriate HTTP status code:
+//! FraiseQL uses two distinct error layers with separate responsibilities:
 //!
-//! ```text
-//! RuntimeError (domain)
-//!     ↓  IntoResponse (via fraiseql-error::http)
-//! ErrorResponse { error, error_description, error_code, error_uri, details, retry_after }
-//!     ↓  Json(response) + StatusCode
-//! HTTP response body (application/json)
+//! ## Layer 1 — Compile-time errors: [`FraiseQLError`] (in `core_error`)
+//!
+//! Returned by schema compilation, query planning, and the CLI. These are
+//! **developer-facing errors** that occur before any user request is processed.
+//! Library consumers building atop the `Executor` API will encounter this type.
+//!
+//! ```rust,ignore
+//! use fraiseql_error::{FraiseQLError, Result};
+//!
+//! fn compile_schema(json: &str) -> Result<CompiledSchema> {
+//!     // Returns FraiseQLError::Parse if the JSON is malformed,
+//!     // FraiseQLError::Validation if the schema is semantically invalid.
+//!     todo!()
+//! }
 //! ```
 //!
-//! ## Mapping rules
+//! [`FraiseQLError`] variants: `Parse`, `Validation`, `Database`, `Compilation`,
+//! `IO`, `Config`, `Unsupported`, `Auth`, `Timeout`, `NotFound`.
+//!
+//! ## Layer 2 — Runtime errors: [`RuntimeError`]
+//!
+//! Returned by the HTTP server and live request handlers. These map directly
+//! to HTTP status codes and are safe to return to API clients (internal details
+//! are stripped before the response is sent).
+//!
+//! Application code using the `Server` API will encounter this type.
+//! Conversion from `FraiseQLError` to `RuntimeError` happens automatically inside
+//! the request-handler middleware via `From<FraiseQLError> for RuntimeError`.
+//!
+//! ## Conversion rules
+//!
+//! `FraiseQLError` → `RuntimeError` mapping:
+//! - `Validation`, `Parse`  → `RuntimeError::Internal` (HTTP 400 via handler logic)
+//! - `Database`             → `RuntimeError::Database` (HTTP 500)
+//! - `Auth`                 → `RuntimeError::Auth`     (HTTP 401/403)
+//! - `NotFound`             → `RuntimeError::NotFound` (HTTP 404)
+//! - Everything else        → `RuntimeError::Internal` (HTTP 500)
+//!
+//! # `RuntimeError` → HTTP mapping
 //!
 //! | `RuntimeError` variant            | HTTP status                  |
 //! |-----------------------------------|------------------------------|
@@ -30,11 +57,13 @@
 //! | `Database`                        | 500 Internal Server Error    |
 //! | `Config` / `Internal`             | 500 Internal Server Error    |
 //!
-//! ## Security note
+//! # Security note
 //!
 //! All variants that might leak internal details (database messages, config values,
 //! provider endpoints) return **generic** descriptions in the HTTP response body.
 //! Raw error details are available only in structured server logs.
+//!
+//! See also: [`docs/architecture/error-hierarchy.md`](https://docs.fraiseql.dev/architecture/error-hierarchy)
 
 #![warn(missing_docs)]
 

@@ -691,6 +691,53 @@ e2e-all: e2e-python e2e-typescript e2e-go e2e-velocitybench
 	@echo "=============================================="
 	@echo ""
 
+## Run FraiseQL performance benchmark via velocitybench (sequential isolation)
+## Requires: velocitybench running at VELOCITYBENCH_DIR with postgres seeded
+VELOCITYBENCH_DIR   ?= $(HOME)/code/velocitybench
+BENCH_VARIANT       ?= fraiseql-tv
+BENCH_DURATION      ?= 30
+BENCH_WORKERS       ?= 40
+# bench_sequential.py --output writes a .md file; JSON lands at the same stem (.json).
+# e.g. --output /tmp/bench.md → JSON at /tmp/bench.json
+BENCH_OUTPUT_MD     ?= /tmp/fraiseql-bench-results.md
+BENCH_OUTPUT_JSON   ?= /tmp/fraiseql-bench-results.json
+BENCH_REPORT_FILE   ?= /tmp/fraiseql-bench-report.md
+
+.PHONY: bench-fraiseql bench-check-regression bench-update-baseline
+
+## Run fraiseql-tv benchmark via velocitybench; inject local binary first.
+## Requires: velocitybench postgres running (cd $(VELOCITYBENCH_DIR) && docker compose up -d postgres)
+bench-fraiseql:
+	@echo "========== VELOCITYBENCH PERFORMANCE BENCHMARK =========="
+	@echo "Variant: $(BENCH_VARIANT), Duration: $(BENCH_DURATION)s, Workers: $(BENCH_WORKERS)"
+	@echo "Injecting local fraiseql-server binary..."
+	cp target/release/fraiseql-server $(VELOCITYBENCH_DIR)/frameworks/fraiseql/fraiseql-server
+	cd $(VELOCITYBENCH_DIR) && \
+		python tests/benchmark/bench_sequential.py \
+		  --frameworks $(BENCH_VARIANT) \
+		  --duration $(BENCH_DURATION) \
+		  --concurrency $(BENCH_WORKERS) \
+		  --output $(BENCH_OUTPUT_MD)
+	@echo "Results written to $(BENCH_OUTPUT_JSON)"
+
+## Compare last bench run against benchmarks/baseline.json; fail on >5% RPS regression
+bench-check-regression: bench-fraiseql
+	python benchmarks/detect_regression.py \
+	  --results $(BENCH_OUTPUT_JSON) \
+	  --baseline benchmarks/baseline.json \
+	  --framework $(BENCH_VARIANT) \
+	  --output $(BENCH_REPORT_FILE)
+	@cat $(BENCH_REPORT_FILE)
+
+## Update benchmarks/baseline.json from the last bench run (commit after running)
+bench-update-baseline: bench-fraiseql
+	python benchmarks/detect_regression.py \
+	  --results $(BENCH_OUTPUT_JSON) \
+	  --baseline benchmarks/baseline.json \
+	  --framework $(BENCH_VARIANT) \
+	  --update
+	@echo "Run: git add benchmarks/baseline.json && git commit -m 'chore(bench): update performance baseline'"
+
 ## Cleanup: Stop Docker containers and remove temp files
 e2e-clean:
 	@echo "🧹 Cleaning up E2E test infrastructure..."

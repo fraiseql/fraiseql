@@ -3,6 +3,8 @@
 pub mod api;
 #[cfg(feature = "auth")]
 pub mod auth;
+#[cfg(feature = "auth")]
+pub(crate) mod enrichment;
 pub mod graphql;
 pub mod health;
 pub mod introspection;
@@ -16,6 +18,8 @@ pub mod grpc;
 #[cfg(feature = "rest")]
 pub mod rest;
 
+#[cfg(feature = "auth")]
+pub(crate) use auth::AuthMeEnrichmentState;
 #[cfg(feature = "auth")]
 pub use auth::{
     AuthMeState, AuthPkceState, RevocationRouteState, auth_callback, auth_me, auth_start,

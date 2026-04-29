@@ -440,6 +440,62 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         });
     }
+
+    /// Build a [`fraiseql_storage::StorageState`] from the server's `[storage]` configuration
+    /// and a PostgreSQL pool for metadata tracking.
+    ///
+    /// Uses the first configured backend and creates default `BucketConfig` entries
+    /// for each configured bucket name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `create_backend` fails (e.g., missing required fields).
+    pub(super) async fn build_storage_state(
+        config: &crate::server_config::ServerConfig,
+        pool: sqlx::PgPool,
+    ) -> crate::Result<fraiseql_storage::StorageState> {
+        use std::collections::HashMap;
+
+        // Take the first configured storage backend.
+        let (first_bucket_name, first_config) = config
+            .storage
+            .iter()
+            .next()
+            .ok_or_else(|| crate::ServerError::ConfigError(
+                "Storage config is empty".to_string(),
+            ))?;
+
+        let backend = fraiseql_storage::create_backend(first_config)
+            .await
+            .map_err(|e| crate::ServerError::ConfigError(
+                format!("Failed to create storage backend for '{first_bucket_name}': {e}"),
+            ))?;
+
+        // Create default BucketConfig for each configured bucket.
+        let buckets: HashMap<String, fraiseql_storage::BucketConfig> = config
+            .storage
+            .keys()
+            .map(|name| {
+                (
+                    name.clone(),
+                    fraiseql_storage::BucketConfig {
+                        name: name.clone(),
+                        max_object_bytes: None,
+                        allowed_mime_types: None,
+                        access: fraiseql_storage::BucketAccess::Private,
+                        transform_presets: None,
+                    },
+                )
+            })
+            .collect();
+
+        Ok(fraiseql_storage::StorageState {
+            backend: Arc::new(backend),
+            metadata: Arc::new(fraiseql_storage::StorageMetadataRepo::new(pool)),
+            rls: fraiseql_storage::StorageRlsEvaluator::new(),
+            buckets: Arc::new(buckets),
+        })
+    }
 }
 
 // ── SSRF guard for manifest hot-reload URL ────────────────────────────────────

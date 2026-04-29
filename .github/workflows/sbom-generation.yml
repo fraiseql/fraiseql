@@ -59,11 +59,20 @@ jobs:
 
     - name: Generate SBOM (CycloneDX JSON)
       run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        # Generate per-crate SBOMs (cargo-cyclonedx v0.5+ writes per-crate files)
         cargo cyclonedx --format json --all \
-          --output-file "fraiseql-${{ steps.version.outputs.version }}-sbom"
-        # cargo-cyclonedx appends .cdx.json — rename to expected path
-        mv "fraiseql-${{ steps.version.outputs.version }}-sbom.cdx.json" \
-           "fraiseql-${{ steps.version.outputs.version }}-sbom.json"
+          --override-filename "sbom"
+        # Merge all per-crate SBOMs into a single workspace SBOM:
+        # take the first file as the base, then collect all unique components
+        jq -s '{
+          bomFormat: .[0].bomFormat,
+          specVersion: .[0].specVersion,
+          version: 1,
+          metadata: .[0].metadata,
+          components: [.[].components[]?] | unique_by(.name + "/" + .version)
+        }' crates/*/sbom.json > "fraiseql-${VERSION}-sbom.json"
+        rm -f crates/*/sbom.json
 
     - name: Validate SBOM schema
       run: |
@@ -201,7 +210,7 @@ jobs:
         echo "📦 **Total Components**: $COMPONENT_COUNT" >> $GITHUB_STEP_SUMMARY
 
         # Check for copyleft licenses
-        COPYLEFT_COUNT=$(jq '[.components[].licenses[]?.license.id | select(contains("GPL") and (contains("LGPL") | not))] | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
+        COPYLEFT_COUNT=$(jq '[.components[].licenses[]?.license.id // empty | select(contains("GPL") and (contains("LGPL") | not))] | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
         if [ "$COPYLEFT_COUNT" -gt 0 ]; then
           echo "⚠️  **Copyleft Components**: $COPYLEFT_COUNT (review required)" >> $GITHUB_STEP_SUMMARY
         else

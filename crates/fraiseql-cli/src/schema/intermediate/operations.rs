@@ -6,6 +6,28 @@ use serde::{Deserialize, Serialize};
 
 use super::types::IntermediateDeprecation;
 
+/// SQL source dispatch configuration in intermediate format.
+///
+/// Specifies that the query's SQL source should be resolved dynamically
+/// based on an enum argument value, either via an explicit mapping or a
+/// template string expanded at compile time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntermediateSqlSourceDispatch {
+    /// The argument name used for dispatch (e.g., "timeInterval").
+    pub argument: String,
+
+    /// Explicit enum-value-to-table mapping.
+    /// Empty when `template` is used (compiler expands the template).
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub mapping: IndexMap<String, String>,
+
+    /// Template string with a `{placeholder}` for the enum value.
+    /// E.g., `"tf_orders_{time_interval}"`.
+    /// Mutually exclusive with a non-empty `mapping` (the compiler rejects both).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template: Option<String>,
+}
+
 /// Argument definition in intermediate format
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateArgument {
@@ -58,6 +80,10 @@ pub struct IntermediateQuery {
     /// SQL source (table/view name)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sql_source: Option<String>,
+
+    /// Dynamic SQL source dispatch. Mutually exclusive with `sql_source`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sql_source_dispatch: Option<IntermediateSqlSourceDispatch>,
 
     /// Auto-generated parameters config
     #[serde(skip_serializing_if = "Option::is_none")]

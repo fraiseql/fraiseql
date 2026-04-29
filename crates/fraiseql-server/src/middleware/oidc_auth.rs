@@ -45,7 +45,7 @@ pub struct AuthUser(pub AuthenticatedUser);
 /// This is used as a fallback by [`oidc_auth_middleware`] when no
 /// `Authorization: Bearer` header is present, to support browser flows where
 /// the JWT is stored in an `HttpOnly` cookie inaccessible to client-side script.
-fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
+pub(crate) fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
     headers.get(header::COOKIE).and_then(|v| v.to_str().ok()).and_then(|cookies| {
         cookies.split(';').find_map(|part| {
             let part = part.trim();

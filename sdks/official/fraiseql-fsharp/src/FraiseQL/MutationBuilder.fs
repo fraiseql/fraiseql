@@ -74,6 +74,7 @@ module MutationBuilder =
             name = s.name
             return_type = s.returnType
             sql_source = s.sqlSource
+            sql_source_dispatch = None
             operation = s.operation
             arguments = s.arguments
             description = s.description

@@ -113,6 +113,7 @@ jobs:
          format: 'json'
          output: 'trivy-${{ matrix.dockerfile.label }}-detailed.json'
          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+         ignore-unfixed: true  # Exclude CVEs with no available fix; avoids blocking on unresolvable findings
          trivyignores: '.trivyignore'
 
      - name: Generate compliance report

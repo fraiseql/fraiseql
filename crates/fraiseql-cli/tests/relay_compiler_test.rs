@@ -63,6 +63,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             arguments:         vec![],
             description:       None,
             sql_source:        Some("v_user".to_string()),
+            sql_source_dispatch: None,
             auto_params:       None,
             deprecated:        None,
             jsonb_column:      None,

@@ -267,7 +267,7 @@ mod integration_tests {
         // SQL Server requires ORDER BY for OFFSET...FETCH
         // This test just ensures parameterization works
         let results = adapter
-            .execute_where_query("v_user", None, Some(2), Some(1), None)
+            .execute_where_query("v_user", None, Some(2), Some(1), None, &[])
             .await
             .expect("Failed to execute query");
 

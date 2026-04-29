@@ -7,18 +7,17 @@
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use async_trait::async_trait;
-use fraiseql_error::FileError;
+use fraiseql_error::{FileError, FraiseQLError, Result};
 use parking_lot::RwLock;
 
-use super::{StorageBackend, StorageResult, validate_key};
+use super::validate_key;
 
 const GCS_API_BASE: &str = "https://storage.googleapis.com";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const SCOPE: &str = "https://www.googleapis.com/auth/devstorage.full_control";
 
 /// Stores files in a Google Cloud Storage bucket.
-pub struct GcsStorageBackend {
+pub struct GcsBackend {
     bucket: String,
     auth:   GcsAuth,
     client: reqwest::Client,
@@ -35,40 +34,40 @@ enum GcsAuth {
     },
 }
 
-impl GcsStorageBackend {
+impl GcsBackend {
     /// Creates a new GCS backend for the given bucket.
     ///
     /// # Errors
     ///
-    /// Returns [`FileError::Storage`] if neither `GOOGLE_CLOUD_TOKEN` nor
+    /// Returns `FraiseQLError::Storage` if neither `GOOGLE_CLOUD_TOKEN` nor
     /// `GOOGLE_APPLICATION_CREDENTIALS` is set, or if the credentials file is
     /// unreadable or malformed.
-    pub fn new(bucket: &str) -> StorageResult<Self> {
+    pub fn new(bucket: &str) -> Result<Self> {
         let auth = if let Ok(token) = std::env::var("GOOGLE_CLOUD_TOKEN") {
             GcsAuth::BearerToken(token)
         } else if let Ok(creds_path) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
             let creds_json =
-                std::fs::read_to_string(&creds_path).map_err(|e| FileError::Storage {
+                std::fs::read_to_string(&creds_path).map_err(|e| FraiseQLError::Storage {
                     message: format!("Failed to read GCS credentials file '{creds_path}': {e}"),
-                    source:  None,
+                    code:  None,
                 })?;
             let creds: serde_json::Value =
-                serde_json::from_str(&creds_json).map_err(|e| FileError::Storage {
+                serde_json::from_str(&creds_json).map_err(|e| FraiseQLError::Storage {
                     message: format!("Failed to parse GCS credentials JSON: {e}"),
-                    source:  None,
+                    code:  None,
                 })?;
             let client_email = creds["client_email"]
                 .as_str()
-                .ok_or_else(|| FileError::Storage {
+                .ok_or_else(|| FraiseQLError::Storage {
                     message: "GCS credentials missing 'client_email' field".to_string(),
-                    source:  None,
+                    code:  None,
                 })?
                 .to_owned();
             let private_key = creds["private_key"]
                 .as_str()
-                .ok_or_else(|| FileError::Storage {
+                .ok_or_else(|| FraiseQLError::Storage {
                     message: "GCS credentials missing 'private_key' field".to_string(),
-                    source:  None,
+                    code:  None,
                 })?
                 .to_owned();
             GcsAuth::ServiceAccount {
@@ -77,11 +76,11 @@ impl GcsStorageBackend {
                 token: RwLock::new(None),
             }
         } else {
-            return Err(FileError::Storage {
+            return Err(FraiseQLError::Storage {
                 message: "GCS authentication requires GOOGLE_CLOUD_TOKEN or \
                           GOOGLE_APPLICATION_CREDENTIALS environment variable"
                     .to_string(),
-                source:  None,
+                code:  None,
             });
         };
 
@@ -93,7 +92,7 @@ impl GcsStorageBackend {
     }
 
     /// Returns a valid access token, refreshing via JWT exchange if needed.
-    async fn get_token(&self) -> StorageResult<String> {
+    pub async fn get_token(&self) -> Result<String> {
         match &self.auth {
             GcsAuth::BearerToken(token) => Ok(token.clone()),
             GcsAuth::ServiceAccount {
@@ -119,7 +118,7 @@ impl GcsStorageBackend {
         }
     }
 
-    async fn exchange_jwt(&self, jwt: &str) -> StorageResult<String> {
+    pub async fn exchange_jwt(&self, jwt: &str) -> Result<String> {
         let resp = self
             .client
             .post(TOKEN_URL)
@@ -129,35 +128,35 @@ impl GcsStorageBackend {
             ])
             .send()
             .await
-            .map_err(|e| FileError::Storage {
+            .map_err(|e| FraiseQLError::Storage {
                 message: format!("GCS token exchange request failed: {e}"),
-                source:  None,
+                code:  None,
             })?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
-            return Err(FileError::Storage {
+            return Err(FraiseQLError::Storage {
                 message: format!("GCS token exchange returned error: {body}"),
-                source:  None,
+                code:  None,
             });
         }
 
-        let body: serde_json::Value = resp.json().await.map_err(|e| FileError::Storage {
+        let body: serde_json::Value = resp.json().await.map_err(|e| FraiseQLError::Storage {
             message: format!("Failed to parse GCS token response: {e}"),
-            source:  None,
+            code:  None,
         })?;
 
         body["access_token"]
             .as_str()
             .map(str::to_owned)
-            .ok_or_else(|| FileError::Storage {
+            .ok_or_else(|| FraiseQLError::Storage {
                 message: "GCS token response missing 'access_token' field".to_string(),
-                source:  None,
+                code:  None,
             })
     }
 }
 
-fn create_gcs_jwt(client_email: &str, private_key: &str) -> StorageResult<String> {
+fn create_gcs_jwt(client_email: &str, private_key: &str) -> Result<String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock before UNIX epoch")
@@ -173,28 +172,27 @@ fn create_gcs_jwt(client_email: &str, private_key: &str) -> StorageResult<String
 
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|e| {
-        FileError::Storage {
+        FraiseQLError::Storage {
             message: format!("Invalid GCS private key: {e}"),
-            source:  None,
+            code:  None,
         }
     })?;
 
-    jsonwebtoken::encode(&header, &claims, &key).map_err(|e| FileError::Storage {
+    jsonwebtoken::encode(&header, &claims, &key).map_err(|e| FraiseQLError::Storage {
         message: format!("Failed to create GCS JWT: {e}"),
-        source:  None,
+        code:  None,
     })
 }
 
-fn gcs_err(op: &str, err: impl std::fmt::Display) -> FileError {
-    FileError::Storage {
+fn gcs_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
+    FraiseQLError::Storage {
         message: format!("GCS {op} failed: {err}"),
-        source:  None,
+        code:  None,
     }
 }
 
-#[async_trait]
-impl StorageBackend for GcsStorageBackend {
-    async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> StorageResult<String> {
+impl GcsBackend {
+    pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
         let token = self.get_token().await?;
         let url = format!(
@@ -221,7 +219,7 @@ impl StorageBackend for GcsStorageBackend {
         Ok(key.to_owned())
     }
 
-    async fn download(&self, key: &str) -> StorageResult<Vec<u8>> {
+    pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
         let token = self.get_token().await?;
         let url = format!(
@@ -239,9 +237,7 @@ impl StorageBackend for GcsStorageBackend {
             .map_err(|e| gcs_err("download", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -251,7 +247,7 @@ impl StorageBackend for GcsStorageBackend {
         resp.bytes().await.map(|b| b.to_vec()).map_err(|e| gcs_err("download body", e))
     }
 
-    async fn delete(&self, key: &str) -> StorageResult<()> {
+    pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         let token = self.get_token().await?;
         let url =
@@ -266,9 +262,7 @@ impl StorageBackend for GcsStorageBackend {
             .map_err(|e| gcs_err("delete", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -278,7 +272,7 @@ impl StorageBackend for GcsStorageBackend {
         Ok(())
     }
 
-    async fn exists(&self, key: &str) -> StorageResult<bool> {
+    pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         let token = self.get_token().await?;
         // Metadata-only request (no ?alt=media) to check existence.
@@ -303,14 +297,32 @@ impl StorageBackend for GcsStorageBackend {
         }
     }
 
-    async fn presigned_url(&self, _key: &str, _expiry: Duration) -> StorageResult<String> {
+    pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         // GCS V4 signed URLs require the service account private key and a
         // complex canonical-request construction.  This is planned but not yet
         // implemented — use the `gsutil signurl` CLI or GCS client libraries
         // for presigned URL generation in the meantime.
-        Err(FileError::Storage {
+        Err(FraiseQLError::Storage {
             message: "Presigned URLs for GCS require V4 signing (not yet implemented)".to_string(),
-            source:  None,
+            code:  None,
+        })
+    }
+
+    /// Lists objects in the bucket by prefix with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` with code "not_implemented" since list
+    /// is not yet implemented for GCS.
+    pub async fn list(
+        &self,
+        _prefix: &str,
+        _cursor: Option<&str>,
+        _limit: usize,
+    ) -> Result<super::types::ListResult> {
+        Err(FraiseQLError::Storage {
+            message: "list not yet implemented for GCS".to_string(),
+            code: Some("not_implemented".to_string()),
         })
     }
 }

@@ -47,7 +47,12 @@ pub fn to_snake_case(s: &str) -> String {
         } else {
             result.push(c);
             prev_was_upper = false;
-            prev_was_lower = c.is_lowercase();
+            // Digits are treated as "transparent" — they don't reset the lowercase
+            // tracking. This ensures `s3Key` → `s3_key` (not `s3key`), because `s`
+            // is lowercase, `3` preserves that state, and `K` gets an underscore.
+            if !c.is_ascii_digit() {
+                prev_was_lower = c.is_lowercase();
+            }
         }
     }
 
@@ -164,8 +169,12 @@ mod tests {
 
     #[test]
     fn test_numbers() {
-        assert_eq!(to_snake_case("user2FA"), "user2fa"); // Numbers don't trigger underscore
-        assert_eq!(to_snake_case("level99Boss"), "level99boss");
+        // Digits are "transparent" — they preserve the lowercase-tracking state,
+        // so a capital after digit+lowercase still gets an underscore.
+        assert_eq!(to_snake_case("user2FA"), "user2_fa"); // 2 preserves lower state from `r`
+        assert_eq!(to_snake_case("level99Boss"), "level99_boss"); // 9 preserves lower from `l`
+        assert_eq!(to_snake_case("s3Key"), "s3_key"); // core use-case: S3 field names
+        assert_eq!(to_snake_case("s3Bucket"), "s3_bucket");
     }
 
     #[test]

@@ -136,6 +136,9 @@ pub use fraiseql_secrets::{encryption, secrets_manager};
 // TLS/SSL and encryption
 pub mod tls;
 
+// Realtime broadcast observer — entity change streams over WebSocket
+pub mod realtime;
+
 // Observer management - optional
 #[cfg(feature = "observers")]
 pub mod observers;
@@ -153,6 +156,9 @@ pub mod pool;
 
 // Object storage backends (local, S3, GCS, Azure Blob)
 pub mod storage;
+
+// Platform subsystem assembly (storage, functions, realtime)
+pub mod subsystems;
 
 // Trusted documents (query allowlist)
 pub mod trusted_documents;

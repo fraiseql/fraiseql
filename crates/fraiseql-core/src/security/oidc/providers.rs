@@ -38,6 +38,58 @@ pub struct MeEndpointConfig {
     /// nothing because the JWT only carries `sub`.
     #[serde(default)]
     pub expose_claims: Vec<String>,
+
+    /// Optional claims enrichment: a SQL query executed after JWT verification
+    /// to augment the `/auth/me` response with application-specific fields
+    /// (roles, permissions, feature flags) fetched from the database.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [auth.me.enrichment]
+    /// query = "SELECT role, plan FROM users WHERE email = $email"
+    /// map = { role = "role", plan = "plan" }
+    /// cache_ttl_secs = 300
+    /// ```
+    #[serde(default)]
+    pub enrichment: Option<MeEnrichmentConfig>,
+}
+
+/// Configuration for `/auth/me` claims enrichment.
+///
+/// A SQL SELECT query that is executed after JWT verification to augment
+/// the response with application-specific fields. Named parameters (`$sub`,
+/// `$email`, etc.) are bound via the DB adapter's parameterised query
+/// mechanism — **never** interpolated into the SQL string.
+///
+/// # Security
+///
+/// - The `query` must be a `SELECT` or `WITH` statement; anything else is
+///   rejected at server startup.
+/// - Semicolons are forbidden (prevents multi-statement injection).
+/// - Claim values are bound as positional parameters, not interpolated.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeEnrichmentConfig {
+    /// SQL query with named parameters (`$sub`, `$email`, etc.).
+    ///
+    /// Named parameters are rewritten to positional placeholders (`$1`, `$2`)
+    /// at request time. Only `SELECT` and `WITH` statements are allowed.
+    pub query: String,
+
+    /// Optional column-to-response-field renaming map.
+    ///
+    /// Keys are SQL column names, values are the field names in the JSON
+    /// response. When `None`, all columns are exposed with their SQL names.
+    #[serde(default)]
+    pub map: Option<std::collections::HashMap<String, String>>,
+
+    /// Cache TTL in seconds for enrichment results, keyed by `sub`.
+    ///
+    /// - `None` (default): cache for the token's remaining lifetime.
+    /// - `Some(0)`: disable caching entirely.
+    /// - `Some(n)`: cache for `n` seconds.
+    #[serde(default)]
+    pub cache_ttl_secs: Option<u64>,
 }
 
 /// OIDC authentication configuration.
@@ -279,7 +331,7 @@ impl OidcConfig {
         }
     }
 
-    /// Validate the configuration.
+    /// Validate the configuration, including enrichment query safety.
     ///
     /// # Errors
     ///
@@ -288,6 +340,7 @@ impl OidcConfig {
     /// - Issuer does not use HTTPS (except localhost/127.0.0.1)
     /// - Neither `audience` nor `additional_audiences` are configured
     /// - No algorithms are allowed
+    /// - Enrichment query contains `;` or does not start with `SELECT`/`WITH`
     pub fn validate(&self) -> Result<()> {
         if self.issuer.is_empty() {
             return Err(SecurityError::SecurityConfigError(
@@ -322,6 +375,161 @@ impl OidcConfig {
             ));
         }
 
+        // Validate enrichment query safety (if configured).
+        if let Some(ref me_cfg) = self.me {
+            if let Some(ref enrichment) = me_cfg.enrichment {
+                validate_enrichment_query(&enrichment.query)?;
+            }
+        }
+
         Ok(())
+    }
+}
+
+/// Validate that an enrichment SQL query is safe.
+///
+/// # Rules
+///
+/// - Must start with `SELECT` or `WITH` (case-insensitive, after trimming).
+/// - Must not contain `;` (prevents multi-statement injection).
+///
+/// # Errors
+///
+/// Returns `SecurityError::SecurityConfigError` if the query violates safety rules.
+pub fn validate_enrichment_query(query: &str) -> Result<()> {
+    let trimmed = query.trim();
+
+    if trimmed.is_empty() {
+        return Err(SecurityError::SecurityConfigError(
+            "Enrichment query must not be empty".to_string(),
+        ));
+    }
+
+    if trimmed.contains(';') {
+        return Err(SecurityError::SecurityConfigError(
+            "Enrichment query must not contain ';' (multi-statement injection risk)".to_string(),
+        ));
+    }
+
+    let upper = trimmed.to_uppercase();
+    if !upper.starts_with("SELECT") && !upper.starts_with("WITH") {
+        return Err(SecurityError::SecurityConfigError(format!(
+            "Enrichment query must start with SELECT or WITH, got: {}",
+            &trimmed[..trimmed.len().min(40)]
+        )));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── MeEnrichmentConfig deserialisation ──────────────────────────────
+
+    #[test]
+    fn enrichment_config_deserialises_full() {
+        let toml = r#"
+            query = "SELECT role, plan FROM users WHERE email = $email"
+            cache_ttl_secs = 300
+            [map]
+            role = "role"
+            plan = "plan"
+        "#;
+        let cfg: MeEnrichmentConfig = toml::from_str(toml).expect("parse");
+        assert!(cfg.query.contains("$email"));
+        assert_eq!(cfg.cache_ttl_secs, Some(300));
+        let map = cfg.map.as_ref().expect("map present");
+        assert_eq!(map.get("role"), Some(&"role".to_string()));
+    }
+
+    #[test]
+    fn enrichment_config_deserialises_minimal() {
+        let toml = r#"query = "SELECT id FROM users WHERE sub = $sub""#;
+        let cfg: MeEnrichmentConfig = toml::from_str(toml).expect("parse");
+        assert!(cfg.query.contains("$sub"));
+        assert!(cfg.map.is_none());
+        assert!(cfg.cache_ttl_secs.is_none());
+    }
+
+    #[test]
+    fn me_config_without_enrichment_still_parses() {
+        let toml = r#"
+            enabled = true
+            expose_claims = ["email"]
+        "#;
+        let cfg: MeEndpointConfig = toml::from_str(toml).expect("parse");
+        assert!(cfg.enabled);
+        assert!(cfg.enrichment.is_none());
+    }
+
+    #[test]
+    fn me_config_with_enrichment_parses() {
+        let toml = r#"
+            enabled = true
+            expose_claims = ["email"]
+
+            [enrichment]
+            query = "SELECT role FROM users WHERE email = $email"
+        "#;
+        let cfg: MeEndpointConfig = toml::from_str(toml).expect("parse");
+        assert!(cfg.enrichment.is_some());
+    }
+
+    // ── Enrichment query validation ─────────────────────────────────────
+
+    #[test]
+    fn valid_select_query() {
+        assert!(validate_enrichment_query("SELECT role FROM users WHERE sub = $sub").is_ok());
+    }
+
+    #[test]
+    fn valid_with_query() {
+        assert!(
+            validate_enrichment_query("WITH u AS (SELECT * FROM users) SELECT role FROM u").is_ok()
+        );
+    }
+
+    #[test]
+    fn valid_select_case_insensitive() {
+        assert!(validate_enrichment_query("select role from users").is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_query() {
+        let err = validate_enrichment_query("").expect_err("empty query should be rejected");
+        assert!(err.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn rejects_semicolon() {
+        let err =
+            validate_enrichment_query("SELECT 1; DROP TABLE users").expect_err("semicolon should be rejected");
+        assert!(err.to_string().contains(';'));
+    }
+
+    #[test]
+    fn rejects_drop_statement() {
+        let err = validate_enrichment_query("DROP TABLE users").expect_err("DROP should be rejected");
+        assert!(err.to_string().contains("SELECT or WITH"));
+    }
+
+    #[test]
+    fn rejects_insert_statement() {
+        let err = validate_enrichment_query("INSERT INTO users VALUES (1)").expect_err("INSERT should be rejected");
+        assert!(err.to_string().contains("SELECT or WITH"));
+    }
+
+    #[test]
+    fn rejects_update_statement() {
+        let err = validate_enrichment_query("UPDATE users SET role = 'admin'").expect_err("UPDATE should be rejected");
+        assert!(err.to_string().contains("SELECT or WITH"));
+    }
+
+    #[test]
+    fn rejects_delete_statement() {
+        let err = validate_enrichment_query("DELETE FROM users").expect_err("DELETE should be rejected");
+        assert!(err.to_string().contains("SELECT or WITH"));
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! Provides [`TenantPoolConfig`] and [`create_tenant_executor`] to build a
 //! fully-formed `Executor<A>` from a compiled schema JSON string and database
-//! connection configuration. Used by the management API (Phase 03) to register
+//! connection configuration. Used by the management API to register
 //! tenants at runtime.
 
 use std::sync::Arc;
@@ -119,6 +119,8 @@ mod tests {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+
+            _session_vars: &[(&str, &str)],
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -131,6 +133,8 @@ mod tests {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+
+            _session_vars: &[(&str, &str)],
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -157,7 +161,8 @@ mod tests {
         async fn execute_parameterized_aggregate(
             &self,
             _sql: &str,
-            _params: &[serde_json::Value],
+            _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
         ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
@@ -232,6 +237,8 @@ mod tests {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+
+            _session_vars: &[(&str, &str)],
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -244,6 +251,8 @@ mod tests {
             _limit: Option<u32>,
             _offset: Option<u32>,
             _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+
+            _session_vars: &[(&str, &str)],
         ) -> FraiseQLResult<Vec<JsonbValue>> {
             Ok(vec![])
         }
@@ -270,7 +279,8 @@ mod tests {
         async fn execute_parameterized_aggregate(
             &self,
             _sql: &str,
-            _params: &[serde_json::Value],
+            _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
         ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }

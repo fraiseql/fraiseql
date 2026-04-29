@@ -5,6 +5,13 @@ use axum::{
     routing::{get, post},
 };
 
+use super::changelog_handlers::{
+    ChangelogState, changelog_list_handler, checkpoint_get_handler, checkpoint_save_handler,
+};
+use super::dlq_handlers::{
+    DlqState, delivery_health_handler, dlq_get_handler, dlq_list_handler, dlq_retry_all_handler,
+    dlq_retry_handler,
+};
 use super::handlers::{
     ObserverState, RuntimeHealthState, create_observer, delete_observer, disable_observer,
     enable_observer, get_observer, get_observer_stats, get_runtime_health, list_observer_logs,
@@ -83,6 +90,42 @@ pub fn observer_runtime_routes(state: RuntimeHealthState) -> Router {
     Router::new()
         .route("/runtime/health", get(get_runtime_health))
         .route("/runtime/reload", post(reload_observers))
+        .with_state(state)
+}
+
+/// Create the DLQ (Dead Letter Queue) delivery status router.
+///
+/// # Routes
+///
+/// - `GET  /delivery/health`       - Observer delivery health summary
+/// - `GET  /dlq`                   - List DLQ items (paginated, filterable)
+/// - `GET  /dlq/:id`               - Get a single DLQ item
+/// - `POST /dlq/:id/retry`         - Re-process a single DLQ item
+/// - `POST /dlq/retry-all`         - Re-process all DLQ items
+pub fn observer_dlq_routes(state: DlqState) -> Router {
+    Router::new()
+        .route("/delivery/health", get(delivery_health_handler))
+        .route("/dlq", get(dlq_list_handler))
+        .route("/dlq/retry-all", post(dlq_retry_all_handler))
+        .route("/dlq/:id", get(dlq_get_handler))
+        .route("/dlq/:id/retry", post(dlq_retry_handler))
+        .with_state(state)
+}
+
+/// Create the changelog and checkpoint router.
+///
+/// # Routes
+///
+/// - `GET /changelog`                  - Poll changelog entries (paginated, filterable)
+/// - `GET /checkpoint/:listener_id`    - Read a listener's checkpoint
+/// - `PUT /checkpoint/:listener_id`    - Save / update a listener's checkpoint
+pub fn observer_changelog_routes(state: ChangelogState) -> Router {
+    Router::new()
+        .route("/changelog", get(changelog_list_handler))
+        .route(
+            "/checkpoint/:listener_id",
+            get(checkpoint_get_handler).put(checkpoint_save_handler),
+        )
         .with_state(state)
 }
 

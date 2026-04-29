@@ -308,12 +308,14 @@ impl<A: DatabaseAdapter> Executor<A> {
             QueryType::Mutation {
                 name,
                 type_selections,
+                arguments,
             } => {
                 self.execute_mutation_query_with_security(
                     &name,
                     variables,
                     Some(security_context),
                     &type_selections,
+                    &arguments,
                 )
                 .await
             },

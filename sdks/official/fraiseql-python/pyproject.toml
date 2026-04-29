@@ -37,7 +37,7 @@ license = {text = "MIT"}
 name = "fraiseql"
 readme = "README.md"
 requires-python = ">=3.10"
-version = "2.1.6"
+version = "2.2.1"
 
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.2"]
@@ -96,6 +96,10 @@ select = [
 "examples/**/*.py" = [
   "ERA001"  # Field grouping comments are not commented-out code
 ]
+"src/fraiseql/changelog_consumer.py" = [
+  "PERF203",  # try-except in dispatch loop is intentional for handler error isolation
+  "PLR0913"  # ChangelogConsumer.__init__ needs many configuration parameters
+]
 "src/fraiseql/integrations/langchain.py" = [
   "ARG002",  # run_manager is part of LangChain abstract interface; must be accepted but is unused
   "TC002"  # Runtime try/except imports cannot be moved to TYPE_CHECKING
@@ -106,8 +110,11 @@ select = [
 "tests/**/*.py" = [
   "ANN",  # Don't require type annotations in tests
   "ARG",  # Mock handler signatures must accept unused arguments (e.g., request)
+  "E501",  # Long lines OK in tests — inline decorator fixtures are clearer on one line
+  "N803",  # camelCase arg names intentional — tests mirror GraphQL naming conventions
   "PLC0415",  # Deferred imports in test functions are intentional (registry isolation)
-  "PLR2004"  # Magic values OK in tests
+  "PLR2004",  # Magic values OK in tests
+  "PLR0913"  # Test helpers may have many kwargs for convenience
 ]
 
 [tool.ty.environment]

@@ -12,7 +12,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
 use fraiseql_core::{
@@ -63,11 +63,16 @@ impl SchemaConverter {
         // [query_defaults] section is present in fraiseql.toml.
         let defaults = intermediate.query_defaults.unwrap_or_default();
 
+        // Collect enum values for sql_source_dispatch template expansion.
+        let enum_values: HashMap<String, Vec<String>> = intermediate.enums.iter()
+            .map(|e| (e.name.clone(), e.values.iter().map(|v| v.name.clone()).collect()))
+            .collect();
+
         // Convert queries
         let queries = intermediate
             .queries
             .into_iter()
-            .map(|q| Self::convert_query(q, &defaults))
+            .map(|q| Self::convert_query(q, &defaults, &enum_values))
             .collect::<Result<Vec<_>>>()
             .context("Failed to convert queries")?;
 
@@ -215,6 +220,11 @@ impl SchemaConverter {
         // Add input types — valid as mutation argument types (fraiseql/fraiseql#190)
         for input_type in &schema.input_types {
             type_names.insert(input_type.name.clone());
+        }
+
+        // Add enum names — valid as query/mutation argument types
+        for enum_def in &schema.enums {
+            type_names.insert(enum_def.name.clone());
         }
 
         // Add union type names — valid as mutation/query return types

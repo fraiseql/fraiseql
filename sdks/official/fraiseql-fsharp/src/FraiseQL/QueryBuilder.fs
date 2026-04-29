@@ -82,6 +82,7 @@ module QueryBuilder =
             returns_list = s.returnsList
             nullable = s.nullable
             sql_source = s.sqlSource
+            sql_source_dispatch = None
             arguments = s.arguments
             cache_ttl_seconds = s.cacheTtlSeconds
             description = s.description

@@ -350,6 +350,11 @@ pub async fn run() {
 
         Commands::Serve { schema, port } => commands::serve::run(&schema, port).await,
 
+        Commands::Setup { database, dry_run } => {
+            let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
+            commands::setup::run(database.as_deref(), dry_run, &formatter).await
+        },
+
         Commands::Doctor {
             config,
             schema,

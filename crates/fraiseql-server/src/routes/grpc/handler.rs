@@ -413,7 +413,7 @@ pub async fn execute_grpc_mutation<A: DatabaseAdapter>(
         "Executing gRPC mutation"
     );
 
-    let rows = adapter.execute_function_call(function_name, &args).await?;
+    let rows = adapter.execute_function_call(function_name, &args, &[]).await?;
 
     // The Trinity pattern returns a single row with status/entity_id columns.
     let row = rows.into_iter().next().unwrap_or_default();

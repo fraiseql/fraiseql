@@ -51,6 +51,22 @@ Replaced by reading `AppState::adapter_cache_enabled`. This function returned `R
 
 **Migration**: Replace `PoolTuningConfig` with `PoolPressureMonitorConfig` in your configuration code. The field names and semantics are identical.
 
+## Known Technical Debt (v2.2.x)
+
+### wasmtime v18 — security advisory backlog (deadline 2026-12-01)
+
+`fraiseql-functions` uses `wasmtime = "18"` for WASM component execution (optional `runtime-wasm` feature). wasmtime v18 has multiple security advisories (RUSTSEC-2024-0438 through RUSTSEC-2026-0096) that require upgrading to v36+.
+
+**Mitigation**: The WASM sandbox in `fraiseql-functions` only executes developer-supplied, pre-compiled WASM modules — it is not reachable from untrusted network input. The risk profile is low.
+
+**Resolution**: Upgrade `wasmtime` to v36+ in a dedicated PR. This is a breaking API change; see the wasmtime 18→36 migration guide.
+
+**Deadline**: 2026-12-01 — escalate if not resolved.
+
+### `cargo-semver-checks` not run (v2.2.1)
+
+`cargo-semver-checks` was not available in the CI environment during Phase 9 finalization. The public API changes in v2.2.1 have been manually reviewed; no unintentional breaking changes were introduced. Install and run `cargo semver-checks --workspace` before the next public release.
+
 ## Previously Removed
 
 | Item | Crate | Deprecated In | Replacement | Removed In |

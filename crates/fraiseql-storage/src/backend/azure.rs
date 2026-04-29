@@ -5,44 +5,43 @@
 
 use std::time::Duration;
 
-use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
-use fraiseql_error::FileError;
+use fraiseql_error::{FileError, FraiseQLError, Result};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use super::{StorageBackend, StorageResult, validate_key};
+use super::validate_key;
 
 const AZURE_API_VERSION: &str = "2023-11-03";
 
 /// Stores files in an Azure Blob Storage container.
-pub struct AzureBlobStorageBackend {
+pub struct AzureBackend {
     account:     String,
     container:   String,
     account_key: Vec<u8>,
     client:      reqwest::Client,
 }
 
-impl AzureBlobStorageBackend {
+impl AzureBackend {
     /// Creates a new Azure Blob storage backend.
     ///
     /// The storage account key is read from `AZURE_STORAGE_KEY` (base64).
     ///
     /// # Errors
     ///
-    /// Returns [`FileError::Storage`] if `AZURE_STORAGE_KEY` is not set or is
+    /// Returns [`FraiseQLError::Storage`] if `AZURE_STORAGE_KEY` is not set or is
     /// not valid base64.
-    pub fn new(account: &str, container: &str) -> StorageResult<Self> {
-        let key_b64 = std::env::var("AZURE_STORAGE_KEY").map_err(|_| FileError::Storage {
+    pub fn new(account: &str, container: &str) -> Result<Self> {
+        let key_b64 = std::env::var("AZURE_STORAGE_KEY").map_err(|_| FraiseQLError::Storage {
             message: "Azure Blob storage requires AZURE_STORAGE_KEY environment variable"
                 .to_string(),
-            source:  None,
+            code:  None,
         })?;
         let account_key =
-            general_purpose::STANDARD.decode(&key_b64).map_err(|e| FileError::Storage {
+            general_purpose::STANDARD.decode(&key_b64).map_err(|e| FraiseQLError::Storage {
                 message: format!("Invalid AZURE_STORAGE_KEY (not valid base64): {e}"),
-                source:  None,
+                code:  None,
             })?;
 
         Ok(Self {
@@ -93,16 +92,20 @@ impl AzureBlobStorageBackend {
     }
 }
 
-fn azure_err(op: &str, detail: impl std::fmt::Display) -> FileError {
-    FileError::Storage {
+fn azure_err(op: &str, detail: impl std::fmt::Display) -> FraiseQLError {
+    FraiseQLError::Storage {
         message: format!("Azure Blob {op} failed: {detail}"),
-        source:  None,
+        code:  None,
     }
 }
 
-#[async_trait]
-impl StorageBackend for AzureBlobStorageBackend {
-    async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> StorageResult<String> {
+impl AzureBackend {
+    /// Uploads data and returns the storage key.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the upload fails.
+    pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
         let url = self.blob_url(key);
         let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
@@ -138,7 +141,7 @@ impl StorageBackend for AzureBlobStorageBackend {
         Ok(key.to_owned())
     }
 
-    async fn download(&self, key: &str) -> StorageResult<Vec<u8>> {
+    pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
         let url = self.blob_url(key);
         let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
@@ -156,9 +159,7 @@ impl StorageBackend for AzureBlobStorageBackend {
             .map_err(|e| azure_err("download", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -171,7 +172,7 @@ impl StorageBackend for AzureBlobStorageBackend {
             .map_err(|e| azure_err("download body", e))
     }
 
-    async fn delete(&self, key: &str) -> StorageResult<()> {
+    pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         let url = self.blob_url(key);
         let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
@@ -189,9 +190,7 @@ impl StorageBackend for AzureBlobStorageBackend {
             .map_err(|e| azure_err("delete", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -201,7 +200,7 @@ impl StorageBackend for AzureBlobStorageBackend {
         Ok(())
     }
 
-    async fn exists(&self, key: &str) -> StorageResult<bool> {
+    pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         let url = self.blob_url(key);
         let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
@@ -225,16 +224,34 @@ impl StorageBackend for AzureBlobStorageBackend {
         }
     }
 
-    async fn presigned_url(&self, _key: &str, _expiry: Duration) -> StorageResult<String> {
+    pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         // Azure presigned access uses SAS (Shared Access Signature) tokens,
         // which require HMAC signing of the resource path, permissions, and
         // expiry.  This is planned but not yet implemented — use the Azure CLI
         // (`az storage blob generate-sas`) in the meantime.
-        Err(FileError::Storage {
+        Err(FraiseQLError::Storage {
             message:
                 "Presigned URLs for Azure Blob require SAS token generation (not yet implemented)"
                     .to_string(),
-            source:  None,
+            code:  None,
+        })
+    }
+
+    /// Lists objects in the container by prefix with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` with code "not_implemented" since list
+    /// is not yet implemented for Azure Blob.
+    pub async fn list(
+        &self,
+        _prefix: &str,
+        _cursor: Option<&str>,
+        _limit: usize,
+    ) -> Result<super::types::ListResult> {
+        Err(FraiseQLError::Storage {
+            message: "list not yet implemented for Azure Blob".to_string(),
+            code: Some("not_implemented".to_string()),
         })
     }
 }

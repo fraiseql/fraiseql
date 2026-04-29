@@ -12,6 +12,7 @@ use super::{
     type_resolver::{
         build_enum_type, build_input_object_type, build_interface_type, build_object_type,
         build_union_type, builtin_scalars,
+        builtin_mutation_error_type,
     },
     types::{
         IntrospectionField, IntrospectionInputValue, IntrospectionSchema, IntrospectionType,
@@ -35,6 +36,9 @@ impl IntrospectionBuilder {
 
         // Add built-in scalar types
         types.extend(builtin_scalars());
+
+        // Add built-in object types
+        types.push(builtin_mutation_error_type());  // MutationError implicit error fallback
 
         // Add user-defined types
         for type_def in &schema.types {

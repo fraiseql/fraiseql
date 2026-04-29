@@ -35,6 +35,7 @@ pub(super) trait RelayDispatch: Send + Sync {
         where_clause: Option<&'a WhereClause>,
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
+        session_vars: &'a [(&'a str, &'a str)],
     ) -> BoxFuture<'a, Result<RelayPageResult>>;
 }
 
@@ -53,6 +54,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
         where_clause: Option<&'a WhereClause>,
         order_by: Option<&'a [OrderByClause]>,
         include_total_count: bool,
+        session_vars: &'a [(&'a str, &'a str)],
     ) -> BoxFuture<'a, Result<RelayPageResult>> {
         Box::pin(self.0.execute_relay_page(
             view,
@@ -64,6 +66,7 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
             where_clause,
             order_by,
             include_total_count,
+            session_vars,
         ))
     }
 }

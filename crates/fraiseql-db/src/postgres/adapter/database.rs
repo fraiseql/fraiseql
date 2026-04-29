@@ -17,6 +17,7 @@ use crate::{
 };
 
 /// PostgreSQL SQLSTATE 42703: undefined column.
+#[allow(dead_code)]
 const PG_UNDEFINED_COLUMN: &str = "42703";
 
 /// A flexible SQL parameter that binds to any PostgreSQL type.
@@ -104,6 +105,7 @@ impl tokio_postgres::types::ToSql for FlexParam {
 /// arguments.  If the column does not exist on the target table at runtime, the raw
 /// PostgreSQL error is replaced with a diagnostic message that names the native columns
 /// involved and explains how to fix the schema.
+#[allow(dead_code)]
 fn enrich_undefined_column_error(
     err: FraiseQLError,
     view: &str,
@@ -132,10 +134,60 @@ fn enrich_undefined_column_error(
     }
 }
 
+/// Decodes PostgreSQL ENUM columns as Rust `String` values.
+///
+/// `postgres-types 0.2.x` does not include `Kind::Enum` in `String::accepts`,
+/// so ENUM columns fall through all typed branches in `row_to_map` and land on
+/// `Null`.  This newtype accepts *only* ENUM types and decodes their wire bytes
+/// (always UTF-8 text in both text and binary protocols) as a plain String.
+struct EnumText(String);
+
+impl<'a> tokio_postgres::types::FromSql<'a> for EnumText {
+    fn from_sql(
+        _ty: &tokio_postgres::types::Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<EnumText, Box<dyn std::error::Error + Sync + Send>> {
+        std::str::from_utf8(raw)
+            .map(|s| EnumText(s.to_owned()))
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Sync + Send>)
+    }
+
+    fn accepts(ty: &tokio_postgres::types::Type) -> bool {
+        matches!(ty.kind(), tokio_postgres::types::Kind::Enum(_))
+    }
+}
+
 /// Convert a single `tokio_postgres::Row` into a `HashMap<String, serde_json::Value>`.
 ///
 /// Tries each PostgreSQL type in priority order; falls back to `Null` for
 /// types that cannot be represented as JSON.
+///
+/// ## Supported Types
+///
+/// - **Numeric**: INT4 (i32), INT8 (i64), FLOAT8 (f64)
+/// - **Text**: TEXT, VARCHAR
+/// - **Boolean**: BOOL
+/// - **JSON**: JSONB, JSON
+/// - **Arrays**: TEXT[], VARCHAR[] (including NULL arrays)
+/// - **Enums**: PostgreSQL ENUM types (custom defined)
+///
+/// NULL values are represented as `serde_json::Value::Null` in all cases.
+///
+/// ## Known Gaps (Future Work)
+///
+/// The following PostgreSQL types currently fall through to `Null` and should be
+/// expanded in a future issue:
+///
+/// - Array types (INT4[], BOOL[], UUID[], FLOAT8[], etc.)
+/// - Temporal types (DATE, TIME, TIMESTAMP, TIMESTAMPTZ, INTERVAL)
+/// - UUID type
+/// - BYTEA
+/// - COMPOSITE types (besides mutation_response)
+/// - Range types (INT4RANGE, TSRANGE, etc.)
+/// - Network types (INET, CIDR, MACADDR, etc.)
+///
+/// See [fraiseql#XXX](https://github.com/getfraiseql/fraiseql/issues/XXX) for
+/// tracking expansion of type coverage.
 fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value> {
     let mut map = std::collections::HashMap::new();
     for (idx, column) in row.columns().iter().enumerate() {
@@ -152,6 +204,23 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
             serde_json::json!(v)
         } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
             v
+        } else if let Ok(v) = row.try_get::<_, Option<Vec<String>>>(idx) {
+            // Handle TEXT[] / VARCHAR[] columns (e.g. mutation_response.updated_fields).
+            // Must come after JSONB to avoid shadowing; TEXT[] is not a JSON type.
+            // Option wrapper lets NULL arrays return Ok(None) instead of Err,
+            // so they produce Value::Null intentionally rather than via the catch-all.
+            match v {
+                Some(arr) => serde_json::Value::Array(
+                    arr.into_iter().map(serde_json::Value::String).collect(),
+                ),
+                None => serde_json::Value::Null,
+            }
+        } else if let Ok(EnumText(v)) = row.try_get::<_, EnumText>(idx) {
+            // Handle PostgreSQL ENUM columns (e.g. mutation_response.error_class).
+            // postgres-types 0.2.x String::accepts() does not include Kind::Enum,
+            // so ENUMs fall through the String branch above.  ENUMs are always
+            // transmitted as UTF-8 text in both wire protocols.
+            serde_json::json!(v)
         } else {
             serde_json::Value::Null
         };
@@ -173,8 +242,9 @@ impl DatabaseAdapter for PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
+        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by, session_vars)
             .await
     }
 
@@ -185,6 +255,7 @@ impl DatabaseAdapter for PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<JsonbValue>> {
         let (sql, typed_params) =
             build_where_select_sql_ordered(view, where_clause, limit, offset, order_by)?;
@@ -194,9 +265,47 @@ impl DatabaseAdapter for PostgresAdapter {
             .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
-        self.execute_raw(&sql, &param_refs)
-            .await
-            .map_err(|e| enrich_undefined_column_error(e, view, where_clause))
+        let mut client = self.acquire_connection_with_retry().await?;
+
+        if !session_vars.is_empty() {
+            let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to start transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            // Set all session variables
+            for (name, value) in session_vars {
+                txn.execute("SELECT set_config($1, $2, true)", &[name, value]).await.map_err(|e| FraiseQLError::Database {
+                    message: format!("Failed to set session variable {name}: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            }
+
+            // Execute query in same transaction
+            let rows = txn.query(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Query execution failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            txn.commit().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to commit transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            Ok(rows.iter().map(|row| {
+                let data: serde_json::Value = row.get(0);
+                JsonbValue::new(data)
+            }).collect())
+        } else {
+            // Fast path: no session vars, direct execution
+            let rows = client.query(&sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Query execution failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            Ok(rows.iter().map(|row| {
+                let data: serde_json::Value = row.get(0);
+                JsonbValue::new(data)
+            }).collect())
+        }
     }
 
     async fn explain_where_query(
@@ -296,6 +405,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self,
         sql: &str,
         params: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Convert serde_json::Value params to QueryParam so that strings are bound
         // as TEXT (not JSONB), which is required for correct WHERE comparisons against
@@ -304,23 +414,54 @@ impl DatabaseAdapter for PostgresAdapter {
         let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
             typed.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
 
-        let client = self.acquire_connection_with_retry().await?;
-        let rows: Vec<Row> =
-            client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Parameterized aggregate query failed: {e}"),
+        let mut client = self.acquire_connection_with_retry().await?;
+
+        if !session_vars.is_empty() {
+            let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to start transaction: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
-        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-            rows.iter().map(row_to_map).collect();
+            // Set all session variables
+            for (name, value) in session_vars {
+                txn.execute("SELECT set_config($1, $2, true)", &[name, value]).await.map_err(|e| FraiseQLError::Database {
+                    message: format!("Failed to set session variable {name}: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            }
 
-        Ok(results)
+            // Execute query in same transaction
+            let rows: Vec<Row> = txn.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Parameterized aggregate query failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            txn.commit().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to commit transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+                rows.iter().map(row_to_map).collect();
+
+            Ok(results)
+        } else {
+            // Fast path: no session vars, direct execution
+            let rows: Vec<Row> = client.query(sql, &param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Parameterized aggregate query failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+                rows.iter().map(row_to_map).collect();
+
+            Ok(results)
+        }
     }
 
     async fn execute_function_call(
         &self,
         function_name: &str,
         args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Build: SELECT * FROM "fn_name"($1, $2, ...)
         // Use the standard identifier quoting utility so that schema-qualified
@@ -353,26 +494,42 @@ impl DatabaseAdapter for PostgresAdapter {
             .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
-        if self.mutation_timing_enabled {
-            // Wrap in a transaction so SET LOCAL scopes the variable to this call only.
-            // `set_config(name, value, is_local)` with is_local=true is equivalent to
-            // SET LOCAL and is parameterized to avoid SQL injection.
+        // Wrap in a transaction if there are session variables or timing is enabled.
+        // `set_config(name, value, is_local)` with is_local=true is equivalent to
+        // SET LOCAL and is parameterized to avoid SQL injection.
+        // Both session variables and the function call run in the same transaction
+        // on the same connection, so SET LOCAL is correctly scoped.
+        if !session_vars.is_empty() || self.mutation_timing_enabled {
             let txn =
                 client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                    message:   format!("Failed to start mutation timing transaction: {e}"),
+                    message:   format!("Failed to start mutation transaction: {e}"),
                     sql_state: e.code().map(|c| c.code().to_string()),
                 })?;
 
-            txn.execute(
-                "SELECT set_config($1, clock_timestamp()::text, true)",
-                &[&self.timing_variable_name],
-            )
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {e}"),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+            // Set user-provided session variables first
+            for (name, value) in session_vars {
+                txn.execute("SELECT set_config($1, $2, true)", &[name, value])
+                    .await
+                    .map_err(|e| FraiseQLError::Database {
+                        message:   format!("Failed to set session variable {name}: {e}"),
+                        sql_state: e.code().map(|c| c.code().to_string()),
+                    })?;
+            }
 
+            // Then set the mutation timing variable if enabled
+            if self.mutation_timing_enabled {
+                txn.execute(
+                    "SELECT set_config($1, clock_timestamp()::text, true)",
+                    &[&self.timing_variable_name],
+                )
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to set mutation timing variable: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            }
+
+            // Execute the function call within the same transaction
             let rows: Vec<Row> = txn.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
                 let detail = e.as_db_error().map_or("", |d| d.message());
                 FraiseQLError::Database {
@@ -382,7 +539,7 @@ impl DatabaseAdapter for PostgresAdapter {
             })?;
 
             txn.commit().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to commit mutation timing transaction: {e}"),
+                message:   format!("Failed to commit mutation transaction: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -391,6 +548,7 @@ impl DatabaseAdapter for PostgresAdapter {
 
             Ok(results)
         } else {
+            // Fast path: no session variables or timing — execute directly without transaction
             let rows: Vec<Row> =
                 client.query(sql.as_str(), params.as_slice()).await.map_err(|e| {
                     let detail = e.as_db_error().map_or("", |d| d.message());

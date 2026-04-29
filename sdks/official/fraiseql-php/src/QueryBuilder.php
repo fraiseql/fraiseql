@@ -23,6 +23,8 @@ final class QueryBuilder
     private bool $returnsListValue = false;
     private bool $nullableValue = false;
     private ?string $sqlSourceValue = null;
+    /** @var array<string, mixed>|null */
+    private ?array $sqlSourceDispatchValue = null;
     private ?string $descriptionValue = null;
     private bool $autoParamsValue = false;
 
@@ -82,6 +84,18 @@ final class QueryBuilder
     public function sqlSource(string $source): self
     {
         $this->sqlSourceValue = $source;
+        return $this;
+    }
+
+    /**
+     * Set SQL source dispatch configuration for dynamic source selection.
+     *
+     * @param array<string, mixed> $dispatch Configuration with 'argument', optional 'mapping' or 'template'
+     * @return self Fluent interface
+     */
+    public function sqlSourceDispatch(array $dispatch): self
+    {
+        $this->sqlSourceDispatchValue = $dispatch;
         return $this;
     }
 
@@ -196,6 +210,10 @@ final class QueryBuilder
             $result['sql_source'] = $this->sqlSourceValue;
         }
 
+        if ($this->sqlSourceDispatchValue !== null) {
+            $result['sql_source_dispatch'] = $this->sqlSourceDispatchValue;
+        }
+
         if ($this->descriptionValue !== null) {
             $result['description'] = $this->descriptionValue;
         }
@@ -239,6 +257,10 @@ final class QueryBuilder
 
         if ($this->sqlSourceValue !== null) {
             $result['sql_source'] = $this->sqlSourceValue;
+        }
+
+        if ($this->sqlSourceDispatchValue !== null) {
+            $result['sql_source_dispatch'] = $this->sqlSourceDispatchValue;
         }
 
         if ($this->descriptionValue !== null) {
