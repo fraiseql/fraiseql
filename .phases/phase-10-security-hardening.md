@@ -1,18 +1,22 @@
 # Phase 10: Security Hardening (S30–S58 Remainder)
 
 ## Objective
+
 Close all remaining HIGH and MEDIUM security findings from the S30–S58 audit
 campaign. Ships as v2.1.x patch releases on `main` — no feature flags, no
 version bump on `dev`.
 
 ## Status
+
 [ ] Not Started
 
 ## Background
+
 S30–S58 was a ~130-card security audit campaign. About half was already done
 during Phases 1–9. The remaining items are grouped by crate below.
 
 ## Success Criteria
+
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean
 - [ ] `cargo nextest run --workspace` passes (target: ≥9245)
 - [ ] `cargo deny check` clean
@@ -25,10 +29,12 @@ during Phases 1–9. The remaining items are grouped by crate below.
 ## TDD Cycles
 
 ### Cycle 1: Vault HTTP body-size guards (S30) + Debug redaction (S32)
+
 **Crate**: `fraiseql-secrets`  
 **Files**: `src/secrets_manager/backends/vault/backend.rs`
 
 **RED**: Write tests asserting oversized responses are rejected:
+
 - `vault_approle_rejects_oversized_response` — mock server returns 10MB body, assert `Err`
 - `vault_fetch_secret_rejects_oversized_response`
 - `vault_token_renewal_rejects_oversized_response`
@@ -37,6 +43,7 @@ during Phases 1–9. The remaining items are grouped by crate below.
 - `vault_token_accessor_is_removed` — compile-time: no `pub fn token()`
 
 **GREEN**:
+
 - Add `MAX_VAULT_RESPONSE_BYTES: usize = 1 * 1024 * 1024` (1 MiB) constant
 - Apply `.bytes_limit(MAX_VAULT_RESPONSE_BYTES)` (or manual `take`) on all 4
   response-reading sites (AppRole auth, token renewal, Transit encrypt/decrypt,
@@ -53,14 +60,17 @@ repeating the limit logic at every call site.
 ---
 
 ### Cycle 2: SCRAM key-material zeroization (S38)
+
 **Crate**: `fraiseql-wire`  
 **Files**: `src/auth/scram.rs`
 
 **RED**:
+
 - `scram_password_is_zeroized_on_drop` — write a test that drops a `ScramClient`
   and uses `zeroize` test helpers to verify the memory was cleared
 
 **GREEN**:
+
 - Add `zeroize` (with `zeroize_derive` feature) to `fraiseql-wire` dependencies
 - Change `ScramClient.password: String` → `ScramClient.password: zeroize::Zeroizing<String>`
 - Derive `zeroize::ZeroizeOnDrop` on `ScramClient` (or implement manually)
@@ -74,10 +84,12 @@ repeating the limit logic at every call site.
 ---
 
 ### Cycle 3: Auth input caps + `reload_schema` path traversal (S33)
+
 **Crates**: `fraiseql-auth`, `fraiseql-server`  
 **Files**: `fraiseql-auth/src/handlers.rs`, `fraiseql-server/src/routes/api/admin.rs`
 
 **RED**:
+
 - `auth_callback_rejects_oversized_code` — POST `/auth/callback` with 8193-char `code`, assert 400
 - `auth_callback_rejects_oversized_state` — same for `state`
 - `auth_refresh_rejects_oversized_token` — POST `/auth/refresh` with 4097-char token, assert 400
@@ -85,6 +97,7 @@ repeating the limit logic at every call site.
 - `reload_schema_rejects_absolute_outside_base` — path outside allowed base dir, assert 400
 
 **GREEN**:
+
 - `handlers.rs`: Add `const MAX_AUTH_CODE_BYTES: usize = 8_192` and
   `MAX_REFRESH_TOKEN_BYTES: usize = 4_096`; validate lengths in handler before
   any processing; return `400 Bad Request` with `"code_too_long"` error code
@@ -100,14 +113,17 @@ more input caps are added in Cycle 6.
 ---
 
 ### Cycle 4: Resource bounds (S34 + S37 + S39)
+
 **Crates**: `fraiseql-observers`, `fraiseql-arrow`, `fraiseql-auth`, `fraiseql-core`  
 **Files**:
+
 - `fraiseql-observers/src/event_bridge.rs`
 - `fraiseql-arrow/src/subscription.rs`
 - `fraiseql-auth/src/pkce.rs`
 - `fraiseql-core/src/core_error.rs`
 
 **RED**:
+
 - `event_bridge_spawn_is_must_use` — compile-time lint test via `#[deny(unused_must_use)]`
 - `arrow_subscription_channel_is_bounded` — test that sending > N events blocks
   rather than growing unbounded
@@ -117,6 +133,7 @@ more input caps are added in Cycle 6.
   names, assert completes in < 1ms (time-bounded test)
 
 **GREEN**:
+
 - `event_bridge.rs`: Add `#[must_use = "spawned tasks must be awaited or explicitly dropped"]`
   to `EventBridge::spawn`
 - `subscription.rs`: Replace `unbounded_channel()` with `channel(SUBSCRIPTION_CHANNEL_CAPACITY)`
@@ -135,10 +152,12 @@ more input caps are added in Cycle 6.
 ---
 
 ### Cycle 5: Webhook SSRF + subscription cap (S52)
+
 **Crates**: `fraiseql-webhooks`, `fraiseql-server`  
 **Files**: `fraiseql-webhooks/src/` (outbound delivery, if any), subscription manager
 
 **RED**:
+
 - `webhook_delivery_blocks_private_ips` — attempt delivery to `http://192.168.1.1/evil`,
   assert `Err(SsrfBlocked)`
 - `webhook_delivery_blocks_loopback` — `http://localhost/evil`, assert `Err`
@@ -146,6 +165,7 @@ more input caps are added in Cycle 6.
   from same connection ID, assert N+1 is rejected
 
 **GREEN**:
+
 - Webhooks: Add `validate_webhook_url(url: &Url) -> Result<()>` using
   `reqwest::Url::parse` + `IpAddr::parse` after stripping IPv6 brackets;
   reject private ranges (10/8, 172.16/12, 192.168/16, 127/8, ::1, link-local)
@@ -162,12 +182,15 @@ more input caps are added in Cycle 6.
 ---
 
 ### Cycle 6: Federation table naming + Redis SCAN (S44 + S36 partial)
+
 **Crates**: `fraiseql-federation`, `fraiseql-auth`  
 **Files**:
+
 - `fraiseql-federation/src/saga_store.rs`
 - `fraiseql-auth/src/` (Redis session store, if it uses `KEYS`)
 
 **RED**:
+
 - `saga_table_name_has_single_prefix` — assert DDL contains `tb_federation_sagas`
   not `tb_tb_federation_sagas`
 - `saga_step_table_fk_is_consistent` — assert FK references updated table name
@@ -177,6 +200,7 @@ more input caps are added in Cycle 6.
   to `CMD("KEYS")` in the implementation (grep-based or mock-based)
 
 **GREEN**:
+
 - `saga_store.rs`: rename `tb_tb_federation_sagas` → `tb_federation_sagas` and
   `tb_tb_federation_saga_steps` → `tb_federation_saga_steps` (and sequences)
   throughout all SQL strings and references. Write a migration SQL fragment.
@@ -191,11 +215,13 @@ more input caps are added in Cycle 6.
 ---
 
 ## Dependencies
+
 - Requires: Phase 9 merged to `dev`
 - Blocks: nothing (patch releases)
 - SpecQL impact: none directly, but S52 webhook SSRF fix is needed before
   SpecQL platform uses FraiseQL webhooks
 
 ## Commit strategy
+
 Each cycle → one PR to `dev` → cherry-pick to `main` as patch release.
 No single "security mega-PR" — reviewers need focused diffs.

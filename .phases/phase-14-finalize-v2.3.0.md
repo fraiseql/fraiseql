@@ -1,13 +1,16 @@
 # Phase 15: Finalize v2.3.0
 
 ## Objective
+
 Transform the v2.3.0 feature branch into a production-ready release:
 archaeology removal, documentation accuracy, roadmap update, release cut.
 
 ## Status
+
 [ ] Not Started
 
 ## Success Criteria
+
 - [ ] `git grep -i "phase\|todo\|fixme\|hack"` returns nothing new
 - [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean (zero)
 - [ ] `cargo nextest run --workspace` — all tests pass
@@ -24,6 +27,7 @@ archaeology removal, documentation accuracy, roadmap update, release cut.
 ## Steps
 
 ### 1. Archaeology sweep
+
 ```bash
 git grep -rn "Phase 1[0-4]\|TODO\|FIXME\|HACK\|temp\|WIP"
 ```
@@ -32,6 +36,7 @@ Sunshine Principle: the repository should look like it was written in one
 perfect session.
 
 ### 2. Roadmap update
+
 - Mark `## v2.2.0 - Federation Maturity` as `✅ Released YYYY-MM-DD`
   (note: v2.2.0 shipped different features than the roadmap described —
   update the section to reflect what actually shipped: `sql_source_dispatch`,
@@ -45,12 +50,14 @@ perfect session.
 - Update `## Future (Unprioritized)` to remove items now promoted to v2.3.0
 
 ### 3. Documentation accuracy check
+
 - `docs/architecture/overview.md` — does it reflect multi-tenancy?
 - `docs/architecture/compiler.md` — does it cover `fraiseql-sdk-gen`?
 - `docs/security.md` — updated with S30–S58 fixes?
 - `crates/fraiseql-sdk-gen/README.md` — new crate needs a README
 
 ### 4. CHANGELOG entry
+
 ```markdown
 ## [2.3.0] — YYYY-MM-DD
 
@@ -77,6 +84,7 @@ perfect session.
 ```
 
 ### 5. Final gate
+
 ```bash
 cargo check --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -86,6 +94,7 @@ cargo doc --workspace --no-deps 2>&1 | grep "warning:"  # must be empty
 ```
 
 ### 6. Release branch
+
 ```bash
 git checkout -b chore/release-v2.3.0
 # bump version in Cargo.toml workspace
@@ -95,6 +104,7 @@ git checkout -b chore/release-v2.3.0
 ---
 
 ## SpecQL coordination checklist (before v2.3.0 tag)
+
 - [ ] SpecQL `20260428-remove-axum/` Phase 03 tested against the multi-tenancy
       management API — provisioning daemon integration smoke test passes
 - [ ] SpecQL `20260427-specql-platform-gaps/` Phase 15 SDK generation stubs
@@ -105,5 +115,6 @@ git checkout -b chore/release-v2.3.0
 ---
 
 ## Dependencies
+
 - Requires: Phases 10, 11, 12, 13 all complete on `dev`
 - Blocks: v2.3.0 release tag
