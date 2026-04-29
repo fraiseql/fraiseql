@@ -1,4 +1,4 @@
-//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–4).
+//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–5).
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite};
 
+use super::context_hash::security_context_hash;
 use super::delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde, RlsEvaluator};
 use super::observer::RealtimeBroadcastObserver;
 use super::server::{
@@ -1287,4 +1288,132 @@ async fn test_observer_end_to_end() {
     assert_eq!(msg["timestamp"], "2026-04-29T00:00:00Z");
 
     ws.close(None).await.ok();
+}
+
+// ── Cycle 5: Security Context Hashing & Connection State ───────────────
+
+/// Build a `SecurityContextHashInput` for testing.
+fn make_ctx<'a>(
+    user_id: &'a str,
+    roles: &'a [&'a str],
+    tenant_id: Option<&'a str>,
+    scopes: &'a [&'a str],
+) -> super::context_hash::SecurityContextHashInput<'a> {
+    super::context_hash::SecurityContextHashInput {
+        user_id,
+        roles,
+        tenant_id,
+        scopes,
+    }
+}
+
+#[test]
+fn test_security_context_hash_stable() {
+    let ctx = make_ctx("user-1", &["admin", "editor"], Some("tenant-A"), &["read:post"]);
+    let h1 = security_context_hash(&ctx);
+    let h2 = security_context_hash(&ctx);
+    assert_eq!(h1, h2, "same context must produce same hash");
+}
+
+#[test]
+fn test_security_context_hash_differs_on_role_change() {
+    let ctx_a = make_ctx("user-1", &["admin"], None, &[]);
+    let ctx_b = make_ctx("user-1", &["editor"], None, &[]);
+    assert_ne!(
+        security_context_hash(&ctx_a),
+        security_context_hash(&ctx_b),
+        "different roles must produce different hashes"
+    );
+}
+
+#[test]
+fn test_security_context_hash_ignores_role_order() {
+    let ctx_a = make_ctx("user-1", &["admin", "editor"], None, &[]);
+    let ctx_b = make_ctx("user-1", &["editor", "admin"], None, &[]);
+    assert_eq!(
+        security_context_hash(&ctx_a),
+        security_context_hash(&ctx_b),
+        "role order must not affect hash"
+    );
+}
+
+#[test]
+fn test_security_context_hash_ignores_scope_order() {
+    let ctx_a = make_ctx("user-1", &[], None, &["read:post", "write:post"]);
+    let ctx_b = make_ctx("user-1", &[], None, &["write:post", "read:post"]);
+    assert_eq!(
+        security_context_hash(&ctx_a),
+        security_context_hash(&ctx_b),
+        "scope order must not affect hash"
+    );
+}
+
+#[test]
+fn test_security_context_hash_differs_on_user_id() {
+    let ctx_a = make_ctx("user-1", &["admin"], None, &[]);
+    let ctx_b = make_ctx("user-2", &["admin"], None, &[]);
+    assert_ne!(
+        security_context_hash(&ctx_a),
+        security_context_hash(&ctx_b),
+        "different user IDs must produce different hashes"
+    );
+}
+
+#[test]
+fn test_security_context_hash_differs_on_tenant() {
+    let ctx_a = make_ctx("user-1", &[], Some("tenant-A"), &[]);
+    let ctx_b = make_ctx("user-1", &[], Some("tenant-B"), &[]);
+    assert_ne!(
+        security_context_hash(&ctx_a),
+        security_context_hash(&ctx_b),
+        "different tenant IDs must produce different hashes"
+    );
+}
+
+#[test]
+fn test_security_context_hash_tenant_none_vs_some() {
+    let ctx_a = make_ctx("user-1", &[], None, &[]);
+    let ctx_b = make_ctx("user-1", &[], Some("tenant-A"), &[]);
+    assert_ne!(
+        security_context_hash(&ctx_a),
+        security_context_hash(&ctx_b),
+        "absent vs present tenant must produce different hashes"
+    );
+}
+
+#[test]
+fn test_connection_state_stores_context_hash() {
+    use super::connections::ConnectionState;
+    let state = ConnectionState::new(
+        "conn-xyz".to_owned(),
+        "user-1".to_owned(),
+        0xdeadbeef,
+        9_999_999_999,
+    );
+    assert_eq!(state.context_hash, 0xdeadbeef);
+    assert_eq!(state.user_id, "user-1");
+    assert_eq!(state.connection_id, "conn-xyz");
+}
+
+#[tokio::test]
+async fn test_connection_state_cleanup_on_disconnect() {
+    // Connect a client, then disconnect and verify the connection limit slot is freed.
+    let addr = spawn_test_server(RealtimeConfig::default(), TestValidator::new()).await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-cleanup"))).await.unwrap();
+    let msg = ws.next().await.unwrap().unwrap();
+    let parsed = parse_server_msg(&msg);
+    assert_eq!(parsed["type"], "connected");
+
+    ws.close(None).await.ok();
+
+    // Give the server time to process the disconnect
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // A new connection with the same user must succeed (slot freed)
+    let result = connect_async(ws_url(addr, Some("valid-cleanup"))).await;
+    assert!(result.is_ok(), "reconnect should succeed after disconnect cleanup");
+    if let Ok((mut ws2, _)) = result {
+        ws2.close(None).await.ok();
+    }
 }

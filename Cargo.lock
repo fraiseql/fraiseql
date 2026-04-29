@@ -3464,6 +3464,7 @@ name = "fraiseql-server"
 version = "2.2.1"
 dependencies = [
  "aes-gcm",
+ "ahash",
  "anyhow",
  "arc-swap",
  "async-trait",

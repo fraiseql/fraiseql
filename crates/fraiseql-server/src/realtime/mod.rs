@@ -13,6 +13,7 @@
 //! all mutations). Different protocols, different use cases.
 
 pub mod connections;
+pub mod context_hash;
 pub mod delivery;
 pub mod observer;
 pub mod protocol;
