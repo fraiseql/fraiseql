@@ -11,6 +11,7 @@
 //! - `FunctionObserver`: Integrates with fraiseql-observers for trigger execution
 
 pub mod host;
+pub mod migrations;
 pub mod observer;
 pub mod runtime;
 pub mod triggers;
