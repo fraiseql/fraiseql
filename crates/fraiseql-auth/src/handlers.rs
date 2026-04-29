@@ -183,6 +183,10 @@ pub async fn auth_callback(
         });
     }
 
+    // SECURITY: Reject oversized code/state before any parsing or store access.
+    validate_auth_input_len(&query.code, MAX_AUTH_CODE_BYTES, "code")?;
+    validate_auth_input_len(&query.state, MAX_AUTH_CODE_BYTES, "state")?;
+
     // Check for provider error
     if let Some(error) = query.error {
         let audit_logger = get_audit_logger();
@@ -298,8 +302,12 @@ pub async fn auth_refresh(
     State(state): State<AuthState>,
     Json(req): Json<AuthRefreshRequest>,
 ) -> Result<Json<AuthRefreshResponse>> {
-    // Validate refresh token exists in session store
     use crate::session::hash_token;
+
+    // SECURITY: Reject oversized refresh tokens before hitting the session store.
+    validate_auth_input_len(&req.refresh_token, MAX_REFRESH_TOKEN_BYTES, "refresh_token")?;
+
+    // Validate refresh token exists in session store
     let token_hash = hash_token(&req.refresh_token);
     let session = state.session_store.get_session(&token_hash).await?;
 
@@ -412,11 +420,90 @@ pub fn generate_secure_state() -> String {
     hex::encode(bytes)
 }
 
+/// Maximum byte length for an OAuth authorization code or state parameter.
+///
+/// OAuth codes are typically 32–128 ASCII characters; 8 KiB is an order of
+/// magnitude above any legitimate value and prevents heap-flooding via the
+/// query-string parser.
+pub const MAX_AUTH_CODE_BYTES: usize = 8_192;
+
+/// Maximum byte length for a refresh token submitted to `/auth/refresh`.
+///
+/// Session tokens are usually ≤ 2 KiB; 4 KiB covers all real-world formats
+/// while bounding memory allocation for an attacker-supplied value.
+pub const MAX_REFRESH_TOKEN_BYTES: usize = 4_096;
+
+/// Guard oversized auth inputs before they reach session-store or provider logic.
+///
+/// Returns `AuthError::InvalidToken` with an internal reason string when
+/// `input` exceeds `max_bytes`.  The reason is logged server-side and never
+/// forwarded to the client.
+///
+/// # Errors
+///
+/// Returns `AuthError::InvalidToken` when `input.len() > max_bytes`.
+pub fn validate_auth_input_len(
+    input: &str,
+    max_bytes: usize,
+    field: &str,
+) -> crate::error::Result<()> {
+    if input.len() > max_bytes {
+        return Err(crate::error::AuthError::InvalidToken {
+            reason: format!("{field} exceeds maximum length ({} > {max_bytes} bytes)", input.len()),
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     #[allow(clippy::wildcard_imports)]
     // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
+
+    // ── S33: Auth input size caps ───────────────────────────────────────────
+
+    #[test]
+    fn auth_callback_rejects_oversized_code() {
+        let oversized = "a".repeat(MAX_AUTH_CODE_BYTES + 1);
+        let result = validate_auth_input_len(&oversized, MAX_AUTH_CODE_BYTES, "code");
+        assert!(
+            matches!(result, Err(AuthError::InvalidToken { ref reason }) if reason.contains("code")),
+            "expected InvalidToken mentioning 'code', got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn auth_callback_rejects_oversized_state() {
+        let oversized = "a".repeat(MAX_AUTH_CODE_BYTES + 1);
+        let result = validate_auth_input_len(&oversized, MAX_AUTH_CODE_BYTES, "state");
+        assert!(
+            matches!(result, Err(AuthError::InvalidToken { ref reason }) if reason.contains("state")),
+            "expected InvalidToken mentioning 'state', got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn auth_refresh_rejects_oversized_token() {
+        let oversized = "b".repeat(MAX_REFRESH_TOKEN_BYTES + 1);
+        let result = validate_auth_input_len(&oversized, MAX_REFRESH_TOKEN_BYTES, "refresh_token");
+        assert!(
+            matches!(result, Err(AuthError::InvalidToken { ref reason }) if reason.contains("refresh_token")),
+            "expected InvalidToken mentioning 'refresh_token', got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn auth_callback_accepts_valid_length_code() {
+        let valid = "a".repeat(MAX_AUTH_CODE_BYTES);
+        assert!(validate_auth_input_len(&valid, MAX_AUTH_CODE_BYTES, "code").is_ok());
+    }
+
+    #[test]
+    fn auth_refresh_accepts_valid_length_token() {
+        let valid = "b".repeat(MAX_REFRESH_TOKEN_BYTES);
+        assert!(validate_auth_input_len(&valid, MAX_REFRESH_TOKEN_BYTES, "refresh_token").is_ok());
+    }
 
     #[test]
     fn test_generate_secure_state() {
