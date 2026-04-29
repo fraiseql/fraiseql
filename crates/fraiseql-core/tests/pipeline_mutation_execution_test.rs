@@ -114,7 +114,8 @@ impl DatabaseAdapter for RecordingMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -125,7 +126,8 @@ impl DatabaseAdapter for RecordingMockAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -157,7 +159,8 @@ impl DatabaseAdapter for RecordingMockAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -166,6 +169,7 @@ impl DatabaseAdapter for RecordingMockAdapter {
         &self,
         function_name: &str,
         args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         *self.called_fn.lock().unwrap() = Some(function_name.to_string());
         *self.called_args.lock().unwrap() = args.to_vec();
@@ -494,4 +498,69 @@ async fn mutation_executor_rejects_inject_params_without_security_context() {
     let result = executor.execute(r"mutation { createOrder { id } }", Some(&vars)).await;
 
     assert!(result.is_err(), "mutation with inject_params must fail without SecurityContext");
+}
+
+// ---------------------------------------------------------------------------
+// Error fallback: MutationError when no union or convention type exists
+// ---------------------------------------------------------------------------
+
+fn mutation_error_row_for_fallback() -> HashMap<String, serde_json::Value> {
+    let mut row = HashMap::new();
+
+    row.insert("succeeded".to_string(), json!(false));
+    row.insert("state_changed".to_string(), json!(false));
+    row.insert("error_class".to_string(), json!("validation"));
+    row.insert("message".to_string(), json!("Invalid input provided"));
+    row.insert("error_detail".to_string(), json!({
+        "message": "Invalid input provided",
+        "code": 400,
+        "field": "amount",
+        "reason": "negative"
+    }));
+
+    row
+}
+
+/// Test 3a: None branch produces `MutationError`
+///
+/// When a mutation returns "Order", no union is declared, and no `OrderError` type exists,
+/// the executor must fall back to the built-in `MutationError` type.
+#[tokio::test]
+async fn mutation_error_fallback_to_mutation_error() {
+    use fraiseql_core::schema::{ArgumentDefinition, FieldType, MutationDefinition, MutationOperation};
+
+    let mut schema = CompiledSchema::new();
+    // Add a mutation that returns "Order" but no union or OrderError type
+    schema.mutations.push(MutationDefinition {
+        name: "createOrder".to_string(),
+        return_type: "Order".to_string(),
+        sql_source: Some("fn_create_order".to_string()),
+        operation: MutationOperation::Insert { table: "orders".to_string() },
+        arguments: vec![ArgumentDefinition {
+            name: "amount".to_string(),
+            arg_type: FieldType::String,
+            nullable: false,
+            default_value: None,
+            description: None,
+            deprecation: None,
+        }],
+        ..MutationDefinition::new("createOrder", "Order")
+    });
+
+    let mock = Arc::new(RecordingMockAdapter::new(mutation_error_row_for_fallback()));
+    let executor = Executor::new(schema, Arc::clone(&mock));
+    let vars = json!({"amount": "-10"});
+
+    let result = executor
+        .execute(r"mutation { createOrder { message status metadata } }", Some(&vars))
+        .await
+        .expect("mutation must execute even on error");
+
+    let data = &result["data"]["createOrder"];
+
+    assert_eq!(data["__typename"], "MutationError");
+    assert_eq!(data["message"], "Invalid input provided");
+    assert_eq!(data["status"], "validation");
+    assert_eq!(data["metadata"]["field"], "amount");
+    assert_eq!(data["metadata"]["reason"], "negative");
 }

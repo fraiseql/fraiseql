@@ -21,6 +21,7 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
         where_clause: Option<&crate::db::where_clause::WhereClause>,
         order_by: Option<&[crate::compiler::aggregation::OrderByClause]>,
         include_total_count: bool,
+        session_vars: &[(&str, &str)],
     ) -> Result<crate::db::traits::RelayPageResult> {
         // Relay pagination results are not cached — always delegate to the underlying adapter
         self.adapter
@@ -34,6 +35,7 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
                 where_clause,
                 order_by,
                 include_total_count,
+                session_vars,
             )
             .await
     }

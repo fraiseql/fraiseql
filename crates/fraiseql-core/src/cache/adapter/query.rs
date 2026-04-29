@@ -62,6 +62,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// `Arc`, an `Arc::clone` is stored in the cache, and the original `Arc` is
     /// returned — again without cloning the `Vec` contents.
     #[tracing::instrument(skip_all, fields(cache.view = view))]
+    #[allow(clippy::too_many_arguments)] // Reason: mirrors the DatabaseAdapter trait signature
     pub(super) async fn execute_with_projection_impl(
         &self,
         view: &str,
@@ -70,6 +71,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
@@ -77,7 +79,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
-                .execute_with_projection(view, projection, where_clause, limit, offset, order_by)
+                .execute_with_projection(view, projection, where_clause, limit, offset, order_by, session_vars)
                 .await
                 .map(Arc::new);
         }
@@ -103,7 +105,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // same allocation via Arc reference counting.
         let arc = Arc::new(
             self.adapter
-                .execute_with_projection(view, projection, where_clause, limit, offset, order_by)
+                .execute_with_projection(view, projection, where_clause, limit, offset, order_by, session_vars)
                 .await?,
         );
 
@@ -134,6 +136,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
@@ -141,7 +144,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
-                .execute_where_query(view, where_clause, limit, offset, order_by)
+                .execute_where_query(view, where_clause, limit, offset, order_by, session_vars)
                 .await
                 .map(Arc::new);
         }
@@ -164,7 +167,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
         let arc = Arc::new(
             self.adapter
-                .execute_where_query(view, where_clause, limit, offset, order_by)
+                .execute_where_query(view, where_clause, limit, offset, order_by, session_vars)
                 .await?,
         );
 

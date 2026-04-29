@@ -171,6 +171,7 @@ module Dsl =
             returnsList: bool
             nullable: bool
             sqlSource: string
+            sqlSourceDispatch: System.Collections.Generic.Dictionary<string, obj> option
             arguments: ArgumentDefinition list
             cacheTtlSeconds: int option
             description: string option
@@ -196,6 +197,7 @@ module Dsl =
                 returnsList = false
                 nullable = false
                 sqlSource = ""
+                sqlSourceDispatch = None
                 arguments = []
                 cacheTtlSeconds = None
                 description = None
@@ -213,6 +215,7 @@ module Dsl =
                 returns_list = s.returnsList
                 nullable = s.nullable
                 sql_source = s.sqlSource
+                sql_source_dispatch = s.sqlSourceDispatch
                 arguments = s.arguments
                 cache_ttl_seconds = s.cacheTtlSeconds
                 description = s.description
@@ -234,6 +237,11 @@ module Dsl =
         /// Sets the SQL view or function backing this query.
         [<CustomOperation("sqlSource")>]
         member _.SqlSource(s: QueryCEAccState, v: string) = { s with sqlSource = v }
+
+        /// Sets the SQL source dispatch configuration for dynamic source selection.
+        [<CustomOperation("sqlSourceDispatch")>]
+        member _.SqlSourceDispatch(s: QueryCEAccState, v: System.Collections.Generic.Dictionary<string, obj>) =
+            { s with sqlSourceDispatch = Some v }
 
         /// Sets the cache TTL in seconds.
         [<CustomOperation("cacheTtlSeconds")>]
@@ -265,6 +273,7 @@ module Dsl =
             name: string
             returnType: string
             sqlSource: string
+            sqlSourceDispatch: System.Collections.Generic.Dictionary<string, obj> option
             operation: string
             arguments: ArgumentDefinition list
             description: string option
@@ -289,6 +298,7 @@ module Dsl =
                 name = name
                 returnType = ""
                 sqlSource = ""
+                sqlSourceDispatch = None
                 operation = "custom"
                 arguments = []
                 description = None
@@ -305,6 +315,7 @@ module Dsl =
                 name = s.name
                 return_type = s.returnType
                 sql_source = s.sqlSource
+                sql_source_dispatch = s.sqlSourceDispatch
                 operation = s.operation
                 arguments = s.arguments
                 description = s.description
@@ -319,6 +330,11 @@ module Dsl =
         /// Sets the SQL function backing this mutation.
         [<CustomOperation("sqlSource")>]
         member _.SqlSource(s: MutationCEAccState, v: string) = { s with sqlSource = v }
+
+        /// Sets the SQL source dispatch configuration for dynamic source selection.
+        [<CustomOperation("sqlSourceDispatch")>]
+        member _.SqlSourceDispatch(s: MutationCEAccState, v: System.Collections.Generic.Dictionary<string, obj>) =
+            { s with sqlSourceDispatch = Some v }
 
         /// Sets the operation kind: "insert", "update", "delete", or "custom".
         [<CustomOperation("operation")>]

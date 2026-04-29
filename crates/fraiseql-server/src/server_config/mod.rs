@@ -289,6 +289,20 @@ pub struct ServerConfig {
     #[serde(default)]
     pub auth_hs256: Option<Hs256Config>,
 
+    /// Named object-storage backend configurations, keyed by bucket name.
+    ///
+    /// When non-empty, the server mounts storage API routes at `/storage/v1/`.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// [storage.avatars]
+    /// backend = "local"
+    /// path = "/var/data/avatars"
+    /// ```
+    #[serde(default)]
+    pub storage: std::collections::HashMap<String, fraiseql_storage::StorageConfig>,
+
     /// TLS/SSL configuration for HTTPS and encrypted connections.
     ///
     /// When set, enables TLS enforcement for HTTP/gRPC endpoints and
@@ -544,6 +558,7 @@ impl Default for ServerConfig {
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),
+            storage: std::collections::HashMap::new(),
         }
     }
 }

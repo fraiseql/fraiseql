@@ -1,4 +1,29 @@
-# Feature Compatibility Matrix
+# Feature Flags
+
+FraiseQL uses Cargo feature flags to keep compile times low — you only pay for what you use.
+This document answers two questions: **which features do I need?** and **which combinations are valid?**
+
+## Quick-Start Decision Guide
+
+| Use Case | Add these features |
+|----------|--------------------|
+| Local dev + PostgreSQL only | `default` (no changes) |
+| Production with OIDC auth | `default` (auth is on by default) |
+| Distributed rate limiting | `redis-rate-limiting` |
+| Redis-backed persisted queries | `redis-apq` |
+| Apollo Federation v2 | `federation` |
+| Apache Arrow / analytics | `arrow` |
+| Kafka subscription transport | `kafka` |
+| HashiCorp Vault / AWS Secrets | `secrets` (on by default) |
+| MySQL backend | `mysql` |
+| SQLite (local dev/testing) | `sqlite` |
+| SQL Server | `sqlserver` |
+| Full observability (OTel) | `tracing-opentelemetry` |
+| Full enterprise stack | `default,federation,redis-apq,redis-rate-limiting,arrow,kafka` |
+
+To opt out of all defaults (minimal build): `--no-default-features --features postgres`.
+
+## Feature Compatibility Matrix
 
 FraiseQL server exposes optional capabilities via Cargo feature flags.
 This document describes each feature, its dependencies, tested combinations, and known

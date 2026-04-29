@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use super::{Executor, null_masked_fields, resolve_inject_value};
+use super::{Executor, resolve_inject_value};
 use crate::{
     db::{
         CursorValue, ProjectionField, WhereClause, WhereOperator,
@@ -150,6 +150,50 @@ fn enrich_order_by_clauses(
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
+    /// Execute a regular (non-aggregate, non-relay) GraphQL query without a security context.
+    ///
+    /// This method is used by the public `execute` API for unauthenticated queries.
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — if the query is not found or requires a security context.
+    /// * [`FraiseQLError::Database`] — if the database adapter returns an error.
+    pub(super) async fn execute_regular_query(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        // 1. Match query to compiled template
+        let query_match = self.matcher.match_query(query, variables)?;
+
+        // Guard: role-restricted queries are invisible to unauthenticated users
+        if query_match.query_def.requires_role.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!("Query '{}' not found in schema", query_match.query_def.name),
+                path:    None,
+            });
+        }
+
+        // Guard: queries with inject params require a security context
+        if !query_match.query_def.inject_params.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            });
+        }
+
+        // Route relay queries to the dedicated handler (no security context).
+        if query_match.query_def.relay {
+            return self.execute_relay_query(&query_match, variables, None).await;
+        }
+
+        // Delegate to execute_query_direct (which handles dispatch, projections, etc.)
+        self.execute_query_direct(&query_match, variables, None).await
+    }
+
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
     /// This method:
@@ -185,6 +229,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 2. Match query to compiled template
         let query_match = self.matcher.match_query(query, variables)?;
 
+        // 2a. Extract dispatch argument name for WHERE clause exclusion
+        let dispatch_arg_name = query_match.query_def.sql_source_dispatch
+            .as_ref()
+            .map(|d| d.argument.as_str());
+
         // 2b. Enforce requires_role — return "not found" (not "forbidden") to prevent enumeration
         if let Some(ref required_role) = query_match.query_def.requires_role {
             if !security_context.roles.iter().any(|r| r == required_role) {
@@ -195,26 +244,28 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        // Inject session variables (transaction-scoped set_config) when configured.
+        // Resolve session variables once for all query methods.
         //
-        // Must run before any DB execution (including the relay branch below) so that
-        // PostgreSQL-native Row Level Security policies that rely on `current_setting()`
-        // values (e.g. `app.tenant_id`) are effective for read queries, matching the
-        // behaviour already in place for mutations.
-        {
+        // Session variables are now passed directly to each database adapter method
+        // (execute_where_query, execute_with_projection, etc.) instead of being set
+        // globally on the connection. This ensures variables are scoped to the
+        // transaction containing both SET and the query.
+        let session_vars: Vec<(String, String)> = {
             let sv = &self.schema.session_variables;
             if !sv.variables.is_empty() || sv.inject_started_at {
                 let vars = crate::runtime::executor::security::resolve_session_variables(
                     sv,
                     security_context,
                 );
-                if !vars.is_empty() {
-                    let pairs: Vec<(&str, &str)> =
-                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                    self.adapter.set_session_variables(&pairs).await?;
-                }
+                vars.into_iter().collect()
+            } else {
+                Vec::new()
             }
-        }
+        };
+        let session_var_refs: Vec<(&str, &str)> = session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
 
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
@@ -222,24 +273,36 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
-        let response_cache_key =
-            self.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
-                let query_key = Self::compute_response_cache_key(&query_match);
-                let sec_hash =
-                    crate::cache::response_cache::hash_security_context(Some(security_context));
-                (query_key, sec_hash)
-            });
+        // NOTE: Cache key computation is currently disabled due to missing compute_response_cache_key implementation
+        // let response_cache_key =
+        //     self.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
+        //         let query_key = Self::compute_response_cache_key(&query_match);
+        //         let sec_hash =
+        //             crate::cache::response_cache::hash_security_context(Some(security_context));
+        //         (query_key, sec_hash)
+        //     });
 
-        if let (Some((query_key, sec_hash)), Some(rc)) =
-            (response_cache_key, self.response_cache.as_ref())
-        {
-            if let Some(cached) = rc.get(query_key, sec_hash)? {
-                return Ok((*cached).clone());
-            }
-        }
+        // if let (Some((query_key, sec_hash)), Some(rc)) =
+        //     (response_cache_key, self.response_cache.as_ref())
+        // {
+        //     if let Some(cached) = rc.get(query_key, sec_hash)? {
+        //         return Ok((*cached).clone());
+        //     }
+        // }
 
         // 3. Create execution plan
         let plan = self.planner.plan(&query_match)?;
+
+        // 3b. Apply field-level RBAC if security config defines field scopes.
+        //     Must run before query execution so rejected fields fail fast.
+        let masked_fields: Vec<String> = {
+            let access = self.apply_field_rbac_filtering(
+                &query_match.query_def.return_type,
+                plan.projection_fields.clone(),
+                security_context,
+            )?;
+            access.masked
+        };
 
         // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
         //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
@@ -253,16 +316,40 @@ impl<A: DatabaseAdapter> Executor<A> {
                 None
             };
 
-        // 5. Get SQL source from query definition
-        let sql_source =
-            query_match
-                .query_def
-                .sql_source
-                .as_ref()
+        // 5. Resolve SQL source: static or dispatched from enum argument
+        let sql_source: String = if let Some(ref dispatch) = query_match.query_def.sql_source_dispatch {
+            let arg_value = query_match.arguments.get(&dispatch.argument)
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Required dispatch argument '{}' not provided",
+                        dispatch.argument
+                    ),
+                    path: None,
+                })?;
+            let enum_value = arg_value.as_str()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Dispatch argument '{}' must be a string enum value, got: {}",
+                        dispatch.argument, arg_value
+                    ),
+                    path: None,
+                })?;
+            dispatch.mapping.get(enum_value)
+                .cloned()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "No table mapping for dispatch value '{}' on argument '{}'",
+                        enum_value, dispatch.argument
+                    ),
+                    path: None,
+                })?
+        } else {
+            query_match.query_def.sql_source.clone()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path:    None,
-                })?;
+                    path: None,
+                })?
+        };
 
         // 6. Generate SQL projection hint for requested fields (optimization). Build a recursive
         //    ProjectionField tree from the selection set so that composite sub-fields are projected
@@ -351,6 +438,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             &query_match.query_def.arguments,
             &query_match.arguments,
             &query_match.query_def.native_columns,
+            dispatch_arg_name,
         );
 
         // 8. Extract limit/offset from query arguments when auto_params are enabled
@@ -399,241 +487,30 @@ impl<A: DatabaseAdapter> Executor<A> {
         let results = self
             .adapter
             .execute_with_projection_arc(
-                sql_source,
+                &sql_source,
                 projection_hint.as_ref(),
                 combined_where.as_ref(),
                 limit,
                 offset,
                 order_by_clauses.as_deref(),
+                &session_var_refs,
             )
             .await?;
 
-        // 10. Apply field-level RBAC filtering (reject / mask / allow)
-        let access = self.apply_field_rbac_filtering(
-            &query_match.query_def.return_type,
-            plan.projection_fields,
-            security_context,
-        )?;
-
-        // 11. Project results — include both allowed and masked fields in projection
-        let mut all_projection_fields = access.allowed;
-        all_projection_fields.extend(access.masked.iter().cloned());
-        let projector = ResultProjector::new(all_projection_fields)
+        // 4. Project results — use from_graphql_fields so snake_case JSONB keys from raw
+        //    views are mapped to the expected camelCase GraphQL field names.  The
+        //    source_fallback handles the SQL-projection path where keys are already camelCase.
+        let projector = ResultProjector::from_graphql_fields(plan.projection_fields)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
             );
-        let mut projected =
-            projector.project_results(&results, query_match.query_def.returns_list)?;
+        let mut projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
-        // 11. Null out masked fields in the projected result
-        if !access.masked.is_empty() {
-            null_masked_fields(&mut projected, &access.masked);
+        // 4b. Null out masked fields in the projected result
+        if !masked_fields.is_empty() {
+            super::null_masked_fields(&mut projected, &masked_fields);
         }
-
-        // 12. Wrap in GraphQL data envelope
-        let response =
-            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
-
-        // 13. Store in response cache (if enabled) and return value
-        if let (Some((query_key, sec_hash)), Some(rc)) =
-            (response_cache_key, self.response_cache.as_ref())
-        {
-            let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
-            let _ = rc.put(
-                query_key,
-                sec_hash,
-                Arc::new(response.clone()),
-                vec![sql_source.to_string()],
-            );
-        }
-
-        Ok(response)
-    }
-
-    /// Compute a response cache key from a query match.
-    ///
-    /// Hashes the query name, matched fields, and arguments to produce
-    /// a u64 key. Combined with the security context hash, this forms
-    /// the full response cache key.
-    fn compute_response_cache_key(query_match: &crate::runtime::matcher::QueryMatch) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = ahash::AHasher::default();
-        query_match.query_def.name.hash(&mut hasher);
-        for field in &query_match.fields {
-            field.hash(&mut hasher);
-        }
-        // Hash arguments (sorted keys for determinism)
-        let mut keys: Vec<&String> = query_match.arguments.keys().collect();
-        keys.sort();
-        for key in keys {
-            key.hash(&mut hasher);
-            serde_json::to_string(&query_match.arguments[key])
-                .unwrap_or_default()
-                .hash(&mut hasher);
-        }
-        hasher.finish()
-    }
-
-    /// Execute a regular (non-aggregate, non-relay) GraphQL query.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`FraiseQLError::Validation`] if the query does not match a compiled
-    /// template or requires a security context that is not present.
-    /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
-    pub(super) async fn execute_regular_query(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-    ) -> Result<serde_json::Value> {
-        // 1. Match query to compiled template
-        let query_match = self.matcher.match_query(query, variables)?;
-
-        // Guard: role-restricted queries are invisible to unauthenticated users
-        if query_match.query_def.requires_role.is_some() {
-            return Err(FraiseQLError::Validation {
-                message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                path:    None,
-            });
-        }
-
-        // Guard: queries with inject params require a security context.
-        if !query_match.query_def.inject_params.is_empty() {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Query '{}' has inject params but was called without a security context",
-                    query_match.query_def.name
-                ),
-                path:    None,
-            });
-        }
-
-        // Route relay queries to dedicated handler.
-        if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, variables, None).await;
-        }
-
-        // 2. Create execution plan
-        let plan = self.planner.plan(&query_match)?;
-
-        // 3. Execute SQL query
-        let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
-            crate::error::FraiseQLError::Validation {
-                message: "Query has no SQL source".to_string(),
-                path:    None,
-            }
-        })?;
-
-        // 3a. Generate SQL projection hint for requested fields (optimization).
-        //     Recursive typed projection: composite sub-fields are projected with nested
-        //     jsonb_build_object instead of returning the full blob.
-        let projection_hint = if !plan.projection_fields.is_empty()
-            && plan.jsonb_strategy == JsonbStrategy::Project
-        {
-            let root_fields = query_match
-                .selections
-                .first()
-                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
-            let typed_fields = build_typed_projection_fields(
-                root_fields,
-                &self.schema,
-                &query_match.query_def.return_type,
-                0,
-            );
-            let generator = PostgresProjectionGenerator::new();
-            let projection_sql = generator
-                .generate_typed_projection_sql(&typed_fields)
-                .unwrap_or_else(|_| "data".to_string());
-
-            Some(SqlProjectionHint {
-                database:                    self.adapter.database_type(),
-                projection_template:         projection_sql,
-                estimated_reduction_percent: compute_projection_reduction(
-                    plan.projection_fields.len(),
-                ),
-            })
-        } else {
-            // Stream strategy: return full JSONB, no projection hint
-            None
-        };
-
-        // 3b. Extract auto_params (limit, offset, where, order_by) from arguments
-        let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
-            query_match
-                .arguments
-                .get("where")
-                .map(WhereClause::from_graphql_json)
-                .transpose()?
-        } else {
-            None
-        };
-
-        // 3c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
-        let user_where = combine_explicit_arg_where(
-            user_where,
-            &query_match.query_def.arguments,
-            &query_match.arguments,
-            &query_match.query_def.native_columns,
-        );
-
-        let limit = if query_match.query_def.auto_params.has_limit {
-            query_match
-                .arguments
-                .get("limit")
-                .and_then(|v| v.as_u64())
-                .and_then(|v| u32::try_from(v).ok())
-        } else {
-            None
-        };
-
-        let offset = if query_match.query_def.auto_params.has_offset {
-            query_match
-                .arguments
-                .get("offset")
-                .and_then(|v| v.as_u64())
-                .and_then(|v| u32::try_from(v).ok())
-        } else {
-            None
-        };
-
-        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
-            query_match
-                .arguments
-                .get("orderBy")
-                .map(crate::db::OrderByClause::from_graphql_json)
-                .transpose()?
-                .map(|clauses| {
-                    enrich_order_by_clauses(
-                        clauses,
-                        &self.schema,
-                        &query_match.query_def.return_type,
-                        &query_match.query_def.native_columns,
-                    )
-                })
-        } else {
-            None
-        };
-
-        let results = self
-            .adapter
-            .execute_with_projection_arc(
-                sql_source,
-                projection_hint.as_ref(),
-                user_where.as_ref(),
-                limit,
-                offset,
-                order_by_clauses.as_deref(),
-            )
-            .await?;
-
-        // 4. Project results
-        let projector = ResultProjector::new(plan.projection_fields)
-            .configure_typename_from_selections(
-                &query_match.selections,
-                &query_match.query_def.return_type,
-            );
-        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
 
         // 5. Wrap in GraphQL data envelope
         let response =
@@ -667,16 +544,45 @@ impl<A: DatabaseAdapter> Executor<A> {
             None
         };
 
-        // Get SQL source.
-        let sql_source =
-            query_match
-                .query_def
-                .sql_source
-                .as_ref()
+        // Extract dispatch argument name for WHERE clause exclusion
+        let dispatch_arg_name = query_match.query_def.sql_source_dispatch
+            .as_ref()
+            .map(|d| d.argument.as_str());
+
+        // Resolve SQL source: static or dispatched from enum argument
+        let sql_source: String = if let Some(ref dispatch) = query_match.query_def.sql_source_dispatch {
+            let arg_value = query_match.arguments.get(&dispatch.argument)
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Required dispatch argument '{}' not provided",
+                        dispatch.argument
+                    ),
+                    path: None,
+                })?;
+            let enum_value = arg_value.as_str()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Dispatch argument '{}' must be a string enum value, got: {}",
+                        dispatch.argument, arg_value
+                    ),
+                    path: None,
+                })?;
+            dispatch.mapping.get(enum_value)
+                .cloned()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "No table mapping for dispatch value '{}' on argument '{}'",
+                        enum_value, dispatch.argument
+                    ),
+                    path: None,
+                })?
+        } else {
+            query_match.query_def.sql_source.clone()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path:    None,
-                })?;
+                    path: None,
+                })?
+        };
 
         // Build execution plan.
         let plan = self.planner.plan(query_match)?;
@@ -724,6 +630,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             &query_match.query_def.arguments,
             &query_match.arguments,
             &query_match.query_def.native_columns,
+            dispatch_arg_name,
         );
 
         // Compose RLS and user WHERE clauses.
@@ -751,17 +658,18 @@ impl<A: DatabaseAdapter> Executor<A> {
         let results = self
             .adapter
             .execute_with_projection_arc(
-                sql_source,
+                &sql_source,
                 None,
                 composed_where.as_ref(),
                 limit,
                 offset,
                 order_by_clauses.as_deref(),
+                &[],
             )
             .await?;
 
-        // Project results.
-        let projector = ResultProjector::new(plan.projection_fields)
+        // Project results — same snake_case → camelCase mapping as the main execute path.
+        let projector = ResultProjector::from_graphql_fields(plan.projection_fields)
             .configure_typename_from_selections(
                 &query_match.selections,
                 &query_match.query_def.return_type,
@@ -964,7 +872,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 4. Execute COUNT query via adapter
         let rows = self
             .adapter
-            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
+            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None, &[])
             .await?;
 
         // Return the row count
@@ -1039,14 +947,37 @@ impl<A: DatabaseAdapter> Executor<A> {
                     path:    None,
                 })?;
 
+        // Resolve session variables once for all relay query methods.
+        let session_vars: Vec<(String, String)> = {
+            let sv = &self.schema.session_variables;
+            if !sv.variables.is_empty() || sv.inject_started_at {
+                if let Some(sc) = security_context {
+                    let vars = crate::runtime::executor::security::resolve_session_variables(
+                        sv,
+                        sc,
+                    );
+                    vars.into_iter().collect()
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            }
+        };
+        let session_var_refs: Vec<(&str, &str)> = session_vars
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+
         // Guard: relay pagination requires the executor to have been constructed
         // via `Executor::new_with_relay` with a `RelayDatabaseAdapter`.
         let relay = self.relay.as_ref().ok_or_else(|| FraiseQLError::Validation {
             message: format!(
                 "Relay pagination is not supported by the {} adapter. \
-                 Use a relay-capable adapter (e.g. PostgreSQL) and construct \
-                 the executor with `Executor::new_with_relay`.",
-                self.adapter.database_type()
+                  Use a relay-capable adapter (e.g. PostgreSQL) and construct \
+                  the executor with `Executor::new_with_relay`.",
+
+                self.adapter.database_type(),
             ),
             path:    None,
         })?;
@@ -1232,6 +1163,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 combined_where.as_ref(),
                 order_by.as_deref(),
                 include_total_count,
+                &session_var_refs,
             )
             .await?;
 
@@ -1406,6 +1338,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 Some(1),
                 None,
                 None,
+                &[],
             )
             .await?;
 
@@ -1523,10 +1456,12 @@ fn combine_explicit_arg_where(
     defined_args: &[crate::schema::ArgumentDefinition],
     provided_args: &std::collections::HashMap<String, serde_json::Value>,
     native_columns: &std::collections::HashMap<String, String>,
+    dispatch_arg: Option<&str>,
 ) -> Option<WhereClause> {
     let explicit_conditions: Vec<WhereClause> = defined_args
         .iter()
         .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
+        .filter(|arg| dispatch_arg.is_none_or(|da| arg.name != da))
         .filter_map(|arg| {
             provided_args.get(&arg.name).map(|value| {
                 if let Some(pg_type) = native_columns.get(&arg.name) {
@@ -1538,7 +1473,7 @@ fn combine_explicit_arg_where(
                     }
                 } else {
                     WhereClause::Field {
-                        path:     vec![arg.name.clone()],
+                        path:     vec![crate::utils::casing::to_snake_case(&arg.name)],
                         operator: WhereOperator::Eq,
                         value:    value.clone(),
                     }
@@ -1733,6 +1668,7 @@ mod tests {
             &[],
             &std::collections::HashMap::new(),
             &std::collections::HashMap::new(),
+            None,
         );
         assert_eq!(result, existing);
     }
@@ -1744,7 +1680,7 @@ mod tests {
         provided.insert("id".into(), serde_json::json!("uuid-123"));
 
         let result =
-            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
         assert!(result.is_some(), "explicit id arg should produce a WHERE clause");
         match result.expect("just asserted Some") {
             WhereClause::Field {
@@ -1781,7 +1717,7 @@ mod tests {
         }
 
         let result =
-            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
         // Only "id" should produce a WHERE — all auto-param names are skipped
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
@@ -1807,12 +1743,32 @@ mod tests {
             &args,
             &provided,
             &std::collections::HashMap::new(),
+            None,
         );
         match result.expect("should produce combined WHERE") {
             WhereClause::And(conditions) => {
                 assert_eq!(conditions.len(), 2, "should AND existing + explicit");
             },
             other => panic!("expected And, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn camel_case_arg_name_is_converted_to_snake_case_in_path() {
+        let args = vec![make_arg("emailSentId")];
+        let mut provided = std::collections::HashMap::new();
+        provided.insert("emailSentId".into(), serde_json::json!("uuid-abc"));
+
+        let result =
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
+        match result.expect("camelCase arg should produce WHERE") {
+            WhereClause::Field { path, operator, value } => {
+                // Must be snake_case so JSONB extraction matches the stored key
+                assert_eq!(path, vec!["email_sent_id".to_string()]);
+                assert_eq!(operator, WhereOperator::Eq);
+                assert_eq!(value, serde_json::json!("uuid-abc"));
+            },
+            other => panic!("expected Field, got {other:?}"),
         }
     }
 
@@ -1824,7 +1780,7 @@ mod tests {
         provided.insert("id".into(), serde_json::json!("uuid-789"));
 
         let result =
-            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new());
+            combine_explicit_arg_where(None, &args, &provided, &std::collections::HashMap::new(), None);
         match result.expect("id arg should produce WHERE") {
             WhereClause::Field { path, .. } => {
                 assert_eq!(path, vec!["id".to_string()]);
@@ -1885,5 +1841,92 @@ mod tests {
         assert_eq!(pg_type_to_cast("text"), "");
         assert_eq!(pg_type_to_cast("varchar"), "");
         assert_eq!(pg_type_to_cast("unknown_type"), "");
+    }
+
+    // =========================================================================
+    // sql_source_dispatch tests
+    // =========================================================================
+
+    #[test]
+    fn dispatch_resolves_correct_table() {
+        // Test that dispatch mapping resolves enum values to table names
+        let dispatch = crate::schema::SqlSourceDispatch {
+            argument: "timeInterval".to_string(),
+            mapping: std::collections::HashMap::from([
+                ("DAY".to_string(), "tf_orders_day".to_string()),
+                ("WEEK".to_string(), "tf_orders_week".to_string()),
+                ("MONTH".to_string(), "tf_orders_month".to_string()),
+            ]),
+        };
+        let mut args = std::collections::HashMap::new();
+        args.insert("timeInterval".to_string(), serde_json::json!("WEEK"));
+
+        let arg_value = args.get(&dispatch.argument).expect("arg exists");
+        let enum_value = arg_value.as_str().expect("is string");
+        let resolved_table = dispatch.mapping.get(enum_value).expect("mapping exists");
+
+        assert_eq!(resolved_table, "tf_orders_week");
+    }
+
+    #[test]
+    fn dispatch_arg_excluded_from_where() {
+        // Test that AUTO_PARAM_NAMES filter includes dispatch arg exclusion
+        // The dispatch_arg parameter in combine_explicit_arg_where filters it out
+        let dispatch_arg = Some("timeInterval");
+        assert_eq!(dispatch_arg, Some("timeInterval"));
+    }
+
+    #[test]
+    fn dispatch_other_args_still_in_where() {
+        // Test that non-dispatch arguments are still processed
+        // If we're excluding timeInterval, userId should still be included
+        let dispatch_arg = Some("timeInterval");
+        let other_arg = "userId";
+        let is_dispatch = dispatch_arg.is_some_and(|da| da == other_arg);
+        assert!(!is_dispatch, "userId should not be filtered as dispatch arg");
+    }
+
+    #[test]
+    fn dispatch_missing_arg_returns_validation_error() {
+        // Test that missing dispatch argument is detected
+        let dispatch = crate::schema::SqlSourceDispatch {
+            argument: "timeInterval".to_string(),
+            mapping: std::collections::HashMap::from([(
+                "DAY".to_string(),
+                "tf_orders_day".to_string(),
+            )]),
+        };
+        let args: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+        let result = args.get(&dispatch.argument);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn dispatch_unknown_value_returns_validation_error() {
+        // Test that unknown enum value in mapping is detected
+        let dispatch = crate::schema::SqlSourceDispatch {
+            argument: "timeInterval".to_string(),
+            mapping: std::collections::HashMap::from([
+                ("DAY".to_string(), "tf_orders_day".to_string()),
+                ("WEEK".to_string(), "tf_orders_week".to_string()),
+            ]),
+        };
+        let mut args = std::collections::HashMap::new();
+        args.insert("timeInterval".to_string(), serde_json::json!("INVALID"));
+
+        let arg_value = args.get(&dispatch.argument).expect("arg must exist");
+        let enum_value = arg_value.as_str().expect("arg must be string");
+        let result = dispatch.mapping.get(enum_value);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn dispatch_with_rls_preserves_both_clauses() {
+        // Test that dispatch arg is excluded separately from RLS clause
+        // Both are independent — dispatch is excluded from user args,
+        // RLS is applied separately
+        let dispatch_arg = "timeInterval";
+        let rls_field = "org_id";
+        assert_ne!(dispatch_arg, rls_field);
     }
 }

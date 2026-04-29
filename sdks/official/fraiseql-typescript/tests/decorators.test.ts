@@ -1,4 +1,4 @@
-import { SchemaRegistry, enum_, interface_, union, input } from "../src/index";
+import { SchemaRegistry, enum_, interface_, union, input, registerQuery } from "../src/index";
 
 describe("Type System Decorators", () => {
   beforeEach(() => {
@@ -269,6 +269,144 @@ describe("Type System Decorators", () => {
       expect(schema.interfaces).toBeUndefined();
       expect(schema.unions).toBeUndefined();
       expect(schema.input_types).toBeUndefined();
+    });
+  });
+
+  describe("SQL source dispatch (dynamic table routing)", () => {
+    it("should register query with explicit mapping dispatch", () => {
+      enum_("TimeInterval", {
+        DAY: "day",
+        WEEK: "week",
+        MONTH: "month",
+      });
+
+
+      registerQuery("orders", {
+        returnType: "Order",
+        returnsList: true,
+        sqlSourceDispatch: {
+          argument: "timeInterval",
+          mapping: {
+            DAY: "tf_orders_day",
+            WEEK: "tf_orders_week",
+            MONTH: "tf_orders_month",
+          },
+        },
+        arguments: [
+          { name: "timeInterval", type: "TimeInterval", nullable: false },
+        ],
+      });
+
+      const schema = SchemaRegistry.getSchema();
+      const query = schema.queries![0];
+      expect(query.sql_source_dispatch).toBeDefined();
+      expect(query.sql_source_dispatch!.argument).toBe("timeInterval");
+      expect(query.sql_source_dispatch!.mapping!.DAY).toBe("tf_orders_day");
+    });
+
+    it("should register query with template dispatch", () => {
+      enum_("Environment", {
+        STAGING: "staging",
+        PRODUCTION: "production",
+      });
+
+
+      registerQuery("users", {
+        returnType: "User",
+        returnsList: true,
+        sqlSourceDispatch: {
+          argument: "env",
+          template: "v_users_{env}",
+        },
+        arguments: [
+          { name: "env", type: "Environment", nullable: false },
+        ],
+      });
+
+      const schema = SchemaRegistry.getSchema();
+      const query = schema.queries![0];
+      expect(query.sql_source_dispatch).toBeDefined();
+      expect(query.sql_source_dispatch!.template).toBe("v_users_{env}");
+    });
+
+    it("should not allow both sqlSource and sqlSourceDispatch", () => {
+      enum_("Region", { US: "us", EU: "eu" });
+
+
+      expect(() => {
+        registerQuery("data", {
+          returnType: "Data",
+          returnsList: true,
+          sqlSource: "v_data",
+          sqlSourceDispatch: {
+            argument: "region",
+            mapping: { US: "v_us_data", EU: "v_eu_data" },
+          },
+          arguments: [
+            { name: "region", type: "Region", nullable: false },
+          ],
+        });
+      }).toThrow();
+    });
+
+    it("should validate dispatch argument exists", () => {
+      enum_("Type", { A: "a", B: "b" });
+
+
+      expect(() => {
+        registerQuery("items", {
+          returnType: "Item",
+          returnsList: true,
+          sqlSourceDispatch: {
+            argument: "nonexistent",
+            mapping: { A: "t_a", B: "t_b" },
+          },
+          arguments: [
+            { name: "type", type: "Type", nullable: false },
+          ],
+        });
+      }).toThrow();
+    });
+
+    it("should not allow nullable dispatch argument", () => {
+      enum_("Status", { ACTIVE: "active", INACTIVE: "inactive" });
+
+
+      expect(() => {
+        registerQuery("records", {
+          returnType: "Record",
+          returnsList: true,
+          sqlSourceDispatch: {
+            argument: "status",
+            mapping: { ACTIVE: "t_active", INACTIVE: "t_inactive" },
+          },
+          arguments: [
+            { name: "status", type: "Status", nullable: true },
+          ],
+        });
+      }).toThrow();
+    });
+
+    it("should validate mapping values are safe SQL identifiers", () => {
+      enum_("Shard", { S1: "shard1", S2: "shard2" });
+
+
+      expect(() => {
+        registerQuery("sharded", {
+          returnType: "Data",
+          returnsList: true,
+          sqlSourceDispatch: {
+            argument: "shard",
+            mapping: {
+              S1: "t_shard1",
+              S2: "'; DROP TABLE users; --",
+            },
+          },
+          arguments: [
+            { name: "shard", type: "Shard", nullable: false },
+          ],
+        });
+      }).toThrow();
     });
   });
 });

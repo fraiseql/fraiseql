@@ -86,10 +86,11 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
         where_clause: Option<&WhereClause>,
         limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         // Fall back to standard query for tests
-        self.execute_where_query(view, where_clause, limit, None, None).await
+        self.execute_where_query(view, where_clause, limit, None, None, &[]).await
     }
 
     async fn execute_where_query(
@@ -98,7 +99,8 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<fraiseql_core::db::types::JsonbValue>> {
         // For performance testing, we don't actually execute complex WHERE queries
         Ok(vec![])
@@ -138,7 +140,8 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
@@ -147,6 +150,7 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<std::collections::HashMap<String, Value>>> {
         Ok(vec![])
     }

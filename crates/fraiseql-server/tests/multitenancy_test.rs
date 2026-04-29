@@ -52,7 +52,8 @@ impl DatabaseAdapter for StubAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> CoreResult<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -64,7 +65,8 @@ impl DatabaseAdapter for StubAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> CoreResult<Vec<JsonbValue>> {
         Ok(vec![])
     }
@@ -91,7 +93,8 @@ impl DatabaseAdapter for StubAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         _sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> CoreResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }

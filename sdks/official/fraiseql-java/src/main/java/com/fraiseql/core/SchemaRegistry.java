@@ -202,6 +202,21 @@ public class SchemaRegistry {
         queries.put(queryName, queryInfo);
     }
 
+    /** Register a query with all extended fields including REST annotation and dispatch config. */
+    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description,
+                              boolean relay, String sqlSource, Map<String, Object> sqlSourceDispatch,
+                              Long cacheTtlSeconds, Map<String, String> injectParams, List<String> additionalViews,
+                              String restPath, String restMethod) {
+        Map<String, Object> config = null;
+        if (sqlSourceDispatch != null) {
+            config = new LinkedHashMap<>();
+            config.put("sql_source_dispatch", sqlSourceDispatch);
+        }
+        QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay,
+            sqlSource, cacheTtlSeconds, injectParams, additionalViews, restPath, restMethod, config);
+        queries.put(queryName, queryInfo);
+    }
+
     /**
      * Register a mutation in the schema.
      *
@@ -616,26 +631,35 @@ public class SchemaRegistry {
         public final List<String> additionalViews;
         public final String restPath;
         public final String restMethod;
+        private final Map<String, Object> config;
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, false, null, null, null, null, null, null);
+            this(name, returnType, arguments, description, false, null, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
-            this(name, returnType, arguments, description, relay, null, null, null, null, null, null);
+            this(name, returnType, arguments, description, relay, null, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews) {
             this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
-                injectParams, additionalViews, null, null);
+                injectParams, additionalViews, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews,
                          String restPath, String restMethod) {
+            this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
+                injectParams, additionalViews, restPath, restMethod, null);
+        }
+
+        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
+                         boolean relay, String sqlSource, Long cacheTtlSeconds,
+                         Map<String, String> injectParams, List<String> additionalViews,
+                         String restPath, String restMethod, Map<String, Object> config) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -649,7 +673,14 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableList(new ArrayList<>(additionalViews)) : null;
             this.restPath = restPath;
             this.restMethod = restMethod;
+            this.config = config != null
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(config)) : null;
         }
+
+        public String getName() { return name; }
+        public String getDescription() { return description; }
+        public Map<String, String> getArguments() { return arguments; }
+        public Map<String, Object> getConfig() { return config; }
 
         @Override
         public String toString() {
@@ -857,6 +888,32 @@ public class SchemaRegistry {
     /**
      * Information about a registered observer.
      */
+    /**
+     * Snapshot of the complete schema for inspection in tests or tooling.
+     */
+    public static class Schema {
+        private final List<QueryInfo> queries;
+
+        Schema(List<QueryInfo> queries) {
+            this.queries = Collections.unmodifiableList(new ArrayList<>(queries));
+        }
+
+        /** Returns all registered queries as an ordered list. */
+        public List<QueryInfo> getQueries() {
+            return queries;
+        }
+    }
+
+    /**
+     * Return a snapshot of the current schema for inspection.
+     *
+     * @return Schema containing all registered queries
+     */
+    public static Schema getSchema() {
+        SchemaRegistry reg = getInstance();
+        return new Schema(new ArrayList<>(reg.queries.values()));
+    }
+
     public static class ObserverInfo {
         public final String name;
         public final String entity;

@@ -1,5 +1,6 @@
 //! Application router construction and route registration.
 
+
 #[cfg(any(feature = "auth", feature = "mcp", feature = "observers"))]
 use std::sync::Arc;
 
@@ -9,7 +10,7 @@ use axum::{
     middleware,
     routing::{get, post, put},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
+use fraiseql_core::db::traits::{DatabaseAdapter, SupportsMutations};
 use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
 use tracing::{info, warn};
 
@@ -25,12 +26,55 @@ use super::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
 use crate::middleware::{Hs256AuthState, hs256_auth_middleware};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
-    /// Build application router and return the shared `AppState`.
+    /// Build application router with full REST support (mutations included).
+    ///
+    /// Requires `SupportsMutations` so that the full `rest_router` can be mounted.
+    /// The returned `AppState` is needed by the lifecycle module for SIGUSR1 schema
+    /// reload handling.
+    pub(super) fn build_router(&self) -> (Router, AppState<A>)
+    where
+        A: SupportsMutations,
+    {
+        #[cfg(feature = "rest")]
+        let make_rest = |state: &AppState<A>, compress: bool| {
+            crate::routes::rest::rest_router(state, compress)
+        };
+        #[cfg(not(feature = "rest"))]
+        let make_rest = |_state: &AppState<A>, _compress: bool| -> Option<Router> { None };
+        self.build_base_router(make_rest)
+    }
+
+    /// Build application router for read-only adapters (GET + SSE REST only).
+    ///
+    /// Mounts `rest_query_router` instead of the full `rest_router`, so no
+    /// `SupportsMutations` bound is required.  Use this for `SqliteAdapter` or
+    /// `FraiseWireAdapter`-backed servers.
+    ///
+    /// The returned `AppState` is needed by the lifecycle module for SIGUSR1 schema
+    /// reload handling.
+    pub(super) fn build_readonly_router(&self) -> (Router, AppState<A>) {
+        #[cfg(feature = "rest")]
+        let make_rest = |state: &AppState<A>, compress: bool| {
+            crate::routes::rest::rest_query_router(state, compress)
+        };
+        #[cfg(not(feature = "rest"))]
+        let make_rest = |_state: &AppState<A>, _compress: bool| -> Option<Router> { None };
+        self.build_base_router(make_rest)
+    }
+
+    /// Internal router builder shared by [`build_router`] and [`build_readonly_router`].
+    ///
+    /// `make_rest` is called once with the fully-initialized `AppState` and the
+    /// compression flag.  The caller supplies either `rest_router` (full REST,
+    /// requires `SupportsMutations`) or `rest_query_router` (read-only).
     ///
     /// The returned `AppState` is needed by the lifecycle module for
     /// SIGUSR1 schema reload handling.
     #[allow(clippy::cognitive_complexity)] // Reason: route construction with many optional middleware layers and feature-gated endpoints
-    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
+    fn build_base_router<F>(&self, make_rest: F) -> (Router, AppState<A>)
+    where
+        F: FnOnce(&AppState<A>, bool) -> Option<Router>,
+    {
         let mut state = AppState::new(self.executor.clone())
             .with_reload_config(self.config.schema_path.clone(), self.executor.adapter().clone());
 
@@ -568,8 +612,26 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             &self.oidc_validator,
             self.config.auth.as_ref().and_then(|a| a.me.as_ref()).filter(|m| m.enabled),
         ) {
+            // Build enrichment state if configured and a pool is available
+            let enrichment = me_cfg.enrichment.as_ref().and_then(|enr_cfg| {
+                if let Some(ref pool) = self.enrichment_pool {
+                    Some(crate::routes::AuthMeEnrichmentState {
+                        config: enr_cfg.clone(),
+                        pool: pool.clone(),
+                        cache: Arc::new(crate::routes::enrichment::EnrichmentCache::new()),
+                    })
+                } else {
+                    tracing::warn!(
+                        "Claims enrichment configured but no database pool available — \
+                         enrichment will be skipped"
+                    );
+                    None
+                }
+            });
+
             let me_state = Arc::new(AuthMeState {
                 expose_claims: me_cfg.expose_claims.clone(),
+                enrichment,
             });
             let auth_state = OidcAuthState::new(Arc::clone(validator));
             let me_router = Router::new()
@@ -579,6 +641,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.merge(me_router);
             info!(
                 expose_claims = ?me_cfg.expose_claims,
+                enrichment = me_cfg.enrichment.is_some(),
                 "Session identity route mounted: GET /auth/me"
             );
         }
@@ -659,6 +722,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
                 }
             }
+        }
+
+        // REST transport — GET queries, SSE streams, OpenAPI spec, and (when the
+        // adapter supports it) mutation routes (POST/PUT/PATCH/DELETE).
+        // `make_rest` is provided by the caller: `build_router` supplies the full
+        // `rest_router` (requires `SupportsMutations`); `build_readonly_router` supplies
+        // `rest_query_router` (GET + SSE only, no `SupportsMutations` required).
+        if let Some(rest) = make_rest(&state, self.config.compression_enabled) {
+            app = app.merge(rest);
         }
 
         // Remaining API routes (query intelligence, federation)
@@ -776,6 +848,75 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .layer(Extension(limiter.clone()));
         }
 
+        // Mount realtime WebSocket routes when a RealtimeState was configured.
+        //
+        // The realtime endpoint is unauthenticated at the HTTP layer — the
+        // WebSocket handler validates the `?token=` query parameter internally
+        // before upgrading. No middleware layer is needed here.
+        if let Some(rt_state) = &self.realtime_state {
+            use crate::realtime::routes::realtime_router;
+            app = app.merge(realtime_router(rt_state.clone()));
+            info!("Realtime WebSocket routes mounted: GET /realtime/v1");
+        }
+
+        // Mount storage routes when StorageState was pre-built during server construction.
+        // Auth is OPTIONAL for storage: public buckets allow anonymous access, so we never
+        // reject requests for missing tokens. If a token is present (Bearer header or
+        // __Host-access_token cookie), we validate it and map to StorageUser; if absent,
+        // the request continues unauthenticated and handlers rely on RLS to enforce access.
+        if let Some(ref storage_state) = self.storage_state {
+            let storage = fraiseql_storage::storage_router(storage_state.clone());
+            let storage = if let Some(ref validator) = self.oidc_validator {
+                let validator = validator.clone();
+                storage.layer(middleware::from_fn(
+                    move |mut request: axum::extract::Request, next: axum::middleware::Next| {
+                        let validator = validator.clone();
+                        async move {
+                            use axum::http::header;
+                            use axum::response::IntoResponse;
+                            use crate::middleware::oidc_auth::extract_access_token_cookie;
+
+                            // Extract token: Bearer header takes precedence over cookie.
+                            let token = request
+                                .headers()
+                                .get(header::AUTHORIZATION)
+                                .and_then(|v| v.to_str().ok())
+                                .and_then(|v| v.strip_prefix("Bearer "))
+                                .map(str::to_owned)
+                                .or_else(|| extract_access_token_cookie(request.headers()));
+
+                            if let Some(token) = token {
+                                match validator.validate_token(&token).await {
+                                    Ok(user) => {
+                                        let storage_user = fraiseql_storage::StorageUser {
+                                            user_id: Some(user.user_id),
+                                            roles: user.scopes,
+                                        };
+                                        request.extensions_mut().insert(storage_user);
+                                    }
+                                    Err(e) => {
+                                        tracing::debug!(error = %e, "Storage auth: token validation failed");
+                                        return (
+                                            axum::http::StatusCode::UNAUTHORIZED,
+                                            "Invalid or expired token",
+                                        )
+                                            .into_response();
+                                    }
+                                }
+                            }
+                            // No token → continue without StorageUser (anonymous access).
+                            // Handlers check RLS and return 401 for private buckets.
+                            next.run(request).await
+                        }
+                    },
+                ))
+            } else {
+                storage
+            };
+            app = app.merge(storage);
+            info!("Storage API routes mounted");
+        }
+
         // Wire admission controller into the router via Extension so that handlers
         // can extract `Extension<Arc<AdmissionController>>` when needed.
         // Full Tower middleware wiring (returning 503 before the handler runs) is
@@ -815,7 +956,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[cfg(feature = "observers")]
     pub(super) fn add_observer_routes(&self, app: Router) -> Router {
         use crate::observers::{
-            ObserverRepository, ObserverState, RuntimeHealthState, observer_routes,
+            ChangelogState, DlqState, ObserverRepository, ObserverState, RuntimeHealthState,
+            observer_changelog_routes, observer_dlq_routes, observer_routes,
             observer_runtime_routes,
         };
 
@@ -834,23 +976,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Management API (always available with feature)
         let observer_state = ObserverState {
-            repository: ObserverRepository::new(db_pool),
+            repository: ObserverRepository::new(db_pool.clone()),
         };
 
-        let app = app.nest("/api/observers", observer_routes(observer_state));
+        // Changelog + checkpoint API (always available with a pool)
+        let changelog_state = ChangelogState { pool: db_pool };
 
-        // Runtime health API (only if runtime present)
+        let app = app
+            .nest("/api/observers", observer_routes(observer_state))
+            .nest("/api/observers", observer_changelog_routes(changelog_state));
+
+        // Runtime health API and DLQ delivery status (only if runtime present)
         if let Some(ref runtime) = self.observer_runtime {
             info!(
                 path = "/api/observers",
-                "Observer management and runtime health endpoints enabled"
+                "Observer management, runtime health, and DLQ delivery status endpoints enabled"
             );
 
             let runtime_state = RuntimeHealthState {
                 runtime: runtime.clone(),
             };
 
+            let dlq_state = DlqState {
+                runtime: runtime.clone(),
+            };
+
             app.merge(observer_runtime_routes(runtime_state))
+                .nest("/api/observers", observer_dlq_routes(dlq_state))
         } else {
             app
         }

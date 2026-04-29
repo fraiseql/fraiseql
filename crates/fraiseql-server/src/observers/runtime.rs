@@ -126,6 +126,8 @@ pub struct ObserverRuntime {
     matcher:           Arc<RwLock<Option<EventMatcher>>>,
     executor:          Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
     entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
+    /// In-memory DLQ shared across reloads and exposed to HTTP handlers.
+    dlq:               Arc<InMemoryDlq>,
 }
 
 impl ObserverRuntime {
@@ -146,6 +148,7 @@ impl ObserverRuntime {
             matcher: Arc::new(RwLock::new(None)),
             executor: Arc::new(RwLock::new(None)),
             entity_type_index: Arc::new(RwLock::new(HashMap::new())),
+            dlq: Arc::new(InMemoryDlq::new()),
         }
     }
 
@@ -259,9 +262,8 @@ impl ObserverRuntime {
         // Clone matcher for logging (we need it to find matching observers)
         let matcher_for_logging = matcher.clone();
 
-        // Create executor with in-memory DLQ for now
-        let dlq = Arc::new(InMemoryDlq::new());
-        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), dlq));
+        // Create executor with the shared in-memory DLQ
+        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), self.dlq.clone()));
 
         // Store in shared references for hot reload
         {
@@ -570,6 +572,18 @@ impl ObserverRuntime {
         self.running.load(Ordering::SeqCst)
     }
 
+    /// Get a reference to the in-memory DLQ for use by HTTP handlers.
+    #[must_use]
+    pub(crate) const fn dlq(&self) -> &Arc<InMemoryDlq> {
+        &self.dlq
+    }
+
+    /// Get a reference to the executor `RwLock` for use by DLQ retry handlers.
+    #[must_use]
+    pub(crate) const fn executor_ref(&self) -> &Arc<RwLock<Option<Arc<ObserverExecutor>>>> {
+        &self.executor
+    }
+
     /// Get runtime health status
     #[must_use]
     pub fn health(&self) -> RuntimeHealth {
@@ -598,9 +612,8 @@ impl ObserverRuntime {
         let new_matcher = EventMatcher::build(observers)
             .map_err(|e| ServerError::ConfigError(format!("Failed to build matcher: {}", e)))?;
 
-        // Build new executor
-        let dlq = Arc::new(InMemoryDlq::new());
-        let new_executor = Arc::new(ObserverExecutor::new(new_matcher.clone(), dlq));
+        // Build new executor sharing the existing DLQ
+        let new_executor = Arc::new(ObserverExecutor::new(new_matcher.clone(), self.dlq.clone()));
 
         // Atomic swap - write locks block readers briefly
         debug!("Swapping matcher, executor, and entity_type_index atomically");
@@ -628,8 +641,10 @@ impl ObserverRuntime {
     }
 }
 
-/// Simple in-memory Dead Letter Queue for development
-struct InMemoryDlq {
+/// Simple in-memory Dead Letter Queue for development.
+///
+/// Also exposes query methods used by the DLQ HTTP endpoints.
+pub(crate) struct InMemoryDlq {
     items: std::sync::Mutex<Vec<fraiseql_observers::DlqItem>>,
 }
 
@@ -638,6 +653,32 @@ impl InMemoryDlq {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// Return all items currently in the DLQ.
+    pub(crate) fn list_all(&self) -> Vec<fraiseql_observers::DlqItem> {
+        let items = self.items.lock().expect("dlq mutex poisoned");
+        items.clone()
+    }
+
+    /// Return a single item by ID, if present.
+    pub(crate) fn get(&self, id: uuid::Uuid) -> Option<fraiseql_observers::DlqItem> {
+        let items = self.items.lock().expect("dlq mutex poisoned");
+        items.iter().find(|i| i.id == id).cloned()
+    }
+
+    /// Return the number of items in the DLQ.
+    pub(crate) fn count(&self) -> usize {
+        let items = self.items.lock().expect("dlq mutex poisoned");
+        items.len()
+    }
+
+    /// Remove an item from the DLQ by ID. Returns `true` if found and removed.
+    pub(crate) fn remove(&self, id: uuid::Uuid) -> bool {
+        let mut items = self.items.lock().expect("dlq mutex poisoned");
+        let before = items.len();
+        items.retain(|i| i.id != id);
+        items.len() < before
     }
 }
 

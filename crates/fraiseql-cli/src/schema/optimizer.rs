@@ -390,6 +390,7 @@ mod tests {
                     deprecation:   None,
                 }],
                 sql_source:          Some("users".to_string()),
+                sql_source_dispatch: None,
                 description:         None,
                 auto_params:         AutoParams::default(),
                 deprecation:         None,
@@ -444,6 +445,7 @@ mod tests {
                 nullable:            false,
                 arguments:           vec![],
                 sql_source:          Some("products".to_string()),
+                sql_source_dispatch: None,
                 description:         None,
                 auto_params:         AutoParams {
                     has_where:    false,

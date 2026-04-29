@@ -9,6 +9,7 @@ use crate::{
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     schema::{CompiledSchema, FieldDefinition},
+    utils::to_snake_case,
 };
 
 /// Field mapping for projection with alias support.
@@ -253,13 +254,21 @@ impl ProjectionMapper {
                 }
             },
             JsonValue::Array(arr) => {
-                // For arrays of objects, add typename to each element
                 if field.nested_typename.is_some() {
+                    // Add __typename (and apply nested field mappings) to each element.
                     let projected: Result<Vec<JsonValue>> =
                         arr.iter().map(|item| self.project_nested_value(item, field)).collect();
                     Ok(JsonValue::Array(projected?))
                 } else {
-                    Ok(value.clone())
+                    // No typename injection needed, but apply snake_case → camelCase key
+                    // normalization so that views using SQL-convention keys (e.g.
+                    // `line_item_type`) produce the correct GraphQL camelCase field names
+                    // (e.g. `lineItemType`) in nested array elements.
+                    // Scalar arrays (strings, numbers) pass through unchanged because
+                    // `normalize_object_keys_to_camel` only rewrites Map keys.
+                    let normalized: Vec<JsonValue> =
+                        arr.iter().map(normalize_object_keys_to_camel).collect();
+                    Ok(JsonValue::Array(normalized))
                 }
             },
             _ => {
@@ -316,6 +325,45 @@ impl ResultProjector {
     pub const fn with_mappings(fields: Vec<FieldMapping>) -> Self {
         Self {
             mapper: ProjectionMapper::with_mappings(fields),
+        }
+    }
+
+    /// Create a result projector from camelCase GraphQL field names.
+    ///
+    /// Each field name is mapped so that the projector correctly handles views that
+    /// store data with `snake_case` keys (the SQL convention), outputting the
+    /// expected `camelCase` GraphQL field names:
+    ///
+    /// - `source` is the `snake_case` form (e.g. `message_id`)
+    /// - `output` is the `camelCase` form (e.g. `messageId`)
+    /// - `source_fallback` is the `camelCase` form, used when the SQL projection hint
+    ///   has already converted keys to camelCase before the projector runs
+    ///
+    /// Single-word fields (`id`, `status`) are unchanged because
+    /// `to_snake_case("id") == "id"`.
+    ///
+    /// Use this constructor in all query execution paths instead of [`Self::new`].
+    #[must_use]
+    pub fn from_graphql_fields(fields: Vec<String>) -> Self {
+        let mappings = fields
+            .into_iter()
+            .map(|camel| {
+                let snake = to_snake_case(&camel);
+                if snake == camel {
+                    FieldMapping::simple(camel)
+                } else {
+                    FieldMapping {
+                        source:          snake,
+                        output:          camel.clone(),
+                        source_fallback: Some(camel),
+                        nested_typename: None,
+                        nested_fields:   None,
+                    }
+                }
+            })
+            .collect();
+        Self {
+            mapper: ProjectionMapper::with_mappings(mappings),
         }
     }
 
@@ -571,6 +619,31 @@ pub fn build_field_mappings_from_type(
             }
         })
         .collect()
+}
+
+/// Recursively rename all object keys in a JSON value from `snake_case` to `camelCase`.
+///
+/// - `Object` values: every key is converted; values are recursed.
+/// - `Array` values: each element is recursed.
+/// - All other values: returned unchanged.
+///
+/// This is used to normalise nested JSONB array elements that come from SQL views using
+/// the SQL `snake_case` naming convention.  Idempotent: keys that are already camelCase
+/// (single-word or already converted) pass through unchanged.
+fn normalize_object_keys_to_camel(value: &JsonValue) -> JsonValue {
+    match value {
+        JsonValue::Object(obj) => {
+            let map = obj
+                .iter()
+                .map(|(k, v)| (to_camel_case(k), normalize_object_keys_to_camel(v)))
+                .collect();
+            JsonValue::Object(map)
+        },
+        JsonValue::Array(arr) => {
+            JsonValue::Array(arr.iter().map(normalize_object_keys_to_camel).collect())
+        },
+        _ => value.clone(),
+    }
 }
 
 /// Convert a `snake_case` field name to `camelCase` for metadata key lookup.
@@ -1253,6 +1326,110 @@ mod tests {
                     "email": "alice@example.com"
                 }
             })
+        );
+    }
+
+    // ── Issue #240: snake_case → camelCase mapping in query response ──────────
+
+    /// When a view returns raw snake_case JSONB keys (no SQL-level projection applied),
+    /// `ResultProjector::from_graphql_fields` must map them to camelCase in the output.
+    #[test]
+    fn test_projector_maps_snake_case_source_to_camel_case_output() {
+        let projector = ResultProjector::from_graphql_fields(vec![
+            "id".to_string(),
+            "messageId".to_string(),
+            "createdAt".to_string(),
+        ]);
+
+        // Simulate raw view JSONB with snake_case keys
+        let data = json!({
+            "id": "1",
+            "message_id": "msg-42",
+            "created_at": "2026-01-01T00:00:00Z",
+        });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "id": "1",
+                "messageId": "msg-42",
+                "createdAt": "2026-01-01T00:00:00Z",
+            })
+        );
+    }
+
+    /// When the DB returns camelCase keys (SQL projection hint was applied),
+    /// `from_graphql_fields` must still work via the source_fallback path.
+    #[test]
+    fn test_projector_from_graphql_fields_handles_already_camel_case_jsonb() {
+        let projector = ResultProjector::from_graphql_fields(vec![
+            "id".to_string(),
+            "messageId".to_string(),
+        ]);
+
+        // Simulate SQL-projected JSONB that already has camelCase keys
+        let data = json!({
+            "id": "1",
+            "messageId": "msg-42",
+        });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(result, json!({ "id": "1", "messageId": "msg-42" }));
+    }
+
+    /// Nested JSONB array elements must have their snake_case keys converted to
+    /// camelCase — the same transformation applied to top-level fields.
+    #[test]
+    fn test_projector_normalizes_nested_array_element_keys() {
+        let projector = ResultProjector::from_graphql_fields(vec![
+            "id".to_string(),
+            "lineItems".to_string(),
+        ]);
+
+        // Simulate a view that returns line_items as a jsonb_agg with snake_case keys
+        let data = json!({
+            "id": "order-1",
+            "line_items": [
+                { "id": "li-1", "line_item_type": "product", "unit_price": 9.99 },
+                { "id": "li-2", "line_item_type": "service", "unit_price": 49.00 },
+            ]
+        });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "id": "order-1",
+                "lineItems": [
+                    { "id": "li-1", "lineItemType": "product", "unitPrice": 9.99 },
+                    { "id": "li-2", "lineItemType": "service", "unitPrice": 49.00 },
+                ]
+            })
+        );
+    }
+
+    /// Scalar array fields (e.g. `tags: [String]`) must not be altered.
+    #[test]
+    fn test_projector_does_not_alter_scalar_arrays() {
+        let projector = ResultProjector::from_graphql_fields(vec![
+            "id".to_string(),
+            "tags".to_string(),
+        ]);
+
+        let data = json!({
+            "id": "1",
+            "tags": ["rust", "graphql", "snake_case"],
+        });
+        let results = vec![JsonbValue::new(data)];
+        let result = projector.project_results(&results, false).unwrap();
+
+        assert_eq!(
+            result,
+            json!({ "id": "1", "tags": ["rust", "graphql", "snake_case"] })
         );
     }
 }

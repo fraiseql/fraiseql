@@ -258,6 +258,7 @@ const VALID_REST_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 function normaliseConfig(config: Record<string, unknown>): Record<string, unknown> {
   const keyMap: Record<string, string> = {
     sqlSource: "sql_source",
+    sqlSourceDispatch: "sql_source_dispatch",
     autoParams: "auto_params",
     jsonbColumn: "jsonb_column",
     cacheTtlSeconds: "cache_ttl_seconds",

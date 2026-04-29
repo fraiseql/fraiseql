@@ -342,7 +342,8 @@ impl DatabaseAdapter for FailingAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         self.check_failure(view)?;
         Ok(self.get_response(view))
@@ -355,7 +356,8 @@ impl DatabaseAdapter for FailingAdapter {
         _where_clause: Option<&WhereClause>,
         _limit: Option<u32>,
         _offset: Option<u32>,
-        _order_by: Option<&[OrderByClause]>,
+        _order_by: Option<&[OrderByClause]>,        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<JsonbValue>> {
         self.check_failure(view)?;
         Ok(self.get_response(view))
@@ -395,7 +397,8 @@ impl DatabaseAdapter for FailingAdapter {
     async fn execute_parameterized_aggregate(
         &self,
         sql: &str,
-        _params: &[serde_json::Value],
+        _params: &[serde_json::Value],        _session_vars: &[(&str, &str)],
+
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         self.check_failure(sql)?;
         Ok(vec![])
@@ -405,6 +408,7 @@ impl DatabaseAdapter for FailingAdapter {
         &self,
         function_name: &str,
         _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         self.check_failure(function_name)?;
         let responses = self.function_responses.lock().unwrap();
@@ -447,6 +451,7 @@ impl RelayDatabaseAdapter for FailingAdapter {
         _where_clause: Option<&'a WhereClause>,
         _order_by: Option<&'a [fraiseql_core::db::types::sql_hints::OrderByClause]>,
         _include_total_count: bool,
+        _session_vars: &'a [(&'a str, &'a str)],
     ) -> Result<RelayPageResult> {
         self.check_failure(view)?;
         let all_rows = self.get_response(view);
@@ -465,7 +470,7 @@ mod tests {
     #[tokio::test]
     async fn test_default_returns_empty() {
         let adapter = FailingAdapter::new();
-        let result = adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+        let result = adapter.execute_where_query("v_user", None, None, None, None, &[]).await.unwrap();
         assert!(result.is_empty());
     }
 
@@ -473,22 +478,22 @@ mod tests {
     async fn test_canned_response() {
         let adapter = FailingAdapter::new()
             .with_response("v_user", vec![JsonbValue::new(serde_json::json!({"id": 1}))]);
-        let result = adapter.execute_where_query("v_user", None, None, None, None).await.unwrap();
+        let result = adapter.execute_where_query("v_user", None, None, None, None, &[]).await.unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[tokio::test]
     async fn test_fail_on_query_zero() {
         let adapter = FailingAdapter::new().fail_on_query(0);
-        let result = adapter.execute_where_query("v_user", None, None, None, None).await;
+        let result = adapter.execute_where_query("v_user", None, None, None, None, &[]).await;
         assert!(result.is_err(), "expected Err when fail_on_query(0) is set, got: {result:?}");
     }
 
     #[tokio::test]
     async fn test_query_count_and_log() {
         let adapter = FailingAdapter::new();
-        let _ = adapter.execute_where_query("v_user", None, None, None, None).await;
-        let _ = adapter.execute_where_query("v_post", None, None, None, None).await;
+        let _ = adapter.execute_where_query("v_user", None, None, None, None, &[]).await;
+        let _ = adapter.execute_where_query("v_post", None, None, None, None, &[]).await;
         assert_eq!(adapter.query_count(), 2);
         assert_eq!(adapter.recorded_queries(), vec!["v_user", "v_post"]);
     }
@@ -497,12 +502,12 @@ mod tests {
     async fn test_reset() {
         let adapter = FailingAdapter::new().fail_on_query(0);
         assert!(
-            adapter.execute_where_query("v_user", None, None, None, None).await.is_err(),
+            adapter.execute_where_query("v_user", None, None, None, None, &[]).await.is_err(),
             "expected Err before reset"
         );
         adapter.reset();
         adapter
-            .execute_where_query("v_user", None, None, None, None)
+            .execute_where_query("v_user", None, None, None, None, &[])
             .await
             .unwrap_or_else(|e| panic!("expected Ok after reset: {e}"));
         assert_eq!(adapter.query_count(), 1);

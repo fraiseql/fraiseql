@@ -157,7 +157,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 4. Execute with bind parameters (eliminates escape-based injection risk)
         let rows = self
             .adapter
-            .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params)
+            .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params, &[])
             .await?;
 
         // 5. Project results
@@ -230,7 +230,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         //    values are passed as prepared-statement parameters, not inlined.
         let rows = self
             .adapter
-            .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters)
+            .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters, &[])
             .await?;
 
         // 5. Project results

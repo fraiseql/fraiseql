@@ -132,10 +132,16 @@ impl<A: DatabaseAdapter> Executor<A> {
                     map
                 })
                 .unwrap_or_default();
+            let arguments = parsed
+                .selections
+                .first()
+                .map(|s| s.arguments.clone())
+                .unwrap_or_default();
             return Ok((
                 QueryType::Mutation {
                     name: root_field.clone(),
                     type_selections,
+                    arguments,
                 },
                 None,
             ));

@@ -402,6 +402,20 @@ pub struct AuthMeState {
     /// Raw JWT claim names that the handler should include in the response,
     /// beyond the always-present `sub`, `user_id`, and `expires_at`.
     pub expose_claims: Vec<String>,
+
+    /// Optional enrichment config + DB pool for augmenting the response with
+    /// application-specific fields fetched from the database.
+    pub(crate) enrichment: Option<AuthMeEnrichmentState>,
+}
+
+/// Runtime state for claims enrichment.
+pub(crate) struct AuthMeEnrichmentState {
+    /// The enrichment configuration (query, map, cache TTL).
+    pub(crate) config: fraiseql_core::security::oidc::MeEnrichmentConfig,
+    /// PostgreSQL pool for executing the enrichment query.
+    pub(crate) pool: sqlx::PgPool,
+    /// Per-`sub` cache for enrichment results.
+    pub(crate) cache: std::sync::Arc<super::enrichment::EnrichmentCache>,
 }
 
 /// Return the current session's identity as JSON.
@@ -420,13 +434,14 @@ pub struct AuthMeState {
 /// Claims in the allowlist but absent from the token are silently omitted —
 /// the response is never padded with `null` values.
 ///
-/// The `user_id` alias for `sub` is always present and does **not** need to
-/// be listed in `expose_claims`.  Listing `"user_id"` there would silently
-/// return nothing because the JWT only carries `sub`, not `user_id`.
+/// When enrichment is configured, a SQL query is executed against the database
+/// to augment the response with application-specific fields (roles, permissions,
+/// plans). If the enrichment query fails or returns no rows, the response still
+/// includes the JWT claims (graceful degradation).
 ///
 /// # Responses
 ///
-/// - `200` JSON `{ sub, user_id, expires_at, ...expose_claims }`
+/// - `200` JSON `{ sub, user_id, expires_at, ...expose_claims, ...enrichment }`
 /// - `401` when no valid session is present (enforced by `oidc_auth_middleware` before this handler
 ///   is called).
 pub async fn auth_me(
@@ -445,6 +460,52 @@ pub async fn auth_me(
     for claim_name in &state.expose_claims {
         if let Some(value) = user.extra_claims.get(claim_name) {
             map.insert(claim_name.clone(), value.clone());
+        }
+    }
+
+    // Run enrichment if configured
+    if let Some(ref enrichment) = state.enrichment {
+        // Build claims map for param binding: always include `sub`, plus expose_claims
+        let mut claims = user.extra_claims.clone();
+        claims.insert("sub".to_owned(), serde_json::Value::String(user.user_id.clone()));
+
+        // Compute token remaining seconds for cache TTL
+        let now = chrono::Utc::now();
+        let token_remaining_secs = user
+            .expires_at
+            .signed_duration_since(now)
+            .num_seconds()
+            .max(0).cast_unsigned();
+
+        match super::enrichment::run_enrichment(
+            &enrichment.pool,
+            &enrichment.config,
+            &claims,
+            Some(&enrichment.cache),
+            &user.user_id,
+            token_remaining_secs,
+        )
+        .await
+        {
+            Ok(Some(enriched)) => {
+                for (key, value) in enriched {
+                    map.insert(key, value);
+                }
+            }
+            Ok(None) => {
+                // No rows — graceful, no extra fields
+            }
+            Err(e) => {
+                tracing::error!(
+                    sub = %user.user_id,
+                    error = %e,
+                    "Claims enrichment failed"
+                );
+                map.insert(
+                    "enrichment_error".to_owned(),
+                    serde_json::Value::String("unavailable".to_owned()),
+                );
+            }
         }
     }
 
@@ -489,6 +550,7 @@ mod tests {
     fn make_me_state(expose_claims: Vec<&str>) -> Arc<AuthMeState> {
         Arc::new(AuthMeState {
             expose_claims: expose_claims.into_iter().map(str::to_owned).collect(),
+            enrichment: None,
         })
     }
 

@@ -228,6 +228,15 @@ def test_extract_function_signature_nullable_return() -> None:
     assert sig["return_type"]["is_list"] is False
 
 
+def test_extract_field_info_no_annotations() -> None:
+    """Test class with no annotations returns empty dict."""
+
+    class Empty:
+        pass
+
+    assert extract_field_info(Empty) == {}
+
+
 def test_missing_type_annotation() -> None:
     """Test error on missing type annotation."""
 

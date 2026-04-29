@@ -158,6 +158,22 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     execute_graphql_request(state, request, trace_context, security_context, &headers).await
 }
 
+/// Extract the mutation name from a GraphQL query string, if the operation is a mutation.
+///
+/// Returns `Some(root_field_name)` when the query parses successfully and the operation
+/// type is `"mutation"`. Returns `None` for queries, subscriptions, or parse errors.
+///
+/// Used to look up before-mutation hooks: a single `HashMap::get` on the trigger
+/// registry — O(1) and allocation-free when no hooks are registered.
+pub(crate) fn detect_mutation_name(query: &str) -> Option<String> {
+    let parsed = fraiseql_core::graphql::parse_query(query).ok()?;
+    if parsed.operation_type == "mutation" {
+        Some(parsed.root_field)
+    } else {
+        None
+    }
+}
+
 /// Extract client IP address from headers.
 ///
 /// # Security
@@ -474,6 +490,60 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         ))
     })?;
 
+    // Before-mutation hook: if functions subsystem has hooks, run the chain before executing.
+    // The check is a single HashMap::get — zero overhead when no hooks are registered.
+    let variables = if let Some(ref hooks) = state.before_mutation_hooks {
+        if let Some(mutation_name) = detect_mutation_name(&query) {
+            if let Some(chain) = hooks.trigger_registry.before_chain(&mutation_name) {
+                let input = request.variables.clone().unwrap_or(serde_json::Value::Null);
+                let host = fraiseql_functions::NoopHostContext::new(fraiseql_functions::EventPayload {
+                    trigger_type: format!("before:mutation:{mutation_name}"),
+                    entity: mutation_name.clone(),
+                    event_kind: "before".to_string(),
+                    data: input.clone(),
+                    timestamp: chrono::Utc::now(),
+                });
+                match chain
+                    .execute(
+                        input,
+                        &hooks.module_registry,
+                        &hooks.observer,
+                        &host,
+                        fraiseql_functions::ResourceLimits::default(),
+                    )
+                    .await
+                {
+                    Ok(fraiseql_functions::BeforeMutationResult::Proceed(modified)) => {
+                        if modified.is_null() {
+                            None
+                        } else {
+                            Some(modified)
+                        }
+                    }
+                    Ok(fraiseql_functions::BeforeMutationResult::Abort(msg)) => {
+                        return Err(ErrorResponse::from_error(GraphQLError::validation(msg)));
+                    }
+                    Err(e) => {
+                        error!(error = %e, mutation = %mutation_name, "before:mutation chain failed");
+                        return Err(ErrorResponse::from_error(
+                            state.error_sanitizer.sanitize(GraphQLError::internal(
+                                "before:mutation hook execution failed",
+                            )),
+                        ));
+                    }
+                    // Reason: BeforeMutationResult is non_exhaustive; treat unknown variants as Proceed
+                    Ok(_) => request.variables,
+                }
+            } else {
+                request.variables
+            }
+        } else {
+            request.variables
+        }
+    } else {
+        request.variables
+    };
+
     // Execute query (defer error propagation to record circuit breaker outcome first)
     let executor = state.executor_for_tenant(tenant_key.as_deref()).map_err(|e| {
         ErrorResponse::from_error(GraphQLError::new(
@@ -483,10 +553,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     })?;
     let exec_result = if let Some(sec_ctx) = security_context {
         executor
-            .execute_with_security(&query, request.variables.as_ref(), &sec_ctx)
+            .execute_with_security(&query, variables.as_ref(), &sec_ctx)
             .await
     } else {
-        executor.execute(&query, request.variables.as_ref()).await
+        executor.execute(&query, variables.as_ref()).await
     };
 
     // Record circuit breaker outcome for federation entity queries

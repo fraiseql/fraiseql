@@ -278,6 +278,10 @@ public class SchemaFormatter {
                 queryNode.set("rest", restNode);
             }
 
+            if (queryInfo.getConfig() != null) {
+                queryNode.set("config", mapper.valueToTree(queryInfo.getConfig()));
+            }
+
             queriesNode.set(queryInfo.name, queryNode);
         }
 

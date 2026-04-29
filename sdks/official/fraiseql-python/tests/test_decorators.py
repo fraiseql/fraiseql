@@ -1,5 +1,7 @@
 """Tests for FraiseQL decorators."""
 
+from enum import Enum
+
 import pytest
 
 import fraiseql
@@ -1486,3 +1488,200 @@ def test_computed_field_excluded_from_both_inputs() -> None:
         assert "reference" not in field_names
         assert "name" in field_names
         assert "price" in field_names
+
+
+def test_query_sql_source_dispatch_explicit_mapping() -> None:
+    """Test @fraiseql.query with sql_source_dispatch explicit mapping."""
+
+    @fraiseql.enum
+    class TimeInterval(Enum):
+        """Time interval enum."""
+
+        DAY = "day"
+        WEEK = "week"
+        MONTH = "month"
+
+    @fraiseql.query(
+        sql_source_dispatch={
+            "timeInterval": {
+                "DAY": "tf_orders_day",
+                "WEEK": "tf_orders_week",
+                "MONTH": "tf_orders_month",
+            }
+        }
+    )
+    def orders(timeInterval: TimeInterval, where: dict | None = None) -> list[dict]:
+        """Get orders by time interval."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    assert len(schema["queries"]) == 1
+
+    query = schema["queries"][0]
+    assert query["name"] == "orders"
+    assert query["sql_source_dispatch"]["argument"] == "timeInterval"
+    assert query["sql_source_dispatch"]["mapping"] == {
+        "DAY": "tf_orders_day",
+        "WEEK": "tf_orders_week",
+        "MONTH": "tf_orders_month",
+    }
+
+
+def test_query_sql_source_template() -> None:
+    """Test @fraiseql.query with sql_source_template."""
+
+    @fraiseql.enum
+    class TimeInterval(Enum):
+        """Time interval enum."""
+
+        DAY = "day"
+        WEEK = "week"
+        MONTH = "month"
+
+    @fraiseql.query(sql_source_template="tf_orders_{time_interval}")
+    def orders(timeInterval: TimeInterval, where: dict | None = None) -> list[dict]:
+        """Get orders by time interval."""
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    assert len(schema["queries"]) == 1
+
+    query = schema["queries"][0]
+    assert query["name"] == "orders"
+    assert query["sql_source_dispatch"]["argument"] == "timeInterval"
+    assert query["sql_source_dispatch"]["template"] == "tf_orders_{time_interval}"
+
+
+def test_query_sql_source_dispatch_mutual_exclusivity_with_sql_source() -> None:
+    """Test that sql_source_dispatch cannot be used with sql_source."""
+
+    with pytest.raises(ValueError, match="cannot set sql_source together with sql_source_dispatch"):
+
+        @fraiseql.query(
+            sql_source="v_orders", sql_source_dispatch={"timeInterval": {"DAY": "tf_orders_day"}}
+        )
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_dispatch_mutual_exclusivity_with_template() -> None:
+    """Test that sql_source_dispatch and sql_source_template are mutually exclusive."""
+
+    with pytest.raises(
+        ValueError, match="cannot set both sql_source_dispatch and sql_source_template"
+    ):
+
+        @fraiseql.query(
+            sql_source_dispatch={"timeInterval": {"DAY": "tf_orders_day"}},
+            sql_source_template="tf_orders_{time_interval}",
+        )
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_dispatch_invalid_mapping_type() -> None:
+    """Test that sql_source_dispatch must be a dict."""
+
+    with pytest.raises(TypeError, match=r"sql_source_dispatch=.*must be a dict"):
+
+        @fraiseql.query(sql_source_dispatch="invalid")
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_template_invalid_type() -> None:
+    """Test that sql_source_template must be a str."""
+
+    with pytest.raises(TypeError, match=r"sql_source_template=.*must be a str"):
+
+        @fraiseql.query(sql_source_template=123)
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_dispatch_multiple_arguments() -> None:
+    """Test that sql_source_dispatch must have exactly one argument key."""
+
+    with pytest.raises(ValueError, match="sql_source_dispatch must have exactly one argument key"):
+
+        @fraiseql.query(sql_source_dispatch={"arg1": {"VAL": "table"}, "arg2": {"VAL": "table"}})
+        def orders(arg1: str, arg2: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_dispatch_argument_not_found() -> None:
+    """Test that dispatch argument must exist in query arguments."""
+
+    with pytest.raises(ValueError, match="dispatch argument 'missing_arg' not in query arguments"):
+
+        @fraiseql.query(sql_source_dispatch={"missing_arg": {"VAL": "table"}})
+        def orders(other_arg: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_dispatch_argument_nullable() -> None:
+    """Test that dispatch argument must be required (non-nullable)."""
+
+    with pytest.raises(ValueError, match="dispatch argument 'timeInterval' must be required"):
+
+        @fraiseql.query(sql_source_dispatch={"timeInterval": {"DAY": "tf_orders_day"}})
+        def orders(timeInterval: str | None = None) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_dispatch_invalid_table_name() -> None:
+    """Test that dispatch table names must be valid SQL identifiers."""
+
+    with pytest.raises(
+        ValueError, match=r"dispatch table 'invalid table' .* is not a safe SQL identifier"
+    ):
+
+        @fraiseql.query(sql_source_dispatch={"timeInterval": {"DAY": "invalid table"}})
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_template_no_placeholder() -> None:
+    """Test that sql_source_template must contain exactly one placeholder."""
+
+    with pytest.raises(
+        ValueError, match="sql_source_template must contain exactly one \\{placeholder\\}"
+    ):
+
+        @fraiseql.query(sql_source_template="tf_orders_static")
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_template_multiple_placeholders() -> None:
+    """Test that sql_source_template cannot have multiple placeholders."""
+
+    with pytest.raises(
+        ValueError, match="sql_source_template must contain exactly one \\{placeholder\\}"
+    ):
+
+        @fraiseql.query(sql_source_template="tf_orders_{time}_{interval}")
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_template_placeholder_not_in_args() -> None:
+    """Test that template placeholder must match an argument."""
+
+    with pytest.raises(
+        ValueError, match="template placeholder 'missing' does not match any argument"
+    ):
+
+        @fraiseql.query(sql_source_template="tf_orders_{missing}")
+        def orders(timeInterval: str) -> list[dict]:
+            pass
+
+
+def test_query_sql_source_template_argument_nullable() -> None:
+    """Test that template argument must be required."""
+
+    with pytest.raises(ValueError, match="dispatch argument 'timeInterval' must be required"):
+
+        @fraiseql.query(sql_source_template="tf_orders_{time_interval}")
+        def orders(timeInterval: str | None = None) -> list[dict]:
+            pass

@@ -89,6 +89,7 @@ impl SchemaExtractor for SwiftExtractor {
                 arguments,
                 description: None,
                 sql_source,
+                sql_source_dispatch: None,
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,

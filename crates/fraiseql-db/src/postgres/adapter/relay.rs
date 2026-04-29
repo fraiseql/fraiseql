@@ -56,6 +56,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         where_clause: Option<&WhereClause>,
         order_by: Option<&[OrderByClause]>,
         include_total_count: bool,
+        session_vars: &[(&str, &str)],
     ) -> Result<RelayPageResult> {
         let quoted_view = quote_postgres_identifier(view);
         let quoted_col = quote_postgres_identifier(cursor_column);
@@ -173,65 +174,140 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         }
         page_typed_params.push(QueryParam::BigInt(i64::from(limit)));
 
-        let client = self.acquire_connection_with_retry().await?;
+        let mut client = self.acquire_connection_with_retry().await?;
 
-        // ── Execute page query ─────────────────────────────────────────────────
-        let page_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = page_typed_params
-            .iter()
-            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
-
-        let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| {
-            FraiseQLError::Database {
-                message:   e.to_string(),
+        let (rows, total_count) = if !session_vars.is_empty() {
+            let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to start transaction: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            }
-        })?;
-
-        let rows: Vec<crate::types::JsonbValue> = page_rows
-            .iter()
-            .map(|row| {
-                let data: serde_json::Value = row.get("data");
-                crate::types::JsonbValue::new(data)
-            })
-            .collect();
-
-        // ── Count query (Relay spec: totalCount ignores cursor position) ────────
-        //
-        // The WHERE clause is regenerated with offset 0 (no cursor parameter prefix)
-        // because this is a standalone query. Using the same connection avoids an
-        // extra pool acquisition.
-        let total_count = if include_total_count {
-            let (count_sql, count_typed_params) = if let Some(clause) = where_clause {
-                let generator = PostgresWhereGenerator::new(PostgresDialect);
-                let (where_sql, params) = generator.generate_with_param_offset(clause, 0)?;
-                let sql = format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({where_sql})");
-                let typed: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
-                (sql, typed)
-            } else {
-                (format!("SELECT COUNT(*) FROM {quoted_view}"), Vec::<QueryParam>::new())
-            };
-
-            let count_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-                count_typed_params
-                    .iter()
-                    .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-                    .collect();
-
-            let count_row = client.query_one(&count_sql, &count_param_refs).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message:   e.to_string(),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                }
             })?;
 
-            let total: i64 = count_row.get(0);
-            // cast_unsigned() is the clippy-recommended alternative to `as u64` for i64;
-            // it has the same bit-pattern semantics but makes the sign-loss intent explicit.
-            // Row counts from COUNT(*) are always non-negative so sign loss is impossible.
-            Some(total.cast_unsigned())
+            // Set all session variables
+            for (name, value) in session_vars {
+                txn.execute("SELECT set_config($1, $2, true)", &[name, value]).await.map_err(|e| FraiseQLError::Database {
+                    message: format!("Failed to set session variable {name}: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+            }
+
+            // ── Execute page query ─────────────────────────────────────────────────
+            let page_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = page_typed_params
+                .iter()
+                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                .collect();
+
+            let page_rows = txn.query(&page_sql, &page_param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Relay page query failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            let rows: Vec<crate::types::JsonbValue> = page_rows
+                .iter()
+                .map(|row| {
+                    let data: serde_json::Value = row.get("data");
+                    crate::types::JsonbValue::new(data)
+                })
+                .collect();
+
+            // ── Count query (Relay spec: totalCount ignores cursor position) ────────
+            //
+            // The WHERE clause is regenerated with offset 0 (no cursor parameter prefix)
+            // because this is a standalone query. Using the same connection avoids an
+            // extra pool acquisition.
+            let total_count = if include_total_count {
+                let (count_sql, count_typed_params) = if let Some(clause) = where_clause {
+                    let generator = PostgresWhereGenerator::new(PostgresDialect);
+                    let (where_sql, params) = generator.generate_with_param_offset(clause, 0)?;
+                    let sql = format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({where_sql})");
+                    let typed: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
+                    (sql, typed)
+                } else {
+                    (format!("SELECT COUNT(*) FROM {quoted_view}"), Vec::<QueryParam>::new())
+                };
+
+                let count_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+                    count_typed_params
+                        .iter()
+                        .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                        .collect();
+
+                let count_row = txn.query_one(&count_sql, &count_param_refs).await.map_err(|e| FraiseQLError::Database {
+                    message: format!("Relay count query failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+
+                let total: i64 = count_row.get(0);
+                // cast_unsigned() is the clippy-recommended alternative to `as u64` for i64;
+                // it has the same bit-pattern semantics but makes the sign-loss intent explicit.
+                // Row counts from COUNT(*) are always non-negative so sign loss is impossible.
+                Some(total.cast_unsigned())
+            } else {
+                None
+            };
+
+            txn.commit().await.map_err(|e| FraiseQLError::Database {
+                message: format!("Failed to commit relay transaction: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            (rows, total_count)
         } else {
-            None
+            // ── Execute page query ─────────────────────────────────────────────────
+            let page_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = page_typed_params
+                .iter()
+                .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                .collect();
+
+            let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| FraiseQLError::Database {
+                message: format!("Relay page query failed: {e}"),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+            let rows: Vec<crate::types::JsonbValue> = page_rows
+                .iter()
+                .map(|row| {
+                    let data: serde_json::Value = row.get("data");
+                    crate::types::JsonbValue::new(data)
+                })
+                .collect();
+
+            // ── Count query (Relay spec: totalCount ignores cursor position) ────────
+            //
+            // The WHERE clause is regenerated with offset 0 (no cursor parameter prefix)
+            // because this is a standalone query. Using the same connection avoids an
+            // extra pool acquisition.
+            let total_count = if include_total_count {
+                let (count_sql, count_typed_params) = if let Some(clause) = where_clause {
+                    let generator = PostgresWhereGenerator::new(PostgresDialect);
+                    let (where_sql, params) = generator.generate_with_param_offset(clause, 0)?;
+                    let sql = format!("SELECT COUNT(*) FROM {quoted_view} WHERE ({where_sql})");
+                    let typed: Vec<QueryParam> = params.into_iter().map(QueryParam::from).collect();
+                    (sql, typed)
+                } else {
+                    (format!("SELECT COUNT(*) FROM {quoted_view}"), Vec::<QueryParam>::new())
+                };
+
+                let count_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+                    count_typed_params
+                        .iter()
+                        .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
+                        .collect();
+
+                let count_row = client.query_one(&count_sql, &count_param_refs).await.map_err(|e| FraiseQLError::Database {
+                    message: format!("Relay count query failed: {e}"),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+
+                let total: i64 = count_row.get(0);
+                // cast_unsigned() is the clippy-recommended alternative to `as u64` for i64;
+                // it has the same bit-pattern semantics but makes the sign-loss intent explicit.
+                // Row counts from COUNT(*) are always non-negative so sign loss is impossible.
+                Some(total.cast_unsigned())
+            } else {
+                None
+            };
+
+            (rows, total_count)
         };
 
         Ok(RelayPageResult { rows, total_count })
