@@ -39,11 +39,16 @@ pub struct RealtimeConfig {
     pub idle_timeout: Duration,
     /// Maximum subscriptions per entity across all connections (default: 10,000).
     pub max_subscriptions_per_entity: usize,
-    /// Bounded channel capacity for event delivery (default: 10,000).
+    /// Bounded channel capacity for the observer-to-pipeline event channel (default: 10,000).
     pub event_channel_capacity: usize,
     /// How often to re-validate JWT tokens (default: same as `heartbeat_interval`).
     /// Per D14: check JWT on each heartbeat.
     pub token_revalidation_interval: Duration,
+    /// Consecutive per-connection delivery failures before kicking the client
+    /// with close code 4002 "slow consumer" (default: 50).
+    pub max_consecutive_drops: usize,
+    /// Capacity of the per-connection event channel (default: 256).
+    pub connection_event_capacity: usize,
 }
 
 impl Default for RealtimeConfig {
@@ -55,6 +60,8 @@ impl Default for RealtimeConfig {
             max_subscriptions_per_entity: 10_000,
             event_channel_capacity: 10_000,
             token_revalidation_interval: Duration::from_secs(30),
+            max_consecutive_drops: 50,
+            connection_event_capacity: 256,
         }
     }
 }
@@ -113,8 +120,12 @@ impl RealtimeServer {
     #[must_use]
     pub fn new(config: RealtimeConfig) -> Self {
         let max_subs = config.max_subscriptions_per_entity;
+        let connections = Arc::new(ConnectionManager::new(
+            config.max_consecutive_drops,
+            config.connection_event_capacity,
+        ));
         Self {
-            connections: Arc::new(ConnectionManager::new()),
+            connections,
             subscriptions: Arc::new(SubscriptionManager::new(max_subs)),
             known_entities: HashSet::new(),
             config,
@@ -125,8 +136,12 @@ impl RealtimeServer {
     #[must_use]
     pub fn with_entities(config: RealtimeConfig, entities: HashSet<String>) -> Self {
         let max_subs = config.max_subscriptions_per_entity;
+        let connections = Arc::new(ConnectionManager::new(
+            config.max_consecutive_drops,
+            config.connection_event_capacity,
+        ));
         Self {
-            connections: Arc::new(ConnectionManager::new()),
+            connections,
             subscriptions: Arc::new(SubscriptionManager::new(max_subs)),
             known_entities: entities,
             config,
@@ -207,14 +222,18 @@ async fn handle_realtime_connection(
     let connection_id = uuid::Uuid::new_v4().to_string();
     let config = &server.config;
 
-    // Register connection (returns event receiver for delivery pipeline)
+    // Register connection. Returns:
+    // - event_rx: receives change event JSON from the delivery pipeline
+    // - control_rx: fires once if the delivery pipeline detects a slow consumer
     let conn_state = ConnectionState::new(
         connection_id.clone(),
         token_info.user_id.clone(),
         token_info.context_hash,
         token_info.expires_at,
     );
-    let mut event_rx = server.connections.insert(conn_state);
+    let (mut event_rx, control_rx) = server.connections.insert(conn_state);
+    // Pin the close-signal receiver so it can be polled across select! loop iterations.
+    tokio::pin!(control_rx);
 
     info!(
         connection_id = %connection_id,
@@ -283,6 +302,23 @@ async fn handle_realtime_connection(
                 if sender.send(Message::Text(event_json.into())).await.is_err() {
                     break;
                 }
+            }
+
+            // Slow-consumer close signal from the delivery pipeline
+            signal = control_rx.as_mut() => {
+                if let Ok(sig) = signal {
+                    debug!(
+                        connection_id = %connection_id,
+                        code = sig.code,
+                        reason = %sig.reason,
+                        "Slow consumer: closing connection"
+                    );
+                    let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                        code: sig.code,
+                        reason: sig.reason.into(),
+                    }))).await;
+                }
+                break;
             }
 
             // Client messages

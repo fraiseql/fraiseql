@@ -14,6 +14,7 @@
 
 pub mod connections;
 pub mod delivery;
+pub mod observer;
 pub mod protocol;
 pub mod server;
 pub mod subscriptions;

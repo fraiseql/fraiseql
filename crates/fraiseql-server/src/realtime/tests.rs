@@ -1,4 +1,4 @@
-//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–3).
+//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–4).
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite};
 
 use super::delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde, RlsEvaluator};
+use super::observer::RealtimeBroadcastObserver;
 use super::server::{
     RealtimeConfig, RealtimeServer, RealtimeState, TokenInfo, TokenValidator, ws_handler,
 };
@@ -1050,6 +1051,240 @@ async fn test_event_payload_format() {
     assert_eq!(msg["old"]["id"], 7);
     assert_eq!(msg["old"]["title"], "Deleted post");
     assert_eq!(msg["timestamp"], "2026-04-28T15:30:00Z");
+
+    ws.close(None).await.ok();
+}
+
+// ── Cycle 4: RealtimeBroadcastObserver Tests ────────────────────────────
+
+#[tokio::test]
+async fn test_observer_receives_mutation_event() {
+    let (observer, mut event_rx) = RealtimeBroadcastObserver::new(100);
+    let event = make_post_event(EventKindSerde::Insert, 1);
+
+    observer.on_mutation_complete(event.clone());
+
+    let received = event_rx.recv().await.unwrap();
+    assert_eq!(received.entity, event.entity);
+    assert_eq!(received.event_kind, event.event_kind);
+}
+
+#[tokio::test]
+async fn test_observer_enqueues_event_to_delivery_pipeline() {
+    let (observer, mut event_rx) = RealtimeBroadcastObserver::new(100);
+
+    for i in 0..5_i64 {
+        observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, i));
+    }
+
+    let mut received = Vec::new();
+    for _ in 0..5 {
+        received.push(event_rx.try_recv().unwrap());
+    }
+    assert_eq!(received.len(), 5);
+}
+
+#[tokio::test]
+async fn test_observer_returns_immediately() {
+    // Capacity 100 — try_send should complete in microseconds, not milliseconds.
+    let (observer, _rx) = RealtimeBroadcastObserver::new(100);
+    let event = make_post_event(EventKindSerde::Insert, 1);
+
+    let start = std::time::Instant::now();
+    observer.on_mutation_complete(event);
+    let elapsed = start.elapsed();
+
+    assert!(
+        elapsed.as_millis() < 1,
+        "on_mutation_complete took {}µs — expected <1ms",
+        elapsed.as_micros()
+    );
+}
+
+#[tokio::test]
+async fn test_observer_channel_full_drops_event() {
+    // Capacity 1: one event fills the channel; subsequent sends are dropped.
+    let (observer, _rx) = RealtimeBroadcastObserver::new(1);
+
+    observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, 1));
+    assert_eq!(observer.events_dropped_total(), 0, "first send must succeed");
+
+    observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, 2));
+    assert_eq!(observer.events_dropped_total(), 1, "second send must be dropped");
+
+    observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, 3));
+    assert_eq!(observer.events_dropped_total(), 2, "third send must be dropped");
+}
+
+/// Spawn a server + delivery pipeline wired through a `RealtimeBroadcastObserver`.
+///
+/// Returns `(addr, observer)` — call `observer.on_mutation_complete(event)` to
+/// inject events end-to-end.
+async fn spawn_server_with_observer<R: RlsEvaluator>(
+    config: RealtimeConfig,
+    validator: TestValidator,
+    entities: HashSet<String>,
+    rls: Arc<R>,
+) -> (SocketAddr, RealtimeBroadcastObserver) {
+    let server = Arc::new(RealtimeServer::with_entities(config.clone(), entities));
+    let (observer, event_rx) = RealtimeBroadcastObserver::new(config.event_channel_capacity);
+
+    let pipeline = EventDeliveryPipeline::new(
+        server.subscriptions.clone(),
+        server.connections.clone(),
+        rls,
+        event_rx,
+    );
+    tokio::spawn(pipeline.run());
+
+    let state = RealtimeState {
+        server,
+        validator: Arc::new(validator),
+    };
+
+    let app = Router::new()
+        .route("/realtime/v1", get(ws_handler::<TestValidator>))
+        .with_state(state);
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    (addr, observer)
+}
+
+#[tokio::test]
+async fn test_observer_slow_client_disconnected() {
+    // Use a tiny per-connection channel (capacity 3) and a low kick threshold (3 drops)
+    // so we can trigger the slow-consumer disconnect without sending hundreds of events.
+    let config = RealtimeConfig {
+        max_consecutive_drops: 3,
+        connection_event_capacity: 3,
+        max_connections_per_context: 100,
+        ..RealtimeConfig::default()
+    };
+    let (addr, observer) = spawn_server_with_observer(
+        config,
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-slow"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    // Read the first event so the server confirms delivery works.
+    observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, 1));
+    let _ = next_msg(&mut ws).await;
+
+    // Stop reading. Send capacity(3) + threshold(3) = 6 events to fill the
+    // per-connection channel and then trigger 3 consecutive drops → close signal 4002.
+    for i in 2..=8_i64 {
+        observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, i));
+    }
+
+    // Give the delivery pipeline and connection handler time to process.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // Drain the WebSocket until we see close code 4002.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+    let mut got_close_4002 = false;
+    while tokio::time::Instant::now() < deadline {
+        match tokio::time::timeout(Duration::from_millis(200), ws.next()).await {
+            Ok(Some(Ok(tungstenite::Message::Close(Some(frame))))) => {
+                if frame.code == tungstenite::protocol::frame::coding::CloseCode::from(4002) {
+                    got_close_4002 = true;
+                }
+                break;
+            }
+            Ok(Some(Ok(_))) => {} // flush buffered change events
+            Ok(None) | Ok(Some(Err(_))) => break,
+            Err(_) => break, // outer timeout
+        }
+    }
+    assert!(got_close_4002, "Expected close frame with code 4002 for slow consumer");
+}
+
+#[tokio::test]
+async fn test_observer_slow_client_counter_resets() {
+    // A client that reads every event never accumulates drops → never kicked.
+    let config = RealtimeConfig {
+        max_consecutive_drops: 5,
+        connection_event_capacity: 10,
+        max_connections_per_context: 100,
+        ..RealtimeConfig::default()
+    };
+    let (addr, observer) = spawn_server_with_observer(
+        config,
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-reader"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    // Client reads 10 events one-by-one — the drop counter resets on every
+    // successful delivery, so the client is never kicked.
+    for i in 0..10_i64 {
+        observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, i));
+        let msg = next_msg(&mut ws).await;
+        assert_eq!(msg["type"], "change");
+    }
+
+    // Verify the client is still connected by receiving one final event.
+    observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, 99));
+    let msg = next_msg(&mut ws).await;
+    assert_eq!(msg["type"], "change");
+    assert_eq!(msg["new"]["author_id"], 99);
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_observer_end_to_end() {
+    // Full integration: subscribe → observer.on_mutation_complete → pipeline → client receives.
+    let (addr, observer) = spawn_server_with_observer(
+        RealtimeConfig::default(),
+        TestValidator::new(),
+        test_entities(),
+        Arc::new(AllowAllRls),
+    )
+    .await;
+
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-e2e"))).await.unwrap();
+    let _ = next_msg(&mut ws).await; // connected
+
+    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post"})).await;
+    let _ = next_msg(&mut ws).await; // subscribed
+
+    // Inject an event via the observer (the same path that a real mutation would use).
+    observer.on_mutation_complete(EntityEvent {
+        entity: "Post".to_owned(),
+        event_kind: EventKindSerde::Insert,
+        new: Some(serde_json::json!({"id": 42, "title": "Hello realtime", "author_id": 7})),
+        old: None,
+        timestamp: "2026-04-29T00:00:00Z".to_owned(),
+    });
+
+    let msg = next_msg(&mut ws).await;
+    assert_eq!(msg["type"], "change");
+    assert_eq!(msg["entity"], "Post");
+    assert_eq!(msg["event"], "INSERT");
+    assert_eq!(msg["new"]["id"], 42);
+    assert_eq!(msg["new"]["title"], "Hello realtime");
+    assert!(msg["old"].is_null());
+    assert_eq!(msg["timestamp"], "2026-04-29T00:00:00Z");
 
     ws.close(None).await.ok();
 }
