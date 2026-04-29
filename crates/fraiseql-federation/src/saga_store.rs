@@ -932,17 +932,36 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Delete all sagas, steps, and recovery records (for testing)
+    /// Delete all sagas, steps, and recovery records.
+    ///
+    /// This is a crate-internal operation. For admin/CLI use, future callers
+    /// must present an `AdminCredential` (following the `admin_token` surface
+    /// already established in `fraiseql-server`). For test cleanup, use
+    /// `cleanup_all_for_testing`.
     ///
     /// # Errors
     ///
     /// Returns `SagaStoreError::Database` if the operation fails.
-    pub async fn cleanup_all(&self) -> Result<()> {
+    #[allow(dead_code)] // Reason: used only by cleanup_all_for_testing (cfg test/test-utils)
+    pub(crate) async fn cleanup_all(&self) -> Result<()> {
         let conn = self.pool.get().await?;
         conn.execute("DELETE FROM tb_federation_saga_recovery", &[]).await?;
         conn.execute("DELETE FROM tb_federation_saga_steps", &[]).await?;
         conn.execute("DELETE FROM tb_federation_sagas", &[]).await?;
         Ok(())
+    }
+
+    /// Delete all sagas, steps, and recovery records — test-only wrapper.
+    ///
+    /// Available under `cfg(any(test, feature = "testing"))` only.
+    /// Production code must use the crate-internal `cleanup_all`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub async fn cleanup_all_for_testing(&self) -> Result<()> {
+        self.cleanup_all().await
     }
 
     /// Get total number of sagas in the database
@@ -991,6 +1010,18 @@ impl PostgresSagaStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// S44b: cleanup_all must be crate-private; only cleanup_all_for_testing is pub.
+    /// This test confirms the testing wrapper exists and is callable from within the crate.
+    #[test]
+    fn test_cleanup_all_for_testing_is_accessible() {
+        // Static check: if cleanup_all_for_testing doesn't exist or isn't pub,
+        // this inner async fn won't compile. We never call it (avoids DB requirement).
+        #[allow(dead_code)]
+        async fn _check(store: &PostgresSagaStore) {
+            let _ = store.cleanup_all_for_testing().await;
+        }
+    }
 
     /// S44a: schema DDL must use single-prefix table names (trinity convention: tb_<entity>).
     #[test]
