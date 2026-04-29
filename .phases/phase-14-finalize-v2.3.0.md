@@ -105,5 +105,5 @@ git checkout -b chore/release-v2.3.0
 ---
 
 ## Dependencies
-- Requires: Phases 10, 11, 12, 13, 14 all complete on `dev`
+- Requires: Phases 10, 11, 12, 13 all complete on `dev`
 - Blocks: v2.3.0 release tag

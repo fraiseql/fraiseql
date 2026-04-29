@@ -31,8 +31,7 @@ backends. FraiseQL is the runtime that SpecQL deploys.
 | **11** | Multi-tenancy | core, server | v2.3.0 | [ ] |
 | **12** | `fraiseql-sdk-gen` crate | new crate, cli, server | v2.3.0 | [ ] |
 | **13** | Federation 2 maturity | federation, server | v2.3.0 | [ ] |
-| **14** | Pool & cache optimization | db, core | v2.3.0 | [ ] |
-| **15** | Finalize v2.3.0 | all | v2.3.0 | [ ] |
+| **14** | Finalize v2.3.0 | all | v2.3.0 | [ ] |
 
 ---
 
@@ -69,9 +68,7 @@ SpecQL (companion project at `~/code/specql`) depends on FraiseQL in two ways:
    no shared infrastructure. Can be developed simultaneously.
 4. **Phase 13 (federation) after 11** — Apollo Federation 2 entity resolution
    needs `TenantExecutorRegistry` to be stable.
-5. **Phase 14 (pool/cache) parallel with 13** — performance optimization of
-   independent subsystems; no ordering dependency.
-6. **Phase 15 (finalize) always last** — archaeology, roadmap update, release cut.
+5. **Phase 14 (finalize) always last** — archaeology, roadmap update, release cut.
 
 ---
 

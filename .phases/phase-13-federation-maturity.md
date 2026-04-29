@@ -17,7 +17,7 @@ Federation 2 spec compliance and production observability.
 The known v2.1.x limitation to fix here is the cache mutation routing overhead:
 mutations routing through `CachedDatabaseAdapter` add ~15% overhead due to
 coarse-grained view-level invalidation. The fix is targeted eviction — covered
-in Phase 14 (optimization), which can run in parallel with Cycles 4–5 here.
+in Phase 14 (this phase), which can run in parallel with Cycles 4–5 here.
 
 ## Success Criteria
 - [ ] FraiseQL passes Apollo Federation 2 integration test suite
