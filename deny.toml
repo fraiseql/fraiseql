@@ -389,9 +389,6 @@ name = "hyper"
 reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"
 version = "=0.14.32"
 
-# wasmtime v18 pulls in many older debug/utility crate versions that conflict with
-# other parts of the dependency tree. Upgrading wasmtime is tracked (deadline 2026-12-01).
-
 [[bans.skip-tree]]
 name = "rustls"
 reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no upstream fix"
@@ -401,6 +398,7 @@ version = "=0.21.12"
 name = "p256"
 reason = "p256 0.11 required by aws-sigv4; pulls in older elliptic-curve, ecdsa, ff, group, etc."
 version = "=0.11.1"
+
 [[bans.skip-tree]]
 name = "wasmtime"
 reason = "wasmtime v18 pulls in older debug utilities (addr2line, gimli, object, etc.); upgrade tracked for 2026-12-01"
