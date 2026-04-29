@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::{FileError, FraiseQLError, Result};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
@@ -159,9 +159,7 @@ impl AzureBackend {
             .map_err(|e| azure_err("download", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -192,9 +190,7 @@ impl AzureBackend {
             .map_err(|e| azure_err("delete", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();

@@ -7,7 +7,7 @@
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::{FileError, FraiseQLError, Result};
 use parking_lot::RwLock;
 
 use super::validate_key;
@@ -237,9 +237,7 @@ impl GcsBackend {
             .map_err(|e| gcs_err("download", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -264,9 +262,7 @@ impl GcsBackend {
             .map_err(|e| gcs_err("delete", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound {
-                id: key.to_string(),
-            });
+            return Err(FileError::NotFound { id: key.to_string() }.into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();

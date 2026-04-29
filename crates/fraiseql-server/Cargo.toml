@@ -148,11 +148,11 @@ wiremock = "0.6"
 # Arrow Flight server for high-performance data delivery
 arrow = ["dep:fraiseql-arrow", "dep:tonic"]
 auth = ["dep:fraiseql-auth"]
-aws-s3 = ["aws-sdk-s3", "aws-config"]
-azure-blob = []
+aws-s3 = ["aws-sdk-s3", "aws-config", "fraiseql-storage/aws-s3"]
+azure-blob = ["fraiseql-storage/azure-blob"]
 # CLI argument parsing (clap-derived Cli/ServerArgs structs)
 cli = ["dep:clap"]
-gcs = []
+gcs = ["fraiseql-storage/gcs"]
 # gRPC transport
 grpc = ["dep:tonic", "dep:prost", "dep:prost-reflect", "dep:http-body", "dep:http-body-util"]
 federation = ["fraiseql-core/federation"]

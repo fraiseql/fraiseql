@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use fraiseql_error::Result;
+use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
 pub mod local;

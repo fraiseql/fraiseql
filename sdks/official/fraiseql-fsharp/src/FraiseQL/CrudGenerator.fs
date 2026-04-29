@@ -112,6 +112,7 @@ module CrudGenerator =
                     returns_list = false
                     nullable = true
                     sql_source = view
+                    sql_source_dispatch = None
                     arguments =
                         [
                             {
@@ -131,6 +132,7 @@ module CrudGenerator =
                     returns_list = true
                     nullable = false
                     sql_source = view
+                    sql_source_dispatch = None
                     arguments = []
                     cache_ttl_seconds = None
                     description = Some(sprintf "List %s records." typeName)
@@ -145,6 +147,7 @@ module CrudGenerator =
                     name = "create_" + snake
                     return_type = typeName
                     sql_source = "fn_create_" + snake
+                    sql_source_dispatch = None
                     operation = "INSERT"
                     arguments =
                         [
@@ -163,6 +166,7 @@ module CrudGenerator =
                     name = "update_" + snake
                     return_type = typeName
                     sql_source = "fn_update_" + snake
+                    sql_source_dispatch = None
                     operation = "UPDATE"
                     arguments =
                         [
@@ -181,6 +185,7 @@ module CrudGenerator =
                     name = "delete_" + snake
                     return_type = typeName
                     sql_source = "fn_delete_" + snake
+                    sql_source_dispatch = None
                     operation = "DELETE"
                     arguments =
                         [
