@@ -32,7 +32,6 @@ backends. FraiseQL is the runtime that SpecQL deploys.
 | **12** | `fraiseql-sdk-gen` crate | new crate, cli, server | v2.3.0 | [ ] |
 | **13** | Federation 2 maturity | federation, server | v2.3.0 | [ ] |
 | **14** | Finalize v2.3.0 | all | v2.3.0 | [ ] |
-| **15** | Pool & cache optimization *(optional — benchmark-gated)* | v2.3.x / v2.4.0 | [ ] |
 
 ---
 
