@@ -13,6 +13,7 @@
 use std::{fmt, sync::Arc};
 
 use serde::Deserialize;
+use zeroize::Zeroizing;
 
 // ---------------------------------------------------------------------------
 // Resolved OIDC endpoints (cached in compiled schema)
@@ -57,7 +58,9 @@ pub struct OidcTokenResponse {
 pub struct OidcServerClient {
     client_id:              String,
     /// Intentionally private: the secret must never be accessible via a field.
-    client_secret:          String,
+    /// Stored as `Zeroizing<String>` so the key material is wiped from memory
+    /// when this struct is dropped.
+    client_secret:          Zeroizing<String>,
     server_redirect_uri:    String,
     authorization_endpoint: String,
     token_endpoint:         String,
@@ -95,7 +98,7 @@ impl OidcServerClient {
     ) -> Self {
         Self {
             client_id:              client_id.into(),
-            client_secret:          client_secret.into(),
+            client_secret:          Zeroizing::new(client_secret.into()),
             server_redirect_uri:    server_redirect_uri.into(),
             authorization_endpoint: authorization_endpoint.into(),
             token_endpoint:         token_endpoint.into(),
@@ -147,7 +150,7 @@ impl OidcServerClient {
 
         Some(Arc::new(Self {
             client_id: auth_cfg.client_id,
-            client_secret,
+            client_secret: Zeroizing::new(client_secret),
             server_redirect_uri: auth_cfg.server_redirect_uri,
             authorization_endpoint: endpoints.authorization_endpoint,
             token_endpoint: endpoints.token_endpoint,
@@ -428,5 +431,23 @@ mod tests {
             "Debug output must not expose the client secret: {debug_str}"
         );
         assert!(debug_str.contains("[REDACTED]"));
+    }
+
+    // ── S38: SCRAM / auth key-material zeroization ────────────────────────────
+
+    #[test]
+    fn oidc_server_client_secret_is_zeroized_on_drop() {
+        // Security (S38): client_secret must be stored as Zeroizing<String> so
+        // the key material is wiped from memory when the struct is dropped.
+        //
+        // Verify via explicit zeroize() call (safe, no unsafe pointer access).
+        let mut secret = zeroize::Zeroizing::new("oidc-server-secret-12345".to_string());
+        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
+        zeroize::Zeroize::zeroize(&mut *secret);
+        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
+
+        // Compile-time check: OidcServerClient.client_secret must accept Zeroizing<String>.
+        let client = test_client();
+        let _: &zeroize::Zeroizing<String> = &client.client_secret;
     }
 }

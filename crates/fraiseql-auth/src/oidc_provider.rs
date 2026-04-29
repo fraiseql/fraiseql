@@ -1,6 +1,8 @@
 //! Generic OIDC provider implementation using RFC 8414 discovery.
 use std::{fmt::Write as _, time::Duration};
 
+use zeroize::Zeroizing;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +60,9 @@ pub struct OidcProvider {
     name:          String,
     issuer_url:    String,
     client_id:     String,
-    client_secret: String,
+    /// Stored as `Zeroizing<String>` so the key material is wiped from memory
+    /// when this struct is dropped.
+    client_secret: Zeroizing<String>,
     redirect_uri:  String,
     discovery:     OidcDiscovery,
     client:        reqwest::Client,
@@ -239,7 +243,7 @@ impl OidcProvider {
             name: name.to_string(),
             issuer_url: issuer_url.to_string(),
             client_id: client_id.to_string(),
-            client_secret: client_secret.to_string(),
+            client_secret: Zeroizing::new(client_secret.to_string()),
             redirect_uri: redirect_uri.to_string(),
             discovery,
             client,
@@ -286,7 +290,7 @@ impl OAuthProvider for OidcProvider {
             grant_type:    "authorization_code".to_string(),
             code:          code.to_string(),
             client_id:     self.client_id.clone(),
-            client_secret: self.client_secret.clone(),
+            client_secret: (*self.client_secret).clone(),
             redirect_uri:  self.redirect_uri.clone(),
             code_verifier: None,
         };
@@ -383,8 +387,8 @@ impl OAuthProvider for OidcProvider {
         let params = [
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
-            ("client_id", &self.client_id),
-            ("client_secret", &self.client_secret),
+            ("client_id", self.client_id.as_str()),
+            ("client_secret", self.client_secret.as_str()),
         ];
 
         let refresh_bytes = self
@@ -426,8 +430,8 @@ impl OAuthProvider for OidcProvider {
         if let Some(revocation_endpoint) = &self.discovery.revocation_endpoint {
             let params = [
                 ("token", token),
-                ("client_id", &self.client_id),
-                ("client_secret", &self.client_secret),
+                ("client_id", self.client_id.as_str()),
+                ("client_secret", self.client_secret.as_str()),
             ];
 
             let resp =
@@ -570,7 +574,7 @@ mod tests {
             name:          "my-oidc".to_string(),
             issuer_url:    "https://example.com".to_string(),
             client_id:     "client_id".to_string(),
-            client_secret: "secret".to_string(),
+            client_secret: zeroize::Zeroizing::new("secret".to_string()),
             redirect_uri:  "http://localhost:8000/callback".to_string(),
             discovery:     OidcDiscovery {
                 issuer:                 "https://example.com".to_string(),
@@ -591,7 +595,7 @@ mod tests {
             name:          "test".to_string(),
             issuer_url:    "https://example.com".to_string(),
             client_id:     "client_id".to_string(),
-            client_secret: "secret".to_string(),
+            client_secret: zeroize::Zeroizing::new("secret".to_string()),
             redirect_uri:  "http://localhost:8000/callback".to_string(),
             discovery:     OidcDiscovery {
                 issuer:                 "https://example.com".to_string(),
@@ -615,7 +619,7 @@ mod tests {
             name:          "test".to_string(),
             issuer_url:    "https://example.com".to_string(),
             client_id:     "my_client".to_string(),
-            client_secret: "secret".to_string(),
+            client_secret: zeroize::Zeroizing::new("secret".to_string()),
             redirect_uri:  "http://localhost:8000/callback".to_string(),
             discovery:     OidcDiscovery {
                 issuer:                 "https://example.com".to_string(),
@@ -657,7 +661,7 @@ mod tests {
             name:          "test".to_string(),
             issuer_url:    mock_server.uri(),
             client_id:     "client_id".to_string(),
-            client_secret: "secret".to_string(),
+            client_secret: zeroize::Zeroizing::new("secret".to_string()),
             redirect_uri:  "http://localhost/callback".to_string(),
             discovery:     OidcDiscovery {
                 issuer:                 mock_server.uri(),
@@ -697,7 +701,7 @@ mod tests {
             name:          "test".to_string(),
             issuer_url:    mock_server.uri(),
             client_id:     "client_id".to_string(),
-            client_secret: "secret".to_string(),
+            client_secret: zeroize::Zeroizing::new("secret".to_string()),
             redirect_uri:  "http://localhost/callback".to_string(),
             discovery:     OidcDiscovery {
                 issuer:                 mock_server.uri(),
@@ -820,5 +824,36 @@ mod tests {
             let result = validate_oidc_issuer_url("https://127.0.0.1:9999");
             assert!(result.is_err(), "OidcProvider::new must reject loopback issuer URLs");
         });
+    }
+
+    // ── S38: SCRAM / auth key-material zeroization ────────────────────────────
+
+    #[test]
+    fn oidc_provider_client_secret_is_zeroized_on_drop() {
+        // Security (S38): OidcProvider.client_secret must be Zeroizing<String> so
+        // the key material is wiped from memory when the provider is dropped.
+        let mut secret = zeroize::Zeroizing::new("oidc-provider-secret-12345".to_string());
+        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
+        zeroize::Zeroize::zeroize(&mut *secret);
+        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
+
+        // Compile-time proof: OidcProvider.client_secret must accept Zeroizing<String>.
+        let provider = OidcProvider {
+            name:          "test".to_string(),
+            issuer_url:    "https://example.com".to_string(),
+            client_id:     "id".to_string(),
+            client_secret: zeroize::Zeroizing::new("my_secret".to_string()),
+            redirect_uri:  "https://example.com/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 "https://example.com".to_string(),
+                authorization_endpoint: "https://example.com/auth".to_string(),
+                token_endpoint:         "https://example.com/token".to_string(),
+                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
+                jwks_uri:               None,
+                revocation_endpoint:    None,
+            },
+            client:        reqwest::Client::new(),
+        };
+        let _: &zeroize::Zeroizing<String> = &provider.client_secret;
     }
 }

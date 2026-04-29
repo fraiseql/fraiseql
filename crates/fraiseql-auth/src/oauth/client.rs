@@ -8,6 +8,7 @@ const OAUTH_REQUEST_TIMEOUT: StdDuration = StdDuration::from_secs(30);
 use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use super::{
     super::jwks::{JwksCache, JwksError},
@@ -82,12 +83,14 @@ pub struct AuthorizationRequest {
 }
 
 /// OAuth2 client for authorization code flow.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct OAuth2Client {
     /// Client ID from provider.
     pub client_id:              String,
     /// Client secret from provider.
-    client_secret:              String,
+    /// Stored as `Zeroizing<String>` so the key material is wiped from memory
+    /// when this struct is dropped.
+    client_secret:              Zeroizing<String>,
     /// Authorization endpoint.
     pub authorization_endpoint: String,
     /// Token endpoint.
@@ -98,6 +101,20 @@ pub struct OAuth2Client {
     pub use_pkce:               bool,
     /// HTTP client for token requests.
     http_client:                reqwest::Client,
+}
+
+/// Custom `Debug` that redacts the client secret.
+#[allow(clippy::missing_fields_in_debug)] // Reason: http_client omitted intentionally (not useful in debug output)
+impl std::fmt::Debug for OAuth2Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuth2Client")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .field("authorization_endpoint", &self.authorization_endpoint)
+            .field("scopes", &self.scopes)
+            .field("use_pkce", &self.use_pkce)
+            .finish_non_exhaustive()
+    }
 }
 
 impl OAuth2Client {
@@ -117,7 +134,7 @@ impl OAuth2Client {
     ) -> Self {
         Self {
             client_id:              client_id.into(),
-            client_secret:          client_secret.into(),
+            client_secret:          Zeroizing::new(client_secret.into()),
             authorization_endpoint: authorization_endpoint.into(),
             token_endpoint:         token_endpoint.into(),
             scopes:                 vec![
@@ -262,19 +279,32 @@ impl OAuth2Client {
 }
 
 /// OIDC client for OpenID Connect flow.
-#[derive(Debug)]
 pub struct OIDCClient {
     /// Provider configuration.
     pub config:     OIDCProviderConfig,
     /// Client ID.
     pub client_id:  String,
     /// Client secret — retained for token revocation and introspection endpoints.
+    /// Stored as `Zeroizing<String>` so the key material is wiped from memory
+    /// when this struct is dropped.
     #[allow(dead_code)] // Reason: retained for token revocation and introspection endpoints
-    client_secret: String,
+    client_secret:  Zeroizing<String>,
     /// JWKS key cache for ID token signature verification.
     pub jwks_cache: Arc<JwksCache>,
     /// HTTP client for userinfo requests.
     http_client:    reqwest::Client,
+}
+
+/// Custom `Debug` that redacts the client secret.
+#[allow(clippy::missing_fields_in_debug)] // Reason: http_client omitted intentionally (not useful in debug output)
+impl std::fmt::Debug for OIDCClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OIDCClient")
+            .field("config", &self.config)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
 }
 
 impl OIDCClient {
@@ -303,7 +333,7 @@ impl OIDCClient {
         Ok(Self {
             config,
             client_id: client_id.into(),
-            client_secret: client_secret.into(),
+            client_secret: Zeroizing::new(client_secret.into()),
             jwks_cache,
             http_client: reqwest::Client::builder()
                 .timeout(OAUTH_REQUEST_TIMEOUT)
@@ -322,7 +352,7 @@ impl OIDCClient {
         Self {
             config,
             client_id: client_id.into(),
-            client_secret: client_secret.into(),
+            client_secret: Zeroizing::new(client_secret.into()),
             jwks_cache,
             http_client: reqwest::Client::builder()
                 .timeout(OAUTH_REQUEST_TIMEOUT)
@@ -612,5 +642,78 @@ mod tests {
             !msg.contains("too large"),
             "size gate must not trigger for small payload: {msg}"
         );
+    }
+
+    // ── S38: SCRAM / auth key-material zeroization ────────────────────────────
+
+    #[test]
+    fn oauth2_client_secret_is_zeroized_on_drop() {
+        // Security (S38): OAuth2Client.client_secret must be Zeroizing<String> so
+        // the key material is wiped from memory when the client is dropped.
+        let mut secret = zeroize::Zeroizing::new("oauth2-client-secret-abc".to_string());
+        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
+        zeroize::Zeroize::zeroize(&mut *secret);
+        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
+
+        // Compile-time proof: OAuth2Client.client_secret must accept Zeroizing<String>.
+        let client = OAuth2Client::new(
+            "client_id",
+            "my_secret_value",
+            "https://example.com/auth",
+            "https://example.com/token",
+        );
+        let _: &zeroize::Zeroizing<String> = &client.client_secret;
+    }
+
+    #[test]
+    fn oauth2_client_debug_redacts_secret() {
+        let client = OAuth2Client::new(
+            "client_id",
+            "super_secret_xyz",
+            "https://example.com/auth",
+            "https://example.com/token",
+        );
+        let debug = format!("{client:?}");
+        assert!(!debug.contains("super_secret_xyz"), "Debug must redact client_secret: {debug}");
+        assert!(debug.contains("[REDACTED]"), "Debug must show [REDACTED]: {debug}");
+    }
+
+    #[test]
+    fn oidc_client_secret_is_zeroized_on_drop() {
+        // Security (S38): OIDCClient.client_secret must be Zeroizing<String>.
+        let mut secret = zeroize::Zeroizing::new("oidc-client-secret-xyz".to_string());
+        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
+        zeroize::Zeroize::zeroize(&mut *secret);
+        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
+
+        // Compile-time proof: OIDCClient.client_secret must accept Zeroizing<String>.
+        let config = OIDCProviderConfig {
+            issuer:                   "https://example.com".to_string(),
+            authorization_endpoint:   "https://example.com/auth".to_string(),
+            token_endpoint:           "https://example.com/token".to_string(),
+            userinfo_endpoint:        None,
+            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        let client = OIDCClient::new(config, "client_id", "oidc_secret_value").unwrap();
+        let _: &zeroize::Zeroizing<String> = &client.client_secret;
+    }
+
+    #[test]
+    fn oidc_client_debug_redacts_secret() {
+        let config = OIDCProviderConfig {
+            issuer:                   "https://example.com".to_string(),
+            authorization_endpoint:   "https://example.com/auth".to_string(),
+            token_endpoint:           "https://example.com/token".to_string(),
+            userinfo_endpoint:        None,
+            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        let client = OIDCClient::new(config, "client_id", "super_oidc_secret").unwrap();
+        let debug = format!("{client:?}");
+        assert!(!debug.contains("super_oidc_secret"), "Debug must redact client_secret: {debug}");
+        assert!(debug.contains("[REDACTED]"), "Debug must show [REDACTED]: {debug}");
     }
 }
