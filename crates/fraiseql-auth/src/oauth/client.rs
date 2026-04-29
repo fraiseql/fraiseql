@@ -312,6 +312,42 @@ impl OAuth2Client {
     }
 }
 
+/// Asymmetric signing algorithms permitted for OIDC ID tokens.
+///
+/// OIDC providers MUST use asymmetric signing so the relying party can verify
+/// signatures without possessing key material that could forge tokens.
+/// Symmetric algorithms (HS*) are forbidden on this path — see
+/// [`FORBIDDEN_OIDC_ALGORITHMS`].
+///
+/// Reference: RFC 8725 §2.1, OpenID Connect Core §10.1.
+pub const ALLOWED_OIDC_ALGORITHMS: &[jsonwebtoken::Algorithm] = &[
+    jsonwebtoken::Algorithm::RS256,
+    jsonwebtoken::Algorithm::RS384,
+    jsonwebtoken::Algorithm::RS512,
+    jsonwebtoken::Algorithm::ES256,
+    jsonwebtoken::Algorithm::ES384,
+];
+
+/// Symmetric algorithms explicitly forbidden on the OIDC ID token path.
+///
+/// An OIDC provider that issues tokens with a symmetric algorithm is either
+/// misconfigured or an attacker performing an algorithm-substitution attack
+/// (RFC 8725 §2.1).  Any token header claiming one of these algorithms is
+/// rejected with [`crate::error::AuthError::ForbiddenAlgorithm`] before
+/// signature verification is attempted.
+pub const FORBIDDEN_OIDC_ALGORITHMS: &[jsonwebtoken::Algorithm] = &[
+    jsonwebtoken::Algorithm::HS256,
+    jsonwebtoken::Algorithm::HS384,
+    jsonwebtoken::Algorithm::HS512,
+];
+
+/// Required `typ` header value for OIDC ID tokens (RFC 7519 §5.1, RFC 8725 §3.11).
+///
+/// When the `typ` header is present it MUST equal `"JWT"` (case-insensitive).
+/// A token with a different `typ` (e.g., `"at+JWT"` for access tokens) is
+/// rejected to prevent token-type confusion attacks.
+pub const REQUIRED_JWT_TYP: &str = "JWT";
+
 /// OIDC client for OpenID Connect flow.
 pub struct OIDCClient {
     /// Provider configuration.
@@ -461,6 +497,28 @@ impl OIDCClient {
         // 1. Decode header to get kid
         let header = jsonwebtoken::decode_header(id_token)
             .map_err(|e| format!("Invalid JWT header: {e}"))?;
+
+        // 1a. Algorithm whitelist (S41 — RFC 8725 §2.1): reject forbidden symmetric algorithms
+        //     and any algorithm not in the OIDC allowlist before touching the JWKS cache.
+        if FORBIDDEN_OIDC_ALGORITHMS.contains(&header.alg) {
+            let alg_str = format!("{:?}", header.alg);
+            return Err(format!("Forbidden OIDC algorithm: {alg_str}"));
+        }
+        if !ALLOWED_OIDC_ALGORITHMS.contains(&header.alg) {
+            let alg_str = format!("{:?}", header.alg);
+            return Err(format!("OIDC algorithm not in allowlist: {alg_str}"));
+        }
+
+        // 1b. typ header assertion (S41 — RFC 8725 §3.11 / RFC 7519 §5.1): when present,
+        //     `typ` must equal "JWT" (case-insensitive) to prevent token-type confusion.
+        if let Some(ref typ) = header.typ {
+            if typ.to_uppercase() != REQUIRED_JWT_TYP {
+                return Err(format!(
+                    "Unexpected JWT typ header '{typ}': expected '{REQUIRED_JWT_TYP}'"
+                ));
+            }
+        }
+
         let kid = header.kid.ok_or("JWT missing 'kid' in header")?;
 
         // 2. Get key from JWKS cache
@@ -754,5 +812,168 @@ mod tests {
         let debug = format!("{client:?}");
         assert!(!debug.contains("super_oidc_secret"), "Debug must redact client_secret: {debug}");
         assert!(debug.contains("[REDACTED]"), "Debug must show [REDACTED]: {debug}");
+    }
+
+    // ── S41: Algorithm whitelist and typ-header guards ────────────────────────
+
+    /// Build a fake JWT string with the given base64url-encoded header JSON.
+    ///
+    /// `decode_header` only inspects the first segment, so the payload and
+    /// signature can be arbitrary non-empty strings.
+    fn fake_jwt_with_header(header_json: &str) -> String {
+        use base64::Engine as _;
+        let header_b64 =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(header_json.as_bytes());
+        format!("{header_b64}.fakepayload.fakesig")
+    }
+
+    /// Build a fake OIDC client that will never actually fetch JWKS —
+    /// the early-exit checks (algorithm whitelist, typ) run before any network call.
+    fn fake_oidc_client() -> OIDCClient {
+        let config = OIDCProviderConfig {
+            issuer:                   "https://example.com".to_string(),
+            authorization_endpoint:   "https://example.com/auth".to_string(),
+            token_endpoint:           "https://example.com/token".to_string(),
+            userinfo_endpoint:        None,
+            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        OIDCClient::new(config, "client_id", "secret").unwrap()
+    }
+
+    #[test]
+    fn allowed_oidc_algorithms_constant_does_not_contain_symmetric() {
+        // Compile-time posture: ALLOWED list must not include any symmetric algorithm.
+        for alg in ALLOWED_OIDC_ALGORITHMS {
+            assert!(
+                !FORBIDDEN_OIDC_ALGORITHMS.contains(alg),
+                "ALLOWED_OIDC_ALGORITHMS must not overlap with FORBIDDEN: {alg:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn forbidden_oidc_algorithms_covers_hmac_family() {
+        use jsonwebtoken::Algorithm;
+        assert!(FORBIDDEN_OIDC_ALGORITHMS.contains(&Algorithm::HS256));
+        assert!(FORBIDDEN_OIDC_ALGORITHMS.contains(&Algorithm::HS384));
+        assert!(FORBIDDEN_OIDC_ALGORITHMS.contains(&Algorithm::HS512));
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_hs256_alg() {
+        // S41: HS256 is a symmetric algorithm — forbidden on the OIDC ID-token path.
+        // The check fires before JWKS fetch, so no network call is made.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"HS256","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "HS256 must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Forbidden") || msg.contains("forbidden"),
+            "error must mention 'Forbidden': {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_hs384_alg() {
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"HS384","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "HS384 must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Forbidden") || msg.contains("forbidden"),
+            "error must mention 'Forbidden': {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_hs512_alg() {
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"HS512","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "HS512 must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Forbidden") || msg.contains("forbidden"),
+            "error must mention 'Forbidden': {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_algorithm_not_in_allowlist() {
+        // PS256 is not in FORBIDDEN (it is asymmetric) but also not in ALLOWED
+        // (FraiseQL only accepts RS/ES families).  It must be rejected by the
+        // second guard ("not in allowlist").
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"PS256","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "PS256 must be rejected as not in allowlist: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("allowlist") || msg.contains("not allowed") || msg.contains("Forbidden"),
+            "error must mention allowlist rejection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_alg_none() {
+        // Defense-in-depth: `alg:none` tokens must be rejected.
+        // The jsonwebtoken crate does not parse "none" as a valid Algorithm variant,
+        // so `decode_header` itself will return an error before our whitelist check.
+        // This test documents and asserts that defensive behavior.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"none","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "alg:none token must be rejected: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_unexpected_typ_header() {
+        // S41 / RFC 8725 §3.11: when `typ` is present, it must be "JWT".
+        // An access token (`at+JWT`) must never be accepted as an ID token.
+        // We use RS256 (in the allowlist) so the algorithm check passes and
+        // the typ check is reached.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","typ":"at+JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "typ 'at+JWT' must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("typ") || msg.contains("Unexpected"),
+            "error must mention typ header: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_accepts_absent_typ_header() {
+        // RFC 7519: the `typ` header is optional.  When absent, the typ check must
+        // be skipped (not treated as an error).  A token without `typ` that passes
+        // the algorithm check should proceed to the JWKS lookup (which will fail
+        // here because the JWKS server is unreachable — that's the expected outcome).
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1"}"#); // no typ
+
+        let result = client.verify_id_token(&token, None, None).await;
+        // Must fail at JWKS fetch, NOT at the typ check.  Any "typ"-related message is a bug.
+        if let Err(ref msg) = result {
+            assert!(
+                !msg.contains("typ") && !msg.contains("Unexpected"),
+                "absent typ must not trigger typ rejection: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn required_jwt_typ_constant_is_uppercase_jwt() {
+        assert_eq!(REQUIRED_JWT_TYP, "JWT");
     }
 }

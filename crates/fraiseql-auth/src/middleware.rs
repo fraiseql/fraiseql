@@ -115,7 +115,10 @@ impl AuthError {
             | Self::SessionTooOld { .. }
             | Self::TokenIssuedInFuture
             | Self::TokenTooOld
-            | Self::TokenNotYetValid => {
+            | Self::TokenNotYetValid
+            // Algorithm-substitution attacks: reject with 401 without revealing which algorithm
+            // was rejected, to avoid giving an attacker information about the allowed set.
+            | Self::ForbiddenAlgorithm { .. } => {
                 (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
             },
             Self::TokenNotFound => {
@@ -192,6 +195,9 @@ impl AuthError {
             },
             Self::TokenIssuedInFuture | Self::TokenTooOld | Self::TokenNotYetValid => {
                 warn!("JWT temporal claim validation failed: {self}");
+            },
+            Self::ForbiddenAlgorithm { alg } => {
+                warn!("OIDC algorithm-substitution attack rejected: forbidden algorithm '{alg}'");
             },
             // No server-side logging needed for these variants
             Self::TokenExpired

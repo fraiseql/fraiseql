@@ -3,6 +3,7 @@
 
 use std::{sync::Arc, time::Duration as StdDuration};
 
+use base64::Engine as _;
 use chrono::{Duration, Utc};
 
 use super::*;
@@ -527,25 +528,17 @@ async fn test_verify_id_token_rejects_missing_kid() {
     let config = test_oidc_config();
     let client = OIDCClient::new(config, "client_id", "secret").unwrap();
 
-    // A JWT without a kid in the header
-    let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256);
-    let claims = IdTokenClaims::new(
-        "https://example.com".into(),
-        "user_1".into(),
-        "client_id".into(),
-        (Utc::now() + Duration::hours(1)).timestamp(),
-        Utc::now().timestamp(),
-    );
-    let token = jsonwebtoken::encode(
-        &header,
-        &claims,
-        &jsonwebtoken::EncodingKey::from_secret(b"test-secret"),
-    )
-    .unwrap();
+    // Use RS256 (an allowed algorithm) so the algorithm whitelist passes and
+    // the missing-kid check is reached.  The header is crafted manually because
+    // creating a real RS256 key in a unit test is expensive.
+    let header_json = r#"{"alg":"RS256","typ":"JWT"}"#; // no "kid"
+    let header_b64 =
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(header_json.as_bytes());
+    let token = format!("{header_b64}.fakepayload.fakesig");
 
     let result = client.verify_id_token(&token, None, None).await;
     assert!(result.is_err(), "expected Err for token without kid header, got: {result:?}");
-    assert!(result.unwrap_err().contains("kid"));
+    assert!(result.unwrap_err().contains("kid"), "error must mention missing kid");
 }
 
 // --- OIDC nonce + max_age tests (H2/H3) ---

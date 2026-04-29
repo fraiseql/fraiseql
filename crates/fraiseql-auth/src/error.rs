@@ -214,6 +214,22 @@ pub enum AuthError {
          Wait until the token's not-before time has passed."
     )]
     TokenNotYetValid,
+
+    /// The OIDC ID token uses a signing algorithm that is explicitly forbidden.
+    ///
+    /// Symmetric algorithms (HS256, HS384, HS512) are forbidden on the OIDC path
+    /// because OIDC providers MUST use asymmetric keys (RS256, RS384, RS512, ES256,
+    /// ES384).  A token claiming a symmetric algorithm was either issued by a
+    /// misconfigured provider or crafted by an attacker attempting an algorithm
+    /// substitution attack (RFC 8725 §2.1).
+    ///
+    /// The `alg` field carries the forbidden algorithm name for operator logging;
+    /// it MUST NOT be forwarded to API clients.
+    #[error("OIDC ID token uses a forbidden algorithm: {alg}")]
+    ForbiddenAlgorithm {
+        /// The algorithm name from the JWT header (e.g., `"HS256"`).
+        alg: String,
+    },
 }
 
 /// Convenience alias for `Result<T, AuthError>`.
