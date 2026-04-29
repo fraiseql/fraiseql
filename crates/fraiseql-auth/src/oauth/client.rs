@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     super::jwks::{JwksCache, JwksError},
-    pkce::PKCEChallenge,
+    pkce::{PKCEChallenge, gen_random_token},
     types::{IdTokenClaims, TokenResponse, UserInfo},
 };
 
@@ -152,7 +152,8 @@ impl OAuth2Client {
     /// challenge (when `use_pkce = true`; the `code_verifier` must be stored
     /// and sent during token exchange).
     pub fn authorization_url(&self, redirect_uri: &str) -> AuthorizationRequest {
-        let state = uuid::Uuid::new_v4().to_string();
+        // SECURITY: 32-byte OsRng → 43-char URL-safe base64 (~256-bit entropy, RFC 7636 §4.1)
+        let state = gen_random_token();
         let scope = self.scopes.join(" ");
 
         let mut url = format!(
@@ -339,7 +340,8 @@ impl OIDCClient {
     ///
     /// PKCE is always enabled for OIDC flows started via this method.
     pub fn authorization_url(&self, redirect_uri: &str) -> AuthorizationRequest {
-        let state = uuid::Uuid::new_v4().to_string();
+        // SECURITY: 32-byte OsRng → 43-char URL-safe base64 (~256-bit entropy, RFC 7636 §4.1)
+        let state = gen_random_token();
         let scope = self.config.scopes_supported.join(" ");
         let nonce = super::pkce::NonceParameter::new();
         let challenge = PKCEChallenge::new();
