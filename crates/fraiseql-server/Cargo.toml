@@ -42,6 +42,8 @@ fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-error = {workspace = true, features = ["axum-compat"]}
 # FraiseQL object storage
 fraiseql-storage = {workspace = true}
+# FraiseQL serverless functions (always present for schema loading; runtime features are opt-in)
+fraiseql-functions = {workspace = true}
 # FraiseQL observers (optional)
 fraiseql-observers = {workspace = true, optional = true}
 # Secrets management and encryption
@@ -150,6 +152,8 @@ gcs = []
 # gRPC transport
 grpc = ["dep:tonic", "dep:prost", "dep:prost-reflect", "dep:http-body", "dep:http-body-util"]
 federation = ["fraiseql-core/federation"]
+# Serverless functions subsystem
+functions = []
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli", "tracing-opentelemetry"]

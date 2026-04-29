@@ -243,6 +243,9 @@ pub async fn run_enrichment(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #![allow(clippy::missing_panics_doc)] // Reason: test code
+
     use super::*;
 
     // ── prepare_enrichment_query ─────────────────────────────────────────
@@ -353,10 +356,14 @@ mod tests {
         let cache = EnrichmentCache::new();
         let map = serde_json::Map::new();
 
-        // Insert with already-expired timestamp
+        // Insert with already-expired timestamp.
+        // Use checked_sub to avoid overflow; fall back to UNIX_EPOCH-equivalent via now().
+        let expires_at = Instant::now()
+            .checked_sub(Duration::from_secs(1))
+            .unwrap_or_else(Instant::now);
         cache.entries.insert("user-1".to_owned(), CacheEntry {
             value: map,
-            expires_at: Instant::now() - Duration::from_secs(1),
+            expires_at,
         });
 
         assert!(cache.get("user-1").is_none());

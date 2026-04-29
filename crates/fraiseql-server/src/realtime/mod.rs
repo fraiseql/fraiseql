@@ -4,7 +4,7 @@
 //! mutation events to connected clients with per-client RLS filtering and
 //! subscription management.
 //!
-//! # Two WebSocket systems — when to use each
+//! # Two `WebSocket` systems — when to use each
 //!
 //! FraiseQL ships two independent `WebSocket` systems that coexist on the same
 //! server without shared state or naming conflicts.

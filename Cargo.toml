@@ -70,6 +70,7 @@ fraiseql-core = {path = "crates/fraiseql-core", version = "2.2.1", default-featu
 fraiseql-db = {path = "crates/fraiseql-db", version = "2.2.1", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.2.1", default-features = false}
 fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.2.1"}
+fraiseql-functions = {path = "crates/fraiseql-functions", version = "2.2.1"}
 fraiseql-observers = {path = "crates/fraiseql-observers", version = "2.2.1"}
 fraiseql-secrets = {path = "crates/fraiseql-secrets", version = "2.2.1"}
 fraiseql-server = {path = "crates/fraiseql-server", version = "2.2.1"}

@@ -47,17 +47,21 @@ pub fn security_context_hash(ctx: &SecurityContextHashInput<'_>) -> u64 {
 
     ctx.user_id.hash(&mut hasher);
 
-    // Sort roles so hash is order-independent
+    // Sort roles so hash is order-independent, then feed each element to the hasher.
     let mut roles: Vec<&str> = ctx.roles.to_vec();
     roles.sort_unstable();
-    roles.hash(&mut hasher);
+    for role in &roles {
+        role.hash(&mut hasher);
+    }
 
     ctx.tenant_id.hash(&mut hasher);
 
-    // Sort scopes so hash is order-independent
+    // Sort scopes so hash is order-independent, then feed each element to the hasher.
     let mut scopes: Vec<&str> = ctx.scopes.to_vec();
     scopes.sort_unstable();
-    scopes.hash(&mut hasher);
+    for scope in &scopes {
+        scope.hash(&mut hasher);
+    }
 
     hasher.finish()
 }

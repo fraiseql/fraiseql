@@ -3484,6 +3484,7 @@ dependencies = [
  "fraiseql-auth",
  "fraiseql-core",
  "fraiseql-error 2.2.1",
+ "fraiseql-functions",
  "fraiseql-observers",
  "fraiseql-secrets",
  "fraiseql-storage",

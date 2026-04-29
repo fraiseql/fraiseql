@@ -133,7 +133,7 @@ fn parse_server_msg(msg: &tungstenite::Message) -> serde_json::Value {
     }
 }
 
-/// Send a JSON message over the WebSocket.
+/// Send a JSON message over the `WebSocket`.
 async fn send_json(
     ws: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -730,7 +730,7 @@ impl RlsEvaluator for CountingRls {
     }
 }
 
-/// Helper to spawn a server + delivery pipeline and return (addr, event_tx).
+/// Helper to spawn a server + delivery pipeline and return `(addr, event_tx)`.
 async fn spawn_server_with_delivery(
     config: RealtimeConfig,
     validator: TestValidator,
@@ -1219,8 +1219,7 @@ async fn test_observer_slow_client_disconnected() {
                 break;
             }
             Ok(Some(Ok(_))) => {} // flush buffered change events
-            Ok(None) | Ok(Some(Err(_))) => break,
-            Err(_) => break, // outer timeout
+            Ok(None | Some(Err(_))) | Err(_) => break, // connection closed or outer timeout
         }
     }
     assert!(got_close_4002, "Expected close frame with code 4002 for slow consumer");
@@ -1401,10 +1400,10 @@ fn test_connection_state_stores_context_hash() {
     let state = ConnectionState::new(
         "conn-xyz".to_owned(),
         "user-1".to_owned(),
-        0xdeadbeef,
+        0xdead_beef,
         9_999_999_999,
     );
-    assert_eq!(state.context_hash, 0xdeadbeef);
+    assert_eq!(state.context_hash, 0xdead_beef);
     assert_eq!(state.user_id, "user-1");
     assert_eq!(state.connection_id, "conn-xyz");
 }
@@ -1527,7 +1526,7 @@ fn test_realtime_entities_from_schema() {
 
     // Build a RealtimeServer from the schema config.
     let entities: HashSet<String> = schema_config.entities.into_iter().collect();
-    let server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities.clone()));
+    let server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities));
 
     // The known entities set matches what was declared.
     assert!(server.known_entities.contains("Post"));
@@ -1539,8 +1538,8 @@ fn test_realtime_entities_from_schema() {
 // ── Cycle 7: Coexistence with Existing GraphQL Subscriptions ──────────
 
 /// Build a minimal combined Axum app with both:
-/// - realtime WebSocket at `/realtime/v1`
-/// - GraphQL subscription WebSocket at `/ws`
+/// - realtime `WebSocket` at `/realtime/v1`
+/// - GraphQL subscription `WebSocket` at `/ws`
 ///
 /// Returns the bound address.
 async fn spawn_combined_server(validator: TestValidator) -> SocketAddr {

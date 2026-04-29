@@ -83,7 +83,7 @@ pub struct RealtimeSchemaConfig {
 /// let realtime = realtime_router(state);
 /// let app = base_router.merge(realtime);
 /// ```
-#[must_use]
+#[must_use = "merge this router into your axum application with `Router::merge`"]
 pub fn realtime_router(state: RealtimeState) -> Router {
     Router::new()
         .route("/realtime/v1", get(ws_handler))
