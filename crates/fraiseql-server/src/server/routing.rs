@@ -371,7 +371,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "Metrics endpoints enabled (bearer token required)"
                 );
 
-                let auth_state = BearerAuthState::new(token.clone());
+                let auth_state =
+                    BearerAuthState::with_max_failures(token.clone(), self.config.admin_auth_max_failures);
 
                 // Create a separate metrics router with auth middleware applied
                 // The routes need relative paths since we use merge (not nest)
@@ -401,7 +402,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if self.config.admin_api_enabled {
             if let Some(ref write_token) = self.config.admin_token {
                 // Destructive-operation router — always uses admin_token.
-                let write_auth = BearerAuthState::new(write_token.clone());
+                let write_auth = BearerAuthState::with_max_failures(
+                    write_token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
                 let admin_write_router = Router::new()
                     .route(
                         "/api/v1/admin/reload-schema",
@@ -444,7 +448,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     );
                 }
 
-                let read_auth = BearerAuthState::new(read_token.clone());
+                let read_auth = BearerAuthState::with_max_failures(
+                    read_token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
                 let admin_read_router = Router::new()
                     .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
@@ -678,7 +685,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 // Schema is initialized by serve_with_shutdown() before this
                 // function is called; build_router() is sync so no await here.
                 let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
-                let auth_state = BearerAuthState::new(token.clone());
+                let auth_state = BearerAuthState::with_max_failures(
+                    token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
                 let rbac_router = crate::api::rbac_management_router(rbac_state).route_layer(
                     middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
                 );
