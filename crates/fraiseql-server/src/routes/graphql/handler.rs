@@ -1,6 +1,8 @@
 //! GraphQL HTTP handlers and execution logic.
 
-use std::{sync::atomic::Ordering, time::Instant};
+use std::net::SocketAddr;
+use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 use axum::{
     Json,
@@ -20,7 +22,7 @@ use super::{
 };
 use crate::{
     error::{ErrorResponse, GraphQLError},
-    extractors::OptionalSecurityContext,
+    extractors::{OptionalSecurityContext, PeerIp},
     tracing_utils,
 };
 
@@ -45,6 +47,7 @@ use crate::{
 pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
+    PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     Json(request): Json<GraphQLRequest>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
@@ -58,7 +61,8 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         debug!("Authenticated request with security context");
     }
 
-    execute_graphql_request(state, request, trace_context, security_context, &headers).await
+    execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
+        .await
 }
 
 /// GraphQL HTTP handler for GET requests.
@@ -92,6 +96,7 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     State(state): State<AppState<A>>,
     headers: HeaderMap,
+    PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     Query(params): Query<GraphQLGetParams>,
 ) -> Result<GraphQLResponse, ErrorResponse> {
@@ -155,7 +160,8 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         debug!("Authenticated GET request with security context");
     }
 
-    execute_graphql_request(state, request, trace_context, security_context, &headers).await
+    execute_graphql_request(state, request, trace_context, security_context, &headers, &peer_ip)
+        .await
 }
 
 /// Extract client IP address from headers.
@@ -167,10 +173,22 @@ pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 /// fallback — callers requiring real IPs should use `ConnectInfo<SocketAddr>`
 /// or `ProxyConfig::extract_client_ip()` with validated proxy chains.
 #[cfg(feature = "auth")]
+#[allow(dead_code)] // Reason: used only in tests that verify spoofable headers are ignored
 pub(crate) fn extract_ip_from_headers(_headers: &HeaderMap) -> String {
     // SECURITY: Spoofable headers removed. Use ConnectInfo<SocketAddr> or
     // ProxyConfig::extract_client_ip() for validated IP extraction.
     "unknown".to_string()
+}
+
+/// Return the IP address of a TCP peer as a rate-limit key.
+///
+/// Uses only the IP part of the `SocketAddr` (no port), so all connections
+/// from the same client are counted against the same bucket regardless of
+/// ephemeral port churn. Returns `"unknown"` when no peer address is available
+/// (e.g. in tests that call the handler without `ConnectInfo`).
+#[allow(dead_code)] // Reason: used in tests to verify per-IP key logic
+pub(crate) fn peer_ip_string(peer: Option<SocketAddr>) -> String {
+    peer.map_or_else(|| "unknown".to_string(), |addr: SocketAddr| addr.ip().to_string())
 }
 
 /// Extract the APQ SHA-256 hash from the `extensions.persistedQuery` field, if present.
@@ -267,6 +285,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     #[cfg(not(feature = "federation"))] _trace_context: Option<()>,
     mut security_context: Option<SecurityContext>,
     headers: &HeaderMap,
+    peer_ip: &str,
 ) -> Result<GraphQLResponse, ErrorResponse> {
     // API key auth: if configured, try it before falling through to JWT/OIDC.
     if security_context.is_none() {
@@ -366,8 +385,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         // Check rate limiting for validation errors
         #[cfg(feature = "auth")]
         {
-            let client_ip = extract_ip_from_headers(headers);
-            if state.graphql_rate_limiter.check(&client_ip).is_err() {
+            if state.graphql_rate_limiter.check(peer_ip).is_err() {
                 return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
                     "Too many validation errors. Please reduce query complexity and try again.",
                 )));
@@ -419,8 +437,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         // Check rate limiting for validation errors
         #[cfg(feature = "auth")]
         {
-            let client_ip = extract_ip_from_headers(headers);
-            if state.graphql_rate_limiter.check(&client_ip).is_err() {
+            if state.graphql_rate_limiter.check(peer_ip).is_err() {
                 return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
                     "Too many validation errors. Please reduce query complexity and try again.",
                 )));

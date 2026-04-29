@@ -432,3 +432,23 @@ async fn test_apq_hash_mismatch() {
     assert!(result.is_err(), "expected Err for APQ hash mismatch, got: {result:?}");
     assert_eq!(metrics.get_errors(), 1);
 }
+
+// ── S45: Peer-IP rate limiting ─────────────────────────────────────────────
+
+/// Two distinct SocketAddr values must produce distinct rate-limit keys.
+#[test]
+fn test_peer_ip_string_is_distinct_per_address() {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use super::handler::peer_ip_string;
+
+    let addr1 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), 1234);
+    let addr2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 5678);
+
+    let key1 = peer_ip_string(Some(addr1));
+    let key2 = peer_ip_string(Some(addr2));
+
+    assert_ne!(key1, key2, "distinct peer IPs must produce distinct rate-limit keys");
+    assert_eq!(key1, "192.0.2.1", "key should be just the IP, no port");
+    assert_eq!(key2, "10.0.0.1");
+    assert_eq!(peer_ip_string(None), "unknown", "absent peer must fall back to 'unknown'");
+}
