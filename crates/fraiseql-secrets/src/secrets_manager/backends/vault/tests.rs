@@ -141,11 +141,11 @@ fn test_secret_name_very_long_rejected_before_char_scan() {
 
 fn make_vault_response(data: serde_json::Value) -> VaultResponse {
     VaultResponse {
-        request_id:     "req-1234".to_string(),
-        lease_id:       "lease-5678".to_string(),
+        request_id: "req-1234".to_string(),
+        lease_id: "lease-5678".to_string(),
         lease_duration: 3600,
-        renewable:      true,
-        data:           serde_json::from_value(data).unwrap(),
+        renewable: true,
+        data: serde_json::from_value(data).unwrap(),
     }
 }
 
@@ -426,4 +426,123 @@ fn test_vault_addr_allows_public_addresses() {
         .unwrap_or_else(|e| panic!("public IP vault addr should pass: {e}"));
     validate_vault_addr("http://vault.local:8200")
         .unwrap_or_else(|e| panic!("vault.local should pass: {e}"));
+}
+
+// ── S30: Vault HTTP body-size guards ──────────────────────────────────────────
+
+/// Vault secret fetch must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+#[tokio::test]
+async fn vault_fetch_secret_rejects_oversized_response() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    // Build a JSON-shaped body that exceeds 1 MiB
+    let big_value = "x".repeat(1024 * 1024 + 1);
+    let big_body = format!(
+        r#"{{"request_id":"r","lease_id":"","lease_duration":3600,"renewable":false,"data":{{"value":"{big_value}"}}}}"#
+    );
+    Mock::given(method("GET"))
+        .and(path("/v1/secret/db-password"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(big_body))
+        .mount(&mock)
+        .await;
+
+    let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+    let result = vault.get_secret("secret/db-password").await;
+    assert!(result.is_err(), "oversized response must be rejected; got: {result:?}");
+}
+
+/// Vault token renewal must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+#[tokio::test]
+async fn vault_token_renewal_rejects_oversized_response() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let big_value = "x".repeat(1024 * 1024 + 1);
+    let big_body = format!(
+        r#"{{"auth":{{"client_token":"{big_value}","lease_duration":3600,"renewable":true}}}}"#
+    );
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/token/renew-self"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(big_body))
+        .mount(&mock)
+        .await;
+
+    let mut vault = VaultBackend::new_for_test(mock.uri(), "old-token");
+    let result = vault.renew_token().await;
+    assert!(result.is_err(), "oversized renewal response must be rejected; got: {result:?}");
+}
+
+/// Vault Transit operation must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+#[tokio::test]
+async fn vault_transit_rejects_oversized_response() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let big_value = "x".repeat(1024 * 1024 + 1);
+    let big_body = format!(r#"{{"data":{{"ciphertext":"vault:v1:{big_value}","key_version":1}}}}"#);
+    Mock::given(method("POST"))
+        .and(path("/v1/transit/encrypt/my-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(big_body))
+        .mount(&mock)
+        .await;
+
+    let vault = VaultBackend::new_for_test(mock.uri(), "test-token");
+    let result = vault.encrypt_field("transit/encrypt/my-key", "plaintext").await;
+    assert!(result.is_err(), "oversized transit response must be rejected; got: {result:?}");
+}
+
+/// AppRole login must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+///
+/// `with_approle_for_test` bypasses SSRF validation so we can point at a loopback mock server.
+#[tokio::test]
+async fn vault_approle_rejects_oversized_response() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = MockServer::start().await;
+    let big_value = "x".repeat(1024 * 1024 + 1);
+    let big_body = format!(
+        r#"{{"auth":{{"client_token":"{big_value}","lease_duration":3600,"renewable":true}}}}"#
+    );
+    Mock::given(method("POST"))
+        .and(path("/v1/auth/approle/login"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(big_body))
+        .mount(&mock)
+        .await;
+
+    // with_approle_for_test bypasses SSRF validation to allow pointing at loopback (test only).
+    // This constructor is added in the GREEN phase alongside the body-size guard.
+    let result =
+        VaultBackend::with_approle_for_test(mock.uri().as_str(), "role-id", "secret-id").await;
+    assert!(result.is_err(), "oversized approle response must be rejected; got: {result:?}");
+}
+
+// ── S32: Debug redaction ──────────────────────────────────────────────────────
+
+/// `format!("{:?}")` on `VaultBackend` must not expose the auth token.
+#[test]
+fn vault_debug_does_not_expose_token() {
+    let vault =
+        VaultBackend::new("https://vault.example.com:8200", "super-secret-token-12345").unwrap();
+    let debug_output = format!("{vault:?}");
+    assert!(
+        !debug_output.contains("super-secret-token-12345"),
+        "token must not appear in Debug output: {debug_output}"
+    );
+    assert!(
+        debug_output.contains("[REDACTED]"),
+        "Debug output must show [REDACTED] for token: {debug_output}"
+    );
 }
