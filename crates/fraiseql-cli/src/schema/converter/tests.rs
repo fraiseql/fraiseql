@@ -1676,7 +1676,7 @@ fn test_dispatch_err_mutual_exclusivity() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("cannot set both sql_source and sql_source_dispatch"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("cannot set both sql_source and sql_source_dispatch"));
 }
 
 #[test]
@@ -1747,7 +1747,7 @@ fn test_dispatch_err_missing_argument() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("timeInterval"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("timeInterval"));
 }
 
 #[test]
@@ -1824,7 +1824,7 @@ fn test_dispatch_err_nullable_argument() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("must be required"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("must be required"));
 }
 
 #[test]
@@ -1895,7 +1895,7 @@ fn test_dispatch_err_non_enum_argument() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("scalar type"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("scalar type"));
 }
 
 #[test]
@@ -1966,7 +1966,7 @@ fn test_dispatch_err_unknown_enum_type() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("not a known enum"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("not a known enum"));
 }
 
 #[test]
@@ -2048,7 +2048,7 @@ fn test_dispatch_err_incomplete_mapping() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("missing entry for enum value 'MONTH'"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("missing entry for enum value 'MONTH'"));
 }
 
 #[test]
@@ -2125,7 +2125,7 @@ fn test_dispatch_err_template_and_mapping() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("cannot have both mapping and template"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("cannot have both mapping and template"));
 }
 
 #[test]
@@ -2202,5 +2202,5 @@ fn test_dispatch_err_unsafe_sql_identifier() {
 
     let result = SchemaConverter::convert(intermediate);
     assert!(result.is_err());
-    assert!(result.expect_err("test").to_string().contains("not a safe SQL identifier"));
+    assert!(format!("{:#}", result.expect_err("test")).contains("not a safe SQL identifier"));
 }
