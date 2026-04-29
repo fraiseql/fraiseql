@@ -1578,3 +1578,153 @@ fn test_cron_with_storage_cascade() {
     // Cron job can trigger storage operations, which in turn fire storage triggers
     assert_ne!(cron_job.name, storage_trigger.name);
 }
+
+// ============================================================================
+// Cycle 5: CronScheduler and TriggerRegistry cron support (GREEN — infrastructure)
+// ============================================================================
+
+/// Test: TriggerRegistry loads cron trigger definitions
+#[test]
+fn test_registry_loads_cron_triggers() {
+    use crate::{FunctionDefinition, RuntimeType};
+    use crate::triggers::registry::TriggerRegistry;
+
+    let functions = vec![
+        FunctionDefinition::new("dailyCleanup", "cron:0 2 * * *", RuntimeType::Deno),
+        FunctionDefinition::new("hourlySync", "cron:0 * * * *", RuntimeType::Deno),
+        // Mix with another trigger type to verify coexistence
+        FunctionDefinition::new("onUserCreated", "after:mutation:User:insert", RuntimeType::Deno),
+    ];
+
+    let registry = TriggerRegistry::load_from_definitions(&functions)
+        .expect("load registry");
+
+    assert_eq!(registry.cron_trigger_count(), 2, "should have 2 cron triggers");
+    assert_eq!(registry.cron_triggers[0].function_name, "dailyCleanup");
+    assert_eq!(registry.cron_triggers[0].schedule, "0 2 * * *");
+    assert_eq!(registry.cron_triggers[1].function_name, "hourlySync");
+    assert_eq!(registry.cron_triggers[1].schedule, "0 * * * *");
+}
+
+/// Test: TriggerRegistry.cron_scheduler() returns Some when triggers exist
+#[test]
+fn test_registry_cron_scheduler_returns_some_when_triggers_exist() {
+    use crate::{FunctionDefinition, RuntimeType};
+    use crate::triggers::registry::TriggerRegistry;
+
+    let functions = vec![
+        FunctionDefinition::new("dailyJob", "cron:0 3 * * *", RuntimeType::Deno),
+    ];
+    let registry = TriggerRegistry::load_from_definitions(&functions)
+        .expect("load registry");
+
+    let scheduler = registry.cron_scheduler();
+    assert!(scheduler.is_some(), "should return a scheduler when cron triggers exist");
+    assert_eq!(scheduler.unwrap().trigger_count(), 1);
+}
+
+/// Test: TriggerRegistry.cron_scheduler() returns None when no cron triggers exist
+#[test]
+fn test_registry_cron_scheduler_returns_none_when_no_triggers() {
+    use crate::{FunctionDefinition, RuntimeType};
+    use crate::triggers::registry::TriggerRegistry;
+
+    let functions = vec![
+        FunctionDefinition::new("onUserCreated", "after:mutation:User:insert", RuntimeType::Deno),
+        FunctionDefinition::new("validate", "before:mutation:createUser", RuntimeType::Deno),
+    ];
+    let registry = TriggerRegistry::load_from_definitions(&functions)
+        .expect("load registry");
+
+    assert!(
+        registry.cron_scheduler().is_none(),
+        "no cron triggers → cron_scheduler() should return None (fast path)"
+    );
+}
+
+/// Test: CronScheduler can be constructed with triggers
+#[test]
+fn test_cron_scheduler_new_creates_with_triggers() {
+    use crate::triggers::cron::{CronScheduler, CronTrigger};
+
+    let triggers = vec![
+        CronTrigger {
+            function_name: "dailyCleanup".to_string(),
+            schedule: "0 2 * * *".to_string(),
+            timezone: "UTC".to_string(),
+        },
+        CronTrigger {
+            function_name: "hourlySync".to_string(),
+            schedule: "0 * * * *".to_string(),
+            timezone: "UTC".to_string(),
+        },
+    ];
+
+    let scheduler = CronScheduler::new(triggers);
+    assert_eq!(scheduler.trigger_count(), 2);
+}
+
+/// Test: CronScheduler can be started and returns a handle
+#[tokio::test]
+async fn test_cron_scheduler_starts_and_provides_handle() {
+    use crate::triggers::cron::{CronScheduler, CronTrigger};
+    use crate::observer::FunctionObserver;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let triggers = vec![
+        CronTrigger {
+            function_name: "dailyCleanup".to_string(),
+            schedule: "0 2 * * *".to_string(), // 2 AM — won't fire during test
+            timezone: "UTC".to_string(),
+        },
+    ];
+
+    let observer = Arc::new(FunctionObserver::new());
+    let handle = CronScheduler::new(triggers).start(observer, HashMap::new());
+
+    // Immediately stop so we don't leave a dangling task
+    handle.stop();
+}
+
+/// Test: CronSchedulerHandle stops gracefully without panic
+#[tokio::test]
+async fn test_cron_scheduler_handle_stops_gracefully() {
+    use crate::triggers::cron::{CronScheduler, CronTrigger};
+    use crate::observer::FunctionObserver;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let triggers = vec![
+        CronTrigger {
+            function_name: "neverFires".to_string(),
+            schedule: "0 0 31 2 *".to_string(), // Feb 31 — never matches
+            timezone: "UTC".to_string(),
+        },
+    ];
+
+    let observer = Arc::new(FunctionObserver::new());
+    let handle = CronScheduler::new(triggers).start(observer, HashMap::new());
+
+    // stop() must complete without panic
+    handle.stop();
+
+    // Yield to give the spawned task a chance to process the shutdown signal
+    tokio::task::yield_now().await;
+}
+
+/// Test: CronScheduler with no triggers starts and stops cleanly
+#[tokio::test]
+async fn test_cron_scheduler_empty_starts_cleanly() {
+    use crate::triggers::cron::CronScheduler;
+    use crate::observer::FunctionObserver;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    let scheduler = CronScheduler::new(vec![]);
+    assert_eq!(scheduler.trigger_count(), 0);
+
+    let observer = Arc::new(FunctionObserver::new());
+    let handle = scheduler.start(observer, HashMap::new());
+    handle.stop();
+}

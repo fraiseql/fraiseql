@@ -25,6 +25,7 @@ pub use triggers::mutation::{
     EntityEvent, EventKind, TriggerMatcher,
 };
 pub use triggers::registry::TriggerRegistry;
+pub use triggers::cron::{CronScheduler, CronSchedulerHandle, CronTrigger};
 pub use types::{
     EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,
     ResourceLimits, RuntimeType,

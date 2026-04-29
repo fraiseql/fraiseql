@@ -135,3 +135,67 @@ async fn test_function_observer_unknown_runtime_returns_error() {
         err
     );
 }
+
+// ── Cycle 5: dispatch_entity_event tests ─────────────────────────────────────
+
+#[test]
+fn test_dispatch_entity_event_no_triggers_returns_empty() {
+    use crate::triggers::{mutation::EntityEvent, TriggerRegistry};
+    use std::collections::HashMap;
+
+    // Empty registry → no after:mutation triggers → dispatch returns empty vec
+    let observer = FunctionObserver::new();
+    let registry = TriggerRegistry::new();
+    let modules: HashMap<String, FunctionModule> = HashMap::new();
+
+    let event = EntityEvent {
+        entity: "User".to_string(),
+        event_kind: crate::triggers::mutation::EventKind::Insert,
+        old: None,
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        timestamp: Utc::now(),
+    };
+
+    let matching = observer.find_after_mutation_triggers(&registry, &event);
+    assert!(matching.is_empty(), "empty registry → no matching triggers");
+    // No function to invoke means dispatch_count = 0
+    let _ = modules; // unused in this test
+}
+
+#[test]
+fn test_dispatch_entity_event_finds_matching_triggers() {
+    use crate::{
+        FunctionDefinition,
+        triggers::{mutation::{EntityEvent, EventKind}, TriggerRegistry},
+    };
+
+    // Registry with an after:mutation:User trigger
+    let defs = vec![
+        FunctionDefinition::new("onUserCreated", "after:mutation:User:insert", RuntimeType::Deno),
+    ];
+    let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
+
+    let observer = FunctionObserver::new();
+
+    // Insert event → trigger matches
+    let insert_event = EntityEvent {
+        entity: "User".to_string(),
+        event_kind: EventKind::Insert,
+        old: None,
+        new: Some(serde_json::json!({ "id": 1 })),
+        timestamp: Utc::now(),
+    };
+    let matching = observer.find_after_mutation_triggers(&registry, &insert_event);
+    assert_eq!(matching.len(), 1, "should match 1 trigger for User insert");
+
+    // Update event → no trigger (trigger is insert-only)
+    let update_event = EntityEvent {
+        entity: "User".to_string(),
+        event_kind: EventKind::Update,
+        old: Some(serde_json::json!({ "id": 1, "name": "Old" })),
+        new: Some(serde_json::json!({ "id": 1, "name": "New" })),
+        timestamp: Utc::now(),
+    };
+    let matching = observer.find_after_mutation_triggers(&registry, &update_event);
+    assert!(matching.is_empty(), "update event should not match insert-only trigger");
+}

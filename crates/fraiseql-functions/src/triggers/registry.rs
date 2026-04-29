@@ -153,6 +153,8 @@ pub struct TriggerRegistry {
     pub before_mutation_triggers: Vec<BeforeMutationTrigger>,
     /// HTTP trigger routes indexed by method and path.
     pub http_routes: HttpTriggerMatcher,
+    /// Cron-scheduled triggers.
+    pub cron_triggers: Vec<crate::triggers::cron::CronTrigger>,
     /// Total function definitions loaded.
     pub function_count: usize,
 }
@@ -219,11 +221,13 @@ impl TriggerRegistry {
                         message: "after:storage triggers not yet implemented".to_string(),
                     });
                 }
-                ParsedTrigger::Cron { expression: _ } => {
-                    // TODO: Implement cron trigger loading
-                    return Err(RegistryError {
-                        message: "cron triggers not yet implemented in registry".to_string(),
-                    });
+                ParsedTrigger::Cron { expression } => {
+                    let trigger = crate::triggers::cron::CronTrigger {
+                        function_name: func.name.clone(),
+                        schedule: expression,
+                        timezone: "UTC".to_string(),
+                    };
+                    registry.cron_triggers.push(trigger);
                 }
             }
         }
@@ -240,6 +244,28 @@ impl TriggerRegistry {
     /// Get the number of before:mutation triggers.
     pub const fn before_mutation_count(&self) -> usize {
         self.before_mutation_triggers.len()
+    }
+
+    /// Get the number of cron triggers.
+    pub const fn cron_trigger_count(&self) -> usize {
+        self.cron_triggers.len()
+    }
+
+    /// Build a [`CronScheduler`] from all registered cron triggers.
+    ///
+    /// Returns `None` when no cron triggers are registered (the fast path —
+    /// avoids spawning a background task when no schedules exist).
+    ///
+    /// [`CronScheduler`]: crate::triggers::cron::CronScheduler
+    #[must_use]
+    pub fn cron_scheduler(&self) -> Option<crate::triggers::cron::CronScheduler> {
+        if self.cron_triggers.is_empty() {
+            None
+        } else {
+            Some(crate::triggers::cron::CronScheduler::new(
+                self.cron_triggers.clone(),
+            ))
+        }
     }
 
     /// Get the number of HTTP routes.

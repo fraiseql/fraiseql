@@ -113,6 +113,24 @@ impl FunctionObserver {
             }
         }
     }
+
+    /// Find all `after:mutation` triggers that match a given entity event.
+    ///
+    /// Returns the list of matching [`AfterMutationTrigger`]s from `registry`.
+    /// Used by after-mutation dispatchers to know which functions to invoke.
+    /// This method is allocation-free when no triggers match.
+    ///
+    /// [`AfterMutationTrigger`]: crate::triggers::mutation::AfterMutationTrigger
+    #[must_use]
+    pub fn find_after_mutation_triggers(
+        &self,
+        registry: &crate::triggers::registry::TriggerRegistry,
+        event: &crate::triggers::mutation::EntityEvent,
+    ) -> Vec<crate::triggers::mutation::AfterMutationTrigger> {
+        registry
+            .after_mutation_triggers
+            .find(&event.entity, event.event_kind)
+    }
 }
 
 impl Default for FunctionObserver {

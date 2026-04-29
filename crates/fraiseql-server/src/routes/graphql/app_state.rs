@@ -103,6 +103,15 @@ pub struct AppState<A: DatabaseAdapter> {
     /// before execution. The check is a single `HashMap::get` returning `None`
     /// when no hooks are registered — zero overhead for mutations without hooks.
     pub before_mutation_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
+
+    /// Realtime broadcast observer (optional, requires realtime subsystem).
+    ///
+    /// When `Some`, mutation completions are forwarded to the realtime delivery
+    /// pipeline. The observer uses a bounded mpsc channel — events are dropped
+    /// (not buffered) when the delivery pipeline is under backpressure, so
+    /// mutation response latency is never affected.
+    pub realtime_observer:
+        Option<Arc<crate::realtime::observer::RealtimeBroadcastObserver>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -146,6 +155,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             tenant_executor_factory: None,
             domain_registry: Arc::new(DomainRegistry::new()),
             before_mutation_hooks: None,
+            realtime_observer: None,
         }
     }
 
@@ -200,6 +210,21 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_functions(mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) -> Self {
         self.before_mutation_hooks = Some(hooks);
+        self
+    }
+
+    /// Attach the realtime broadcast observer from the realtime subsystem.
+    ///
+    /// When set, successful mutation completions are forwarded to the realtime
+    /// delivery pipeline via a non-blocking `try_send`. Events are silently
+    /// dropped when the channel is full (backpressure) to protect mutation
+    /// response latency.
+    #[must_use]
+    pub fn with_realtime_observer(
+        mut self,
+        observer: Arc<crate::realtime::observer::RealtimeBroadcastObserver>,
+    ) -> Self {
+        self.realtime_observer = Some(observer);
         self
     }
 
@@ -715,5 +740,49 @@ mod tests {
         let registry = Arc::new(super::TenantExecutorRegistry::new(state.executor.clone()));
         let state = state.with_tenant_registry(registry);
         assert!(state.tenant_registry().is_some());
+    }
+
+    // ── Cycle 5: Realtime observer hook ──────────────────────────────────────
+
+    #[test]
+    fn test_realtime_observer_initially_none() {
+        let state = make_state();
+        assert!(
+            state.realtime_observer.is_none(),
+            "realtime_observer should be None by default"
+        );
+    }
+
+    #[test]
+    fn test_with_realtime_observer_attaches_hook() {
+        use crate::realtime::observer::RealtimeBroadcastObserver;
+
+        let state = make_state();
+        let (observer, _rx) = RealtimeBroadcastObserver::new(64);
+        let state = state.with_realtime_observer(Arc::new(observer));
+
+        assert!(
+            state.realtime_observer.is_some(),
+            "with_realtime_observer() should attach the observer"
+        );
+    }
+
+    #[test]
+    fn test_with_realtime_observer_events_dropped_counter_starts_at_zero() {
+        use crate::realtime::observer::RealtimeBroadcastObserver;
+
+        let (observer, _rx) = RealtimeBroadcastObserver::new(64);
+        let observer = Arc::new(observer);
+
+        // No events sent yet → dropped counter must be 0.
+        assert_eq!(
+            observer.events_dropped_total(),
+            0,
+            "fresh observer should have 0 dropped events"
+        );
+
+        let state = make_state().with_realtime_observer(observer.clone());
+        assert!(state.realtime_observer.is_some());
+        assert_eq!(observer.events_dropped_total(), 0);
     }
 }

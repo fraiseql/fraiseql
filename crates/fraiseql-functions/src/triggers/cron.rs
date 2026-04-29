@@ -311,3 +311,179 @@ impl CronTrigger {
         }
     }
 }
+
+// ── CronScheduler ─────────────────────────────────────────────────────────────
+
+/// Service that drives scheduled function execution.
+///
+/// Each registered [`CronTrigger`] is checked once per minute. When a trigger's
+/// schedule matches the current time and it has not already fired in this
+/// scheduling window, the function is invoked via the provided
+/// [`FunctionObserver`].
+///
+/// # Lifecycle
+///
+/// 1. Build a scheduler with [`CronScheduler::new`].
+/// 2. Call [`CronScheduler::start`] to spawn the background task; this returns
+///    a [`CronSchedulerHandle`] that can be used to stop the task.
+/// 3. On server shutdown, drop (or explicitly call `stop()` on) the handle.
+pub struct CronScheduler {
+    /// Triggers paired with their per-trigger execution state.
+    triggers: Vec<(CronTrigger, CronExecutionState)>,
+}
+
+impl CronScheduler {
+    /// Create a new scheduler for the given cron triggers.
+    ///
+    /// Each trigger is paired with a fresh [`CronExecutionState`] (no prior
+    /// executions recorded). Call [`Self::start`] to begin scheduling.
+    #[must_use]
+    pub fn new(triggers: Vec<CronTrigger>) -> Self {
+        let triggers = triggers
+            .into_iter()
+            .map(|t| (t, CronExecutionState::new()))
+            .collect();
+        Self { triggers }
+    }
+
+    /// Returns the number of cron triggers registered.
+    #[must_use]
+    pub const fn trigger_count(&self) -> usize {
+        self.triggers.len()
+    }
+
+    /// Start the scheduler as a background tokio task.
+    ///
+    /// Spawns a task that ticks once per minute. On each tick, triggers whose
+    /// schedule matches the current time and have not fired in the current
+    /// window are dispatched via `observer.invoke()` (fire-and-forget).
+    ///
+    /// Returns a [`CronSchedulerHandle`] — drop it (or call `stop()`) to
+    /// cancel the background task.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called outside a tokio runtime context.
+    #[must_use]
+    pub fn start(
+        self,
+        observer: std::sync::Arc<crate::observer::FunctionObserver>,
+        module_registry: std::collections::HashMap<String, crate::types::FunctionModule>,
+    ) -> CronSchedulerHandle {
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        tokio::spawn(cron_scheduler_task(self, observer, module_registry, shutdown_rx));
+        CronSchedulerHandle {
+            shutdown_tx: Some(shutdown_tx),
+        }
+    }
+}
+
+/// Inner async loop for the cron scheduler.
+async fn cron_scheduler_task(
+    mut scheduler: CronScheduler,
+    observer: std::sync::Arc<crate::observer::FunctionObserver>,
+    module_registry: std::collections::HashMap<String, crate::types::FunctionModule>,
+    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
+) {
+    let mut interval =
+        tokio::time::interval(tokio::time::Duration::from_secs(60));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // Skip the initial immediate tick so the scheduler doesn't fire on startup.
+    interval.tick().await;
+
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                let now = chrono::Utc::now();
+                for (trigger, state) in &mut scheduler.triggers {
+                    let schedule = match CronSchedule::parse(&trigger.schedule) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::warn!(
+                                function = %trigger.function_name,
+                                expression = %trigger.schedule,
+                                error = %e,
+                                "Invalid cron expression — skipping trigger"
+                            );
+                            continue;
+                        }
+                    };
+                    if !state.should_execute(&schedule, &now) {
+                        continue;
+                    }
+                    state.record_execution(now);
+
+                    // Look up the function module; log and skip if not found.
+                    let Some(module) = module_registry.get(&trigger.function_name) else {
+                        tracing::warn!(
+                            function = %trigger.function_name,
+                            "Cron trigger fired but function module not found — skipping"
+                        );
+                        continue;
+                    };
+
+                    let payload = trigger.build_payload(&now);
+                    let observer_clone = std::sync::Arc::clone(&observer);
+                    let module_clone = module.clone();
+                    let fn_name = trigger.function_name.clone();
+
+                    // Invoke fire-and-forget; failures are logged but don't stop the scheduler.
+                    tokio::spawn(async move {
+                        let host = crate::host::NoopHostContext::new(payload.clone());
+                        match observer_clone
+                            .invoke(
+                                &module_clone,
+                                payload,
+                                &host,
+                                crate::types::ResourceLimits::default(),
+                            )
+                            .await
+                        {
+                            Ok(_) => {
+                                tracing::debug!(function = %fn_name, "Cron function completed");
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    function = %fn_name,
+                                    error = %e,
+                                    "Cron function invocation failed"
+                                );
+                            }
+                        }
+                    });
+                }
+            }
+            _ = &mut shutdown_rx => {
+                tracing::debug!("Cron scheduler received shutdown signal — stopping");
+                break;
+            }
+        }
+    }
+}
+
+/// Handle for a running [`CronScheduler`] background task.
+///
+/// Drop this handle (or call [`stop`][Self::stop]) to cancel the scheduler.
+pub struct CronSchedulerHandle {
+    shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+}
+
+impl CronSchedulerHandle {
+    /// Stop the cron scheduler.
+    ///
+    /// Sends a shutdown signal to the background task. The task stops at its
+    /// next scheduling boundary.
+    pub fn stop(mut self) {
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
+        }
+    }
+}
+
+impl Drop for CronSchedulerHandle {
+    fn drop(&mut self) {
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
+        }
+    }
+}
