@@ -348,6 +348,19 @@ pub const FORBIDDEN_OIDC_ALGORITHMS: &[jsonwebtoken::Algorithm] = &[
 /// rejected to prevent token-type confusion attacks.
 pub const REQUIRED_JWT_TYP: &str = "JWT";
 
+/// JWT header parameters that must never appear in a legitimate OIDC ID token.
+///
+/// These fields (`jku`, `jwk`, `x5u`, `x5c`) could steer key resolution in a
+/// vulnerable JWT library to an attacker-controlled endpoint (RFC 8725 §2.6).
+/// The `jsonwebtoken` crate ignores them for key resolution, so this guard is
+/// defence-in-depth: their presence in any token issued by a compliant OIDC
+/// provider is anomalous and indicates a crafted or malicious token.
+///
+/// Note on `crit` (RFC 7515 §4.1.11): the `jsonwebtoken` v9 `Header` struct
+/// does not expose a `crit` field.  The crate's decoder handles unknown
+/// extensions at the decode level, so no explicit `crit` guard is required.
+pub const FORBIDDEN_KEY_INJECTION_HEADERS: &[&str] = &["jku", "jwk", "x5u", "x5c"];
+
 /// OIDC client for OpenID Connect flow.
 pub struct OIDCClient {
     /// Provider configuration.
@@ -517,6 +530,21 @@ impl OIDCClient {
                     "Unexpected JWT typ header '{typ}': expected '{REQUIRED_JWT_TYP}'"
                 ));
             }
+        }
+
+        // 1c. Key-injection header rejection (S42 — RFC 8725 §2.6): reject tokens that
+        //     carry jku, jwk, x5u, or x5c headers.  In a vulnerable JWT library these
+        //     fields can steer key resolution to an attacker-controlled endpoint.  The
+        //     `jsonwebtoken` crate ignores them for key resolution (defence-in-depth),
+        //     but their presence in an OIDC ID token is anomalous — no compliant provider
+        //     sets them — and the only correct response is rejection.
+        //     See also: FORBIDDEN_KEY_INJECTION_HEADERS constant.
+        if header.jku.is_some()
+            || header.jwk.is_some()
+            || header.x5u.is_some()
+            || header.x5c.is_some()
+        {
+            return Err("JWT header contains forbidden key-injection parameter".to_string());
         }
 
         let kid = header.kid.ok_or("JWT missing 'kid' in header")?;
@@ -975,5 +1003,103 @@ mod tests {
     #[test]
     fn required_jwt_typ_constant_is_uppercase_jwt() {
         assert_eq!(REQUIRED_JWT_TYP, "JWT");
+    }
+
+    // ── S42: Key-injection header rejection ───────────────────────────────────
+
+    #[test]
+    fn forbidden_key_injection_headers_lists_expected_names() {
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"jku"));
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"jwk"));
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"x5u"));
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"x5c"));
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_jku_header() {
+        // S42 / RFC 8725 §2.6: jku steers key resolution — must be rejected.
+        let client = fake_oidc_client();
+        let token =
+            fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","jku":"https://evil.example/keys"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "jku header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_x5u_header() {
+        // S42 / RFC 8725 §2.6: x5u steers key resolution — must be rejected.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(
+            r#"{"alg":"RS256","kid":"k1","x5u":"https://evil.example/cert.pem"}"#,
+        );
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "x5u header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_x5c_header() {
+        // S42 / RFC 8725 §2.6: x5c embeds a certificate chain — must be rejected.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","x5c":["MIIB..."]}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "x5c header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_jwk_header() {
+        // S42 / RFC 8725 §2.6: an embedded jwk header must be rejected.
+        // The minimal JWK JSON uses RSA kty with required n/e parameters.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(
+            r#"{"alg":"RS256","kid":"k1","jwk":{"kty":"RSA","n":"AAAA","e":"AQAB"}}"#,
+        );
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "jwk header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_without_injection_headers_proceeds_to_jwks_check() {
+        // S42: a token with no key-injection headers must not be rejected by the
+        // injection guard — it should proceed to the JWKS lookup, which fails here
+        // because the server is unreachable (expected outcome).
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        // Must fail at JWKS fetch or kid lookup, NOT at the injection check.
+        if let Err(ref msg) = result {
+            assert!(
+                !msg.contains("injection"),
+                "clean token must not trigger injection rejection: {msg}"
+            );
+            assert!(
+                msg.to_lowercase().contains("jwks") || msg.contains("kid") || msg.contains("key"),
+                "error must indicate JWKS/key lookup failure: {msg}"
+            );
+        }
     }
 }
