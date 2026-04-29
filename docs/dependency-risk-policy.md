@@ -35,11 +35,13 @@ A CVE is accepted only when **all** of the following are true:
 `sqlx 0.9.0-alpha.1` is available as of 2026-04-25 — monitor for stable release.
 
 **Mitigation**:
+
 - `mysql` feature is non-default; users must explicitly opt in
 - TLS termination at the load balancer prevents timing attacks over the wire
 - No client input reaches the RSA code path in typical deployments
 
 **Review action by 2026-10-01**:
+
 1. If `sqlx 0.9` stable is released: upgrade and remove this entry
 2. If still blocked: evaluate replacing `mysql_async` with a pure-TLS connector
 
@@ -50,6 +52,7 @@ A CVE is accepted only when **all** of the following are true:
 **Blocked on**: `aws-sdk-s3` migrating to `hyper-rustls 0.27` (rustls 0.23).
 
 **Review action by 2026-06-15**:
+
 1. Check `aws-sdk-s3` changelog for rustls 0.23 migration
 2. If migrated: upgrade `aws-sdk-s3` and remove the `[[bans.skip]]` entries for
    `hyper-rustls 0.24.2`, `tokio-rustls 0.24.1`, `rustls 0.21.12`

@@ -250,4 +250,3 @@ async fn test_schema_unknown_sections_ignored() {
     let result = loader.load_extended().await;
     assert!(result.is_ok(), "unknown sections should be ignored: {result:?}");
 }
-

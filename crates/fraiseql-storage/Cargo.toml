@@ -60,4 +60,3 @@ gcs = []
 azure-blob = []
 # gcs = ["google-cloud-storage"]
 # azure-blob = ["azure_storage_blobs"]
-
