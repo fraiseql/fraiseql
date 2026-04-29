@@ -125,6 +125,7 @@ fn test_server_state_with_functions() {
         observer,
         trigger_registry,
         config,
+        module_registry: std::collections::HashMap::new(),
     };
 
     let subsystems = ServerSubsystemsBuilder::new()
@@ -187,7 +188,7 @@ async fn test_server_state_all_features() {
     let observer = Arc::new(FunctionObserver::new());
     let config = minimal_functions_config();
     let trigger_registry = TriggerRegistry::load_from_definitions(&config.definitions).unwrap();
-    let functions = FunctionsSubsystem { observer, trigger_registry, config };
+    let functions = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
 
     let entities: HashSet<String> = ["User".to_string()].into();
     let rt_server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities));
@@ -228,7 +229,7 @@ fn test_server_state_validates_deps_functions_need_storage() {
     // not yet implemented. The builder's validation reads config.definitions directly,
     // so the registry contents don't affect the cross-subsystem dependency check.
     let trigger_registry = TriggerRegistry::new();
-    let functions = FunctionsSubsystem { observer, trigger_registry, config };
+    let functions = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
 
     let result = ServerSubsystemsBuilder::new()
         .with_functions(functions)
@@ -262,7 +263,7 @@ async fn test_server_state_validates_deps_storage_triggers_ok_with_storage() {
     // not yet implemented. The builder's validation reads config.definitions directly,
     // so the registry contents don't affect the cross-subsystem dependency check.
     let trigger_registry = TriggerRegistry::new();
-    let functions = FunctionsSubsystem { observer, trigger_registry, config };
+    let functions = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
 
     let result = ServerSubsystemsBuilder::new()
         .with_storage(storage)
@@ -290,7 +291,7 @@ fn test_subsystems_is_functions_enabled() {
     let observer = Arc::new(FunctionObserver::new());
     let config = minimal_functions_config();
     let trigger_registry = TriggerRegistry::load_from_definitions(&config.definitions).unwrap();
-    let subsystem = FunctionsSubsystem { observer, trigger_registry, config };
+    let subsystem = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
     let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
     assert!(subsystems.is_functions_enabled());
 }
@@ -383,7 +384,7 @@ fn test_validate_empty_functions_registry_warns() {
         definitions: vec![], // no definitions
     };
     let trigger_registry = TriggerRegistry::new();
-    let subsystem = FunctionsSubsystem { observer, trigger_registry, config };
+    let subsystem = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
     let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
     let warnings = validate_subsystems_config(&subsystems);
     assert!(
@@ -420,7 +421,7 @@ fn test_validate_functions_with_definitions_no_warning() {
     let observer = Arc::new(FunctionObserver::new());
     let config = minimal_functions_config();
     let trigger_registry = TriggerRegistry::new();
-    let subsystem = FunctionsSubsystem { observer, trigger_registry, config };
+    let subsystem = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
     let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
     let warnings = validate_subsystems_config(&subsystems);
     assert!(

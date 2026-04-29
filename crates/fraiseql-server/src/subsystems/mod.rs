@@ -79,6 +79,12 @@ pub struct FunctionsSubsystem {
     /// Registry mapping trigger types to function definitions.
     pub trigger_registry: TriggerRegistry,
 
+    /// Loaded function modules keyed by function name.
+    ///
+    /// Populated at server startup by reading source files from `config.module_dir`.
+    /// Used by the before-mutation chain and the after-mutation dispatcher.
+    pub module_registry: std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
+
     /// Schema-level functions configuration (definitions + module directory).
     pub config: FunctionsConfig,
 }
@@ -126,25 +132,41 @@ impl ServerSubsystems {
     ///
     /// Equivalent to `ServerSubsystemsBuilder::new().build().unwrap()`.
     #[must_use]
-    pub fn none() -> Self {
+    pub const fn none() -> Self {
         Self { storage: None, functions: None, realtime: None }
     }
 
     /// Returns `true` if the storage subsystem is present.
     #[must_use]
-    pub fn is_storage_enabled(&self) -> bool {
+    pub const fn is_storage_enabled(&self) -> bool {
         self.storage.is_some()
     }
 
     /// Returns `true` if the functions subsystem is present.
     #[must_use]
-    pub fn is_functions_enabled(&self) -> bool {
+    pub const fn is_functions_enabled(&self) -> bool {
         self.functions.is_some()
     }
 
     /// Returns `true` if the realtime subsystem is present.
     #[must_use]
-    pub fn is_realtime_enabled(&self) -> bool {
+    pub const fn is_realtime_enabled(&self) -> bool {
         self.realtime.is_some()
     }
+}
+
+// ── Before-mutation hook bundle ───────────────────────────────────────────────
+
+/// Shared bundle of before-mutation state passed into `AppState` for handler access.
+///
+/// This is a lightweight, cloneable snapshot of the parts of [`FunctionsSubsystem`]
+/// that are needed on the hot path for before-mutation checks. It is extracted once
+/// at server startup and stored in [`AppState`] via an `Arc`.
+pub struct BeforeMutationHooks {
+    /// Registry of all loaded triggers, keyed by trigger type and mutation name.
+    pub trigger_registry: TriggerRegistry,
+    /// Loaded function modules keyed by function name.
+    pub module_registry: std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
+    /// Observer that dispatches events to the appropriate function runtime.
+    pub observer: std::sync::Arc<FunctionObserver>,
 }

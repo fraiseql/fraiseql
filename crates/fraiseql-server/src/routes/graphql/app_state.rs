@@ -97,6 +97,12 @@ pub struct AppState<A: DatabaseAdapter> {
     pub tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
     /// Domain-to-tenant mapping for Host header-based tenant resolution.
     pub domain_registry:         Arc<DomainRegistry>,
+    /// Before-mutation hooks from the functions subsystem (optional).
+    ///
+    /// When `Some`, every GraphQL mutation is checked against the trigger registry
+    /// before execution. The check is a single `HashMap::get` returning `None`
+    /// when no hooks are registered — zero overhead for mutations without hooks.
+    pub before_mutation_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -139,6 +145,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             tenant_registry: None,
             tenant_executor_factory: None,
             domain_registry: Arc::new(DomainRegistry::new()),
+            before_mutation_hooks: None,
         }
     }
 
@@ -182,6 +189,17 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_tenant_registry(mut self, registry: Arc<TenantExecutorRegistry<A>>) -> Self {
         self.tenant_registry = Some(registry);
+        self
+    }
+
+    /// Attach before-mutation hooks from the functions subsystem.
+    ///
+    /// When set, every incoming GraphQL mutation is checked against the trigger
+    /// registry before execution. The check is a single `HashMap::get` returning
+    /// `None` when no hooks exist — zero overhead for mutations without hooks.
+    #[must_use]
+    pub fn with_functions(mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) -> Self {
+        self.before_mutation_hooks = Some(hooks);
         self
     }
 

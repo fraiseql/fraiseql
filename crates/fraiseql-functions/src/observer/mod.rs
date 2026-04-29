@@ -53,13 +53,17 @@ impl FunctionObserver {
     pub async fn invoke<H>(
         &self,
         module: &FunctionModule,
+        #[allow(unused_variables)] // Reason: used only when runtime features are enabled
         event: EventPayload,
+        #[allow(unused_variables)] // Reason: used only when runtime features are enabled
         host: &H,
+        #[allow(unused_variables)] // Reason: used only when runtime features are enabled
         limits: ResourceLimits,
     ) -> Result<FunctionResult>
     where
         H: HostContext + ?Sized,
     {
+        #[allow(unused_variables)] // Reason: used only when runtime features are enabled
         let runtime_box = self
             .runtimes
             .get(&module.runtime)

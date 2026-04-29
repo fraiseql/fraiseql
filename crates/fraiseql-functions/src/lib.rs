@@ -21,8 +21,10 @@ pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 pub use triggers::mutation::{
-    AfterMutationTrigger, BeforeMutationTrigger, EntityEvent, EventKind, TriggerMatcher,
+    AfterMutationTrigger, BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger,
+    EntityEvent, EventKind, TriggerMatcher,
 };
+pub use triggers::registry::TriggerRegistry;
 pub use types::{
     EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,
     ResourceLimits, RuntimeType,

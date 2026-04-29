@@ -271,6 +271,27 @@ impl TriggerRegistry {
             .iter()
             .any(|t| t.mutation_name == mutation_name)
     }
+
+    /// Build a [`BeforeMutationChain`] for the named mutation.
+    ///
+    /// Returns `None` when no `before:mutation` triggers are registered for this mutation
+    /// (the fast path — zero overhead when hooks are absent).
+    pub fn before_chain(
+        &self,
+        mutation_name: &str,
+    ) -> Option<crate::triggers::mutation::BeforeMutationChain> {
+        let triggers: Vec<_> = self
+            .before_mutation_triggers
+            .iter()
+            .filter(|t| t.mutation_name == mutation_name)
+            .cloned()
+            .collect();
+        if triggers.is_empty() {
+            None
+        } else {
+            Some(crate::triggers::mutation::BeforeMutationChain { triggers })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -398,5 +419,42 @@ mod tests {
 
         let create_user_triggers = registry.before_mutation_triggers_for("createUser");
         assert_eq!(create_user_triggers.len(), 2);
+    }
+
+    #[test]
+    fn test_registry_before_chain_returns_none_for_unknown_mutation() {
+        use crate::{FunctionDefinition, RuntimeType};
+
+        let functions = vec![FunctionDefinition::new(
+            "validate",
+            "before:mutation:createUser",
+            RuntimeType::Deno,
+        )];
+        let registry = TriggerRegistry::load_from_definitions(&functions).expect("load");
+
+        // Unknown mutation → None (zero overhead fast path)
+        assert!(registry.before_chain("updateUser").is_none());
+        assert!(registry.before_chain("deleteUser").is_none());
+    }
+
+    #[test]
+    fn test_registry_before_chain_returns_chain_for_known_mutation() {
+        use crate::{FunctionDefinition, RuntimeType};
+
+        let functions = vec![
+            FunctionDefinition::new("validate1", "before:mutation:createUser", RuntimeType::Deno),
+            FunctionDefinition::new("validate2", "before:mutation:createUser", RuntimeType::Deno),
+            FunctionDefinition::new("other", "before:mutation:deleteUser", RuntimeType::Deno),
+        ];
+        let registry = TriggerRegistry::load_from_definitions(&functions).expect("load");
+
+        let chain = registry.before_chain("createUser").expect("chain present");
+        assert_eq!(chain.triggers.len(), 2);
+        assert_eq!(chain.triggers[0].function_name, "validate1");
+        assert_eq!(chain.triggers[1].function_name, "validate2");
+
+        // deleteUser chain has only 1 trigger
+        let del_chain = registry.before_chain("deleteUser").expect("chain present");
+        assert_eq!(del_chain.triggers.len(), 1);
     }
 }

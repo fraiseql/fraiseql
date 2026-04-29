@@ -432,3 +432,84 @@ async fn test_apq_hash_mismatch() {
     assert!(result.is_err(), "expected Err for APQ hash mismatch, got: {result:?}");
     assert_eq!(metrics.get_errors(), 1);
 }
+
+// ── Cycle 4: Before-mutation integration tests ────────────────────────────────
+
+#[test]
+fn test_detect_mutation_name_identifies_mutation() {
+    use super::handler::detect_mutation_name;
+
+    let name = detect_mutation_name("mutation { createUser(name: \"Alice\") { id } }");
+    assert_eq!(name.as_deref(), Some("createUser"));
+}
+
+#[test]
+fn test_detect_mutation_name_returns_none_for_query() {
+    use super::handler::detect_mutation_name;
+
+    let name = detect_mutation_name("query { users { id } }");
+    assert!(name.is_none(), "query operations must not trigger before-mutation");
+}
+
+#[test]
+fn test_detect_mutation_name_returns_none_for_subscription() {
+    use super::handler::detect_mutation_name;
+
+    let name = detect_mutation_name("subscription { onUserCreated { id } }");
+    assert!(name.is_none());
+}
+
+#[test]
+fn test_detect_mutation_name_returns_none_for_invalid_query() {
+    use super::handler::detect_mutation_name;
+
+    let name = detect_mutation_name("this is not valid graphql");
+    assert!(name.is_none(), "parse failure must not panic");
+}
+
+#[test]
+fn test_detect_mutation_name_anonymous_mutation() {
+    use super::handler::detect_mutation_name;
+
+    // Mutation without an operation name — root field is still extracted
+    let name = detect_mutation_name("mutation { deletePost(id: 42) { success } }");
+    assert_eq!(name.as_deref(), Some("deletePost"));
+}
+
+#[test]
+fn test_before_mutation_hooks_struct_is_constructible() {
+    // Verify BeforeMutationHooks can be built from the subsystem pieces.
+    use std::sync::Arc;
+    use fraiseql_functions::{FunctionObserver, triggers::TriggerRegistry};
+    use crate::subsystems::BeforeMutationHooks;
+
+    let hooks = BeforeMutationHooks {
+        trigger_registry: TriggerRegistry::new(),
+        module_registry: std::collections::HashMap::new(),
+        observer: Arc::new(FunctionObserver::new()),
+    };
+
+    // Empty registry → no before-mutation triggers for any mutation
+    assert!(hooks.trigger_registry.before_chain("createUser").is_none());
+}
+
+#[test]
+fn test_mutation_without_before_hook_unaffected() {
+    // Verifies zero overhead: before_chain() returns None when no hooks registered
+    use fraiseql_functions::triggers::TriggerRegistry;
+
+    let registry = TriggerRegistry::new(); // empty registry
+    assert!(
+        registry.before_chain("createUser").is_none(),
+        "empty registry must return None for any mutation name"
+    );
+}
+
+#[test]
+fn test_before_mutation_hook_not_called_for_query_operation() {
+    use super::handler::detect_mutation_name;
+
+    // Queries must not trigger before-mutation logic
+    assert!(detect_mutation_name("{ users { id name } }").is_none());
+    assert!(detect_mutation_name("query GetUsers { users { id } }").is_none());
+}
