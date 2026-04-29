@@ -29,6 +29,7 @@
 //! 5. Drop the storage backend (flushes any pending writes)
 
 pub mod builder;
+pub mod validator;
 
 #[cfg(test)]
 mod tests;
@@ -47,6 +48,7 @@ use crate::{
 };
 
 pub use builder::{ServerSubsystemsBuilder, SubsystemBuildError};
+pub use validator::{SubsystemConfigWarning, validate_subsystems_config};
 
 // ── Subsystem structs ─────────────────────────────────────────────────────────
 

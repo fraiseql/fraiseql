@@ -26,6 +26,7 @@ use crate::schema::loader::{FunctionsConfig, SchemaStorageConfig, SchemaBucketDe
 use super::{
     FunctionsSubsystem, RealtimeSubsystem, ServerSubsystems, StorageSubsystem,
     builder::{ServerSubsystemsBuilder, SubsystemBuildError},
+    validator::{SubsystemConfigWarning, validate_subsystems_config},
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -314,4 +315,116 @@ fn test_empty_subsystems_all_disabled() {
     assert!(!subsystems.is_storage_enabled());
     assert!(!subsystems.is_functions_enabled());
     assert!(!subsystems.is_realtime_enabled());
+}
+
+// ── Config validation ─────────────────────────────────────────────────────────
+
+/// No subsystems enabled → no warnings.
+#[test]
+fn test_validate_no_subsystems_no_warnings() {
+    let subsystems = ServerSubsystems::none();
+    let warnings = validate_subsystems_config(&subsystems);
+    assert!(warnings.is_empty(), "expected no warnings for empty subsystems");
+}
+
+/// Local filesystem storage → `LocalStorageInProduction` warning.
+#[tokio::test]
+async fn test_validate_local_storage_warns() {
+    let state = local_storage_state("avatars").await;
+    let subsystem = StorageSubsystem {
+        state,
+        schema_config: minimal_schema_storage_config(),
+    };
+    let subsystems = ServerSubsystemsBuilder::new().with_storage(subsystem).build().unwrap();
+    let warnings = validate_subsystems_config(&subsystems);
+    assert!(
+        warnings.contains(&SubsystemConfigWarning::LocalStorageInProduction),
+        "expected LocalStorageInProduction warning for local backend"
+    );
+}
+
+/// A bucket declared in schema config but absent from runtime state →
+/// `UnknownBucket` warning.
+#[tokio::test]
+async fn test_validate_unknown_bucket_warns() {
+    // Runtime state has "avatars"; schema config declares "avatars" + "docs"
+    let state = local_storage_state("avatars").await;
+    let schema_config = SchemaStorageConfig {
+        buckets: vec![
+            SchemaBucketDef {
+                name: "avatars".to_string(),
+                access: "private".to_string(),
+                max_object_bytes: None,
+                allowed_mime_types: None,
+            },
+            SchemaBucketDef {
+                name: "docs".to_string(), // present in schema but not in runtime
+                access: "private".to_string(),
+                max_object_bytes: None,
+                allowed_mime_types: None,
+            },
+        ],
+    };
+    let subsystem = StorageSubsystem { state, schema_config };
+    let subsystems = ServerSubsystemsBuilder::new().with_storage(subsystem).build().unwrap();
+    let warnings = validate_subsystems_config(&subsystems);
+    assert!(
+        warnings.iter().any(|w| matches!(w, SubsystemConfigWarning::UnknownBucket { name } if name == "docs")),
+        "expected UnknownBucket warning for 'docs'"
+    );
+}
+
+/// Functions subsystem with no definitions → `EmptyFunctionsRegistry` warning.
+#[test]
+fn test_validate_empty_functions_registry_warns() {
+    let observer = Arc::new(FunctionObserver::new());
+    let config = FunctionsConfig {
+        module_dir: "/functions".into(),
+        definitions: vec![], // no definitions
+    };
+    let trigger_registry = TriggerRegistry::new();
+    let subsystem = FunctionsSubsystem { observer, trigger_registry, config };
+    let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
+    let warnings = validate_subsystems_config(&subsystems);
+    assert!(
+        warnings.contains(&SubsystemConfigWarning::EmptyFunctionsRegistry),
+        "expected EmptyFunctionsRegistry warning"
+    );
+}
+
+/// Realtime with no entities → `RealtimeWithNoEntities` warning.
+#[test]
+fn test_validate_realtime_no_entities_warns() {
+    let server = Arc::new(RealtimeServer::with_entities(
+        RealtimeConfig::default(),
+        HashSet::new(), // empty entity set
+    ));
+    let (observer, _rx) = RealtimeBroadcastObserver::new(64);
+    let schema_config: RealtimeSchemaConfig = serde_json::from_value(serde_json::json!({
+        "enabled": true,
+        "entities": []
+    }))
+    .unwrap();
+    let subsystem = RealtimeSubsystem { server, observer, schema_config };
+    let subsystems = ServerSubsystemsBuilder::new().with_realtime(subsystem).build().unwrap();
+    let warnings = validate_subsystems_config(&subsystems);
+    assert!(
+        warnings.contains(&SubsystemConfigWarning::RealtimeWithNoEntities),
+        "expected RealtimeWithNoEntities warning"
+    );
+}
+
+/// Functions with definitions → no `EmptyFunctionsRegistry` warning.
+#[test]
+fn test_validate_functions_with_definitions_no_warning() {
+    let observer = Arc::new(FunctionObserver::new());
+    let config = minimal_functions_config();
+    let trigger_registry = TriggerRegistry::new();
+    let subsystem = FunctionsSubsystem { observer, trigger_registry, config };
+    let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
+    let warnings = validate_subsystems_config(&subsystems);
+    assert!(
+        !warnings.contains(&SubsystemConfigWarning::EmptyFunctionsRegistry),
+        "should not warn about empty registry when definitions exist"
+    );
 }
