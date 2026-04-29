@@ -25,7 +25,7 @@ const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Maximum allowed size for any Vault HTTP response body.
 ///
-/// Responses larger than 1 MiB are rejected before JSON parsing to prevent
+/// Responses larger than 1 `MiB` are rejected before JSON parsing to prevent
 /// memory exhaustion from oversized payloads (malicious or misconfigured Vault).
 const MAX_VAULT_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
 

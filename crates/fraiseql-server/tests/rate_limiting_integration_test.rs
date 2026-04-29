@@ -21,6 +21,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers: false,
             trusted_proxy_cidrs: Vec::new(),
+            max_buckets: 100_000,
         })
     }
 
@@ -74,6 +75,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         });
 
         // Even with extremely low limits, should allow through when disabled
@@ -106,6 +108,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         });
 
         // Should allow 3 requests for authenticated user
@@ -127,6 +130,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         });
 
         // User 1 gets 2 requests
@@ -150,6 +154,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         });
 
         let first = limiter.check_user_limit("user123").await;
@@ -183,6 +188,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         });
 
         // Should be able to get initial burst_size worth of tokens

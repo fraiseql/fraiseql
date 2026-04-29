@@ -430,7 +430,7 @@ fn test_vault_addr_allows_public_addresses() {
 
 // ── S30: Vault HTTP body-size guards ──────────────────────────────────────────
 
-/// Vault secret fetch must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+/// Vault secret fetch must reject responses larger than `MAX_VAULT_RESPONSE_BYTES`.
 #[tokio::test]
 async fn vault_fetch_secret_rejects_oversized_response() {
     use wiremock::{
@@ -455,7 +455,7 @@ async fn vault_fetch_secret_rejects_oversized_response() {
     assert!(result.is_err(), "oversized response must be rejected; got: {result:?}");
 }
 
-/// Vault token renewal must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+/// Vault token renewal must reject responses larger than `MAX_VAULT_RESPONSE_BYTES`.
 #[tokio::test]
 async fn vault_token_renewal_rejects_oversized_response() {
     use wiremock::{
@@ -479,7 +479,7 @@ async fn vault_token_renewal_rejects_oversized_response() {
     assert!(result.is_err(), "oversized renewal response must be rejected; got: {result:?}");
 }
 
-/// Vault Transit operation must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+/// Vault Transit operation must reject responses larger than `MAX_VAULT_RESPONSE_BYTES`.
 #[tokio::test]
 async fn vault_transit_rejects_oversized_response() {
     use wiremock::{
@@ -501,7 +501,7 @@ async fn vault_transit_rejects_oversized_response() {
     assert!(result.is_err(), "oversized transit response must be rejected; got: {result:?}");
 }
 
-/// AppRole login must reject responses larger than MAX_VAULT_RESPONSE_BYTES.
+/// `AppRole` login must reject responses larger than `MAX_VAULT_RESPONSE_BYTES`.
 ///
 /// `with_approle_for_test` bypasses SSRF validation so we can point at a loopback mock server.
 #[tokio::test]
