@@ -498,6 +498,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
             crate::error::ErrorCode::Forbidden,
         ))
     })?;
+    // Preserve subject for audit logging before security_context is consumed.
+    #[cfg(feature = "auth")]
+    let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.clone());
     let exec_result = if let Some(sec_ctx) = security_context {
         executor
             .execute_with_security(&query, request.variables.as_ref(), &sec_ctx)
@@ -540,6 +543,29 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         // Record duration even for failed queries
         metrics.queries_duration_us.fetch_add(elapsed_us, Ordering::Relaxed);
         metrics.operation_metrics.record(op_name, elapsed_us, true);
+
+        // S46: emit AuthorizationDenied audit event for compliance (SOC 2).
+        // Must be emitted before error sanitization so we log the real reason.
+        #[cfg(feature = "auth")]
+        if matches!(e, fraiseql_core::FraiseQLError::Authorization { .. }) {
+            use fraiseql_auth::audit::logger::{AuditEntry, AuditEventType, SecretType, get_audit_logger};
+            let resource = if let fraiseql_core::FraiseQLError::Authorization { ref resource, .. } = e {
+                resource.clone().unwrap_or_else(|| op_name.to_string())
+            } else {
+                op_name.to_string()
+            };
+            get_audit_logger().log_entry(AuditEntry {
+                event_type:    AuditEventType::AuthorizationDenied,
+                secret_type:   SecretType::JwtToken,
+                subject:       audit_subject.clone(),
+                operation:     op_name.to_string(),
+                success:       false,
+                error_message: Some(resource),
+                context:       Some(format!("peer_ip={peer_ip}")),
+                chain_hash:    None,
+            });
+        }
+
         let err = state.error_sanitizer.sanitize(GraphQLError::from_fraiseql_error(&e));
         ErrorResponse::from_error(err)
     })?;

@@ -100,6 +100,13 @@ pub enum AuditEventType {
     AuthSuccess,
     /// An authentication attempt failed.
     AuthFailure,
+    /// An authorization check denied access (RLS block, RBAC field denial, scope mismatch).
+    ///
+    /// Authentication succeeded, but the authenticated principal lacks the
+    /// required permissions for the requested resource.  This event is emitted
+    /// for compliance (SOC 2) audit trails and is distinct from `AuthFailure`,
+    /// which covers failed authentication.
+    AuthorizationDenied,
 }
 
 impl AuditEventType {
@@ -122,6 +129,7 @@ impl AuditEventType {
             AuditEventType::OauthCallback => "oauth_callback",
             AuditEventType::AuthSuccess => "auth_success",
             AuditEventType::AuthFailure => "auth_failure",
+            AuditEventType::AuthorizationDenied => "authorization_denied",
         }
     }
 }
@@ -656,6 +664,17 @@ mod tests {
             json_size < bounds::BYTES_PER_ENTRY * 2,
             "JSON serialization too large: {} bytes",
             json_size
+        );
+    }
+
+    /// S46: AuditEventType must have an AuthorizationDenied variant.
+    #[test]
+    fn test_authorization_denied_variant_exists_and_has_stable_string() {
+        let event_type = AuditEventType::AuthorizationDenied;
+        assert_eq!(
+            event_type.as_str(),
+            "authorization_denied",
+            "AuthorizationDenied must serialize to 'authorization_denied' for compliance audit trails"
         );
     }
 }
