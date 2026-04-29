@@ -627,6 +627,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         };
         let rl = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
         // Use a unique key to avoid interference between test runs
@@ -651,6 +652,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         };
         let suffix = uuid::Uuid::new_v4();
         let a = RateLimiter::new_redis(&url, config.clone())

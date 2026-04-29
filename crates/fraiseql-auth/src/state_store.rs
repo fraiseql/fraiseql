@@ -236,18 +236,15 @@ impl StateStore for RedisStateStore {
         let key = Self::state_key(state);
         let mut conn = self.client.clone();
 
-        // Get the value and delete it atomically
+        // SECURITY: Use GETDEL (atomic get-and-delete, Redis ≥6.2) to prevent the
+        // GET+DEL race condition where two concurrent requests could both read the
+        // same state token before either deletes it, enabling replay attacks.
         let provider: Option<String> =
-            conn.get(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
+            conn.get_del(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
                 message: e.to_string(),
             })?;
 
         let provider = provider.ok_or(crate::error::AuthError::InvalidState)?;
-
-        // Delete the state to prevent replay
-        let _: () = conn.del(&key).await.map_err(|e| crate::error::AuthError::ConfigError {
-            message: e.to_string(),
-        })?;
 
         // Return current time as expiry (it was already validated by Redis TTL)
         let expiry_secs = std::time::SystemTime::now()
