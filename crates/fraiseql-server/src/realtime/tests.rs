@@ -1,12 +1,16 @@
-//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–6).
+//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–7).
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{Router, routing::get};
+use fraiseql_core::{runtime::SubscriptionManager, schema::CompiledSchema};
 use futures::{SinkExt, StreamExt};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
-use tokio_tungstenite::{connect_async, tungstenite};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{self, client::IntoClientRequest},
+};
 
 use futures::future::BoxFuture;
 
@@ -1530,4 +1534,148 @@ fn test_realtime_entities_from_schema() {
     assert!(server.known_entities.contains("Comment"));
     assert!(!server.known_entities.contains("User"), "User not declared in schema");
     assert_eq!(server.known_entities.len(), 2);
+}
+
+// ── Cycle 7: Coexistence with Existing GraphQL Subscriptions ──────────
+
+/// Build a minimal combined Axum app with both:
+/// - realtime WebSocket at `/realtime/v1`
+/// - GraphQL subscription WebSocket at `/ws`
+///
+/// Returns the bound address.
+async fn spawn_combined_server(validator: TestValidator) -> SocketAddr {
+    // Realtime side
+    let rt_server = Arc::new(RealtimeServer::with_entities(
+        RealtimeConfig::default(),
+        test_entities(),
+    ));
+    let rt_state = RealtimeState {
+        server: rt_server,
+        validator: Arc::new(validator),
+    };
+    let realtime_app = realtime_router(rt_state);
+
+    // GraphQL subscription side — uses an empty schema, sufficient for
+    // verifying the handler upgrades connections.
+    let schema = Arc::new(CompiledSchema::default());
+    let sub_manager = Arc::new(SubscriptionManager::new(schema));
+    let sub_state = crate::routes::subscriptions::SubscriptionState::new(sub_manager);
+    let graphql_ws_app = Router::new()
+        .route("/ws", get(crate::routes::subscriptions::subscription_handler))
+        .with_state(sub_state);
+
+    // Merge both into a single Axum app — the critical coexistence assertion.
+    let app = Router::new().merge(realtime_app).merge(graphql_ws_app);
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app.into_make_service()).await.unwrap();
+    });
+    addr
+}
+
+/// Send a graphql-transport-ws `connection_init` and return the first JSON
+/// message received from the server.
+async fn graphql_ws_init(
+    ws: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) -> serde_json::Value {
+    let init = serde_json::json!({"type": "connection_init"}).to_string();
+    ws.send(tungstenite::Message::Text(init.into())).await.unwrap();
+    let msg = ws.next().await.unwrap().unwrap();
+    let text = match msg {
+        tungstenite::Message::Text(t) => t.to_string(),
+        other => panic!("Expected text message, got {other:?}"),
+    };
+    serde_json::from_str(&text).unwrap()
+}
+
+#[tokio::test]
+async fn test_graphql_subscriptions_still_work() {
+    // GraphQL subscription handler still upgrades connections and acknowledges
+    // connection_init — this is independent of the realtime module.
+    let addr = spawn_combined_server(TestValidator::new()).await;
+
+    // Connect to /ws with the graphql-transport-ws subprotocol.
+    let url = format!("ws://127.0.0.1:{}/ws", addr.port());
+    let mut req = url.into_client_request().unwrap();
+    req.headers_mut().insert(
+        "Sec-WebSocket-Protocol",
+        "graphql-transport-ws".parse().unwrap(),
+    );
+    let (mut ws, response) = connect_async(req).await.expect("GraphQL WS upgrade should succeed");
+
+    assert_eq!(response.status(), 101, "Expected 101 Switching Protocols on /ws");
+
+    // graphql-transport-ws: send connection_init → expect connection_ack.
+    let ack = graphql_ws_init(&mut ws).await;
+    assert_eq!(ack["type"], "connection_ack", "Expected connection_ack from graphql-ws handler");
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_realtime_and_graphql_ws_coexist() {
+    // Both endpoints on the same server, both responding correctly.
+    let addr = spawn_combined_server(TestValidator::new()).await;
+
+    // Realtime endpoint: returns custom JSON `connected` message.
+    let (mut rt_ws, rt_resp) = connect_async(ws_url(addr, Some("valid-coexist")))
+        .await
+        .expect("Realtime WS upgrade should succeed");
+    assert_eq!(rt_resp.status(), 101);
+    let rt_msg = next_msg(&mut rt_ws).await;
+    assert_eq!(rt_msg["type"], "connected", "Realtime endpoint must send connected message");
+
+    // GraphQL WS endpoint: returns connection_ack after connection_init.
+    let url = format!("ws://127.0.0.1:{}/ws", addr.port());
+    let mut req = url.into_client_request().unwrap();
+    req.headers_mut().insert(
+        "Sec-WebSocket-Protocol",
+        "graphql-transport-ws".parse().unwrap(),
+    );
+    let (mut gql_ws, gql_resp) = connect_async(req)
+        .await
+        .expect("GraphQL WS upgrade should succeed");
+    assert_eq!(gql_resp.status(), 101);
+    let ack = graphql_ws_init(&mut gql_ws).await;
+    assert_eq!(ack["type"], "connection_ack");
+
+    rt_ws.close(None).await.ok();
+    gql_ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_realtime_route_does_not_conflict() {
+    // `/realtime/v1` sends realtime protocol messages, not graphql-ws messages.
+    // The paths are distinct and each handler only responds on its own path.
+    let addr = spawn_combined_server(TestValidator::new()).await;
+
+    // Connect to /realtime/v1 — must receive realtime `connected`, not `connection_ack`.
+    let (mut ws, _) = connect_async(ws_url(addr, Some("valid-no-conflict")))
+        .await
+        .expect("Realtime WS upgrade should succeed");
+    let msg = next_msg(&mut ws).await;
+
+    // The first message is realtime "connected" with a connection_id.
+    // A graphql-ws handler would NOT send this — it waits for connection_init.
+    assert_eq!(msg["type"], "connected", "Must be realtime protocol, not graphql-ws");
+    assert!(
+        msg["connection_id"].is_string(),
+        "Realtime protocol always includes connection_id in the connected message"
+    );
+
+    // A plain HTTP GET (no upgrade) to /ws returns 400 — graphql-ws handler
+    // requires a WebSocket upgrade; it does not shadow /realtime/v1.
+    let http_url = format!("http://127.0.0.1:{}/ws", addr.port());
+    let resp = reqwest::get(&http_url).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::BAD_REQUEST,
+        "/ws without upgrade must return 400, confirming it is a separate route"
+    );
+
+    ws.close(None).await.ok();
 }
