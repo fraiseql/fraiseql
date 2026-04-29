@@ -546,3 +546,15 @@ fn vault_debug_does_not_expose_token() {
         "Debug output must show [REDACTED] for token: {debug_output}"
     );
 }
+
+// ── S47: Rotation-lock field exists ──────────────────────────────────────────
+
+/// S47: VaultBackend must have a `rotation_locks` field (DashMap).
+/// This test confirms the struct field exists and can be queried.
+#[test]
+fn vault_backend_has_rotation_locks_field() {
+    let vault =
+        VaultBackend::new("https://vault.example.com:8200", "test-token").unwrap();
+    // Access the rotation_locks count — panics at compile time if field is absent.
+    assert_eq!(vault.rotation_locks_len(), 0, "fresh backend should have no locks");
+}

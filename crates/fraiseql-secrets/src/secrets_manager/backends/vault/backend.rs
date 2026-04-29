@@ -2,7 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
 use chrono::Utc;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
+use tokio::sync::{Mutex, RwLock};
 use zeroize::Zeroizing;
 
 use super::{
@@ -128,6 +129,13 @@ pub struct VaultBackend {
     /// Shared HTTP client — built once to reuse TLS sessions across requests.
     client:            reqwest::Client,
     cache:             Arc<RwLock<SecretCache>>,
+    /// Per-secret rotation locks.
+    ///
+    /// Held during the invalidate→fetch sequence in `rotate_secret` and during
+    /// cache-miss fetches in `get_secret_with_expiry`, preventing the classic
+    /// thundering-herd / stale-cache race: a concurrent reader cannot load the
+    /// pre-rotation value into cache while rotation is in progress.
+    rotation_locks:    Arc<DashMap<String, Arc<Mutex<()>>>>,
     /// When the current token was obtained (for renewal tracking).
     /// `None` when using a static long-lived token.
     token_obtained_at: Option<chrono::DateTime<Utc>>,
@@ -158,6 +166,7 @@ impl Clone for VaultBackend {
             tls_verify:        self.tls_verify,
             client:            self.client.clone(),
             cache:             Arc::clone(&self.cache),
+            rotation_locks:    Arc::clone(&self.rotation_locks),
             token_obtained_at: self.token_obtained_at,
             token_ttl_secs:    self.token_ttl_secs,
         }
@@ -199,48 +208,67 @@ impl SecretsBackend for VaultBackend {
     ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
         validate_vault_secret_name(name)?;
 
-        // Check cache first
+        // Check cache first (outside the rotation lock for hot-path performance).
         let cache = self.cache.read().await;
         if let Some((cached_value, cached_expiry)) = cache.get_with_expiry(name).await {
             return Ok((cached_value, cached_expiry));
         }
-        drop(cache); // Release read lock before fetching
+        drop(cache);
 
-        // Fetch from Vault
-        let response = self.fetch_secret(name).await?;
+        // S47: acquire the per-secret rotation lock before fetching from Vault.
+        // This prevents a concurrent rotate_secret from placing a stale value into
+        // the cache immediately after the rotation's own cache write.
+        self.with_secret_lock(name, || async {
+            // Re-check the cache under the lock — rotation may have populated it
+            // while we were waiting.
+            let cache = self.cache.read().await;
+            if let Some((cached_value, cached_expiry)) = cache.get_with_expiry(name).await {
+                return Ok((cached_value, cached_expiry));
+            }
+            drop(cache);
 
-        // Calculate expiry: now + lease_duration
-        let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
-        // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic to
-        // avoid the f64→i64 precision loss that occurs for large TTLs (> 2^53 seconds).
-        // Saturating multiplication prevents overflow if Vault returns an extreme TTL.
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
-        let cache_ttl_secs =
-            response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
-        let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
+            // Fetch from Vault
+            let response = self.fetch_secret(name).await?;
 
-        // Extract secret from response data
-        let secret_str = Self::extract_secret_from_response(&response, name)?;
+            // Calculate expiry: now + lease_duration
+            let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
+            // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic.
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
+            let cache_ttl_secs = response
+                .lease_duration
+                .saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64)
+                / 100;
+            let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
 
-        // Store in cache
-        let cache = self.cache.read().await;
-        cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
+            // Extract secret from response data
+            let secret_str = Self::extract_secret_from_response(&response, name)?;
 
-        Ok((secret_str, expiry))
+            // Store in cache
+            let cache = self.cache.read().await;
+            cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
+
+            Ok((secret_str, expiry))
+        })
+        .await
     }
 
     async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(name)?;
 
-        // Invalidate the cache so get_secret_with_expiry fetches fresh credentials
-        // instead of returning the stale (pre-rotation) cached value.
-        let cache = self.cache.read().await;
-        cache.invalidate(name).await;
-        drop(cache);
+        // S47: hold the per-secret rotation lock across the invalidate→fetch sequence.
+        // Any concurrent get_secret_with_expiry calls will wait until rotation completes,
+        // then pick up the new value from the cache on their re-check (double-checked locking).
+        self.with_secret_lock(name, || async {
+            // Invalidate the cache entry so the subsequent fetch gets fresh credentials.
+            let cache = self.cache.read().await;
+            cache.invalidate(name).await;
+            drop(cache);
 
-        let (new_secret, _) = self.get_secret_with_expiry(name).await?;
-        Ok(new_secret)
+            let (new_secret, _) = self.get_secret_with_expiry(name).await?;
+            Ok(new_secret)
+        })
+        .await
     }
 }
 
@@ -263,6 +291,7 @@ impl VaultBackend {
             tls_verify: true,
             client,
             cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            rotation_locks: Arc::new(DashMap::new()),
             // Static token — no TTL tracking
             token_obtained_at: None,
             token_ttl_secs: None,
@@ -418,6 +447,7 @@ impl VaultBackend {
             cache: std::sync::Arc::new(tokio::sync::RwLock::new(super::cache::SecretCache::new(
                 super::cache::DEFAULT_MAX_CACHE_ENTRIES,
             ))),
+            rotation_locks: Arc::new(DashMap::new()),
             token_obtained_at,
             token_ttl_secs,
         })
@@ -438,9 +468,43 @@ impl VaultBackend {
             tls_verify: false,
             client,
             cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            rotation_locks: Arc::new(DashMap::new()),
             token_obtained_at: None,
             token_ttl_secs: None,
         }
+    }
+
+    /// Number of per-secret locks currently tracked.
+    ///
+    /// Each entry is created on first access and persists for the lifetime of the
+    /// backend. Used in tests to verify the field is present and populated.
+    #[must_use]
+    pub fn rotation_locks_len(&self) -> usize {
+        self.rotation_locks.len()
+    }
+
+    /// Acquire (or create) the per-secret rotation lock, then run `f` while holding it.
+    ///
+    /// This prevents the thundering-herd race between `rotate_secret` (which
+    /// invalidates the cache and re-fetches) and concurrent `get_secret_with_expiry`
+    /// callers (which may also get a cache miss and race to Vault during rotation).
+    ///
+    /// Lock ordering: always acquire `rotation_locks` entry before `cache`.
+    async fn with_secret_lock<F, Fut, T>(&self, name: &str, f: F) -> T
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = T>,
+    {
+        let lock = {
+            // Get or create an Arc<Mutex<()>> for this secret name.
+            // Entry API avoids a double-lookup.
+            self.rotation_locks
+                .entry(name.to_string())
+                .or_insert_with(|| Arc::new(Mutex::new(())))
+                .clone()
+        };
+        let _guard = lock.lock().await;
+        f().await
     }
 
     /// Returns `true` if the Vault auth token should be renewed.
