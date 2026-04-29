@@ -30,7 +30,7 @@ mod tests;
 /// let sql = fraiseql_functions::migrations::cron_migration_sql();
 /// assert!(sql.contains("_fraiseql_cron_state"));
 /// ```
-pub fn cron_migration_sql() -> &'static str {
+pub const fn cron_migration_sql() -> &'static str {
     "\
 CREATE TABLE IF NOT EXISTS _fraiseql_cron_state (
     pk_cron_state   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

@@ -24,10 +24,10 @@ use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits}
 use crate::HostContext;
 use fraiseql_error::Result;
 
-/// TypeScript type declarations for FraiseQL host operations.
+/// `TypeScript` type declarations for FraiseQL host operations.
 ///
 /// This is embedded as a constant string for Deno's type checker to understand
-/// the available operations and their signatures. Guest developers using TypeScript
+/// the available operations and their signatures. Guest developers using `TypeScript`
 /// will get type checking and IDE autocomplete for these operations.
 pub const FRAISEQL_HOST_TYPES: &str = r"
 // FraiseQL host operations type definitions for TypeScript
@@ -139,17 +139,19 @@ impl DenoRuntime {
 }
 
 impl FunctionRuntime for DenoRuntime {
-    /// Execute a JavaScript/TypeScript module with the given event and host context.
+    /// Execute a `JavaScript` module with the given event and host context.
     ///
     /// # Implementation
     ///
-    /// This implementation:
-    /// 1. Creates a new V8 isolate with resource limits
-    /// 2. Loads the function source (transpiles TS if needed)
-    /// 3. Calls the default export with the event as a JS object
-    /// 4. Captures logs and enforces resource limits
-    /// 5. Properly cleans up the isolate after execution
-    #[allow(clippy::manual_async_fn)]  // Reason: impl Future syntax for trait compatibility
+    /// 1. Spawns a fresh OS thread (avoids tokio `block_on` nesting).
+    /// 2. That thread creates its own single-threaded Tokio runtime for deno's event loop.
+    /// 3. The `export default` function is called with `event.data` as the argument.
+    /// 4. The result and captured logs are returned via a `oneshot` channel.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` on syntax errors, runtime exceptions, or resource-limit violations.
+    #[allow(clippy::manual_async_fn)] // Reason: impl Future syntax for trait compatibility
     fn invoke<H>(
         &self,
         module: &FunctionModule,
@@ -161,46 +163,40 @@ impl FunctionRuntime for DenoRuntime {
         H: HostContext + ?Sized,
     {
         let source = String::from_utf8_lossy(&module.bytecode).to_string();
-        let event_value = serde_json::to_value(&event).unwrap_or(serde_json::json!({}));
+        // Functions receive the entity data, not the full internal EventPayload.
+        let event_data = event.data;
 
         async move {
             let start = std::time::Instant::now();
 
-            // Execute in a blocking task since JsRuntime is not Send
-            let result = tokio::task::spawn_blocking(move || {
-                executor::execute_deno_code(&source, event_value, &limits)
-            })
-            .await;
+            let (tx, rx) = tokio::sync::oneshot::channel::<std::result::Result<executor::ExecutionResult, String>>();
+
+            std::thread::spawn(move || {
+                let result = executor::run_in_dedicated_thread(&source, &event_data, &limits);
+                let _ = tx.send(result);
+            });
 
             let duration = start.elapsed();
 
-            match result {
-                Ok(Ok(execution_result)) => {
-                    Ok(FunctionResult {
-                        value: Some(execution_result.value),
-                        logs: execution_result.logs,
-                        duration,
-                        memory_peak_bytes: 0,
+            let exec_result = rx.await.map_err(|_| fraiseql_error::FraiseQLError::Internal {
+                message: "Deno executor thread crashed".to_string(),
+                source: None,
+            })?;
+
+            match exec_result {
+                Ok(execution_result) => Ok(FunctionResult {
+                    value: Some(execution_result.value),
+                    logs: execution_result.logs,
+                    duration,
+                    memory_peak_bytes: 0,
+                }),
+                Err(e) if e.starts_with("SyntaxError") => {
+                    Err(fraiseql_error::FraiseQLError::Validation {
+                        message: e,
+                        path: None,
                     })
                 }
-                Ok(Err(e)) => {
-                    // Check if it's a syntax error
-                    if e.contains("SyntaxError") || e.contains("Parse") {
-                        Err(fraiseql_error::FraiseQLError::Validation {
-                            message: format!("Syntax error: {}", e),
-                            path: None,
-                        })
-                    } else {
-                        Err(fraiseql_error::FraiseQLError::Unsupported {
-                            message: format!("Execution error: {}", e),
-                        })
-                    }
-                }
-                Err(e) => {
-                    Err(fraiseql_error::FraiseQLError::Unsupported {
-                        message: format!("Task execution error: {}", e),
-                    })
-                }
+                Err(e) => Err(fraiseql_error::FraiseQLError::Unsupported { message: e }),
             }
         }
     }

@@ -193,6 +193,7 @@ impl FunctionRuntime for WasmRuntime {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod tests {
     use std::path::PathBuf;
     use crate::{EventPayload, FunctionModule, RuntimeType};

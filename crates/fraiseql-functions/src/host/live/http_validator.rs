@@ -4,7 +4,7 @@
 //! attacks by:
 //! - Enforcing a domain allowlist
 //! - Blocking private IP addresses (RFC 1918, loopback, link-local)
-//! - Blocking IPv6 private ranges
+//! - Blocking `IPv6` private ranges
 
 use fraiseql_error::{FraiseQLError, Result};
 use std::net::IpAddr;
@@ -42,7 +42,7 @@ impl Default for HttpClientConfig {
 /// Checks:
 /// 1. Domain is in the allowlist (supports glob patterns)
 /// 2. IP address is not private/reserved (RFC 1918, 127.0.0.0/8, 169.254.0.0/16, etc.)
-/// 3. IPv6 addresses are not private (loopback, link-local, ULA)
+/// 3. `IPv6` addresses are not private (loopback, link-local, ULA)
 ///
 /// # Arguments
 ///
@@ -53,6 +53,11 @@ impl Default for HttpClientConfig {
 ///
 /// - `Ok(())` if the URL is safe to request
 /// - `Err` if the URL is blocked by allowlist or is a private IP
+///
+/// # Errors
+///
+/// Returns `Err` if the URL is malformed, blocked by the allowlist, or resolves to a
+/// private/reserved IP address.
 pub fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Result<()> {
     // Parse the URL
     let parsed_url = reqwest::Url::parse(url).map_err(|e| {
@@ -114,8 +119,7 @@ fn is_domain_allowed(host: &str, allowlist: &[String]) -> bool {
         }
 
         // Simple glob matching: "*.example.com" matches "api.example.com" but NOT "example.com"
-        if pattern.starts_with("*.") {
-            let domain = &pattern[2..];
+        if let Some(domain) = pattern.strip_prefix("*.") {
             // Only match if there's a subdomain (must have a dot before the domain)
             if host_for_comparison.ends_with(&format!(".{}", domain)) {
                 return true;
@@ -126,8 +130,8 @@ fn is_domain_allowed(host: &str, allowlist: &[String]) -> bool {
     false
 }
 
-/// Parse IP address from a host string, handling IPv6 brackets.
-/// IPv6 addresses in URLs are bracketed: `[::1]`
+/// Parse IP address from a host string, handling `IPv6` brackets.
+/// `IPv6` addresses in URLs are bracketed: `[::1]`
 fn parse_ip_from_host(host: &str) -> Result<IpAddr> {
     // Strip IPv6 brackets if present
     let clean_host = if host.starts_with('[') && host.ends_with(']') {
@@ -149,9 +153,9 @@ fn parse_ip_from_host(host: &str) -> Result<IpAddr> {
 /// - 127.0.0.0/8 (loopback)
 /// - 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (RFC 1918 private)
 /// - 169.254.0.0/16 (link-local)
-/// - ::1 (IPv6 loopback)
-/// - fc00::/7 (IPv6 unique local addresses)
-/// - fe80::/10 (IPv6 link-local)
+/// - `::1` (`IPv6` loopback)
+/// - `fc00::/7` (`IPv6` unique local addresses)
+/// - `fe80::/10` (`IPv6` link-local)
 fn validate_ip(ip: &IpAddr) -> Result<()> {
     match ip {
         IpAddr::V4(v4) => {
@@ -159,7 +163,7 @@ fn validate_ip(ip: &IpAddr) -> Result<()> {
                 || v4.is_private()
                 || v4.is_link_local()
                 || v4.is_broadcast()
-                || is_ipv4_reserved(v4)
+                || is_ipv4_reserved(*v4)
             {
                 return Err(FraiseQLError::Authorization {
                     message: format!("private/reserved IP address not allowed: {}", v4),
@@ -182,17 +186,15 @@ fn validate_ip(ip: &IpAddr) -> Result<()> {
     }
 }
 
-/// Check if an IPv4 address is reserved.
-/// This is a workaround since Ipv4Addr::is_reserved() is unstable.
-fn is_ipv4_reserved(ip: &std::net::Ipv4Addr) -> bool {
+/// Check if an `IPv4` address is reserved.
+/// This is a workaround since `Ipv4Addr::is_reserved()` is unstable.
+const fn is_ipv4_reserved(ip: std::net::Ipv4Addr) -> bool {
     let octets = ip.octets();
-    match octets[0] {
-        0 | 100..=127 | 240..=255 => true,
-        _ => false,
-    }
+    matches!(octets[0], 0 | 100..=127 | 240..=255)
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod tests {
     use super::*;
 

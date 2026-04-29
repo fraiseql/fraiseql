@@ -34,7 +34,8 @@ async fn test_function_observer_dispatches_js_to_deno() {
 
     // Execute through observer
     let event = test_event();
-    let event_json = serde_json::to_value(&event).unwrap();
+    // Functions receive event.data (the entity payload), not the full EventPayload wrapper.
+    let event_data = event.data.clone();
     let result = observer
         .invoke(&module, event.clone(), &NoopHostContext::new(event), ResourceLimits::default())
         .await;
@@ -42,7 +43,7 @@ async fn test_function_observer_dispatches_js_to_deno() {
     // Should succeed and result should come from Deno runtime
     assert!(result.is_ok(), "Observer should dispatch to Deno runtime");
     let result = result.unwrap();
-    assert_eq!(result.value, Some(event_json));
+    assert_eq!(result.value, Some(event_data));
 }
 
 #[tokio::test]
@@ -60,7 +61,8 @@ async fn test_function_observer_dispatches_ts_to_deno() {
 
     // Execute through observer
     let event = test_event();
-    let event_json = serde_json::to_value(&event).unwrap();
+    // Functions receive event.data (the entity payload), not the full EventPayload wrapper.
+    let event_data = event.data.clone();
     let result = observer
         .invoke(&module, event.clone(), &NoopHostContext::new(event), ResourceLimits::default())
         .await;
@@ -68,7 +70,7 @@ async fn test_function_observer_dispatches_ts_to_deno() {
     // Should succeed and result should come from Deno runtime
     assert!(result.is_ok(), "Observer should dispatch to Deno runtime for TypeScript");
     let result = result.unwrap();
-    assert_eq!(result.value, Some(event_json));
+    assert_eq!(result.value, Some(event_data));
 }
 
 #[tokio::test]
@@ -88,7 +90,7 @@ async fn test_function_observer_wasm_and_deno_coexist() {
 
     // Execute JS (Deno) function
     let event = test_event();
-    let event_json = serde_json::to_value(&event).unwrap();
+    let event_data = event.data.clone();
     let js_result = observer
         .invoke(
             &js_module,
@@ -101,7 +103,7 @@ async fn test_function_observer_wasm_and_deno_coexist() {
     // Should succeed with Deno
     assert!(js_result.is_ok(), "Observer should dispatch JS to Deno runtime");
     let js_result = js_result.unwrap();
-    assert_eq!(js_result.value, Some(event_json));
+    assert_eq!(js_result.value, Some(event_data));
 }
 
 #[tokio::test]

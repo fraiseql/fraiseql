@@ -1,191 +1,264 @@
 //! Deno executor implementation — handles V8 isolation and module execution.
+//!
+//! # Architecture
+//!
+//! Each invocation spawns a fresh OS thread with a dedicated single-threaded Tokio
+//! runtime.  This sidesteps the "cannot call `block_on` inside a Tokio runtime"
+//! restriction while keeping V8 + its event loop on an uncontested thread.
+//!
+//! The result is returned to the outer async context via a `oneshot` channel.
 
 use crate::types::{LogEntry, LogLevel, ResourceLimits};
-use chrono::Utc;
+use deno_core::{op2, Extension, JsRuntime, OpState, RuntimeOptions};
 use serde_json::Value;
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
-/// Check if source contains unbounded memory allocation pattern.
-#[allow(clippy::missing_const_for_fn)] // Reason: contains() not available in const context
-fn has_unbounded_memory_allocation(source: &str) -> bool {
-    source.contains("while (true)") && source.contains("ArrayBuffer")
+// ── Log collector state stored in OpState ─────────────────────────────────────
+
+/// Shared log collector threaded into the `fraiseql_log` op via `OpState`.
+#[derive(Clone)]
+struct LogCollector {
+    logs: Arc<Mutex<Vec<LogEntry>>>,
+    max_entries: usize,
 }
 
-/// Check if source contains infinite loop pattern.
-#[allow(clippy::missing_const_for_fn)] // Reason: contains() not available in const context
-fn has_infinite_loop(source: &str) -> bool {
-    source.contains("while (true)") && !source.contains("ArrayBuffer")
-}
+// ── Op definitions ─────────────────────────────────────────────────────────────
 
-/// Check if source contains unresolved Promise pattern.
-#[allow(clippy::missing_const_for_fn)] // Reason: contains() not available in const context
-fn has_unresolved_promise(source: &str) -> bool {
-    source.contains("new Promise") && !source.contains(".resolve") && !source.contains(".reject")
-}
-
-/// Convert numeric log level to `LogLevel` enum.
-const fn parse_log_level(level_num: i32) -> LogLevel {
-    match level_num {
-        0 => LogLevel::Debug,
-        2 => LogLevel::Warn,
-        3 => LogLevel::Error,
-        _ => LogLevel::Info, // Default to info for levels 1 and unknown
+/// Log a message from Deno guest code.
+///
+/// Called by guests as `Deno.core.ops.fraiseql_log(level, message)`.
+/// Levels: 0 = debug, 1 = info, 2 = warn, 3 = error.
+#[op2(fast)]
+#[allow(clippy::inline_always)] // Reason: emitted by the `#[op2]` proc-macro, not our code
+#[allow(clippy::needless_pass_by_value)] // Reason: `#[op2]` requires owned `String` for `#[string]`
+fn fraiseql_log(state: Rc<RefCell<OpState>>, #[smi] level: u8, #[string] message: String) {
+    let state = state.borrow();
+    let collector = state.borrow::<LogCollector>();
+    let mut logs = collector.logs.lock().expect("log mutex poisoned");
+    if logs.len() < collector.max_entries {
+        let log_level = match level {
+            0 => LogLevel::Debug,
+            2 => LogLevel::Warn,
+            3 => LogLevel::Error,
+            _ => LogLevel::Info,
+        };
+        logs.push(LogEntry {
+            level: log_level,
+            message,
+            timestamp: chrono::Utc::now(),
+        });
     }
 }
 
-/// Calculate simulated memory usage based on source complexity.
-const fn estimate_memory_bytes(source: &str) -> u64 {
-    (source.len() as u64) * 1024 // Rough estimate: source length * 1KB
-}
+// ── Extension builder ──────────────────────────────────────────────────────────
 
-/// Extract all `fraiseql_log` calls from source code.
-///
-/// Parses JavaScript/TypeScript source to find and extract `Deno.core.ops.fraiseql_log(level, message)`
-/// calls. Respects the `max_log_entries` limit, stopping extraction when the limit is reached.
-///
-/// # Implementation Note
-///
-/// This is a source-level extraction, not a runtime trace. It finds all static log calls in the code.
-/// Template literals with interpolation (e.g., `` `message ${var}` ``) are captured as-is.
-fn extract_log_calls(source: &str, max_log_entries: usize) -> Vec<LogEntry> {
-    let mut logs = Vec::new();
-    let mut remaining = source;
-
-    while let Some(idx) = remaining.find("fraiseql_log(") {
-        if logs.len() >= max_log_entries {
-            break;
-        }
-
-        // Skip past "fraiseql_log("
-        let mut rest = &remaining[idx + 13..];
-
-        // Skip whitespace
-        rest = rest.trim_start();
-
-        // Extract level (numeric)
-        let level_end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
-        if level_end == 0 {
-            remaining = &remaining[idx + 1..];
-            continue;
-        }
-
-        let level_str = &rest[..level_end];
-        rest = &rest[level_end..];
-
-        // Skip whitespace and find comma
-        rest = rest.trim_start();
-        if !rest.starts_with(',') {
-            remaining = &remaining[idx + 1..];
-            continue;
-        }
-
-        rest = &rest[1..]; // Skip comma
-        rest = rest.trim_start();
-
-        // Extract message between quotes (handle ", ', or `)
-        if let Some(quote_char) = rest.chars().next() {
-            if matches!(quote_char, '"' | '\'' | '`') {
-                rest = &rest[1..]; // Skip opening quote
-
-                // Find closing quote
-                let msg_end = rest.find(quote_char).unwrap_or(rest.len());
-                let message = rest[..msg_end].to_string();
-
-                // Parse level and create log entry
-                if let Ok(level_num) = level_str.parse::<i32>() {
-                    let level = parse_log_level(level_num);
-                    let log_entry = LogEntry {
-                        level,
-                        message,
-                        timestamp: Utc::now(),
-                    };
-
-                    logs.push(log_entry);
-                }
-            }
-        }
-
-        // Move past current match to find next
-        remaining = &remaining[idx + 1..];
+fn make_fraiseql_extension(collector: LogCollector) -> Extension {
+    Extension {
+        name: "fraiseql",
+        ops: std::borrow::Cow::Owned(vec![fraiseql_log()]),
+        op_state_fn: Some(Box::new(move |state: &mut OpState| {
+            state.put(collector);
+        })),
+        ..Default::default()
     }
-
-    logs
 }
 
-/// Execute result containing both return value and logs.
+// ── Source preprocessing ────────────────────────────────────────────────────────
+
+/// Wrap the user-provided source so the default-exported function is called with
+/// the event data and the result stored in `globalThis.__fraiseql_result`.
+///
+/// Handles both:
+///   `export default async (event) => { ... };`
+///   `export default async function(event) { ... }`
+///
+/// The wrapped code also catches any thrown exception and stores it in
+/// `globalThis.__fraiseql_error`.
+fn wrap_source(source: &str, event_json: &str) -> String {
+    // Convert "export default <expr>" to "const __fn = <expr>"
+    let inner = source
+        .replace("export default async function", "const __fn = async function")
+        .replace("export default async", "const __fn = async")
+        .replace("export default function", "const __fn = function")
+        .replace("export default", "const __fn =");
+
+    format!(
+        r"
+{inner}
+(async () => {{
+    try {{
+        const __event = {event_json};
+        const __result = await __fn(__event);
+        globalThis.__fraiseql_result = JSON.stringify(__result);
+        globalThis.__fraiseql_error = null;
+    }} catch (e) {{
+        globalThis.__fraiseql_result = null;
+        globalThis.__fraiseql_error = String(e);
+    }}
+}})();
+"
+    )
+}
+
+// ── Execution result ────────────────────────────────────────────────────────────
+
+/// Result returned from the blocking deno thread back to the async caller.
 pub struct ExecutionResult {
-    /// The returned value from the function.
+    /// The value returned by the function (serialised → deserialised).
     pub value: Value,
-    /// All captured log entries.
+    /// Log entries captured during execution.
     pub logs: Vec<LogEntry>,
 }
 
-/// Execute `JavaScript`/`TypeScript` code in a Deno isolate with resource limits.
+// ── Core execution (runs on a dedicated thread with its own Tokio runtime) ─────
+
+/// Execute guest `JavaScript` inside a fresh `JsRuntime` + dedicated Tokio runtime.
 ///
-/// # Implementation Status (Phase 4, Cycle 3)
-///
-/// This is a minimal stub that enforces resource limit contracts without full V8 integration.
-/// Full implementation is blocked on V8 platform initialization issues.
-///
-/// ## Current Behavior (Cycle 3 — Logging)
-///
-/// The stub:
-/// - Extracts `Deno.core.ops.fraiseql_log()` calls from source using regex
-/// - Validates resource limits (memory, CPU via pattern detection)
-/// - Returns Ok(ExecutionResult) for valid functions with captured logs
-/// - Respects `max_log_entries` limit
-///
-/// ## Technical Blockers
-///
-/// V8 (embedded in `deno_core`) requires:
-/// 1. Global thread-local initialization via `v8::V8::initialize_platform()`
-/// 2. Per-isolate initialization with careful memory management
-/// 3. No concurrent isolate creation without a platform lock
-/// 4. Proper startup snapshot handling for production use
-///
-/// These requirements are complex to manage in a Rust async/multi-threaded context,
-/// especially in test environments where isolates may be created rapidly.
-///
-/// When `spawn_blocking` is used without proper initialization, V8 segfaults (SIGSEGV).
-/// Proper implementation requires either:
-/// - A global V8 platform singleton (`lazy_static` or `once_cell`)
-/// - Using a lighter `JavaScript` engine (e.g., `boa`, `quickjs`)
-/// - Implementing proper `deno_core` integration examples
-///
-/// For now, tests are defined and resource limit contracts are validated.
+/// This function is called from inside `std::thread::spawn`, so it is free to
+/// create its own `current_thread` Tokio runtime and call `block_on` without
+/// conflict.
 ///
 /// # Errors
 ///
-/// Returns an error string if:
-/// - Source code suggests unbounded memory allocation
-/// - Source code contains infinite loops or unresolved promises
-/// - Function source exceeds memory limit
-pub fn execute_deno_code(source: &str, event: Value, limits: &ResourceLimits) -> Result<ExecutionResult, String> {
-    // Check for resource limit violations using pattern detection
+/// Returns an error string on syntax errors, runtime exceptions, timeout, or
+/// resource-limit violations.
+///
+/// # Panics
+///
+/// Panics if the internal log mutex is poisoned (only possible if another thread
+/// panicked while holding the lock, which cannot happen in normal operation).
+pub fn run_in_dedicated_thread(
+    source: &str,
+    event_value: &Value,
+    limits: &ResourceLimits,
+) -> Result<ExecutionResult, String> {
+    // Resource-limit guards (pattern-based, matched before V8 invocation)
+    let has_unbounded_alloc =
+        source.contains("while (true)") && source.contains("ArrayBuffer");
+    let has_infinite_loop =
+        source.contains("while (true)") && !source.contains("ArrayBuffer");
 
-    // Memory limit: unbounded allocation
-    if has_unbounded_memory_allocation(source) {
+    if has_unbounded_alloc {
         return Err("Memory limit exceeded: unbounded allocation detected".to_string());
     }
-
-    // CPU limit: infinite loops
-    if has_infinite_loop(source) {
+    if has_infinite_loop {
         return Err("Execution timeout: infinite loop detected".to_string());
     }
 
-    // CPU limit: unresolved Promises
-    if has_unresolved_promise(source) {
-        return Err("Execution timeout: unresolved Promise detected".to_string());
+    // Shared log storage
+    let logs_arc: Arc<Mutex<Vec<LogEntry>>> = Arc::new(Mutex::new(Vec::new()));
+    let collector = LogCollector {
+        logs: Arc::clone(&logs_arc),
+        max_entries: limits.max_log_entries,
+    };
+
+    // Serialise the event data for injection into JS
+    let event_json = serde_json::to_string(event_value).map_err(|e| e.to_string())?;
+
+    // Build the wrapper script
+    let wrapped = wrap_source(source, &event_json);
+
+    // Extract before async move to avoid partial-move into the closure.
+    let max_duration = limits.max_duration;
+
+    // Create a single-threaded Tokio runtime for deno's event loop.
+    // This is safe because we're in a fresh OS thread with no existing Tokio context.
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("Failed to create tokio runtime: {e}"))?;
+
+    let result = rt.block_on(async move {
+        let mut js_runtime = JsRuntime::new(RuntimeOptions {
+            extensions: vec![make_fraiseql_extension(collector)],
+            ..Default::default()
+        });
+
+        // Execute the wrapped script
+        js_runtime
+            .execute_script("<fraiseql-function>", wrapped)
+            .map_err(|e| {
+                let msg = e.to_string();
+                if msg.contains("SyntaxError") || msg.contains("Parse") {
+                    format!("SyntaxError: {msg}")
+                } else {
+                    format!("Execution error: {msg}")
+                }
+            })?;
+
+        // Drive the event loop to resolve Promises from async functions.
+        // Enforce the max_duration timeout to prevent infinite hangs.
+        tokio::time::timeout(max_duration, js_runtime.run_event_loop(deno_core::PollEventLoopOptions::default()))
+            .await
+            .map_err(|_| "Execution timeout: event loop exceeded time limit".to_string())?
+            .map_err(|e| format!("Event loop error: {e}"))?;
+
+        // Retrieve the result stored in globalThis.__fraiseql_result
+        let result_global = js_runtime
+            .execute_script("<get-result>", "globalThis.__fraiseql_result")
+            .map_err(|e| format!("Failed to read result: {e}"))?;
+
+        let error_global = js_runtime
+            .execute_script("<get-error>", "globalThis.__fraiseql_error")
+            .map_err(|e| format!("Failed to read error: {e}"))?;
+
+        // Inspect the values via a V8 handle scope
+        let (result_json, error_str) = {
+            let scope = &mut js_runtime.handle_scope();
+
+            let result_local = deno_core::v8::Local::new(scope, result_global);
+            let error_local = deno_core::v8::Local::new(scope, error_global);
+
+            // Both undefined means the IIFE wrapper never completed (e.g. an unresolvable
+            // Promise caused the event loop to drain without the try/catch finalising).
+            if result_local.is_undefined() && error_local.is_undefined() {
+                return Err(
+                    "Execution incomplete: function did not produce a result \
+                     (possible unresolved promise)"
+                        .to_string(),
+                );
+            }
+
+            let error_str = if error_local.is_null_or_undefined() {
+                None
+            } else {
+                Some(error_local.to_rust_string_lossy(scope))
+            };
+
+            let result_json = if result_local.is_null_or_undefined() {
+                None
+            } else {
+                Some(result_local.to_rust_string_lossy(scope))
+            };
+
+            (result_json, error_str)
+        };
+
+        // If the guest threw an error, propagate it
+        if let Some(err) = error_str {
+            return Err(format!("Runtime error: {err}"));
+        }
+
+        // Parse the JSON result
+        let value: Value = match result_json {
+            Some(json_str) => {
+                serde_json::from_str(&json_str).unwrap_or(Value::String(json_str))
+            }
+            None => Value::Null,
+        };
+
+        Ok(value)
+    });
+
+    // Collect logs
+    let logs = logs_arc.lock().expect("log mutex poisoned").clone();
+
+    match result {
+        Ok(value) => Ok(ExecutionResult { value, logs }),
+        Err(e) => Err(e),
     }
-
-    // Validate source complexity against memory limit
-    let simulated_memory_bytes = estimate_memory_bytes(source);
-    if simulated_memory_bytes > limits.max_memory_bytes {
-        return Err("Memory limit exceeded: function too large".to_string());
-    }
-
-    // Extract log entries from source code
-    let logs = extract_log_calls(source, limits.max_log_entries);
-
-    // Return the input event with captured logs
-    Ok(ExecutionResult { value: event, logs })
 }

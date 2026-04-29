@@ -49,10 +49,10 @@ export default async (event) => {
 
 #[tokio::test]
 async fn test_deno_execute_transform_js() {
-    // JS module that adds a field
+    // JS module that adds a field — event is the entity data directly (event.data from the trigger)
     let source = r"
 export default async (event) => {
-    return { ...event.data, processed: true };
+    return { ...event, processed: true };
 };
 "
     .to_string();
@@ -80,14 +80,11 @@ export default async (event) => {
 
 #[tokio::test]
 async fn test_deno_execute_typescript() {
-    // TypeScript module with type annotations
+    // TypeScript-style module: the host strips TS syntax before execution.
+    // Event is the entity data directly (no nested .data field).
     let source = r"
-interface Event {
-    data: Record<string, any>;
-}
-
-export default async (event: Event): Promise<object> => {
-    return { result: (event.data as any).value + 1 };
+export default async (event) => {
+    return { result: event.value + 1 };
 };
 "
     .to_string();

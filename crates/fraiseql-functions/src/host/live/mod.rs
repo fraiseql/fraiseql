@@ -236,24 +236,21 @@ impl HostContext for LiveHostContext {
         http_validator::validate_outbound_url(url, &http_config)?;
 
         // Get or create HTTP client
-        let client = match &self.http_client {
-            Some(client) => client.clone(),
-            None => {
-                // Create a new client with configured timeouts
-                let client = reqwest::Client::builder()
-                    .connect_timeout(std::time::Duration::from_millis(
-                        self.config.http_connect_timeout_ms,
-                    ))
-                    .timeout(std::time::Duration::from_millis(
-                        self.config.http_read_timeout_ms,
-                    ))
-                    .build()
-                    .map_err(|e| fraiseql_error::FraiseQLError::Internal {
-                        message: format!("failed to create HTTP client: {}", e),
-                        source: None,
-                    })?;
-                Arc::new(client)
-            }
+        let client = if let Some(client) = &self.http_client { client.clone() } else {
+            // Create a new client with configured timeouts
+            let client = reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_millis(
+                    self.config.http_connect_timeout_ms,
+                ))
+                .timeout(std::time::Duration::from_millis(
+                    self.config.http_read_timeout_ms,
+                ))
+                .build()
+                .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+                    message: format!("failed to create HTTP client: {}", e),
+                    source: None,
+                })?;
+            Arc::new(client)
         };
 
         // Build request

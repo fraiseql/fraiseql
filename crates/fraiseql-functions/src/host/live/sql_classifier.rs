@@ -325,6 +325,7 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod tests {
     use super::*;
 
@@ -436,7 +437,7 @@ mod tests {
         assert!(result.is_ok());
         match result.unwrap() {
             SqlClassification::Rejected(_) => (),
-            other => panic!("expected Rejected, got {:?}", other),
+            other @ SqlClassification::ReadOnly => panic!("expected Rejected, got {:?}", other),
         }
     }
 

@@ -48,15 +48,23 @@ impl MockStorageBackend {
     }
 
     /// Store data directly (for test setup).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal Mutex is poisoned.
     pub fn store(&self, bucket: &str, key: &str, data: Vec<u8>) {
         let mut storage = self.data.lock().expect("storage lock poisoned");
         storage
             .entry(bucket.to_string())
-            .or_insert_with(std::collections::HashMap::new)
+            .or_default()
             .insert(key.to_string(), data);
     }
 
     /// Retrieve stored data (for test verification).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal Mutex is poisoned.
     pub fn get_stored(&self, bucket: &str, key: &str) -> Option<Vec<u8>> {
         let storage = self.data.lock().expect("storage lock poisoned");
         storage
@@ -104,7 +112,7 @@ impl StorageBackend for MockStorageBackend {
         Box::pin(async move {
             let mut data = storage.lock().expect("storage lock poisoned");
             data.entry(bucket)
-                .or_insert_with(std::collections::HashMap::new)
+                .or_default()
                 .insert(key, body);
             Ok(())
         })

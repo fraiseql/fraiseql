@@ -6,7 +6,7 @@
 //! for each function invocation, with properly configured backends and security context.
 //!
 //! The factory handles:
-//! - Per-invocation SecurityContext injection
+//! - Per-invocation `SecurityContext` injection
 //! - Backend configuration (GraphQL, storage, HTTP)
 //! - Resource limit enforcement
 //! - Proper isolation between invocations
@@ -32,6 +32,10 @@ pub trait HostContextFactory: Send + Sync {
     /// # Returns
     ///
     /// A new `LiveHostContext` configured with all backends and security info
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the host context cannot be constructed (e.g. missing configuration).
     fn create(
         &self,
         security_context: SecurityContext,
@@ -66,7 +70,7 @@ impl LiveHostContextFactory {
     /// # Future Enhancement
     ///
     /// This will accept fully configured backend services from the caller.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }
@@ -129,7 +133,7 @@ mod tests {
         let security_ctx = test_security_context();
         let event = test_event();
 
-        let result = factory.create(security_ctx.clone(), event);
+        let result = factory.create(security_ctx, event);
 
         assert!(result.is_ok(), "Factory should create context successfully");
     }
@@ -140,7 +144,7 @@ mod tests {
         let security_ctx = test_security_context();
         let event = test_event();
 
-        let _context = factory.create(security_ctx.clone(), event);
+        let _context = factory.create(security_ctx, event);
 
         // Verify that the context would have the security info injected
         // In the real implementation, we'd verify via the context's auth_context() method

@@ -314,7 +314,7 @@ mod tests {
         let storage_data = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let test_data = b"hello world".to_vec();
         {
-            let mut data = storage_data.lock().unwrap();
+            let mut data = storage_data.lock().expect("storage data mutex poisoned");
             data.entry("documents".to_string())
                 .or_insert_with(HashMap::new)
                 .insert("file.txt".to_string(), test_data.clone());
@@ -376,8 +376,10 @@ mod tests {
         };
 
         // Create config with very small size limit
-        let mut config = HostContextConfig::default();
-        config.max_storage_upload_bytes = 10; // 10 bytes limit
+        let config = HostContextConfig {
+            max_storage_upload_bytes: 10, // 10 bytes limit
+            ..Default::default()
+        };
 
         let ctx = LiveHostContext::new(payload, config);
 
