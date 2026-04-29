@@ -157,6 +157,9 @@ pub mod pool;
 // Object storage backends (local, S3, GCS, Azure Blob)
 pub mod storage;
 
+// Platform subsystem assembly (storage, functions, realtime)
+pub mod subsystems;
+
 // Trusted documents (query allowlist)
 pub mod trusted_documents;
 
