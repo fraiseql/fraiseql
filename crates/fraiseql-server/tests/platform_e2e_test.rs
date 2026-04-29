@@ -21,7 +21,7 @@
 //! cargo test --test platform_e2e_test -- --include-ignored
 //! ```
 //!
-//! ## Tier 3 — Full platform (requires PostgreSQL + MinIO + Deno runtime)
+//! ## Tier 3 — Full platform (requires PostgreSQL + `MinIO` + Deno runtime)
 //!
 //! These tests require a full platform stack and are gated behind the
 //! `FRAISEQL_PLATFORM_E2E` environment variable to prevent accidental
@@ -33,7 +33,7 @@
 //! ```
 //!
 //! **Execution engine:** none (Tier 1), testcontainers (Tier 2), Docker (Tier 3)
-//! **Infrastructure:** none (Tier 1), PostgreSQL (Tier 2), PostgreSQL + MinIO (Tier 3)
+//! **Infrastructure:** none (Tier 1), PostgreSQL (Tier 2), PostgreSQL + `MinIO` (Tier 3)
 //! **Parallelism:** safe
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
@@ -115,7 +115,7 @@ fn test_platform_e2e_functions_subsystem_full_construction() {
     assert_eq!(subsystem.trigger_registry.cron_trigger_count(), 1);
 }
 
-/// Verify that the registry → CronScheduler pipeline works end-to-end.
+/// Verify that the registry → `CronScheduler` pipeline works end-to-end.
 #[test]
 fn test_platform_e2e_registry_to_cron_scheduler_pipeline() {
     let defs = vec![
@@ -133,7 +133,7 @@ fn test_platform_e2e_registry_to_cron_scheduler_pipeline() {
     assert_eq!(scheduler.trigger_count(), 2);
 }
 
-/// Verify that a registry with no cron triggers returns None from cron_scheduler().
+/// Verify that a registry with no cron triggers returns None from `cron_scheduler()`.
 #[test]
 fn test_platform_e2e_registry_no_cron_returns_none() {
     let defs = vec![
@@ -228,11 +228,11 @@ async fn test_platform_e2e_cron_scheduler_starts_on_server_start() {
     tokio::task::yield_now().await;
 }
 
-/// Verify that the realtime observer hook point exists on AppState.
+/// Verify that the realtime observer hook point exists on `AppState`.
 ///
-/// The full realtime notification path (mutation → entity event → WebSocket)
+/// The full realtime notification path (mutation → entity event → `WebSocket`)
 /// requires the observer runtime pipeline which is exercised in Tier 3.
-/// This test verifies only the AppState hook plumbing.
+/// This test verifies only the `AppState` hook plumbing.
 #[test]
 fn test_platform_e2e_realtime_observer_hook_is_accessible() {
     use fraiseql_server::realtime::observer::RealtimeBroadcastObserver;
@@ -341,10 +341,10 @@ async fn test_e2e_before_mutation_validates_input() {
     assert!(!errors.is_empty(), "should have at least one error");
 }
 
-/// E2E: WebSocket subscriber receives insert event in real time.
+/// E2E: `WebSocket` subscriber receives insert event in real time.
 ///
 /// Flow:
-/// 1. Connect WebSocket to `/realtime/v1`
+/// 1. Connect `WebSocket` to `/realtime/v1`
 /// 2. Subscribe to `Post` entity
 /// 3. Insert a Post via GraphQL mutation
 /// 4. Assert the subscriber receives a `change` message with the new Post data

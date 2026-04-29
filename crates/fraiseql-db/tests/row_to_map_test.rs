@@ -11,7 +11,7 @@ use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
 
 #[tokio::test]
-#[ignore] // Ignore by default; run with `cargo test --test row_to_map_test -- --ignored`
+#[ignore = "requires a running PostgreSQL container (testcontainers); run with --include-ignored"]
 async fn row_to_map_handles_text_array_columns() {
     let container = Postgres::default()
         .with_user("postgres")
@@ -87,7 +87,7 @@ async fn row_to_map_handles_text_array_columns() {
 }
 
 #[tokio::test]
-#[ignore] // Ignore by default; run with `cargo test --test row_to_map_test -- --ignored`
+#[ignore = "requires a running PostgreSQL container (testcontainers); run with --include-ignored"]
 async fn row_to_map_handles_enum_columns() {
     let container = Postgres::default()
         .with_user("postgres")
@@ -154,7 +154,7 @@ async fn row_to_map_handles_enum_columns() {
 }
 
 #[tokio::test]
-#[ignore] // Ignore by default; run with `cargo test --test row_to_map_test -- --ignored`
+#[ignore = "requires a running PostgreSQL container (testcontainers); run with --include-ignored"]
 async fn row_to_map_handles_mixed_types_with_nulls() {
     let container = Postgres::default()
         .with_user("postgres")

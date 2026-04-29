@@ -1331,7 +1331,7 @@ mod tests {
 
     // ── Issue #240: snake_case → camelCase mapping in query response ──────────
 
-    /// When a view returns raw snake_case JSONB keys (no SQL-level projection applied),
+    /// When a view returns raw `snake_case` JSONB keys (no SQL-level projection applied),
     /// `ResultProjector::from_graphql_fields` must map them to camelCase in the output.
     #[test]
     fn test_projector_maps_snake_case_source_to_camel_case_output() {
@@ -1360,8 +1360,8 @@ mod tests {
         );
     }
 
-    /// When the DB returns camelCase keys (SQL projection hint was applied),
-    /// `from_graphql_fields` must still work via the source_fallback path.
+    /// When the DB returns `camelCase` keys (SQL projection hint was applied),
+    /// `from_graphql_fields` must still work via the `source_fallback` path.
     #[test]
     fn test_projector_from_graphql_fields_handles_already_camel_case_jsonb() {
         let projector = ResultProjector::from_graphql_fields(vec![
@@ -1380,8 +1380,8 @@ mod tests {
         assert_eq!(result, json!({ "id": "1", "messageId": "msg-42" }));
     }
 
-    /// Nested JSONB array elements must have their snake_case keys converted to
-    /// camelCase — the same transformation applied to top-level fields.
+    /// Nested JSONB array elements must have their `snake_case` keys converted to
+    /// `camelCase` — the same transformation applied to top-level fields.
     #[test]
     fn test_projector_normalizes_nested_array_element_keys() {
         let projector = ResultProjector::from_graphql_fields(vec![

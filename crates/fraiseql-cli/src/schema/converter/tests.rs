@@ -1348,7 +1348,7 @@ fn test_dispatch_explicit_mapping() {
     assert_eq!(compiled.queries.len(), 1);
     let query = &compiled.queries[0];
     assert!(query.sql_source_dispatch.is_some());
-    let dispatch = query.sql_source_dispatch.as_ref().unwrap();
+    let dispatch = query.sql_source_dispatch.as_ref().expect("sql_source_dispatch should be set");
     assert_eq!(dispatch.argument, "timeInterval");
     assert_eq!(dispatch.mapping.get("DAY"), Some(&"tf_orders_day".to_string()));
     assert_eq!(dispatch.mapping.get("WEEK"), Some(&"tf_orders_week".to_string()));
@@ -1431,7 +1431,7 @@ fn test_dispatch_template_expansion() {
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
     let query = &compiled.queries[0];
-    let dispatch = query.sql_source_dispatch.as_ref().unwrap();
+    let dispatch = query.sql_source_dispatch.as_ref().expect("sql_source_dispatch should be set");
     assert_eq!(dispatch.mapping.get("DAY"), Some(&"tf_orders_day".to_string()));
     assert_eq!(dispatch.mapping.get("WEEK"), Some(&"tf_orders_week".to_string()));
     assert_eq!(dispatch.mapping.get("MONTH"), Some(&"tf_orders_month".to_string()));

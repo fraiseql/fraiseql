@@ -1583,7 +1583,7 @@ fn test_cron_with_storage_cascade() {
 // Cycle 5: CronScheduler and TriggerRegistry cron support (GREEN — infrastructure)
 // ============================================================================
 
-/// Test: TriggerRegistry loads cron trigger definitions
+/// Test: `TriggerRegistry` loads cron trigger definitions
 #[test]
 fn test_registry_loads_cron_triggers() {
     use crate::{FunctionDefinition, RuntimeType};
@@ -1606,7 +1606,7 @@ fn test_registry_loads_cron_triggers() {
     assert_eq!(registry.cron_triggers[1].schedule, "0 * * * *");
 }
 
-/// Test: TriggerRegistry.cron_scheduler() returns Some when triggers exist
+/// Test: `TriggerRegistry.cron_scheduler()` returns Some when triggers exist
 #[test]
 fn test_registry_cron_scheduler_returns_some_when_triggers_exist() {
     use crate::{FunctionDefinition, RuntimeType};
@@ -1620,10 +1620,10 @@ fn test_registry_cron_scheduler_returns_some_when_triggers_exist() {
 
     let scheduler = registry.cron_scheduler();
     assert!(scheduler.is_some(), "should return a scheduler when cron triggers exist");
-    assert_eq!(scheduler.unwrap().trigger_count(), 1);
+    assert_eq!(scheduler.expect("cron_scheduler should return Some when triggers exist").trigger_count(), 1);
 }
 
-/// Test: TriggerRegistry.cron_scheduler() returns None when no cron triggers exist
+/// Test: `TriggerRegistry.cron_scheduler()` returns None when no cron triggers exist
 #[test]
 fn test_registry_cron_scheduler_returns_none_when_no_triggers() {
     use crate::{FunctionDefinition, RuntimeType};
@@ -1642,7 +1642,7 @@ fn test_registry_cron_scheduler_returns_none_when_no_triggers() {
     );
 }
 
-/// Test: CronScheduler can be constructed with triggers
+/// Test: `CronScheduler` can be constructed with triggers
 #[test]
 fn test_cron_scheduler_new_creates_with_triggers() {
     use crate::triggers::cron::{CronScheduler, CronTrigger};
@@ -1664,7 +1664,7 @@ fn test_cron_scheduler_new_creates_with_triggers() {
     assert_eq!(scheduler.trigger_count(), 2);
 }
 
-/// Test: CronScheduler can be started and returns a handle
+/// Test: `CronScheduler` can be started and returns a handle
 #[tokio::test]
 async fn test_cron_scheduler_starts_and_provides_handle() {
     use crate::triggers::cron::{CronScheduler, CronTrigger};
@@ -1687,7 +1687,7 @@ async fn test_cron_scheduler_starts_and_provides_handle() {
     handle.stop();
 }
 
-/// Test: CronSchedulerHandle stops gracefully without panic
+/// Test: `CronSchedulerHandle` stops gracefully without panic
 #[tokio::test]
 async fn test_cron_scheduler_handle_stops_gracefully() {
     use crate::triggers::cron::{CronScheduler, CronTrigger};
@@ -1713,7 +1713,7 @@ async fn test_cron_scheduler_handle_stops_gracefully() {
     tokio::task::yield_now().await;
 }
 
-/// Test: CronScheduler with no triggers starts and stops cleanly
+/// Test: `CronScheduler` with no triggers starts and stops cleanly
 #[tokio::test]
 async fn test_cron_scheduler_empty_starts_cleanly() {
     use crate::triggers::cron::CronScheduler;

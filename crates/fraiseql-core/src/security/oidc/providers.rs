@@ -498,38 +498,38 @@ mod tests {
 
     #[test]
     fn rejects_empty_query() {
-        let err = validate_enrichment_query("").unwrap_err();
+        let err = validate_enrichment_query("").expect_err("empty query should be rejected");
         assert!(err.to_string().contains("empty"));
     }
 
     #[test]
     fn rejects_semicolon() {
         let err =
-            validate_enrichment_query("SELECT 1; DROP TABLE users").unwrap_err();
-        assert!(err.to_string().contains(";"));
+            validate_enrichment_query("SELECT 1; DROP TABLE users").expect_err("semicolon should be rejected");
+        assert!(err.to_string().contains(';'));
     }
 
     #[test]
     fn rejects_drop_statement() {
-        let err = validate_enrichment_query("DROP TABLE users").unwrap_err();
+        let err = validate_enrichment_query("DROP TABLE users").expect_err("DROP should be rejected");
         assert!(err.to_string().contains("SELECT or WITH"));
     }
 
     #[test]
     fn rejects_insert_statement() {
-        let err = validate_enrichment_query("INSERT INTO users VALUES (1)").unwrap_err();
+        let err = validate_enrichment_query("INSERT INTO users VALUES (1)").expect_err("INSERT should be rejected");
         assert!(err.to_string().contains("SELECT or WITH"));
     }
 
     #[test]
     fn rejects_update_statement() {
-        let err = validate_enrichment_query("UPDATE users SET role = 'admin'").unwrap_err();
+        let err = validate_enrichment_query("UPDATE users SET role = 'admin'").expect_err("UPDATE should be rejected");
         assert!(err.to_string().contains("SELECT or WITH"));
     }
 
     #[test]
     fn rejects_delete_statement() {
-        let err = validate_enrichment_query("DELETE FROM users").unwrap_err();
+        let err = validate_enrichment_query("DELETE FROM users").expect_err("DELETE should be rejected");
         assert!(err.to_string().contains("SELECT or WITH"));
     }
 }
