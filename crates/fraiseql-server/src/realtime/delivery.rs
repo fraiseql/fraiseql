@@ -4,7 +4,9 @@
 //! evaluates RLS once per group, applies field filters, and delivers events to
 //! authorized connections.
 
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
+
+use futures::future::BoxFuture;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -69,17 +71,28 @@ impl From<EventKind> for EventKindSerde {
 ///
 /// Implementations check whether a given security context hash is authorized
 /// to see a specific row of a given entity.
+///
+/// The trait is object-safe (returns `BoxFuture`) so it can be stored as
+/// `Arc<dyn RlsEvaluator>` without infecting the delivery pipeline with a
+/// type parameter.
+///
+/// # Production implementation
+///
+/// The concrete `SqlRlsEvaluator` (wired in Phase 8) runs
+/// `SELECT EXISTS(SELECT 1 FROM entity WHERE pk = $1 AND <rls_where_clauses>)`
+/// against the database — one query per distinct security-context group per
+/// event.
 pub trait RlsEvaluator: Send + Sync + 'static {
     /// Check if the given security context can access the row.
     ///
     /// Returns `true` if the row should be delivered, `false` if it should
     /// be silently dropped.
-    fn can_access(
-        &self,
+    fn can_access<'a>(
+        &'a self,
         context_hash: u64,
-        entity: &str,
-        row: &Value,
-    ) -> impl Future<Output = bool> + Send;
+        entity: &'a str,
+        row: &'a Value,
+    ) -> BoxFuture<'a, bool>;
 }
 
 /// A change event formatted for delivery to a client.
@@ -116,23 +129,23 @@ impl ChangeMessage {
 }
 
 /// Event delivery pipeline that processes entity events and delivers to subscribers.
-pub struct EventDeliveryPipeline<R: RlsEvaluator> {
+pub struct EventDeliveryPipeline {
     /// Subscription manager for looking up who receives what.
     subscriptions: Arc<SubscriptionManager>,
     /// Connection manager for sending events to connections.
     connections: Arc<ConnectionManager>,
     /// RLS evaluator for access control.
-    rls_evaluator: Arc<R>,
+    rls_evaluator: Arc<dyn RlsEvaluator>,
     /// Receiver for incoming entity events.
     event_rx: mpsc::Receiver<EntityEvent>,
 }
 
-impl<R: RlsEvaluator> EventDeliveryPipeline<R> {
+impl EventDeliveryPipeline {
     /// Create a new event delivery pipeline.
-    pub const fn new(
+    pub fn new(
         subscriptions: Arc<SubscriptionManager>,
         connections: Arc<ConnectionManager>,
-        rls_evaluator: Arc<R>,
+        rls_evaluator: Arc<dyn RlsEvaluator>,
         event_rx: mpsc::Receiver<EntityEvent>,
     ) -> Self {
         Self {

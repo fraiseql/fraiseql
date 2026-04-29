@@ -8,6 +8,8 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite};
 
+use futures::future::BoxFuture;
+
 use super::context_hash::security_context_hash;
 use super::delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde, RlsEvaluator};
 use super::observer::RealtimeBroadcastObserver;
@@ -35,24 +37,28 @@ impl TestValidator {
 }
 
 impl TokenValidator for TestValidator {
-    async fn validate(&self, token: &str) -> Result<TokenInfo, String> {
-        if token.starts_with("valid-") {
-            let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
-            Ok(TokenInfo {
-                user_id: user_id.clone(),
-                context_hash: {
-                    use std::hash::{Hash, Hasher};
-                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                    user_id.hash(&mut hasher);
-                    hasher.finish()
-                },
-                expires_at: chrono::Utc::now().timestamp() + self.expires_in,
-            })
-        } else if token == "expired-token" {
-            Err("token expired".to_owned())
-        } else {
-            Err("invalid token".to_owned())
-        }
+    fn validate<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<TokenInfo, String>> {
+        let expires_in = self.expires_in;
+        let token = token.to_owned();
+        Box::pin(async move {
+            if token.starts_with("valid-") {
+                let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
+                Ok(TokenInfo {
+                    user_id: user_id.clone(),
+                    context_hash: {
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        user_id.hash(&mut hasher);
+                        hasher.finish()
+                    },
+                    expires_at: chrono::Utc::now().timestamp() + expires_in,
+                })
+            } else if token == "expired-token" {
+                Err("token expired".to_owned())
+            } else {
+                Err("invalid token".to_owned())
+            }
+        })
     }
 }
 
@@ -67,7 +73,7 @@ async fn spawn_test_server(config: RealtimeConfig, validator: TestValidator) -> 
     };
 
     let app = Router::new()
-        .route("/realtime/v1", get(ws_handler::<TestValidator>))
+        .route("/realtime/v1", get(ws_handler))
         .with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -101,7 +107,7 @@ async fn spawn_test_server_with_entities(
     };
 
     let app = Router::new()
-        .route("/realtime/v1", get(ws_handler::<TestValidator>))
+        .route("/realtime/v1", get(ws_handler))
         .with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -378,17 +384,20 @@ async fn test_websocket_token_expiry_disconnects() {
 #[derive(Clone)]
 struct NearExpiryValidator;
 impl TokenValidator for NearExpiryValidator {
-    async fn validate(&self, token: &str) -> Result<TokenInfo, String> {
-        if token.starts_with("valid-") {
-            let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
-            Ok(TokenInfo {
-                user_id,
-                context_hash: 42,
-                expires_at: chrono::Utc::now().timestamp(),
-            })
-        } else {
-            Err("invalid".to_owned())
-        }
+    fn validate<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<TokenInfo, String>> {
+        let token = token.to_owned();
+        Box::pin(async move {
+            if token.starts_with("valid-") {
+                let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
+                Ok(TokenInfo {
+                    user_id,
+                    context_hash: 42,
+                    expires_at: chrono::Utc::now().timestamp(),
+                })
+            } else {
+                Err("invalid".to_owned())
+            }
+        })
     }
 }
 
@@ -408,7 +417,7 @@ async fn test_websocket_token_revalidation_interval() {
     };
 
     let app = Router::new()
-        .route("/realtime/v1", get(ws_handler::<NearExpiryValidator>))
+        .route("/realtime/v1", get(ws_handler))
         .with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -682,16 +691,16 @@ async fn test_duplicate_subscribe_is_idempotent() {
 /// RLS evaluator that allows all access.
 struct AllowAllRls;
 impl RlsEvaluator for AllowAllRls {
-    async fn can_access(&self, _context_hash: u64, _entity: &str, _row: &serde_json::Value) -> bool {
-        true
+    fn can_access<'a>(&'a self, _context_hash: u64, _entity: &'a str, _row: &'a serde_json::Value) -> BoxFuture<'a, bool> {
+        Box::pin(async { true })
     }
 }
 
 /// RLS evaluator that denies all access.
 struct DenyAllRls;
 impl RlsEvaluator for DenyAllRls {
-    async fn can_access(&self, _context_hash: u64, _entity: &str, _row: &serde_json::Value) -> bool {
-        false
+    fn can_access<'a>(&'a self, _context_hash: u64, _entity: &'a str, _row: &'a serde_json::Value) -> BoxFuture<'a, bool> {
+        Box::pin(async { false })
     }
 }
 
@@ -710,18 +719,18 @@ impl CountingRls {
     }
 }
 impl RlsEvaluator for CountingRls {
-    async fn can_access(&self, _context_hash: u64, _entity: &str, _row: &serde_json::Value) -> bool {
+    fn can_access<'a>(&'a self, _context_hash: u64, _entity: &'a str, _row: &'a serde_json::Value) -> BoxFuture<'a, bool> {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        true
+        Box::pin(async { true })
     }
 }
 
 /// Helper to spawn a server + delivery pipeline and return (addr, event_tx).
-async fn spawn_server_with_delivery<R: RlsEvaluator>(
+async fn spawn_server_with_delivery(
     config: RealtimeConfig,
     validator: TestValidator,
     entities: HashSet<String>,
-    rls: Arc<R>,
+    rls: Arc<dyn RlsEvaluator>,
 ) -> (SocketAddr, mpsc::Sender<EntityEvent>) {
     let server = Arc::new(RealtimeServer::with_entities(config, entities));
     let (event_tx, event_rx) = mpsc::channel(1000);
@@ -741,7 +750,7 @@ async fn spawn_server_with_delivery<R: RlsEvaluator>(
     };
 
     let app = Router::new()
-        .route("/realtime/v1", get(ws_handler::<TestValidator>))
+        .route("/realtime/v1", get(ws_handler))
         .with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -1121,11 +1130,11 @@ async fn test_observer_channel_full_drops_event() {
 ///
 /// Returns `(addr, observer)` — call `observer.on_mutation_complete(event)` to
 /// inject events end-to-end.
-async fn spawn_server_with_observer<R: RlsEvaluator>(
+async fn spawn_server_with_observer(
     config: RealtimeConfig,
     validator: TestValidator,
     entities: HashSet<String>,
-    rls: Arc<R>,
+    rls: Arc<dyn RlsEvaluator>,
 ) -> (SocketAddr, RealtimeBroadcastObserver) {
     let server = Arc::new(RealtimeServer::with_entities(config.clone(), entities));
     let (observer, event_rx) = RealtimeBroadcastObserver::new(config.event_channel_capacity);
@@ -1144,7 +1153,7 @@ async fn spawn_server_with_observer<R: RlsEvaluator>(
     };
 
     let app = Router::new()
-        .route("/realtime/v1", get(ws_handler::<TestValidator>))
+        .route("/realtime/v1", get(ws_handler))
         .with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

@@ -10,6 +10,8 @@ use std::{
     time::Duration,
 };
 
+use futures::future::BoxFuture;
+
 use axum::{
     extract::{
         Query, State,
@@ -70,6 +72,16 @@ impl Default for RealtimeConfig {
 ///
 /// Implementations validate bearer tokens (JWT or otherwise) and return
 /// the validated token information including user identity and expiration.
+///
+/// The trait is object-safe (returns `BoxFuture`) so it can be stored as
+/// `Arc<dyn TokenValidator>` and mounted in `build_base_router` without
+/// adding a type parameter to `Server<A>`.
+///
+/// # Production implementation
+///
+/// `JwtTokenValidator` (wired in Cycle 6) wraps the existing `OidcValidator`
+/// from `fraiseql-core`, reusing the same JWT validation path as the GraphQL
+/// endpoint's OIDC middleware.
 pub trait TokenValidator: Send + Sync + 'static {
     /// Validate a bearer token and return the token info.
     ///
@@ -77,10 +89,10 @@ pub trait TokenValidator: Send + Sync + 'static {
     ///
     /// Returns an error string if the token is invalid, expired, or
     /// cannot be validated.
-    fn validate(
-        &self,
-        token: &str,
-    ) -> impl std::future::Future<Output = Result<TokenInfo, String>> + Send;
+    fn validate<'a>(
+        &'a self,
+        token: &'a str,
+    ) -> BoxFuture<'a, Result<TokenInfo, String>>;
 }
 
 /// Information extracted from a validated token.
@@ -96,11 +108,11 @@ pub struct TokenInfo {
 
 /// Shared state for the realtime `WebSocket` handler.
 #[derive(Clone)]
-pub struct RealtimeState<V: TokenValidator> {
+pub struct RealtimeState {
     /// The realtime server instance.
     pub server: Arc<RealtimeServer>,
     /// Token validator for authenticating connections.
-    pub validator: Arc<V>,
+    pub validator: Arc<dyn TokenValidator>,
 }
 
 /// The realtime `WebSocket` server.
@@ -171,11 +183,11 @@ pub struct WsQueryParams {
 ///
 /// Returns HTTP 401 if authentication fails (missing, invalid, or expired token).
 /// Returns HTTP 429 if the connection limit for this security context is reached.
-pub async fn ws_handler<V: TokenValidator>(
+pub async fn ws_handler(
     headers: axum::http::HeaderMap,
     Query(params): Query<WsQueryParams>,
     ws: WebSocketUpgrade,
-    State(state): State<RealtimeState<V>>,
+    State(state): State<RealtimeState>,
 ) -> impl IntoResponse {
     // Extract token from query param or Authorization header
     let token = params.token.or_else(|| {
