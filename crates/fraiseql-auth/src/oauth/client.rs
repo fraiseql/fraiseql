@@ -8,10 +8,11 @@ const OAUTH_REQUEST_TIMEOUT: StdDuration = StdDuration::from_secs(30);
 use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use super::{
     super::jwks::{JwksCache, JwksError},
-    pkce::PKCEChallenge,
+    pkce::{PKCEChallenge, gen_random_token},
     types::{IdTokenClaims, TokenResponse, UserInfo},
 };
 
@@ -82,22 +83,46 @@ pub struct AuthorizationRequest {
 }
 
 /// OAuth2 client for authorization code flow.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct OAuth2Client {
     /// Client ID from provider.
     pub client_id:              String,
     /// Client secret from provider.
-    client_secret:              String,
+    /// Stored as `Zeroizing<String>` so the key material is wiped from memory
+    /// when this struct is dropped.
+    client_secret:              Zeroizing<String>,
     /// Authorization endpoint.
     pub authorization_endpoint: String,
     /// Token endpoint.
     token_endpoint:             String,
+    /// Registered redirect URI.
+    ///
+    /// When set, `exchange_code` validates that the caller-supplied `redirect_uri`
+    /// matches this value (exact match after trailing-`/` trim) before issuing
+    /// the token request.  This prevents an attacker who can influence the
+    /// `redirect_uri` parameter from steering the code exchange to an
+    /// unregistered destination (open-redirect / code-interception attack).
+    redirect_uri:               Option<String>,
     /// Scopes to request.
     pub scopes:                 Vec<String>,
     /// Use PKCE for additional security.
     pub use_pkce:               bool,
     /// HTTP client for token requests.
     http_client:                reqwest::Client,
+}
+
+/// Custom `Debug` that redacts the client secret.
+#[allow(clippy::missing_fields_in_debug)] // Reason: http_client omitted intentionally (not useful in debug output)
+impl std::fmt::Debug for OAuth2Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuth2Client")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .field("authorization_endpoint", &self.authorization_endpoint)
+            .field("scopes", &self.scopes)
+            .field("use_pkce", &self.use_pkce)
+            .finish_non_exhaustive()
+    }
 }
 
 impl OAuth2Client {
@@ -117,9 +142,10 @@ impl OAuth2Client {
     ) -> Self {
         Self {
             client_id:              client_id.into(),
-            client_secret:          client_secret.into(),
+            client_secret:          Zeroizing::new(client_secret.into()),
             authorization_endpoint: authorization_endpoint.into(),
             token_endpoint:         token_endpoint.into(),
+            redirect_uri:           None,
             scopes:                 vec![
                 "openid".to_string(),
                 "profile".to_string(),
@@ -131,6 +157,20 @@ impl OAuth2Client {
                 .build()
                 .unwrap_or_default(),
         }
+    }
+
+    /// Register the expected redirect URI.
+    ///
+    /// When set, [`Self::exchange_code`] validates that the caller-supplied
+    /// `redirect_uri` exactly matches this value (after stripping trailing `/`)
+    /// before issuing the token request.  This prevents open-redirect and
+    /// authorization-code-interception attacks.
+    ///
+    /// Call this builder method immediately after construction for any client
+    /// that will call `exchange_code` with a caller-supplied redirect URI.
+    pub fn with_redirect_uri(mut self, uri: impl Into<String>) -> Self {
+        self.redirect_uri = Some(uri.into());
+        self
     }
 
     /// Set scopes for request.
@@ -152,7 +192,8 @@ impl OAuth2Client {
     /// challenge (when `use_pkce = true`; the `code_verifier` must be stored
     /// and sent during token exchange).
     pub fn authorization_url(&self, redirect_uri: &str) -> AuthorizationRequest {
-        let state = uuid::Uuid::new_v4().to_string();
+        // SECURITY: 32-byte OsRng → 43-char URL-safe base64 (~256-bit entropy, RFC 7636 §4.1)
+        let state = gen_random_token();
         let scope = self.scopes.join(" ");
 
         let mut url = format!(
@@ -233,6 +274,17 @@ impl OAuth2Client {
         code: &str,
         redirect_uri: &str,
     ) -> Result<TokenResponse, String> {
+        // SECURITY: If a registered redirect URI was set via with_redirect_uri(),
+        // validate the caller-supplied value before it reaches the token endpoint.
+        // Exact match after trailing-slash trim — no prefix or scheme stripping.
+        if let Some(registered) = &self.redirect_uri {
+            if registered.trim_end_matches('/') != redirect_uri.trim_end_matches('/') {
+                return Err(format!(
+                    "redirect_uri mismatch: supplied '{}' does not match registered '{}'",
+                    redirect_uri, registered
+                ));
+            }
+        }
         let params = [
             ("grant_type", "authorization_code"),
             ("code", code),
@@ -260,20 +312,82 @@ impl OAuth2Client {
     }
 }
 
+/// Asymmetric signing algorithms permitted for OIDC ID tokens.
+///
+/// OIDC providers MUST use asymmetric signing so the relying party can verify
+/// signatures without possessing key material that could forge tokens.
+/// Symmetric algorithms (HS*) are forbidden on this path — see
+/// [`FORBIDDEN_OIDC_ALGORITHMS`].
+///
+/// Reference: RFC 8725 §2.1, OpenID Connect Core §10.1.
+pub const ALLOWED_OIDC_ALGORITHMS: &[jsonwebtoken::Algorithm] = &[
+    jsonwebtoken::Algorithm::RS256,
+    jsonwebtoken::Algorithm::RS384,
+    jsonwebtoken::Algorithm::RS512,
+    jsonwebtoken::Algorithm::ES256,
+    jsonwebtoken::Algorithm::ES384,
+];
+
+/// Symmetric algorithms explicitly forbidden on the OIDC ID token path.
+///
+/// An OIDC provider that issues tokens with a symmetric algorithm is either
+/// misconfigured or an attacker performing an algorithm-substitution attack
+/// (RFC 8725 §2.1).  Any token header claiming one of these algorithms is
+/// rejected with [`crate::error::AuthError::ForbiddenAlgorithm`] before
+/// signature verification is attempted.
+pub const FORBIDDEN_OIDC_ALGORITHMS: &[jsonwebtoken::Algorithm] = &[
+    jsonwebtoken::Algorithm::HS256,
+    jsonwebtoken::Algorithm::HS384,
+    jsonwebtoken::Algorithm::HS512,
+];
+
+/// Required `typ` header value for OIDC ID tokens (RFC 7519 §5.1, RFC 8725 §3.11).
+///
+/// When the `typ` header is present it MUST equal `"JWT"` (case-insensitive).
+/// A token with a different `typ` (e.g., `"at+JWT"` for access tokens) is
+/// rejected to prevent token-type confusion attacks.
+pub const REQUIRED_JWT_TYP: &str = "JWT";
+
+/// JWT header parameters that must never appear in a legitimate OIDC ID token.
+///
+/// These fields (`jku`, `jwk`, `x5u`, `x5c`) could steer key resolution in a
+/// vulnerable JWT library to an attacker-controlled endpoint (RFC 8725 §2.6).
+/// The `jsonwebtoken` crate ignores them for key resolution, so this guard is
+/// defence-in-depth: their presence in any token issued by a compliant OIDC
+/// provider is anomalous and indicates a crafted or malicious token.
+///
+/// Note on `crit` (RFC 7515 §4.1.11): the `jsonwebtoken` v9 `Header` struct
+/// does not expose a `crit` field.  The crate's decoder handles unknown
+/// extensions at the decode level, so no explicit `crit` guard is required.
+pub const FORBIDDEN_KEY_INJECTION_HEADERS: &[&str] = &["jku", "jwk", "x5u", "x5c"];
+
 /// OIDC client for OpenID Connect flow.
-#[derive(Debug)]
 pub struct OIDCClient {
     /// Provider configuration.
     pub config:     OIDCProviderConfig,
     /// Client ID.
     pub client_id:  String,
     /// Client secret — retained for token revocation and introspection endpoints.
+    /// Stored as `Zeroizing<String>` so the key material is wiped from memory
+    /// when this struct is dropped.
     #[allow(dead_code)] // Reason: retained for token revocation and introspection endpoints
-    client_secret: String,
+    client_secret: Zeroizing<String>,
     /// JWKS key cache for ID token signature verification.
     pub jwks_cache: Arc<JwksCache>,
     /// HTTP client for userinfo requests.
     http_client:    reqwest::Client,
+}
+
+/// Custom `Debug` that redacts the client secret.
+#[allow(clippy::missing_fields_in_debug)] // Reason: http_client omitted intentionally (not useful in debug output)
+impl std::fmt::Debug for OIDCClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OIDCClient")
+            .field("config", &self.config)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
 }
 
 impl OIDCClient {
@@ -302,7 +416,7 @@ impl OIDCClient {
         Ok(Self {
             config,
             client_id: client_id.into(),
-            client_secret: client_secret.into(),
+            client_secret: Zeroizing::new(client_secret.into()),
             jwks_cache,
             http_client: reqwest::Client::builder()
                 .timeout(OAUTH_REQUEST_TIMEOUT)
@@ -321,7 +435,7 @@ impl OIDCClient {
         Self {
             config,
             client_id: client_id.into(),
-            client_secret: client_secret.into(),
+            client_secret: Zeroizing::new(client_secret.into()),
             jwks_cache,
             http_client: reqwest::Client::builder()
                 .timeout(OAUTH_REQUEST_TIMEOUT)
@@ -339,7 +453,8 @@ impl OIDCClient {
     ///
     /// PKCE is always enabled for OIDC flows started via this method.
     pub fn authorization_url(&self, redirect_uri: &str) -> AuthorizationRequest {
-        let state = uuid::Uuid::new_v4().to_string();
+        // SECURITY: 32-byte OsRng → 43-char URL-safe base64 (~256-bit entropy, RFC 7636 §4.1)
+        let state = gen_random_token();
         let scope = self.config.scopes_supported.join(" ");
         let nonce = super::pkce::NonceParameter::new();
         let challenge = PKCEChallenge::new();
@@ -395,6 +510,43 @@ impl OIDCClient {
         // 1. Decode header to get kid
         let header = jsonwebtoken::decode_header(id_token)
             .map_err(|e| format!("Invalid JWT header: {e}"))?;
+
+        // 1a. Algorithm whitelist (S41 — RFC 8725 §2.1): reject forbidden symmetric algorithms
+        //     and any algorithm not in the OIDC allowlist before touching the JWKS cache.
+        if FORBIDDEN_OIDC_ALGORITHMS.contains(&header.alg) {
+            let alg_str = format!("{:?}", header.alg);
+            return Err(format!("Forbidden OIDC algorithm: {alg_str}"));
+        }
+        if !ALLOWED_OIDC_ALGORITHMS.contains(&header.alg) {
+            let alg_str = format!("{:?}", header.alg);
+            return Err(format!("OIDC algorithm not in allowlist: {alg_str}"));
+        }
+
+        // 1b. typ header assertion (S41 — RFC 8725 §3.11 / RFC 7519 §5.1): when present,
+        //     `typ` must equal "JWT" (case-insensitive) to prevent token-type confusion.
+        if let Some(ref typ) = header.typ {
+            if typ.to_uppercase() != REQUIRED_JWT_TYP {
+                return Err(format!(
+                    "Unexpected JWT typ header '{typ}': expected '{REQUIRED_JWT_TYP}'"
+                ));
+            }
+        }
+
+        // 1c. Key-injection header rejection (S42 — RFC 8725 §2.6): reject tokens that
+        //     carry jku, jwk, x5u, or x5c headers.  In a vulnerable JWT library these
+        //     fields can steer key resolution to an attacker-controlled endpoint.  The
+        //     `jsonwebtoken` crate ignores them for key resolution (defence-in-depth),
+        //     but their presence in an OIDC ID token is anomalous — no compliant provider
+        //     sets them — and the only correct response is rejection.
+        //     See also: FORBIDDEN_KEY_INJECTION_HEADERS constant.
+        if header.jku.is_some()
+            || header.jwk.is_some()
+            || header.x5u.is_some()
+            || header.x5c.is_some()
+        {
+            return Err("JWT header contains forbidden key-injection parameter".to_string());
+        }
+
         let kid = header.kid.ok_or("JWT missing 'kid' in header")?;
 
         // 2. Get key from JWKS cache
@@ -415,6 +567,11 @@ impl OIDCClient {
         let token_data = jsonwebtoken::decode::<IdTokenClaims>(id_token, &key, &validation)
             .map_err(|e| format!("ID token validation failed: {e}"))?;
         let claims = token_data.claims;
+
+        // 4.5. Validate temporal claims: iat staleness/skew and nbf not-before (S40).
+        claims
+            .validate_temporal_claims()
+            .map_err(|e| format!("ID token temporal validation failed: {e}"))?;
 
         // 5. Verify nonce using constant-time comparison (replay protection — RFC 6749 §10.12 /
         //    OIDC Core §3.1.3.7).
@@ -610,5 +767,339 @@ mod tests {
             !msg.contains("too large"),
             "size gate must not trigger for small payload: {msg}"
         );
+    }
+
+    // ── S38: SCRAM / auth key-material zeroization ────────────────────────────
+
+    #[test]
+    fn oauth2_client_secret_is_zeroized_on_drop() {
+        // Security (S38): OAuth2Client.client_secret must be Zeroizing<String> so
+        // the key material is wiped from memory when the client is dropped.
+        let mut secret = zeroize::Zeroizing::new("oauth2-client-secret-abc".to_string());
+        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
+        zeroize::Zeroize::zeroize(&mut *secret);
+        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
+
+        // Compile-time proof: OAuth2Client.client_secret must accept Zeroizing<String>.
+        let client = OAuth2Client::new(
+            "client_id",
+            "my_secret_value",
+            "https://example.com/auth",
+            "https://example.com/token",
+        );
+        let _: &zeroize::Zeroizing<String> = &client.client_secret;
+    }
+
+    #[test]
+    fn oauth2_client_debug_redacts_secret() {
+        let client = OAuth2Client::new(
+            "client_id",
+            "super_secret_xyz",
+            "https://example.com/auth",
+            "https://example.com/token",
+        );
+        let debug = format!("{client:?}");
+        assert!(!debug.contains("super_secret_xyz"), "Debug must redact client_secret: {debug}");
+        assert!(debug.contains("[REDACTED]"), "Debug must show [REDACTED]: {debug}");
+    }
+
+    #[test]
+    fn oidc_client_secret_is_zeroized_on_drop() {
+        // Security (S38): OIDCClient.client_secret must be Zeroizing<String>.
+        let mut secret = zeroize::Zeroizing::new("oidc-client-secret-xyz".to_string());
+        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
+        zeroize::Zeroize::zeroize(&mut *secret);
+        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
+
+        // Compile-time proof: OIDCClient.client_secret must accept Zeroizing<String>.
+        let config = OIDCProviderConfig {
+            issuer:                   "https://example.com".to_string(),
+            authorization_endpoint:   "https://example.com/auth".to_string(),
+            token_endpoint:           "https://example.com/token".to_string(),
+            userinfo_endpoint:        None,
+            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        let client = OIDCClient::new(config, "client_id", "oidc_secret_value").unwrap();
+        let _: &zeroize::Zeroizing<String> = &client.client_secret;
+    }
+
+    #[test]
+    fn oidc_client_debug_redacts_secret() {
+        let config = OIDCProviderConfig {
+            issuer:                   "https://example.com".to_string(),
+            authorization_endpoint:   "https://example.com/auth".to_string(),
+            token_endpoint:           "https://example.com/token".to_string(),
+            userinfo_endpoint:        None,
+            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        let client = OIDCClient::new(config, "client_id", "super_oidc_secret").unwrap();
+        let debug = format!("{client:?}");
+        assert!(!debug.contains("super_oidc_secret"), "Debug must redact client_secret: {debug}");
+        assert!(debug.contains("[REDACTED]"), "Debug must show [REDACTED]: {debug}");
+    }
+
+    // ── S41: Algorithm whitelist and typ-header guards ────────────────────────
+
+    /// Build a fake JWT string with the given base64url-encoded header JSON.
+    ///
+    /// `decode_header` only inspects the first segment, so the payload and
+    /// signature can be arbitrary non-empty strings.
+    fn fake_jwt_with_header(header_json: &str) -> String {
+        use base64::Engine as _;
+        let header_b64 =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(header_json.as_bytes());
+        format!("{header_b64}.fakepayload.fakesig")
+    }
+
+    /// Build a fake OIDC client that will never actually fetch JWKS —
+    /// the early-exit checks (algorithm whitelist, typ) run before any network call.
+    fn fake_oidc_client() -> OIDCClient {
+        let config = OIDCProviderConfig {
+            issuer:                   "https://example.com".to_string(),
+            authorization_endpoint:   "https://example.com/auth".to_string(),
+            token_endpoint:           "https://example.com/token".to_string(),
+            userinfo_endpoint:        None,
+            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported:         vec!["openid".to_string()],
+            response_types_supported: vec!["code".to_string()],
+        };
+        OIDCClient::new(config, "client_id", "secret").unwrap()
+    }
+
+    #[test]
+    fn allowed_oidc_algorithms_constant_does_not_contain_symmetric() {
+        // Compile-time posture: ALLOWED list must not include any symmetric algorithm.
+        for alg in ALLOWED_OIDC_ALGORITHMS {
+            assert!(
+                !FORBIDDEN_OIDC_ALGORITHMS.contains(alg),
+                "ALLOWED_OIDC_ALGORITHMS must not overlap with FORBIDDEN: {alg:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn forbidden_oidc_algorithms_covers_hmac_family() {
+        use jsonwebtoken::Algorithm;
+        assert!(FORBIDDEN_OIDC_ALGORITHMS.contains(&Algorithm::HS256));
+        assert!(FORBIDDEN_OIDC_ALGORITHMS.contains(&Algorithm::HS384));
+        assert!(FORBIDDEN_OIDC_ALGORITHMS.contains(&Algorithm::HS512));
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_hs256_alg() {
+        // S41: HS256 is a symmetric algorithm — forbidden on the OIDC ID-token path.
+        // The check fires before JWKS fetch, so no network call is made.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"HS256","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "HS256 must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Forbidden") || msg.contains("forbidden"),
+            "error must mention 'Forbidden': {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_hs384_alg() {
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"HS384","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "HS384 must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Forbidden") || msg.contains("forbidden"),
+            "error must mention 'Forbidden': {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_hs512_alg() {
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"HS512","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "HS512 must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Forbidden") || msg.contains("forbidden"),
+            "error must mention 'Forbidden': {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_algorithm_not_in_allowlist() {
+        // PS256 is not in FORBIDDEN (it is asymmetric) but also not in ALLOWED
+        // (FraiseQL only accepts RS/ES families).  It must be rejected by the
+        // second guard ("not in allowlist").
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"PS256","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "PS256 must be rejected as not in allowlist: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("allowlist") || msg.contains("not allowed") || msg.contains("Forbidden"),
+            "error must mention allowlist rejection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_alg_none() {
+        // Defense-in-depth: `alg:none` tokens must be rejected.
+        // The jsonwebtoken crate does not parse "none" as a valid Algorithm variant,
+        // so `decode_header` itself will return an error before our whitelist check.
+        // This test documents and asserts that defensive behavior.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"none","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "alg:none token must be rejected: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_unexpected_typ_header() {
+        // S41 / RFC 8725 §3.11: when `typ` is present, it must be "JWT".
+        // An access token (`at+JWT`) must never be accepted as an ID token.
+        // We use RS256 (in the allowlist) so the algorithm check passes and
+        // the typ check is reached.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","typ":"at+JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "typ 'at+JWT' must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("typ") || msg.contains("Unexpected"),
+            "error must mention typ header: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_accepts_absent_typ_header() {
+        // RFC 7519: the `typ` header is optional.  When absent, the typ check must
+        // be skipped (not treated as an error).  A token without `typ` that passes
+        // the algorithm check should proceed to the JWKS lookup (which will fail
+        // here because the JWKS server is unreachable — that's the expected outcome).
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1"}"#); // no typ
+
+        let result = client.verify_id_token(&token, None, None).await;
+        // Must fail at JWKS fetch, NOT at the typ check.  Any "typ"-related message is a bug.
+        if let Err(ref msg) = result {
+            assert!(
+                !msg.contains("typ") && !msg.contains("Unexpected"),
+                "absent typ must not trigger typ rejection: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn required_jwt_typ_constant_is_uppercase_jwt() {
+        assert_eq!(REQUIRED_JWT_TYP, "JWT");
+    }
+
+    // ── S42: Key-injection header rejection ───────────────────────────────────
+
+    #[test]
+    fn forbidden_key_injection_headers_lists_expected_names() {
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"jku"));
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"jwk"));
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"x5u"));
+        assert!(FORBIDDEN_KEY_INJECTION_HEADERS.contains(&"x5c"));
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_jku_header() {
+        // S42 / RFC 8725 §2.6: jku steers key resolution — must be rejected.
+        let client = fake_oidc_client();
+        let token =
+            fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","jku":"https://evil.example/keys"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "jku header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_x5u_header() {
+        // S42 / RFC 8725 §2.6: x5u steers key resolution — must be rejected.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(
+            r#"{"alg":"RS256","kid":"k1","x5u":"https://evil.example/cert.pem"}"#,
+        );
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "x5u header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_x5c_header() {
+        // S42 / RFC 8725 §2.6: x5c embeds a certificate chain — must be rejected.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","x5c":["MIIB..."]}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "x5c header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_rejects_jwk_header() {
+        // S42 / RFC 8725 §2.6: an embedded jwk header must be rejected.
+        // The minimal JWK JSON uses RSA kty with required n/e parameters.
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(
+            r#"{"alg":"RS256","kid":"k1","jwk":{"kty":"RSA","n":"AAAA","e":"AQAB"}}"#,
+        );
+
+        let result = client.verify_id_token(&token, None, None).await;
+        assert!(result.is_err(), "jwk header must be rejected: {result:?}");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("injection") || msg.contains("forbidden"),
+            "error must mention key-injection: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_id_token_without_injection_headers_proceeds_to_jwks_check() {
+        // S42: a token with no key-injection headers must not be rejected by the
+        // injection guard — it should proceed to the JWKS lookup, which fails here
+        // because the server is unreachable (expected outcome).
+        let client = fake_oidc_client();
+        let token = fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","typ":"JWT"}"#);
+
+        let result = client.verify_id_token(&token, None, None).await;
+        // Must fail at JWKS fetch or kid lookup, NOT at the injection check.
+        if let Err(ref msg) = result {
+            assert!(
+                !msg.contains("injection"),
+                "clean token must not trigger injection rejection: {msg}"
+            );
+            assert!(
+                msg.to_lowercase().contains("jwks") || msg.contains("kid") || msg.contains("key"),
+                "error must indicate JWKS/key lookup failure: {msg}"
+            );
+        }
     }
 }

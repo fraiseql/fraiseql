@@ -184,7 +184,13 @@ impl EventBridge {
         info!("EventBridge stopped");
     }
 
-    /// Spawn `EventBridge` as a background task
+    /// Spawn `EventBridge` as a background task.
+    ///
+    /// Returns a `JoinHandle` that must not be silently dropped — callers
+    /// should either `.await` it for a clean shutdown or explicitly `.abort()`
+    /// it when the bridge is no longer needed.  Dropping the handle detaches
+    /// the task, making it impossible to observe panics or coordinate shutdown.
+    #[must_use = "dropping the JoinHandle detaches the task; store or abort it to control lifecycle"]
     pub fn spawn(self) -> tokio::task::JoinHandle<()> {
         tokio::spawn(self.run())
     }

@@ -515,6 +515,99 @@ mod tests {
         assert_eq!(extract_real_ip(&req, false, &[], &addr), "1.2.3.4");
     }
 
+    // ─── max_buckets cap tests (S34) ─────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_ip_bucket_cap_denies_new_ip_when_full() {
+        // max_buckets=2: first two distinct IPs are tracked; third is denied
+        let config = RateLimitConfig {
+            enabled: true,
+            rps_per_ip: 1_000,
+            burst_size: 1_000,
+            max_buckets: 2,
+            ..RateLimitConfig::default()
+        };
+        let limiter = RateLimiter::new(config);
+
+        // Fill the map with two IPs
+        assert!(limiter.check_ip_limit("1.1.1.1").await.allowed, "first IP should be tracked");
+        assert!(limiter.check_ip_limit("2.2.2.2").await.allowed, "second IP should be tracked");
+
+        // Known IPs are still allowed even though the map is full
+        assert!(
+            limiter.check_ip_limit("1.1.1.1").await.allowed,
+            "known IP must still pass after cap is reached"
+        );
+
+        // A brand-new IP is denied (cap exceeded)
+        assert!(
+            !limiter.check_ip_limit("3.3.3.3").await.allowed,
+            "unseen IP must be denied when ip_buckets is at max_buckets"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_user_bucket_cap_denies_new_user_when_full() {
+        let config = RateLimitConfig {
+            enabled: true,
+            rps_per_user: 1_000,
+            burst_size: 1_000,
+            max_buckets: 2,
+            ..RateLimitConfig::default()
+        };
+        let limiter = RateLimiter::new(config);
+
+        assert!(limiter.check_user_limit("alice").await.allowed, "first user should be tracked");
+        assert!(limiter.check_user_limit("bob").await.allowed, "second user should be tracked");
+
+        // Existing user still allowed
+        assert!(
+            limiter.check_user_limit("alice").await.allowed,
+            "known user must pass after cap"
+        );
+
+        // New user denied
+        assert!(
+            !limiter.check_user_limit("carol").await.allowed,
+            "unseen user must be denied when user_buckets is at max_buckets"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_path_ip_bucket_cap_denies_new_combination_when_full() {
+        let sec = RateLimitingSecurityConfig {
+            enabled: true,
+            requests_per_second: 1_000,
+            burst_size: 1_000,
+            auth_start_max_requests: 100,
+            auth_start_window_secs: 60,
+            ..Default::default()
+        };
+        let config = RateLimitConfig {
+            max_buckets: 1,
+            ..RateLimitConfig::from_security_config(&sec)
+        };
+        let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
+
+        // First (path, IP) pair fills the map
+        assert!(
+            limiter.check_path_limit("/auth/start", "1.1.1.1").await.allowed,
+            "first (path, ip) combination should be tracked"
+        );
+
+        // Same pair is still allowed (already in map)
+        assert!(
+            limiter.check_path_limit("/auth/start", "1.1.1.1").await.allowed,
+            "known (path, ip) pair must still pass"
+        );
+
+        // New IP is denied — map is at capacity
+        assert!(
+            !limiter.check_path_limit("/auth/start", "2.2.2.2").await.allowed,
+            "unseen (path, ip) combination must be denied when path_ip_buckets is at max_buckets"
+        );
+    }
+
     // ─── Redis integration tests ─────────────────────────────────────────────
     // These require a live Redis instance.  Run with:
     //   REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-server \
@@ -534,6 +627,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         };
         let rl = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
         // Use a unique key to avoid interference between test runs
@@ -558,6 +652,7 @@ mod tests {
             cleanup_interval_secs: 300,
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         };
         let suffix = uuid::Uuid::new_v4();
         let a = RateLimiter::new_redis(&url, config.clone())

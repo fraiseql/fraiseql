@@ -4,7 +4,7 @@ use sqlx::{Row, postgres::PgPool};
 
 use crate::{
     error::{AuthError, Result},
-    session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token},
+    session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token, unix_now},
 };
 
 /// PostgreSQL-backed session store
@@ -74,12 +74,10 @@ impl PostgresSessionStore {
     /// Generate a JWT access token with RS256 or HMAC signing
     ///
     /// Uses RS256 if a signing key is configured, otherwise falls back to HMAC with a
-    /// deterministic secret derived from the user ID.
+    /// 256-bit randomly-generated key (via `OsRng`) so the secret has full entropy.
     fn generate_access_token(&self, user_id: &str, expires_in: u64) -> Result<String> {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        // SECURITY: Propagate clock errors; unwrap_or_default would produce iat=0.
+        let now = unix_now()?;
 
         let exp = now + expires_in;
 
@@ -87,6 +85,7 @@ impl PostgresSessionStore {
             sub: user_id.to_string(),
             iat: now,
             exp,
+            nbf: None,
             iss: "fraiseql".to_string(),
             aud: vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
@@ -100,9 +99,12 @@ impl PostgresSessionStore {
         if let Some(private_key) = &self.signing_key {
             crate::jwt::generate_rs256_token(&claims, private_key)
         } else {
-            // Fallback: use deterministic HMAC secret (for testing/dev environments)
-            let secret = format!("fraiseql_session_{}", user_id).into_bytes();
-            crate::jwt::generate_hs256_token(&claims, &secret)
+            // SECURITY: Generate a 256-bit random HMAC key per token so the secret
+            // has full entropy regardless of user_id length or content.
+            // Using OsRng (backed by the OS CSPRNG) ensures cryptographic quality.
+            use rand::{Rng, rngs::OsRng};
+            let key_bytes: [u8; 32] = OsRng.gen();
+            crate::jwt::generate_hs256_token(&claims, &key_bytes)
         }
     }
 }
@@ -116,10 +118,8 @@ impl SessionStore for PostgresSessionStore {
         let refresh_token = generate_refresh_token();
         let refresh_token_hash = hash_token(&refresh_token);
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        // SECURITY: Propagate clock errors; unwrap_or_default would produce issued_at=0.
+        let now = unix_now()?;
 
         sqlx::query(
             r"
@@ -248,6 +248,7 @@ mod tests {
             sub:   "user123".to_string(),
             iat:   now,
             exp:   now + 3600,
+            nbf:   None,
             iss:   "fraiseql".to_string(),
             aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
@@ -289,6 +290,7 @@ mod tests {
             sub:   "user123".to_string(),
             iat:   now,
             exp:   now + 3600,
+            nbf:   None,
             iss:   "fraiseql".to_string(),
             aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),

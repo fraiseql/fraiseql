@@ -388,6 +388,7 @@ mod tests {
             cleanup_interval_secs: 60,
             trust_proxy_headers:   true,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         });
         args.apply_to_config(&mut config);
         let rl = config.rate_limiting.unwrap();

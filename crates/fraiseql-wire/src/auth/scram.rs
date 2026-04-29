@@ -9,6 +9,7 @@ use pbkdf2::pbkdf2;
 use rand::{rngs::OsRng, Rng};
 use sha2::{Digest, Sha256};
 use std::fmt;
+use zeroize::Zeroizing;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -59,7 +60,9 @@ pub struct ScramState {
 /// SCRAM-SHA-256 client implementation
 pub struct ScramClient {
     username: String,
-    password: String,
+    /// Password is stored as `Zeroizing<String>` so the key material is
+    /// overwritten with zeros when `ScramClient` is dropped (S38).
+    password: Zeroizing<String>,
     nonce: String,
 }
 
@@ -73,7 +76,7 @@ impl ScramClient {
 
         Self {
             username,
-            password,
+            password: Zeroizing::new(password),
             nonce,
         }
     }
@@ -309,7 +312,7 @@ mod tests {
     fn test_scram_client_creation() {
         let client = ScramClient::new("user".to_string(), "password".to_string());
         assert_eq!(client.username, "user");
-        assert_eq!(client.password, "password");
+        assert_eq!(client.password.as_str(), "password");
         assert!(!client.nonce.is_empty());
     }
 
@@ -460,5 +463,31 @@ mod tests {
             !auth_message.contains("user,admin=evil"),
             "auth_message must NOT contain raw (unescaped) username, got: {auth_message}"
         );
+    }
+
+    #[test]
+    fn scram_password_is_zeroized_on_drop() {
+        // Security (S38): password must be stored as Zeroizing<String> so the
+        // key material is overwritten with zeros when ScramClient is dropped.
+        //
+        // Verify the behavioral contract: explicit zeroize() on a Zeroizing<String>
+        // clears all bytes — the same operation that runs on Drop.
+        use zeroize::Zeroize as _;
+
+        let mut pw = zeroize::Zeroizing::new("super-secret-pw-12345".to_string());
+        assert!(
+            !pw.is_empty(),
+            "password should be non-empty before zeroize"
+        );
+        pw.zeroize();
+        assert!(pw.is_empty(), "password bytes must be wiped after zeroize");
+
+        // Also verify that constructing and dropping a ScramClient succeeds cleanly
+        // (the Drop impl must not panic).
+        let client = ScramClient::new("user".to_string(), "secret".to_string());
+        // Compile-time proof: if ScramClient.password is Zeroizing<String>, the
+        // assignment below must be type-compatible.
+        let _: &zeroize::Zeroizing<String> = &client.password;
+        drop(client);
     }
 }

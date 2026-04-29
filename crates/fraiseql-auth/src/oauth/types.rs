@@ -3,6 +3,8 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::jwt::{MAX_CLOCK_SKEW_SECS, MAX_TOKEN_AGE_SECS};
+
 /// OAuth2 token response from provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenResponse {
@@ -57,6 +59,12 @@ pub struct IdTokenClaims {
     pub exp:            i64,
     /// Issued at time (Unix timestamp)
     pub iat:            i64,
+    /// Not-before time (Unix timestamp) — optional per RFC 7519 §4.1.5.
+    ///
+    /// When present, the token MUST NOT be accepted before this time (plus
+    /// [`MAX_CLOCK_SKEW_SECS`]).  When absent, the not-before check is skipped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nbf:            Option<i64>,
     /// Authentication time (Unix timestamp)
     pub auth_time:      Option<i64>,
     /// Nonce (for replay protection)
@@ -82,6 +90,7 @@ impl IdTokenClaims {
             aud,
             exp,
             iat,
+            nbf: None,
             auth_time: None,
             nonce: None,
             email: None,
@@ -90,6 +99,46 @@ impl IdTokenClaims {
             picture: None,
             locale: None,
         }
+    }
+
+    /// Validate temporal claims: `iat` staleness/skew and `nbf` not-before.
+    ///
+    /// Enforces the same three guards as [`crate::jwt::Claims::validate_temporal_claims`]:
+    ///
+    /// - `iat` must not be more than [`MAX_CLOCK_SKEW_SECS`] seconds in the future.
+    /// - `iat` must not be more than [`MAX_TOKEN_AGE_SECS`] seconds in the past.
+    /// - `nbf` (if present) must not be more than [`MAX_CLOCK_SKEW_SECS`] seconds in the future
+    ///   (RFC 7519 §4.1.5).
+    ///
+    /// # Errors
+    ///
+    /// Returns a `String` describing the validation failure, compatible with
+    /// [`crate::oauth::client::OIDCClient::verify_id_token`]'s error return type.
+    pub fn validate_temporal_claims(&self) -> std::result::Result<(), String> {
+        let now = Utc::now().timestamp();
+        let max_skew = i64::try_from(MAX_CLOCK_SKEW_SECS).unwrap_or(300);
+        let max_age = i64::try_from(MAX_TOKEN_AGE_SECS).unwrap_or(86_400);
+
+        // iat: must not be substantially in the future (forgery / clock-skew guard).
+        if self.iat > now.saturating_add(max_skew) {
+            return Err(
+                "iat claim is too far in the future — possible forgery or clock skew".to_string()
+            );
+        }
+
+        // iat: must not be older than MAX_TOKEN_AGE_SECS (replay guard).
+        if now.saturating_sub(self.iat) > max_age {
+            return Err("iat claim indicates token is too old (possible replay)".to_string());
+        }
+
+        // nbf: not-before — token must not be used before the claim (with clock skew).
+        if let Some(nbf) = self.nbf {
+            if nbf > now.saturating_add(max_skew) {
+                return Err("token is not yet valid (nbf claim is in the future)".to_string());
+            }
+        }
+
+        Ok(())
     }
 
     /// Check if token is expired
@@ -277,5 +326,77 @@ mod tests {
         assert_eq!(user.sub, "user_789");
         assert_eq!(user.email, Some("user@example.com".to_string()));
         assert_eq!(user.email_verified, Some(true));
+    }
+
+    // ── S40: IdTokenClaims temporal claim tests ───────────────────────────────
+
+    fn make_temporal_claims(iat: i64, nbf: Option<i64>) -> IdTokenClaims {
+        let mut c = IdTokenClaims::new(
+            "https://issuer.example.com".to_string(),
+            "user123".to_string(),
+            "client_id".to_string(),
+            (Utc::now() + chrono::Duration::hours(1)).timestamp(),
+            iat,
+        );
+        c.nbf = nbf;
+        c
+    }
+
+    #[test]
+    fn test_temporal_claims_valid_token() {
+        let now = Utc::now().timestamp();
+        let claims = make_temporal_claims(now - 60, None);
+        claims
+            .validate_temporal_claims()
+            .unwrap_or_else(|e| panic!("expected Ok for valid temporal claims: {e}"));
+    }
+
+    #[test]
+    fn test_temporal_claims_iat_too_far_in_future() {
+        let now = Utc::now().timestamp();
+        let max_skew = i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
+        let claims = make_temporal_claims(now + max_skew + 60, None);
+        let err = claims
+            .validate_temporal_claims()
+            .expect_err("iat too far in future must be rejected");
+        assert!(err.contains("iat"), "error message must mention iat, got: {err}");
+    }
+
+    #[test]
+    fn test_temporal_claims_iat_too_old() {
+        let now = Utc::now().timestamp();
+        let max_age = i64::try_from(MAX_TOKEN_AGE_SECS).expect("MAX_TOKEN_AGE_SECS fits in i64");
+        let claims = make_temporal_claims(now - max_age - 60, None);
+        let err = claims.validate_temporal_claims().expect_err("iat too old must be rejected");
+        assert!(err.contains("old"), "error message must mention old, got: {err}");
+    }
+
+    #[test]
+    fn test_temporal_claims_nbf_in_future_rejected() {
+        let now = Utc::now().timestamp();
+        let max_skew = i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
+        let claims = make_temporal_claims(now - 60, Some(now + max_skew + 60));
+        let err = claims.validate_temporal_claims().expect_err("nbf in future must be rejected");
+        assert!(err.contains("nbf"), "error message must mention nbf, got: {err}");
+    }
+
+    #[test]
+    fn test_temporal_claims_nbf_in_past_accepted() {
+        let now = Utc::now().timestamp();
+        let claims = make_temporal_claims(now - 60, Some(now - 600));
+        claims
+            .validate_temporal_claims()
+            .unwrap_or_else(|e| panic!("expected Ok for nbf in past: {e}"));
+    }
+
+    #[test]
+    fn test_temporal_claims_iat_within_clock_skew_accepted() {
+        let now = Utc::now().timestamp();
+        let max_skew = i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
+        // 100s in future — within the 300s skew window
+        let claims = make_temporal_claims(now + 100_i64.min(max_skew - 1), None);
+        claims
+            .validate_temporal_claims()
+            .unwrap_or_else(|e| panic!("expected Ok for iat within clock skew: {e}"));
     }
 }

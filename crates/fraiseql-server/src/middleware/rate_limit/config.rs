@@ -87,6 +87,23 @@ pub struct RateLimitConfig {
     /// falls within one of these ranges.  An empty `Vec` with `trust_proxy_headers = true`
     /// means all direct IPs are treated as trusted proxies (less secure).
     pub trusted_proxy_cidrs: Vec<ipnet::IpNet>,
+
+    /// Maximum number of unique IP/user buckets to hold in memory at once.
+    ///
+    /// When any of the three tracking maps (`ip_buckets`, `user_buckets`,
+    /// `path_ip_buckets`) reaches this limit, requests arriving from a
+    /// previously-unseen key are **denied** until stale entries are evicted by
+    /// the background cleanup task.  This prevents unbounded memory growth
+    /// under a flood of spoofed or unique source IPs.
+    ///
+    /// Defaults to `100_000`.  At ~200 bytes per bucket, this cap allows up to
+    /// ~20 `MiB` of tracking state per map before enforcement kicks in.
+    #[serde(default = "default_max_buckets")]
+    pub max_buckets: usize,
+}
+
+const fn default_max_buckets() -> usize {
+    100_000
 }
 
 impl Default for RateLimitConfig {
@@ -99,6 +116,7 @@ impl Default for RateLimitConfig {
             cleanup_interval_secs: 300,  // Clean up every 5 minutes
             trust_proxy_headers:   false,
             trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         }
     }
 }
@@ -138,6 +156,7 @@ impl RateLimitConfig {
             cleanup_interval_secs: 300,
             trust_proxy_headers: sec.trust_proxy_headers,
             trusted_proxy_cidrs,
+            max_buckets: default_max_buckets(),
         }
     }
 }

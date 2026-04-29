@@ -33,6 +33,7 @@ fn jwt_benchmarks(c: &mut Criterion) {
         sub:   "user-bench-42".to_string(),
         iat:   now,
         exp:   now + 3600,
+        nbf:   None,
         iss:   "https://bench.fraiseql.dev".to_string(),
         aud:   vec!["api".to_string()],
         extra: HashMap::new(),

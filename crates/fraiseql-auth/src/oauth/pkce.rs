@@ -1,13 +1,27 @@
 //! PKCE, state, and nonce parameters for OAuth2 security.
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Duration, Utc};
+use rand::{RngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq as _;
+
+/// Generate a cryptographically random 32-byte token encoded as URL-safe
+/// base64 (no padding), yielding 43 characters and ~256 bits of entropy.
+///
+/// The output alphabet is `[A-Za-z0-9-_]`, which is a subset of the RFC 7636
+/// unreserved character set `[A-Za-z0-9\-._~]` and is safe for use as a
+/// `code_verifier`, CSRF state parameter, or nonce.
+pub(super) fn gen_random_token() -> String {
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    URL_SAFE_NO_PAD.encode(bytes)
+}
 
 /// PKCE code challenge for public clients
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PKCEChallenge {
-    /// Random code verifier (43-128 characters)
+    /// Random code verifier (43-128 characters, RFC 7636 §4.1)
     pub code_verifier:         String,
     /// BASE64URL(SHA256(code_verifier))
     pub code_challenge:        String,
@@ -16,18 +30,20 @@ pub struct PKCEChallenge {
 }
 
 impl PKCEChallenge {
-    /// Generate new PKCE challenge
+    /// Generate a new PKCE challenge.
+    ///
+    /// The `code_verifier` is generated using `OsRng` with 32 random bytes
+    /// encoded as URL-safe base64 (no padding), yielding 43 characters and
+    /// ~256 bits of entropy — compliant with RFC 7636 §4.1.
     pub fn new() -> Self {
         use sha2::{Digest, Sha256};
 
-        // Generate random verifier
-        let verifier = format!("{}", uuid::Uuid::new_v4());
+        // Generate RFC 7636-compliant code_verifier: 32 OsRng bytes → 43-char base64url (no pad)
+        let verifier = gen_random_token();
 
-        // Compute challenge
-        let mut hasher = Sha256::new();
-        hasher.update(verifier.as_bytes());
-        let digest = hasher.finalize();
-        let challenge = urlencoding::encode_binary(&digest).to_string();
+        // code_challenge = BASE64URL(SHA256(ASCII(code_verifier))) — RFC 7636 §4.2
+        let digest = Sha256::digest(verifier.as_bytes());
+        let challenge = URL_SAFE_NO_PAD.encode(digest);
 
         Self {
             code_verifier:         verifier,
@@ -36,14 +52,15 @@ impl PKCEChallenge {
         }
     }
 
-    /// Verify code verifier matches challenge
+    /// Verify a code verifier matches this challenge.
+    ///
+    /// Computes `BASE64URL(SHA256(verifier))` and compares it to the stored
+    /// `code_challenge` using constant-time equality to prevent timing attacks.
     pub fn verify(&self, verifier: &str) -> bool {
         use sha2::{Digest, Sha256};
 
-        let mut hasher = Sha256::new();
-        hasher.update(verifier.as_bytes());
-        let digest = hasher.finalize();
-        let computed_challenge = urlencoding::encode_binary(&digest).to_string();
+        // code_challenge = BASE64URL(SHA256(ASCII(code_verifier))) — RFC 7636 §4.2
+        let computed_challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
 
         // SECURITY: Use constant-time comparison to prevent timing attacks.
         computed_challenge.as_bytes().ct_eq(self.code_challenge.as_bytes()).into()
@@ -66,10 +83,13 @@ pub struct StateParameter {
 }
 
 impl StateParameter {
-    /// Generate new state parameter
+    /// Generate a new CSRF state parameter.
+    ///
+    /// Uses `OsRng` with 32 random bytes encoded as URL-safe base64 (no
+    /// padding), yielding 43 characters and ~256 bits of entropy.
     pub fn new() -> Self {
         Self {
-            state:      uuid::Uuid::new_v4().to_string(),
+            state:      gen_random_token(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
@@ -104,10 +124,13 @@ pub struct NonceParameter {
 }
 
 impl NonceParameter {
-    /// Generate new nonce
+    /// Generate a new nonce parameter.
+    ///
+    /// Uses `OsRng` with 32 random bytes encoded as URL-safe base64 (no
+    /// padding), yielding 43 characters and ~256 bits of entropy.
     pub fn new() -> Self {
         Self {
-            nonce:      uuid::Uuid::new_v4().to_string(),
+            nonce:      gen_random_token(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
@@ -145,12 +168,36 @@ mod tests {
     }
 
     #[test]
-    fn test_pkce_verifier_is_uuid_format() {
+    fn test_pkce_verifier_rfc7636_length_and_charset() {
         let challenge = PKCEChallenge::new();
-        // UUID v4 format: 8-4-4-4-12 hex digits
+        // RFC 7636 §4.1: 43–128 chars from [A-Za-z0-9\-._~]
+        let len = challenge.code_verifier.len();
         assert!(
-            uuid::Uuid::parse_str(&challenge.code_verifier).is_ok(),
-            "PKCE code_verifier must be a valid UUID"
+            (43..=128).contains(&len),
+            "PKCE code_verifier length {len} must be 43–128 chars (RFC 7636 §4.1)"
+        );
+        assert!(
+            challenge
+                .code_verifier
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-._~".contains(c)),
+            "PKCE code_verifier must only contain [A-Za-z0-9\\-._~] (RFC 7636 §4.1)"
+        );
+        assert!(
+            !challenge.code_verifier.contains('='),
+            "PKCE code_verifier must not contain padding characters"
+        );
+    }
+
+    #[test]
+    fn test_pkce_verifier_has_256_bits_entropy() {
+        // 32 OsRng bytes → 43 URL-safe base64 chars → ~256 bits entropy.
+        // Two independently generated verifiers must differ with overwhelming probability.
+        let c1 = PKCEChallenge::new();
+        let c2 = PKCEChallenge::new();
+        assert_ne!(
+            c1.code_verifier, c2.code_verifier,
+            "two PKCE verifiers generated back-to-back must be distinct (entropy check)"
         );
     }
 

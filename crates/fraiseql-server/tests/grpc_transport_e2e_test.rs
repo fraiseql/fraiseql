@@ -1194,6 +1194,7 @@ async fn rate_limited_request_returns_resource_exhausted() {
         cleanup_interval_secs: 300,
         trust_proxy_headers:   false,
         trusted_proxy_cidrs:   Vec::new(),
+        max_buckets:           100_000,
     };
     let limiter = Arc::new(fraiseql_server::middleware::RateLimiter::new(config));
     let svc = build_service_with_rate_limiter(adapter, schema, limiter);
@@ -1238,6 +1239,7 @@ async fn rate_limiter_allows_requests_within_budget() {
         cleanup_interval_secs: 300,
         trust_proxy_headers:   false,
         trusted_proxy_cidrs:   Vec::new(),
+        max_buckets:           100_000,
     };
     let limiter = Arc::new(fraiseql_server::middleware::RateLimiter::new(config));
     let svc = build_service_with_rate_limiter(adapter, schema, limiter);

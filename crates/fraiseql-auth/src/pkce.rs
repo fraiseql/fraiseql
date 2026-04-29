@@ -31,10 +31,29 @@ use thiserror::Error;
 use crate::state_encryption::StateEncryptionService;
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/// Maximum number of in-flight PKCE state entries allowed in the in-memory
+/// store at any one time.
+///
+/// This cap prevents the DashMap from growing without bound under load or
+/// during a DoS attack where an adversary initiates many OAuth flows without
+/// completing them. New inserts beyond this limit are rejected with
+/// [`PkceError::StoreFull`].
+///
+/// 10 000 entries corresponds to approximately 10 000 concurrent in-flight
+/// authorization requests, which is more than sufficient for any realistic
+/// single-node deployment. Multi-replica deployments should use the Redis
+/// backend instead.
+const MAX_PKCE_ENTRIES: usize = 10_000;
+
+// ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
 
-/// Errors returned by [`PkceStateStore::consume_state`].
+/// Errors returned by [`PkceStateStore::consume_state`] and
+/// [`PkceStateStore::create_state`].
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum PkceError {
@@ -55,6 +74,14 @@ pub enum PkceError {
     /// a generic invalid-state error.
     #[error("state expired — please restart the authorization flow")]
     StateExpired,
+
+    /// The in-memory store has reached [`MAX_PKCE_ENTRIES`] entries.
+    ///
+    /// This prevents unbounded memory growth under load or during a DoS
+    /// attack. Callers should return HTTP 429 to the client and invite them
+    /// to retry after a short delay.
+    #[error("PKCE state store is full — too many concurrent authorization flows")]
+    StoreFull,
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +120,9 @@ pub struct InMemoryPkceStateStore {
     state_ttl_secs: u64,
     entries:        DashMap<String, PkceEntry>,
     encryptor:      Option<Arc<StateEncryptionService>>,
+    /// Maximum number of in-flight entries; defaults to [`MAX_PKCE_ENTRIES`].
+    /// Overridable in tests via [`InMemoryPkceStateStore::with_max_entries`].
+    max_entries:    usize,
 }
 
 impl InMemoryPkceStateStore {
@@ -101,10 +131,33 @@ impl InMemoryPkceStateStore {
             state_ttl_secs,
             entries: DashMap::new(),
             encryptor,
+            max_entries: MAX_PKCE_ENTRIES,
+        }
+    }
+
+    /// Create a store with a custom entry cap — for testing only.
+    #[cfg(test)]
+    fn with_max_entries(
+        state_ttl_secs: u64,
+        encryptor: Option<Arc<StateEncryptionService>>,
+        max_entries: usize,
+    ) -> Self {
+        Self {
+            state_ttl_secs,
+            entries: DashMap::new(),
+            encryptor,
+            max_entries,
         }
     }
 
     fn create_state_sync(&self, redirect_uri: &str) -> Result<(String, String), anyhow::Error> {
+        // SECURITY: reject inserts when the map is at capacity to prevent
+        // unbounded memory growth under DoS.  Callers translate this into
+        // HTTP 429 and invite the client to retry.
+        if self.entries.len() >= self.max_entries {
+            return Err(PkceError::StoreFull.into());
+        }
+
         // code_verifier — RFC 7636 §4.1: 43–128 chars, [A-Za-z0-9\-._~]
         let mut verifier_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut verifier_bytes);
@@ -133,6 +186,13 @@ impl InMemoryPkceStateStore {
         Ok((outbound_token, verifier))
     }
 
+    /// Remove all expired entries.
+    ///
+    /// Call this from a background task on a fixed interval to reclaim memory.
+    pub fn purge_expired(&self) {
+        self.entries.retain(|_, e| e.created_at.elapsed() <= e.ttl);
+    }
+
     fn consume_state_sync(&self, outbound_token: &str) -> Result<ConsumedPkceState, PkceError> {
         let internal_key = match &self.encryptor {
             Some(enc) => {
@@ -155,7 +215,7 @@ impl InMemoryPkceStateStore {
     }
 
     fn cleanup_expired_sync(&self) {
-        self.entries.retain(|_, e| e.created_at.elapsed() <= e.ttl);
+        self.purge_expired();
     }
 
     fn len_sync(&self) -> usize {
@@ -335,6 +395,22 @@ impl PkceStateStore {
         Self::InMemory(InMemoryPkceStateStore::new(state_ttl_secs, encryptor))
     }
 
+    /// Create an in-memory PKCE state store with a custom entry cap.
+    ///
+    /// For testing only — use [`Self::new`] in production.
+    #[cfg(test)]
+    fn new_capped(
+        state_ttl_secs: u64,
+        encryptor: Option<Arc<StateEncryptionService>>,
+        max_entries: usize,
+    ) -> Self {
+        Self::InMemory(InMemoryPkceStateStore::with_max_entries(
+            state_ttl_secs,
+            encryptor,
+            max_entries,
+        ))
+    }
+
     /// Create a Redis-backed distributed PKCE state store.
     ///
     /// # Errors
@@ -414,13 +490,27 @@ impl PkceStateStore {
         URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
     }
 
-    /// Remove expired entries.
+    /// Remove expired entries from the in-memory store.
     ///
     /// No-op for the Redis backend — Redis TTL handles expiry automatically.
-    /// Call from a background task on a fixed interval for the in-memory backend.
+    /// Call from a background task on a fixed interval for the in-memory
+    /// backend to reclaim memory and free capacity below [`MAX_PKCE_ENTRIES`].
     pub async fn cleanup_expired(&self) {
         match self {
             Self::InMemory(s) => s.cleanup_expired_sync(),
+            #[cfg(feature = "redis-pkce")]
+            Self::Redis(_) => {}, // Redis TTL handles expiry
+        }
+    }
+
+    /// Synchronously remove all expired entries from the in-memory store.
+    ///
+    /// Identical to [`Self::cleanup_expired`] but callable from synchronous
+    /// contexts (e.g. maintenance hooks, benchmarks). No-op for the Redis
+    /// backend.
+    pub fn purge_expired(&self) {
+        match self {
+            Self::InMemory(s) => s.purge_expired(),
             #[cfg(feature = "redis-pkce")]
             Self::Redis(_) => {}, // Redis TTL handles expiry
         }
@@ -635,6 +725,62 @@ mod tests {
         store2.create_state("https://b.example.com").await.unwrap();
         store2.cleanup_expired().await;
         assert_eq!(store2.len(), 1, "unexpired entry must survive cleanup");
+    }
+
+    // ── Entry cap (DoS protection) ────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_store_full_error_when_cap_reached() {
+        let store = PkceStateStore::new_capped(600, None, 2);
+
+        store.create_state("https://a.example.com").await.unwrap();
+        store.create_state("https://b.example.com").await.unwrap();
+
+        let result = store.create_state("https://c.example.com").await;
+        assert!(
+            result.is_err(),
+            "create_state must fail when the store has reached its capacity"
+        );
+        let err = result.unwrap_err();
+        // Verify the error is specifically StoreFull
+        assert!(err.to_string().contains("full"), "error must mention 'full' — got: {err}");
+    }
+
+    #[tokio::test]
+    async fn test_purge_expired_frees_capacity_for_new_entries() {
+        // Store capped at 2, TTL of 1 second
+        let store = PkceStateStore::new_capped(1, None, 2);
+
+        store.create_state("https://a.example.com").await.unwrap();
+        store.create_state("https://b.example.com").await.unwrap();
+
+        // Store is full — third insert fails
+        assert!(store.create_state("https://c.example.com").await.is_err());
+
+        // Wait for entries to expire then purge
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        store.purge_expired();
+
+        // Capacity reclaimed — should now succeed
+        store.create_state("https://c.example.com").await.unwrap();
+        assert_eq!(store.len(), 1, "store must contain exactly the new entry after purge");
+    }
+
+    #[tokio::test]
+    async fn test_purge_expired_leaves_non_expired_entries_intact() {
+        let store = PkceStateStore::new_capped(600, None, 10);
+
+        let (t1, _) = store.create_state("https://a.example.com").await.unwrap();
+        let (t2, _) = store.create_state("https://b.example.com").await.unwrap();
+
+        store.purge_expired();
+
+        // Both entries should still be present (TTL=600s, not yet expired)
+        assert_eq!(store.len(), 2, "unexpired entries must survive purge_expired");
+
+        // Both should still be consumable
+        assert!(store.consume_state(&t1).await.is_ok(), "t1 must still be consumable");
+        assert!(store.consume_state(&t2).await.is_ok(), "t2 must still be consumable");
     }
 
     // ── Redis integration tests ───────────────────────────────────────────────
