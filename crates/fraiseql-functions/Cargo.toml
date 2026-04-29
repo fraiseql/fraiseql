@@ -35,6 +35,11 @@ wiremock = "0.6"
 sqlx = {version = "0.8", features = ["runtime-tokio-rustls", "postgres"]}
 testcontainers = {version = "0.27", features = ["watchdog"]}
 testcontainers-modules = {version = "0.15", features = ["postgres"]}
+criterion = { version = "0.5" }
+
+[[bench]]
+name = "functions_bench"
+harness = false
 
 [features]
 runtime-wasm = ["wasmtime"]

@@ -3374,6 +3374,7 @@ version = "2.2.1"
 dependencies = [
  "bytes",
  "chrono",
+ "criterion",
  "deno_core",
  "fraiseql-core",
  "fraiseql-db",
@@ -3562,6 +3563,7 @@ dependencies = [
  "axum",
  "bytes",
  "chrono",
+ "criterion",
  "fraiseql-error 2.2.1",
  "hex",
  "image",

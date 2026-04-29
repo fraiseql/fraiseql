@@ -6,6 +6,10 @@ required-features = ["cli"]
 harness = false
 name = "performance_benchmarks"
 
+[[bench]]
+harness = false
+name = "realtime_bench"
+
 [dependencies]
 # CLI argument parsing (optional — only needed by the binary and fraiseql-cli)
 clap = {version = "4.5", features = ["derive", "env"], optional = true}

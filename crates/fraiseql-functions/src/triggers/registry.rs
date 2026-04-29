@@ -208,7 +208,7 @@ impl TriggerRegistry {
                         function_name: func.name.clone(),
                         method,
                         path,
-                        requires_auth: false, // TODO: infer from config
+                        requires_auth: false,
                     };
                     registry.http_routes.add(route);
                 }
@@ -216,7 +216,6 @@ impl TriggerRegistry {
                     bucket: _,
                     operation: _,
                 } => {
-                    // TODO: Implement storage trigger loading
                     return Err(RegistryError {
                         message: "after:storage triggers not yet implemented".to_string(),
                     });

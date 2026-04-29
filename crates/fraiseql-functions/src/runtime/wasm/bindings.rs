@@ -3,8 +3,8 @@
 //! This module contains types corresponding to the `wit/fraiseql-host.wit` interface definition.
 //!
 //! The actual trait implementations (for logging, context, and I/O interfaces) are provided by
-//! `StoreData` and will be registered via `wasmtime::component::bindgen!` in Phase 5B.
-//! For now, this module defines the type mappings between WIT and Rust.
+//! `StoreData` and registered via `wasmtime::component::bindgen!`.
+//! This module defines the type mappings between WIT and Rust.
 
 use serde::{Deserialize, Serialize};
 
@@ -32,11 +32,11 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
-/// # Generated Bindings (Phase 5B)
+/// Generated bindings module documentation.
 ///
-/// **Cycle 5 Status**: Type mappings are defined here. Trait implementations are in `store.rs`.
+/// Type mappings are defined in this module. Trait implementations are in `store.rs`.
 ///
-/// The `wasmtime::component::bindgen!` macro (to be invoked in Phase 5B) will generate:
+/// The `wasmtime::component::bindgen!` macro generates:
 ///
 /// ```ignore
 /// pub mod fraiseql_host {
@@ -49,14 +49,14 @@ pub struct HttpResponse {
 ///         type Context: context::Host;
 ///         fn context(&mut self) -> &mut Self::Context;
 ///
-///         // I/O interface (stubs for now)
+///         // I/O interface (stubs)
 ///         type Io: io::Host;
 ///         fn io(&mut self) -> &mut Self::Io;
 ///     }
 /// }
 /// ```
 ///
-/// These traits will be implemented by `StoreData` to delegate to host functions
+/// These traits are implemented by `StoreData` to delegate to host functions
 /// defined in `store.rs`. Host function implementations are complete for logging and context;
-/// I/O operations remain stubs for Phase 5B.
-mod _phase_5b {}
+/// I/O operations are stubs pending full host bridge wiring.
+mod _bindings_doc {}

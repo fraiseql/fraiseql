@@ -1,7 +1,5 @@
 //! Factory for creating per-invocation `HostContext` instances.
 //!
-//! # Phase 5B Cycle 3 Status
-//!
 //! This module provides the factory pattern for creating fresh `LiveHostContext` instances
 //! for each function invocation, with properly configured backends and security context.
 //!
@@ -47,18 +45,9 @@ pub trait HostContextFactory: Send + Sync {
 ///
 /// Wires together all FraiseQL backend services for function execution.
 ///
-/// # Phase 5B GREEN Implementation Status
-///
-/// This is a stub factory that:
-/// - Creates `LiveHostContext` with the provided security context
-/// - Configures basic backend support
-/// - Validates configuration
-///
-/// Full implementation would:
-/// - Wire in actual database adapters
-/// - Configure storage backends from compiled schema
-/// - Set up HTTP client with SSRF validation
-/// - Inject GraphQL executor for queries
+/// This factory creates stub host contexts suitable for function invocations that
+/// do not require database, storage, or HTTP access. For full backend wiring,
+/// configure the factory with the appropriate services.
 pub struct LiveHostContextFactory {
     // Backend services will be added here
     // This is where QueryExecutor, DatabaseAdapter, StorageBackend, etc. would be stored

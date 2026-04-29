@@ -2,7 +2,7 @@
 //!
 //! Provides [`TenantPoolConfig`] and [`create_tenant_executor`] to build a
 //! fully-formed `Executor<A>` from a compiled schema JSON string and database
-//! connection configuration. Used by the management API (Phase 03) to register
+//! connection configuration. Used by the management API to register
 //! tenants at runtime.
 
 use std::sync::Arc;

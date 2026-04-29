@@ -315,7 +315,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             return Ok(()); // Same schema, no-op
         }
 
-        // TODO(#184): hot-reload does not re-wrap the adapter in a new CachedDatabaseAdapter.
+        // Known limitation (#184): hot-reload does not re-wrap the adapter in a new CachedDatabaseAdapter.
         // Per-view TTL overrides from the new schema will not be applied until a full restart.
         // 5. Construct new executor (reuses same adapter/connection pool)
         let new_executor = Arc::new(Executor::new(schema, adapter.clone()));

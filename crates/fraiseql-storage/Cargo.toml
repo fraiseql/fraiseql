@@ -47,6 +47,11 @@ tower = { version = "0.5", features = ["util"] }
 testcontainers = { version = "0.27", features = ["watchdog"] }
 testcontainers-modules = { version = "0.15", features = ["postgres"] }
 uuid = { version = "1", features = ["v4"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "storage_bench"
+harness = false
 
 [features]
 default = ["postgres"]

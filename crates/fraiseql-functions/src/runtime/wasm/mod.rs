@@ -103,7 +103,7 @@ impl WasmRuntime {
     /// Get the underlying wasmtime engine.
     ///
     /// Used for component loading and store creation during function invocation.
-    #[allow(dead_code)]  // Reason: will be used in Phase 5B for component instantiation
+    #[allow(dead_code)]  // Reason: available for component instantiation when host bridge is wired
     #[allow(clippy::missing_const_for_fn)]  // Reason: reference return prevents const
     pub(crate) fn engine(&self) -> &wasmtime::Engine {
         &self.engine
@@ -122,11 +122,11 @@ impl FunctionRuntime for WasmRuntime {
     /// 4. Calls the exported `handle` function with the event as JSON
     /// 5. Collects logs and captures the result, enforcing resource limits
     ///
-    /// # Cycle 5 Status
+    /// # Current capabilities
     ///
-    /// **Functional**: Logging (debug/info/warn/error) and context access (event payload).
+    /// Logging (debug/info/warn/error) and context access (event payload) are functional.
     /// Host imports for I/O operations (query, sql-query, http-request, storage-get, storage-put)
-    /// remain stubs returning errors and will be wired to real backends in Phase 5B.
+    /// are stubs returning errors pending full host bridge wiring.
     #[allow(clippy::manual_async_fn)]  // Reason: impl Future syntax for trait compatibility
     fn invoke<H>(
         &self,
@@ -154,10 +154,6 @@ impl FunctionRuntime for WasmRuntime {
                     });
                 }
             };
-
-            // GREEN Phase: Simplified implementation - return the event as a value
-            // This validates the test infrastructure works and that a value is returned
-            // Full component instantiation and host import binding will be done in REFACTOR phase
 
             let store_data = StoreData::new(event.clone(), limits);
             let store = wasmtime::Store::new(&engine, store_data);

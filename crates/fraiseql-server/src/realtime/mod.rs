@@ -22,7 +22,7 @@
 //! **Use `subscriptions/`** when you want the full GraphQL field-selection and
 //! resolver pipeline on a streaming query (e.g. `subscription { newOrders { id, total } }`).
 //!
-//! Both systems are mounted by the Phase 8 `ServerSubsystems` builder and can
+//! Both systems are mounted by the `ServerSubsystems` builder and can
 //! be enabled independently via `schema.compiled.json`.
 
 pub mod connections;

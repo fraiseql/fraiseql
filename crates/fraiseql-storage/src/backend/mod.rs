@@ -52,7 +52,7 @@ impl PresignedUrl {
 /// This trait is implemented separately from `StorageBackend` to make it optional.
 /// Check if a backend implements this trait before using presigned URL features.
 #[cfg(feature = "aws-s3")]
-#[allow(async_fn_in_trait)] // Reason: native async syntax as specified in Phase 2, Cycle 2
+#[allow(async_fn_in_trait)] // Reason: native async syntax avoids boxing overhead; Send bound enforced by implementors
 pub trait PresignCapable {
     /// Generates a presigned URL for uploading an object (PUT).
     ///

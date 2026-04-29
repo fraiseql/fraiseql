@@ -78,7 +78,7 @@ impl From<EventKind> for EventKindSerde {
 ///
 /// # Production implementation
 ///
-/// The concrete `SqlRlsEvaluator` (wired in Phase 8) runs
+/// The concrete `SqlRlsEvaluator` runs
 /// `SELECT EXISTS(SELECT 1 FROM entity WHERE pk = $1 AND <rls_where_clauses>)`
 /// against the database — one query per distinct security-context group per
 /// event.

@@ -79,7 +79,7 @@ impl Default for RealtimeConfig {
 ///
 /// # Production implementation
 ///
-/// `JwtTokenValidator` (wired in Cycle 6) wraps the existing `OidcValidator`
+/// `JwtTokenValidator` wraps the existing `OidcValidator`
 /// from `fraiseql-core`, reusing the same JWT validation path as the GraphQL
 /// endpoint's OIDC middleware.
 pub trait TokenValidator: Send + Sync + 'static {

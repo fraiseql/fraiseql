@@ -90,8 +90,8 @@ impl StoreData {
     ///
     /// # Implementation Note
     ///
-    /// Stub implementation. Auth context extraction from the host is deferred to Phase 5B
-    /// when the `LiveHostContext` bridge is implemented. For now, always returns an error.
+    /// Stub implementation. Auth context extraction requires the `LiveHostContext` bridge
+    /// to be wired. Always returns an error until then.
     ///
     /// # Errors
     ///
@@ -104,8 +104,8 @@ impl StoreData {
     ///
     /// # Implementation Note
     ///
-    /// Stub implementation. Environment variable access is deferred to Phase 5B
-    /// when the `LiveHostContext` bridge is implemented. For now, always returns `None`.
+    /// Stub implementation. Environment variable access requires the `LiveHostContext`
+    /// bridge to be wired. Always returns `None` until then.
     ///
     /// # Errors
     ///
