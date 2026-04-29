@@ -1,4 +1,4 @@
-//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–5).
+//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–6).
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -13,6 +13,7 @@ use futures::future::BoxFuture;
 use super::context_hash::security_context_hash;
 use super::delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde, RlsEvaluator};
 use super::observer::RealtimeBroadcastObserver;
+use super::routes::{RealtimeSchemaConfig, realtime_router};
 use super::server::{
     RealtimeConfig, RealtimeServer, RealtimeState, TokenInfo, TokenValidator, ws_handler,
 };
@@ -1425,4 +1426,108 @@ async fn test_connection_state_cleanup_on_disconnect() {
     if let Ok((mut ws2, _)) = result {
         ws2.close(None).await.ok();
     }
+}
+
+// ── Cycle 6: Axum Route & Server Integration ───────────────────────────
+
+/// Spawn a test server using `realtime_router()` and return its address.
+async fn spawn_router_test_server(validator: TestValidator) -> SocketAddr {
+    let config = RealtimeConfig {
+        max_connections_per_context: 10,
+        ..RealtimeConfig::default()
+    };
+    let server = Arc::new(RealtimeServer::with_entities(config, test_entities()));
+    let state = RealtimeState {
+        server,
+        validator: Arc::new(validator),
+    };
+    let app = realtime_router(state);
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app.into_make_service()).await.unwrap();
+    });
+    addr
+}
+
+#[tokio::test]
+async fn test_realtime_route_mounts_at_path() {
+    // GET /realtime/v1 with a valid WebSocket upgrade → 101 Switching Protocols.
+    // Verified by successfully receiving the "connected" message.
+    let addr = spawn_router_test_server(TestValidator::new()).await;
+
+    let (mut ws, response) = connect_async(ws_url(addr, Some("valid-route-test")))
+        .await
+        .expect("WebSocket upgrade should succeed");
+
+    assert_eq!(response.status(), 101, "Expected 101 Switching Protocols");
+
+    let msg = next_msg(&mut ws).await;
+    assert_eq!(msg["type"], "connected");
+    assert!(msg["connection_id"].is_string());
+
+    ws.close(None).await.ok();
+}
+
+#[tokio::test]
+async fn test_realtime_route_without_upgrade_returns_400() {
+    // Plain GET to /realtime/v1 without WebSocket upgrade headers → 400 Bad Request.
+    let addr = spawn_router_test_server(TestValidator::new()).await;
+    let url = format!("http://127.0.0.1:{}/realtime/v1?token=valid-plain", addr.port());
+
+    let response = reqwest::get(&url).await.expect("HTTP request should complete");
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::BAD_REQUEST,
+        "Expected 400 Bad Request for non-WebSocket GET"
+    );
+}
+
+#[test]
+fn test_realtime_config_loaded_from_schema() {
+    // Parse a JSON object representing the "realtime" section of schema.compiled.json.
+    let json = serde_json::json!({
+        "enabled": true,
+        "entities": ["Post", "Comment"],
+        "max_connections_per_context": 25
+    });
+    let config: RealtimeSchemaConfig = serde_json::from_value(json).unwrap();
+
+    assert!(config.enabled, "expected enabled=true");
+    assert_eq!(
+        config.entities,
+        vec!["Post", "Comment"],
+        "expected entities list"
+    );
+    assert_eq!(config.max_connections_per_context, Some(25));
+}
+
+#[test]
+fn test_realtime_disabled_in_schema() {
+    // When enabled=false, the server should not mount the WebSocket route.
+    let json = serde_json::json!({ "enabled": false });
+    let config: RealtimeSchemaConfig = serde_json::from_value(json).unwrap();
+
+    assert!(!config.enabled, "expected enabled=false");
+    assert!(config.entities.is_empty(), "entities should default to empty");
+}
+
+#[test]
+fn test_realtime_entities_from_schema() {
+    // Entities declared in the schema config are the only ones that accept subscriptions.
+    let json = serde_json::json!({
+        "enabled": true,
+        "entities": ["Post", "Comment"]
+    });
+    let schema_config: RealtimeSchemaConfig = serde_json::from_value(json).unwrap();
+
+    // Build a RealtimeServer from the schema config.
+    let entities: HashSet<String> = schema_config.entities.into_iter().collect();
+    let server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities.clone()));
+
+    // The known entities set matches what was declared.
+    assert!(server.known_entities.contains("Post"));
+    assert!(server.known_entities.contains("Comment"));
+    assert!(!server.known_entities.contains("User"), "User not declared in schema");
+    assert_eq!(server.known_entities.len(), 2);
 }

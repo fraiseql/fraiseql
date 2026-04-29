@@ -17,6 +17,7 @@ pub mod context_hash;
 pub mod delivery;
 pub mod observer;
 pub mod protocol;
+pub mod routes;
 pub mod server;
 pub mod subscriptions;
 
