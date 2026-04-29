@@ -185,7 +185,7 @@ pub async fn auth_callback(
 
     // SECURITY: Reject oversized code/state before any parsing or store access.
     validate_auth_input_len(&query.code, MAX_AUTH_CODE_BYTES, "code")?;
-    validate_auth_input_len(&query.state, MAX_AUTH_CODE_BYTES, "state")?;
+    validate_auth_input_len(&query.state, MAX_STATE_BYTES, "state")?;
 
     // Check for provider error
     if let Some(error) = query.error {
@@ -420,12 +420,22 @@ pub fn generate_secure_state() -> String {
     hex::encode(bytes)
 }
 
-/// Maximum byte length for an OAuth authorization code or state parameter.
+/// Maximum byte length for an OAuth authorization code received at the callback.
 ///
-/// OAuth codes are typically 32–128 ASCII characters; 8 KiB is an order of
-/// magnitude above any legitimate value and prevents heap-flooding via the
-/// query-string parser.
-pub const MAX_AUTH_CODE_BYTES: usize = 8_192;
+/// RFC 6749 §4.1.2 places no normative cap on authorization codes, but
+/// real-world providers issue codes of 32–256 ASCII characters.  512 bytes is
+/// an order of magnitude above any legitimate value and prevents heap-flooding
+/// via the query-string parser.
+pub const MAX_AUTH_CODE_BYTES: usize = 512;
+
+/// Maximum byte length for an OAuth `state` parameter received at the callback.
+///
+/// The `state` value in FraiseQL PKCE flows is a 64-character hex string
+/// (32 random bytes).  When encrypted PKCE state is enabled the value is a
+/// base64-encoded ciphertext that grows with the payload, but remains well
+/// under 1 KiB in practice.  2048 bytes provides generous headroom while
+/// bounding memory allocation from an attacker-supplied value.
+pub const MAX_STATE_BYTES: usize = 2_048;
 
 /// Maximum byte length for a refresh token submitted to `/auth/refresh`.
 ///
@@ -475,12 +485,24 @@ mod tests {
 
     #[test]
     fn auth_callback_rejects_oversized_state() {
-        let oversized = "a".repeat(MAX_AUTH_CODE_BYTES + 1);
-        let result = validate_auth_input_len(&oversized, MAX_AUTH_CODE_BYTES, "state");
+        let oversized = "a".repeat(MAX_STATE_BYTES + 1);
+        let result = validate_auth_input_len(&oversized, MAX_STATE_BYTES, "state");
         assert!(
             matches!(result, Err(AuthError::InvalidToken { ref reason }) if reason.contains("state")),
             "expected InvalidToken mentioning 'state', got: {result:?}"
         );
+    }
+
+    #[test]
+    fn auth_callback_accepts_valid_length_state() {
+        let valid = "a".repeat(MAX_STATE_BYTES);
+        assert!(validate_auth_input_len(&valid, MAX_STATE_BYTES, "state").is_ok());
+    }
+
+    #[test]
+    fn state_cap_is_larger_than_code_cap() {
+        // state values in encrypted-PKCE mode can be bigger than raw codes
+        assert!(MAX_STATE_BYTES > MAX_AUTH_CODE_BYTES);
     }
 
     #[test]

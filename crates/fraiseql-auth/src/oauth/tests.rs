@@ -294,6 +294,7 @@ fn test_oauth_audit_event_with_metadata() {
 
 fn mock_oauth2_client(token_endpoint: &str) -> OAuth2Client {
     OAuth2Client::new("test_client", "test_secret", "https://example.com/authorize", token_endpoint)
+        .with_redirect_uri("http://localhost/callback")
 }
 
 #[tokio::test]
@@ -347,6 +348,76 @@ async fn test_exchange_code_handles_error_response() {
     let result = client.exchange_code("expired_code", "http://localhost/callback").await;
     assert!(result.is_err(), "expected Err for 400 error response, got: {result:?}");
     assert!(result.unwrap_err().contains("error"));
+}
+
+// ── S39: redirect_uri allowlist guard ────────────────────────────────────────
+
+#[tokio::test]
+async fn exchange_code_rejects_mismatched_redirect_uri() {
+    // A registered client must reject a redirect_uri that differs from the one
+    // used when authorization_url was called (prevents open-redirect / code
+    // interception).
+    let client = OAuth2Client::new(
+        "client",
+        "secret",
+        "https://provider.example.com/auth",
+        "https://provider.example.com/token",
+    )
+    .with_redirect_uri("https://myapp.example.com/callback");
+
+    let result = client.exchange_code("auth_code_xyz", "https://evil.example.com/steal").await;
+
+    assert!(result.is_err(), "mismatched redirect_uri must be rejected");
+    let msg = result.unwrap_err();
+    assert!(msg.contains("mismatch"), "error must mention 'mismatch', got: {msg}");
+}
+
+#[tokio::test]
+async fn exchange_code_accepts_matching_redirect_uri_with_trailing_slash() {
+    // Trailing slashes on either side must be normalised before comparison.
+    // We can't reach the token endpoint in a unit test so we expect the error
+    // to be a network failure (not a redirect_uri error).
+    let client = OAuth2Client::new(
+        "client",
+        "secret",
+        "https://provider.example.com/auth",
+        "https://192.0.2.1/token", // non-routable — will fail at network, not guard
+    )
+    .with_redirect_uri("https://myapp.example.com/callback/");
+
+    let result = client
+        .exchange_code("auth_code_xyz", "https://myapp.example.com/callback")
+        .await;
+
+    // Must NOT be a redirect_uri mismatch error (trailing slash is normalised)
+    if let Err(ref msg) = result {
+        assert!(
+            !msg.contains("mismatch"),
+            "trailing-slash difference must not trigger mismatch error, got: {msg}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn exchange_code_without_registered_uri_passes_through() {
+    // When no redirect_uri is registered (with_redirect_uri not called),
+    // exchange_code must not reject any caller-supplied value — the check is
+    // opt-in to preserve backward compatibility.
+    let client = OAuth2Client::new(
+        "client",
+        "secret",
+        "https://provider.example.com/auth",
+        "https://192.0.2.1/token", // non-routable — will fail at network
+    );
+
+    let result = client.exchange_code("auth_code_xyz", "https://any-value.example.com/cb").await;
+
+    if let Err(ref msg) = result {
+        assert!(
+            !msg.contains("mismatch"),
+            "unregistered client must not produce a mismatch error, got: {msg}"
+        );
+    }
 }
 
 #[tokio::test]

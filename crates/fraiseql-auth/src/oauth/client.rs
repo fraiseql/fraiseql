@@ -95,6 +95,14 @@ pub struct OAuth2Client {
     pub authorization_endpoint: String,
     /// Token endpoint.
     token_endpoint:             String,
+    /// Registered redirect URI.
+    ///
+    /// When set, `exchange_code` validates that the caller-supplied `redirect_uri`
+    /// matches this value (exact match after trailing-`/` trim) before issuing
+    /// the token request.  This prevents an attacker who can influence the
+    /// `redirect_uri` parameter from steering the code exchange to an
+    /// unregistered destination (open-redirect / code-interception attack).
+    redirect_uri:               Option<String>,
     /// Scopes to request.
     pub scopes:                 Vec<String>,
     /// Use PKCE for additional security.
@@ -137,6 +145,7 @@ impl OAuth2Client {
             client_secret:          Zeroizing::new(client_secret.into()),
             authorization_endpoint: authorization_endpoint.into(),
             token_endpoint:         token_endpoint.into(),
+            redirect_uri:           None,
             scopes:                 vec![
                 "openid".to_string(),
                 "profile".to_string(),
@@ -148,6 +157,20 @@ impl OAuth2Client {
                 .build()
                 .unwrap_or_default(),
         }
+    }
+
+    /// Register the expected redirect URI.
+    ///
+    /// When set, [`Self::exchange_code`] validates that the caller-supplied
+    /// `redirect_uri` exactly matches this value (after stripping trailing `/`)
+    /// before issuing the token request.  This prevents open-redirect and
+    /// authorization-code-interception attacks.
+    ///
+    /// Call this builder method immediately after construction for any client
+    /// that will call `exchange_code` with a caller-supplied redirect URI.
+    pub fn with_redirect_uri(mut self, uri: impl Into<String>) -> Self {
+        self.redirect_uri = Some(uri.into());
+        self
     }
 
     /// Set scopes for request.
@@ -251,6 +274,17 @@ impl OAuth2Client {
         code: &str,
         redirect_uri: &str,
     ) -> Result<TokenResponse, String> {
+        // SECURITY: If a registered redirect URI was set via with_redirect_uri(),
+        // validate the caller-supplied value before it reaches the token endpoint.
+        // Exact match after trailing-slash trim — no prefix or scheme stripping.
+        if let Some(registered) = &self.redirect_uri {
+            if registered.trim_end_matches('/') != redirect_uri.trim_end_matches('/') {
+                return Err(format!(
+                    "redirect_uri mismatch: supplied '{}' does not match registered '{}'",
+                    redirect_uri, registered
+                ));
+            }
+        }
         let params = [
             ("grant_type", "authorization_code"),
             ("code", code),
@@ -288,7 +322,7 @@ pub struct OIDCClient {
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
     #[allow(dead_code)] // Reason: retained for token revocation and introspection endpoints
-    client_secret:  Zeroizing<String>,
+    client_secret: Zeroizing<String>,
     /// JWKS key cache for ID token signature verification.
     pub jwks_cache: Arc<JwksCache>,
     /// HTTP client for userinfo requests.

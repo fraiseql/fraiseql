@@ -79,11 +79,24 @@ impl fmt::Debug for OidcServerClient {
 }
 
 impl OidcServerClient {
+    /// Maximum byte length for an inbound PKCE `code_verifier` (RFC 7636 §4.1).
+    ///
+    /// Values longer than 128 characters exceed the RFC ceiling; rejecting them
+    /// before the outbound token request prevents log injection and memory
+    /// exhaustion on the provider side.
+    const MAX_CODE_VERIFIER_BYTES: usize = 128;
     /// Maximum byte size accepted from the OIDC token endpoint response.
     ///
     /// A well-formed token response is a few KiB at most.  1 MiB prevents a
     /// malicious or compromised OIDC provider from exhausting server memory.
     const MAX_OIDC_RESPONSE_BYTES: usize = 1024 * 1024;
+    /// Minimum byte length for an inbound PKCE `code_verifier` (RFC 7636 §4.1).
+    ///
+    /// RFC 7636 mandates that the code verifier be between 43 and 128 characters.
+    /// Rejecting values below this floor prevents malformed verifiers — which
+    /// a browser extension or man-in-the-browser attack might supply — from
+    /// reaching the upstream OIDC provider.
+    const MIN_CODE_VERIFIER_BYTES: usize = 43;
 
     /// Construct a client directly from resolved credentials and endpoints.
     ///
@@ -149,11 +162,11 @@ impl OidcServerClient {
         };
 
         Some(Arc::new(Self {
-            client_id: auth_cfg.client_id,
-            client_secret: Zeroizing::new(client_secret),
-            server_redirect_uri: auth_cfg.server_redirect_uri,
+            client_id:              auth_cfg.client_id,
+            client_secret:          Zeroizing::new(client_secret),
+            server_redirect_uri:    auth_cfg.server_redirect_uri,
             authorization_endpoint: endpoints.authorization_endpoint,
-            token_endpoint: endpoints.token_endpoint,
+            token_endpoint:         endpoints.token_endpoint,
         }))
     }
 
@@ -203,6 +216,21 @@ impl OidcServerClient {
         code_verifier: &str,
         http: &reqwest::Client,
     ) -> Result<OidcTokenResponse, anyhow::Error> {
+        // SECURITY: RFC 7636 §4.1 mandates 43–128 ASCII characters for code_verifier.
+        // Reject out-of-range values before they reach the upstream OIDC provider.
+        anyhow::ensure!(
+            code_verifier.len() >= Self::MIN_CODE_VERIFIER_BYTES,
+            "code_verifier too short ({} bytes, min {})",
+            code_verifier.len(),
+            Self::MIN_CODE_VERIFIER_BYTES,
+        );
+        anyhow::ensure!(
+            code_verifier.len() <= Self::MAX_CODE_VERIFIER_BYTES,
+            "code_verifier too long ({} bytes, max {})",
+            code_verifier.len(),
+            Self::MAX_CODE_VERIFIER_BYTES,
+        );
+
         let resp = http
             .post(&self.token_endpoint)
             .form(&[
@@ -254,6 +282,9 @@ mod tests {
     #[allow(clippy::wildcard_imports)]
     // Reason: test module — wildcard keeps test boilerplate minimal
     use super::*;
+
+    /// A valid 43-character PKCE code verifier (minimum per RFC 7636 §4.1).
+    const VALID_VERIFIER: &str = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
 
     fn test_client() -> OidcServerClient {
         OidcServerClient::new(
@@ -314,7 +345,7 @@ mod tests {
             format!("{}/token", mock_server.uri()),
         );
         let http = reqwest::Client::new();
-        let result = client.exchange_code("code", "verifier", &http).await;
+        let result = client.exchange_code("code", VALID_VERIFIER, &http).await;
 
         assert!(result.is_err(), "oversized error response must be rejected");
         let msg = result.unwrap_err().to_string();
@@ -344,7 +375,7 @@ mod tests {
             format!("{}/token", mock_server.uri()),
         );
         let http = reqwest::Client::new();
-        let result = client.exchange_code("code", "verifier", &http).await;
+        let result = client.exchange_code("code", VALID_VERIFIER, &http).await;
 
         assert!(result.is_err(), "oversized success response must be rejected, got: {result:?}");
         let msg = result.unwrap_err().to_string();
@@ -449,5 +480,43 @@ mod tests {
         // Compile-time check: OidcServerClient.client_secret must accept Zeroizing<String>.
         let client = test_client();
         let _: &zeroize::Zeroizing<String> = &client.client_secret;
+    }
+
+    // ── S39: code_verifier inbound length guard ───────────────────────────────
+
+    #[tokio::test]
+    async fn exchange_code_rejects_short_code_verifier() {
+        // RFC 7636 §4.1: code_verifier must be at least 43 chars.
+        let client = test_client();
+        let http = reqwest::Client::new();
+        let short = "a".repeat(OidcServerClient::MIN_CODE_VERIFIER_BYTES - 1);
+        let result = client.exchange_code("code_abc", &short, &http).await;
+        assert!(result.is_err(), "exchange_code must reject a short code_verifier");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("too short"), "error must mention 'too short', got: {msg}");
+    }
+
+    #[tokio::test]
+    async fn exchange_code_rejects_long_code_verifier() {
+        // RFC 7636 §4.1: code_verifier must be at most 128 chars.
+        let client = test_client();
+        let http = reqwest::Client::new();
+        let long = "a".repeat(OidcServerClient::MAX_CODE_VERIFIER_BYTES + 1);
+        let result = client.exchange_code("code_abc", &long, &http).await;
+        assert!(result.is_err(), "exchange_code must reject an oversized code_verifier");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("too long"), "error must mention 'too long', got: {msg}");
+    }
+
+    #[test]
+    fn code_verifier_bounds_match_rfc7636() {
+        assert_eq!(OidcServerClient::MIN_CODE_VERIFIER_BYTES, 43);
+        assert_eq!(OidcServerClient::MAX_CODE_VERIFIER_BYTES, 128);
+    }
+
+    #[test]
+    fn valid_verifier_constant_is_within_bounds() {
+        assert!(VALID_VERIFIER.len() >= OidcServerClient::MIN_CODE_VERIFIER_BYTES);
+        assert!(VALID_VERIFIER.len() <= OidcServerClient::MAX_CODE_VERIFIER_BYTES);
     }
 }

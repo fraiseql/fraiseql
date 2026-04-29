@@ -1,10 +1,9 @@
 //! Generic OIDC provider implementation using RFC 8414 discovery.
 use std::{fmt::Write as _, time::Duration};
 
-use zeroize::Zeroizing;
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 /// Timeout for all OIDC HTTP operations (discovery, token exchange, user info, refresh).
 const OIDC_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
