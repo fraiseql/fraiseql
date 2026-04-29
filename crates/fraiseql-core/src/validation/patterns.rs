@@ -19,4 +19,3 @@ pub const EMAIL: &str = concat!(
 /// Requires leading `+` and country code (1–3 digits), followed by 6–14 digits total.
 /// Used by [`crate::validation::async_validators`] for strict phone validation.
 pub const PHONE_E164: &str = r"^\+[1-9]\d{6,14}$";
-

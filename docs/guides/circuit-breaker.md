@@ -79,6 +79,7 @@ fraiseql_federation_circuit_breaker_state == 1
 
 The built-in Grafana dashboard (available at `GET /api/v1/admin/grafana-dashboard`) includes
 a federation panel showing:
+
 - Circuit state per entity type (colour-coded: green/red/yellow)
 - Opens per minute trend line
 - Rejection rate percentage

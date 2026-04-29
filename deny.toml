@@ -4,13 +4,13 @@
 #
 # Pending resolution (tracked with deadlines in the [advisories] section):
 # - rustls 0.21  — aws-sdk-s3 (optional feature) transitively requires; EOL dependency.
-#                  Blocked on aws-sdk-s3 migrating to hyper-rustls 0.27 (rustls 0.23).
-#                  Deadline: 2026-10-01
+# Blocked on aws-sdk-s3 migrating to hyper-rustls 0.27 (rustls 0.23).
+# Deadline: 2026-10-01
 # - sqlx 0.8     — sqlx 0.9.0 is alpha as of 2026-04-25; upgrade when stable.
-#                  Will resolve RUSTSEC-2023-0071 (rsa Marvin Attack via mysql_async).
-#                  Deadline: 2026-10-01
+# Will resolve RUSTSEC-2023-0071 (rsa Marvin Attack via mysql_async).
+# Deadline: 2026-10-01
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
-#                   Deadline: 2026-12-01 — migrate off graphql-parser if still blocked.
+# Deadline: 2026-12-01 — migrate off graphql-parser if still blocked.
 #
 # See docs/dependency-risk-policy.md for the full acceptance policy.
 
@@ -244,29 +244,6 @@ name = "winnow"
 reason = "transitive via toml_edit 0.22; ecosystem migrating to winnow 1.0"
 version = "=0.7.15"
 
-[[bans.skip-tree]]
-name = "hyper"
-reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"
-version = "=0.14.32"
-
-[[bans.skip-tree]]
-name = "rustls"
-reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no upstream fix"
-version = "=0.21.12"
-
-[[bans.skip-tree]]
-name = "p256"
-reason = "p256 0.11 required by aws-sigv4; pulls in older elliptic-curve, ecdsa, ff, group, etc."
-version = "=0.11.1"
-
-# wasmtime v18 pulls in many older debug/utility crate versions that conflict with
-# other parts of the dependency tree. Upgrading wasmtime is tracked (deadline 2026-12-01).
-[[bans.skip-tree]]
-name = "wasmtime"
-reason = "wasmtime v18 pulls in older debug utilities (addr2line, gimli, object, etc.); upgrade tracked for 2026-12-01"
-version = "=18.0.4"
-
-# Non-wasmtime duplicates from ecosystem migrations
 [[bans.skip]]
 name = "base64"
 reason = "transitive via older dependency chains (deno_core, aws, etc.)"
@@ -407,6 +384,29 @@ name = "zstd-safe"
 reason = "transitive via older dependency chain (wasmtime, zstd-safe 5.0)"
 version = "=5.0.2+zstd.1.5.2"
 
+[[bans.skip-tree]]
+name = "hyper"
+reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"
+version = "=0.14.32"
+
+# wasmtime v18 pulls in many older debug/utility crate versions that conflict with
+# other parts of the dependency tree. Upgrading wasmtime is tracked (deadline 2026-12-01).
+
+[[bans.skip-tree]]
+name = "rustls"
+reason = "rustls 0.21 required by aws-sdk-s3 via hyper-rustls 0.24; EOL but no upstream fix"
+version = "=0.21.12"
+
+[[bans.skip-tree]]
+name = "p256"
+reason = "p256 0.11 required by aws-sigv4; pulls in older elliptic-curve, ecdsa, ff, group, etc."
+version = "=0.11.1"
+[[bans.skip-tree]]
+name = "wasmtime"
+reason = "wasmtime v18 pulls in older debug utilities (addr2line, gimli, object, etc.); upgrade tracked for 2026-12-01"
+version = "=18.0.4"
+
+# Non-wasmtime duplicates from ecosystem migrations
 [graph]
 all-features = true
 targets = []
