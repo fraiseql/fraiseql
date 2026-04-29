@@ -38,6 +38,9 @@ mod initialization;
 mod lifecycle;
 mod routing;
 
+#[cfg(test)]
+mod routing_tests;
+
 /// FraiseQL HTTP Server.
 ///
 /// `Server<A>` is generic over a `DatabaseAdapter` implementation, which allows
@@ -111,6 +114,12 @@ pub struct Server<A: DatabaseAdapter> {
     /// Populated during server construction when `[storage]` is configured and
     /// a PostgreSQL pool is available for metadata tracking.
     pub(super) storage_state: Option<fraiseql_storage::StorageState>,
+
+    /// Pre-built realtime state for mounting the `WebSocket` endpoint.
+    ///
+    /// When `Some`, `build_base_router` merges `realtime_router(state)` at
+    /// `/realtime/v1`. Set via [`Server::with_realtime`].
+    pub(super) realtime_state: Option<crate::realtime::server::RealtimeState>,
 
     /// Pool pressure monitoring configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
     pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,

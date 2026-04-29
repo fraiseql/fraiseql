@@ -427,6 +427,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool.clone(),
             storage_state,
+            realtime_state: None,
             #[cfg(feature = "arrow")]
             flight_service,
             #[cfg(feature = "mcp")]
@@ -468,6 +469,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config.validate()?;
         self.pool_tuning_config = Some(config);
         Ok(self)
+    }
+
+    /// Attach a pre-built realtime `WebSocket` state to the server.
+    ///
+    /// When set, `build_base_router` will merge `realtime_router(state)` at
+    /// `/realtime/v1`.  Call this after constructing the server but before
+    /// calling `serve` or `serve_with_shutdown`.
+    #[must_use]
+    pub fn with_realtime(mut self, state: crate::realtime::server::RealtimeState) -> Self {
+        self.realtime_state = Some(state);
+        self
     }
 
     /// Set secrets manager for the server.

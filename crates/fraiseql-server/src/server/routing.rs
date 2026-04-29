@@ -1,5 +1,6 @@
 //! Application router construction and route registration.
 
+
 #[cfg(any(feature = "auth", feature = "mcp", feature = "observers"))]
 use std::sync::Arc;
 
@@ -845,6 +846,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app
                 .layer(middleware::from_fn(rate_limit_middleware))
                 .layer(Extension(limiter.clone()));
+        }
+
+        // Mount realtime WebSocket routes when a RealtimeState was configured.
+        //
+        // The realtime endpoint is unauthenticated at the HTTP layer — the
+        // WebSocket handler validates the `?token=` query parameter internally
+        // before upgrading. No middleware layer is needed here.
+        if let Some(rt_state) = &self.realtime_state {
+            use crate::realtime::routes::realtime_router;
+            app = app.merge(realtime_router(rt_state.clone()));
+            info!("Realtime WebSocket routes mounted: GET /realtime/v1");
         }
 
         // Mount storage routes when StorageState was pre-built during server construction.
