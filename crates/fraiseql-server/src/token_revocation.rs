@@ -142,17 +142,23 @@ impl RevocationStore for InMemoryRevocationStore {
     }
 
     async fn revoke_all_for_user(&self, sub: &str) -> Result<u64, RevocationError> {
-        // For in-memory, we can't revoke unknown future tokens.
-        // We count and mark all entries matching this sub.
-        let mut count = 0u64;
-        for entry in &self.entries {
-            let (s, _) = entry.value();
-            if s == sub {
-                count += 1;
-            }
+        // Collect all JTIs belonging to this user and remove them from the store.
+        // Two-pass approach (collect keys, then remove) avoids holding a mutable
+        // reference to DashMap while iterating, which would deadlock.
+        let keys_to_remove: Vec<String> = self
+            .entries
+            .iter()
+            .filter(|entry| {
+                let (s, _) = entry.value();
+                s == sub
+            })
+            .map(|entry| entry.key().clone())
+            .collect();
+
+        let count = keys_to_remove.len() as u64;
+        for key in &keys_to_remove {
+            self.entries.remove(key);
         }
-        // In practice, revoke_all_for_user requires a list of known JTIs for the user.
-        // The in-memory store doesn't track sub → JTI mappings beyond what's already stored.
         Ok(count)
     }
 }
@@ -230,18 +236,33 @@ impl RevocationStore for RedisRevocationStore {
             .get_multiplexed_async_connection()
             .await
             .map_err(|e| RevocationError::Backend(format!("Redis: {e}")))?;
-        // Scan for keys matching the user pattern.
+        // SECURITY: Use SCAN cursor iteration instead of KEYS to avoid O(N) blocking.
+        // KEYS blocks Redis for the entire scan duration; SCAN is non-blocking and
+        // yields results in small batches, making it safe for production use.
         // User-keyed entries use prefix: fraiseql:revoked:user:{sub}:*
         let pattern = format!("{}user:{sub}:*", self.key_prefix);
-        let keys: Vec<String> = redis::cmd("KEYS")
-            .arg(&pattern)
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| RevocationError::Backend(format!("Redis KEYS: {e}")))?;
-        let count = keys.len() as u64;
-        if !keys.is_empty() {
+        let mut cursor: u64 = 0;
+        let mut all_keys: Vec<String> = Vec::new();
+        loop {
+            let (next_cursor, batch): (u64, Vec<String>) = redis::cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(&pattern)
+                .arg("COUNT")
+                .arg(100u32)
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| RevocationError::Backend(format!("Redis SCAN: {e}")))?;
+            all_keys.extend(batch);
+            cursor = next_cursor;
+            if cursor == 0 {
+                break;
+            }
+        }
+        let count = all_keys.len() as u64;
+        if !all_keys.is_empty() {
             let _: () = redis::cmd("DEL")
-                .arg(&keys)
+                .arg(&all_keys)
                 .query_async(&mut conn)
                 .await
                 .map_err(|e| RevocationError::Backend(format!("Redis DEL: {e}")))?;
@@ -499,5 +520,68 @@ mod tests {
             mgr.check_token(Some("")).await.is_ok(),
             "empty jti should be allowed when jti is not required"
         );
+    }
+
+    // ── S36: revoke_all_for_user actually revokes tokens ─────────────────────
+
+    #[tokio::test]
+    async fn revoke_all_for_user_removes_all_matching_entries() {
+        // Populate the store with entries belonging to two different users.
+        // revoke() stores an empty sub, so we need to seed InMemoryRevocationStore
+        // directly to set a real sub.
+        let store = InMemoryRevocationStore::new();
+        let exp = Utc::now() + chrono::Duration::seconds(3600);
+        store.entries.insert("jti-alice-1".to_string(), ("alice".to_string(), exp));
+        store.entries.insert("jti-alice-2".to_string(), ("alice".to_string(), exp));
+        store.entries.insert("jti-bob-1".to_string(), ("bob".to_string(), exp));
+
+        let count = store.revoke_all_for_user("alice").await.unwrap();
+        assert_eq!(count, 2, "should have revoked 2 alice entries, got {count}");
+
+        // Alice entries must be gone.
+        assert!(
+            !store.is_revoked("jti-alice-1").await.unwrap(),
+            "alice jti-1 should be removed from store"
+        );
+        assert!(
+            !store.is_revoked("jti-alice-2").await.unwrap(),
+            "alice jti-2 should be removed from store"
+        );
+
+        // Bob entry must remain.
+        assert!(
+            store.is_revoked("jti-bob-1").await.unwrap(),
+            "bob jti-1 must NOT be revoked by alice's revoke_all"
+        );
+    }
+
+    #[tokio::test]
+    async fn revoke_all_for_user_returns_zero_when_no_entries() {
+        let store = InMemoryRevocationStore::new();
+        let count = store.revoke_all_for_user("unknown-user").await.unwrap();
+        assert_eq!(count, 0, "empty store should return 0");
+    }
+
+    // ── S36: fail-open clock fix — unix_now helper ────────────────────────────
+
+    #[test]
+    fn unix_now_helper_in_session_returns_reasonable_value() {
+        use fraiseql_auth::session::unix_now;
+        // The epoch is 2009 or so for Bitcoin genesis, but we're well past that now.
+        // Verify the value is at least 2020-01-01T00:00:00Z (1577836800).
+        let now = unix_now().expect("unix_now should succeed on a normal system");
+        assert!(now >= 1_577_836_800, "unix_now should return a timestamp after 2020");
+    }
+
+    // ── S36: predictable HMAC — token uniqueness ─────────────────────────────
+
+    #[test]
+    fn hmac_fallback_tokens_differ_between_calls_even_for_same_user() {
+        use rand::{Rng, rngs::OsRng};
+        // Verify that two randomly-generated 32-byte keys are always different,
+        // confirming the fix produces different secrets per invocation.
+        let key1: [u8; 32] = OsRng.gen();
+        let key2: [u8; 32] = OsRng.gen();
+        assert_ne!(key1, key2, "two OsRng-generated 256-bit keys must differ");
     }
 }

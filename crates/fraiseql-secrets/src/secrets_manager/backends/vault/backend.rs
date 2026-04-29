@@ -2,7 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
 use chrono::Utc;
-use tokio::sync::RwLock;
+use dashmap::DashMap;
+use tokio::sync::{Mutex, RwLock};
 use zeroize::Zeroizing;
 
 use super::{
@@ -22,6 +23,34 @@ const VAULT_API_VERSION: &str = "v1";
 
 /// Vault HTTP request timeout.
 const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Maximum allowed size for any Vault HTTP response body.
+///
+/// Responses larger than 1 `MiB` are rejected before JSON parsing to prevent
+/// memory exhaustion from oversized payloads (malicious or misconfigured Vault).
+const MAX_VAULT_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
+/// Read a Vault HTTP response, enforcing `MAX_VAULT_RESPONSE_BYTES`.
+///
+/// Reads the response body as raw bytes, rejects it if it exceeds the limit,
+/// then deserializes to `T` with `serde_json`. This prevents memory exhaustion
+/// from oversized payloads returned by a malicious or misconfigured Vault server.
+async fn read_vault_response<T>(response: reqwest::Response) -> Result<T, SecretsError>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let bytes = response.bytes().await.map_err(|e| {
+        SecretsError::ConnectionError(format!("Failed to read Vault response body: {e}"))
+    })?;
+    if bytes.len() > MAX_VAULT_RESPONSE_BYTES {
+        return Err(SecretsError::BackendError(format!(
+            "Vault response too large: {} bytes (max: {MAX_VAULT_RESPONSE_BYTES})",
+            bytes.len()
+        )));
+    }
+    serde_json::from_slice(&bytes)
+        .map_err(|e| SecretsError::BackendError(format!("Vault response parse error: {e}")))
+}
 
 /// Build a shared `reqwest::Client` for Vault HTTP calls.
 ///
@@ -92,7 +121,6 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// namespace = "fraiseql/prod"    # Optional, for Enterprise
 /// tls_verify = true              # Verify TLS certificates
 /// ```
-#[derive(Debug)]
 pub struct VaultBackend {
     addr:              String,
     token:             Zeroizing<String>,
@@ -101,12 +129,32 @@ pub struct VaultBackend {
     /// Shared HTTP client — built once to reuse TLS sessions across requests.
     client:            reqwest::Client,
     cache:             Arc<RwLock<SecretCache>>,
+    /// Per-secret rotation locks.
+    ///
+    /// Held during the invalidate→fetch sequence in `rotate_secret` and during
+    /// cache-miss fetches in `get_secret_with_expiry`, preventing the classic
+    /// thundering-herd / stale-cache race: a concurrent reader cannot load the
+    /// pre-rotation value into cache while rotation is in progress.
+    rotation_locks:    Arc<DashMap<String, Arc<Mutex<()>>>>,
     /// When the current token was obtained (for renewal tracking).
     /// `None` when using a static long-lived token.
     token_obtained_at: Option<chrono::DateTime<Utc>>,
     /// Token TTL as reported by Vault at login time (seconds).
     /// `None` when using a static long-lived token.
     token_ttl_secs:    Option<i64>,
+}
+
+impl std::fmt::Debug for VaultBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // SECURITY: token is omitted from debug output to prevent accidental
+        // exposure in logs, tracing spans, or error messages.
+        f.debug_struct("VaultBackend")
+            .field("addr", &self.addr)
+            .field("token", &"[REDACTED]")
+            .field("namespace", &self.namespace)
+            .field("tls_verify", &self.tls_verify)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Clone for VaultBackend {
@@ -118,6 +166,7 @@ impl Clone for VaultBackend {
             tls_verify:        self.tls_verify,
             client:            self.client.clone(),
             cache:             Arc::clone(&self.cache),
+            rotation_locks:    Arc::clone(&self.rotation_locks),
             token_obtained_at: self.token_obtained_at,
             token_ttl_secs:    self.token_ttl_secs,
         }
@@ -159,48 +208,67 @@ impl SecretsBackend for VaultBackend {
     ) -> Result<(String, chrono::DateTime<Utc>), SecretsError> {
         validate_vault_secret_name(name)?;
 
-        // Check cache first
+        // Check cache first (outside the rotation lock for hot-path performance).
         let cache = self.cache.read().await;
         if let Some((cached_value, cached_expiry)) = cache.get_with_expiry(name).await {
             return Ok((cached_value, cached_expiry));
         }
-        drop(cache); // Release read lock before fetching
+        drop(cache);
 
-        // Fetch from Vault
-        let response = self.fetch_secret(name).await?;
+        // S47: acquire the per-secret rotation lock before fetching from Vault.
+        // This prevents a concurrent rotate_secret from placing a stale value into
+        // the cache immediately after the rotation's own cache write.
+        self.with_secret_lock(name, || async {
+            // Re-check the cache under the lock — rotation may have populated it
+            // while we were waiting.
+            let cache = self.cache.read().await;
+            if let Some((cached_value, cached_expiry)) = cache.get_with_expiry(name).await {
+                return Ok((cached_value, cached_expiry));
+            }
+            drop(cache);
 
-        // Calculate expiry: now + lease_duration
-        let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
-        // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic to
-        // avoid the f64→i64 precision loss that occurs for large TTLs (> 2^53 seconds).
-        // Saturating multiplication prevents overflow if Vault returns an extreme TTL.
-        #[allow(clippy::cast_possible_truncation)]
-        // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
-        let cache_ttl_secs =
-            response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
-        let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
+            // Fetch from Vault
+            let response = self.fetch_secret(name).await?;
 
-        // Extract secret from response data
-        let secret_str = Self::extract_secret_from_response(&response, name)?;
+            // Calculate expiry: now + lease_duration
+            let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
+            // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic.
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
+            let cache_ttl_secs = response
+                .lease_duration
+                .saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64)
+                / 100;
+            let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
 
-        // Store in cache
-        let cache = self.cache.read().await;
-        cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
+            // Extract secret from response data
+            let secret_str = Self::extract_secret_from_response(&response, name)?;
 
-        Ok((secret_str, expiry))
+            // Store in cache
+            let cache = self.cache.read().await;
+            cache.set(name.to_string(), secret_str.clone(), cache_expiry).await;
+
+            Ok((secret_str, expiry))
+        })
+        .await
     }
 
     async fn rotate_secret(&self, name: &str) -> Result<String, SecretsError> {
         validate_vault_secret_name(name)?;
 
-        // Invalidate the cache so get_secret_with_expiry fetches fresh credentials
-        // instead of returning the stale (pre-rotation) cached value.
-        let cache = self.cache.read().await;
-        cache.invalidate(name).await;
-        drop(cache);
+        // S47: hold the per-secret rotation lock across the invalidate→fetch sequence.
+        // Any concurrent get_secret_with_expiry calls will wait until rotation completes,
+        // then pick up the new value from the cache on their re-check (double-checked locking).
+        self.with_secret_lock(name, || async {
+            // Invalidate the cache entry so the subsequent fetch gets fresh credentials.
+            let cache = self.cache.read().await;
+            cache.invalidate(name).await;
+            drop(cache);
 
-        let (new_secret, _) = self.get_secret_with_expiry(name).await?;
-        Ok(new_secret)
+            let (new_secret, _) = self.get_secret_with_expiry(name).await?;
+            Ok(new_secret)
+        })
+        .await
     }
 }
 
@@ -223,6 +291,7 @@ impl VaultBackend {
             tls_verify: true,
             client,
             cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            rotation_locks: Arc::new(DashMap::new()),
             // Static token — no TTL tracking
             token_obtained_at: None,
             token_ttl_secs: None,
@@ -274,17 +343,13 @@ impl VaultBackend {
             "secret_id": secret_id,
         });
 
-        let response: serde_json::Value = client
-            .post(&login_url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| SecretsError::ConnectionError(format!("AppRole login failed: {e}")))?
-            .json()
-            .await
-            .map_err(|e| {
-                SecretsError::ConnectionError(format!("AppRole response parse error: {e}"))
-            })?;
+        let response: serde_json::Value = {
+            let resp =
+                client.post(&login_url).json(&body).send().await.map_err(|e| {
+                    SecretsError::ConnectionError(format!("AppRole login failed: {e}"))
+                })?;
+            read_vault_response(resp).await?
+        };
 
         let token = response["auth"]["client_token"]
             .as_str()
@@ -309,8 +374,13 @@ impl VaultBackend {
     }
 
     /// Get authentication token.
+    ///
+    /// Available only in test builds. Production code must not extract the raw
+    /// token — it is stored in `Zeroizing<String>` precisely to limit its lifetime
+    /// and exposure.
+    #[cfg(test)]
     #[must_use]
-    pub fn token(&self) -> &str {
+    pub(super) fn token(&self) -> &str {
         &self.token
     }
 
@@ -324,6 +394,63 @@ impl VaultBackend {
     #[must_use]
     pub const fn tls_verify(&self) -> bool {
         self.tls_verify
+    }
+
+    /// Authenticate via `AppRole`, bypassing SSRF validation for tests.
+    ///
+    /// Identical to `with_approle` except that `validate_vault_addr` is skipped,
+    /// allowing the backend to target a `wiremock::MockServer` on loopback.
+    /// Do NOT use in production code.
+    #[cfg(test)]
+    pub(super) async fn with_approle_for_test(
+        addr: &str,
+        role_id: &str,
+        secret_id: &str,
+    ) -> Result<Self, SecretsError> {
+        let client = reqwest::Client::builder()
+            .timeout(VAULT_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|e| SecretsError::ConnectionError(format!("HTTP client error: {e}")))?;
+
+        let login_url =
+            format!("{}/{}/auth/approle/login", addr.trim_end_matches('/'), VAULT_API_VERSION);
+        let body = serde_json::json!({
+            "role_id": role_id,
+            "secret_id": secret_id,
+        });
+
+        let response: serde_json::Value = {
+            let resp =
+                client.post(&login_url).json(&body).send().await.map_err(|e| {
+                    SecretsError::ConnectionError(format!("AppRole login failed: {e}"))
+                })?;
+            read_vault_response(resp).await?
+        };
+
+        let token = response["auth"]["client_token"]
+            .as_str()
+            .ok_or_else(|| {
+                SecretsError::ConnectionError("No client_token in AppRole response".into())
+            })?
+            .to_string();
+
+        let token_ttl_secs = response["auth"]["lease_duration"].as_i64();
+        let token_obtained_at = Some(chrono::Utc::now());
+
+        let client_new = build_http_client(false)?;
+        Ok(VaultBackend {
+            addr: addr.to_string(),
+            token: zeroize::Zeroizing::new(token),
+            namespace: None,
+            tls_verify: false,
+            client: client_new,
+            cache: std::sync::Arc::new(tokio::sync::RwLock::new(super::cache::SecretCache::new(
+                super::cache::DEFAULT_MAX_CACHE_ENTRIES,
+            ))),
+            rotation_locks: Arc::new(DashMap::new()),
+            token_obtained_at,
+            token_ttl_secs,
+        })
     }
 
     /// Create a `VaultBackend` pointing at a loopback address for unit/integration tests.
@@ -341,9 +468,43 @@ impl VaultBackend {
             tls_verify: false,
             client,
             cache: Arc::new(RwLock::new(SecretCache::new(DEFAULT_MAX_CACHE_ENTRIES))),
+            rotation_locks: Arc::new(DashMap::new()),
             token_obtained_at: None,
             token_ttl_secs: None,
         }
+    }
+
+    /// Number of per-secret locks currently tracked.
+    ///
+    /// Each entry is created on first access and persists for the lifetime of the
+    /// backend. Used in tests to verify the field is present and populated.
+    #[must_use]
+    pub fn rotation_locks_len(&self) -> usize {
+        self.rotation_locks.len()
+    }
+
+    /// Acquire (or create) the per-secret rotation lock, then run `f` while holding it.
+    ///
+    /// This prevents the thundering-herd race between `rotate_secret` (which
+    /// invalidates the cache and re-fetches) and concurrent `get_secret_with_expiry`
+    /// callers (which may also get a cache miss and race to Vault during rotation).
+    ///
+    /// Lock ordering: always acquire `rotation_locks` entry before `cache`.
+    async fn with_secret_lock<F, Fut, T>(&self, name: &str, f: F) -> T
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = T>,
+    {
+        let lock = {
+            // Get or create an Arc<Mutex<()>> for this secret name.
+            // Entry API avoids a double-lookup.
+            self.rotation_locks
+                .entry(name.to_string())
+                .or_insert_with(|| Arc::new(Mutex::new(())))
+                .clone()
+        };
+        let _guard = lock.lock().await;
+        f().await
     }
 
     /// Returns `true` if the Vault auth token should be renewed.
@@ -386,21 +547,27 @@ impl VaultBackend {
             self.addr.trim_end_matches('/'),
             VAULT_API_VERSION
         );
-        let response: serde_json::Value = self
-            .client
-            .post(&url)
-            .header("X-Vault-Token", &*self.token)
-            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
-            .send()
-            .await
-            .map_err(|e| {
-                SecretsError::ConnectionError(format!("Token renewal request failed: {e}"))
+        let response: serde_json::Value = {
+            let resp = self
+                .client
+                .post(&url)
+                .header("X-Vault-Token", &*self.token)
+                .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+                .send()
+                .await
+                .map_err(|e| {
+                    SecretsError::ConnectionError(format!("Token renewal request failed: {e}"))
+                })?;
+            if !resp.status().is_success() {
+                return Err(SecretsError::ConnectionError(format!(
+                    "Token renewal failed with status {}",
+                    resp.status()
+                )));
+            }
+            read_vault_response(resp).await.map_err(|e| {
+                SecretsError::ConnectionError(format!("Token renewal response error: {e}"))
             })?
-            .json()
-            .await
-            .map_err(|e| {
-                SecretsError::ConnectionError(format!("Token renewal response parse error: {e}"))
-            })?;
+        };
 
         // Vault returns the renewed token info under `auth`
         let new_token = response["auth"]["client_token"].as_str().ok_or_else(|| {
@@ -478,11 +645,7 @@ impl VaultBackend {
                 Ok(response) => {
                     match response.status() {
                         reqwest::StatusCode::OK => {
-                            return response.json::<VaultResponse>().await.map_err(|e| {
-                                SecretsError::BackendError(format!(
-                                    "Failed to parse Vault response for {name}: {e}"
-                                ))
-                            });
+                            return read_vault_response::<VaultResponse>(response).await;
                         },
                         // Retryable statuses
                         reqwest::StatusCode::SERVICE_UNAVAILABLE
@@ -548,7 +711,7 @@ impl VaultBackend {
     ) -> Result<String, SecretsError> {
         match response.status() {
             reqwest::StatusCode::OK => {
-                let body = response.json::<serde_json::Value>().await.map_err(|e| {
+                let body: serde_json::Value = read_vault_response(response).await.map_err(|e| {
                     SecretsError::BackendError(format!("Failed to parse Transit response: {}", e))
                 })?;
 

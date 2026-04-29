@@ -88,7 +88,7 @@ pub use security_init::{
     init_default_security_config, init_security_config, log_security_config,
     validate_security_config,
 };
-pub use session::{SessionData, SessionStore, TokenPair};
+pub use session::{SessionData, SessionStore, TokenPair, unix_now};
 pub use session_postgres::PostgresSessionStore;
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,

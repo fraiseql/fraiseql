@@ -96,6 +96,21 @@ impl InMemoryRateLimiter {
         let (tokens_per_sec, burst) = (rule.tokens_per_sec, rule.burst);
 
         let mut buckets = self.path_ip_buckets.write().await;
+        if !buckets.contains_key(&key) && buckets.len() >= self.config.max_buckets {
+            debug!(
+                ip = ip,
+                path = path,
+                "Path-IP bucket capacity reached — denying unseen combination"
+            );
+            let retry = if tokens_per_sec > 0.0 {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                // Reason: ceil(1/tokens_per_sec) is always a small positive integer
+                ((1.0_f64 / tokens_per_sec).ceil() as u32).max(1)
+            } else {
+                1
+            };
+            return CheckResult::deny(retry);
+        }
         let bucket = buckets.entry(key).or_insert_with(|| TokenBucket::new(burst, tokens_per_sec));
 
         let allowed = bucket.try_consume(1.0);
@@ -129,6 +144,10 @@ impl InMemoryRateLimiter {
         }
 
         let mut buckets = self.ip_buckets.write().await;
+        if !buckets.contains_key(ip) && buckets.len() >= self.config.max_buckets {
+            debug!(ip = ip, "IP bucket capacity reached — denying unseen IP");
+            return CheckResult::deny(1);
+        }
         let bucket = buckets.entry(ip.to_string()).or_insert_with(|| {
             TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_ip))
         });
@@ -160,6 +179,10 @@ impl InMemoryRateLimiter {
         }
 
         let mut buckets = self.user_buckets.write().await;
+        if !buckets.contains_key(user_id) && buckets.len() >= self.config.max_buckets {
+            debug!(user_id = user_id, "User bucket capacity reached — denying unseen user");
+            return CheckResult::deny(1);
+        }
         let bucket = buckets.entry(user_id.to_string()).or_insert_with(|| {
             TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_user))
         });

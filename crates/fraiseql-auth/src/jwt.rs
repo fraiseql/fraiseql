@@ -9,6 +9,33 @@ use crate::{
     error::{AuthError, Result},
 };
 
+/// Maximum age of a JWT token measured from its `iat` (issued-at) claim.
+///
+/// Tokens whose `iat` is more than this many seconds in the past are rejected
+/// as potentially replayed credentials.  24 h is a conservative upper bound —
+/// short-lived access tokens expire via `exp` long before this limit is reached;
+/// this guard targets long-lived or replayed tokens that somehow passed `exp` checks.
+pub const MAX_TOKEN_AGE_SECS: u64 = 86_400;
+
+/// Maximum allowed clock skew for `iat` and `nbf` claim checks.
+///
+/// A 5-minute window accommodates minor time drift between issuer and validator
+/// without opening a meaningful forgery window.
+pub const MAX_CLOCK_SKEW_SECS: u64 = 300;
+
+/// Whether the `aud` claim is required in every validated token.
+///
+/// Always `true`: the `aud` claim MUST be present and MUST exactly match the
+/// configured audience(s).  A missing `aud` is rejected with
+/// [`AuthError::MissingClaim`]; a mismatched `aud` is rejected with
+/// [`AuthError::InvalidToken`].
+///
+/// This constant is provided for documentation and for downstream code that
+/// needs to assert the validation posture at compile time.  It prevents
+/// cross-service token replay: a token issued for service A cannot be accepted
+/// by service B.
+pub const REQUIRE_AUD: bool = true;
+
 /// Standard JWT claims with support for custom claims
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claims {
@@ -18,6 +45,12 @@ pub struct Claims {
     pub iat:   u64,
     /// Expiration time (Unix timestamp)
     pub exp:   u64,
+    /// Not-before time (Unix timestamp) — optional per RFC 7519 §4.1.5.
+    ///
+    /// When present, the token MUST NOT be accepted before this time (plus
+    /// [`MAX_CLOCK_SKEW_SECS`]).  When absent, the not-before check is skipped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nbf:   Option<u64>,
     /// Issuer
     pub iss:   String,
     /// Audience
@@ -53,6 +86,51 @@ impl Claims {
             },
         };
         self.exp <= now
+    }
+
+    /// Validate temporal claims: `iat` staleness/skew and `nbf` not-before.
+    ///
+    /// Enforces three RFC 7519 temporal guards beyond `exp`:
+    ///
+    /// - `iat` must not be more than [`MAX_CLOCK_SKEW_SECS`] seconds in the future (forgery guard —
+    ///   a future `iat` is implausible for a legitimately issued token).
+    /// - `iat` must not be more than [`MAX_TOKEN_AGE_SECS`] seconds in the past (replay guard — a
+    ///   stale `iat` indicates a replayed or abnormally long-lived token).
+    /// - `nbf` (if present) must not be more than [`MAX_CLOCK_SKEW_SECS`] seconds in the future
+    ///   (RFC 7519 §4.1.5 not-before enforcement).
+    ///
+    /// # Errors
+    ///
+    /// - [`AuthError::TokenIssuedInFuture`] if `iat > now + MAX_CLOCK_SKEW_SECS`.
+    /// - [`AuthError::TokenTooOld`] if `now - iat > MAX_TOKEN_AGE_SECS`.
+    /// - [`AuthError::TokenNotYetValid`] if `nbf > now + MAX_CLOCK_SKEW_SECS`.
+    /// - [`AuthError::SystemTimeError`] if the system clock cannot be read.
+    pub fn validate_temporal_claims(&self) -> Result<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| AuthError::SystemTimeError {
+                message: format!("Cannot determine current time for temporal validation: {e}"),
+            })?
+            .as_secs();
+
+        // iat: must not be substantially in the future (forgery / clock-skew guard).
+        if self.iat > now.saturating_add(MAX_CLOCK_SKEW_SECS) {
+            return Err(AuthError::TokenIssuedInFuture);
+        }
+
+        // iat: must not be older than MAX_TOKEN_AGE_SECS (replay guard).
+        if now.saturating_sub(self.iat) > MAX_TOKEN_AGE_SECS {
+            return Err(AuthError::TokenTooOld);
+        }
+
+        // nbf: not-before — token must not be used before the claim (with clock skew).
+        if let Some(nbf) = self.nbf {
+            if nbf > now.saturating_add(MAX_CLOCK_SKEW_SECS) {
+                return Err(AuthError::TokenNotYetValid);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -172,6 +250,19 @@ impl JwtValidator {
             return Err(AuthError::TokenExpired);
         }
 
+        // Temporal claims validation: iat staleness/skew and nbf not-before (S40).
+        if let Err(e) = claims.validate_temporal_claims() {
+            let audit_logger = get_audit_logger();
+            audit_logger.log_failure(
+                AuditEventType::JwtValidation,
+                SecretType::JwtToken,
+                Some(claims.sub),
+                "validate",
+                &e.to_string(),
+            );
+            return Err(e);
+        }
+
         // Audit log: JWT validation success
         let audit_logger = get_audit_logger();
         audit_logger.log_success(
@@ -217,6 +308,9 @@ impl JwtValidator {
         if claims.is_expired() {
             return Err(AuthError::TokenExpired);
         }
+
+        // Temporal claims validation: iat staleness/skew and nbf not-before (S40).
+        claims.validate_temporal_claims()?;
 
         Ok(claims)
     }
@@ -283,6 +377,7 @@ mod tests {
             sub:   "user123".to_string(),
             iat:   now,
             exp:   now + 3600, // 1 hour expiry
+            nbf:   None,
             iss:   "https://example.com".to_string(),
             aud:   vec!["api".to_string()],
             extra: HashMap::new(),
@@ -406,5 +501,122 @@ mod tests {
         assert_eq!(claims.get_custom("email"), Some(&serde_json::json!("user@example.com")));
         assert_eq!(claims.get_custom("role"), Some(&serde_json::json!("admin")));
         assert_eq!(claims.get_custom("nonexistent"), None);
+    }
+
+    // ── S40: iat / nbf temporal claim tests ──────────────────────────────────
+
+    #[test]
+    fn test_rejects_token_with_iat_too_far_in_future() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let mut claims = create_test_claims();
+        claims.iat = now + MAX_CLOCK_SKEW_SECS + 60; // 360s ahead — beyond the 300s skew window
+        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
+        let result = validator.validate_hmac(&token, secret);
+        assert!(
+            matches!(result, Err(AuthError::TokenIssuedInFuture)),
+            "expected TokenIssuedInFuture, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_accepts_token_with_iat_within_clock_skew() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let mut claims = create_test_claims();
+        claims.iat = now + 60; // 60s ahead — within MAX_CLOCK_SKEW_SECS=300
+        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
+        validator
+            .validate_hmac(&token, secret)
+            .unwrap_or_else(|e| panic!("expected Ok for iat within clock skew: {e}"));
+    }
+
+    #[test]
+    fn test_rejects_token_with_iat_too_old() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let mut claims = create_test_claims();
+        claims.iat = now - MAX_TOKEN_AGE_SECS - 60; // just past the 24 h limit
+        claims.exp = now + 3600; // still not expired
+        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
+        let result = validator.validate_hmac(&token, secret);
+        assert!(
+            matches!(result, Err(AuthError::TokenTooOld)),
+            "expected TokenTooOld, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_accepts_token_at_iat_max_age_boundary() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let mut claims = create_test_claims();
+        claims.iat = now - MAX_TOKEN_AGE_SECS; // exactly at boundary — must be accepted
+        claims.exp = now + 3600;
+        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
+        validator
+            .validate_hmac(&token, secret)
+            .unwrap_or_else(|e| panic!("expected Ok for iat exactly at max-age boundary: {e}"));
+    }
+
+    #[test]
+    fn test_rejects_token_with_nbf_in_future() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let mut claims = create_test_claims();
+        claims.nbf = Some(now + MAX_CLOCK_SKEW_SECS + 60); // beyond the skew window
+        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
+        let result = validator.validate_hmac(&token, secret);
+        assert!(
+            matches!(result, Err(AuthError::TokenNotYetValid)),
+            "expected TokenNotYetValid, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_accepts_token_with_nbf_in_past() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let mut claims = create_test_claims();
+        claims.nbf = Some(now - 600); // 10 min ago — valid
+        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
+        validator
+            .validate_hmac(&token, secret)
+            .unwrap_or_else(|e| panic!("expected Ok for nbf in past: {e}"));
+    }
+
+    #[test]
+    fn test_accepts_token_without_nbf() {
+        let secret = b"test_secret_key_at_least_32_bytes_long";
+        let validator = make_test_validator();
+        let claims = create_test_claims(); // nbf is None
+        let token = generate_test_token(&claims, secret).expect("token generation must succeed");
+        validator
+            .validate_hmac(&token, secret)
+            .unwrap_or_else(|e| panic!("expected Ok for token without nbf: {e}"));
     }
 }

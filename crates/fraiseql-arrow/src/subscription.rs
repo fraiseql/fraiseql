@@ -19,9 +19,17 @@ pub struct EventSubscription {
     pub entity_type:     String,
     /// Optional filter expression (for future use)
     pub filter:          Option<String>,
-    /// Sender for pushing events to this subscriber
-    pub tx:              mpsc::UnboundedSender<crate::HistoricalEvent>,
+    /// Sender for pushing events to this subscriber (bounded channel).
+    pub tx:              mpsc::Sender<crate::HistoricalEvent>,
 }
+
+/// Default per-subscription channel buffer depth.
+///
+/// At this capacity each subscriber can absorb ~256 events before the sender
+/// starts dropping events for that subscriber (via `try_send`).  This bounds
+/// per-subscription memory to `256 × sizeof(HistoricalEvent)` instead of
+/// growing without limit.
+const DEFAULT_SUBSCRIPTION_BUFFER: usize = 256;
 
 /// Manages active subscriptions and event routing.
 ///
@@ -30,38 +38,56 @@ pub struct EventSubscription {
 /// can be extended to support persistent subscriptions.
 pub struct SubscriptionManager {
     /// Map of `subscription_id` -> `EventSubscription`
-    subscriptions: Arc<DashMap<String, EventSubscription>>,
+    subscriptions:           Arc<DashMap<String, EventSubscription>>,
     /// Reference to event storage for historical queries (optional)
-    event_storage: Option<Arc<dyn ArrowEventStorage>>,
+    event_storage:           Option<Arc<dyn ArrowEventStorage>>,
+    /// Per-subscription channel buffer depth.
+    per_subscription_buffer: usize,
 }
 
 impl SubscriptionManager {
     /// Create a new subscription manager.
     pub fn new() -> Self {
         Self {
-            subscriptions: Arc::new(DashMap::new()),
-            event_storage: None,
+            subscriptions:           Arc::new(DashMap::new()),
+            event_storage:           None,
+            per_subscription_buffer: DEFAULT_SUBSCRIPTION_BUFFER,
         }
     }
 
     /// Create a new subscription manager with event storage.
     pub fn with_event_storage(event_storage: Arc<dyn ArrowEventStorage>) -> Self {
         Self {
-            subscriptions: Arc::new(DashMap::new()),
-            event_storage: Some(event_storage),
+            subscriptions:           Arc::new(DashMap::new()),
+            event_storage:           Some(event_storage),
+            per_subscription_buffer: DEFAULT_SUBSCRIPTION_BUFFER,
         }
+    }
+
+    /// Set the per-subscription channel buffer depth.
+    ///
+    /// Each subscriber's internal channel holds at most `capacity` events.
+    /// When full, new events are dropped with a warning (slow-subscriber
+    /// protection).  Must be called before any [`subscribe`](Self::subscribe)
+    /// calls to take effect.
+    #[must_use]
+    pub const fn with_subscription_buffer(mut self, capacity: usize) -> Self {
+        self.per_subscription_buffer = capacity;
+        self
     }
 
     /// Subscribe to events for a specific entity type.
     ///
-    /// Returns a receiver that will emit events matching the filter.
+    /// Returns a bounded receiver that will emit events matching the filter.
+    /// Events are dropped for this subscriber when its buffer is full (see
+    /// [`with_subscription_buffer`](Self::with_subscription_buffer)).
     pub fn subscribe(
         &self,
         subscription_id: String,
         entity_type: String,
         filter: Option<String>,
-    ) -> mpsc::UnboundedReceiver<crate::HistoricalEvent> {
-        let (tx, rx) = mpsc::unbounded_channel();
+    ) -> mpsc::Receiver<crate::HistoricalEvent> {
+        let (tx, rx) = mpsc::channel(self.per_subscription_buffer);
 
         let subscription = EventSubscription {
             subscription_id: subscription_id.clone(),
@@ -95,15 +121,29 @@ impl SubscriptionManager {
     /// Broadcast an event to all matching subscriptions.
     ///
     /// Sends the event to all subscribers whose entity type matches.
+    /// Events are dropped for a slow subscriber whose buffer is full; a
+    /// warning is emitted so operators can tune the buffer or detect
+    /// stuck clients.
     pub fn broadcast_event(&self, event: &crate::HistoricalEvent) {
         for subscription in self.subscriptions.iter() {
             // Only send to subscriptions matching the entity type
             if subscription.entity_type == event.entity_type {
                 // If filter matches, send the event
                 if Self::matches_filter(event, &subscription.filter) {
-                    // Receiver dropped — subscriber disconnected. Skip silently; cleanup
-                    // happens when the SubscriptionManager drops the subscription entry.
-                    let _ = subscription.tx.send(event.clone());
+                    match subscription.tx.try_send(event.clone()) {
+                        Ok(()) => {},
+                        Err(mpsc::error::TrySendError::Full(_)) => {
+                            tracing::warn!(
+                                subscription_id = %subscription.subscription_id,
+                                entity_type = %subscription.entity_type,
+                                "Arrow Flight subscription buffer full — event dropped for slow subscriber"
+                            );
+                        },
+                        Err(mpsc::error::TrySendError::Closed(_)) => {
+                            // Receiver dropped — subscriber disconnected.  Cleanup
+                            // happens when the SubscriptionManager removes the entry.
+                        },
+                    }
                 }
             }
         }
@@ -358,5 +398,58 @@ mod tests {
             tenant_id: None,
             timestamp: Utc::now(),
         }
+    }
+
+    // ─── bounded-channel tests (S34) ─────────────────────────────────────────
+
+    #[test]
+    fn test_subscription_uses_bounded_channel() {
+        // with_subscription_buffer(2): only 2 events can queue; a 3rd is dropped
+        let manager = SubscriptionManager::new().with_subscription_buffer(2);
+        let mut rx = manager.subscribe("sub-1".to_string(), "Order".to_string(), None);
+
+        let e1 = make_event(serde_json::json!({"n": 1}));
+        let e2 = make_event(serde_json::json!({"n": 2}));
+        let e3 = make_event(serde_json::json!({"n": 3}));
+
+        // First two fit in the buffer; third overflows silently (logged as warn)
+        manager.broadcast_event(&e1);
+        manager.broadcast_event(&e2);
+        manager.broadcast_event(&e3); // dropped — buffer full
+
+        // Drain: expect exactly 2 events (the first two)
+        assert!(rx.try_recv().is_ok(), "first event should be in buffer");
+        assert!(rx.try_recv().is_ok(), "second event should be in buffer");
+        assert!(
+            rx.try_recv().is_err(),
+            "third event must be dropped when buffer is full (bounded channel)"
+        );
+    }
+
+    #[test]
+    fn test_subscription_buffer_default_allows_256_events() {
+        let manager = SubscriptionManager::new();
+        assert_eq!(manager.per_subscription_buffer, super::DEFAULT_SUBSCRIPTION_BUFFER);
+        assert_eq!(manager.per_subscription_buffer, 256);
+    }
+
+    #[test]
+    fn test_with_subscription_buffer_overrides_default() {
+        let manager = SubscriptionManager::new().with_subscription_buffer(64);
+        assert_eq!(manager.per_subscription_buffer, 64);
+    }
+
+    #[test]
+    fn test_subscription_channel_is_not_unbounded() {
+        // Verify that we cannot queue more than the configured capacity.
+        // capacity=1: only one event fits; the second is dropped.
+        let manager = SubscriptionManager::new().with_subscription_buffer(1);
+        let mut rx = manager.subscribe("sub-1".to_string(), "Order".to_string(), None);
+
+        manager.broadcast_event(&make_event(serde_json::json!({"n": 1})));
+        manager.broadcast_event(&make_event(serde_json::json!({"n": 2}))); // must be dropped
+
+        assert!(rx.try_recv().is_ok());
+        assert!(rx.try_recv().is_err(), "channel must be bounded to capacity=1");
     }
 }

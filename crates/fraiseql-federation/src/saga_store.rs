@@ -294,6 +294,13 @@ pub struct PostgresSagaStore {
 }
 
 impl PostgresSagaStore {
+    /// Trinity-convention table name for the main sagas table.
+    pub const TABLE_SAGAS: &'static str = "tb_federation_sagas";
+    /// Trinity-convention table name for the saga steps table.
+    pub const TABLE_STEPS: &'static str = "tb_federation_saga_steps";
+    /// Trinity-convention table name for the saga recovery table.
+    pub const TABLE_RECOVERY: &'static str = "tb_federation_saga_recovery";
+
     /// Create a new PostgreSQL saga store.
     ///
     /// Connects to PostgreSQL and verifies connectivity.
@@ -349,16 +356,16 @@ impl PostgresSagaStore {
 
         // Create sequence for auto-increment (with tb_ prefix)
         conn.execute(
-            "CREATE SEQUENCE IF NOT EXISTS seq_tb_tb_federation_sagas START 1 INCREMENT 1",
+            "CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_sagas START 1 INCREMENT 1",
             &[],
         )
         .await?;
 
-        // Create tb_tb_federation_sagas table (trinity pattern)
+        // Create tb_federation_sagas table (trinity pattern)
         conn.execute(
             "
-            CREATE TABLE IF NOT EXISTS tb_tb_federation_sagas (
-                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_tb_federation_sagas'),
+            CREATE TABLE IF NOT EXISTS tb_federation_sagas (
+                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_sagas'),
                 id UUID NOT NULL UNIQUE,
                 state TEXT NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -373,18 +380,18 @@ impl PostgresSagaStore {
 
         // Create sequence for steps
         conn.execute(
-            "CREATE SEQUENCE IF NOT EXISTS seq_tb_tb_federation_saga_steps START 1 INCREMENT 1",
+            "CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_saga_steps START 1 INCREMENT 1",
             &[],
         )
         .await?;
 
-        // Create tb_tb_federation_saga_steps table (trinity pattern)
+        // Create tb_federation_saga_steps table (trinity pattern)
         conn.execute(
             "
-            CREATE TABLE IF NOT EXISTS tb_tb_federation_saga_steps (
-                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_tb_federation_saga_steps'),
+            CREATE TABLE IF NOT EXISTS tb_federation_saga_steps (
+                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_saga_steps'),
                 id UUID NOT NULL UNIQUE,
-                saga_pk_ BIGINT NOT NULL REFERENCES tb_tb_federation_sagas(pk_) ON DELETE CASCADE,
+                saga_pk_ BIGINT NOT NULL REFERENCES tb_federation_sagas(pk_) ON DELETE CASCADE,
                 step_number INTEGER NOT NULL,
                 subgraph TEXT NOT NULL,
                 mutation_type TEXT NOT NULL,
@@ -404,18 +411,18 @@ impl PostgresSagaStore {
 
         // Create sequence for recovery
         conn.execute(
-            "CREATE SEQUENCE IF NOT EXISTS seq_tb_tb_federation_saga_recovery START 1 INCREMENT 1",
+            "CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_saga_recovery START 1 INCREMENT 1",
             &[],
         )
         .await?;
 
-        // Create tb_tb_federation_saga_recovery table (trinity pattern)
+        // Create tb_federation_saga_recovery table (trinity pattern)
         conn.execute(
             "
-            CREATE TABLE IF NOT EXISTS tb_tb_federation_saga_recovery (
-                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_tb_federation_saga_recovery'),
+            CREATE TABLE IF NOT EXISTS tb_federation_saga_recovery (
+                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_saga_recovery'),
                 id UUID NOT NULL UNIQUE,
-                saga_pk_ BIGINT NOT NULL REFERENCES tb_tb_federation_sagas(pk_) ON DELETE CASCADE,
+                saga_pk_ BIGINT NOT NULL REFERENCES tb_federation_sagas(pk_) ON DELETE CASCADE,
                 recovery_type TEXT NOT NULL,
                 attempted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 last_attempt TIMESTAMPTZ,
@@ -431,43 +438,43 @@ impl PostgresSagaStore {
 
         // Create indices (primary composite indices for natural + surrogate keys)
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_tb_federation_sagas_id ON tb_tb_federation_sagas(id)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_id ON tb_federation_sagas(id)",
             &[],
         )
         .await?;
 
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_tb_federation_sagas_state ON tb_tb_federation_sagas(state)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_state ON tb_federation_sagas(state)",
             &[],
         )
         .await?;
 
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_tb_federation_sagas_created ON tb_tb_federation_sagas(created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_created ON tb_federation_sagas(created_at)",
             &[],
         )
         .await?;
 
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_tb_federation_saga_steps_id ON tb_tb_federation_saga_steps(id)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_steps_id ON tb_federation_saga_steps(id)",
             &[],
         )
         .await?;
 
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_tb_federation_saga_steps_saga_pk ON tb_tb_federation_saga_steps(saga_pk_)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_steps_saga_pk ON tb_federation_saga_steps(saga_pk_)",
             &[],
         )
         .await?;
 
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_tb_federation_saga_recovery_id ON tb_tb_federation_saga_recovery(id)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_recovery_id ON tb_federation_saga_recovery(id)",
             &[],
         )
         .await?;
 
         conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_tb_federation_saga_recovery_saga_pk ON tb_tb_federation_saga_recovery(saga_pk_)",
+            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_recovery_saga_pk ON tb_federation_saga_recovery(saga_pk_)",
             &[],
         )
         .await?;
@@ -925,17 +932,36 @@ impl PostgresSagaStore {
         Ok(())
     }
 
-    /// Delete all sagas, steps, and recovery records (for testing)
+    /// Delete all sagas, steps, and recovery records.
+    ///
+    /// This is a crate-internal operation. For admin/CLI use, future callers
+    /// must present an `AdminCredential` (following the `admin_token` surface
+    /// already established in `fraiseql-server`). For test cleanup, use
+    /// `cleanup_all_for_testing`.
     ///
     /// # Errors
     ///
     /// Returns `SagaStoreError::Database` if the operation fails.
-    pub async fn cleanup_all(&self) -> Result<()> {
+    #[allow(dead_code)] // Reason: used only by cleanup_all_for_testing (cfg test/test-utils)
+    pub(crate) async fn cleanup_all(&self) -> Result<()> {
         let conn = self.pool.get().await?;
         conn.execute("DELETE FROM tb_federation_saga_recovery", &[]).await?;
         conn.execute("DELETE FROM tb_federation_saga_steps", &[]).await?;
         conn.execute("DELETE FROM tb_federation_sagas", &[]).await?;
         Ok(())
+    }
+
+    /// Delete all sagas, steps, and recovery records — test-only wrapper.
+    ///
+    /// Available under `cfg(any(test, feature = "testing"))` only.
+    /// Production code must use the crate-internal `cleanup_all`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SagaStoreError::Database` if the operation fails.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub async fn cleanup_all_for_testing(&self) -> Result<()> {
+        self.cleanup_all().await
     }
 
     /// Get total number of sagas in the database
@@ -984,6 +1010,40 @@ impl PostgresSagaStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// S44b: cleanup_all must be crate-private; only cleanup_all_for_testing is pub.
+    /// This test confirms the testing wrapper exists and is callable from within the crate.
+    #[test]
+    fn test_cleanup_all_for_testing_is_accessible() {
+        // Static check: if cleanup_all_for_testing doesn't exist or isn't pub,
+        // this inner async fn won't compile. We never call it (avoids DB requirement).
+        #[allow(dead_code)]
+        async fn _check(store: &PostgresSagaStore) {
+            let _ = store.cleanup_all_for_testing().await;
+        }
+    }
+
+    /// S44a: schema DDL must use single-prefix table names (trinity convention: tb_<entity>).
+    #[test]
+    fn test_schema_ddl_uses_single_prefix_table_names() {
+        // Verify table name constants use the correct single-prefix convention.
+        // The migration SQL must reference tb_federation_sagas (not the double-prefix form).
+        assert_eq!(
+            PostgresSagaStore::TABLE_SAGAS,
+            "tb_federation_sagas",
+            "main saga table must follow trinity single-prefix convention"
+        );
+        assert_eq!(
+            PostgresSagaStore::TABLE_STEPS,
+            "tb_federation_saga_steps",
+            "saga steps table must follow trinity single-prefix convention"
+        );
+        assert_eq!(
+            PostgresSagaStore::TABLE_RECOVERY,
+            "tb_federation_saga_recovery",
+            "saga recovery table must follow trinity single-prefix convention"
+        );
+    }
 
     #[tokio::test]
     async fn test_postgres_connection() {

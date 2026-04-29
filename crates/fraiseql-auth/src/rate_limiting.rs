@@ -1011,6 +1011,62 @@ mod tests {
         );
     }
 
+    // ── S35: auth_refresh rate-limit boundary test ────────────────────────────
+
+    /// Verify that `auth_refresh` enforces exactly `per_user_standard()` limits:
+    /// 10 requests per 60-second window, keyed by user ID.
+    #[test]
+    fn auth_refresh_blocks_at_per_user_standard_boundary() {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard());
+        let user = "user@example.com";
+
+        // Requests 1–10: all must be allowed.
+        for i in 1..=10 {
+            let result = limiter.check(user);
+            assert!(result.is_ok(), "request {i} should be allowed (limit is 10): {result:?}");
+        }
+
+        // Request 11: must be rejected.
+        let result = limiter.check(user);
+        assert!(
+            matches!(
+                result,
+                Err(AuthError::RateLimited {
+                    retry_after_secs: 60,
+                })
+            ),
+            "11th request must be rate-limited with retry_after_secs=60, got: {result:?}"
+        );
+    }
+
+    /// Verify that the `auth_refresh` field on `RateLimiters` uses `per_user_standard()`
+    /// (10 req / 60 s) and that different users have independent counters.
+    #[test]
+    fn rate_limiters_auth_refresh_is_per_user_independent() {
+        let limiters = RateLimiters::new();
+
+        let alice = "alice@example.com";
+        let bob = "bob@example.com";
+
+        // Exhaust Alice's allowance.
+        for i in 1..=10 {
+            let result = limiters.auth_refresh.check(alice);
+            assert!(result.is_ok(), "alice request {i} should be allowed: {result:?}");
+        }
+        let result = limiters.auth_refresh.check(alice);
+        assert!(
+            matches!(result, Err(AuthError::RateLimited { .. })),
+            "alice's 11th auth_refresh request must be rejected: {result:?}"
+        );
+
+        // Bob's allowance must be completely unaffected.
+        let result = limiters.auth_refresh.check(bob);
+        assert!(
+            result.is_ok(),
+            "bob's first auth_refresh request must succeed independently of alice: {result:?}"
+        );
+    }
+
     // ── Distributed RL warning test (13-4) ───────────────────────────────────
 
     #[test]

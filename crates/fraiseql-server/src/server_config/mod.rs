@@ -471,6 +471,19 @@ pub struct ServerConfig {
     #[serde(default)]
     pub validation: Option<fraiseql_core::schema::ValidationConfig>,
 
+    /// Maximum failed admin bearer auth attempts per IP within a 60-second
+    /// window before the IP is blocked with 429 Too Many Requests (default: 10).
+    ///
+    /// Set to `0` to disable brute-force protection entirely (not recommended).
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// admin_auth_max_failures = 5
+    /// ```
+    #[serde(default = "defaults::default_admin_auth_max_failures")]
+    pub admin_auth_max_failures: u32,
+
     /// Graceful shutdown drain timeout in seconds (default: 30).
     ///
     /// After a SIGTERM or Ctrl+C signal, the server stops accepting new connections and
@@ -544,6 +557,7 @@ impl Default for ServerConfig {
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),
+            admin_auth_max_failures: defaults::default_admin_auth_max_failures(),
         }
     }
 }
