@@ -501,8 +501,8 @@ mod tests {
 
     #[test]
     fn state_cap_is_larger_than_code_cap() {
-        // state values in encrypted-PKCE mode can be bigger than raw codes
-        assert!(MAX_STATE_BYTES > MAX_AUTH_CODE_BYTES);
+        // Compile-time check: state values in encrypted-PKCE mode can be bigger than raw codes.
+        const _: () = assert!(MAX_STATE_BYTES > MAX_AUTH_CODE_BYTES);
     }
 
     #[test]

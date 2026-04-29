@@ -86,6 +86,7 @@ fn test_jwt_expiration_enforcement() {
         aud:   vec!["api".to_string()],
         exp:   now - 1,
         iat:   now - 3600,
+        nbf:   None,
         extra: HashMap::default(),
     };
 
@@ -98,6 +99,7 @@ fn test_jwt_expiration_enforcement() {
         aud:   vec!["api".to_string()],
         exp:   now + 3600,
         iat:   now,
+        nbf:   None,
         extra: HashMap::default(),
     };
 

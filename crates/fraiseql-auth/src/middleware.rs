@@ -107,12 +107,15 @@ impl AuthError {
             Self::InvalidToken { .. }
             | Self::MissingClaim { .. }
             | Self::InvalidClaimValue { .. }
-            // OIDC replay-protection errors: return 401 without revealing
-            // which specific claim was invalid to avoid oracle attacks.
+            // OIDC replay-protection errors and JWT temporal guards: return 401 without
+            // revealing which specific claim was invalid to avoid oracle attacks.
             | Self::MissingNonce
             | Self::NonceMismatch
             | Self::MissingAuthTime
-            | Self::SessionTooOld { .. } => {
+            | Self::SessionTooOld { .. }
+            | Self::TokenIssuedInFuture
+            | Self::TokenTooOld
+            | Self::TokenNotYetValid => {
                 (StatusCode::UNAUTHORIZED, "invalid_token", "Authentication failed".to_string())
             },
             Self::TokenNotFound => {
@@ -187,6 +190,9 @@ impl AuthError {
             Self::MissingAuthTime | Self::SessionTooOld { .. } => {
                 warn!("OIDC auth_time validation failed: {self}");
             },
+            Self::TokenIssuedInFuture | Self::TokenTooOld | Self::TokenNotYetValid => {
+                warn!("JWT temporal claim validation failed: {self}");
+            },
             // No server-side logging needed for these variants
             Self::TokenExpired
             | Self::InvalidSignature
@@ -232,6 +238,7 @@ mod tests {
             sub:   "user123".to_string(),
             iat:   1000,
             exp:   2000,
+            nbf:   None,
             iss:   "https://example.com".to_string(),
             aud:   vec!["api".to_string()],
             extra: HashMap::new(),
@@ -256,6 +263,7 @@ mod tests {
             sub:   "user123".to_string(),
             iat:   1000,
             exp:   2000,
+            nbf:   None,
             iss:   "https://example.com".to_string(),
             aud:   vec!["api".to_string()],
             extra: HashMap::new(),
@@ -282,6 +290,7 @@ mod tests {
             sub:   "user123".to_string(),
             iat:   1000,
             exp:   2000,
+            nbf:   None,
             iss:   "https://example.com".to_string(),
             aud:   vec!["api".to_string()],
             extra: HashMap::new(),
@@ -312,6 +321,7 @@ mod tests {
             sub:   "user123".to_string(),
             iat:   1000,
             exp:   2000,
+            nbf:   None,
             iss:   "https://example.com".to_string(),
             aud:   vec!["api".to_string()],
             extra: HashMap::new(),

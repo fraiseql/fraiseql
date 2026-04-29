@@ -482,6 +482,11 @@ impl OIDCClient {
             .map_err(|e| format!("ID token validation failed: {e}"))?;
         let claims = token_data.claims;
 
+        // 4.5. Validate temporal claims: iat staleness/skew and nbf not-before (S40).
+        claims
+            .validate_temporal_claims()
+            .map_err(|e| format!("ID token temporal validation failed: {e}"))?;
+
         // 5. Verify nonce using constant-time comparison (replay protection — RFC 6749 §10.12 /
         //    OIDC Core §3.1.3.7).
         if let Some(expected) = expected_nonce {
