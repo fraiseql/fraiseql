@@ -135,7 +135,7 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let schema_json = serde_json::to_string(&body.schema)
         .map_err(|e| ApiError::validation_error(format!("invalid schema JSON: {e}")))?;
 
-    let executor = factory(schema_json, body.connection).await.map_err(|e| match &e {
+    let executor = factory(key.clone(), schema_json, body.connection).await.map_err(|e| match &e {
         fraiseql_error::FraiseQLError::Parse { .. }
         | fraiseql_error::FraiseQLError::Validation { .. } => ApiError::validation_error(e),
         fraiseql_error::FraiseQLError::ConnectionPool { .. }
