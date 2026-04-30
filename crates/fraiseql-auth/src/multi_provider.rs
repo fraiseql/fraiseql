@@ -15,6 +15,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    account_linking::UserStore,
     handlers::generate_secure_state,
     provider::OAuthProvider,
     session::SessionStore,
@@ -36,6 +37,8 @@ pub struct MultiProviderAuthState {
     state_store:   Arc<dyn StateStore>,
     /// Session backend for creating sessions after successful auth.
     session_store: Arc<dyn SessionStore>,
+    /// Optional user store for account linking (same email → same user).
+    user_store:    Option<Arc<dyn UserStore>>,
 }
 
 impl MultiProviderAuthState {
@@ -48,7 +51,18 @@ impl MultiProviderAuthState {
             providers: HashMap::new(),
             state_store,
             session_store,
+            user_store: None,
         }
+    }
+
+    /// Set the user store for account linking.
+    ///
+    /// When set, the callback handler uses [`UserStore::find_or_create_user`] to
+    /// resolve provider identities to local users, enabling automatic account
+    /// linking when the same email appears across different providers.
+    pub fn with_user_store(mut self, user_store: Arc<dyn UserStore>) -> Self {
+        self.user_store = Some(user_store);
+        self
     }
 
     /// Register an OAuth provider under the given name.
@@ -303,7 +317,7 @@ pub async fn callback(
         },
     };
 
-    // Get user info
+    // Get user info from provider
     let user_info = match provider.user_info(&token_response.access_token).await {
         Ok(u) => u,
         Err(e) => {
@@ -312,9 +326,26 @@ pub async fn callback(
         },
     };
 
+    // Resolve local user ID — use UserStore for account linking when available,
+    // otherwise fall back to raw provider user ID.
+    let local_user_id = if let Some(user_store) = &state.user_store {
+        match user_store.find_or_create_user(&provider_name, &user_info).await {
+            Ok(local_user) => local_user.id,
+            Err(e) => {
+                tracing::error!(error = %e, "user store lookup failed");
+                return json_error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "user resolution failed",
+                );
+            },
+        }
+    } else {
+        user_info.id.clone()
+    };
+
     // Create session (7-day expiry)
     let session_expiry = now + (7 * 24 * 60 * 60);
-    let session_tokens = match state.session_store.create_session(&user_info.id, session_expiry).await {
+    let session_tokens = match state.session_store.create_session(&local_user_id, session_expiry).await {
         Ok(t) => t,
         Err(e) => {
             tracing::error!(error = %e, "session creation failed");
@@ -380,6 +411,20 @@ mod tests {
                 },
             }
         }
+
+        fn with_email(name: &str, email: &str) -> Self {
+            Self {
+                name:      name.to_string(),
+                auth_url:  format!("https://{name}.example.com/authorize"),
+                user_info: UserInfo {
+                    id:         format!("{name}-user-1"),
+                    email:      email.to_string(),
+                    name:       Some("Test User".to_string()),
+                    picture:    None,
+                    raw_claims: serde_json::json!({}),
+                },
+            }
+        }
     }
 
     #[async_trait]
@@ -409,9 +454,19 @@ mod tests {
     // ── Test helpers ─────────────────────────────────────────────────────
 
     fn build_multi_provider_state(providers: Vec<(&str, MockProvider)>) -> Arc<MultiProviderAuthState> {
+        build_state_with_user_store(providers, None)
+    }
+
+    fn build_state_with_user_store(
+        providers: Vec<(&str, MockProvider)>,
+        user_store: Option<Arc<dyn UserStore>>,
+    ) -> Arc<MultiProviderAuthState> {
         let state_store: Arc<dyn StateStore> = Arc::new(InMemoryStateStore::new());
         let session_store: Arc<dyn SessionStore> = Arc::new(InMemorySessionStore::new());
         let mut auth_state = MultiProviderAuthState::new(state_store, session_store);
+        if let Some(us) = user_store {
+            auth_state = auth_state.with_user_store(us);
+        }
         for (name, provider) in providers {
             auth_state.register_provider(name, Arc::new(provider));
         }
@@ -795,5 +850,101 @@ mod tests {
         let session_store: Arc<dyn SessionStore> = Arc::new(InMemorySessionStore::new());
         let auth_state = MultiProviderAuthState::new(state_store, session_store);
         assert!(auth_state.get_provider("nonexistent").is_none());
+    }
+
+    // ── Account linking tests ────────────────────────────────────────────
+
+    /// Helper: do authorize → callback round-trip, return the session user_id
+    /// from the access_token (which in InMemorySessionStore is `access_token_{refresh_token}`).
+    async fn do_auth_round_trip(app: &Router, provider: &str) -> serde_json::Value {
+        let req = Request::builder()
+            .uri(format!(
+                "/auth/v1/authorize?provider={provider}&redirect_uri=https%3A%2F%2Fapp.example.com%2Fcb"
+            ))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert!(resp.status().is_redirection(), "authorize should redirect");
+
+        let location = resp.headers().get("location").unwrap().to_str().unwrap().to_string();
+        let parsed = reqwest::Url::parse(&location).unwrap();
+        let state_token = parsed
+            .query_pairs()
+            .find(|(k, _)| k == "state")
+            .map(|(_, v)| v.into_owned())
+            .unwrap();
+
+        let req2 = Request::builder()
+            .uri(format!("/auth/v1/callback?code=authcode&state={state_token}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp2 = app.clone().oneshot(req2).await.unwrap();
+        assert_eq!(resp2.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp2.into_body(), usize::MAX).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_account_linking_same_email_different_providers() {
+        use crate::account_linking::InMemoryUserStore;
+
+        let user_store = Arc::new(InMemoryUserStore::new());
+        // Both providers return the same email for "their" user
+        let state = build_state_with_user_store(
+            vec![
+                ("github", MockProvider::with_email("github", "alice@example.com")),
+                ("google", MockProvider::with_email("google", "alice@example.com")),
+            ],
+            Some(user_store.clone() as Arc<dyn UserStore>),
+        );
+        let app = multi_auth_router(state);
+
+        // Sign in with GitHub first
+        let json1 = do_auth_round_trip(&app, "github").await;
+        // Sign in with Google second (same email)
+        let json2 = do_auth_round_trip(&app, "google").await;
+
+        // Both should produce the same provider in their responses
+        assert_eq!(json1["provider"], "github");
+        assert_eq!(json2["provider"], "google");
+
+        // The user store should have only 1 local user with 2 identities
+        assert_eq!(user_store.user_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_account_linking_different_emails_different_users() {
+        use crate::account_linking::InMemoryUserStore;
+
+        let user_store = Arc::new(InMemoryUserStore::new());
+        let state = build_state_with_user_store(
+            vec![
+                ("github", MockProvider::with_email("github", "alice@example.com")),
+                ("google", MockProvider::with_email("google", "bob@example.com")),
+            ],
+            Some(user_store.clone() as Arc<dyn UserStore>),
+        );
+        let app = multi_auth_router(state);
+
+        do_auth_round_trip(&app, "github").await;
+        do_auth_round_trip(&app, "google").await;
+
+        // Different emails → 2 separate users
+        assert_eq!(user_store.user_count().await, 2);
+    }
+
+    #[tokio::test]
+    async fn test_without_user_store_uses_provider_id() {
+        // Without a user store, the session is created with the raw provider user ID
+        let state = build_multi_provider_state(vec![
+            ("github", MockProvider::new("github")),
+        ]);
+        let app = multi_auth_router(state);
+
+        let json = do_auth_round_trip(&app, "github").await;
+        // Session is created with provider's user ID (no linking)
+        assert!(json["access_token"].is_string());
+        assert_eq!(json["provider"], "github");
     }
 }
