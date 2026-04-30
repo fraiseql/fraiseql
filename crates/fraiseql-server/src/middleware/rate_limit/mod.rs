@@ -4,6 +4,7 @@
 //! - Per-IP rate limiting
 //! - Per-user rate limiting (if authenticated)
 //! - Per-path rate limiting (for auth endpoints)
+//! - Per-tenant rate limiting (multi-tenant quota enforcement)
 //! - Token bucket algorithm
 //! - Configurable burst capacity
 //! - X-RateLimit headers
@@ -606,6 +607,49 @@ mod tests {
             !limiter.check_path_limit("/auth/start", "2.2.2.2").await.allowed,
             "unseen (path, ip) combination must be denied when path_ip_buckets is at max_buckets"
         );
+    }
+
+    // ─── Per-tenant rate limit tests ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_tenant_rate_limit_allows_within_burst() {
+        let config = RateLimitConfig::default();
+        let limiter = RateLimiter::new(config);
+
+        // 5 rps, burst 5 → first 5 requests allowed
+        for _ in 0..5 {
+            assert!(
+                limiter.check_tenant_limit("tenant-abc", 5, 5).await.allowed,
+                "should allow within burst"
+            );
+        }
+        // 6th should be denied
+        assert!(
+            !limiter.check_tenant_limit("tenant-abc", 5, 5).await.allowed,
+            "should deny when burst exhausted"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tenant_rate_limit_independent_buckets() {
+        let config = RateLimitConfig::default();
+        let limiter = RateLimiter::new(config);
+
+        // Exhaust tenant-a's bucket (burst=1)
+        assert!(limiter.check_tenant_limit("tenant-a", 1, 1).await.allowed);
+        assert!(!limiter.check_tenant_limit("tenant-a", 1, 1).await.allowed);
+
+        // tenant-b is independent — should still be allowed
+        assert!(limiter.check_tenant_limit("tenant-b", 1, 1).await.allowed);
+    }
+
+    #[tokio::test]
+    async fn test_tenant_rate_limit_cleanup_does_not_panic() {
+        let config = RateLimitConfig::default();
+        let limiter = RateLimiter::new(config);
+
+        limiter.check_tenant_limit("tenant-abc", 10, 10).await;
+        limiter.cleanup().await; // Should not panic
     }
 
     // ─── Redis integration tests ─────────────────────────────────────────────

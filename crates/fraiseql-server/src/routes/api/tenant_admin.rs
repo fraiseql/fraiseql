@@ -15,7 +15,10 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
-    routes::{api::types::ApiError, graphql::AppState},
+    routes::{
+        api::types::ApiError,
+        graphql::{AppState, tenant_registry::TenantQuota},
+    },
     tenancy::pool_factory::TenantPoolConfig,
 };
 
@@ -25,9 +28,18 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct TenantRegistrationRequest {
     /// Compiled schema JSON (the full `schema.compiled.json` contents).
-    pub schema:     serde_json::Value,
+    pub schema:               serde_json::Value,
     /// Database connection configuration for this tenant.
-    pub connection: TenantPoolConfig,
+    pub connection:           TenantPoolConfig,
+    /// Maximum requests per second (token bucket rate). `None` = unlimited.
+    #[serde(default)]
+    pub max_requests_per_sec: Option<u32>,
+    /// Maximum concurrent in-flight requests. `None` = unlimited.
+    #[serde(default)]
+    pub max_concurrent:       Option<u32>,
+    /// Maximum storage in bytes (soft limit). `None` = unlimited.
+    #[serde(default)]
+    pub max_storage_bytes:    Option<u64>,
 }
 
 /// Response for tenant write operations.
@@ -147,7 +159,13 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         _ => ApiError::internal_error(e),
     })?;
 
-    let was_insert = registry.upsert(&key, executor);
+    let quota = TenantQuota {
+        max_requests_per_sec: body.max_requests_per_sec,
+        max_concurrent:       body.max_concurrent,
+        max_storage_bytes:    body.max_storage_bytes,
+    };
+
+    let was_insert = registry.upsert_with_quota(&key, executor, quota);
     let status = if was_insert { "created" } else { "updated" };
 
     info!(tenant_key = %key, status, "tenant executor registered");

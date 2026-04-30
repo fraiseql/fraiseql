@@ -6,13 +6,15 @@
 
 use std::sync::{
     Arc,
-    atomic::{AtomicU8, Ordering},
+    atomic::{AtomicBool, AtomicU8, Ordering},
 };
 
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
 use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
 use fraiseql_error::FraiseQLError;
+use serde::Deserialize;
+use tokio::sync::Semaphore;
 
 /// Tenant lifecycle status.
 ///
@@ -44,18 +46,51 @@ impl TenantStatus {
     }
 }
 
-/// A single tenant entry in the registry: executor + lifecycle status.
+/// Per-tenant quota configuration.
+///
+/// All fields are optional — `None` means unlimited (no enforcement).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct TenantQuota {
+    /// Maximum requests per second (token bucket rate).
+    #[serde(default)]
+    pub max_requests_per_sec: Option<u32>,
+    /// Maximum concurrent in-flight requests (semaphore capacity).
+    #[serde(default)]
+    pub max_concurrent: Option<u32>,
+    /// Maximum storage in bytes (soft limit, checked periodically).
+    #[serde(default)]
+    pub max_storage_bytes: Option<u64>,
+}
+
+/// A single tenant entry in the registry: executor + lifecycle status + quotas.
 struct TenantEntry<A: DatabaseAdapter> {
-    executor: Arc<ArcSwap<Executor<A>>>,
-    status:   AtomicU8,
+    executor:       Arc<ArcSwap<Executor<A>>>,
+    status:         AtomicU8,
+    /// Concurrency semaphore — `None` when `max_concurrent` is unset.
+    concurrency:    Option<Arc<Semaphore>>,
+    /// Soft quota exceeded flag (set by background task, blocks mutations).
+    quota_exceeded: AtomicBool,
+    /// Quota configuration (cloned from registration request).
+    quota:          TenantQuota,
 }
 
 impl<A: DatabaseAdapter> TenantEntry<A> {
     fn new(executor: Arc<Executor<A>>) -> Self {
         Self {
-            executor: Arc::new(ArcSwap::from(executor)),
-            status:   AtomicU8::new(TenantStatus::Active as u8),
+            executor:       Arc::new(ArcSwap::from(executor)),
+            status:         AtomicU8::new(TenantStatus::Active as u8),
+            concurrency:    None,
+            quota_exceeded: AtomicBool::new(false),
+            quota:          TenantQuota::default(),
         }
+    }
+
+    fn with_quota(mut self, quota: TenantQuota) -> Self {
+        self.concurrency = quota
+            .max_concurrent
+            .map(|n| Arc::new(Semaphore::new(n as usize)));
+        self.quota = quota;
+        self
     }
 
     fn status(&self) -> TenantStatus {
@@ -176,6 +211,94 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
             self.tenants.insert(key, TenantEntry::new(executor));
             true
         }
+    }
+
+    /// Register or update a tenant executor with quota configuration.
+    ///
+    /// Like [`upsert`](Self::upsert), but also sets per-tenant quota limits.
+    /// On insert, quotas are applied immediately. On update, the executor is
+    /// swapped atomically; quotas are updated by removing and re-inserting
+    /// the entry (status is preserved).
+    pub fn upsert_with_quota(
+        &self,
+        key: impl Into<String>,
+        executor: Arc<Executor<A>>,
+        quota: TenantQuota,
+    ) -> bool {
+        let key = key.into();
+        if let Some(existing) = self.tenants.get(&key) {
+            // Preserve status across quota update
+            let prev_status = existing.value().status();
+            drop(existing);
+            self.tenants.remove(&key);
+            let entry = TenantEntry::new(executor).with_quota(quota);
+            entry.set_status(prev_status);
+            self.tenants.insert(key, entry);
+            false
+        } else {
+            self.tenants
+                .insert(key, TenantEntry::new(executor).with_quota(quota));
+            true
+        }
+    }
+
+    /// Try to acquire a concurrency permit for a tenant.
+    ///
+    /// Returns `Ok(Some(permit))` if a permit was acquired, `Ok(None)` if no
+    /// concurrency limit is configured, or `Err(RateLimited)` if the limit is
+    /// reached.
+    ///
+    /// The caller must hold the permit for the duration of the request.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::RateLimited` if all concurrency permits are in use.
+    pub fn try_acquire_concurrency(
+        &self,
+        key: &str,
+    ) -> fraiseql_error::Result<Option<tokio::sync::OwnedSemaphorePermit>> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        if let Some(ref sem) = entry.value().concurrency {
+            match sem.clone().try_acquire_owned() {
+                Ok(permit) => Ok(Some(permit)),
+                Err(_) => Err(FraiseQLError::RateLimited {
+                    message:          format!(
+                        "Tenant '{key}' concurrency limit reached (max {})",
+                        entry.value().quota.max_concurrent.unwrap_or(0)
+                    ),
+                    retry_after_secs: 1,
+                }),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns `true` if the tenant's soft storage quota has been exceeded.
+    ///
+    /// When exceeded, mutations should be rejected (reads still allowed).
+    #[must_use]
+    pub fn is_quota_exceeded(&self, key: &str) -> bool {
+        self.tenants
+            .get(key)
+            .is_some_and(|e| e.value().quota_exceeded.load(Ordering::Relaxed))
+    }
+
+    /// Set the quota-exceeded flag for a tenant (called by background task).
+    pub fn set_quota_exceeded(&self, key: &str, exceeded: bool) {
+        if let Some(entry) = self.tenants.get(key) {
+            entry.value().quota_exceeded.store(exceeded, Ordering::Relaxed);
+        }
+    }
+
+    /// Returns the quota configuration for a tenant.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::NotFound` if the tenant key is not registered.
+    pub fn tenant_quota(&self, key: &str) -> fraiseql_error::Result<TenantQuota> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        Ok(entry.value().quota.clone())
     }
 
     /// Remove a tenant from the registry.
@@ -624,5 +747,152 @@ mod tests {
     fn test_tenant_status_as_str() {
         assert_eq!(TenantStatus::Active.as_str(), "active");
         assert_eq!(TenantStatus::Suspended.as_str(), "suspended");
+    }
+
+    // ── Cycle 5: quotas & concurrency ───────────────────────────────────
+
+    #[test]
+    fn test_upsert_with_quota_sets_concurrency_limit() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        let quota = TenantQuota {
+            max_concurrent:       Some(2),
+            max_requests_per_sec: None,
+            max_storage_bytes:    None,
+        };
+        let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
+        assert!(was_insert);
+
+        // Two permits should succeed
+        let p1 = registry.try_acquire_concurrency("tenant-abc").unwrap();
+        assert!(p1.is_some());
+        let p2 = registry.try_acquire_concurrency("tenant-abc").unwrap();
+        assert!(p2.is_some());
+
+        // Keep permits alive so concurrency is saturated
+        let (_p1, _p2) = (p1, p2);
+
+        // Third should fail (RateLimited)
+        let err = registry.try_acquire_concurrency("tenant-abc").unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::RateLimited { .. }),
+            "Expected RateLimited, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_no_concurrency_limit_returns_none() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+
+        let result = registry.try_acquire_concurrency("tenant-abc").unwrap();
+        assert!(result.is_none(), "no concurrency limit → None permit");
+    }
+
+    #[test]
+    fn test_concurrency_permit_released_on_drop() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        let quota = TenantQuota {
+            max_concurrent:       Some(1),
+            max_requests_per_sec: None,
+            max_storage_bytes:    None,
+        };
+        registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
+
+        // Acquire the only permit
+        let permit = registry.try_acquire_concurrency("tenant-abc").unwrap();
+        assert!(permit.is_some());
+
+        // Second acquire should fail
+        assert!(registry.try_acquire_concurrency("tenant-abc").is_err());
+
+        // Drop the permit
+        drop(permit);
+
+        // Now acquire should succeed again
+        let permit2 = registry.try_acquire_concurrency("tenant-abc").unwrap();
+        assert!(permit2.is_some());
+    }
+
+    #[test]
+    fn test_quota_exceeded_flag() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+
+        assert!(!registry.is_quota_exceeded("tenant-abc"));
+
+        registry.set_quota_exceeded("tenant-abc", true);
+        assert!(registry.is_quota_exceeded("tenant-abc"));
+
+        registry.set_quota_exceeded("tenant-abc", false);
+        assert!(!registry.is_quota_exceeded("tenant-abc"));
+    }
+
+    #[test]
+    fn test_quota_exceeded_unknown_tenant_returns_false() {
+        let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
+        assert!(!registry.is_quota_exceeded("unknown"));
+    }
+
+    #[test]
+    fn test_tenant_quota_retrieval() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        let quota = TenantQuota {
+            max_requests_per_sec: Some(100),
+            max_concurrent:       Some(10),
+            max_storage_bytes:    Some(1_000_000),
+        };
+        registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
+
+        let retrieved = registry.tenant_quota("tenant-abc").unwrap();
+        assert_eq!(retrieved.max_requests_per_sec, Some(100));
+        assert_eq!(retrieved.max_concurrent, Some(10));
+        assert_eq!(retrieved.max_storage_bytes, Some(1_000_000));
+    }
+
+    #[test]
+    fn test_upsert_with_quota_preserves_status() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        let quota = TenantQuota {
+            max_concurrent: Some(5),
+            ..Default::default()
+        };
+        registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
+        registry.suspend("tenant-abc").unwrap();
+
+        // Update quota — status should stay Suspended
+        let new_quota = TenantQuota {
+            max_concurrent: Some(10),
+            ..Default::default()
+        };
+        registry.upsert_with_quota("tenant-abc", tenant_executor("abc-v2"), new_quota);
+
+        assert_eq!(
+            registry.tenant_status("tenant-abc").unwrap(),
+            TenantStatus::Suspended
+        );
+        // New quota should be applied
+        let retrieved = registry.tenant_quota("tenant-abc").unwrap();
+        assert_eq!(retrieved.max_concurrent, Some(10));
+    }
+
+    #[test]
+    fn test_concurrency_independent_between_tenants() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        let quota = TenantQuota {
+            max_concurrent: Some(1),
+            ..Default::default()
+        };
+        registry.upsert_with_quota("tenant-a", tenant_executor("a"), quota.clone());
+        registry.upsert_with_quota("tenant-b", tenant_executor("b"), quota);
+
+        // Exhaust tenant-a's limit
+        let pa = registry.try_acquire_concurrency("tenant-a").unwrap();
+        assert!(pa.is_some());
+        let _pa = pa; // hold permit alive
+        assert!(registry.try_acquire_concurrency("tenant-a").is_err());
+
+        // tenant-b should still have its own independent limit
+        let pb = registry.try_acquire_concurrency("tenant-b").unwrap();
+        assert!(pb.is_some());
     }
 }

@@ -22,6 +22,8 @@ pub struct InMemoryRateLimiter {
     pub(super) path_rules:      Vec<PathRateLimit>,
     // (path_prefix, ip) -> TokenBucket
     pub(super) path_ip_buckets: Arc<RwLock<HashMap<(String, String), TokenBucket>>>,
+    // tenant_key -> TokenBucket (per-tenant rate limit)
+    pub(super) tenant_buckets:  Arc<RwLock<HashMap<String, TokenBucket>>>,
 }
 
 impl InMemoryRateLimiter {
@@ -33,6 +35,7 @@ impl InMemoryRateLimiter {
             user_buckets: Arc::new(RwLock::new(HashMap::new())),
             path_rules: Vec::new(),
             path_ip_buckets: Arc::new(RwLock::new(HashMap::new())),
+            tenant_buckets: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -207,6 +210,52 @@ impl InMemoryRateLimiter {
         }
     }
 
+    /// Check if a request is allowed for a given tenant key.
+    ///
+    /// Each tenant gets its own token bucket keyed by `tenant:{key}`.
+    /// The `rps` and `burst` values come from the tenant's quota configuration
+    /// (not the global rate-limit config).
+    ///
+    /// Returns an allowed [`CheckResult`] when the tenant bucket has tokens.
+    #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for rate-limit token calculations
+    pub(super) async fn check_tenant_limit(
+        &self,
+        tenant_key: &str,
+        rps: u32,
+        burst: u32,
+    ) -> CheckResult {
+        let bucket_key = format!("tenant:{tenant_key}");
+        let mut buckets = self.tenant_buckets.write().await;
+        if !buckets.contains_key(&bucket_key) && buckets.len() >= self.config.max_buckets {
+            debug!(
+                tenant_key = tenant_key,
+                "Tenant bucket capacity reached — denying unseen tenant"
+            );
+            return CheckResult::deny(1);
+        }
+        let bucket = buckets
+            .entry(bucket_key)
+            .or_insert_with(|| TokenBucket::new(f64::from(burst), f64::from(rps)));
+
+        let allowed = bucket.try_consume(1.0);
+        let remaining = bucket.token_count();
+        drop(buckets);
+
+        if allowed {
+            CheckResult::allow(remaining)
+        } else {
+            debug!(tenant_key = tenant_key, "Per-tenant rate limit exceeded");
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            // Reason: ceil(1/rps) is always a small positive integer
+            let retry = if rps == 0 {
+                1
+            } else {
+                ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1)
+            };
+            CheckResult::deny(retry)
+        }
+    }
+
     /// Evict stale in-memory buckets (called by background cleanup task).
     ///
     /// A bucket is stale once it has been idle for longer than the time required
@@ -249,6 +298,10 @@ impl InMemoryRateLimiter {
         let mut path_buckets = self.path_ip_buckets.write().await;
         path_buckets.retain(|_, b| b.last_refill >= ip_threshold);
         drop(path_buckets);
+
+        let mut tenant_buckets = self.tenant_buckets.write().await;
+        tenant_buckets.retain(|_, b| b.last_refill >= ip_threshold);
+        drop(tenant_buckets);
 
         debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
     }
