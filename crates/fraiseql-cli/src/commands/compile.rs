@@ -201,6 +201,32 @@ pub async fn compile_to_schema(
         info!("No fraiseql.toml found, using default security configuration");
     }
 
+    // 2b. Validate @tenant_id annotations when tenancy mode is "row".
+    // Extract tenancy config from the already-embedded security JSON.
+    let tenancy_row_claim: Option<String> = intermediate.security.as_ref().and_then(|sec| {
+        let tenancy = sec.get("tenancy")?;
+        let mode = tenancy.get("mode").and_then(|m| m.as_str()).unwrap_or("none");
+        if mode == "row" {
+            Some(
+                tenancy
+                    .get("tenantClaim")
+                    .and_then(|c| c.as_str())
+                    .unwrap_or("tenant_id")
+                    .to_string(),
+            )
+        } else {
+            None
+        }
+    });
+    if let Some(tenant_claim) = &tenancy_row_claim {
+        info!("Validating @tenant_id annotations for row-isolation tenancy...");
+        crate::schema::converter::tenancy::validate_tenant_annotations(
+            &mut intermediate,
+            tenant_claim,
+        )
+        .context("@tenant_id validation failed")?;
+    }
+
     // 3. Validate intermediate schema
     info!("Validating schema structure...");
     let validation_report =
