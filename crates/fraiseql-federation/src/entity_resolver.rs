@@ -517,4 +517,83 @@ mod tests {
         assert!(where_clause.contains("123"));
         assert!(where_clause.contains("456"));
     }
+
+    #[test]
+    fn test_construct_batch_where_clause_multi_key() {
+        let mut rep1 = EntityRepresentation {
+            typename:   "OrderItem".to_string(),
+            key_fields: HashMap::new(),
+            all_fields: HashMap::new(),
+        };
+        rep1.key_fields.insert("order_id".to_string(), json!("O1"));
+        rep1.key_fields.insert("product_id".to_string(), json!("P1"));
+
+        let mut rep2 = EntityRepresentation {
+            typename:   "OrderItem".to_string(),
+            key_fields: HashMap::new(),
+            all_fields: HashMap::new(),
+        };
+        rep2.key_fields.insert("order_id".to_string(), json!("O2"));
+        rep2.key_fields.insert("product_id".to_string(), json!("P2"));
+
+        let reps = vec![rep1, rep2];
+        let where_clause = construct_batch_where_clause(
+            &reps,
+            &["order_id".to_string(), "product_id".to_string()],
+        )
+        .unwrap();
+
+        assert!(where_clause.contains("WHERE"));
+        assert!(
+            where_clause.contains("\"order_id\" IN"),
+            "expected quoted column: {}",
+            where_clause
+        );
+        assert!(
+            where_clause.contains("\"product_id\" IN"),
+            "expected multi-key column: {}",
+            where_clause
+        );
+        assert!(where_clause.contains("AND"), "multi-key needs AND: {}", where_clause);
+    }
+
+    #[test]
+    fn test_multi_key_extract_key_fields() {
+        let input = json!({
+            "__typename": "OrderItem",
+            "order_id": "O1",
+            "product_id": "P1",
+            "quantity": 5
+        });
+
+        let mut rep = EntityRepresentation::from_any(&input).unwrap();
+        rep.extract_key_fields(&["order_id".to_string(), "product_id".to_string()]);
+
+        assert_eq!(rep.key_fields.len(), 2);
+        assert_eq!(rep.key_fields["order_id"], json!("O1"));
+        assert_eq!(rep.key_fields["product_id"], json!("P1"));
+    }
+
+    #[test]
+    fn test_multi_key_deduplicate() {
+        let make_rep = |oid: &str, pid: &str| {
+            let mut rep = EntityRepresentation {
+                typename:   "OrderItem".to_string(),
+                key_fields: HashMap::new(),
+                all_fields: HashMap::new(),
+            };
+            rep.key_fields.insert("order_id".to_string(), json!(oid));
+            rep.key_fields.insert("product_id".to_string(), json!(pid));
+            rep
+        };
+
+        let reps = vec![
+            make_rep("O1", "P1"),
+            make_rep("O1", "P1"), // duplicate
+            make_rep("O1", "P2"), // different product
+        ];
+
+        let deduped = deduplicate_representations(&reps);
+        assert_eq!(deduped.len(), 2, "should deduplicate identical multi-key reps");
+    }
 }

@@ -53,6 +53,9 @@ type _Service {
 scalar _Any
 ";
 
+    // Emit @link directive for Federation 2 spec import
+    sdl.push_str("extend schema @link(url: \"https://specs.apollo.dev/federation/v2.0\", import: [\"@key\", \"@external\", \"@requires\", \"@provides\", \"@shareable\", \"@inaccessible\", \"@override\"])\n");
+
     // Build _Entity union with all federated types
     let entity_types: Vec<&str> = metadata.types.iter().map(|t| t.name.as_str()).collect();
 
@@ -183,6 +186,26 @@ mod tests {
         assert!(
             sdl.contains("directive @inaccessible on"),
             "SDL must declare @inaccessible directive: {}",
+            sdl
+        );
+    }
+
+    #[test]
+    fn test_link_directive_emitted_in_sdl() {
+        let metadata = FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types:   vec![],
+        };
+
+        let base_schema = "type Query { test: String }";
+        let sdl = generate_service_sdl(base_schema, &metadata);
+
+        assert!(
+            sdl.contains(
+                "extend schema @link(url: \"https://specs.apollo.dev/federation/v2.0\","
+            ),
+            "SDL must emit @link for federation v2 spec import: {}",
             sdl
         );
     }
