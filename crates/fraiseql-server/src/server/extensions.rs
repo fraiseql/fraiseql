@@ -346,6 +346,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             flight_service,
             adapter_cache_enabled: false,
             broadcast_manager: None,
+            presence_manager: None,
         })
     }
 

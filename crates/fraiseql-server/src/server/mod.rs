@@ -114,4 +114,7 @@ pub struct Server<A: DatabaseAdapter> {
 
     /// Broadcast channel manager for ephemeral realtime pub/sub.
     pub(super) broadcast_manager: Option<Arc<crate::subscriptions::BroadcastManager>>,
+
+    /// Presence manager for room-based member tracking.
+    pub(super) presence_manager: Option<Arc<crate::subscriptions::PresenceManager>>,
 }
