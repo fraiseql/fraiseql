@@ -74,6 +74,9 @@ pub struct EntityEvent {
 
     /// Optional old data (for UPDATE operations)
     pub old_data: Option<serde_json::Value>,
+
+    /// Tenant identifier for multi-tenant filtering (`fk_customer_org`).
+    pub tenant_id: Option<String>,
 }
 
 impl EntityEvent {
@@ -91,6 +94,7 @@ impl EntityEvent {
             operation: operation.into(),
             data,
             old_data: None,
+            tenant_id: None,
         }
     }
 
@@ -98,6 +102,13 @@ impl EntityEvent {
     #[must_use]
     pub fn with_old_data(mut self, old_data: serde_json::Value) -> Self {
         self.old_data = Some(old_data);
+        self
+    }
+
+    /// Set tenant identifier for multi-tenant filtering.
+    #[must_use]
+    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
+        self.tenant_id = Some(tenant_id.into());
         self
     }
 }
@@ -134,7 +145,7 @@ impl EventBridge {
     }
 
     /// Convert `EntityEvent` to `SubscriptionEvent`
-    fn convert_event(entity_event: EntityEvent) -> SubscriptionEvent {
+    pub fn convert_event(entity_event: EntityEvent) -> SubscriptionEvent {
         // Convert operation string to SubscriptionOperation
         let operation = match entity_event.operation.to_uppercase().as_str() {
             "INSERT" => SubscriptionOperation::Create,
@@ -157,6 +168,11 @@ impl EventBridge {
         // Add old data if present
         if let Some(old_data) = entity_event.old_data {
             event = event.with_old_data(old_data);
+        }
+
+        // Propagate tenant_id for multi-tenant filtering
+        if let Some(tenant_id) = entity_event.tenant_id {
+            event = event.with_tenant_id(tenant_id);
         }
 
         event
@@ -317,5 +333,50 @@ mod tests {
 
         // Clean up
         handle.abort();
+    }
+
+    #[tokio::test]
+    async fn test_event_bridge_end_to_end_forwarding() {
+        let schema = Arc::new(CompiledSchema::new());
+        let manager = Arc::new(SubscriptionManager::new(schema));
+        let config = EventBridgeConfig::new();
+
+        let bridge = EventBridge::new(manager, config);
+        let sender = bridge.sender();
+        let handle = bridge.spawn();
+
+        // Send multiple events through the channel
+        for i in 0..3 {
+            let event = EntityEvent::new(
+                "Order",
+                format!("order_{i}"),
+                "INSERT",
+                serde_json::json!({"id": format!("order_{i}"), "total": 99.95}),
+            );
+            sender.send(event).await.expect("channel should be open");
+        }
+
+        // Allow the bridge task to process all events
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        // The bridge should still be running (didn't panic processing events)
+        assert!(!handle.is_finished(), "bridge should still be running after processing events");
+
+        handle.abort();
+    }
+
+    #[tokio::test]
+    async fn test_event_bridge_sender_cloning() {
+        let schema = Arc::new(CompiledSchema::new());
+        let manager = Arc::new(SubscriptionManager::new(schema));
+        let config = EventBridgeConfig::new();
+
+        let bridge = EventBridge::new(manager, config);
+        let sender1 = bridge.sender();
+        let sender2 = bridge.sender();
+
+        // Both senders should be usable (cloned from the same channel)
+        assert!(sender1.try_reserve().is_ok());
+        assert!(sender2.try_reserve().is_ok());
     }
 }

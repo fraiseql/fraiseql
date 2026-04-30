@@ -104,15 +104,16 @@ fn test_field_directive_shareable_flag() {
     // THEN: shareable flag should be true
 
     let mut product_type = FederatedType {
-        name:             "Product".to_string(),
-        keys:             vec![KeyDirective {
+        name:                "Product".to_string(),
+        keys:                vec![KeyDirective {
             fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends:       false,
-        external_fields:  vec![],
-        shareable_fields: vec!["name".to_string()],
-        field_directives: std::collections::HashMap::new(),
+        is_extends:          false,
+        external_fields:     vec![],
+        shareable_fields:    vec!["name".to_string()],
+        inaccessible_fields: vec![],
+        field_directives:    std::collections::HashMap::new(),
     };
 
     // Simulate adding a @shareable directive to the "name" field

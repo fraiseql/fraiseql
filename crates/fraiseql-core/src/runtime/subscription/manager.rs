@@ -357,6 +357,23 @@ impl SubscriptionManager {
         event: &SubscriptionEvent,
         subscription: &ActiveSubscription,
     ) -> bool {
+        // Tenant isolation: if the subscription has a tenant_id, only deliver
+        // events from the same tenant. Events without a tenant_id bypass the check.
+        if let Some(ref sub_tenant) = subscription.tenant_id {
+            match event.tenant_id {
+                Some(ref event_tenant) if event_tenant != sub_tenant => {
+                    tracing::trace!(
+                        subscription_id = %subscription.id,
+                        sub_tenant = sub_tenant,
+                        event_tenant = event_tenant,
+                        "Tenant mismatch — event filtered"
+                    );
+                    return false;
+                }
+                _ => {} // match or no tenant on event (pass through)
+            }
+        }
+
         // Check entity type matches (subscription return_type maps to entity)
         if subscription.definition.return_type != event.entity_type {
             return false;

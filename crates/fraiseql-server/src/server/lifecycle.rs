@@ -6,6 +6,9 @@ use tracing::{error, info, warn};
 
 use super::{DatabaseAdapter, Result, Server, ServerError, TlsSetup};
 
+#[cfg(feature = "observers")]
+use crate::subscriptions::event_bridge::{EventBridge, EventBridgeConfig};
+
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Start server and listen for requests.
     ///
@@ -109,21 +112,40 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             "Starting FraiseQL server"
         );
 
-        // Start observer runtime if configured
+        // Start observer runtime if configured, wiring CDC events to EventBridge
         #[cfg(feature = "observers")]
-        if let Some(ref runtime) = self.observer_runtime {
-            info!("Starting observer runtime...");
-            let mut guard = runtime.write().await;
+        #[allow(unused_variables)] // Reason: _bridge_handle is kept alive to prevent task cancellation
+        let _bridge_handle = {
+            let mut handle: Option<tokio::task::JoinHandle<()>> = None;
+            if let Some(ref runtime) = self.observer_runtime {
+                info!("Starting observer runtime...");
 
-            match guard.start().await {
-                Ok(()) => info!("Observer runtime started"),
-                Err(e) => {
-                    error!("Failed to start observer runtime: {}", e);
-                    warn!("Server will continue without observers");
-                },
+                // Create EventBridge to forward CDC events to GraphQL subscriptions
+                let bridge = EventBridge::new(
+                    self.subscription_manager.clone(),
+                    EventBridgeConfig::new(),
+                );
+                let sender = bridge.sender();
+
+                let mut guard = runtime.write().await;
+                guard.set_event_bridge_sender(sender);
+
+                match guard.start().await {
+                    Ok(()) => {
+                        info!("Observer runtime started");
+                        // Spawn EventBridge after observer runtime is running
+                        handle = Some(bridge.spawn());
+                        info!("EventBridge started — CDC events will be forwarded to subscriptions");
+                    }
+                    Err(e) => {
+                        error!("Failed to start observer runtime: {}", e);
+                        warn!("Server will continue without observers");
+                    },
+                }
+                drop(guard);
             }
-            drop(guard);
-        }
+            handle
+        };
 
         // Explicitly enable TCP_NODELAY (disable Nagle's algorithm) on every
         // accepted connection to minimise latency for small GraphQL responses.

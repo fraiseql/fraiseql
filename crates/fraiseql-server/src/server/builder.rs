@@ -402,6 +402,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             mcp_config: None,
             pool_tuning_config: None,
             adapter_cache_enabled: false,
+            broadcast_manager: None,
+            presence_manager: None,
         })
     }
 
@@ -419,6 +421,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub const fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
         self.max_subscriptions_per_connection = Some(max);
+        self
+    }
+
+    /// Enable ephemeral broadcast channels (`POST /realtime/v1/broadcast`).
+    #[must_use]
+    pub fn with_broadcast(mut self, config: crate::subscriptions::BroadcastConfig) -> Self {
+        self.broadcast_manager = Some(Arc::new(crate::subscriptions::BroadcastManager::new(config)));
+        self
+    }
+
+    /// Enable room-based presence tracking.
+    #[must_use]
+    pub fn with_presence(mut self, config: crate::subscriptions::PresenceConfig) -> Self {
+        self.presence_manager = Some(Arc::new(crate::subscriptions::PresenceManager::new(config)));
         self
     }
 

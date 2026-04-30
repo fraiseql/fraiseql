@@ -29,6 +29,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ServerError,
     observers::{Observer, ObserverRepository},
+    subscriptions::event_bridge::EntityEvent as BridgeEntityEvent,
 };
 
 /// Configuration for the observer runtime
@@ -126,6 +127,8 @@ pub struct ObserverRuntime {
     matcher:           Arc<RwLock<Option<EventMatcher>>>,
     executor:          Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
     entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
+    /// Optional sender to forward CDC events to `EventBridge` for GraphQL subscriptions
+    event_bridge_sender: Option<mpsc::Sender<BridgeEntityEvent>>,
 }
 
 impl ObserverRuntime {
@@ -146,7 +149,13 @@ impl ObserverRuntime {
             matcher: Arc::new(RwLock::new(None)),
             executor: Arc::new(RwLock::new(None)),
             entity_type_index: Arc::new(RwLock::new(HashMap::new())),
+            event_bridge_sender: None,
         }
+    }
+
+    /// Set the `EventBridge` sender so CDC events are forwarded to GraphQL subscriptions.
+    pub fn set_event_bridge_sender(&mut self, sender: mpsc::Sender<BridgeEntityEvent>) {
+        self.event_bridge_sender = Some(sender);
     }
 
     /// Load observers from the database and convert to `ObserverDefinitions`.
@@ -299,6 +308,9 @@ impl ObserverRuntime {
         let executor_ref = Arc::clone(&self.executor);
         let entity_type_index_ref = Arc::clone(&self.entity_type_index);
 
+        // Clone optional EventBridge sender for forwarding CDC events to subscriptions
+        let bridge_sender = self.event_bridge_sender.clone();
+
         // Extract non-optional initial values for the background task.
         // SAFETY: These were populated immediately above in this function before we
         // reach this point, so the Option is always Some here.  We surface a proper
@@ -434,6 +446,24 @@ impl ObserverRuntime {
                                                     .bind(duration_ms)
                                                     .execute(&pool)
                                                     .await;
+                                                }
+                                            }
+
+                                            // Forward processed event to EventBridge for
+                                            // GraphQL subscription delivery.
+                                            if let Some(ref sender) = bridge_sender {
+                                                let mut bridge_event = BridgeEntityEvent::new(
+                                                    &event.entity_type,
+                                                    event.entity_id.to_string(),
+                                                    event.event_type.as_str(),
+                                                    event.data.clone(),
+                                                );
+                                                // Propagate tenant_id for multi-tenant filtering
+                                                if let Some(ref tid) = event.tenant_id {
+                                                    bridge_event = bridge_event.with_tenant_id(tid);
+                                                }
+                                                if let Err(e) = sender.try_send(bridge_event) {
+                                                    warn!("Failed to forward event {} to EventBridge: {}", event.id, e);
                                                 }
                                             }
                                         }
