@@ -78,6 +78,7 @@ fn test_key_directive_multiple_keys() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -104,6 +105,7 @@ fn test_external_field_single() {
         is_extends:       true,
         external_fields:  vec!["email".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -123,6 +125,7 @@ fn test_external_field_multiple() {
         is_extends:       true,
         external_fields:  vec!["customerId".to_string(), "customerEmail".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -143,6 +146,7 @@ fn test_external_field_key_field() {
         is_extends:       true,
         external_fields:  vec!["id".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -166,6 +170,7 @@ fn test_extends_directive_owned_entity() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -184,6 +189,7 @@ fn test_extends_directive_extended_entity() {
         is_extends:       true,
         external_fields:  vec!["email".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -287,6 +293,7 @@ fn test_composite_key_multi_tenant() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -372,6 +379,7 @@ fn test_federation_metadata_multiple_types() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -383,6 +391,7 @@ fn test_federation_metadata_multiple_types() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -410,6 +419,7 @@ fn test_field_cannot_be_both_external_and_key() {
         is_extends:       true,
         external_fields:  vec!["id".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -429,6 +439,7 @@ fn test_owned_type_cannot_have_external_fields() {
         is_extends:       false,
         external_fields:  vec![], // Must be empty for owned types
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -479,6 +490,7 @@ fn test_extended_type_must_have_key() {
         is_extends:       true,
         external_fields:  vec!["customerId".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 

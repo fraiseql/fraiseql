@@ -29,6 +29,7 @@ fn test_single_database_single_subgraph() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -40,6 +41,7 @@ fn test_single_database_single_subgraph() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -71,6 +73,7 @@ fn test_multiple_database_same_subgraph() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -82,6 +85,7 @@ fn test_multiple_database_same_subgraph() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -114,6 +118,7 @@ fn test_two_subgraph_federation() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -132,6 +137,7 @@ fn test_two_subgraph_federation() {
                 is_extends:       true,
                 external_fields:  vec!["email".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -143,6 +149,7 @@ fn test_two_subgraph_federation() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -172,6 +179,7 @@ fn test_three_subgraph_federation() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -189,6 +197,7 @@ fn test_three_subgraph_federation() {
                 is_extends:       true,
                 external_fields:  vec!["email".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -200,6 +209,7 @@ fn test_three_subgraph_federation() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -218,6 +228,7 @@ fn test_three_subgraph_federation() {
                 is_extends:       true,
                 external_fields:  vec!["userId".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -229,6 +240,7 @@ fn test_three_subgraph_federation() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -261,6 +273,7 @@ fn test_multi_tenant_federation() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -284,6 +297,7 @@ fn test_organization_user_order_federation() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -296,6 +310,7 @@ fn test_organization_user_order_federation() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -324,6 +339,7 @@ fn test_user_order_relationship() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -342,6 +358,7 @@ fn test_user_order_relationship() {
                 is_extends:       true,
                 external_fields:  vec!["email".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -353,6 +370,7 @@ fn test_user_order_relationship() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -384,6 +402,7 @@ fn test_user_order_product_relationship() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -401,6 +420,7 @@ fn test_user_order_product_relationship() {
                 is_extends:       true,
                 external_fields:  vec!["email".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -412,6 +432,7 @@ fn test_user_order_product_relationship() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -430,6 +451,7 @@ fn test_user_order_product_relationship() {
                 is_extends:       true,
                 external_fields:  vec!["userId".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -441,6 +463,7 @@ fn test_user_order_product_relationship() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -503,6 +526,7 @@ fn test_single_subgraph_query() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -531,6 +555,7 @@ fn test_two_subgraph_join_query() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -548,6 +573,7 @@ fn test_two_subgraph_join_query() {
                 is_extends:       true,
                 external_fields:  vec!["email".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -559,6 +585,7 @@ fn test_two_subgraph_join_query() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],

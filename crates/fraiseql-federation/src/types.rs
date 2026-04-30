@@ -29,7 +29,8 @@ impl Default for FederationMetadata {
     }
 }
 
-/// Field-level federation directives (@requires, @provides, @shareable, @external)
+/// Field-level federation directives (@requires, @provides, @shareable, @external,
+/// @inaccessible, @override)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FieldFederationDirectives {
     /// @requires directive - fields that must be present for this field to resolve
@@ -43,6 +44,14 @@ pub struct FieldFederationDirectives {
 
     /// @shareable directive - field is shareable across subgraphs
     pub shareable: bool,
+
+    /// @inaccessible directive - field is hidden from the public API
+    #[serde(default)]
+    pub inaccessible: bool,
+
+    /// @override directive - this subgraph takes ownership from another subgraph
+    #[serde(default)]
+    pub override_from: Option<String>,
 }
 
 impl FieldFederationDirectives {
@@ -87,6 +96,18 @@ impl FieldFederationDirectives {
         self.shareable = true;
         self
     }
+
+    /// Mark as @inaccessible
+    pub const fn inaccessible(mut self) -> Self {
+        self.inaccessible = true;
+        self
+    }
+
+    /// Set @override(from: "subgraph")
+    pub fn with_override_from(mut self, from: String) -> Self {
+        self.override_from = Some(from);
+        self
+    }
 }
 
 /// Field path selection for @requires/@provides (e.g., `["profile", "age"]` for "profile.age")
@@ -118,6 +139,10 @@ pub struct FederatedType {
     /// Fields that are shareable across subgraphs
     pub shareable_fields: Vec<String>,
 
+    /// Fields that are hidden from the public API (@inaccessible)
+    #[serde(default)]
+    pub inaccessible_fields: Vec<String>,
+
     /// Field-level federation directives
     pub field_directives: HashMap<String, FieldFederationDirectives>,
 }
@@ -132,6 +157,7 @@ impl FederatedType {
             is_extends: false,
             external_fields: Vec::new(),
             shareable_fields: Vec::new(),
+            inaccessible_fields: Vec::new(),
             field_directives: HashMap::new(),
         }
     }
@@ -168,6 +194,16 @@ impl FederatedType {
     /// Check if a field is marked as @external
     pub fn field_is_external(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name).is_some_and(|d| d.external)
+    }
+
+    /// Check if a field is marked as @inaccessible
+    pub fn field_is_inaccessible(&self, field_name: &str) -> bool {
+        self.get_field_directives(field_name).is_some_and(|d| d.inaccessible)
+    }
+
+    /// Check if a field has the @override directive
+    pub fn field_has_override(&self, field_name: &str) -> bool {
+        self.get_field_directives(field_name).is_some_and(|d| d.override_from.is_some())
     }
 }
 
@@ -425,5 +461,59 @@ mod tests {
         assert!(!meta.enabled);
         assert_eq!(meta.version, "v2");
         assert!(meta.types.is_empty());
+    }
+
+    #[test]
+    fn test_field_directives_inaccessible() {
+        let directives = FieldFederationDirectives::new().inaccessible();
+        assert!(directives.inaccessible);
+        assert!(!directives.shareable);
+        assert!(!directives.external);
+    }
+
+    #[test]
+    fn test_field_directives_override() {
+        let directives =
+            FieldFederationDirectives::new().with_override_from("products".to_string());
+        assert_eq!(directives.override_from.as_deref(), Some("products"));
+        assert!(!directives.inaccessible);
+    }
+
+    #[test]
+    fn test_field_directives_inaccessible_and_override_combined() {
+        let directives = FieldFederationDirectives::new()
+            .inaccessible()
+            .with_override_from("reviews".to_string());
+        assert!(directives.inaccessible);
+        assert_eq!(directives.override_from.as_deref(), Some("reviews"));
+    }
+
+    #[test]
+    fn test_federated_type_field_is_inaccessible() {
+        let mut ftype = FederatedType::new("User".to_string());
+        ftype.set_field_directives(
+            "ssn".to_string(),
+            FieldFederationDirectives::new().inaccessible(),
+        );
+        assert!(ftype.field_is_inaccessible("ssn"));
+        assert!(!ftype.field_is_inaccessible("name"));
+    }
+
+    #[test]
+    fn test_federated_type_field_has_override() {
+        let mut ftype = FederatedType::new("Product".to_string());
+        ftype.set_field_directives(
+            "price".to_string(),
+            FieldFederationDirectives::new().with_override_from("pricing".to_string()),
+        );
+        assert!(ftype.field_has_override("price"));
+        assert!(!ftype.field_has_override("name"));
+    }
+
+    #[test]
+    fn test_federated_type_inaccessible_fields() {
+        let mut ftype = FederatedType::new("User".to_string());
+        ftype.inaccessible_fields = vec!["ssn".to_string(), "internal_id".to_string()];
+        assert_eq!(ftype.inaccessible_fields.len(), 2);
     }
 }

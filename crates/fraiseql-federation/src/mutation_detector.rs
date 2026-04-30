@@ -202,6 +202,7 @@ mod tests {
                 is_extends:       false, // NOT extended = local
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],
         };
@@ -221,6 +222,7 @@ mod tests {
                 is_extends:       true, // Extended = remote
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             }],
         };

@@ -21,6 +21,7 @@ deadpool = {workspace = true}
 deadpool-postgres = {workspace = true}
 fraiseql-db = {workspace = true, default-features = false}
 fraiseql-error = {workspace = true, default-features = false}
+lru = {workspace = true}
 reqwest = {workspace = true}
 serde = {workspace = true, features = ["derive"]}
 serde_json = {workspace = true}

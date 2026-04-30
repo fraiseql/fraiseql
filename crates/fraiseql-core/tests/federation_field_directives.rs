@@ -26,6 +26,7 @@ fn test_field_directive_requires_storage() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -67,6 +68,7 @@ fn test_field_directive_provides_storage() {
         is_extends:       true,
         external_fields:  vec!["total".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -145,6 +147,7 @@ fn test_field_directive_external_flag() {
         is_extends:       true,
         external_fields:  vec!["total".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -184,6 +187,7 @@ fn test_field_directive_nested_requires_path() {
         is_extends:       true,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -228,6 +232,7 @@ fn test_field_directive_multiple_directives_on_field() {
         is_extends:       true,
         external_fields:  vec!["items".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -277,6 +282,7 @@ fn test_field_directives_multiple_fields() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 

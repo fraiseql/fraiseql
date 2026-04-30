@@ -49,14 +49,17 @@ pub mod database_resolver;
 pub mod dependency_graph;
 pub mod direct_db_resolver;
 pub mod entity_resolver;
+pub mod health;
 pub mod http_resolver;
 pub mod logging;
 pub mod metadata_helpers;
 pub mod mutation_detector;
 pub mod mutation_executor;
+pub mod observability;
 pub mod mutation_http_client;
 pub mod mutation_query_builder;
 pub mod query_builder;
+pub mod query_plan_cache;
 pub mod representation;
 pub mod requires_provides_validator;
 pub mod saga_compensator;
@@ -78,6 +81,7 @@ pub use database_resolver::*;
 pub use dependency_graph::DependencyGraph;
 pub use direct_db_resolver::*;
 pub use entity_resolver::*;
+pub use health::{FederationHealthReport, SubgraphHealthAggregator, SubgraphHealthStatus};
 use fraiseql_error::FraiseQLError;
 pub use fraiseql_error::Result;
 pub use http_resolver::*;
@@ -86,9 +90,11 @@ pub use logging::{
 };
 pub use mutation_detector::*;
 pub use mutation_executor::*;
+pub use observability::{EntityResolutionMetrics, SubgraphLatencyEntry, SubgraphLatencyTracker};
 pub use mutation_http_client::*;
 pub use mutation_query_builder::*;
 pub use query_builder::*;
+pub use query_plan_cache::{QueryPlan, QueryPlanCache, SubgraphFetch};
 pub use representation::*;
 pub use requires_provides_validator::{
     DirectiveValidationError, RequiresProvidesRuntimeValidator, RequiresProvidesValidator,

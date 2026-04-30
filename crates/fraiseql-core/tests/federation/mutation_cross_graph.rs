@@ -27,6 +27,7 @@ fn test_mutation_coordinate_two_subgraph_updates() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -38,6 +39,7 @@ fn test_mutation_coordinate_two_subgraph_updates() {
                 is_extends:       true,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -83,6 +85,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -94,6 +97,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 is_extends:       true,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -105,6 +109,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 is_extends:       true,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -172,6 +177,7 @@ fn test_mutation_circular_reference_handling() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -183,6 +189,7 @@ fn test_mutation_circular_reference_handling() {
                 is_extends:       true,
                 external_fields:  vec!["author_id".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],

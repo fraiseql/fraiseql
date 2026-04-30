@@ -635,6 +635,8 @@ mod tests {
             provides:  vec![],
             external:  false,
             shareable: false,
+            inaccessible: false,
+            override_from: None,
         };
 
         let entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
@@ -659,6 +661,8 @@ mod tests {
             provides:  vec![],
             external:  false,
             shareable: false,
+            inaccessible: false,
+            override_from: None,
         };
 
         let mut entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
@@ -690,6 +694,8 @@ mod tests {
             provides:  vec![],
             external:  false,
             shareable: false,
+            inaccessible: false,
+            override_from: None,
         };
 
         let entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
@@ -723,6 +729,8 @@ mod tests {
             provides:  vec![],
             external:  false,
             shareable: false,
+            inaccessible: false,
+            override_from: None,
         };
 
         let mut entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
@@ -759,6 +767,8 @@ mod tests {
             }],
             external:  false,
             shareable: false,
+            inaccessible: false,
+            override_from: None,
         };
 
         let entity_fields: HashMap<String, serde_json::Value> = HashMap::new();
@@ -781,6 +791,8 @@ mod tests {
             }],
             external:  false,
             shareable: false,
+            inaccessible: false,
+            override_from: None,
         };
 
         let mut entity_fields: HashMap<String, serde_json::Value> = HashMap::new();

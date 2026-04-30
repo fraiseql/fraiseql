@@ -149,6 +149,18 @@ pub async fn run() {
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
+            FederationCommands::Check { schema, against } => {
+                match commands::federation::check::run(&schema, against.as_deref()) {
+                    Ok(result) => {
+                        println!(
+                            "{}",
+                            output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                        );
+                        Ok(())
+                    },
+                    Err(e) => Err(e),
+                }
+            },
         },
 
         Commands::GenerateViews {

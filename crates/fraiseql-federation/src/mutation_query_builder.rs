@@ -199,6 +199,7 @@ mod tests {
                 is_extends:       false,
                 external_fields:  Vec::new(),
                 shareable_fields: Vec::new(),
+                    inaccessible_fields: Vec::new(),
                 field_directives: std::collections::HashMap::new(),
             }],
         }
