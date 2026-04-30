@@ -111,6 +111,11 @@ async fn oidc_discovery_connection_refused_returns_error() {
 
 #[tokio::test]
 async fn oidc_discovery_success_with_valid_metadata() {
+    // FRAISEQL_OIDC_ALLOW_INSECURE=1 disables the https:// + loopback SSRF guards so the
+    // wiremock http:// server can be used as a test fixture.  S39 added these guards for
+    // production; in unit/integration tests we relax them via the escape-hatch env var.
+    std::env::set_var("FRAISEQL_OIDC_ALLOW_INSECURE", "1");
+
     let mock_server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
@@ -132,6 +137,8 @@ async fn oidc_discovery_success_with_valid_metadata() {
         "http://localhost/callback",
     )
     .await;
+
+    std::env::remove_var("FRAISEQL_OIDC_ALLOW_INSECURE");
 
     assert!(result.is_ok(), "valid OIDC metadata should succeed: {result:?}");
 }

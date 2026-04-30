@@ -340,6 +340,66 @@ pub struct RoleDefinitionConfig {
     pub scopes:      Vec<String>,
 }
 
+/// Tenancy isolation mode from fraiseql.toml.
+///
+/// Determines how tenant data is separated at the database level.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TenancyModeConfig {
+    /// Single-tenant deployment, no isolation machinery.
+    #[default]
+    None,
+    /// Row-level isolation via `@tenant_id` column injection.
+    Row,
+    /// Schema-level isolation via PostgreSQL schemas.
+    Schema,
+}
+
+/// Tenancy configuration from `[fraiseql.tenancy]` in fraiseql.toml.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TenancyTomlConfig {
+    /// Isolation strategy: `"none"`, `"row"`, or `"schema"`.
+    pub mode:         TenancyModeConfig,
+    /// JWT claim name that carries the tenant identifier.
+    pub tenant_claim: String,
+}
+
+impl Default for TenancyTomlConfig {
+    fn default() -> Self {
+        Self {
+            mode:         TenancyModeConfig::None,
+            tenant_claim: "tenant_id".to_string(),
+        }
+    }
+}
+
+impl TenancyTomlConfig {
+    /// Validate tenancy configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `tenant_claim` is empty when mode is not `none`.
+    pub fn validate(&self) -> Result<()> {
+        if !matches!(self.mode, TenancyModeConfig::None) && self.tenant_claim.is_empty() {
+            anyhow::bail!("tenancy.tenant_claim must not be empty when mode is not 'none'");
+        }
+        Ok(())
+    }
+
+    /// Convert to JSON representation for compiled schema.
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "mode": match self.mode {
+                TenancyModeConfig::None => "none",
+                TenancyModeConfig::Row => "row",
+                TenancyModeConfig::Schema => "schema",
+            },
+            "tenantClaim": self.tenant_claim,
+        })
+    }
+}
+
 /// Complete security configuration from fraiseql.toml
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -554,5 +614,60 @@ mod tests {
         assert!(json["auditLogging"]["enabled"].is_boolean());
         assert!(json["rateLimiting"]["authStart"]["maxRequests"].is_number());
         assert!(json["stateEncryption"]["algorithm"].is_string());
+    }
+
+    // ── TenancyTomlConfig ───────────────────────────────────────────────
+
+    #[test]
+    fn test_tenancy_default_mode_none() {
+        let config = TenancyTomlConfig::default();
+        assert!(matches!(config.mode, TenancyModeConfig::None));
+        assert_eq!(config.tenant_claim, "tenant_id");
+    }
+
+    #[test]
+    fn test_tenancy_to_json_row_mode() {
+        let config = TenancyTomlConfig {
+            mode:         TenancyModeConfig::Row,
+            tenant_claim: "tenant_id".to_string(),
+        };
+        let json = config.to_json();
+        assert_eq!(json["mode"], "row");
+        assert_eq!(json["tenantClaim"], "tenant_id");
+    }
+
+    #[test]
+    fn test_tenancy_to_json_schema_mode() {
+        let config = TenancyTomlConfig {
+            mode:         TenancyModeConfig::Schema,
+            tenant_claim: "org_id".to_string(),
+        };
+        let json = config.to_json();
+        assert_eq!(json["mode"], "schema");
+        assert_eq!(json["tenantClaim"], "org_id");
+    }
+
+    #[test]
+    fn test_tenancy_validate_empty_claim_with_mode_fails() {
+        let config = TenancyTomlConfig {
+            mode:         TenancyModeConfig::Row,
+            tenant_claim: String::new(),
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_tenancy_validate_empty_claim_with_none_ok() {
+        let config = TenancyTomlConfig {
+            mode:         TenancyModeConfig::None,
+            tenant_claim: String::new(),
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_tenancy_mode_invalid_variant_rejected() {
+        let result: Result<TenancyModeConfig, _> = serde_json::from_str("\"invalid\"");
+        assert!(result.is_err());
     }
 }

@@ -33,6 +33,8 @@ pub async fn run() {
             output,
             check,
             database,
+            emit_ddl,
+            check_migrations,
         } => {
             commands::compile::run(
                 &input,
@@ -44,6 +46,8 @@ pub async fn run() {
                 &output,
                 check,
                 database.as_deref(),
+                emit_ddl.as_deref(),
+                check_migrations,
             )
             .await
         },
@@ -317,6 +321,21 @@ pub async fn run() {
                 MigrateCommands::Create { name, dir } => {
                     let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
                     let action = commands::migrate::MigrateAction::Create { name, dir: mig_dir };
+                    commands::migrate::run(&action, &formatter)
+                },
+                MigrateCommands::Generate { name, dir } => {
+                    let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                    let action = commands::migrate::MigrateAction::Generate { name, dir: mig_dir };
+                    commands::migrate::run(&action, &formatter)
+                },
+                MigrateCommands::Validate { dir } => {
+                    let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                    let action = commands::migrate::MigrateAction::Validate { dir: mig_dir };
+                    commands::migrate::run(&action, &formatter)
+                },
+                MigrateCommands::Preflight { dir } => {
+                    let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                    let action = commands::migrate::MigrateAction::Preflight { dir: mig_dir };
                     commands::migrate::run(&action, &formatter)
                 },
             }

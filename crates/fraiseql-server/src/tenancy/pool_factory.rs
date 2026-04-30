@@ -7,9 +7,16 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, schema::CompiledSchema};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    runtime::Executor,
+    schema::{CompiledSchema, TenancyMode},
+};
 use fraiseql_error::{FraiseQLError, Result};
 use serde::Deserialize;
+use tracing::info;
+
+use super::schema_isolation;
 
 /// Connection configuration for a tenant database pool.
 #[derive(Debug, Clone, Deserialize)]
@@ -59,13 +66,25 @@ pub trait FromPoolConfig: DatabaseAdapter + Sized {
 /// validates its format version, creates a database pool, and assembles an
 /// `Executor<A>` with both baked in.
 ///
+/// When the compiled schema specifies `tenancy.mode = "schema"`, this function
+/// also provisions the tenant's PostgreSQL schema (`CREATE SCHEMA IF NOT EXISTS
+/// tenant_{key}`) and configures the adapter's search path.
+///
+/// # Arguments
+///
+/// * `tenant_key` - The tenant identifier used for schema naming
+/// * `schema_json` - Compiled schema JSON string
+/// * `pool_config` - Database connection configuration
+///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Parse` if the schema JSON is invalid.
-/// Returns `FraiseQLError::Validation` if the schema format version is unsupported.
+/// Returns `FraiseQLError::Validation` if the schema format version is unsupported
+/// or the tenant key would produce an invalid PostgreSQL schema name.
 /// Returns `FraiseQLError::ConnectionPool` / `FraiseQLError::Database` if the pool
-/// cannot be created.
+/// cannot be created or schema DDL fails.
 pub async fn create_tenant_executor<A: FromPoolConfig>(
+    tenant_key: &str,
     schema_json: &str,
     pool_config: &TenantPoolConfig,
 ) -> Result<Arc<Executor<A>>> {
@@ -79,11 +98,37 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
         .validate_format_version()
         .map_err(|msg| FraiseQLError::validation(format!("Incompatible compiled schema: {msg}")))?;
 
+    let tenancy_mode = schema.tenancy_mode();
+
     // 2. Create database adapter/pool
     let adapter = A::from_pool_config(pool_config).await?;
 
-    // 3. Assemble executor
+    // 3. Schema isolation: provision schema + configure search_path
+    if tenancy_mode == TenancyMode::Schema {
+        info!(tenant_key, "provisioning schema for tenant (schema isolation mode)");
+        schema_isolation::provision_tenant_schema(tenant_key, &adapter).await?;
+        schema_isolation::configure_search_path(tenant_key, &adapter).await?;
+    }
+
+    // 4. Assemble executor
     Ok(Arc::new(Executor::new(schema, Arc::new(adapter))))
+}
+
+/// Drop a tenant's PostgreSQL schema if schema isolation mode is active.
+///
+/// Executes `DROP SCHEMA IF EXISTS tenant_{key} CASCADE` against the provided
+/// adapter. This is a no-op if the tenant key does not correspond to an existing
+/// schema. Called from the delete tenant handler when `tenancy.mode = "schema"`.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if the tenant key is invalid.
+/// Returns `FraiseQLError::Database` if the DDL execution fails.
+pub async fn destroy_tenant_schema(
+    tenant_key: &str,
+    adapter: &dyn DatabaseAdapter,
+) -> Result<()> {
+    schema_isolation::drop_tenant_schema(tenant_key, adapter).await
 }
 
 #[cfg(test)]
@@ -186,14 +231,17 @@ mod tests {
         let config = test_pool_config();
 
         let executor =
-            create_tenant_executor::<StubPoolAdapter>(&schema_json, &config).await.unwrap();
+            create_tenant_executor::<StubPoolAdapter>("acme", &schema_json, &config)
+                .await
+                .unwrap();
         assert_eq!(executor.schema().types.len(), 0);
     }
 
     #[tokio::test]
     async fn test_create_tenant_executor_invalid_json() {
         let config = test_pool_config();
-        let Err(err) = create_tenant_executor::<StubPoolAdapter>("not valid json", &config).await
+        let Err(err) =
+            create_tenant_executor::<StubPoolAdapter>("acme", "not valid json", &config).await
         else {
             panic!("expected Err for invalid JSON");
         };
@@ -209,7 +257,8 @@ mod tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let Err(err) = create_tenant_executor::<StubPoolAdapter>(&schema_json, &config).await
+        let Err(err) =
+            create_tenant_executor::<StubPoolAdapter>("acme", &schema_json, &config).await
         else {
             panic!("expected Err for bad format version");
         };
@@ -291,7 +340,9 @@ mod tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let Err(err) = create_tenant_executor::<FailingAdapter>(&schema_json, &config).await else {
+        let Err(err) =
+            create_tenant_executor::<FailingAdapter>("acme", &schema_json, &config).await
+        else {
             panic!("expected Err for unreachable DB");
         };
         assert!(

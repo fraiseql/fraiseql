@@ -234,6 +234,17 @@ pub enum FraiseQLError {
         message: String,
     },
 
+    /// The service is temporarily unavailable (e.g. tenant suspended).
+    ///
+    /// Maps to HTTP 503. `retry_after` is the number of seconds to wait, if known.
+    #[error("Service unavailable: {message}")]
+    ServiceUnavailable {
+        /// Human-readable reason for the unavailability.
+        message:     String,
+        /// Number of seconds to wait before retrying, if known.
+        retry_after: Option<u64>,
+    },
+
     // ========================================================================
     // Internal Errors
     // ========================================================================
@@ -367,6 +378,7 @@ impl FraiseQLError {
                 | Self::Cancelled { .. }
                 | Self::Configuration { .. }
                 | Self::Unsupported { .. }
+                | Self::ServiceUnavailable { .. }
                 | Self::Internal { .. }
         )
     }
@@ -376,7 +388,10 @@ impl FraiseQLError {
     pub const fn is_retryable(&self) -> bool {
         matches!(
             self,
-            Self::ConnectionPool { .. } | Self::Timeout { .. } | Self::Cancelled { .. }
+            Self::ConnectionPool { .. }
+                | Self::Timeout { .. }
+                | Self::Cancelled { .. }
+                | Self::ServiceUnavailable { .. }
         )
     }
 
@@ -399,6 +414,7 @@ impl FraiseQLError {
             | Self::Configuration { .. }
             | Self::Internal { .. } => 500,
             Self::Unsupported { .. } => 501,
+            Self::ServiceUnavailable { .. } => 503,
         }
     }
 
@@ -421,6 +437,7 @@ impl FraiseQLError {
             Self::Conflict { .. } => "CONFLICT",
             Self::Configuration { .. } => "CONFIGURATION_ERROR",
             Self::Unsupported { .. } => "UNSUPPORTED_OPERATION",
+            Self::ServiceUnavailable { .. } => "SERVICE_UNAVAILABLE",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",
         }
     }

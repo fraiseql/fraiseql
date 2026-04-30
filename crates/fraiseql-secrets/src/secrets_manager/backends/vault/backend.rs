@@ -23,6 +23,34 @@ const VAULT_API_VERSION: &str = "v1";
 /// Vault HTTP request timeout.
 const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Maximum allowed size for any Vault HTTP response body.
+///
+/// Responses larger than 1 `MiB` are rejected before JSON parsing to prevent
+/// memory exhaustion from oversized payloads (malicious or misconfigured Vault).
+const MAX_VAULT_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+
+/// Read a Vault HTTP response, enforcing `MAX_VAULT_RESPONSE_BYTES`.
+///
+/// Reads the response body as raw bytes, rejects it if it exceeds the limit,
+/// then deserializes to `T` with `serde_json`. This prevents memory exhaustion
+/// from oversized payloads returned by a malicious or misconfigured Vault server.
+async fn read_vault_response<T>(response: reqwest::Response) -> Result<T, SecretsError>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let bytes = response.bytes().await.map_err(|e| {
+        SecretsError::ConnectionError(format!("Failed to read Vault response body: {e}"))
+    })?;
+    if bytes.len() > MAX_VAULT_RESPONSE_BYTES {
+        return Err(SecretsError::BackendError(format!(
+            "Vault response too large: {} bytes (max: {MAX_VAULT_RESPONSE_BYTES})",
+            bytes.len()
+        )));
+    }
+    serde_json::from_slice(&bytes)
+        .map_err(|e| SecretsError::BackendError(format!("Vault response parse error: {e}")))
+}
+
 /// Build a shared `reqwest::Client` for Vault HTTP calls.
 ///
 /// The client is created once per `VaultBackend` instance and reused across
@@ -92,7 +120,6 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// namespace = "fraiseql/prod"    # Optional, for Enterprise
 /// tls_verify = true              # Verify TLS certificates
 /// ```
-#[derive(Debug)]
 pub struct VaultBackend {
     addr:              String,
     token:             Zeroizing<String>,
@@ -107,6 +134,19 @@ pub struct VaultBackend {
     /// Token TTL as reported by Vault at login time (seconds).
     /// `None` when using a static long-lived token.
     token_ttl_secs:    Option<i64>,
+}
+
+impl std::fmt::Debug for VaultBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // SECURITY: token is omitted from debug output to prevent accidental
+        // exposure in logs, tracing spans, or error messages.
+        f.debug_struct("VaultBackend")
+            .field("addr", &self.addr)
+            .field("token", &"[REDACTED]")
+            .field("namespace", &self.namespace)
+            .field("tls_verify", &self.tls_verify)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Clone for VaultBackend {
@@ -274,17 +314,13 @@ impl VaultBackend {
             "secret_id": secret_id,
         });
 
-        let response: serde_json::Value = client
-            .post(&login_url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| SecretsError::ConnectionError(format!("AppRole login failed: {e}")))?
-            .json()
-            .await
-            .map_err(|e| {
-                SecretsError::ConnectionError(format!("AppRole response parse error: {e}"))
-            })?;
+        let response: serde_json::Value = {
+            let resp =
+                client.post(&login_url).json(&body).send().await.map_err(|e| {
+                    SecretsError::ConnectionError(format!("AppRole login failed: {e}"))
+                })?;
+            read_vault_response(resp).await?
+        };
 
         let token = response["auth"]["client_token"]
             .as_str()
@@ -309,8 +345,13 @@ impl VaultBackend {
     }
 
     /// Get authentication token.
+    ///
+    /// Available only in test builds. Production code must not extract the raw
+    /// token — it is stored in `Zeroizing<String>` precisely to limit its lifetime
+    /// and exposure.
+    #[cfg(test)]
     #[must_use]
-    pub fn token(&self) -> &str {
+    pub(super) fn token(&self) -> &str {
         &self.token
     }
 
@@ -324,6 +365,62 @@ impl VaultBackend {
     #[must_use]
     pub const fn tls_verify(&self) -> bool {
         self.tls_verify
+    }
+
+    /// Authenticate via `AppRole`, bypassing SSRF validation for tests.
+    ///
+    /// Identical to `with_approle` except that `validate_vault_addr` is skipped,
+    /// allowing the backend to target a `wiremock::MockServer` on loopback.
+    /// Do NOT use in production code.
+    #[cfg(test)]
+    pub(super) async fn with_approle_for_test(
+        addr: &str,
+        role_id: &str,
+        secret_id: &str,
+    ) -> Result<Self, SecretsError> {
+        let client = reqwest::Client::builder()
+            .timeout(VAULT_REQUEST_TIMEOUT)
+            .build()
+            .map_err(|e| SecretsError::ConnectionError(format!("HTTP client error: {e}")))?;
+
+        let login_url =
+            format!("{}/{}/auth/approle/login", addr.trim_end_matches('/'), VAULT_API_VERSION);
+        let body = serde_json::json!({
+            "role_id": role_id,
+            "secret_id": secret_id,
+        });
+
+        let response: serde_json::Value = {
+            let resp =
+                client.post(&login_url).json(&body).send().await.map_err(|e| {
+                    SecretsError::ConnectionError(format!("AppRole login failed: {e}"))
+                })?;
+            read_vault_response(resp).await?
+        };
+
+        let token = response["auth"]["client_token"]
+            .as_str()
+            .ok_or_else(|| {
+                SecretsError::ConnectionError("No client_token in AppRole response".into())
+            })?
+            .to_string();
+
+        let token_ttl_secs = response["auth"]["lease_duration"].as_i64();
+        let token_obtained_at = Some(chrono::Utc::now());
+
+        let client_new = build_http_client(false)?;
+        Ok(VaultBackend {
+            addr: addr.to_string(),
+            token: zeroize::Zeroizing::new(token),
+            namespace: None,
+            tls_verify: false,
+            client: client_new,
+            cache: std::sync::Arc::new(tokio::sync::RwLock::new(super::cache::SecretCache::new(
+                super::cache::DEFAULT_MAX_CACHE_ENTRIES,
+            ))),
+            token_obtained_at,
+            token_ttl_secs,
+        })
     }
 
     /// Create a `VaultBackend` pointing at a loopback address for unit/integration tests.
@@ -386,21 +483,27 @@ impl VaultBackend {
             self.addr.trim_end_matches('/'),
             VAULT_API_VERSION
         );
-        let response: serde_json::Value = self
-            .client
-            .post(&url)
-            .header("X-Vault-Token", &*self.token)
-            .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
-            .send()
-            .await
-            .map_err(|e| {
-                SecretsError::ConnectionError(format!("Token renewal request failed: {e}"))
+        let response: serde_json::Value = {
+            let resp = self
+                .client
+                .post(&url)
+                .header("X-Vault-Token", &*self.token)
+                .header("X-Vault-Namespace", self.namespace.as_deref().unwrap_or(""))
+                .send()
+                .await
+                .map_err(|e| {
+                    SecretsError::ConnectionError(format!("Token renewal request failed: {e}"))
+                })?;
+            if !resp.status().is_success() {
+                return Err(SecretsError::ConnectionError(format!(
+                    "Token renewal failed with status {}",
+                    resp.status()
+                )));
+            }
+            read_vault_response(resp).await.map_err(|e| {
+                SecretsError::ConnectionError(format!("Token renewal response error: {e}"))
             })?
-            .json()
-            .await
-            .map_err(|e| {
-                SecretsError::ConnectionError(format!("Token renewal response parse error: {e}"))
-            })?;
+        };
 
         // Vault returns the renewed token info under `auth`
         let new_token = response["auth"]["client_token"].as_str().ok_or_else(|| {
@@ -478,11 +581,7 @@ impl VaultBackend {
                 Ok(response) => {
                     match response.status() {
                         reqwest::StatusCode::OK => {
-                            return response.json::<VaultResponse>().await.map_err(|e| {
-                                SecretsError::BackendError(format!(
-                                    "Failed to parse Vault response for {name}: {e}"
-                                ))
-                            });
+                            return read_vault_response::<VaultResponse>(response).await;
                         },
                         // Retryable statuses
                         reqwest::StatusCode::SERVICE_UNAVAILABLE
@@ -548,7 +647,7 @@ impl VaultBackend {
     ) -> Result<String, SecretsError> {
         match response.status() {
             reqwest::StatusCode::OK => {
-                let body = response.json::<serde_json::Value>().await.map_err(|e| {
+                let body: serde_json::Value = read_vault_response(response).await.map_err(|e| {
                     SecretsError::BackendError(format!("Failed to parse Transit response: {}", e))
                 })?;
 

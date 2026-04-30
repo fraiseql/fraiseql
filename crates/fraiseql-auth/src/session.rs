@@ -6,9 +6,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-#[cfg(test)]
-use crate::error::AuthError;
-use crate::error::Result;
+use crate::error::{AuthError, Result};
 
 /// Session data stored in the backend
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,6 +150,25 @@ pub trait SessionStore: Send + Sync {
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()>;
 }
 
+/// Return the current Unix timestamp in seconds, or an error if the system clock
+/// is broken (e.g., set before the Unix epoch).
+///
+/// Using saturating / `unwrap_or_default` is explicitly avoided here: a broken clock
+/// would silently produce `issued_at = 0` (far in the past) or `expires_in = max`,
+/// which is a fail-open security defect.  Callers must handle this error.
+///
+/// # Errors
+///
+/// Returns [`AuthError::SystemTimeError`] if the system clock is before the Unix epoch.
+pub fn unix_now() -> Result<u64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .map_err(|e| AuthError::SystemTimeError {
+            message: format!("System clock is before Unix epoch: {e}"),
+        })
+}
+
 /// Compute a SHA-256 hex digest of a refresh token for secure storage.
 ///
 /// Refresh tokens are stored only as their SHA-256 hash so that a database
@@ -223,10 +240,10 @@ impl SessionStore for InMemorySessionStore {
         let refresh_token = generate_refresh_token();
         let refresh_token_hash = hash_token(&refresh_token);
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        // SECURITY: Propagate clock errors rather than accepting a bogus timestamp
+        // (fail-closed). A broken clock would produce issued_at = 0, silently
+        // extending sessions and defeating expiry checks.
+        let now = unix_now()?;
 
         let session = SessionData {
             user_id: user_id.to_string(),

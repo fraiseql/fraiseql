@@ -656,6 +656,27 @@ impl CompiledSchema {
         self.security.as_ref().is_some_and(|s| s.multi_tenant)
     }
 
+    /// Returns the tenancy isolation mode configured for this schema.
+    ///
+    /// Defaults to [`TenancyMode::None`] when no security or tenancy configuration
+    /// is present, meaning single-tenant operation with no isolation machinery.
+    #[must_use]
+    pub fn tenancy_mode(&self) -> crate::schema::TenancyMode {
+        self.security
+            .as_ref()
+            .map_or(crate::schema::TenancyMode::None, |s| s.tenancy.mode)
+    }
+
+    /// Returns the tenancy configuration, if present.
+    ///
+    /// Returns `None` when no security configuration exists. Returns the
+    /// default `TenancyConfig` (mode=none) when security exists but tenancy
+    /// is not explicitly configured.
+    #[must_use]
+    pub fn tenancy_config(&self) -> Option<&crate::schema::TenancyConfig> {
+        self.security.as_ref().map(|s| &s.tenancy)
+    }
+
     /// Find a role definition by name.
     ///
     /// # Arguments
@@ -1265,6 +1286,73 @@ mod tests {
         sec.multi_tenant = true;
         schema.security = Some(sec);
         assert!(schema.is_multi_tenant());
+    }
+
+    // ── tenancy_mode / tenancy_config ──────────────────────────────────
+
+    #[test]
+    fn tenancy_mode_none_by_default() {
+        use crate::schema::TenancyMode;
+        assert_eq!(CompiledSchema::new().tenancy_mode(), TenancyMode::None);
+    }
+
+    #[test]
+    fn tenancy_mode_row_when_configured() {
+        use crate::schema::{TenancyConfig, TenancyMode};
+        let mut schema = CompiledSchema::new();
+        let mut sec = SecurityConfig::new();
+        sec.tenancy = TenancyConfig {
+            mode:         TenancyMode::Row,
+            tenant_claim: "tenant_id".to_string(),
+        };
+        schema.security = Some(sec);
+        assert_eq!(schema.tenancy_mode(), TenancyMode::Row);
+    }
+
+    #[test]
+    fn tenancy_mode_schema_when_configured() {
+        use crate::schema::{TenancyConfig, TenancyMode};
+        let mut schema = CompiledSchema::new();
+        let mut sec = SecurityConfig::new();
+        sec.tenancy = TenancyConfig {
+            mode:         TenancyMode::Schema,
+            tenant_claim: "org_id".to_string(),
+        };
+        schema.security = Some(sec);
+        assert_eq!(schema.tenancy_mode(), TenancyMode::Schema);
+    }
+
+    #[test]
+    fn tenancy_config_none_without_security() {
+        assert!(CompiledSchema::new().tenancy_config().is_none());
+    }
+
+    #[test]
+    fn tenancy_config_returns_default_when_security_present() {
+        use crate::schema::TenancyMode;
+        let mut schema = CompiledSchema::new();
+        schema.security = Some(SecurityConfig::new());
+        let tc = schema.tenancy_config().unwrap();
+        assert_eq!(tc.mode, TenancyMode::None);
+        assert_eq!(tc.tenant_claim, "tenant_id");
+    }
+
+    #[test]
+    fn tenancy_round_trip_through_json() {
+        use crate::schema::{TenancyConfig, TenancyMode};
+        let mut schema = CompiledSchema::new();
+        let mut sec = SecurityConfig::new();
+        sec.tenancy = TenancyConfig {
+            mode:         TenancyMode::Row,
+            tenant_claim: "org_id".to_string(),
+        };
+        schema.security = Some(sec);
+        schema.schema_format_version = Some(1);
+
+        let json = schema.to_json().unwrap();
+        let restored = CompiledSchema::from_json(&json).unwrap();
+        assert_eq!(restored.tenancy_mode(), TenancyMode::Row);
+        assert_eq!(restored.tenancy_config().unwrap().tenant_claim, "org_id");
     }
 
     #[test]

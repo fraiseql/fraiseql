@@ -113,6 +113,56 @@ pub struct AdminConfigResponse {
     pub config:  HashMap<String, String>,
 }
 
+/// Validate that a caller-supplied schema path is safe to open.
+///
+/// Two threats are guarded against:
+///
+/// 1. **Path traversal** — any component equal to `..` would let an attacker escape the intended
+///    directory, so such paths are rejected.
+/// 2. **Absolute-path escape** — when an `allowed_base` is given, the resolved path must start with
+///    that prefix.  An absolute path like `/etc/passwd` is rejected when the allowed base is
+///    `/var/fraiseql`.
+///
+/// # Errors
+///
+/// Returns `ApiError` with a validation error when the path is unsafe.
+pub fn validate_schema_path(
+    path: &str,
+    allowed_base: Option<&std::path::Path>,
+) -> Result<(), ApiError> {
+    use std::path::{Component, Path};
+
+    let p = Path::new(path);
+
+    // Reject any `..` component regardless of position.
+    if p.components().any(|c| c == Component::ParentDir) {
+        return Err(ApiError::validation_error(
+            "schema_path must not contain '..' (path traversal rejected)",
+        ));
+    }
+
+    // When an allowed base is configured, verify the path stays within it.
+    if let Some(base) = allowed_base {
+        // Build the candidate path: if relative, join onto base; if absolute keep as-is.
+        let candidate = if p.is_absolute() {
+            p.to_path_buf()
+        } else {
+            base.join(p)
+        };
+
+        // Use `starts_with` on the lexically resolved path.  We intentionally
+        // avoid `canonicalize` here to keep the function pure (no I/O), accepting
+        // that symlink escapes are a separate, deployment-level concern.
+        if !candidate.starts_with(base) {
+            return Err(ApiError::validation_error(
+                "schema_path is outside the allowed base directory",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 /// Reload schema from file.
 ///
 /// Supports validation-only mode via `validate_only` flag.
@@ -121,6 +171,7 @@ pub struct AdminConfigResponse {
 /// # Errors
 ///
 /// Returns `ApiError` with a validation error if `schema_path` is empty.
+/// Returns `ApiError` with a validation error if `schema_path` contains path traversal.
 /// Returns `ApiError` with a parse error if the schema file cannot be read or parsed.
 ///
 /// Requires admin token authentication.
@@ -132,6 +183,9 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
     if req.schema_path.is_empty() {
         return Err(ApiError::validation_error("schema_path cannot be empty"));
     }
+
+    // SECURITY: Reject path traversal and out-of-base absolute paths.
+    validate_schema_path(&req.schema_path, None)?;
 
     // Step 1: Load schema from file
     let schema_json = fs::read_to_string(&req.schema_path)
@@ -792,6 +846,62 @@ mod tests {
     }
 
     // ── Admin audit log tests (15-5) ────────────────────────────────────────
+
+    // ── S33: reload_schema path traversal guards ───────────────────────────
+
+    #[test]
+    fn reload_schema_rejects_path_traversal() {
+        // Classic directory-escape attempt
+        assert!(
+            validate_schema_path("../../etc/passwd", None).is_err(),
+            "../../etc/passwd must be rejected"
+        );
+        // Embedded traversal
+        assert!(
+            validate_schema_path("schemas/../../../etc/shadow", None).is_err(),
+            "embedded .. must be rejected"
+        );
+        // Single component
+        assert!(validate_schema_path("..", None).is_err(), "bare .. must be rejected");
+    }
+
+    #[test]
+    fn reload_schema_rejects_absolute_outside_base() {
+        let base = std::path::Path::new("/var/fraiseql");
+        assert!(
+            validate_schema_path("/etc/passwd", Some(base)).is_err(),
+            "/etc/passwd must be rejected when base is /var/fraiseql"
+        );
+        assert!(
+            validate_schema_path("/var/fraiseql/../../etc/passwd", Some(base)).is_err(),
+            "traversal through base must be rejected"
+        );
+    }
+
+    #[test]
+    fn reload_schema_accepts_safe_relative_path() {
+        assert!(
+            validate_schema_path("schema.compiled.json", None).is_ok(),
+            "simple relative path must be accepted"
+        );
+        assert!(
+            validate_schema_path("schemas/schema.compiled.json", None).is_ok(),
+            "nested relative path must be accepted"
+        );
+    }
+
+    #[test]
+    fn reload_schema_accepts_path_within_base() {
+        let base = std::path::Path::new("/var/fraiseql");
+        assert!(
+            validate_schema_path("schema.compiled.json", Some(base)).is_ok(),
+            "relative path within base must be accepted"
+        );
+        assert!(
+            validate_schema_path("/var/fraiseql/schema.compiled.json", Some(base)).is_ok(),
+            "absolute path within base must be accepted"
+        );
+    }
 
     #[test]
     fn test_reload_schema_request_carries_audit_fields() {

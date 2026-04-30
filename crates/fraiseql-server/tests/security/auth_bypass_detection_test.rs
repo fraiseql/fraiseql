@@ -38,6 +38,7 @@ fn valid_claims() -> Claims {
         sub: "user123".to_string(),
         iat,
         exp,
+        nbf: None,
         iss: ISSUER.to_string(),
         aud: vec!["test".to_string()],
         extra: HashMap::new(),

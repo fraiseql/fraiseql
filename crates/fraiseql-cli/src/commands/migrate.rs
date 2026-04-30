@@ -44,6 +44,23 @@ pub enum MigrateAction {
         /// Migration directory
         dir:  String,
     },
+    /// Generate a new migration from schema diff
+    Generate {
+        /// Migration name
+        name: String,
+        /// Migration directory
+        dir:  String,
+    },
+    /// Validate migration files for naming, idempotency, and drift
+    Validate {
+        /// Migration directory
+        dir: String,
+    },
+    /// Pre-deploy safety check on pending migrations
+    Preflight {
+        /// Migration directory
+        dir: String,
+    },
 }
 
 /// Run the migrate command
@@ -68,6 +85,9 @@ pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
         } => run_down(database_url, dir, *steps, formatter),
         MigrateAction::Status { database_url, dir } => run_status(database_url, dir),
         MigrateAction::Create { name, dir } => run_create(name, dir, formatter),
+        MigrateAction::Generate { name, dir } => run_generate(name, dir, formatter),
+        MigrateAction::Validate { dir } => run_validate(dir),
+        MigrateAction::Preflight { dir } => run_preflight(dir, formatter),
     }
 }
 
@@ -219,6 +239,60 @@ fn run_create(name: &str, dir: &str, formatter: &OutputFormatter) -> Result<()> 
         Ok(())
     } else {
         anyhow::bail!("Failed to create migration.")
+    }
+}
+
+fn run_generate(name: &str, dir: &str, formatter: &OutputFormatter) -> Result<()> {
+    info!("Generating migration: {name} in {dir}");
+
+    // Ensure directory exists
+    std::fs::create_dir_all(dir).context(format!("Failed to create migration directory: {dir}"))?;
+
+    formatter.progress(&format!("Generating migration '{name}' in {dir}..."));
+
+    // SECURITY: No database URL involved — generation is a pure file operation.
+    let status = Command::new("confiture")
+        .args(["migrate", "generate", name, "--migrations-dir", dir])
+        .status()
+        .context("Failed to execute confiture")?;
+
+    if status.success() {
+        formatter.progress(&format!("Migration generated in {dir}/"));
+        Ok(())
+    } else {
+        anyhow::bail!("Failed to generate migration.")
+    }
+}
+
+fn run_validate(dir: &str) -> Result<()> {
+    info!("Validating migrations in {dir}");
+
+    let status = Command::new("confiture")
+        .args(["migrate", "validate", "--source", dir])
+        .status()
+        .context("Failed to execute confiture")?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!("Migration validation failed. Check the output above for details.")
+    }
+}
+
+fn run_preflight(dir: &str, formatter: &OutputFormatter) -> Result<()> {
+    info!("Running preflight checks for {dir}");
+    formatter.progress(&format!("Running preflight checks on {dir}..."));
+
+    let status = Command::new("confiture")
+        .args(["migrate", "preflight", "--migrations-dir", dir])
+        .status()
+        .context("Failed to execute confiture")?;
+
+    if status.success() {
+        formatter.progress("Preflight checks passed.");
+        Ok(())
+    } else {
+        anyhow::bail!("Preflight checks failed. Check the output above for details.")
     }
 }
 

@@ -116,6 +116,144 @@ fn migrate_create_without_confiture_exits_nonzero() {
     assert!(!out.status.success(), "migrate create without confiture must exit non-zero");
 }
 
+// ── New subcommands: help exits 0 ─────────────────────────────────────────────
+
+/// `fraiseql migrate generate --help` exits 0.
+#[test]
+fn migrate_generate_help_exits_zero() {
+    let out = cli().args(["migrate", "generate", "--help"]).output().unwrap();
+    assert!(out.status.success(), "migrate generate --help must exit 0");
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains("NAME") || text.contains("name") || text.contains("migration"),
+        "generate help must describe NAME argument; got: {text}"
+    );
+}
+
+/// `fraiseql migrate validate --help` exits 0.
+#[test]
+fn migrate_validate_help_exits_zero() {
+    let out = cli().args(["migrate", "validate", "--help"]).output().unwrap();
+    assert!(out.status.success(), "migrate validate --help must exit 0");
+}
+
+/// `fraiseql migrate preflight --help` exits 0.
+#[test]
+fn migrate_preflight_help_exits_zero() {
+    let out = cli().args(["migrate", "preflight", "--help"]).output().unwrap();
+    assert!(out.status.success(), "migrate preflight --help must exit 0");
+}
+
+// ── New subcommands: error path without confiture ─────────────────────────────
+
+/// `migrate generate <name>` without confiture exits non-zero.
+#[test]
+fn migrate_generate_without_confiture_exits_nonzero() {
+    if confiture_available() {
+        return; // skip: behavior differs when confiture is present
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let out = cli()
+        .args([
+            "migrate",
+            "generate",
+            "add_posts_table",
+            "--dir",
+            tmp.path().to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "migrate generate without confiture must exit non-zero");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("confiture") || stderr.contains("install"),
+        "error must mention confiture; got: {stderr}"
+    );
+}
+
+/// `migrate validate` without confiture exits non-zero.
+#[test]
+fn migrate_validate_without_confiture_exits_nonzero() {
+    if confiture_available() {
+        return;
+    }
+    let out = cli().args(["migrate", "validate"]).output().unwrap();
+    assert!(!out.status.success(), "migrate validate without confiture must exit non-zero");
+}
+
+/// `migrate preflight` without confiture exits non-zero.
+#[test]
+fn migrate_preflight_without_confiture_exits_nonzero() {
+    if confiture_available() {
+        return;
+    }
+    let out = cli().args(["migrate", "preflight"]).output().unwrap();
+    assert!(!out.status.success(), "migrate preflight without confiture must exit non-zero");
+}
+
+// ── `fraiseql compile --emit-ddl` ────────────────────────────────────────────
+
+/// `compile --emit-ddl` writes DDL files to the specified directory.
+#[test]
+fn compile_emit_ddl_writes_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ddl_dir = tmp.path().join("ddl");
+    let schema_path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal_schema.json");
+    let out_path = tmp.path().join("schema.compiled.json");
+
+    let out = cli()
+        .args([
+            "compile",
+            schema_path.to_str().unwrap(),
+            "-o",
+            out_path.to_str().unwrap(),
+            "--emit-ddl",
+            ddl_dir.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(out.status.success(), "compile --emit-ddl must exit 0; stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(ddl_dir.exists(), "DDL directory must be created");
+
+    // minimal_schema.json has a User type → expect user.sql
+    let user_sql = ddl_dir.join("user.sql");
+    assert!(user_sql.exists(), "user.sql must be emitted; files: {:?}", std::fs::read_dir(&ddl_dir).unwrap().collect::<Vec<_>>());
+
+    let content = std::fs::read_to_string(&user_sql).unwrap();
+    assert!(content.contains("CREATE TABLE"), "DDL must contain CREATE TABLE; got: {content}");
+    assert!(content.contains("tb_user"), "table name must be tb_user; got: {content}");
+}
+
+/// `compile --emit-ddl` DDL contains expected column types.
+#[test]
+fn compile_emit_ddl_column_types() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ddl_dir = tmp.path().join("ddl");
+    let schema_path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal_schema.json");
+    let out_path = tmp.path().join("schema.compiled.json");
+
+    let out = cli()
+        .args([
+            "compile",
+            schema_path.to_str().unwrap(),
+            "-o",
+            out_path.to_str().unwrap(),
+            "--emit-ddl",
+            ddl_dir.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+
+    let content = std::fs::read_to_string(ddl_dir.join("user.sql")).unwrap();
+    // id is Int → INTEGER, email is String → TEXT
+    assert!(content.contains("INTEGER"), "Int field must map to INTEGER; got: {content}");
+    assert!(content.contains("TEXT"), "String field must map to TEXT; got: {content}");
+}
+
 // ── `fraiseql.toml` URL resolution ───────────────────────────────────────────
 
 /// A `fraiseql.toml` with `[database].url` is used if no `--database` flag given.

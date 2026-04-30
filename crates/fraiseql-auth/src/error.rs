@@ -179,6 +179,57 @@ pub enum AuthError {
         /// Maximum allowed authentication age in seconds (from the authorization request).
         max_age_secs: u64,
     },
+
+    /// The token's `iat` (issued-at) claim is more than [`crate::jwt::MAX_CLOCK_SKEW_SECS`]
+    /// seconds in the future.
+    ///
+    /// A token with a future `iat` was either issued by a clock-skewed provider or forged.
+    /// RFC 7519 §4.1.6 defines `iat` as the time the JWT was issued; values substantially
+    /// ahead of the current time are not credible.
+    #[error(
+        "Token issued-at (iat) is in the future — possible forgery or severe clock skew. \
+         Re-authenticate to obtain a new token."
+    )]
+    TokenIssuedInFuture,
+
+    /// The token's `iat` (issued-at) claim is more than [`crate::jwt::MAX_TOKEN_AGE_SECS`]
+    /// seconds in the past.
+    ///
+    /// Excessively old tokens may be replayed credentials.  Short-lived access tokens expire
+    /// via `exp` long before this limit is reached; this guard targets long-lived or replayed
+    /// tokens.  Re-authenticate to obtain a fresh token.
+    #[error(
+        "Token is too old (iat exceeds maximum token age). \
+         Re-authenticate to obtain a new token."
+    )]
+    TokenTooOld,
+
+    /// The current time is before the token's `nbf` (not-before) claim.
+    ///
+    /// RFC 7519 §4.1.5 prohibits accepting tokens before the `nbf` time (plus the
+    /// allowed clock-skew tolerance).  This typically indicates a race condition, a
+    /// misconfigured issuer, or a replayed token from a future session.
+    #[error(
+        "Token is not yet valid (nbf claim is in the future). \
+         Wait until the token's not-before time has passed."
+    )]
+    TokenNotYetValid,
+
+    /// The OIDC ID token uses a signing algorithm that is explicitly forbidden.
+    ///
+    /// Symmetric algorithms (HS256, HS384, HS512) are forbidden on the OIDC path
+    /// because OIDC providers MUST use asymmetric keys (RS256, RS384, RS512, ES256,
+    /// ES384).  A token claiming a symmetric algorithm was either issued by a
+    /// misconfigured provider or crafted by an attacker attempting an algorithm
+    /// substitution attack (RFC 8725 §2.1).
+    ///
+    /// The `alg` field carries the forbidden algorithm name for operator logging;
+    /// it MUST NOT be forwarded to API clients.
+    #[error("OIDC ID token uses a forbidden algorithm: {alg}")]
+    ForbiddenAlgorithm {
+        /// The algorithm name from the JWT header (e.g., `"HS256"`).
+        alg: String,
+    },
 }
 
 /// Convenience alias for `Result<T, AuthError>`.

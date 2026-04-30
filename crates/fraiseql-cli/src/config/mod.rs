@@ -73,6 +73,9 @@ pub struct FraiseQLSettings {
     /// Security configuration
     #[serde(rename = "security")]
     pub security:    SecurityConfig,
+    /// Tenancy isolation configuration
+    #[serde(default)]
+    pub tenancy:     security::TenancyTomlConfig,
 }
 
 impl Default for FraiseQLSettings {
@@ -81,6 +84,7 @@ impl Default for FraiseQLSettings {
             schema_file: "schema.json".to_string(),
             output_file: "schema.compiled.json".to_string(),
             security:    SecurityConfig::default(),
+            tenancy:     security::TenancyTomlConfig::default(),
         }
     }
 }
@@ -120,6 +124,7 @@ impl TomlProjectConfig {
     pub fn validate(&self) -> Result<()> {
         info!("Validating configuration");
         self.fraiseql.security.validate()?;
+        self.fraiseql.tenancy.validate()?;
         self.server.validate()?;
         self.database.validate()?;
         Ok(())
@@ -292,5 +297,70 @@ url = "${TEST_DB_URL}"
             let expanded = expand_env_vars(toml_str);
             assert_eq!(expanded, r#"primary = "db.example.com" replica = "db.example.com""#);
         });
+    }
+
+    // ── Tenancy TOML parsing ────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_tenancy_row_mode_from_toml() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql]
+schema_file = "schema.json"
+
+[fraiseql.tenancy]
+mode = "row"
+tenant_claim = "tenant_id"
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert!(matches!(
+            config.fraiseql.tenancy.mode,
+            security::TenancyModeConfig::Row
+        ));
+        assert_eq!(config.fraiseql.tenancy.tenant_claim, "tenant_id");
+    }
+
+    #[test]
+    fn test_parse_tenancy_schema_mode_from_toml() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+
+[fraiseql.tenancy]
+mode = "schema"
+tenant_claim = "org_id"
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert!(matches!(
+            config.fraiseql.tenancy.mode,
+            security::TenancyModeConfig::Schema
+        ));
+        assert_eq!(config.fraiseql.tenancy.tenant_claim, "org_id");
+    }
+
+    #[test]
+    fn test_parse_tenancy_defaults_when_absent() {
+        let toml_str = r#"
+[project]
+name = "test-app"
+"#;
+        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert!(matches!(
+            config.fraiseql.tenancy.mode,
+            security::TenancyModeConfig::None
+        ));
+        assert_eq!(config.fraiseql.tenancy.tenant_claim, "tenant_id");
+    }
+
+    #[test]
+    fn test_parse_tenancy_invalid_mode_rejected() {
+        let toml_str = r#"
+[fraiseql.tenancy]
+mode = "invalid"
+"#;
+        let result: Result<TomlProjectConfig, _> = toml::from_str(toml_str);
+        assert!(result.is_err(), "invalid tenancy mode should be rejected");
     }
 }

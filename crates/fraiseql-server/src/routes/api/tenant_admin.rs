@@ -8,15 +8,21 @@
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
-    routes::{api::types::ApiError, graphql::AppState},
-    tenancy::pool_factory::TenantPoolConfig,
+    routes::{
+        api::types::ApiError,
+        graphql::{AppState, tenant_registry::TenantQuota},
+    },
+    tenancy::{
+        audit::TenantEventKind,
+        pool_factory::TenantPoolConfig,
+    },
 };
 
 // ── Request / Response types ─────────────────────────────────────────────
@@ -25,9 +31,18 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct TenantRegistrationRequest {
     /// Compiled schema JSON (the full `schema.compiled.json` contents).
-    pub schema:     serde_json::Value,
+    pub schema:               serde_json::Value,
     /// Database connection configuration for this tenant.
-    pub connection: TenantPoolConfig,
+    pub connection:           TenantPoolConfig,
+    /// Maximum requests per second (token bucket rate). `None` = unlimited.
+    #[serde(default)]
+    pub max_requests_per_sec: Option<u32>,
+    /// Maximum concurrent in-flight requests. `None` = unlimited.
+    #[serde(default)]
+    pub max_concurrent:       Option<u32>,
+    /// Maximum storage in bytes (soft limit). `None` = unlimited.
+    #[serde(default)]
+    pub max_storage_bytes:    Option<u64>,
 }
 
 /// Response for tenant write operations.
@@ -44,6 +59,8 @@ pub struct TenantResponse {
 pub struct TenantMetadata {
     /// The tenant key.
     pub key:            String,
+    /// Tenant lifecycle status (`"active"` or `"suspended"`).
+    pub status:         &'static str,
     /// Number of queries in the tenant's compiled schema.
     pub query_count:    usize,
     /// Number of mutations in the tenant's compiled schema.
@@ -66,6 +83,32 @@ pub struct TenantHealthResponse {
     pub key:    String,
     /// Health status.
     pub status: &'static str,
+}
+
+/// Query parameters for `GET /api/v1/admin/tenants/{key}/events`.
+#[derive(Debug, Deserialize)]
+pub struct EventsQuery {
+    /// Maximum number of events to return (default: 50, max: 200).
+    #[serde(default = "default_events_limit")]
+    pub limit:  usize,
+    /// Offset for pagination (default: 0).
+    #[serde(default)]
+    pub offset: usize,
+}
+
+const fn default_events_limit() -> usize {
+    50
+}
+
+/// Response for `GET /api/v1/admin/tenants/{key}/events`.
+#[derive(Debug, Serialize)]
+pub struct TenantEventsResponse {
+    /// The tenant key.
+    pub key:    String,
+    /// The events, newest first.
+    pub events: Vec<crate::tenancy::audit::TenantEvent>,
+    /// Total number of events returned.
+    pub count:  usize,
 }
 
 /// Body for `PUT /api/v1/admin/domains/{domain}`.
@@ -135,7 +178,7 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let schema_json = serde_json::to_string(&body.schema)
         .map_err(|e| ApiError::validation_error(format!("invalid schema JSON: {e}")))?;
 
-    let executor = factory(schema_json, body.connection).await.map_err(|e| match &e {
+    let executor = factory(key.clone(), schema_json, body.connection).await.map_err(|e| match &e {
         fraiseql_error::FraiseQLError::Parse { .. }
         | fraiseql_error::FraiseQLError::Validation { .. } => ApiError::validation_error(e),
         fraiseql_error::FraiseQLError::ConnectionPool { .. }
@@ -145,10 +188,28 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         _ => ApiError::internal_error(e),
     })?;
 
-    let was_insert = registry.upsert(&key, executor);
+    let quota = TenantQuota {
+        max_requests_per_sec: body.max_requests_per_sec,
+        max_concurrent:       body.max_concurrent,
+        max_storage_bytes:    body.max_storage_bytes,
+    };
+
+    let was_insert = registry.upsert_with_quota(&key, executor, quota);
     let status = if was_insert { "created" } else { "updated" };
 
     info!(tenant_key = %key, status, "tenant executor registered");
+
+    // Record audit event (fire-and-forget — audit failure must not block the operation)
+    if let Some(audit_log) = state.tenant_audit_log() {
+        let event = if was_insert {
+            TenantEventKind::Created
+        } else {
+            TenantEventKind::ConfigChanged
+        };
+        if let Err(e) = audit_log.record(&key, event, None, None).await {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
 
     Ok(Json(TenantResponse { key, status }))
 }
@@ -175,9 +236,93 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 
     info!(tenant_key = %key, "tenant executor removed");
 
+    if let Some(audit_log) = state.tenant_audit_log() {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Deleted, None, None)
+            .await
+        {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
+
     Ok(Json(TenantResponse {
         key,
         status: "removed",
+    }))
+}
+
+/// `POST /api/v1/admin/tenants/{key}/suspend` — suspend a tenant.
+///
+/// Suspended tenants' data requests return 503 with `Retry-After: 60`.
+/// No executor teardown occurs — database connections remain open.
+///
+/// # Errors
+///
+/// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
+/// key is not found.
+pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    Path(key): Path<String>,
+) -> Result<Json<TenantResponse>, ApiError> {
+    let registry = state
+        .tenant_registry()
+        .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
+
+    registry
+        .suspend(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
+    info!(tenant_key = %key, "tenant suspended");
+
+    if let Some(audit_log) = state.tenant_audit_log() {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Suspended, None, None)
+            .await
+        {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
+
+    Ok(Json(TenantResponse {
+        key,
+        status: "suspended",
+    }))
+}
+
+/// `POST /api/v1/admin/tenants/{key}/resume` — resume a suspended tenant.
+///
+/// Restores the tenant to active status so data requests are served normally.
+///
+/// # Errors
+///
+/// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
+/// key is not found.
+pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    Path(key): Path<String>,
+) -> Result<Json<TenantResponse>, ApiError> {
+    let registry = state
+        .tenant_registry()
+        .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
+
+    registry
+        .resume(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
+    info!(tenant_key = %key, "tenant resumed");
+
+    if let Some(audit_log) = state.tenant_audit_log() {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Resumed, None, None)
+            .await
+        {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
+
+    Ok(Json(TenantResponse {
+        key,
+        status: "resumed",
     }))
 }
 
@@ -197,12 +342,17 @@ pub async fn get_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'stat
         .tenant_registry()
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
 
+    let status = registry
+        .tenant_status(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
     let executor = registry
-        .executor_for(Some(&key))
+        .executor_for_admin(&key)
         .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
 
     Ok(Json(TenantMetadata {
         key,
+        status: status.as_str(),
         query_count: executor.schema().queries.len(),
         mutation_count: executor.schema().mutations.len(),
     }))
@@ -253,6 +403,47 @@ pub async fn tenant_health_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         key,
         status: "healthy",
     }))
+}
+
+/// Maximum events per page to prevent abuse.
+const MAX_EVENTS_LIMIT: usize = 200;
+
+/// `GET /api/v1/admin/tenants/{key}/events` — query tenant audit trail.
+///
+/// Returns lifecycle events for a specific tenant, newest first.
+/// Supports pagination via `limit` and `offset` query parameters.
+///
+/// # Errors
+///
+/// Returns `ApiError` with 404 if multi-tenant mode is disabled, the tenant
+/// key is not found, or no audit log is configured.
+pub async fn tenant_events_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    Path(key): Path<String>,
+    Query(params): Query<EventsQuery>,
+) -> Result<Json<TenantEventsResponse>, ApiError> {
+    // Multi-tenant mode must be enabled + verify tenant exists
+    let registry = state
+        .tenant_registry()
+        .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
+
+    registry
+        .executor_for_admin(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
+    let audit_log = state
+        .tenant_audit_log()
+        .ok_or_else(|| ApiError::not_found("audit log not configured"))?;
+
+    let limit = params.limit.min(MAX_EVENTS_LIMIT);
+    let events = audit_log
+        .events_for(&key, limit, params.offset)
+        .await
+        .map_err(|e| ApiError::internal_error(format!("failed to query audit events: {e}")))?;
+
+    let count = events.len();
+
+    Ok(Json(TenantEventsResponse { key, events, count }))
 }
 
 // ── Domain management handlers ──────────────────────────────────────────

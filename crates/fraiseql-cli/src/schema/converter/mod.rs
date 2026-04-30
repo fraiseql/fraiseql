@@ -7,6 +7,7 @@ mod mutations;
 mod queries;
 mod relay;
 mod subscriptions;
+pub(crate) mod tenancy;
 mod types;
 
 #[cfg(test)]

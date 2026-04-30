@@ -414,6 +414,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         put(api::tenant_admin::upsert_tenant_handler::<A>)
                             .delete(api::tenant_admin::delete_tenant_handler::<A>),
                     )
+                    // Tenant lifecycle endpoints (multi-tenant mode)
+                    .route(
+                        "/api/v1/admin/tenants/{key}/suspend",
+                        post(api::tenant_admin::suspend_tenant_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/tenants/{key}/resume",
+                        post(api::tenant_admin::resume_tenant_handler::<A>),
+                    )
                     // Domain management write endpoints (multi-tenant mode)
                     .route(
                         "/api/v1/admin/domains/{domain}",
@@ -461,6 +470,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route(
                         "/api/v1/admin/tenants/{key}/health",
                         get(api::tenant_admin::tenant_health_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/tenants/{key}/events",
+                        get(api::tenant_admin::tenant_events_handler::<A>),
                     )
                     // Domain management read endpoints (multi-tenant mode)
                     .route(
