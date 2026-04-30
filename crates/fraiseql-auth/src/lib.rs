@@ -7,6 +7,7 @@
 #![allow(clippy::doc_markdown)] // Reason: technical terms (OAuth2, PKCE, OIDC, HMAC) throughout docs
 
 pub mod account_linking;
+pub mod anonymous;
 pub mod audit;
 pub mod constant_time;
 pub mod error;
@@ -58,6 +59,7 @@ pub use audit::logger::{
     get_audit_logger, init_audit_logger,
 };
 pub use account_linking::{InMemoryUserStore, LinkedIdentity, LocalUser, UserStore};
+pub use anonymous::{AnonAuthState, SignupRequest, SignupResponse, signup_anonymous};
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 pub use error_sanitizer::{
