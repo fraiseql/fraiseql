@@ -44,6 +44,8 @@ pub struct TenantResponse {
 pub struct TenantMetadata {
     /// The tenant key.
     pub key:            String,
+    /// Tenant lifecycle status (`"active"` or `"suspended"`).
+    pub status:         &'static str,
     /// Number of queries in the tenant's compiled schema.
     pub query_count:    usize,
     /// Number of mutations in the tenant's compiled schema.
@@ -181,6 +183,63 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     }))
 }
 
+/// `POST /api/v1/admin/tenants/{key}/suspend` — suspend a tenant.
+///
+/// Suspended tenants' data requests return 503 with `Retry-After: 60`.
+/// No executor teardown occurs — database connections remain open.
+///
+/// # Errors
+///
+/// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
+/// key is not found.
+pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    Path(key): Path<String>,
+) -> Result<Json<TenantResponse>, ApiError> {
+    let registry = state
+        .tenant_registry()
+        .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
+
+    registry
+        .suspend(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
+    info!(tenant_key = %key, "tenant suspended");
+
+    Ok(Json(TenantResponse {
+        key,
+        status: "suspended",
+    }))
+}
+
+/// `POST /api/v1/admin/tenants/{key}/resume` — resume a suspended tenant.
+///
+/// Restores the tenant to active status so data requests are served normally.
+///
+/// # Errors
+///
+/// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
+/// key is not found.
+pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    Path(key): Path<String>,
+) -> Result<Json<TenantResponse>, ApiError> {
+    let registry = state
+        .tenant_registry()
+        .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
+
+    registry
+        .resume(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
+    info!(tenant_key = %key, "tenant resumed");
+
+    Ok(Json(TenantResponse {
+        key,
+        status: "resumed",
+    }))
+}
+
 /// `GET /api/v1/admin/tenants/{key}` — get tenant metadata.
 ///
 /// Returns query/mutation counts. Never includes credentials.
@@ -197,12 +256,17 @@ pub async fn get_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'stat
         .tenant_registry()
         .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
 
+    let status = registry
+        .tenant_status(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
     let executor = registry
-        .executor_for(Some(&key))
+        .executor_for_admin(&key)
         .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
 
     Ok(Json(TenantMetadata {
         key,
+        status: status.as_str(),
         query_count: executor.schema().queries.len(),
         mutation_count: executor.schema().mutations.len(),
     }))

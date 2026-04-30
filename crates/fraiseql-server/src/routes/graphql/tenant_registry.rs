@@ -4,18 +4,77 @@
 //! compiled schema and database adapter. Reads are lock-free via `ArcSwap`;
 //! writes are serialized per-key via `DashMap`.
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU8, Ordering},
+};
 
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
 use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor};
 use fraiseql_error::FraiseQLError;
 
+/// Tenant lifecycle status.
+///
+/// Stored as an `AtomicU8` in the registry for lock-free reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum TenantStatus {
+    /// Tenant is operational — requests are served normally.
+    Active = 0,
+    /// Tenant is suspended — data requests return 503 with `Retry-After: 60`.
+    Suspended = 1,
+}
+
+impl TenantStatus {
+    const fn from_u8(v: u8) -> Self {
+        match v {
+            1 => Self::Suspended,
+            _ => Self::Active,
+        }
+    }
+
+    /// Returns the string label for this status.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Suspended => "suspended",
+        }
+    }
+}
+
+/// A single tenant entry in the registry: executor + lifecycle status.
+struct TenantEntry<A: DatabaseAdapter> {
+    executor: Arc<ArcSwap<Executor<A>>>,
+    status:   AtomicU8,
+}
+
+impl<A: DatabaseAdapter> TenantEntry<A> {
+    fn new(executor: Arc<Executor<A>>) -> Self {
+        Self {
+            executor: Arc::new(ArcSwap::from(executor)),
+            status:   AtomicU8::new(TenantStatus::Active as u8),
+        }
+    }
+
+    fn status(&self) -> TenantStatus {
+        TenantStatus::from_u8(self.status.load(Ordering::Relaxed))
+    }
+
+    fn set_status(&self, status: TenantStatus) {
+        self.status.store(status as u8, Ordering::Relaxed);
+    }
+}
+
+/// Default retry hint (seconds) when a suspended tenant is accessed.
+const SUSPENDED_RETRY_AFTER_SECS: u64 = 60;
+
 /// Registry mapping tenant keys to executors.
 ///
-/// Each tenant gets its own `Arc<ArcSwap<Executor<A>>>`, mirroring the hot-reload
-/// pattern used by `AppState::executor`. Reads (`executor_for`) are wait-free;
-/// writes (`upsert`, `remove`) are serialized per-key by `DashMap`.
+/// Each tenant gets its own `TenantEntry` holding an `ArcSwap<Executor<A>>` and
+/// an `AtomicU8` status flag. Reads (`executor_for`) are wait-free; writes
+/// (`upsert`, `remove`, `suspend`, `resume`) are serialized per-key by `DashMap`.
 ///
 /// # Security invariant
 ///
@@ -26,8 +85,8 @@ use fraiseql_error::FraiseQLError;
 pub struct TenantExecutorRegistry<A: DatabaseAdapter> {
     /// Default executor used when no tenant key is provided (single-tenant compat).
     default: Arc<ArcSwap<Executor<A>>>,
-    /// Per-tenant executors keyed by tenant identifier.
-    tenants: DashMap<String, Arc<ArcSwap<Executor<A>>>>,
+    /// Per-tenant entries keyed by tenant identifier.
+    tenants: DashMap<String, TenantEntry<A>>,
 }
 
 impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
@@ -43,13 +102,15 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// Returns the executor for the given tenant key.
     ///
     /// - `None` → default executor (single-tenant compatibility)
-    /// - `Some(key)` found → tenant executor
-    /// - `Some(key)` not found → `Err` (security: refuse to fall back)
+    /// - `Some(key)` found + `Active` → tenant executor
+    /// - `Some(key)` found + `Suspended` → `Err(ServiceUnavailable)`
+    /// - `Some(key)` not found → `Err(Authorization)`
     ///
     /// # Errors
     ///
     /// Returns `FraiseQLError::Authorization` if the tenant key is explicit but
     /// not registered in the registry.
+    /// Returns `FraiseQLError::ServiceUnavailable` if the tenant is suspended.
     pub fn executor_for(
         &self,
         tenant_key: Option<&str>,
@@ -60,9 +121,44 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
                 let entry = self.tenants.get(key).ok_or_else(|| {
                     FraiseQLError::unauthorized(format!("Tenant '{key}' is not registered"))
                 })?;
-                Ok(entry.value().load())
+                self.require_active(key, entry.value())?;
+                Ok(entry.value().executor.load())
             },
         }
+    }
+
+    /// Returns `Ok(())` if the tenant is active, `Err(ServiceUnavailable)` if suspended.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::ServiceUnavailable` with a 60-second retry hint
+    /// if the tenant status is `Suspended`.
+    fn require_active(&self, key: &str, entry: &TenantEntry<A>) -> fraiseql_error::Result<()> {
+        if entry.status() == TenantStatus::Suspended {
+            return Err(FraiseQLError::ServiceUnavailable {
+                message:     format!("Tenant '{key}' is suspended"),
+                retry_after: Some(SUSPENDED_RETRY_AFTER_SECS),
+            });
+        }
+        Ok(())
+    }
+
+    /// Returns the executor for a tenant regardless of its status.
+    ///
+    /// Used by admin endpoints that need to inspect tenant metadata even when
+    /// the tenant is suspended. Does **not** check the status flag.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Authorization` if the tenant key is not registered.
+    pub fn executor_for_admin(
+        &self,
+        key: &str,
+    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor<A>>>> {
+        let entry = self.tenants.get(key).ok_or_else(|| {
+            FraiseQLError::unauthorized(format!("Tenant '{key}' is not registered"))
+        })?;
+        Ok(entry.value().executor.load())
     }
 
     /// Register or update a tenant executor.
@@ -70,14 +166,14 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// Returns `true` if this was an insert (new tenant), `false` if it was an
     /// update (existing tenant). On update, the old executor is atomically swapped
     /// via `ArcSwap::store` — in-flight requests holding a guard to the previous
-    /// executor continue undisturbed.
+    /// executor continue undisturbed. Status is preserved on update.
     pub fn upsert(&self, key: impl Into<String>, executor: Arc<Executor<A>>) -> bool {
         let key = key.into();
         if let Some(existing) = self.tenants.get(&key) {
-            existing.value().store(executor);
+            existing.value().executor.store(executor);
             false
         } else {
-            self.tenants.insert(key, Arc::new(ArcSwap::from(executor)));
+            self.tenants.insert(key, TenantEntry::new(executor));
             true
         }
     }
@@ -90,11 +186,45 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// # Errors
     ///
     /// Returns `FraiseQLError::NotFound` if the key is not registered.
-    pub fn remove(&self, key: &str) -> fraiseql_error::Result<Arc<ArcSwap<Executor<A>>>> {
+    pub fn remove(&self, key: &str) -> fraiseql_error::Result<()> {
         self.tenants
             .remove(key)
-            .map(|(_, v)| v)
+            .map(|_| ())
             .ok_or_else(|| FraiseQLError::not_found("tenant", key))
+    }
+
+    /// Suspend a tenant — data requests will return 503 until resumed.
+    ///
+    /// No executor teardown occurs; the tenant's database connections remain open.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::NotFound` if the tenant key is not registered.
+    pub fn suspend(&self, key: &str) -> fraiseql_error::Result<()> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        entry.value().set_status(TenantStatus::Suspended);
+        Ok(())
+    }
+
+    /// Resume a suspended tenant — data requests are served normally again.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::NotFound` if the tenant key is not registered.
+    pub fn resume(&self, key: &str) -> fraiseql_error::Result<()> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        entry.value().set_status(TenantStatus::Active);
+        Ok(())
+    }
+
+    /// Returns the status of a tenant.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::NotFound` if the tenant key is not registered.
+    pub fn tenant_status(&self, key: &str) -> fraiseql_error::Result<TenantStatus> {
+        let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
+        Ok(entry.value().status())
     }
 
     /// List all registered tenant keys.
@@ -129,7 +259,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// Returns `FraiseQLError::Database` if the health check fails.
     pub async fn health_check(&self, key: &str) -> fraiseql_error::Result<()> {
         let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
-        let executor = entry.value().load();
+        let executor = entry.value().executor.load();
         executor.adapter().health_check().await
     }
 }
@@ -388,5 +518,111 @@ mod tests {
         // New requests to this tenant now fail
         let result = registry.executor_for(Some("tenant-abc"));
         assert!(result.is_err());
+    }
+
+    // ── Cycle 4: suspend/resume ─────────────────────────────────────────
+
+    #[test]
+    fn test_suspend_sets_status_to_suspended() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+        registry.suspend("tenant-abc").unwrap();
+        assert_eq!(
+            registry.tenant_status("tenant-abc").unwrap(),
+            TenantStatus::Suspended
+        );
+    }
+
+    #[test]
+    fn test_suspended_tenant_returns_service_unavailable() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+        registry.suspend("tenant-abc").unwrap();
+
+        let Err(err) = registry.executor_for(Some("tenant-abc")) else {
+            panic!("expected Err for suspended tenant");
+        };
+        assert!(
+            matches!(
+                err,
+                FraiseQLError::ServiceUnavailable {
+                    retry_after: Some(60),
+                    ..
+                }
+            ),
+            "Expected ServiceUnavailable with retry_after=60, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_resume_restores_active_status() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+
+        registry.suspend("tenant-abc").unwrap();
+        assert_eq!(
+            registry.tenant_status("tenant-abc").unwrap(),
+            TenantStatus::Suspended
+        );
+
+        registry.resume("tenant-abc").unwrap();
+        assert_eq!(
+            registry.tenant_status("tenant-abc").unwrap(),
+            TenantStatus::Active
+        );
+
+        // Can access executor again
+        let exec = registry.executor_for(Some("tenant-abc"));
+        assert!(exec.is_ok());
+    }
+
+    #[test]
+    fn test_new_tenant_starts_active() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+        assert_eq!(
+            registry.tenant_status("tenant-abc").unwrap(),
+            TenantStatus::Active
+        );
+    }
+
+    #[test]
+    fn test_upsert_preserves_status() {
+        let registry = TenantExecutorRegistry::new(default_executor());
+        registry.upsert("tenant-abc", tenant_executor("abc"));
+        registry.suspend("tenant-abc").unwrap();
+
+        // Update executor — status should stay Suspended
+        registry.upsert("tenant-abc", tenant_executor("abc-v2"));
+        assert_eq!(
+            registry.tenant_status("tenant-abc").unwrap(),
+            TenantStatus::Suspended
+        );
+    }
+
+    #[test]
+    fn test_suspend_unknown_tenant_returns_not_found() {
+        let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
+        let err = registry.suspend("unknown").unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::NotFound { .. }),
+            "Expected NotFound, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_resume_unknown_tenant_returns_not_found() {
+        let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
+        let err = registry.resume("unknown").unwrap_err();
+        assert!(
+            matches!(err, FraiseQLError::NotFound { .. }),
+            "Expected NotFound, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_tenant_status_as_str() {
+        assert_eq!(TenantStatus::Active.as_str(), "active");
+        assert_eq!(TenantStatus::Suspended.as_str(), "suspended");
     }
 }
