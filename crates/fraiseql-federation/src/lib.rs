@@ -57,6 +57,7 @@ pub mod mutation_executor;
 pub mod mutation_http_client;
 pub mod mutation_query_builder;
 pub mod query_builder;
+pub mod query_plan_cache;
 pub mod representation;
 pub mod requires_provides_validator;
 pub mod saga_compensator;
@@ -89,6 +90,7 @@ pub use mutation_executor::*;
 pub use mutation_http_client::*;
 pub use mutation_query_builder::*;
 pub use query_builder::*;
+pub use query_plan_cache::{QueryPlan, QueryPlanCache, SubgraphFetch};
 pub use representation::*;
 pub use requires_provides_validator::{
     DirectiveValidationError, RequiresProvidesRuntimeValidator, RequiresProvidesValidator,
