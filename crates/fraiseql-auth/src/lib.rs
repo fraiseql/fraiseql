@@ -33,6 +33,7 @@ pub mod session;
 pub mod session_postgres;
 pub mod state_encryption;
 pub mod state_store;
+pub mod totp_mfa;
 
 #[cfg(test)]
 mod security_tests;
