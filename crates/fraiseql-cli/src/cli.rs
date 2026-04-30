@@ -575,6 +575,17 @@ pub(crate) enum FederationCommands {
         #[arg(short, long, value_name = "FORMAT", default_value = "json")]
         format: String,
     },
+
+    /// Validate subgraph composition
+    Check {
+        /// Path to local schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: String,
+
+        /// Path to supergraph schema for composition validation
+        #[arg(short, long, value_name = "SUPERGRAPH")]
+        against: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
