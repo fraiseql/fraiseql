@@ -93,6 +93,7 @@ fn test_sdl_entity_union_includes_all_types() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -104,6 +105,7 @@ fn test_sdl_entity_union_includes_all_types() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -289,6 +291,7 @@ fn test_key_directive_required_on_entities() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -307,6 +310,7 @@ fn test_external_directive_on_extended_fields() {
         is_extends:       true,
         external_fields:  vec!["customerId".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -326,6 +330,7 @@ fn test_extends_directive_marks_extended_types() {
         is_extends:       true,
         external_fields:  vec!["customerId".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -400,6 +405,7 @@ fn test_entity_ownership_is_exclusive() {
         is_extends:       false,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -412,6 +418,7 @@ fn test_entity_ownership_is_exclusive() {
         is_extends:       true,
         external_fields:  vec![],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 
@@ -432,6 +439,7 @@ fn test_external_fields_reference_owned_subgraph() {
         is_extends:       true,
         external_fields:  vec!["customerId".to_string()],
         shareable_fields: vec![],
+                inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
     };
 

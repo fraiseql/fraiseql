@@ -289,6 +289,7 @@ fn test_strategy_local_for_owned_entity() {
             is_extends:       false, // Locally owned
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -315,6 +316,7 @@ fn test_strategy_direct_db_when_available() {
             is_extends:       true, // Extended from another subgraph
             external_fields:  vec!["id".to_string()],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -342,6 +344,7 @@ fn test_strategy_http_fallback() {
                 is_extends:       false,
                 external_fields:  vec![],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
             FederatedType {
@@ -353,6 +356,7 @@ fn test_strategy_http_fallback() {
                 is_extends:       true,
                 external_fields:  vec!["id".to_string()],
                 shareable_fields: vec![],
+                inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
             },
         ],
@@ -533,6 +537,7 @@ fn test_federation_directive_fields() {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };

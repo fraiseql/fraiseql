@@ -25,6 +25,7 @@ fn make_metadata(type_count: usize) -> FederationMetadata {
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: HashMap::new(),
         })
         .collect();

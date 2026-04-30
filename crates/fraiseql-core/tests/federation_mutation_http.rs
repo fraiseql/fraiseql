@@ -33,6 +33,7 @@ fn test_build_mutation_query_for_update() {
             is_extends:       true,
             external_fields:  vec!["email".to_string()],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };
@@ -69,6 +70,7 @@ fn test_mutation_query_excludes_external_fields() {
             is_extends:       true,
             external_fields:  vec!["customer_id".to_string()],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     };

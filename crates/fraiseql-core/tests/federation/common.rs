@@ -223,6 +223,7 @@ pub fn metadata_single_key(type_name: &str, key_field: &str) -> FederationMetada
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     }
@@ -266,6 +267,7 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
             is_extends:       false,
             external_fields:  vec![],
             shareable_fields: vec![],
+                inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
         }],
     }

@@ -106,6 +106,36 @@ pub enum CompositionError {
         /// Human-readable description of the conflict.
         reason:   String,
     },
+
+    /// @inaccessible field conflict (inaccessible in one subgraph, not in another)
+    ///
+    /// A field is marked @inaccessible in one subgraph but not in another.
+    /// @inaccessible must be consistent across all subgraphs that define a field.
+    InaccessibleFieldConflict {
+        /// Name of the type owning the conflicting field.
+        typename:   String,
+        /// Name of the conflicting field.
+        field:      String,
+        /// First subgraph in the conflict.
+        subgraph_a: String,
+        /// Second subgraph in the conflict.
+        subgraph_b: String,
+    },
+
+    /// @override field conflict (multiple subgraphs override the same field)
+    ///
+    /// Multiple subgraphs declare @override for the same field, each from a
+    /// different source. Only one subgraph may override a given field.
+    OverrideFieldConflict {
+        /// Name of the type owning the conflicting field.
+        typename:   String,
+        /// Name of the conflicting field.
+        field:      String,
+        /// First subgraph claiming override.
+        subgraph_a: String,
+        /// Second subgraph claiming override.
+        subgraph_b: String,
+    },
 }
 
 impl std::fmt::Display for CompositionError {
@@ -157,6 +187,32 @@ impl std::fmt::Display for CompositionError {
             },
             Self::TypeConflict { typename, reason } => {
                 write!(f, "Type '{}' conflict: {}", typename, reason)
+            },
+            Self::InaccessibleFieldConflict {
+                typename,
+                field,
+                subgraph_a,
+                subgraph_b,
+            } => {
+                write!(
+                    f,
+                    "@inaccessible conflict on {}.{} between '{}' and '{}'. \
+                     If a field is @inaccessible in one subgraph, it must be in all.",
+                    typename, field, subgraph_a, subgraph_b
+                )
+            },
+            Self::OverrideFieldConflict {
+                typename,
+                field,
+                subgraph_a,
+                subgraph_b,
+            } => {
+                write!(
+                    f,
+                    "@override conflict on {}.{}: both '{}' and '{}' declare @override. \
+                     Only one subgraph may override a given field.",
+                    typename, field, subgraph_a, subgraph_b
+                )
             },
         }
     }
@@ -219,6 +275,18 @@ impl CrossSubgraphValidator {
         debug!("Validating @shareable field consistency");
         if let Err(shareable_errors) = self.validate_shareable_consistency() {
             errors.extend(shareable_errors);
+        }
+
+        // Validate @inaccessible field consistency
+        debug!("Validating @inaccessible field consistency");
+        if let Err(inaccessible_errors) = self.validate_inaccessible_consistency() {
+            errors.extend(inaccessible_errors);
+        }
+
+        // Validate @override field conflicts
+        debug!("Validating @override field conflicts");
+        if let Err(override_errors) = self.validate_override_conflicts() {
+            errors.extend(override_errors);
         }
 
         if errors.is_empty() {
@@ -323,6 +391,91 @@ impl CrossSubgraphValidator {
                             });
                         }
                     }
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Validate @inaccessible field consistency
+    fn validate_inaccessible_consistency(&self) -> Result<(), Vec<CompositionError>> {
+        let mut errors = Vec::new();
+        let mut field_inaccessible: HashMap<String, HashMap<String, bool>> = HashMap::new();
+
+        for (sg_name, metadata) in &self.subgraphs {
+            for ftype in &metadata.types {
+                for (field_name, directives) in &ftype.field_directives {
+                    let field_key = format!("{}.{}", ftype.name, field_name);
+                    field_inaccessible
+                        .entry(field_key)
+                        .or_default()
+                        .insert(sg_name.clone(), directives.inaccessible);
+                }
+            }
+        }
+
+        for (field_key, inaccessible_map) in &field_inaccessible {
+            let any_inaccessible = inaccessible_map.values().any(|&v| v);
+            if any_inaccessible {
+                if let Some((sg1, &v1)) = inaccessible_map.iter().next() {
+                    for (sg2, &v2) in inaccessible_map.iter().skip(1) {
+                        if v1 != v2 {
+                            let parts: Vec<&str> = field_key.split('.').collect();
+                            if parts.len() == 2 {
+                                errors.push(CompositionError::InaccessibleFieldConflict {
+                                    typename:   parts[0].to_string(),
+                                    field:      parts[1].to_string(),
+                                    subgraph_a: sg1.clone(),
+                                    subgraph_b: sg2.clone(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Validate @override field conflicts
+    fn validate_override_conflicts(&self) -> Result<(), Vec<CompositionError>> {
+        let mut errors = Vec::new();
+        let mut field_overrides: HashMap<String, Vec<(String, String)>> = HashMap::new();
+
+        for (sg_name, metadata) in &self.subgraphs {
+            for ftype in &metadata.types {
+                for (field_name, directives) in &ftype.field_directives {
+                    if let Some(from) = &directives.override_from {
+                        let field_key = format!("{}.{}", ftype.name, field_name);
+                        field_overrides
+                            .entry(field_key)
+                            .or_default()
+                            .push((sg_name.clone(), from.clone()));
+                    }
+                }
+            }
+        }
+
+        for (field_key, overrides) in &field_overrides {
+            if overrides.len() > 1 {
+                let parts: Vec<&str> = field_key.split('.').collect();
+                if parts.len() == 2 {
+                    errors.push(CompositionError::OverrideFieldConflict {
+                        typename:   parts[0].to_string(),
+                        field:      parts[1].to_string(),
+                        subgraph_a: overrides[0].0.clone(),
+                        subgraph_b: overrides[1].0.clone(),
+                    });
                 }
             }
         }
@@ -590,6 +743,8 @@ impl ComposedType {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::*;
 
     #[test]
@@ -628,5 +783,119 @@ mod tests {
 
         assert_eq!(composed.definitions.len(), 2);
         assert!(composed.is_extended);
+    }
+
+    #[test]
+    fn test_inaccessible_field_conflict_detected() {
+        use crate::types::{FieldFederationDirectives, KeyDirective};
+
+        let mut users_type = FederatedType::new("User".to_string());
+        users_type.keys = vec![KeyDirective {
+            fields:     vec!["id".to_string()],
+            resolvable: true,
+        }];
+        // Mark "ssn" as inaccessible in subgraph A
+        users_type.set_field_directives(
+            "ssn".to_string(),
+            FieldFederationDirectives::new().inaccessible(),
+        );
+
+        let mut users_type_b = FederatedType::new("User".to_string());
+        users_type_b.is_extends = true;
+        users_type_b.keys = vec![KeyDirective {
+            fields:     vec!["id".to_string()],
+            resolvable: true,
+        }];
+        // "ssn" NOT inaccessible in subgraph B — should be a conflict
+        users_type_b.set_field_directives("ssn".to_string(), FieldFederationDirectives::new());
+
+        let subgraphs = vec![
+            (
+                "users".to_string(),
+                FederationMetadata {
+                    enabled: true,
+                    version: "v2".to_string(),
+                    types:   vec![users_type],
+                },
+            ),
+            (
+                "accounts".to_string(),
+                FederationMetadata {
+                    enabled: true,
+                    version: "v2".to_string(),
+                    types:   vec![users_type_b],
+                },
+            ),
+        ];
+
+        let validator = CrossSubgraphValidator::new(subgraphs);
+        let result = validator.validate_consistency();
+        assert!(result.is_err(), "Expected inaccessible conflict to be detected");
+
+        let errors = result.unwrap_err();
+        assert!(
+            errors.iter().any(|e| matches!(e, CompositionError::InaccessibleFieldConflict { .. })),
+            "Expected InaccessibleFieldConflict error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_override_field_conflict_detected() {
+        use crate::types::{FieldFederationDirectives, KeyDirective};
+
+        let mut products_type_a = FederatedType::new("Product".to_string());
+        products_type_a.keys = vec![KeyDirective {
+            fields:     vec!["id".to_string()],
+            resolvable: true,
+        }];
+        // Override "price" from "pricing" subgraph
+        products_type_a.set_field_directives(
+            "price".to_string(),
+            FieldFederationDirectives::new().with_override_from("pricing".to_string()),
+        );
+
+        let mut products_type_b = FederatedType::new("Product".to_string());
+        products_type_b.keys = vec![KeyDirective {
+            fields:     vec!["id".to_string()],
+            resolvable: true,
+        }];
+        // Also override "price" from a DIFFERENT subgraph — should conflict
+        products_type_b.set_field_directives(
+            "price".to_string(),
+            FieldFederationDirectives::new().with_override_from("inventory".to_string()),
+        );
+
+        let subgraphs = vec![
+            (
+                "catalog".to_string(),
+                FederationMetadata {
+                    enabled: true,
+                    version: "v2".to_string(),
+                    types:   vec![products_type_a],
+                },
+            ),
+            (
+                "storefront".to_string(),
+                FederationMetadata {
+                    enabled: true,
+                    version: "v2".to_string(),
+                    types:   vec![products_type_b],
+                },
+            ),
+        ];
+
+        let validator = CrossSubgraphValidator::new(subgraphs);
+        let result = validator.validate_consistency();
+        assert!(result.is_err(), "Expected override conflict to be detected");
+
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, CompositionError::OverrideFieldConflict { .. })),
+            "Expected OverrideFieldConflict error, got: {:?}",
+            errors
+        );
     }
 }
