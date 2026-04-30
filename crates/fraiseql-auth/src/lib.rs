@@ -22,6 +22,7 @@ pub mod oauth;
 pub mod oidc_provider;
 pub mod otp;
 pub mod oidc_server_client;
+pub mod phone_otp;
 pub mod operation_rbac;
 pub mod pkce;
 pub mod provider;
@@ -89,6 +90,10 @@ pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use otp::{
     EmailSender, InMemoryEmailSender, InMemoryOtpStore, OtpAuthState, OtpRequest, OtpResponse,
     OtpStore, VerifyRequest, VerifyResponse, generate_otp_code, send_otp, verify_otp,
+};
+pub use phone_otp::{
+    InMemorySmsSender, SmsOtpAuthState, SmsOtpRequest, SmsOtpResponse, SmsSender,
+    SmsVerifyRequest, SmsVerifyResponse, normalize_e164, send_sms_otp, verify_sms_otp,
 };
 pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
