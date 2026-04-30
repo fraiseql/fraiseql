@@ -8,7 +8,7 @@
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,10 @@ use crate::{
         api::types::ApiError,
         graphql::{AppState, tenant_registry::TenantQuota},
     },
-    tenancy::pool_factory::TenantPoolConfig,
+    tenancy::{
+        audit::TenantEventKind,
+        pool_factory::TenantPoolConfig,
+    },
 };
 
 // ── Request / Response types ─────────────────────────────────────────────
@@ -80,6 +83,32 @@ pub struct TenantHealthResponse {
     pub key:    String,
     /// Health status.
     pub status: &'static str,
+}
+
+/// Query parameters for `GET /api/v1/admin/tenants/{key}/events`.
+#[derive(Debug, Deserialize)]
+pub struct EventsQuery {
+    /// Maximum number of events to return (default: 50, max: 200).
+    #[serde(default = "default_events_limit")]
+    pub limit:  usize,
+    /// Offset for pagination (default: 0).
+    #[serde(default)]
+    pub offset: usize,
+}
+
+const fn default_events_limit() -> usize {
+    50
+}
+
+/// Response for `GET /api/v1/admin/tenants/{key}/events`.
+#[derive(Debug, Serialize)]
+pub struct TenantEventsResponse {
+    /// The tenant key.
+    pub key:    String,
+    /// The events, newest first.
+    pub events: Vec<crate::tenancy::audit::TenantEvent>,
+    /// Total number of events returned.
+    pub count:  usize,
 }
 
 /// Body for `PUT /api/v1/admin/domains/{domain}`.
@@ -170,6 +199,18 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 
     info!(tenant_key = %key, status, "tenant executor registered");
 
+    // Record audit event (fire-and-forget — audit failure must not block the operation)
+    if let Some(audit_log) = state.tenant_audit_log() {
+        let event = if was_insert {
+            TenantEventKind::Created
+        } else {
+            TenantEventKind::ConfigChanged
+        };
+        if let Err(e) = audit_log.record(&key, event, None, None).await {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
+
     Ok(Json(TenantResponse { key, status }))
 }
 
@@ -194,6 +235,15 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
 
     info!(tenant_key = %key, "tenant executor removed");
+
+    if let Some(audit_log) = state.tenant_audit_log() {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Deleted, None, None)
+            .await
+        {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
 
     Ok(Json(TenantResponse {
         key,
@@ -224,6 +274,15 @@ pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + '
 
     info!(tenant_key = %key, "tenant suspended");
 
+    if let Some(audit_log) = state.tenant_audit_log() {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Suspended, None, None)
+            .await
+        {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
+
     Ok(Json(TenantResponse {
         key,
         status: "suspended",
@@ -251,6 +310,15 @@ pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
 
     info!(tenant_key = %key, "tenant resumed");
+
+    if let Some(audit_log) = state.tenant_audit_log() {
+        if let Err(e) = audit_log
+            .record(&key, TenantEventKind::Resumed, None, None)
+            .await
+        {
+            tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
+        }
+    }
 
     Ok(Json(TenantResponse {
         key,
@@ -335,6 +403,47 @@ pub async fn tenant_health_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         key,
         status: "healthy",
     }))
+}
+
+/// Maximum events per page to prevent abuse.
+const MAX_EVENTS_LIMIT: usize = 200;
+
+/// `GET /api/v1/admin/tenants/{key}/events` — query tenant audit trail.
+///
+/// Returns lifecycle events for a specific tenant, newest first.
+/// Supports pagination via `limit` and `offset` query parameters.
+///
+/// # Errors
+///
+/// Returns `ApiError` with 404 if multi-tenant mode is disabled, the tenant
+/// key is not found, or no audit log is configured.
+pub async fn tenant_events_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+    State(state): State<AppState<A>>,
+    Path(key): Path<String>,
+    Query(params): Query<EventsQuery>,
+) -> Result<Json<TenantEventsResponse>, ApiError> {
+    // Multi-tenant mode must be enabled + verify tenant exists
+    let registry = state
+        .tenant_registry()
+        .ok_or_else(|| ApiError::not_found("multi-tenant mode not enabled"))?;
+
+    registry
+        .executor_for_admin(&key)
+        .map_err(|_| ApiError::not_found(format!("tenant '{key}'")))?;
+
+    let audit_log = state
+        .tenant_audit_log()
+        .ok_or_else(|| ApiError::not_found("audit log not configured"))?;
+
+    let limit = params.limit.min(MAX_EVENTS_LIMIT);
+    let events = audit_log
+        .events_for(&key, limit, params.offset)
+        .await
+        .map_err(|e| ApiError::internal_error(format!("failed to query audit events: {e}")))?;
+
+    let count = events.len();
+
+    Ok(Json(TenantEventsResponse { key, events, count }))
 }
 
 // ── Domain management handlers ──────────────────────────────────────────

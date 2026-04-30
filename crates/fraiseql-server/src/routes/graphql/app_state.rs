@@ -97,6 +97,8 @@ pub struct AppState<A: DatabaseAdapter> {
     pub tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
     /// Domain-to-tenant mapping for Host header-based tenant resolution.
     pub domain_registry:         Arc<DomainRegistry>,
+    /// Tenant audit log (optional, for lifecycle event recording).
+    pub tenant_audit_log:        Option<crate::tenancy::audit::AuditLogHandle>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -139,6 +141,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             tenant_registry: None,
             tenant_executor_factory: None,
             domain_registry: Arc::new(DomainRegistry::new()),
+            tenant_audit_log: None,
         }
     }
 
@@ -220,6 +223,19 @@ impl<A: DatabaseAdapter> AppState<A> {
     pub fn with_domain_registry(mut self, registry: Arc<DomainRegistry>) -> Self {
         self.domain_registry = registry;
         self
+    }
+
+    /// Attach a tenant audit log for lifecycle event recording.
+    #[must_use]
+    pub fn with_tenant_audit_log(mut self, log: crate::tenancy::audit::AuditLogHandle) -> Self {
+        self.tenant_audit_log = Some(log);
+        self
+    }
+
+    /// Get the tenant audit log if configured.
+    #[must_use]
+    pub const fn tenant_audit_log(&self) -> Option<&crate::tenancy::audit::AuditLogHandle> {
+        self.tenant_audit_log.as_ref()
     }
 
     /// Configure reload support with a schema file path and database adapter.

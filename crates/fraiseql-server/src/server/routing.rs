@@ -471,6 +471,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "/api/v1/admin/tenants/{key}/health",
                         get(api::tenant_admin::tenant_health_handler::<A>),
                     )
+                    .route(
+                        "/api/v1/admin/tenants/{key}/events",
+                        get(api::tenant_admin::tenant_events_handler::<A>),
+                    )
                     // Domain management read endpoints (multi-tenant mode)
                     .route(
                         "/api/v1/admin/domains",

@@ -1,5 +1,6 @@
 //! Multi-tenancy infrastructure: pool factory, executor construction, health monitoring.
 
+pub mod audit;
 pub mod pool_factory;
 pub mod schema_isolation;
 
