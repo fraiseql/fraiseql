@@ -25,8 +25,12 @@ use fraiseql_core::{
     runtime::Executor,
     schema::{CompiledSchema, QueryDefinition, SqlProjectionHint},
 };
-use fraiseql_server::routes::graphql::{
-    AppState, DomainRegistry, TenantExecutorRegistry, TenantKeyResolver,
+use fraiseql_server::{
+    routes::graphql::{
+        AppState, DomainRegistry, TenantExecutorRegistry, TenantKeyResolver,
+        tenant_registry::{TenantQuota, TenantStatus},
+    },
+    tenancy::audit::{InMemoryAuditLog, TenantAuditLog, TenantEventKind},
 };
 
 // ── Stub adapter ────────────────────────────────────────────────────────
@@ -471,4 +475,221 @@ fn test_remove_tenant_while_guard_held() {
 
     // New lookups fail
     assert!(registry.executor_for(Some("tenant-a")).is_err());
+}
+
+// ── Cycle 7 (Phase 15): Isolation Verification Tests ──────────────────
+
+// --- Cross-cutting: Suspend/Resume lifecycle ---
+
+#[test]
+fn test_suspended_tenant_returns_503() {
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+
+    registry.upsert("tenant-a", make_executor("a", "users"));
+    registry.suspend("tenant-a").unwrap();
+
+    let Err(err) = registry.executor_for(Some("tenant-a")) else {
+        panic!("suspended tenant must fail");
+    };
+    assert!(
+        matches!(err, fraiseql_error::FraiseQLError::ServiceUnavailable { .. }),
+        "Expected ServiceUnavailable, got: {err:?}"
+    );
+}
+
+#[test]
+fn test_suspended_tenant_admin_endpoints_still_respond() {
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+
+    registry.upsert("tenant-a", make_executor("a", "users"));
+    registry.suspend("tenant-a").unwrap();
+
+    // executor_for_admin bypasses status check
+    let exec = registry.executor_for_admin("tenant-a");
+    assert!(exec.is_ok(), "admin access must work on suspended tenant");
+    assert_eq!(exec.unwrap().schema().queries.len(), 1);
+
+    // Status query works
+    let status = registry.tenant_status("tenant-a").unwrap();
+    assert_eq!(status, TenantStatus::Suspended);
+}
+
+#[test]
+fn test_full_lifecycle_create_suspend_resume_delete() {
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+
+    // Create
+    let was_insert = registry.upsert("tenant-a", make_executor("a", "users"));
+    assert!(was_insert);
+    assert_eq!(registry.tenant_status("tenant-a").unwrap(), TenantStatus::Active);
+
+    // Query works
+    assert!(registry.executor_for(Some("tenant-a")).is_ok());
+
+    // Suspend
+    registry.suspend("tenant-a").unwrap();
+    assert_eq!(registry.tenant_status("tenant-a").unwrap(), TenantStatus::Suspended);
+    assert!(registry.executor_for(Some("tenant-a")).is_err());
+
+    // Resume
+    registry.resume("tenant-a").unwrap();
+    assert_eq!(registry.tenant_status("tenant-a").unwrap(), TenantStatus::Active);
+    assert!(registry.executor_for(Some("tenant-a")).is_ok());
+
+    // Delete
+    assert!(registry.remove("tenant-a").is_ok());
+    assert!(registry.executor_for(Some("tenant-a")).is_err());
+}
+
+// --- Cross-cutting: Rate limit independence between tenants ---
+
+#[test]
+fn test_tenant_rate_limit_independence() {
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+
+    let quota = TenantQuota {
+        max_concurrent:       Some(1),
+        max_requests_per_sec: None,
+        max_storage_bytes:    None,
+    };
+    registry.upsert_with_quota("tenant-a", make_executor("a", "users"), quota.clone());
+    registry.upsert_with_quota("tenant-b", make_executor("b", "orders"), quota);
+
+    // Exhaust tenant-a's concurrency
+    let pa = registry.try_acquire_concurrency("tenant-a").unwrap();
+    assert!(pa.is_some());
+    let _pa = pa; // hold alive
+    assert!(registry.try_acquire_concurrency("tenant-a").is_err());
+
+    // Tenant-b is independent — still has permits
+    let pb = registry.try_acquire_concurrency("tenant-b").unwrap();
+    assert!(pb.is_some());
+}
+
+// --- Cross-cutting: Audit trail records lifecycle events ---
+
+#[tokio::test]
+async fn test_audit_trail_records_full_lifecycle() {
+    let audit_log = Arc::new(InMemoryAuditLog::new());
+
+    // Simulate lifecycle events
+    audit_log
+        .record("tenant-a", TenantEventKind::Created, Some("admin"), None)
+        .await
+        .unwrap();
+    audit_log
+        .record("tenant-a", TenantEventKind::Suspended, Some("admin"), None)
+        .await
+        .unwrap();
+    audit_log
+        .record("tenant-a", TenantEventKind::Resumed, Some("admin"), None)
+        .await
+        .unwrap();
+    audit_log
+        .record(
+            "tenant-a",
+            TenantEventKind::ConfigChanged,
+            Some("user-42"),
+            Some(serde_json::json!({"max_concurrent": {"old": 5, "new": 10}})),
+        )
+        .await
+        .unwrap();
+    audit_log
+        .record("tenant-a", TenantEventKind::Deleted, Some("admin"), None)
+        .await
+        .unwrap();
+
+    let events = audit_log.events_for("tenant-a", 100, 0).await.unwrap();
+    assert_eq!(events.len(), 5);
+
+    // Newest first
+    assert_eq!(events[0].event, TenantEventKind::Deleted);
+    assert_eq!(events[1].event, TenantEventKind::ConfigChanged);
+    assert_eq!(events[2].event, TenantEventKind::Resumed);
+    assert_eq!(events[3].event, TenantEventKind::Suspended);
+    assert_eq!(events[4].event, TenantEventKind::Created);
+
+    // Payload on config_changed
+    assert!(events[1].payload.is_some());
+    assert_eq!(events[1].actor.as_deref(), Some("user-42"));
+}
+
+#[tokio::test]
+async fn test_audit_trail_tenant_isolation() {
+    let audit_log = Arc::new(InMemoryAuditLog::new());
+
+    audit_log
+        .record("tenant-a", TenantEventKind::Created, None, None)
+        .await
+        .unwrap();
+    audit_log
+        .record("tenant-b", TenantEventKind::Created, None, None)
+        .await
+        .unwrap();
+    audit_log
+        .record("tenant-a", TenantEventKind::Suspended, None, None)
+        .await
+        .unwrap();
+
+    // tenant-a events only
+    let events_a = audit_log.events_for("tenant-a", 100, 0).await.unwrap();
+    assert_eq!(events_a.len(), 2);
+
+    // tenant-b events only
+    let events_b = audit_log.events_for("tenant-b", 100, 0).await.unwrap();
+    assert_eq!(events_b.len(), 1);
+}
+
+// --- Cross-cutting: Audit log wired into AppState ---
+
+#[test]
+fn test_appstate_audit_log_accessor() {
+    let state = make_multitenant_state();
+    assert!(state.tenant_audit_log().is_none(), "no audit log by default");
+
+    let audit_log = Arc::new(InMemoryAuditLog::new());
+    let state = state.with_tenant_audit_log(audit_log);
+    assert!(state.tenant_audit_log().is_some(), "audit log configured");
+}
+
+// --- Database-dependent isolation tests (gated on FRAISEQL_PLATFORM_E2E) ---
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — set FRAISEQL_PLATFORM_E2E=1"]
+async fn test_row_isolation_tenant_a_invisible_to_tenant_b() {
+    // Row isolation: tenant A inserts a row with tenant_id = A.
+    // Tenant B queries the same table — result: zero rows
+    // (WHERE clause injected by inject_params).
+    //
+    // Implementation requires a live PostgreSQL instance with the
+    // fraiseql schema deployed. See docker/docker-compose.test.yml.
+    todo!("requires live PostgreSQL with inject_params + tenant_id column");
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — set FRAISEQL_PLATFORM_E2E=1"]
+async fn test_row_isolation_variable_override_rejected() {
+    // Tenant A attempts to query with tenant_id = B in GraphQL variables.
+    // inject_params overrides with JWT claim — variable ignored.
+    todo!("requires live PostgreSQL with inject_params");
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — set FRAISEQL_PLATFORM_E2E=1"]
+async fn test_schema_isolation_search_path_separation() {
+    // Tenant A's tables exist in tenant_a schema. Tenant B's search_path
+    // is tenant_b. SELECT * FROM users returns only tenant B's data.
+    todo!("requires live PostgreSQL with schema isolation");
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — set FRAISEQL_PLATFORM_E2E=1"]
+async fn test_schema_isolation_delete_drops_schema() {
+    // After DELETE /api/v1/admin/tenants/a, pg_namespace no longer
+    // contains tenant_a.
+    todo!("requires live PostgreSQL with schema DDL");
 }
