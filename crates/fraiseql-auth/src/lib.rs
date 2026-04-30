@@ -6,6 +6,8 @@
 #![allow(clippy::needless_pass_by_value)] // Reason: axum extractors require owned types
 #![allow(clippy::doc_markdown)] // Reason: technical terms (OAuth2, PKCE, OIDC, HMAC) throughout docs
 
+pub mod account_linking;
+pub mod anonymous;
 pub mod audit;
 pub mod constant_time;
 pub mod error;
@@ -15,9 +17,12 @@ pub mod jwks;
 pub mod jwt;
 pub mod middleware;
 pub mod monitoring;
+pub mod multi_provider;
 pub mod oauth;
 pub mod oidc_provider;
+pub mod otp;
 pub mod oidc_server_client;
+pub mod phone_otp;
 pub mod operation_rbac;
 pub mod pkce;
 pub mod provider;
@@ -30,6 +35,7 @@ pub mod session;
 pub mod session_postgres;
 pub mod state_encryption;
 pub mod state_store;
+pub mod totp_mfa;
 
 #[cfg(test)]
 mod security_tests;
@@ -49,10 +55,15 @@ mod rate_limiting_tests;
 #[cfg(test)]
 mod integration_security_tests;
 
+#[cfg(test)]
+mod advanced_auth_integration_tests;
+
 pub use audit::logger::{
     AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
     get_audit_logger, init_audit_logger,
 };
+pub use account_linking::{InMemoryUserStore, LinkedIdentity, LocalUser, UserStore};
+pub use anonymous::{AnonAuthState, SignupRequest, SignupResponse, signup_anonymous};
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 pub use error_sanitizer::{
@@ -65,6 +76,10 @@ pub use handlers::{
 pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
+pub use multi_provider::{
+    AuthTokenResponse, AuthorizeQuery, CallbackQuery, MultiProviderAuthState, ProvidersResponse,
+    authorize, callback, list_providers,
+};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oauth::{
     AuthorizationRequest, ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client,
@@ -75,6 +90,14 @@ pub use oauth::{
 pub use oidc_provider::OidcProvider;
 pub use oidc_server_client::{OidcEndpoints, OidcServerClient, OidcTokenResponse};
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
+pub use otp::{
+    EmailSender, InMemoryEmailSender, InMemoryOtpStore, OtpAuthState, OtpRequest, OtpResponse,
+    OtpStore, VerifyRequest, VerifyResponse, generate_otp_code, send_otp, verify_otp,
+};
+pub use phone_otp::{
+    InMemorySmsSender, SmsOtpAuthState, SmsOtpRequest, SmsOtpResponse, SmsSender,
+    SmsVerifyRequest, SmsVerifyResponse, normalize_e164, send_sms_otp, verify_sms_otp,
+};
 pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};

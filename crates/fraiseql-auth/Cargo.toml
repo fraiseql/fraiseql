@@ -17,6 +17,7 @@ redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"], 
 reqwest = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
+sha1 = "0.10"
 sha2 = "0.10"
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
 subtle = "2.5"
