@@ -240,15 +240,16 @@ pub fn metadata_extended_type(
         enabled: true,
         version: "v2".to_string(),
         types:   vec![FederatedType {
-            name:             type_name.to_string(),
-            keys:             vec![KeyDirective {
+            name:                type_name.to_string(),
+            keys:                vec![KeyDirective {
                 fields:     vec![key_field.to_string()],
                 resolvable: true,
             }],
-            is_extends:       true,
-            external_fields:  external_fields.iter().map(|s| (*s).to_string()).collect(),
-            shareable_fields: shareable_fields.iter().map(|s| (*s).to_string()).collect(),
-            field_directives: std::collections::HashMap::new(),
+            is_extends:          true,
+            external_fields:     external_fields.iter().map(|s| (*s).to_string()).collect(),
+            shareable_fields:    shareable_fields.iter().map(|s| (*s).to_string()).collect(),
+            inaccessible_fields: vec![],
+            field_directives:    std::collections::HashMap::new(),
         }],
     }
 }

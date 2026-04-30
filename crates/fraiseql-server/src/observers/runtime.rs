@@ -452,12 +452,16 @@ impl ObserverRuntime {
                                             // Forward processed event to EventBridge for
                                             // GraphQL subscription delivery.
                                             if let Some(ref sender) = bridge_sender {
-                                                let bridge_event = BridgeEntityEvent::new(
+                                                let mut bridge_event = BridgeEntityEvent::new(
                                                     &event.entity_type,
                                                     event.entity_id.to_string(),
                                                     event.event_type.as_str(),
                                                     event.data.clone(),
                                                 );
+                                                // Propagate tenant_id for multi-tenant filtering
+                                                if let Some(ref tid) = event.tenant_id {
+                                                    bridge_event = bridge_event.with_tenant_id(tid);
+                                                }
                                                 if let Err(e) = sender.try_send(bridge_event) {
                                                     warn!("Failed to forward event {} to EventBridge: {}", event.id, e);
                                                 }

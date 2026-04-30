@@ -74,6 +74,9 @@ pub struct EntityEvent {
 
     /// Optional old data (for UPDATE operations)
     pub old_data: Option<serde_json::Value>,
+
+    /// Tenant identifier for multi-tenant filtering (`fk_customer_org`).
+    pub tenant_id: Option<String>,
 }
 
 impl EntityEvent {
@@ -91,6 +94,7 @@ impl EntityEvent {
             operation: operation.into(),
             data,
             old_data: None,
+            tenant_id: None,
         }
     }
 
@@ -98,6 +102,13 @@ impl EntityEvent {
     #[must_use]
     pub fn with_old_data(mut self, old_data: serde_json::Value) -> Self {
         self.old_data = Some(old_data);
+        self
+    }
+
+    /// Set tenant identifier for multi-tenant filtering.
+    #[must_use]
+    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
+        self.tenant_id = Some(tenant_id.into());
         self
     }
 }
@@ -157,6 +168,11 @@ impl EventBridge {
         // Add old data if present
         if let Some(old_data) = entity_event.old_data {
             event = event.with_old_data(old_data);
+        }
+
+        // Propagate tenant_id for multi-tenant filtering
+        if let Some(tenant_id) = entity_event.tenant_id {
+            event = event.with_tenant_id(tenant_id);
         }
 
         event

@@ -187,13 +187,15 @@ fn test_python_requires_directive() {
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives {
-            requires:  vec![FieldPathSelection {
+            requires:      vec![FieldPathSelection {
                 path:     vec!["weight".to_string()],
                 typename: "Order".to_string(),
             }],
-            provides:  vec![],
-            external:  false,
-            shareable: false,
+            provides:      vec![],
+            external:      false,
+            shareable:     false,
+            inaccessible:  false,
+            override_from: None,
         },
     );
 

@@ -226,6 +226,13 @@ impl ChangeLogEntry {
         // Use fk_contact as user_id if available
         let user_id = self.fk_contact.clone();
 
+        // Propagate fk_customer_org as tenant_id for multi-tenant filtering
+        let tenant_id = if self.fk_customer_org.is_empty() {
+            None
+        } else {
+            Some(self.fk_customer_org.clone())
+        };
+
         Ok(EntityEvent {
             id: Uuid::parse_str(&self.pk_entity_change_log).unwrap_or_else(|_| Uuid::new_v4()),
             event_type: event_kind,
@@ -234,7 +241,7 @@ impl ChangeLogEntry {
             data,
             changes,
             user_id,
-            tenant_id: None,
+            tenant_id,
             timestamp,
         })
     }

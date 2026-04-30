@@ -92,6 +92,10 @@ pub struct SubscriptionEvent {
     /// Optional old data (for UPDATE operations).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub old_data: Option<serde_json::Value>,
+
+    /// Tenant identifier for multi-tenant isolation (from `fk_customer_org`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<String>,
 }
 
 impl SubscriptionEvent {
@@ -112,6 +116,7 @@ impl SubscriptionEvent {
             sequence_number: 0, // Set by manager
             data,
             old_data: None,
+            tenant_id: None,
         }
     }
 
@@ -126,6 +131,13 @@ impl SubscriptionEvent {
     #[must_use]
     pub const fn with_sequence(mut self, seq: u64) -> Self {
         self.sequence_number = seq;
+        self
+    }
+
+    /// Set the tenant identifier for multi-tenant filtering.
+    #[must_use]
+    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
+        self.tenant_id = Some(tenant_id.into());
         self
     }
 }
@@ -160,6 +172,12 @@ pub struct ActiveSubscription {
     /// when **every** condition matches the event data (AND semantics).
     /// An empty list means no RLS filtering (admin or no RLS policy).
     pub rls_conditions: Vec<(String, serde_json::Value)>,
+
+    /// Tenant identifier for multi-tenant isolation.
+    ///
+    /// When set, only events with a matching `tenant_id` are delivered.
+    /// Extracted from the subscriber's JWT `fk_customer_org` claim at subscribe time.
+    pub tenant_id: Option<String>,
 }
 
 impl ActiveSubscription {
@@ -189,6 +207,7 @@ impl ActiveSubscription {
             created_at: chrono::Utc::now(),
             connection_id: connection_id.into(),
             rls_conditions: Vec::new(),
+            tenant_id: None,
         }
     }
 

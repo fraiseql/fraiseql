@@ -476,10 +476,12 @@ fn test_typescript_shareable_directive() {
     user_type.set_field_directives(
         "id".to_string(),
         FieldFederationDirectives {
-            requires:  vec![],
-            provides:  vec![],
-            external:  false,
-            shareable: true,
+            requires:      vec![],
+            provides:      vec![],
+            external:      false,
+            shareable:     true,
+            inaccessible:  false,
+            override_from: None,
         },
     );
 

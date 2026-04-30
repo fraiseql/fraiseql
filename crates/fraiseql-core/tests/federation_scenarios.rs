@@ -488,15 +488,16 @@ fn test_shareable_field_resolution() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![FederatedType {
-            name:             "Product".to_string(),
-            keys:             vec![KeyDirective {
+            name:                "Product".to_string(),
+            keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
-            shareable_fields: vec!["price".to_string(), "name".to_string()],
-            field_directives: std::collections::HashMap::new(),
+            is_extends:          false,
+            external_fields:     vec![],
+            shareable_fields:    vec!["price".to_string(), "name".to_string()],
+            inaccessible_fields: vec![],
+            field_directives:    std::collections::HashMap::new(),
         }],
     };
 

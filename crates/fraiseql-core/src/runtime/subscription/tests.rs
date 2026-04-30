@@ -247,6 +247,7 @@ fn test_webhook_payload_from_event() {
         old_data:        None,
         timestamp:       chrono::Utc::now(),
         sequence_number: 42,
+        tenant_id:       None,
     };
 
     let payload = WebhookPayload::from_event(&event, "order_created");
@@ -319,6 +320,7 @@ fn test_kafka_message_from_event() {
         old_data:        Some(serde_json::json!({"id": "usr_123", "name": "Jane"})),
         timestamp:       chrono::Utc::now(),
         sequence_number: 100,
+        tenant_id:       None,
     };
 
     let message = KafkaMessage::from_event(&event, "user_updated");
@@ -344,6 +346,7 @@ fn test_kafka_message_key() {
         old_data:        None,
         timestamp:       chrono::Utc::now(),
         sequence_number: 1,
+        tenant_id:       None,
     };
 
     let message = KafkaMessage::from_event(&event, "test_sub");
