@@ -14,11 +14,11 @@ use tower_http::compression::{CompressionLayer, predicate::SizeAbove};
 use tracing::{info, warn};
 
 use super::{
-    AppState, BearerAuthState, OidcAuthState, PlaygroundState, Server, SubscriptionState, api,
-    bearer_auth_middleware, cors_layer_restricted, graphql_get_handler, graphql_handler,
-    health_handler, introspection_handler, metrics_handler, metrics_json_handler,
-    metrics_middleware, oidc_auth_middleware, playground_handler, readiness_handler,
-    require_json_content_type, subscription_handler, trace_layer,
+    AppState, BearerAuthState, BroadcastState, OidcAuthState, PlaygroundState, Server,
+    SubscriptionState, api, bearer_auth_middleware, broadcast_handler, cors_layer_restricted,
+    graphql_get_handler, graphql_handler, health_handler, introspection_handler, metrics_handler,
+    metrics_json_handler, metrics_middleware, oidc_auth_middleware, playground_handler,
+    readiness_handler, require_json_content_type, subscription_handler, trace_layer,
 };
 #[cfg(feature = "auth")]
 use super::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
@@ -307,6 +307,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .route(&self.config.subscription_path, get(subscription_handler))
                 .with_state(subscription_state);
             app = app.merge(subscription_router);
+        }
+
+        // Conditionally add broadcast endpoint
+        if let Some(ref broadcast_manager) = self.broadcast_manager {
+            let broadcast_state = BroadcastState::new(broadcast_manager.clone());
+            info!("Broadcast endpoint enabled at /realtime/v1/broadcast");
+            let broadcast_router = Router::new()
+                .route("/realtime/v1/broadcast", post(broadcast_handler))
+                .with_state(broadcast_state);
+            app = app.merge(broadcast_router);
         }
 
         // Conditionally add introspection endpoint (with optional auth)

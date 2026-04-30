@@ -24,9 +24,10 @@ use crate::{
         metrics_middleware, oidc_auth_middleware, require_json_content_type, trace_layer,
     },
     routes::{
-        PlaygroundState, SubscriptionState, api, graphql::AppState, graphql_get_handler,
-        graphql_handler, health_handler, introspection_handler, metrics_handler,
-        metrics_json_handler, playground_handler, readiness_handler, subscription_handler,
+        BroadcastState, PlaygroundState, SubscriptionState, api, broadcast_handler,
+        graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
+        introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
+        readiness_handler, subscription_handler,
     },
     server_config::ServerConfig,
     tls::TlsSetup,
@@ -110,4 +111,7 @@ pub struct Server<A: DatabaseAdapter> {
     /// Set to `true` when `ServerConfig::cache_enabled = true` and the server was built
     /// with `Server::new` or `Server::with_relay_pagination`.
     pub(super) adapter_cache_enabled: bool,
+
+    /// Broadcast channel manager for ephemeral realtime pub/sub.
+    pub(super) broadcast_manager: Option<Arc<crate::subscriptions::BroadcastManager>>,
 }
