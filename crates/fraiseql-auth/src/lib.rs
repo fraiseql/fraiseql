@@ -15,6 +15,7 @@ pub mod jwks;
 pub mod jwt;
 pub mod middleware;
 pub mod monitoring;
+pub mod multi_provider;
 pub mod oauth;
 pub mod oidc_provider;
 pub mod oidc_server_client;
@@ -65,6 +66,10 @@ pub use handlers::{
 pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
+pub use multi_provider::{
+    AuthTokenResponse, AuthorizeQuery, CallbackQuery, MultiProviderAuthState, ProvidersResponse,
+    authorize, callback, list_providers,
+};
 pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oauth::{
     AuthorizationRequest, ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client,
