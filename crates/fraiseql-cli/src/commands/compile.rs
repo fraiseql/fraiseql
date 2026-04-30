@@ -179,7 +179,13 @@ pub async fn compile_to_schema(
 
                 info!("Applying security configuration to schema...");
                 // Merge security config into intermediate schema
-                let security_json = config.fraiseql.security.to_json();
+                let mut security_json = config.fraiseql.security.to_json();
+
+                // Embed tenancy configuration into the security section
+                if !matches!(config.fraiseql.tenancy.mode, crate::config::security::TenancyModeConfig::None) {
+                    security_json["tenancy"] = config.fraiseql.tenancy.to_json();
+                }
+
                 intermediate.security = Some(security_json);
 
                 info!("Security configuration applied successfully");

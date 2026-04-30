@@ -16,7 +16,8 @@ use crate::{
     runtime::{JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig},
     schema::{
         AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldDenyPolicy, FieldType,
-        InjectedParamSource, QueryDefinition, RoleDefinition, SecurityConfig, TypeDefinition,
+        InjectedParamSource, QueryDefinition, RoleDefinition, SecurityConfig, TenancyConfig,
+        TypeDefinition,
     },
     security::{DefaultRLSPolicy, SecurityContext},
 };
@@ -2200,6 +2201,7 @@ mod field_rbac {
             ],
             default_role:     None,
             multi_tenant:     false,
+            tenancy:          TenancyConfig::default(),
             additional:       HashMap::default(),
         });
 

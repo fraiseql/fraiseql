@@ -86,7 +86,9 @@ pub use introspection::{
 };
 pub use observer_types::{ObserverDefinition, RetryConfig};
 pub use scalar_types::{BUILTIN_SCALARS, RICH_SCALARS, is_known_scalar};
-pub use security_config::{InjectedParamSource, RoleDefinition, SecurityConfig};
+pub use security_config::{
+    InjectedParamSource, RoleDefinition, SecurityConfig, TenancyConfig, TenancyMode,
+};
 pub use subscription_types::{
     FilterOperator, StaticFilterCondition, SubscriptionDefinition, SubscriptionFilter,
 };
