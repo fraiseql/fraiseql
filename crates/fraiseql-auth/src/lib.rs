@@ -19,6 +19,7 @@ pub mod monitoring;
 pub mod multi_provider;
 pub mod oauth;
 pub mod oidc_provider;
+pub mod otp;
 pub mod oidc_server_client;
 pub mod operation_rbac;
 pub mod pkce;
@@ -82,6 +83,10 @@ pub use oauth::{
 pub use oidc_provider::OidcProvider;
 pub use oidc_server_client::{OidcEndpoints, OidcServerClient, OidcTokenResponse};
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
+pub use otp::{
+    EmailSender, InMemoryEmailSender, InMemoryOtpStore, OtpAuthState, OtpRequest, OtpResponse,
+    OtpStore, VerifyRequest, VerifyResponse, generate_otp_code, send_otp, verify_otp,
+};
 pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AzureADOAuth, GitHubOAuth, GoogleOAuth, KeycloakOAuth, create_provider};
