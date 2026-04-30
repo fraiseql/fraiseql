@@ -1,0 +1,73 @@
+[package]
+name = "fraiseql-storage"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+description = "Object storage backends and HTTP handlers for FraiseQL"
+
+[dependencies]
+fraiseql-error.workspace = true
+
+axum.workspace = true
+async-trait.workspace = true
+base64 = { workspace = true, optional = true }
+bytes.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+hex.workspace = true
+hmac = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha2.workspace = true
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "rt"] }
+tracing.workspace = true
+walkdir = "2"
+
+# Storage backends (feature-gated)
+aws-sdk-s3 = { version = "1", optional = true }
+aws-config = { version = "1", optional = true }
+
+# Image transforms (feature-gated)
+image = { version = "0.25", optional = true }
+kamadak-exif = { version = "0.5", optional = true }
+
+urlencoding = { version = "2.1", optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tower = { workspace = true, features = ["util"] }
+testcontainers = { version = "0.27", features = ["watchdog"] }
+testcontainers-modules = { version = "0.15", features = ["postgres"] }
+uuid.workspace = true
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "storage_bench"
+harness = false
+
+[features]
+default = ["postgres"]
+postgres = []
+mysql = []
+sqlite = []
+sqlserver = []
+aws-s3 = ["aws-sdk-s3", "aws-config"]
+transforms = ["image", "kamadak-exif"]
+gcs = ["jsonwebtoken", "parking_lot", "reqwest", "urlencoding"]
+azure-blob = ["base64", "hmac", "reqwest"]
+
+[lints]
+workspace = true

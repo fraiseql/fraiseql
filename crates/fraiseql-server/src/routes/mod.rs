@@ -9,6 +9,7 @@ pub mod introspection;
 pub mod metrics;
 pub mod playground;
 pub mod realtime;
+pub mod storage;
 pub mod subscriptions;
 pub mod well_known;
 
