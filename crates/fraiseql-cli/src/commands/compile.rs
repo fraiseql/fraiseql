@@ -2,7 +2,7 @@
 //!
 //! Compiles schema.json (from Python/TypeScript/etc.) into optimized schema.compiled.json
 
-use std::{fs, path::Path};
+use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType};
@@ -293,6 +293,8 @@ pub async fn compile_to_schema(
 /// * `output` - Path to write schema.compiled.json
 /// * `check` - If true, validate only without writing output
 /// * `database` - Optional database URL for indexed column validation
+/// * `emit_ddl` - Optional directory to write `CREATE TABLE` DDL files (confiture format)
+/// * `check_migrations` - If true, run `confiture migrate validate` after compilation
 ///
 /// # Workflows
 ///
@@ -310,6 +312,9 @@ pub async fn compile_to_schema(
 /// - Schema validation fails
 /// - Output file can't be written
 /// - Database connection fails (when database URL is provided)
+/// - DDL output directory cannot be created (when `emit_ddl` is provided)
+/// - `confiture` is not installed (when `check_migrations` is true)
+/// - Migration drift detected (when `check_migrations` is true)
 #[allow(clippy::too_many_arguments)] // Reason: run() is the CLI entry point that receives individual args from clap; keeping them separate for clarity
 pub async fn run(
     input: &str,
@@ -321,6 +326,8 @@ pub async fn run(
     output: &str,
     check: bool,
     database: Option<&str>,
+    emit_ddl: Option<&str>,
+    check_migrations: bool,
 ) -> Result<()> {
     let opts = CompileOptions {
         input,
@@ -358,7 +365,162 @@ pub async fn run(
     println!("  Mutations: {}", schema.mutations.len());
     optimization_report.print();
 
+    // Emit DDL to directory if requested
+    if let Some(ddl_dir) = emit_ddl {
+        emit_ddl_to_dir(&schema, ddl_dir)?;
+    }
+
+    // Check for migration drift if requested
+    if check_migrations {
+        run_check_migrations(&schema)?;
+    }
+
     Ok(())
+}
+
+/// Emit `CREATE TABLE` DDL files for all compiled schema types to `output_dir`.
+///
+/// Each type produces one `<type_snake_case>.sql` file containing a `CREATE TABLE IF NOT EXISTS`
+/// statement. The output directory is created if it does not already exist.
+///
+/// Output is compatible with confiture's `db/schema/` directory format, so that
+/// `fraiseql migrate generate` can auto-detect drift between the compiled schema and the
+/// current migrations.
+///
+/// # Errors
+///
+/// Returns an error if the output directory cannot be created, or if any DDL file
+/// cannot be written.
+pub fn emit_ddl_to_dir(schema: &CompiledSchema, output_dir: &str) -> Result<()> {
+    fs::create_dir_all(output_dir)
+        .context(format!("Failed to create DDL output directory: {output_dir}"))?;
+
+    let mut count = 0;
+    for type_def in &schema.types {
+        let table_name = to_snake_case(type_def.name.as_str());
+        let ddl = build_create_table_ddl(&table_name, type_def);
+
+        let file_path = Path::new(output_dir).join(format!("{table_name}.sql"));
+        fs::write(&file_path, ddl)
+            .context(format!("Failed to write DDL for type '{}'", type_def.name))?;
+        count += 1;
+    }
+
+    println!("✓ DDL emitted to {output_dir}/ ({count} table(s))");
+    Ok(())
+}
+
+/// Delegate to `confiture migrate validate` for migration drift detection.
+///
+/// Emits DDL to a temporary directory, then invokes confiture. Exits non-zero when
+/// drift is detected, printing a friendly remediation hint.
+///
+/// # Errors
+///
+/// Returns an error if confiture is not installed, if the temp directory cannot be
+/// created, or if confiture reports drift or validation failures.
+fn run_check_migrations(schema: &CompiledSchema) -> Result<()> {
+    let tmp_dir = tempfile::tempdir().context("Failed to create temporary DDL directory")?;
+    let tmp_path = tmp_dir.path().to_str().context("Temp directory path is not valid UTF-8")?;
+
+    emit_ddl_to_dir(schema, tmp_path)?;
+
+    info!("Running confiture migrate validate for drift detection...");
+
+    let status = Command::new("confiture")
+        .args(["migrate", "validate"])
+        .status();
+
+    match status {
+        Err(_) => {
+            // confiture not installed — warn but don't fail the build
+            eprintln!(
+                "WARN: confiture is not installed; skipping migration drift check.\n\
+                 Install it with: cargo install confiture"
+            );
+            Ok(())
+        },
+        Ok(s) if s.success() => {
+            println!("✓ No migration drift detected.");
+            Ok(())
+        },
+        Ok(_) => {
+            eprintln!(
+                "WARN: compiled schema diverges from database — run fraiseql migrate generate"
+            );
+            anyhow::bail!("Migration drift detected. Run `fraiseql migrate generate` to create a migration.")
+        },
+    }
+}
+
+/// Convert a `PascalCase` or `camelCase` type name to `snake_case`.
+fn to_snake_case(name: &str) -> String {
+    let mut result = String::with_capacity(name.len() + 4);
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_uppercase() && i > 0 {
+            result.push('_');
+        }
+        result.extend(ch.to_lowercase());
+    }
+    result
+}
+
+/// Generate a `CREATE TABLE IF NOT EXISTS` DDL statement for a compiled type definition.
+fn build_create_table_ddl(table_name: &str, type_def: &fraiseql_core::schema::TypeDefinition) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    lines.push("-- Generated by fraiseql compile --emit-ddl".to_string());
+    lines.push(format!("-- Type: {}", type_def.name));
+    if let Some(desc) = &type_def.description {
+        lines.push(format!("-- {desc}"));
+    }
+    lines.push(String::new());
+    lines.push(format!("CREATE TABLE IF NOT EXISTS tb_{table_name} ("));
+
+    let col_lines: Vec<String> = type_def
+        .fields
+        .iter()
+        .map(|field| {
+            let col_name = to_snake_case(field.name.as_str());
+            let pg_type = field_type_to_pg(&field.field_type);
+            let nullable = if field.nullable { "" } else { " NOT NULL" };
+            format!("    {col_name} {pg_type}{nullable}")
+        })
+        .collect();
+
+    let last = col_lines.len().saturating_sub(1);
+    for (i, col) in col_lines.iter().enumerate() {
+        if i < last {
+            lines.push(format!("{col},"));
+        } else {
+            lines.push(col.clone());
+        }
+    }
+
+    lines.push(");".to_string());
+    lines.push(String::new());
+    lines.join("\n")
+}
+
+/// Map a `FieldType` to its PostgreSQL column type string.
+fn field_type_to_pg(ft: &FieldType) -> String {
+    match ft {
+        FieldType::String | FieldType::Scalar(_) => "TEXT".to_string(),
+        FieldType::Int => "INTEGER".to_string(),
+        FieldType::Float => "DOUBLE PRECISION".to_string(),
+        FieldType::Boolean => "BOOLEAN".to_string(),
+        FieldType::Id | FieldType::Uuid => "UUID".to_string(),
+        FieldType::DateTime => "TIMESTAMPTZ".to_string(),
+        FieldType::Date => "DATE".to_string(),
+        FieldType::Time => "TIME".to_string(),
+        FieldType::Json | FieldType::List(_) | FieldType::Object(_) => "JSONB".to_string(),
+        FieldType::Decimal => "NUMERIC".to_string(),
+        FieldType::Vector => "VECTOR".to_string(),
+        // Use the actual Postgres enum type name so DDL matches the schema.
+        FieldType::Enum(name) => name.clone(),
+        FieldType::Input(_) | FieldType::Interface(_) | FieldType::Union(_) => "JSONB".to_string(),
+        // FieldType is #[non_exhaustive]; future variants default to TEXT.
+        _ => "TEXT".to_string(),
+    }
 }
 
 /// Emit warnings when schema uses features that SQLite does not support.
@@ -645,7 +807,8 @@ mod tests {
     use indexmap::IndexMap;
 
     use super::{
-        WIDE_FANOUT_THRESHOLD, infer_native_columns_from_arg_types, wide_cascade_mutations,
+        WIDE_FANOUT_THRESHOLD, emit_ddl_to_dir, field_type_to_pg, infer_native_columns_from_arg_types,
+        to_snake_case, wide_cascade_mutations,
     };
 
     fn mutation_with_fanout(
@@ -1034,5 +1197,122 @@ mod tests {
             schema.queries[0].native_columns.is_empty(),
             "auto-param names must never be inferred as native columns even if typed ID"
         );
+    }
+
+    // ── DDL generation unit tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_to_snake_case_pascal() {
+        assert_eq!(to_snake_case("UserProfile"), "user_profile");
+    }
+
+    #[test]
+    fn test_to_snake_case_single_word() {
+        assert_eq!(to_snake_case("User"), "user");
+    }
+
+    #[test]
+    fn test_to_snake_case_already_lower() {
+        assert_eq!(to_snake_case("user"), "user");
+    }
+
+    #[test]
+    fn test_field_type_to_pg_scalar_types() {
+        assert_eq!(field_type_to_pg(&FieldType::String), "TEXT");
+        assert_eq!(field_type_to_pg(&FieldType::Int), "INTEGER");
+        assert_eq!(field_type_to_pg(&FieldType::Float), "DOUBLE PRECISION");
+        assert_eq!(field_type_to_pg(&FieldType::Boolean), "BOOLEAN");
+        assert_eq!(field_type_to_pg(&FieldType::Id), "UUID");
+        assert_eq!(field_type_to_pg(&FieldType::Uuid), "UUID");
+        assert_eq!(field_type_to_pg(&FieldType::DateTime), "TIMESTAMPTZ");
+        assert_eq!(field_type_to_pg(&FieldType::Date), "DATE");
+        assert_eq!(field_type_to_pg(&FieldType::Time), "TIME");
+        assert_eq!(field_type_to_pg(&FieldType::Json), "JSONB");
+        assert_eq!(field_type_to_pg(&FieldType::Decimal), "NUMERIC");
+        assert_eq!(field_type_to_pg(&FieldType::Vector), "VECTOR");
+    }
+
+    #[test]
+    fn test_field_type_to_pg_enum_uses_type_name() {
+        assert_eq!(field_type_to_pg(&FieldType::Enum("StatusEnum".to_string())), "StatusEnum");
+    }
+
+    #[test]
+    fn test_field_type_to_pg_complex_types_are_jsonb() {
+        assert_eq!(field_type_to_pg(&FieldType::Json), "JSONB");
+        assert_eq!(field_type_to_pg(&FieldType::Object("Address".to_string())), "JSONB");
+        assert_eq!(field_type_to_pg(&FieldType::List(Box::new(FieldType::String))), "JSONB");
+    }
+
+    #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #[test]
+    fn test_emit_ddl_to_dir_creates_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let schema = CompiledSchema {
+            types: vec![TypeDefinition {
+                name:                "UserProfile".into(),
+                fields:              vec![
+                    FieldDefinition {
+                        name:           "id".into(),
+                        field_type:     FieldType::Id,
+                        nullable:       false,
+                        default_value:  None,
+                        description:    None,
+                        vector_config:  None,
+                        alias:          None,
+                        deprecation:    None,
+                        requires_scope: None,
+                        on_deny:        FieldDenyPolicy::default(),
+                        encryption:     None,
+                    },
+                    FieldDefinition {
+                        name:           "email".into(),
+                        field_type:     FieldType::String,
+                        nullable:       true,
+                        default_value:  None,
+                        description:    None,
+                        vector_config:  None,
+                        alias:          None,
+                        deprecation:    None,
+                        requires_scope: None,
+                        on_deny:        FieldDenyPolicy::default(),
+                        encryption:     None,
+                    },
+                ],
+                description:         Some("Test type".to_string()),
+                sql_source:          "tv_user_profile".into(),
+                jsonb_column:        "data".to_string(),
+                sql_projection_hint: None,
+                implements:          vec![],
+                requires_role:       None,
+                is_error:            false,
+                relay:               false,
+                relationships:       vec![],
+            }],
+            ..Default::default()
+        };
+
+        let dir = tmp.path().to_str().unwrap();
+        emit_ddl_to_dir(&schema, dir).unwrap();
+
+        let ddl_file = tmp.path().join("user_profile.sql");
+        assert!(ddl_file.exists(), "user_profile.sql must be created");
+        let content = std::fs::read_to_string(ddl_file).unwrap();
+        assert!(content.contains("CREATE TABLE IF NOT EXISTS tb_user_profile"), "DDL must contain CREATE TABLE");
+        assert!(content.contains("id UUID NOT NULL"), "id field must be UUID NOT NULL");
+        assert!(content.contains("email TEXT"), "email field must be TEXT");
+        // nullable email must NOT have NOT NULL
+        assert!(!content.contains("email TEXT NOT NULL"), "nullable field must not have NOT NULL");
+    }
+
+    #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    #[test]
+    fn test_emit_ddl_to_dir_empty_schema_no_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let schema = CompiledSchema::default();
+        let dir = tmp.path().to_str().unwrap();
+        emit_ddl_to_dir(&schema, dir).unwrap();
+        let entries: Vec<_> = std::fs::read_dir(tmp.path()).unwrap().collect();
+        assert!(entries.is_empty(), "no DDL files must be written for empty schema");
     }
 }

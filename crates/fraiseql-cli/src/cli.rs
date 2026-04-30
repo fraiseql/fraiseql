@@ -93,6 +93,22 @@ EXAMPLES:
         /// When provided, validates that indexed columns exist in database views
         #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
+
+        /// Emit DDL files for all schema types to the given directory
+        ///
+        /// Writes `CREATE TABLE` DDL for each compiled type to `<DIR>/<type>.sql`.
+        /// Output is compatible with confiture's `db/schema/` directory format,
+        /// enabling `fraiseql migrate generate` to auto-detect schema drift.
+        #[arg(long, value_name = "DIR")]
+        emit_ddl: Option<String>,
+
+        /// Check compiled schema against the database for migration drift
+        ///
+        /// Emits DDL to a temporary directory, then delegates to
+        /// `confiture migrate validate` for drift detection.
+        /// Exits non-zero when the compiled schema diverges from the database.
+        #[arg(long)]
+        check_migrations: bool,
     },
 
     /// Extract schema from annotated source files
@@ -620,6 +636,40 @@ pub(crate) enum MigrateCommands {
         #[arg(value_name = "NAME")]
         name: String,
 
+        /// Migration directory
+        #[arg(long, value_name = "DIR")]
+        dir: Option<String>,
+    },
+
+    /// Generate a new migration from schema diff
+    ///
+    /// Delegates to `confiture migrate generate`.
+    /// Creates a timestamped migration file.
+    Generate {
+        /// Migration name
+        #[arg(value_name = "NAME")]
+        name: String,
+
+        /// Migration directory
+        #[arg(long, value_name = "DIR")]
+        dir: Option<String>,
+    },
+
+    /// Validate migration files for naming, idempotency, and drift
+    ///
+    /// Delegates to `confiture migrate validate`.
+    /// Checks naming conventions, idempotency, and schema drift.
+    Validate {
+        /// Migration directory
+        #[arg(long, value_name = "DIR")]
+        dir: Option<String>,
+    },
+
+    /// Pre-deploy safety check on pending migrations
+    ///
+    /// Delegates to `confiture migrate preflight`.
+    /// Verifies reversibility, detects non-transactional statements, checks checksums.
+    Preflight {
         /// Migration directory
         #[arg(long, value_name = "DIR")]
         dir: Option<String>,
