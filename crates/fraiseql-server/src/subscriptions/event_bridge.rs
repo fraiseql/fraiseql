@@ -145,7 +145,7 @@ impl EventBridge {
     }
 
     /// Convert `EntityEvent` to `SubscriptionEvent`
-    fn convert_event(entity_event: EntityEvent) -> SubscriptionEvent {
+    pub fn convert_event(entity_event: EntityEvent) -> SubscriptionEvent {
         // Convert operation string to SubscriptionOperation
         let operation = match entity_event.operation.to_uppercase().as_str() {
             "INSERT" => SubscriptionOperation::Create,
