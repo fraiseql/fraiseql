@@ -54,6 +54,7 @@ pub mod logging;
 pub mod metadata_helpers;
 pub mod mutation_detector;
 pub mod mutation_executor;
+pub mod observability;
 pub mod mutation_http_client;
 pub mod mutation_query_builder;
 pub mod query_builder;
@@ -87,6 +88,7 @@ pub use logging::{
 };
 pub use mutation_detector::*;
 pub use mutation_executor::*;
+pub use observability::{EntityResolutionMetrics, SubgraphLatencyEntry, SubgraphLatencyTracker};
 pub use mutation_http_client::*;
 pub use mutation_query_builder::*;
 pub use query_builder::*;
