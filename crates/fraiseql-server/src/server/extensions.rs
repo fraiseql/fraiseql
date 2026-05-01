@@ -347,6 +347,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             adapter_cache_enabled: false,
             broadcast_manager: None,
             presence_manager: None,
+            storage_backend: None,
+            #[cfg(feature = "functions")]
+            function_store: None,
+            #[cfg(feature = "functions")]
+            function_runtime: None,
         })
     }
 

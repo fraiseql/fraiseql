@@ -3,13 +3,17 @@
 pub mod api;
 #[cfg(feature = "auth")]
 pub mod auth;
+#[cfg(feature = "functions")]
+pub mod functions;
 pub mod graphql;
 pub mod health;
 pub mod introspection;
 pub mod metrics;
 pub mod playground;
 pub mod realtime;
+pub mod storage;
 pub mod subscriptions;
+pub mod studio;
 pub mod well_known;
 
 #[cfg(feature = "grpc")]

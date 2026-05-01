@@ -1,0 +1,18 @@
+[package]
+name = "fraiseql-guest-transform"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.21"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

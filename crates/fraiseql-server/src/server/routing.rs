@@ -264,6 +264,134 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_state(state.clone())
             .merge(graphql_router);
 
+        // Studio admin dashboard — always mounted at /studio (SPA shell, no auth)
+        {
+            use crate::routes::studio::{studio_asset_handler, studio_handler};
+            let studio_router = Router::new()
+                .route("/studio", get(studio_handler))
+                .route("/studio/assets/{file}", get(studio_asset_handler))
+                .route("/studio/{*path}", get(studio_handler));
+            info!("Studio admin dashboard mounted at /studio");
+            app = app.merge(studio_router);
+        }
+
+        // Studio admin API — /admin/v1/* (protected by admin bearer token when configured)
+        if self.config.admin_api_enabled {
+            if let Some(ref token) = self.config.admin_token {
+                use crate::routes::studio::{
+                    admin::{
+                        health_handler as studio_health_handler,
+                        schema_handler as studio_schema_handler,
+                    },
+                    auth_users::{
+                        invite_user_handler, list_users_handler, mfa_status_handler,
+                        revoke_user_handler,
+                    },
+                    data::{
+                        mutate_handler as data_mutate_handler,
+                        query_handler as data_query_handler,
+                    },
+                    function_ops::{
+                        delete_secret_handler, function_logs_handler, invoke_function_handler,
+                        list_functions_handler, list_secrets_handler, set_secret_handler,
+                    },
+                    metrics_summary::summary_handler as metrics_summary_handler,
+                    realtime_monitor::{
+                        broadcast_channels_handler, cdc_lag_handler, presence_rooms_handler,
+                        stats_handler as realtime_stats_handler,
+                    },
+                    storage_browser::{
+                        delete_object_handler, list_buckets_handler, list_objects_handler,
+                        presign_handler,
+                    },
+                };
+                let auth = BearerAuthState::new(token.clone());
+                let studio_admin_router = Router::new()
+                    // Schema + health (Cycle 2)
+                    .route("/admin/v1/schema", get(studio_schema_handler::<A>))
+                    .route("/admin/v1/health/detailed", get(studio_health_handler::<A>))
+                    // Data browser (Cycle 3)
+                    .route(
+                        "/admin/v1/data/{entity}/query",
+                        post(data_query_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/data/{entity}/mutate",
+                        post(data_mutate_handler::<A>),
+                    )
+                    // Auth user management (Cycle 4)
+                    .route("/admin/v1/users", get(list_users_handler::<A>))
+                    .route("/admin/v1/users/invite", post(invite_user_handler::<A>))
+                    .route(
+                        "/admin/v1/users/{id}/revoke",
+                        post(revoke_user_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/users/{id}/mfa",
+                        get(mfa_status_handler::<A>),
+                    )
+                    // Storage browser (Cycle 5)
+                    .route(
+                        "/admin/v1/storage/buckets",
+                        get(list_buckets_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/storage/objects",
+                        get(list_objects_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/storage/objects/sign",
+                        post(presign_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/storage/objects",
+                        axum::routing::delete(delete_object_handler::<A>),
+                    )
+                    // Realtime monitor (Cycle 6)
+                    .route(
+                        "/admin/v1/realtime/stats",
+                        get(realtime_stats_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/realtime/broadcast",
+                        get(broadcast_channels_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/realtime/presence",
+                        get(presence_rooms_handler::<A>),
+                    )
+                    .route("/admin/v1/realtime/cdc", get(cdc_lag_handler::<A>))
+                    // Function operations (Cycle 7)
+                    .route("/admin/v1/functions", get(list_functions_handler::<A>))
+                    .route(
+                        "/admin/v1/functions/{name}/invoke",
+                        post(invoke_function_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/functions/{name}/logs",
+                        get(function_logs_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/functions/{name}/secrets",
+                        get(list_secrets_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/functions/{name}/secrets/{key}",
+                        put(set_secret_handler::<A>)
+                            .delete(delete_secret_handler::<A>),
+                    )
+                    // Metrics summary (Cycle 8)
+                    .route(
+                        "/admin/v1/metrics/summary",
+                        get(metrics_summary_handler::<A>),
+                    )
+                    .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
+                    .with_state(state.clone());
+                info!("Studio admin API mounted at /admin/v1/* (bearer token required)");
+                app = app.merge(studio_admin_router);
+            }
+        }
+
         // Conditionally add playground route
         if self.config.playground_enabled {
             let playground_state =
@@ -723,6 +851,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "observers")]
         {
             app = self.add_observer_routes(app);
+        }
+
+        // Storage routes (/storage/v1/) — mounted when a backend is configured.
+        if let Some(ref backend) = self.storage_backend {
+            use crate::routes::storage::{StorageRouteState, storage_router};
+
+            let storage_state = StorageRouteState::new(backend.clone());
+            app = app.merge(storage_router(storage_state));
+            info!("Storage endpoints enabled: /storage/v1/object/{{*key}}");
+        }
+
+        // Edge-function routes (/functions/v1/) — mounted when store + runtime are configured.
+        #[cfg(feature = "functions")]
+        {
+            use crate::routes::functions::{FunctionsRouteState, functions_router};
+
+            if let (Some(ref store), Some(ref runtime)) =
+                (&self.function_store, &self.function_runtime)
+            {
+                let functions_state = FunctionsRouteState {
+                    store: store.clone(),
+                    runtime: runtime.clone(),
+                };
+                app = app.merge(functions_router(functions_state));
+                info!("Functions endpoint enabled: POST /functions/v1/{{name}}");
+            }
         }
 
         // Add middleware
