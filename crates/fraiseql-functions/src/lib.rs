@@ -24,6 +24,9 @@ pub use host::live::{HostContextConfig, LiveHostContext, QueryExecutor, SqlExecu
 pub use migrations::{cron_migration_sql, functions_migration_sql};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
+pub use runtime::sandbox::{
+    ConcurrencyLimiter, ConcurrencyLimiterRegistry, DEFAULT_MAX_CONCURRENT,
+};
 pub use store::{FunctionRecord, FunctionStatus, FunctionStore};
 pub use store::memory::InMemoryFunctionStore;
 pub use triggers::mutation::{
