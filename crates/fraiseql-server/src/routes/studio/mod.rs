@@ -5,6 +5,8 @@
 //! - `GET /studio/assets/{file}` — bundled JS/CSS assets
 //! - `GET /studio/*path` — wildcard fallback returning the same HTML shell
 
+pub mod admin;
+
 use axum::{
     extract::Path,
     http::{StatusCode, header},

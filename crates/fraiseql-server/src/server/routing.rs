@@ -264,16 +264,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_state(state.clone())
             .merge(graphql_router);
 
-        // Studio admin dashboard — always mounted at /studio
+        // Studio admin dashboard — always mounted at /studio (SPA shell, no auth)
         {
-            use axum::routing::get;
-            use crate::routes::studio::{studio_handler, studio_asset_handler};
+            use crate::routes::studio::{studio_asset_handler, studio_handler};
             let studio_router = Router::new()
                 .route("/studio", get(studio_handler))
                 .route("/studio/assets/{file}", get(studio_asset_handler))
                 .route("/studio/{*path}", get(studio_handler));
             info!("Studio admin dashboard mounted at /studio");
             app = app.merge(studio_router);
+        }
+
+        // Studio admin API — /admin/v1/* (protected by admin bearer token when configured)
+        if self.config.admin_api_enabled {
+            if let Some(ref token) = self.config.admin_token {
+                use crate::routes::studio::admin::{
+                    health_handler as studio_health_handler,
+                    schema_handler as studio_schema_handler,
+                };
+                let auth = BearerAuthState::new(token.clone());
+                let studio_admin_router = Router::new()
+                    .route("/admin/v1/schema", get(studio_schema_handler::<A>))
+                    .route("/admin/v1/health/detailed", get(studio_health_handler::<A>))
+                    .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
+                    .with_state(state.clone());
+                info!("Studio admin API mounted at /admin/v1/* (bearer token required)");
+                app = app.merge(studio_admin_router);
+            }
         }
 
         // Conditionally add playground route
