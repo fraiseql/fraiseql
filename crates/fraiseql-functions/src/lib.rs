@@ -14,6 +14,7 @@ pub mod host;
 pub mod migrations;
 pub mod observer;
 pub mod runtime;
+pub mod secrets;
 pub mod store;
 pub mod triggers;
 pub mod types;
@@ -27,6 +28,7 @@ pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 pub use runtime::sandbox::{
     ConcurrencyLimiter, ConcurrencyLimiterRegistry, DEFAULT_MAX_CONCURRENT,
 };
+pub use secrets::{FunctionSecretsStore, InMemorySecretsStore};
 pub use store::{FunctionRecord, FunctionStatus, FunctionStore};
 pub use store::memory::InMemoryFunctionStore;
 pub use triggers::mutation::{

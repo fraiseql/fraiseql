@@ -17,6 +17,7 @@ pub mod storage;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::secrets::FunctionSecretsStore;
 use crate::types::{EventPayload, LogEntry, LogLevel};
 use crate::HostContext;
 use fraiseql_error::Result;
@@ -110,6 +111,12 @@ pub struct LiveHostContext {
 
     /// Security context for the authenticated user.
     pub security_context: SecurityContext,
+
+    /// Secrets store for per-function secrets (checked before `std::env` in `env_var`).
+    secrets_store: Option<Arc<dyn FunctionSecretsStore>>,
+
+    /// Name of the currently executing function (used for secrets lookup).
+    function_name: Option<String>,
 }
 
 impl LiveHostContext {
@@ -124,6 +131,8 @@ impl LiveHostContext {
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
+            secrets_store: None,
+            function_name: None,
         }
     }
 
@@ -142,6 +151,8 @@ impl LiveHostContext {
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
+            secrets_store: None,
+            function_name: None,
         }
     }
 
@@ -160,6 +171,8 @@ impl LiveHostContext {
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
+            secrets_store: None,
+            function_name: None,
         }
     }
 
@@ -178,7 +191,23 @@ impl LiveHostContext {
             http_client: Some(http_client),
             storage_backend: None,
             security_context: Self::default_security_context(),
+            secrets_store: None,
+            function_name: None,
         }
+    }
+
+    /// Attach a secrets store and function name for `env_var` secret lookups.
+    ///
+    /// When set, `env_var` checks function secrets before falling back to `std::env`.
+    #[must_use]
+    pub fn with_secrets(
+        mut self,
+        store: Arc<dyn FunctionSecretsStore>,
+        function_name: impl Into<String>,
+    ) -> Self {
+        self.secrets_store = Some(store);
+        self.function_name = Some(function_name.into());
+        self
     }
 
     /// Create a default security context for testing.
@@ -435,6 +464,13 @@ impl HostContext for LiveHostContext {
         } else {
             Ok(None)
         }
+    }
+
+    async fn get_secret(&self, key: &str) -> Result<Option<String>> {
+        let (Some(store), Some(fn_name)) = (&self.secrets_store, &self.function_name) else {
+            return Ok(None);
+        };
+        store.get_secret(fn_name, key).await
     }
 
     fn event_payload(&self) -> &EventPayload {

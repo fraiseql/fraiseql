@@ -106,6 +106,20 @@ pub trait HostContext: Send + Sync {
     /// Returns `Err` if the variable is blocked from access.
     fn env_var(&self, name: &str) -> Result<Option<String>>;
 
+    /// Look up a per-function secret by key.
+    ///
+    /// Checks the attached secrets store (if any) for the currently executing
+    /// function.  Returns `Ok(None)` when no secrets store is configured or
+    /// the key does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if decryption or the underlying store read fails.
+    fn get_secret(
+        &self,
+        key: &str,
+    ) -> impl Future<Output = Result<Option<String>>> + Send;
+
     /// Get the current event payload (for reference).
     fn event_payload(&self) -> &EventPayload;
 
@@ -205,6 +219,10 @@ impl HostContext for NoopHostContext {
     }
 
     fn env_var(&self, _name: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    async fn get_secret(&self, _key: &str) -> Result<Option<String>> {
         Ok(None)
     }
 

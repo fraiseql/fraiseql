@@ -276,8 +276,12 @@ impl crate::runtime::SendFunctionRuntime for WasmRuntime {
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = fraiseql_error::Result<crate::types::FunctionResult>> + Send + '_>,
     > {
-        let host = crate::host::NoopHostContext::new(event.clone());
-        Box::pin(self.invoke(module, event, &host, limits))
+        // Clone what we need so the async block owns all data (avoids borrow-of-local issues).
+        let module = module.clone();
+        Box::pin(async move {
+            let host = crate::host::NoopHostContext::new(event.clone());
+            self.invoke(&module, event, &host, limits).await
+        })
     }
 
     fn supported_extensions(&self) -> &[&str] {
@@ -288,7 +292,7 @@ impl crate::runtime::SendFunctionRuntime for WasmRuntime {
         false
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "wasm"
     }
 }

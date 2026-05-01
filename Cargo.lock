@@ -3344,6 +3344,9 @@ dependencies = [
 name = "fraiseql-functions"
 version = "2.2.0"
 dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "criterion",
@@ -3353,6 +3356,7 @@ dependencies = [
  "fraiseql-error",
  "fraiseql-observers",
  "fraiseql-storage",
+ "rand 0.8.6",
  "reqwest",
  "serde",
  "serde_json",
@@ -3460,6 +3464,7 @@ dependencies = [
  "fraiseql-auth",
  "fraiseql-core",
  "fraiseql-error",
+ "fraiseql-functions",
  "fraiseql-observers",
  "fraiseql-secrets",
  "fraiseql-test-utils",

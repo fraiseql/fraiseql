@@ -1005,3 +1005,71 @@ async fn test_host_event_payload_returns_trigger_data() {
     assert_eq!(returned_payload.event_kind, "created");
     assert_eq!(returned_payload.data, event_data);
 }
+
+#[tokio::test]
+async fn test_get_secret_returns_stored_value() {
+    use crate::secrets::{FunctionSecretsStore as _, InMemorySecretsStore};
+    use crate::HostContext as _;
+
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "Fn".to_string(),
+        event_kind: "invoked".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let store: Arc<dyn crate::secrets::FunctionSecretsStore> =
+        Arc::new(InMemorySecretsStore::new());
+    store.set_secret("my_fn", "API_KEY", "secret-value").await.unwrap();
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default())
+        .with_secrets(Arc::clone(&store), "my_fn");
+
+    let val = ctx.get_secret("API_KEY").await.unwrap();
+    assert_eq!(val, Some("secret-value".to_string()));
+}
+
+#[tokio::test]
+async fn test_get_secret_returns_none_without_store() {
+    use crate::HostContext as _;
+
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "Fn".to_string(),
+        event_kind: "invoked".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+    let val = ctx.get_secret("MISSING").await.unwrap();
+    assert!(val.is_none());
+}
+
+#[tokio::test]
+async fn test_get_secret_scoped_to_function_name() {
+    use crate::secrets::{FunctionSecretsStore as _, InMemorySecretsStore};
+    use crate::HostContext as _;
+
+    let store: Arc<dyn crate::secrets::FunctionSecretsStore> =
+        Arc::new(InMemorySecretsStore::new());
+    store.set_secret("fn_a", "KEY", "value_a").await.unwrap();
+    store.set_secret("fn_b", "KEY", "value_b").await.unwrap();
+
+    let mk_payload = || EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "Fn".to_string(),
+        event_kind: "invoked".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx_a = LiveHostContext::new(mk_payload(), HostContextConfig::default())
+        .with_secrets(Arc::clone(&store), "fn_a");
+    let ctx_b = LiveHostContext::new(mk_payload(), HostContextConfig::default())
+        .with_secrets(Arc::clone(&store), "fn_b");
+
+    assert_eq!(ctx_a.get_secret("KEY").await.unwrap(), Some("value_a".to_string()));
+    assert_eq!(ctx_b.get_secret("KEY").await.unwrap(), Some("value_b".to_string()));
+}
