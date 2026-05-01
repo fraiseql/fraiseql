@@ -391,6 +391,7 @@ mod query {
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
+            audit_mutations:      false,
         };
         let executor = Executor::with_config(schema, adapter, config);
 
@@ -751,6 +752,7 @@ mod config {
             query_timeout_ms:     30_000,
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
+            audit_mutations:      false,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Project);
@@ -774,6 +776,7 @@ mod config {
             query_timeout_ms:     30_000,
             jsonb_optimization:   custom_options,
             query_validation:     None,
+            audit_mutations:      false,
         };
 
         assert_eq!(config.jsonb_optimization.default_strategy, JsonbStrategy::Stream);
@@ -2684,6 +2687,215 @@ mod session_variables {
         assert!(
             adapter.captured_pairs().is_empty(),
             "set_session_variables must not be called when no session_variables are configured"
+        );
+    }
+}
+
+// ── mod mutation_audit: Cycle 4 — audit event emission ───────────────────
+
+mod mutation_audit {
+    use std::sync::{Arc, Mutex};
+
+    use tracing::Subscriber;
+    use tracing_subscriber::{Layer, Registry, layer::Context, prelude::*};
+
+    use super::*;
+    use crate::{
+        db::types::{DatabaseType, PoolMetrics},
+        schema::MutationOperation,
+    };
+
+    /// Minimal mock adapter that returns a valid mutation_response row.
+    struct AuditMockAdapter;
+
+    #[async_trait]
+    impl DatabaseAdapter for AuditMockAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), json!({"id": "1"}));
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for AuditMockAdapter {}
+
+    /// Tracing layer that captures events from the `fraiseql::mutation_audit` target.
+    struct CapturingLayer {
+        events: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl<S: Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>> Layer<S>
+        for CapturingLayer
+    {
+        fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
+            if event.metadata().target() == "fraiseql::mutation_audit" {
+                self.events
+                    .lock()
+                    .unwrap()
+                    .push(event.metadata().name().to_string());
+            }
+        }
+    }
+
+    fn schema_with_insert_mutation() -> CompiledSchema {
+        use crate::schema::MutationDefinition;
+        let mut schema = CompiledSchema::new();
+        let mut def = MutationDefinition::new("createUser", "User");
+        def.sql_source = Some("fn_create_user".to_string());
+        def.operation = MutationOperation::Insert { table: "users".to_string() };
+        schema.mutations.push(def);
+        schema
+    }
+
+    // ── kind_str() unit tests ────────────────────────────────────────────
+
+    #[test]
+    fn kind_str_insert() {
+        assert_eq!(
+            MutationOperation::Insert { table: "users".to_string() }.kind_str(),
+            "insert"
+        );
+    }
+
+    #[test]
+    fn kind_str_update() {
+        assert_eq!(
+            MutationOperation::Update { table: "users".to_string() }.kind_str(),
+            "update"
+        );
+    }
+
+    #[test]
+    fn kind_str_delete() {
+        assert_eq!(
+            MutationOperation::Delete { table: "users".to_string() }.kind_str(),
+            "delete"
+        );
+    }
+
+    #[test]
+    fn kind_str_custom() {
+        assert_eq!(MutationOperation::Custom.kind_str(), "custom");
+    }
+
+    // ── RuntimeConfig.audit_mutations default ────────────────────────────
+
+    #[test]
+    fn audit_mutations_default_false() {
+        assert!(!RuntimeConfig::default().audit_mutations, "audit_mutations must default to false");
+    }
+
+    // ── tracing event emission ────────────────────────────────────────────
+
+    /// A-E1: Mutation audit event is emitted when audit_mutations=true.
+    #[tokio::test]
+    async fn audit_event_emitted_when_enabled() {
+        let captured = Arc::new(Mutex::new(Vec::<String>::new()));
+        let layer = CapturingLayer { events: captured.clone() };
+        let subscriber = Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let schema = schema_with_insert_mutation();
+        let config = RuntimeConfig { audit_mutations: true, ..RuntimeConfig::default() };
+        let executor = Executor::with_config(schema, Arc::new(AuditMockAdapter), config);
+
+        executor
+            .execute_mutation("createUser", None, &HashMap::new())
+            .await
+            .unwrap();
+
+        let events = captured.lock().unwrap();
+        assert!(
+            !events.is_empty(),
+            "Expected a mutation audit event when audit_mutations=true, got none"
+        );
+    }
+
+    /// A-E2: No mutation audit event when audit_mutations=false (default).
+    #[tokio::test]
+    async fn no_audit_event_when_disabled() {
+        let captured = Arc::new(Mutex::new(Vec::<String>::new()));
+        let layer = CapturingLayer { events: captured.clone() };
+        let subscriber = Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let schema = schema_with_insert_mutation();
+        // Default config: audit_mutations=false
+        let executor = Executor::new(schema, Arc::new(AuditMockAdapter));
+
+        executor
+            .execute_mutation("createUser", None, &HashMap::new())
+            .await
+            .unwrap();
+
+        let events = captured.lock().unwrap();
+        assert!(
+            events.is_empty(),
+            "Expected no audit events when audit_mutations=false, got: {events:?}"
         );
     }
 }

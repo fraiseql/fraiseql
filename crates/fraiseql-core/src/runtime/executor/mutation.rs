@@ -578,6 +578,24 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
         };
 
+        // 7. Emit structured mutation audit event when audit_mutations is enabled.
+        //
+        // This is the single chokepoint for all mutation paths (GraphQL handler,
+        // REST handler, typed execute_mutation, bulk filter). Zero-cost when disabled:
+        // the branch is not taken and no string formatting or allocation occurs.
+        if self.config.audit_mutations {
+            tracing::info!(
+                target: "fraiseql::mutation_audit",
+                mutation_name = mutation_name,
+                entity_type = %mutation_def.return_type,
+                operation = %mutation_def.operation.kind_str(),
+                tenant_id = %security_ctx
+                    .and_then(|c| c.tenant_id.as_deref())
+                    .unwrap_or(""),
+                "mutation.executed"
+            );
+        }
+
         let response = ResultProjector::wrap_in_data_envelope(result_json, &mutation_name_owned);
         Ok(response)
     }
