@@ -283,16 +283,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         health_handler as studio_health_handler,
                         schema_handler as studio_schema_handler,
                     },
+                    auth_users::{
+                        invite_user_handler, list_users_handler, mfa_status_handler,
+                        revoke_user_handler,
+                    },
                     data::{
                         mutate_handler as data_mutate_handler,
                         query_handler as data_query_handler,
                     },
+                    function_ops::{
+                        delete_secret_handler, function_logs_handler, invoke_function_handler,
+                        list_functions_handler, list_secrets_handler, set_secret_handler,
+                    },
+                    metrics_summary::summary_handler as metrics_summary_handler,
+                    realtime_monitor::{
+                        broadcast_channels_handler, cdc_lag_handler, presence_rooms_handler,
+                        stats_handler as realtime_stats_handler,
+                    },
+                    storage_browser::{
+                        delete_object_handler, list_buckets_handler, list_objects_handler,
+                        presign_handler,
+                    },
                 };
                 let auth = BearerAuthState::new(token.clone());
                 let studio_admin_router = Router::new()
+                    // Schema + health (Cycle 2)
                     .route("/admin/v1/schema", get(studio_schema_handler::<A>))
                     .route("/admin/v1/health/detailed", get(studio_health_handler::<A>))
-                    // Data browser endpoints
+                    // Data browser (Cycle 3)
                     .route(
                         "/admin/v1/data/{entity}/query",
                         post(data_query_handler::<A>),
@@ -300,6 +318,72 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route(
                         "/admin/v1/data/{entity}/mutate",
                         post(data_mutate_handler::<A>),
+                    )
+                    // Auth user management (Cycle 4)
+                    .route("/admin/v1/users", get(list_users_handler::<A>))
+                    .route("/admin/v1/users/invite", post(invite_user_handler::<A>))
+                    .route(
+                        "/admin/v1/users/{id}/revoke",
+                        post(revoke_user_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/users/{id}/mfa",
+                        get(mfa_status_handler::<A>),
+                    )
+                    // Storage browser (Cycle 5)
+                    .route(
+                        "/admin/v1/storage/buckets",
+                        get(list_buckets_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/storage/objects",
+                        get(list_objects_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/storage/objects/sign",
+                        post(presign_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/storage/objects",
+                        axum::routing::delete(delete_object_handler::<A>),
+                    )
+                    // Realtime monitor (Cycle 6)
+                    .route(
+                        "/admin/v1/realtime/stats",
+                        get(realtime_stats_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/realtime/broadcast",
+                        get(broadcast_channels_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/realtime/presence",
+                        get(presence_rooms_handler::<A>),
+                    )
+                    .route("/admin/v1/realtime/cdc", get(cdc_lag_handler::<A>))
+                    // Function operations (Cycle 7)
+                    .route("/admin/v1/functions", get(list_functions_handler::<A>))
+                    .route(
+                        "/admin/v1/functions/{name}/invoke",
+                        post(invoke_function_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/functions/{name}/logs",
+                        get(function_logs_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/functions/{name}/secrets",
+                        get(list_secrets_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/functions/{name}/secrets/{key}",
+                        put(set_secret_handler::<A>)
+                            .delete(delete_secret_handler::<A>),
+                    )
+                    // Metrics summary (Cycle 8)
+                    .route(
+                        "/admin/v1/metrics/summary",
+                        get(metrics_summary_handler::<A>),
                     )
                     .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
                     .with_state(state.clone());
