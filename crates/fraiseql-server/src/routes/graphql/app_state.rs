@@ -44,6 +44,18 @@ pub struct AppState<A: DatabaseAdapter> {
     #[cfg(feature = "federation")]
     pub circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
+    /// Federation subgraph latency histogram tracker.
+    #[cfg(feature = "federation")]
+    pub federation_latency:
+        Arc<fraiseql_core::federation::SubgraphLatencyTracker>,
+    /// Federation entity resolution counter metrics.
+    #[cfg(feature = "federation")]
+    pub federation_entity_metrics:
+        Arc<fraiseql_core::federation::EntityResolutionMetrics>,
+    /// Federation query plan cache for plan visualization.
+    #[cfg(feature = "federation")]
+    pub federation_plan_cache:
+        Option<Arc<fraiseql_core::federation::QueryPlanCache>>,
     /// Error sanitizer — strips internal details before sending responses to clients.
     pub error_sanitizer:         Arc<ErrorSanitizer>,
     /// State encryption service (optional, enabled via `[security.state_encryption]`).
@@ -121,6 +133,12 @@ impl<A: DatabaseAdapter> AppState<A> {
             field_encryption: None,
             #[cfg(feature = "federation")]
             circuit_breaker: None,
+            #[cfg(feature = "federation")]
+            federation_latency: Arc::new(fraiseql_core::federation::SubgraphLatencyTracker::new()),
+            #[cfg(feature = "federation")]
+            federation_entity_metrics: Arc::new(fraiseql_core::federation::EntityResolutionMetrics::new()),
+            #[cfg(feature = "federation")]
+            federation_plan_cache: None,
             error_sanitizer: Arc::new(ErrorSanitizer::disabled()),
             #[cfg(feature = "auth")]
             state_encryption: None,

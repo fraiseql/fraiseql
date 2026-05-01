@@ -404,6 +404,7 @@ fn create_subgraph_metadata(_name: &str, types: Vec<FederatedType>) -> Federatio
         enabled: true,
         version: "v2".to_string(),
         types,
+        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 

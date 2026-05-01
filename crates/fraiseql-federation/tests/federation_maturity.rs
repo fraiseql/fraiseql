@@ -29,6 +29,7 @@ fn test_all_seven_directives_in_sdl() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let sdl = generate_service_sdl("type Query { test: String }", &metadata);
@@ -54,6 +55,7 @@ fn test_link_directive_imports_all_directives() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let sdl = generate_service_sdl("type Query { test: String }", &metadata);
@@ -113,6 +115,7 @@ fn test_composition_with_all_new_directives() {
                 enabled: true,
                 version: "v2".to_string(),
                 types:   vec![users_type],
+                remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
         (
@@ -121,6 +124,7 @@ fn test_composition_with_all_new_directives() {
                 enabled: true,
                 version: "v2".to_string(),
                 types:   vec![users_type_b],
+                remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
     ];
@@ -161,6 +165,7 @@ fn test_inaccessible_conflict_blocks_composition() {
                 enabled: true,
                 version: "v2".to_string(),
                 types:   vec![type_a],
+                remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
         (
@@ -169,6 +174,7 @@ fn test_inaccessible_conflict_blocks_composition() {
                 enabled: true,
                 version: "v2".to_string(),
                 types:   vec![type_b],
+                remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
     ];

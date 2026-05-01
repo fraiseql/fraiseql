@@ -28,6 +28,7 @@ fn test_field_directive_requires_storage() {
         shareable_fields: vec![],
                 inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Simulate adding a @requires directive to the "orders" field
@@ -70,6 +71,7 @@ fn test_field_directive_provides_storage() {
         shareable_fields: vec![],
                 inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Simulate adding a @provides directive to the "shippingEstimate" field
@@ -114,6 +116,7 @@ fn test_field_directive_shareable_flag() {
         shareable_fields:    vec!["name".to_string()],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Simulate adding a @shareable directive to the "name" field
@@ -150,6 +153,7 @@ fn test_field_directive_external_flag() {
         shareable_fields: vec![],
                 inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Simulate adding an @external directive to the "total" field
@@ -190,6 +194,7 @@ fn test_field_directive_nested_requires_path() {
         shareable_fields: vec![],
                 inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Simulate adding a @requires directive with nested path
@@ -235,6 +240,7 @@ fn test_field_directive_multiple_directives_on_field() {
         shareable_fields: vec![],
                 inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Simulate field with @requires + @provides + @shareable
@@ -285,6 +291,7 @@ fn test_field_directives_multiple_fields() {
         shareable_fields: vec![],
                 inaccessible_fields: vec![],
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Field 1: orders with @requires

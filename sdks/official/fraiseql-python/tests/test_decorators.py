@@ -1,5 +1,7 @@
 """Tests for FraiseQL decorators."""
 
+from typing import Annotated
+
 import pytest
 
 import fraiseql
@@ -1486,3 +1488,144 @@ def test_computed_field_excluded_from_both_inputs() -> None:
         assert "reference" not in field_names
         assert "name" in field_names
         assert "price" in field_names
+
+
+# ── Federation field-level directive tests ──────────────────────────────
+
+
+def test_field_external() -> None:
+    """field(external=True) emits federation.external in JSON."""
+
+    @fraiseql.type
+    class Product:
+        id: int
+        price: Annotated[float, fraiseql.field(external=True)]
+
+    schema = SchemaRegistry.get_schema()
+    product = next(t for t in schema["types"] if t["name"] == "Product")
+    price_field = next(f for f in product["fields"] if f["name"] == "price")
+    assert price_field["federation"] == {"external": True}
+
+
+def test_field_requires() -> None:
+    """field(requires=...) emits federation.requires in JSON."""
+
+    @fraiseql.type
+    class Product:
+        id: int
+        shipping: Annotated[float, fraiseql.field(requires="weight size")]
+
+    schema = SchemaRegistry.get_schema()
+    product = next(t for t in schema["types"] if t["name"] == "Product")
+    shipping_field = next(f for f in product["fields"] if f["name"] == "shipping")
+    assert shipping_field["federation"] == {"requires": "weight size"}
+
+
+def test_field_provides() -> None:
+    """field(provides=...) emits federation.provides in JSON."""
+
+    @fraiseql.type
+    class Review:
+        id: int
+        author: Annotated[str, fraiseql.field(provides="name email")]
+
+    schema = SchemaRegistry.get_schema()
+    review = next(t for t in schema["types"] if t["name"] == "Review")
+    author_field = next(f for f in review["fields"] if f["name"] == "author")
+    assert author_field["federation"] == {"provides": "name email"}
+
+
+def test_field_shareable() -> None:
+    """field(shareable=True) emits federation.shareable in JSON."""
+
+    @fraiseql.type
+    class User:
+        id: int
+        name: Annotated[str, fraiseql.field(shareable=True)]
+
+    schema = SchemaRegistry.get_schema()
+    user = next(t for t in schema["types"] if t["name"] == "User")
+    name_field = next(f for f in user["fields"] if f["name"] == "name")
+    assert name_field["federation"] == {"shareable": True}
+
+
+def test_field_inaccessible() -> None:
+    """field(inaccessible=True) emits federation.inaccessible in JSON."""
+
+    @fraiseql.type
+    class User:
+        id: int
+        internal_id: Annotated[str, fraiseql.field(inaccessible=True)]
+
+    schema = SchemaRegistry.get_schema()
+    user = next(t for t in schema["types"] if t["name"] == "User")
+    internal_field = next(f for f in user["fields"] if f["name"] == "internalId")
+    assert internal_field["federation"] == {"inaccessible": True}
+
+
+def test_field_override_from() -> None:
+    """field(override_from=...) emits federation.override_from in JSON."""
+
+    @fraiseql.type
+    class Product:
+        id: int
+        price: Annotated[float, fraiseql.field(override_from="old-pricing")]
+
+    schema = SchemaRegistry.get_schema()
+    product = next(t for t in schema["types"] if t["name"] == "Product")
+    price_field = next(f for f in product["fields"] if f["name"] == "price")
+    assert price_field["federation"] == {"override_from": "old-pricing"}
+
+
+def test_field_external_and_requires_combined() -> None:
+    """field(external=True, requires=...) emits both in JSON."""
+
+    @fraiseql.type
+    class Product:
+        id: int
+        weight: Annotated[float, fraiseql.field(external=True, requires="id")]
+
+    schema = SchemaRegistry.get_schema()
+    product = next(t for t in schema["types"] if t["name"] == "Product")
+    weight_field = next(f for f in product["fields"] if f["name"] == "weight")
+    assert weight_field["federation"] == {"external": True, "requires": "id"}
+
+
+def test_field_inaccessible_and_requires_combined() -> None:
+    """field(inaccessible=True, requires=...) emits both — valid per spec."""
+
+    @fraiseql.type
+    class User:
+        id: int
+        ssn: Annotated[str, fraiseql.field(inaccessible=True, requires="id")]
+
+    schema = SchemaRegistry.get_schema()
+    user = next(t for t in schema["types"] if t["name"] == "User")
+    ssn_field = next(f for f in user["fields"] if f["name"] == "ssn")
+    assert ssn_field["federation"] == {"inaccessible": True, "requires": "id"}
+
+
+def test_field_override_from_empty_string_raises() -> None:
+    """field(override_from='') raises ValueError."""
+    with pytest.raises(ValueError, match="non-empty"):
+        fraiseql.field(override_from="")
+
+
+def test_field_external_with_override_raises() -> None:
+    """field(external=True, override_from='X') raises ValueError."""
+    with pytest.raises(ValueError, match="@external"):
+        fraiseql.field(external=True, override_from="products")
+
+
+def test_field_no_federation_directives_omits_key() -> None:
+    """Fields without federation directives don't have a 'federation' key."""
+
+    @fraiseql.type
+    class User:
+        id: int
+        name: str
+
+    schema = SchemaRegistry.get_schema()
+    user = next(t for t in schema["types"] if t["name"] == "User")
+    for f in user["fields"]:
+        assert "federation" not in f

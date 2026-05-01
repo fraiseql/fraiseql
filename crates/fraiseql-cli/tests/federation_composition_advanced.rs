@@ -26,18 +26,21 @@ fn test_four_subgraph_composition() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_order_type_basic(), create_user_type_extending()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let products = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_product_type_basic(), create_order_type_extending()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let payments = FederationMetadata {
@@ -48,6 +51,7 @@ fn test_four_subgraph_composition() {
             create_user_type_extending(),
             create_order_type_extending(),
         ],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let result = compose_federation_schemas(&[users, orders, products, payments]);
@@ -78,6 +82,7 @@ fn test_five_subgraph_composition_with_shared_extends() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     }];
 
     // Orders owns Order, extends User
@@ -85,6 +90,7 @@ fn test_five_subgraph_composition_with_shared_extends() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_order_type_basic(), create_user_type_extending()],
+        remote_subscription_fields: HashMap::new(),
     });
 
     // Products owns Product, extends User and Order
@@ -96,6 +102,7 @@ fn test_five_subgraph_composition_with_shared_extends() {
             create_user_type_extending(),
             create_order_type_extending(),
         ],
+        remote_subscription_fields: HashMap::new(),
     });
 
     // Shipping extends User, Order, Product
@@ -107,6 +114,7 @@ fn test_five_subgraph_composition_with_shared_extends() {
             create_order_type_extending(),
             create_product_type_extending(),
         ],
+        remote_subscription_fields: HashMap::new(),
     });
 
     // Analytics extends all types
@@ -118,6 +126,7 @@ fn test_five_subgraph_composition_with_shared_extends() {
             create_order_type_extending(),
             create_product_type_extending(),
         ],
+        remote_subscription_fields: HashMap::new(),
     });
 
     let result = compose_federation_schemas(&subgraphs);
@@ -145,6 +154,7 @@ fn test_field_type_conflict_same_type() {
             vec!["id"],
             vec![("email", "String")],
         )],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let auth = FederationMetadata {
@@ -153,6 +163,7 @@ fn test_field_type_conflict_same_type() {
         types:   vec![create_user_type_extending_with_fields(vec![(
             "email", "Int",
         )])],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let _result = compose_federation_schemas(&[users, auth]);
@@ -172,6 +183,7 @@ fn test_multiple_key_definitions_inconsistent() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_with_key(&["id"])],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let mut auth_user = FederatedType::new("User".to_string());
@@ -185,6 +197,7 @@ fn test_multiple_key_definitions_inconsistent() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![auth_user],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let _result = compose_federation_schemas(&[users, auth]);
@@ -208,12 +221,14 @@ fn test_external_fields_preserved_in_composition() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let mut orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_order_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     // Mark user_id as external
@@ -241,6 +256,7 @@ fn test_shareable_fields_preserved_in_composition() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
     users.types[0].shareable_fields.push("email".to_string());
 
@@ -248,6 +264,7 @@ fn test_shareable_fields_preserved_in_composition() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_extending()],
+        remote_subscription_fields: HashMap::new(),
     };
     auth.types[0].shareable_fields.push("email".to_string());
 
@@ -277,12 +294,14 @@ fn test_composition_with_multiple_directives() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let mut orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_order_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     // Add multiple directives to Order
@@ -313,12 +332,14 @@ fn test_composed_schema_validity() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_order_type_basic(), create_user_type_extending()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let composed = compose_federation_schemas(&[users, orders])
@@ -348,12 +369,14 @@ fn test_composed_schema_federation_enabled_any_source() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let disabled_subgraph = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
         types:   vec![create_order_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let composed = compose_federation_schemas(&[enabled_subgraph, disabled_subgraph])
@@ -376,12 +399,14 @@ fn test_type_with_no_extensions() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let orders = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_order_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let composed = compose_federation_schemas(&[users, orders])
@@ -401,6 +426,7 @@ fn test_many_extensions_single_owner() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![create_user_type_basic()],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let mut subgraphs = vec![users];
@@ -411,6 +437,7 @@ fn test_many_extensions_single_owner() {
             enabled: true,
             version: "v2".to_string(),
             types:   vec![],
+            remote_subscription_fields: HashMap::new(),
         };
 
         // Each subgraph also owns a different type

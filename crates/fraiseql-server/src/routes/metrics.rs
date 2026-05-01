@@ -91,6 +91,17 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         }
     }
 
+    // Append federation subgraph latency histogram and entity resolution counters.
+    #[cfg(feature = "federation")]
+    {
+        let hist = state.federation_latency.to_prometheus_histogram();
+        output.push('\n');
+        output.push_str(&hist);
+        let counters = state.federation_entity_metrics.to_prometheus_counters();
+        output.push('\n');
+        output.push_str(&counters);
+    }
+
     // Append Redis rate-limiter error counter when the feature is compiled in.
     #[cfg(feature = "redis-rate-limiting")]
     {

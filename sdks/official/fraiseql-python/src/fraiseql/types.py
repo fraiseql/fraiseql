@@ -126,6 +126,21 @@ def extract_field_config(field_type: Any) -> FieldConfig | None:
     return None
 
 
+def _extract_federation_directives(
+    config: FieldConfig,  # type: ignore[name-defined]
+) -> dict[str, Any]:
+    """Build federation directive dict from a FieldConfig, if any are set."""
+    fed: dict[str, Any] = {}
+    for key in ("external", "shareable", "inaccessible"):
+        if getattr(config, key):
+            fed[key] = True
+    for key in ("requires", "provides", "override_from"):
+        val = getattr(config, key)
+        if val:
+            fed[key] = val
+    return fed
+
+
 def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     """Extract field information from a class with type annotations.
 
@@ -183,6 +198,11 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
                 field_info["description"] = config.description
             if config.computed:
                 field_info["computed"] = True
+
+            # Federation field-level directives
+            federation = _extract_federation_directives(config)
+            if federation:
+                field_info["federation"] = federation
 
         fields[field_name] = field_info
 

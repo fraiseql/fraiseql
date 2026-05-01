@@ -51,7 +51,11 @@ class SchemaRegistry:
             "type": field_info["type"],
             "nullable": field_info["nullable"],
         }
-        for key in ("requires_scope", "on_deny", "deprecated", "description"):
+        optional_keys = (
+            "requires_scope", "on_deny", "deprecated",
+            "description", "computed", "federation",
+        )
+        for key in optional_keys:
             if key in field_info:
                 field_def[key] = field_info[key]
         return field_def

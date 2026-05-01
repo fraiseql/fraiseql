@@ -41,6 +41,7 @@ fn test_provides_field_present_in_result() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Result contains the promised field
@@ -82,6 +83,7 @@ fn test_provides_field_missing_in_result() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Result missing the weight field
@@ -131,6 +133,7 @@ fn test_provides_multiple_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Missing one of two provided fields
@@ -163,6 +166,7 @@ fn test_provides_no_directives() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = json!({
@@ -199,6 +203,7 @@ fn test_provides_nested_field_path() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Result with nested structure
@@ -243,6 +248,7 @@ fn test_provides_warning_context() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = json!({"id": "456"});

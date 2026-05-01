@@ -35,6 +35,7 @@ fn test_requires_with_empty_representation() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -71,6 +72,7 @@ fn test_requires_with_only_key_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -107,6 +109,7 @@ fn test_requires_with_case_sensitivity() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Note: This test assumes case-sensitive matching
@@ -150,6 +153,7 @@ fn test_requires_with_special_characters_in_field_names() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -192,6 +196,7 @@ fn test_requires_validation_error_includes_typename() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![product_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -230,6 +235,7 @@ fn test_requires_validation_error_includes_field_name() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -272,6 +278,7 @@ fn test_requires_with_existing_extra_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Representation with extra fields beyond what's required
@@ -318,6 +325,7 @@ fn test_requires_different_typenames() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -348,6 +356,7 @@ fn test_requires_enforcement_with_zero_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {

@@ -34,6 +34,9 @@ interface FederationMetadata {
   keys: Array<{ fields: string[] }>;
   extend: boolean;
   external_fields: string[];
+  shareable_fields: string[];
+  inaccessible_fields: string[];
+  override_fields: Record<string, string>; // fieldName → fromSubgraph
   requires: Record<string, string>;
   provides: Record<string, string[]>;
   provides_data: string[];
@@ -46,6 +49,9 @@ function getOrInitMeta(cls: any): FederationMetadata {
       keys: [],
       extend: false,
       external_fields: [],
+      shareable_fields: [],
+      inaccessible_fields: [],
+      override_fields: {},
       requires: {},
       provides: {},
       provides_data: [],
@@ -80,15 +86,12 @@ function getClassFields(cls: any): Set<string> {
   // Also collect from federation metadata (decorated properties)
   const meta: FederationMetadata | undefined = cls.__fraiseqlFederation__;
   if (meta) {
-    for (const f of meta.external_fields) {
-      fields.add(f);
-    }
-    for (const f of Object.keys(meta.requires)) {
-      fields.add(f);
-    }
-    for (const f of Object.keys(meta.provides)) {
-      fields.add(f);
-    }
+    for (const f of meta.external_fields) fields.add(f);
+    for (const f of meta.shareable_fields) fields.add(f);
+    for (const f of meta.inaccessible_fields) fields.add(f);
+    for (const f of Object.keys(meta.override_fields)) fields.add(f);
+    for (const f of Object.keys(meta.requires)) fields.add(f);
+    for (const f of Object.keys(meta.provides)) fields.add(f);
   }
 
   return fields;
@@ -189,6 +192,56 @@ export function Provides(...targets: string[]) {
 }
 
 /**
+ * Mark a field as shareable across subgraphs.
+ *
+ * Shareable fields can be resolved by multiple subgraphs without conflict.
+ */
+export function Shareable() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy property decorator target
+  return function (target: any, key: string): void {
+    const meta = getOrInitMeta(target.constructor);
+    if (!meta.shareable_fields.includes(key)) {
+      meta.shareable_fields.push(key);
+    }
+  };
+}
+
+/**
+ * Mark a field as inaccessible — hidden from the public API.
+ *
+ * The field is still resolved internally for entity resolution but does
+ * not appear in the composed supergraph schema exposed to clients.
+ */
+export function Inaccessible() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy property decorator target
+  return function (target: any, key: string): void {
+    const meta = getOrInitMeta(target.constructor);
+    if (!meta.inaccessible_fields.includes(key)) {
+      meta.inaccessible_fields.push(key);
+    }
+  };
+}
+
+/**
+ * Mark a field as overriding the same field from another subgraph.
+ *
+ * This subgraph takes ownership of the field from the named subgraph.
+ *
+ * @param from - Name of the subgraph being overridden
+ * @throws If `from` is an empty string
+ */
+export function Override(from: string) {
+  if (from === "") {
+    throw new Error("@Override requires a non-empty subgraph name");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy property decorator target
+  return function (target: any, key: string): void {
+    const meta = getOrInitMeta(target.constructor);
+    meta.override_fields[key] = from;
+  };
+}
+
+/**
  * Generate the schema JSON for a set of federated types.
  *
  * Uses SchemaRegistry.getSchema() as the single source of truth for all base
@@ -208,6 +261,9 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
   /** Per-field federation overlay attached to each field in the output. */
   interface FieldFederation {
     external?: true;
+    shareable?: true;
+    inaccessible?: true;
+    override_from?: string;
     requires?: string;
     provides?: string[];
   }
@@ -224,6 +280,9 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
       keys: [],
       extend: false,
       external_fields: [],
+      shareable_fields: [],
+      inaccessible_fields: [],
+      override_fields: {},
       requires: {},
       provides: {},
       provides_data: [],
@@ -243,13 +302,22 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
     const cls = types.find((c) => c.name === typeDef.name);
     const allFieldNames = getClassFields(cls);
 
+    /** Build federation overlay for a single field. */
+    function buildFieldFederation(fieldName: string, m: FederationMetadata): FieldFederation {
+      const fed: FieldFederation = {};
+      if (m.external_fields.includes(fieldName)) fed.external = true;
+      if (m.shareable_fields.includes(fieldName)) fed.shareable = true;
+      if (m.inaccessible_fields.includes(fieldName)) fed.inaccessible = true;
+      if (m.override_fields[fieldName] !== undefined) fed.override_from = m.override_fields[fieldName];
+      if (m.requires[fieldName] !== undefined) fed.requires = m.requires[fieldName];
+      if (m.provides[fieldName] !== undefined) fed.provides = m.provides[fieldName];
+      return fed;
+    }
+
     // Start from registered fields (have full type info)
     const registeredNames = new Set(typeDef.fields.map((f) => f.name));
     const mergedFields: MergedField[] = typeDef.fields.map((f) => {
-      const fieldFed: FieldFederation = {};
-      if (meta.external_fields.includes(f.name)) fieldFed.external = true;
-      if (meta.requires[f.name] !== undefined) fieldFed.requires = meta.requires[f.name];
-      if (meta.provides[f.name] !== undefined) fieldFed.provides = meta.provides[f.name];
+      const fieldFed = buildFieldFederation(f.name, meta);
       if (Object.keys(fieldFed).length === 0) return f;
       return { ...f, federation: fieldFed };
     });
@@ -257,10 +325,7 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
     // Append fields found via class instantiation that weren't explicitly registered
     for (const fieldName of allFieldNames) {
       if (registeredNames.has(fieldName)) continue;
-      const fieldFed: FieldFederation = {};
-      if (meta.external_fields.includes(fieldName)) fieldFed.external = true;
-      if (meta.requires[fieldName] !== undefined) fieldFed.requires = meta.requires[fieldName];
-      if (meta.provides[fieldName] !== undefined) fieldFed.provides = meta.provides[fieldName];
+      const fieldFed = buildFieldFederation(fieldName, meta);
       const entry: MergedField = { name: fieldName };
       if (Object.keys(fieldFed).length > 0) (entry as { name: string; federation?: FieldFederation }).federation = fieldFed;
       mergedFields.push(entry);
@@ -273,6 +338,9 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
         keys: meta.keys,
         extend: meta.extend,
         external_fields: meta.external_fields,
+        shareable_fields: meta.shareable_fields,
+        inaccessible_fields: meta.inaccessible_fields,
+        override_fields: meta.override_fields,
       },
     };
   });
@@ -325,6 +393,15 @@ export function validateFederation(types: FederatedClass[]): void {
     // @External requires @Extends
     if ((meta?.external_fields?.length ?? 0) > 0 && !(meta?.extend)) {
       throw new Error(`@external requires @extends on type ${cls.name}`);
+    }
+
+    // @External + @Override is invalid
+    for (const field of meta?.external_fields ?? []) {
+      if (meta?.override_fields[field] !== undefined) {
+        throw new Error(
+          `@External and @Override cannot both be applied to field '${field}' on type ${cls.name}`
+        );
+      }
     }
 
     // @Requires target fields must exist

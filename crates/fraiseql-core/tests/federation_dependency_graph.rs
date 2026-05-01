@@ -49,6 +49,7 @@ fn test_dependency_graph_build() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type, order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -72,6 +73,7 @@ fn test_dependency_graph_with_no_requires() {
             FederatedType::new("User".to_string()),
             FederatedType::new("Order".to_string()),
         ],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -107,6 +109,7 @@ fn test_cycle_detection_no_cycles() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -146,6 +149,7 @@ fn test_cycle_detection_simple_cycle() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -204,6 +208,7 @@ fn test_cycle_detection_longer_cycle() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![type_a, type_b, type_c],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -240,6 +245,7 @@ fn test_topological_sort_valid_graph() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");
@@ -285,6 +291,7 @@ fn test_topological_sort_fails_on_cycle() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![type_a, type_b],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let graph = DependencyGraph::build(&metadata).expect("Should build graph");

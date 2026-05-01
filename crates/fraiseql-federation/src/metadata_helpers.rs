@@ -85,7 +85,9 @@ mod tests {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable:  false,
             }],
+            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 

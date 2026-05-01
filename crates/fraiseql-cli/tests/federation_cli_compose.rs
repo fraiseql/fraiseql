@@ -270,6 +270,7 @@ fn test_compose_workflow_basic() {
             });
             t
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let orders_schema = FederationMetadata {
@@ -283,6 +284,7 @@ fn test_compose_workflow_basic() {
             });
             t
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let subgraphs = vec![
@@ -320,6 +322,7 @@ fn test_compose_workflow_with_validation_errors() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let subgraphs = vec![SubgraphInput {
@@ -679,6 +682,7 @@ fn compose_federation_schemas(
             enabled: false,
             version: "v2".to_string(),
             types:   vec![],
+            remote_subscription_fields: std::collections::HashMap::new(),
         });
     }
 
@@ -696,6 +700,7 @@ fn compose_federation_schemas(
         enabled: subgraphs.iter().any(|s| s.enabled),
         version: subgraphs.first().map_or_else(|| "v2".to_string(), |s| s.version.clone()),
         types:   composed_types,
+        remote_subscription_fields: std::collections::HashMap::new(),
     })
 }
 

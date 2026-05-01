@@ -42,7 +42,8 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     {
         router = router
             .route("/federation/subgraphs", get(federation::subgraphs_handler::<A>))
-            .route("/federation/graph", get(federation::graph_handler::<A>));
+            .route("/federation/graph", get(federation::graph_handler::<A>))
+            .route("/federation/plan", get(federation::plan_handler::<A>));
     }
 
     // Schema export endpoints are now conditionally added in server.rs with optional auth

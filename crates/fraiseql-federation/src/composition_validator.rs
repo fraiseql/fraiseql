@@ -816,6 +816,7 @@ mod tests {
                     enabled: true,
                     version: "v2".to_string(),
                     types:   vec![users_type],
+                    remote_subscription_fields: HashMap::new(),
                 },
             ),
             (
@@ -824,6 +825,7 @@ mod tests {
                     enabled: true,
                     version: "v2".to_string(),
                     types:   vec![users_type_b],
+                    remote_subscription_fields: HashMap::new(),
                 },
             ),
         ];
@@ -873,6 +875,7 @@ mod tests {
                     enabled: true,
                     version: "v2".to_string(),
                     types:   vec![products_type_a],
+                    remote_subscription_fields: HashMap::new(),
                 },
             ),
             (
@@ -881,6 +884,7 @@ mod tests {
                     enabled: true,
                     version: "v2".to_string(),
                     types:   vec![products_type_b],
+                    remote_subscription_fields: HashMap::new(),
                 },
             ),
         ];

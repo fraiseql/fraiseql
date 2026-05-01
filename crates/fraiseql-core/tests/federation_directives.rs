@@ -80,7 +80,9 @@ fn test_key_directive_multiple_keys() {
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let user_type = &metadata.types[0];
@@ -107,6 +109,7 @@ fn test_external_field_single() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(fed_type.external_fields.contains(&"email".to_string()));
@@ -127,6 +130,7 @@ fn test_external_field_multiple() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert_eq!(fed_type.external_fields.len(), 2);
@@ -148,6 +152,7 @@ fn test_external_field_key_field() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // Key field "id" is also external in this extended type
@@ -172,6 +177,7 @@ fn test_extends_directive_owned_entity() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(!fed_type.is_extends, "Local entity should not be extended");
@@ -191,6 +197,7 @@ fn test_extends_directive_extended_entity() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(fed_type.is_extends, "Extended entity should have is_extends=true");
@@ -210,6 +217,7 @@ fn test_extends_with_external_fields() {
         shareable_fields: vec!["total".to_string()],
         inaccessible_fields: Vec::new(),
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(fed_type.is_extends);
@@ -235,6 +243,7 @@ fn test_shareable_field_single() {
         shareable_fields: vec!["email".to_string()],
         inaccessible_fields: Vec::new(),
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(fed_type.shareable_fields.contains(&"email".to_string()));
@@ -254,6 +263,7 @@ fn test_shareable_field_multiple() {
         shareable_fields: vec!["name".to_string(), "description".to_string()],
         inaccessible_fields: Vec::new(),
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert_eq!(fed_type.shareable_fields.len(), 2);
@@ -275,6 +285,7 @@ fn test_shareable_field_in_extended_type() {
         shareable_fields: vec!["status".to_string()],
         inaccessible_fields: Vec::new(),
         field_directives: std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(fed_type.is_extends);
@@ -299,6 +310,7 @@ fn test_composite_key_multi_tenant() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert_eq!(fed_type.keys[0].fields.len(), 2);
@@ -344,6 +356,7 @@ fn test_federation_metadata_version() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     assert_eq!(metadata.version, "v2");
@@ -356,12 +369,14 @@ fn test_federation_metadata_enabled_flag() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let disabled = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
         types:   vec![],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     assert!(enabled.enabled);
@@ -385,6 +400,7 @@ fn test_federation_metadata_multiple_types() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
                 name:             "Order".to_string(),
@@ -397,8 +413,10 @@ fn test_federation_metadata_multiple_types() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
         ],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     assert_eq!(metadata.types.len(), 2);
@@ -425,6 +443,7 @@ fn test_field_cannot_be_both_external_and_key() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     // This is valid for extended types (key fields are external)
@@ -445,6 +464,7 @@ fn test_owned_type_cannot_have_external_fields() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(!fed_type.is_extends);
@@ -496,6 +516,7 @@ fn test_extended_type_must_have_key() {
         shareable_fields:    vec![],
         inaccessible_fields: vec![],
         field_directives:    std::collections::HashMap::new(),
+        type_shareable: false,
     };
 
     assert!(fed_type.is_extends);

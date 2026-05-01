@@ -252,6 +252,7 @@ mod tests {
             enabled: true,
             version: "v2".to_string(),
             types:   vec![],
+            remote_subscription_fields: HashMap::new(),
         };
 
         let graph = DependencyGraph::build(&metadata).unwrap();
