@@ -15,7 +15,7 @@
 //!   └── UsageAggregator (DashMap<(tenant, period, entity), AtomicU64>)
 //!         │
 //!         ▼
-//! HTTP query endpoint (Cycle 6)
+//! HTTP query endpoint
 //!   GET /api/v1/admin/usage?tenant_id=…&period=…
 //! ```
 //!
@@ -23,7 +23,6 @@
 //!
 //! - **In-memory only**: counters reset to zero on process restart.
 //! - **Unbounded**: no eviction; see [`aggregator`] module docs for growth bounds.
-//! - Not yet wired into `AppState` — that is Cycle 6.
 
 pub mod aggregator;
 pub mod events;

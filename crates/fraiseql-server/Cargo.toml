@@ -47,6 +47,7 @@ fraiseql-functions = {workspace = true, optional = true}
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-error = {workspace = true, features = ["axum-compat"]}
 # FraiseQL observers (optional)
+fraiseql-federation = {workspace = true, optional = true}
 fraiseql-observers = {workspace = true, optional = true}
 # Secrets management and encryption
 fraiseql-secrets = {workspace = true, optional = true}
@@ -155,7 +156,7 @@ cli = ["dep:clap"]
 gcs = []
 # gRPC transport
 grpc = ["dep:tonic", "dep:prost", "dep:prost-reflect", "dep:http-body", "dep:http-body-util"]
-federation = ["fraiseql-core/federation"]
+federation = ["fraiseql-core/federation", "dep:fraiseql-federation"]
 # Edge functions HTTP endpoint (POST /functions/v1/{name})
 functions = ["dep:fraiseql-functions"]
 # auth is included by default because auth middleware is wired into the core request pipeline.

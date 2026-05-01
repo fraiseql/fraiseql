@@ -16,7 +16,7 @@ use super::{tenant_key::DomainRegistry, tenant_registry::TenantExecutorRegistry}
 use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 use crate::{
     config::error_sanitization::ErrorSanitizer, error::GraphQLError,
-    metrics_server::MetricsCollector,
+    metrics_server::MetricsCollector, usage::aggregator::UsageAggregator,
 };
 
 /// Server state containing executor and configuration.
@@ -111,6 +111,11 @@ pub struct AppState<A: DatabaseAdapter> {
     pub domain_registry:         Arc<DomainRegistry>,
     /// Tenant audit log (optional, for lifecycle event recording).
     pub tenant_audit_log:        Option<crate::tenancy::audit::AuditLogHandle>,
+    /// Usage aggregator — shared with the `MutationAuditLayer` tracing subscriber.
+    ///
+    /// Always present (never `Option`): when audit logging is disabled the
+    /// aggregator simply receives no events and every query returns empty counts.
+    pub usage:                   Arc<UsageAggregator>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -160,6 +165,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             tenant_executor_factory: None,
             domain_registry: Arc::new(DomainRegistry::new()),
             tenant_audit_log: None,
+            usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
         }
     }
 
@@ -240,6 +246,13 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_domain_registry(mut self, registry: Arc<DomainRegistry>) -> Self {
         self.domain_registry = registry;
+        self
+    }
+
+    /// Replace the usage aggregator (primarily for testing with an isolated aggregator).
+    #[must_use]
+    pub fn with_usage(mut self, usage: Arc<UsageAggregator>) -> Self {
+        self.usage = usage;
         self
     }
 

@@ -87,6 +87,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Thread adapter-level cache state through to admin handlers.
         state = state.with_adapter_cache_enabled(self.adapter_cache_enabled);
 
+        // Wire usage aggregator (shared with MutationAuditLayer tracing subscriber).
+        state = state.with_usage(self.usage.clone());
+
         // Attach error sanitizer (always present; disabled by default)
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {
@@ -647,6 +650,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route(
                         "/api/v1/admin/grafana-dashboard",
                         get(api::admin::grafana_dashboard_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/usage",
+                        get(api::usage::usage_handler::<A>),
                     )
                     .route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))
                     .with_state(state.clone());

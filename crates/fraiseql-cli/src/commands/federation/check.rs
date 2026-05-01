@@ -16,11 +16,12 @@ use crate::output::CommandResult;
 ///
 /// Validates the federation metadata in a compiled schema for correctness.
 /// If `supergraph_path` is provided, also validates composition against it.
+/// When `json` is `true`, the result is serialized and written to stdout before returning.
 ///
 /// # Errors
 ///
 /// Returns an error if the schema file cannot be read or parsed.
-pub fn run(schema_path: &str, supergraph_path: Option<&str>) -> Result<CommandResult> {
+pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Result<CommandResult> {
     let schema_content = fs::read_to_string(schema_path)
         .map_err(|e| anyhow::anyhow!("Failed to read schema: {e}"))?;
 
@@ -179,7 +180,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>) -> Result<CommandRe
         }
     }
 
-    if errors.is_empty() {
+    let result = if errors.is_empty() {
         let data = json!({
             "schema": schema_path,
             "federation_version": version,
@@ -188,13 +189,13 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>) -> Result<CommandRe
         });
 
         if warnings.is_empty() {
-            Ok(CommandResult::success("federation check", data))
+            CommandResult::success("federation check", data)
         } else {
-            Ok(CommandResult::success_with_warnings(
+            CommandResult::success_with_warnings(
                 "federation check",
                 data,
                 warnings,
-            ))
+            )
         }
     } else {
         let data = json!({
@@ -203,7 +204,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>) -> Result<CommandRe
             "error_count": errors.len(),
         });
 
-        Ok(CommandResult {
+        CommandResult {
             status:  "validation-failed".to_string(),
             command: "federation check".to_string(),
             data:    Some(data),
@@ -211,8 +212,18 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>) -> Result<CommandRe
             code:    Some("COMPOSITION_ERROR".to_string()),
             errors,
             warnings,
-        })
+        }
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result)
+                .map_err(|e| anyhow::anyhow!("Failed to serialize result: {e}"))?
+        );
     }
+
+    Ok(result)
 }
 
 /// Collect known field names for a federated type from its JSON metadata.
@@ -457,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_check_missing_file() {
-        let result = run("/nonexistent/schema.json", None);
+        let result = run("/nonexistent/schema.json", None, false);
         assert!(result.is_err());
     }
 
@@ -485,7 +496,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success");
         assert_eq!(result.data.unwrap()["type_count"], 1);
     }
@@ -498,7 +509,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "error");
         assert!(result.message.unwrap().contains("No federation metadata"));
     }
@@ -527,7 +538,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "validation-failed");
         assert!(!result.errors.is_empty());
         assert!(result.errors[0].contains("no @key directive"));
@@ -547,7 +558,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success");
         assert!(!result.warnings.is_empty());
         assert!(result.warnings[0].contains("not enabled"));
@@ -579,7 +590,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "validation-failed");
         assert!(
             result.errors.iter().any(|e| e.contains("userId") && e.contains("no field named")),
@@ -614,7 +625,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
     }
 
@@ -642,7 +653,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
     }
 
@@ -673,7 +684,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "validation-failed", "Result: {result:?}");
         assert!(
             result.errors.iter().any(|e| e.contains("empty string")),
@@ -724,6 +735,7 @@ mod tests {
         let result = run(
             local_path.to_str().unwrap(),
             Some(super_path.to_str().unwrap()),
+            false,
         )
         .unwrap();
         assert_eq!(result.status, "validation-failed", "Result: {result:?}");
@@ -765,7 +777,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Result: {result:?}");
     }
 
@@ -798,7 +810,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "validation-failed", "Result: {result:?}");
         assert!(
             result.errors.iter().any(|e| e.contains("nonexistent") && e.contains("@requires")),
@@ -837,7 +849,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
     }
 
@@ -870,7 +882,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
         assert!(
             result.warnings.iter().any(|w| w.contains("@provides") && w.contains("cannot be fully validated")),
@@ -905,7 +917,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert!(
             result.warnings.iter().any(|w| w.contains("@inaccessible") && w.contains("Query") && w.contains("secretField")),
             "Expected warning about @inaccessible on Query root field: {:?}",
@@ -939,7 +951,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert!(
             result.warnings.iter().any(|w| w.contains("@inaccessible") && w.contains("Mutation") && w.contains("dangerousAction")),
             "Expected warning about @inaccessible on Mutation root field: {:?}",
@@ -973,7 +985,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
         assert!(
             result.warnings.iter().any(|w| w.contains("resolvable: false") && w.contains("Product")),
@@ -1013,7 +1025,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "validation-failed", "Result: {result:?}");
         // Should error on missingField but not on id
         assert!(
@@ -1056,7 +1068,7 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), None).unwrap();
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
         assert!(
             !result.warnings.iter().any(|w| w.contains("@inaccessible")),
@@ -1079,8 +1091,74 @@ mod tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), Some("/nonexistent/supergraph.json")).unwrap();
+        let result = run(path.to_str().unwrap(), Some("/nonexistent/supergraph.json"), false).unwrap();
         assert_eq!(result.status, "validation-failed");
         assert!(result.errors[0].contains("not found"));
+    }
+
+    #[test]
+    fn test_check_json_false_does_not_print() {
+        // json=false: run() should return Ok without panicking.
+        // Printing is suppressed; only the returned CommandResult matters.
+        let schema = json!({
+            "federation": {
+                "enabled": true,
+                "version": "v2",
+                "types": [
+                    {
+                        "name": "User",
+                        "keys": [{"fields": ["id"], "resolvable": true}],
+                        "is_extends": false,
+                        "external_fields": [],
+                        "shareable_fields": [],
+                        "inaccessible_fields": [],
+                        "field_directives": {}
+                    }
+                ]
+            }
+        });
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("schema.compiled.json");
+        fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
+
+        let result = run(path.to_str().unwrap(), None, false).unwrap();
+        assert_eq!(result.status, "success");
+    }
+
+    #[test]
+    fn test_check_json_output_is_valid_json() {
+        // When json=true, run() prints to stdout. We verify the returned
+        // CommandResult is serialisable so the print cannot fail.
+        let schema = json!({
+            "federation": {
+                "enabled": true,
+                "version": "v2",
+                "types": [
+                    {
+                        "name": "User",
+                        "keys": [{"fields": ["id"], "resolvable": true}],
+                        "is_extends": false,
+                        "external_fields": [],
+                        "shareable_fields": [],
+                        "inaccessible_fields": [],
+                        "field_directives": {}
+                    }
+                ]
+            }
+        });
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("schema.compiled.json");
+        fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
+
+        // json=true: run() prints JSON to stdout and still returns the result
+        let result = run(path.to_str().unwrap(), None, true).unwrap();
+        assert_eq!(result.status, "success");
+        // Verify the result itself is JSON-serialisable (the print path is exercised above)
+        let serialized = serde_json::to_string(&result).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parsed["status"], "success");
+        assert_eq!(parsed["data"]["type_count"], 1);
     }
 }

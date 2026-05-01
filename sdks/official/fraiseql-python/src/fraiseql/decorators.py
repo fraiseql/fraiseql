@@ -262,8 +262,7 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
         raise ValueError(msg)
     if external and override_from is not None:
         msg = (
-            "@external fields cannot use @override"
-            " — external fields are owned by another subgraph"
+            "@external fields cannot use @override — external fields are owned by another subgraph"
         )
         raise ValueError(msg)
 

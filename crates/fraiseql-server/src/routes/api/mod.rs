@@ -18,6 +18,7 @@ pub mod query;
 pub mod schema;
 pub mod tenant_admin;
 pub mod types;
+pub mod usage;
 
 // Re-export commonly used types
 pub use types::{ApiError, ApiResponse};

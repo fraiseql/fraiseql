@@ -32,6 +32,7 @@ use std::{
     time::Duration,
 };
 
+
 use axum::{
     extract::{
         State,
@@ -112,6 +113,11 @@ pub struct SubscriptionState {
     pub lifecycle: Arc<dyn SubscriptionLifecycle>,
     /// Maximum subscriptions per connection (`None` = unlimited).
     pub max_subscriptions_per_connection: Option<u32>,
+    /// Subscription fields owned by remote subgraphs.
+    ///
+    /// Maps root subscription field name to the subgraph `WebSocket` URL.
+    /// Empty when federation is disabled or no remote subscription fields are declared.
+    pub remote_subscription_fields: Arc<HashMap<String, String>>,
 }
 
 impl SubscriptionState {
@@ -121,6 +127,7 @@ impl SubscriptionState {
             manager,
             lifecycle: Arc::new(crate::subscriptions::lifecycle::NoopLifecycle),
             max_subscriptions_per_connection: None,
+            remote_subscription_fields: Arc::new(HashMap::new()),
         }
     }
 
@@ -135,6 +142,15 @@ impl SubscriptionState {
     #[must_use]
     pub const fn with_max_subscriptions(mut self, max: Option<u32>) -> Self {
         self.max_subscriptions_per_connection = max;
+        self
+    }
+
+    /// Set remote subscription fields (federation passthrough).
+    ///
+    /// Maps subscription field names to the owning subgraph's `WebSocket` URL.
+    #[must_use]
+    pub fn with_remote_subscription_fields(mut self, fields: HashMap<String, String>) -> Self {
+        self.remote_subscription_fields = Arc::new(fields);
         self
     }
 }
@@ -261,6 +277,13 @@ async fn handle_subscription_connection(
     // Track active operations (operation_id -> subscription_id)
     let mut active_operations: HashMap<String, SubscriptionId> = HashMap::new();
 
+    // Remote subscription message output channel.
+    //
+    // Forwarder tasks (federation feature) send pre-encoded ServerMessage values here.
+    // The channel is always present so the select! loop has a uniform branch regardless
+    // of whether any remote subscriptions are active.
+    let (remote_msg_tx, mut remote_msg_rx) = tokio::sync::mpsc::channel::<ServerMessage>(64);
+
     // Subscribe to event broadcast
     let mut event_receiver = state.manager.receiver();
 
@@ -298,6 +321,7 @@ async fn handle_subscription_connection(
                             &state,
                             &codec,
                             &mut active_operations,
+                            remote_msg_tx.clone(),
                             &mut sender,
                         ).await {
                             // Best-effort: connection is already being closed.
@@ -352,6 +376,18 @@ async fn handle_subscription_connection(
                 }
             }
 
+            remote_msg = remote_msg_rx.recv() => {
+                // Remote subscription event forwarded by a federation forwarder task.
+                // The channel is always present; it only carries messages when the
+                // federation feature is enabled and remote subscriptions are active.
+                if let Some(msg) = remote_msg {
+                    if send_server_message(&codec, &mut sender, msg).await.is_err() {
+                        warn!(connection_id = %connection_id, "Failed to send remote subscription message");
+                        break;
+                    }
+                }
+            }
+
             _ = ping_interval.tick() => {
                 let msg = ServerMessage::ping(None);
                 if send_server_message(&codec, &mut sender, msg).await.is_err() {
@@ -371,6 +407,9 @@ async fn handle_subscription_connection(
 /// Handle a client message.
 ///
 /// Returns `Ok(())` on success, or `Err(CloseCode)` if the connection should be closed.
+///
+/// `remote_msg_tx` is used by federation forwarder tasks to send pre-encoded
+/// `ServerMessage` values back to the client connection loop.
 #[allow(clippy::cognitive_complexity)] // Reason: WebSocket message dispatch with subscribe/unsubscribe/query protocol handling
 async fn handle_client_message(
     text: &str,
@@ -378,8 +417,14 @@ async fn handle_client_message(
     state: &SubscriptionState,
     codec: &ProtocolCodec,
     active_operations: &mut HashMap<String, SubscriptionId>,
+    remote_msg_tx: tokio::sync::mpsc::Sender<ServerMessage>,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
 ) -> Result<(), CloseCode> {
+    // remote_msg_tx is only consumed inside the #[cfg(feature = "federation")] block below.
+    // When the feature is disabled the parameter goes unused; suppress the warning.
+    #[cfg(not(feature = "federation"))]
+    let _ = &remote_msg_tx;
+
     let client_msg: ClientMessage = codec.decode(text).map_err(|e| {
         warn!(error = %e, "Failed to parse client message");
         CloseCode::ProtocolError
@@ -478,7 +523,77 @@ async fn handle_client_message(
                 return Ok(());
             }
 
-            // Subscribe
+            // Forward to remote subgraph when the subscription field is owned remotely.
+            #[cfg(feature = "federation")]
+            if let Some(subgraph_url) = state.remote_subscription_fields.get(&subscription_name) {
+                use fraiseql_federation::subscription_forwarder::{ForwardedEvent, SubscriptionForwarder};
+
+                match SubscriptionForwarder::new(subgraph_url) {
+                    Ok(forwarder) => {
+                        // Create a channel so the forwarder task can send us raw events.
+                        let (event_tx, mut event_rx) =
+                            tokio::sync::mpsc::channel::<ForwardedEvent>(32);
+
+                        // Task 1: run the WebSocket forwarder (sends ForwardedEvent to event_tx).
+                        let fwd_op = op_id.clone();
+                        let fwd_query = payload.query.clone();
+                        let fwd_vars = variables_value.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = forwarder.forward(&fwd_op, &fwd_query, fwd_vars, event_tx).await {
+                                warn!(error = %e, "Remote subscription forwarder failed");
+                            }
+                        });
+
+                        // Task 2: relay ForwardedEvent → ServerMessage → client.
+                        let relay_op = op_id.clone();
+                        let relay_tx = remote_msg_tx.clone();
+                        tokio::spawn(async move {
+                            while let Some(event) = event_rx.recv().await {
+                                let server_msg = match event {
+                                    ForwardedEvent::Next(data) => {
+                                        ServerMessage::next(&relay_op, data)
+                                    }
+                                    ForwardedEvent::Error(errors) => {
+                                        let errors_vec = errors.as_array().map_or_else(
+                                            || vec![GraphQLError::with_code(errors.to_string(), "REMOTE_ERROR")],
+                                            |arr| arr.iter().map(|e| GraphQLError::with_code(
+                                                e.get("message").and_then(|v| v.as_str()).unwrap_or("Remote subgraph error"),
+                                                "REMOTE_ERROR",
+                                            )).collect(),
+                                        );
+                                        ServerMessage::error(&relay_op, errors_vec)
+                                    }
+                                    ForwardedEvent::Complete => ServerMessage::complete(&relay_op),
+                                };
+                                if relay_tx.send(server_msg).await.is_err() {
+                                    break; // Client disconnected
+                                }
+                            }
+                        });
+
+                        WS_SUBSCRIPTIONS_ACCEPTED.fetch_add(1, Ordering::Relaxed);
+                        info!(
+                            connection_id = %connection_id,
+                            operation_id = %op_id,
+                            subscription = %subscription_name,
+                            "Subscription forwarded to remote subgraph"
+                        );
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        let error = ServerMessage::error(
+                            &op_id,
+                            vec![GraphQLError::with_code(e.to_string(), "SUBSCRIPTION_ERROR")],
+                        );
+                        if let Err(send_err) = send_server_message(codec, sender, error).await {
+                            debug!(connection_id = %connection_id, error = %send_err, "Could not send forwarding error to client");
+                        }
+                        return Ok(());
+                    }
+                }
+            }
+
+            // Subscribe locally (field is owned by this subgraph)
             match state.manager.subscribe(
                 &subscription_name,
                 serde_json::json!({}),

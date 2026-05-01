@@ -352,6 +352,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             function_store: None,
             #[cfg(feature = "functions")]
             function_runtime: None,
+            usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
         })
     }
 

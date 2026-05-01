@@ -14,17 +14,34 @@
 //! # Restarts
 //!
 //! Counters are **in-memory only**; they reset to zero on process restart.
-//! Cycle 6 will wire the aggregator into `AppState` and expose a query endpoint.
+//! The aggregator is wired into `AppState` and exposed via `GET /api/v1/admin/usage`.
 
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{Arc, OnceLock, atomic::{AtomicU64, Ordering}},
 };
 
 use dashmap::DashMap;
 use serde::Serialize;
 
 use super::events::MutationAuditEvent;
+
+// ── Global aggregator ──────────────────────────────────────────────────────
+
+static GLOBAL_USAGE_AGGREGATOR: OnceLock<Arc<UsageAggregator>> = OnceLock::new();
+
+/// Return a reference to the process-wide [`UsageAggregator`].
+///
+/// Initialised on first call and shared for the lifetime of the process.
+/// Both [`MutationAuditLayer`](super::layer::MutationAuditLayer) (tracing
+/// subscriber) and the HTTP query endpoint use the same `Arc`, so counters
+/// written by the layer are immediately visible to the endpoint.
+///
+/// [`MutationAuditLayer`]: crate::usage::layer::MutationAuditLayer
+#[must_use]
+pub fn global_aggregator() -> &'static Arc<UsageAggregator> {
+    GLOBAL_USAGE_AGGREGATOR.get_or_init(|| Arc::new(UsageAggregator::new()))
+}
 
 // ── Period validation ──────────────────────────────────────────────────────
 

@@ -52,8 +52,12 @@ class SchemaRegistry:
             "nullable": field_info["nullable"],
         }
         optional_keys = (
-            "requires_scope", "on_deny", "deprecated",
-            "description", "computed", "federation",
+            "requires_scope",
+            "on_deny",
+            "deprecated",
+            "description",
+            "computed",
+            "federation",
         )
         for key in optional_keys:
             if key in field_info:
