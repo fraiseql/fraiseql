@@ -141,3 +141,5 @@ sdks/**/dist/
 composer-setup.php
 .phpunit.cache/
 .phpunit.result.cache
+# Studio frontend dependencies (rebuilt by build.rs)
+crates/fraiseql-server/studio/node_modules/

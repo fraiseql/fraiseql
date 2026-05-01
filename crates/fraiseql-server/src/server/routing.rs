@@ -264,6 +264,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_state(state.clone())
             .merge(graphql_router);
 
+        // Studio admin dashboard — always mounted at /studio
+        {
+            use axum::routing::get;
+            use crate::routes::studio::{studio_handler, studio_asset_handler};
+            let studio_router = Router::new()
+                .route("/studio", get(studio_handler))
+                .route("/studio/assets/{file}", get(studio_asset_handler))
+                .route("/studio/{*path}", get(studio_handler));
+            info!("Studio admin dashboard mounted at /studio");
+            app = app.merge(studio_router);
+        }
+
         // Conditionally add playground route
         if self.config.playground_enabled {
             let playground_state =

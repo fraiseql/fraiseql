@@ -13,6 +13,7 @@ pub mod playground;
 pub mod realtime;
 pub mod storage;
 pub mod subscriptions;
+pub mod studio;
 pub mod well_known;
 
 #[cfg(feature = "grpc")]

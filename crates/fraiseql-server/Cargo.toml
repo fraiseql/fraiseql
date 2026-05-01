@@ -2,6 +2,11 @@
 name = "fraiseql-server"
 required-features = ["cli"]
 
+# Platform E2E tests require the functions feature for fraiseql-functions imports
+[[test]]
+name = "platform_e2e_test"
+required-features = ["functions"]
+
 [[bench]]
 harness = false
 name = "performance_benchmarks"
@@ -83,6 +88,8 @@ rmcp = {version = "0.16", default-features = false, features = ["server", "macro
 rustls = "0.23"
 rustls-pemfile = "2.2"
 schemars = {version = "1", optional = true}
+# Embed static assets (studio SPA) into the binary
+rust-embed = {version = "8", features = ["interpolate-folder-path"]}
 # Serialization
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
