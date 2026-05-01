@@ -1008,7 +1008,7 @@ async fn test_host_event_payload_returns_trigger_data() {
 
 #[tokio::test]
 async fn test_get_secret_returns_stored_value() {
-    use crate::secrets::{FunctionSecretsStore as _, InMemorySecretsStore};
+    use crate::secrets::InMemorySecretsStore;
     use crate::HostContext as _;
 
     let payload = EventPayload {
@@ -1049,7 +1049,7 @@ async fn test_get_secret_returns_none_without_store() {
 
 #[tokio::test]
 async fn test_get_secret_scoped_to_function_name() {
-    use crate::secrets::{FunctionSecretsStore as _, InMemorySecretsStore};
+    use crate::secrets::InMemorySecretsStore;
     use crate::HostContext as _;
 
     let store: Arc<dyn crate::secrets::FunctionSecretsStore> =

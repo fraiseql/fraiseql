@@ -371,8 +371,6 @@ mod tests {
     #[cfg(feature = "function-secrets")]
     #[tokio::test]
     async fn test_ciphertext_differs_on_each_write() {
-        use std::sync::Arc;
-        use std::sync::Mutex;
 
         let s = InMemorySecretsStore::new();
         s.set_secret("fn", "KEY", "plaintext").await.unwrap();
