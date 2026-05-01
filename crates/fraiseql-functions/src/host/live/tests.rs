@@ -169,6 +169,75 @@ async fn test_host_query_without_executor_returns_unsupported() {
 
 // SQL Query Tests
 
+/// Mock SQL executor for testing — returns a fixed set of rows.
+struct MockSqlExecutor {
+    rows: Vec<serde_json::Value>,
+}
+
+impl MockSqlExecutor {
+    fn new(rows: Vec<serde_json::Value>) -> Arc<Self> {
+        Arc::new(Self { rows })
+    }
+}
+
+impl super::SqlExecutor for MockSqlExecutor {
+    fn execute_sql(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<serde_json::Value>>> + Send + '_>> {
+        let rows = self.rows.clone();
+        Box::pin(async move { Ok(rows) })
+    }
+}
+
+#[tokio::test]
+async fn test_host_sql_query_with_executor_returns_rows() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "read".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let expected = vec![
+        serde_json::json!({"id": 1, "name": "Alice"}),
+        serde_json::json!({"id": 2, "name": "Bob"}),
+    ];
+    let executor = MockSqlExecutor::new(expected.clone());
+
+    let ctx = LiveHostContext::with_sql_executor(payload, HostContextConfig::default(), executor);
+
+    let result = ctx
+        .sql_query("SELECT id, name FROM users", &[])
+        .await;
+
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), expected);
+}
+
+#[tokio::test]
+async fn test_host_sql_query_without_executor_returns_empty() {
+    let payload = EventPayload {
+        trigger_type: "test".to_string(),
+        entity: "User".to_string(),
+        event_kind: "read".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
+    };
+
+    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
+
+    let result = ctx
+        .sql_query("SELECT id FROM users WHERE active = $1", &[serde_json::json!(true)])
+        .await;
+
+    // No executor → safe fallback: empty rows (no error)
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_empty());
+}
+
 #[tokio::test]
 async fn test_host_sql_query_returns_rows() {
     let payload = EventPayload {

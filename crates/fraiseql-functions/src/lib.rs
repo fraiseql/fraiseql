@@ -19,6 +19,8 @@ pub mod triggers;
 pub mod types;
 
 pub use host::{HostContext, NoopHostContext};
+#[cfg(feature = "host-live")]
+pub use host::live::{HostContextConfig, LiveHostContext, QueryExecutor, SqlExecutor};
 pub use migrations::{cron_migration_sql, functions_migration_sql};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};

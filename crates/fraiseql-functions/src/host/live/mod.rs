@@ -68,6 +68,23 @@ pub trait QueryExecutor: Send + Sync {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value>> + Send + '_>>;
 }
 
+/// A trait for executing raw SQL queries (read-only, after classifier approval).
+///
+/// When no executor is configured, `sql_query` returns `Ok(vec![])`.
+/// Inject a concrete implementation to enable actual database reads from functions.
+pub trait SqlExecutor: Send + Sync {
+    /// Execute a classified-safe (read-only) SQL statement and return rows as JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the query fails to execute.
+    fn execute_sql(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<serde_json::Value>>> + Send + '_>>;
+}
+
 /// Live host context implementation with real backends.
 pub struct LiveHostContext {
     /// Event payload that triggered this function.
@@ -81,6 +98,9 @@ pub struct LiveHostContext {
 
     /// Query executor for GraphQL execution.
     query_executor: Option<Arc<dyn QueryExecutor>>,
+
+    /// SQL executor for raw SQL reads (after classifier approval).
+    sql_executor: Option<Arc<dyn SqlExecutor>>,
 
     /// HTTP client for outbound requests.
     http_client: Option<Arc<reqwest::Client>>,
@@ -100,13 +120,14 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: None,
+            sql_executor: None,
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
         }
     }
 
-    /// Create a new live host context with a query executor.
+    /// Create a new live host context with a GraphQL query executor.
     pub fn with_executor(
         event_payload: EventPayload,
         config: HostContextConfig,
@@ -117,6 +138,25 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: Some(executor),
+            sql_executor: None,
+            http_client: None,
+            storage_backend: None,
+            security_context: Self::default_security_context(),
+        }
+    }
+
+    /// Create a new live host context with a raw SQL executor.
+    pub fn with_sql_executor(
+        event_payload: EventPayload,
+        config: HostContextConfig,
+        sql_executor: Arc<dyn SqlExecutor>,
+    ) -> Self {
+        Self {
+            event_payload,
+            config,
+            logs: Arc::new(std::sync::Mutex::new(Vec::new())),
+            query_executor: None,
+            sql_executor: Some(sql_executor),
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
@@ -134,6 +174,7 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: None,
+            sql_executor: None,
             http_client: Some(http_client),
             storage_backend: None,
             security_context: Self::default_security_context(),
@@ -199,19 +240,23 @@ impl HostContext for LiveHostContext {
     async fn sql_query(
         &self,
         sql: &str,
-        _params: &[serde_json::Value],
+        params: &[serde_json::Value],
     ) -> Result<Vec<serde_json::Value>> {
-        // Classify the SQL statement first
+        // Reject any non-read-only SQL before touching the database.
         let classification = sql_classifier::classify_sql(sql)?;
         match classification {
             sql_classifier::SqlClassification::ReadOnly => {
-                // Would execute query here (not yet implemented)
-                // For now, return a placeholder
-                Ok(vec![])
+                // Delegate to an injected executor when available, otherwise return
+                // an empty result set (safe fallback — no data, no error).
+                if let Some(executor) = &self.sql_executor {
+                    executor.execute_sql(sql, params).await
+                } else {
+                    Ok(vec![])
+                }
             }
             sql_classifier::SqlClassification::Rejected(reason) => {
                 Err(fraiseql_error::FraiseQLError::Authorization {
-                    message: format!("SQL query not allowed: {}", reason),
+                    message: format!("SQL query not allowed: {reason}"),
                     action: Some("execute_sql_query".to_string()),
                     resource: None,
                 })
