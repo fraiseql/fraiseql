@@ -278,14 +278,29 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Studio admin API — /admin/v1/* (protected by admin bearer token when configured)
         if self.config.admin_api_enabled {
             if let Some(ref token) = self.config.admin_token {
-                use crate::routes::studio::admin::{
-                    health_handler as studio_health_handler,
-                    schema_handler as studio_schema_handler,
+                use crate::routes::studio::{
+                    admin::{
+                        health_handler as studio_health_handler,
+                        schema_handler as studio_schema_handler,
+                    },
+                    data::{
+                        mutate_handler as data_mutate_handler,
+                        query_handler as data_query_handler,
+                    },
                 };
                 let auth = BearerAuthState::new(token.clone());
                 let studio_admin_router = Router::new()
                     .route("/admin/v1/schema", get(studio_schema_handler::<A>))
                     .route("/admin/v1/health/detailed", get(studio_health_handler::<A>))
+                    // Data browser endpoints
+                    .route(
+                        "/admin/v1/data/{entity}/query",
+                        post(data_query_handler::<A>),
+                    )
+                    .route(
+                        "/admin/v1/data/{entity}/mutate",
+                        post(data_mutate_handler::<A>),
+                    )
                     .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
                     .with_state(state.clone());
                 info!("Studio admin API mounted at /admin/v1/* (bearer token required)");

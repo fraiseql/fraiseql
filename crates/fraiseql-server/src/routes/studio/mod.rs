@@ -6,6 +6,7 @@
 //! - `GET /studio/*path` — wildcard fallback returning the same HTML shell
 
 pub mod admin;
+pub mod data;
 
 use axum::{
     extract::Path,
