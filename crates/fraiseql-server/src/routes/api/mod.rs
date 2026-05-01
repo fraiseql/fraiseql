@@ -12,6 +12,7 @@ pub mod admin;
 pub mod design;
 #[cfg(feature = "federation")]
 pub mod federation;
+pub mod metadata;
 pub mod openapi;
 pub mod query;
 pub mod schema;
