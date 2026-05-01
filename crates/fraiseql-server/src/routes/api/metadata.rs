@@ -1,14 +1,19 @@
-//! Schema field security metadata flattening.
+//! Schema field security metadata flattening and HTTP handler.
 //!
 //! Walks the compiled schema and collects non-default security annotations
 //! (field encryption, scope requirements, type-level role guards) into a flat
 //! `BTreeMap` keyed by `"TypeName"` (type-level) or `"TypeName.fieldName"`
 //! (field-level).
+//!
+//! The `metadata_handler` exposes this map at `GET /api/v1/schema/metadata`.
 
 use std::collections::BTreeMap;
 
-use fraiseql_core::schema::{CompiledSchema, FieldDenyPolicy};
+use axum::{Json, extract::State};
+use fraiseql_core::{db::traits::DatabaseAdapter, schema::{CompiledSchema, FieldDenyPolicy}};
 use serde::Serialize;
+
+use crate::routes::{api::types::ApiResponse, graphql::AppState};
 
 /// Security metadata for a single field or type in the compiled schema.
 ///
@@ -58,6 +63,30 @@ impl FieldSecurityMetadata {
             && self.on_deny.is_none()
             && self.requires_role.is_none()
     }
+}
+
+/// Response body for `GET /api/v1/schema/metadata`.
+#[derive(Debug, Serialize)]
+pub struct MetadataResponse {
+    /// Flat map of security annotations, keyed by `"TypeName"` or `"TypeName.fieldName"`.
+    pub metadata: BTreeMap<String, FieldSecurityMetadata>,
+}
+
+/// Return field-level security metadata for the compiled schema.
+///
+/// Walks all types and fields, collecting non-default security annotations
+/// (encryption, scope requirements, deny policies, role guards) into a flat
+/// map and returns it as a JSON object.
+///
+/// The handler is infallible — the schema is always present in `AppState`.
+pub async fn metadata_handler<A: DatabaseAdapter>(
+    State(state): State<AppState<A>>,
+) -> Json<ApiResponse<MetadataResponse>> {
+    let metadata = flatten_field_metadata(state.executor().schema());
+    Json(ApiResponse {
+        status: "success".to_string(),
+        data:   MetadataResponse { metadata },
+    })
 }
 
 /// Flatten all non-default security annotations from a compiled schema into a map.
@@ -119,12 +148,152 @@ pub fn flatten_field_metadata(schema: &CompiledSchema) -> BTreeMap<String, Field
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
 
-    use fraiseql_core::schema::{
-        CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig, FieldType,
-        TypeDefinition,
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use axum::extract::State;
+    use fraiseql_core::{
+        db::{
+            WhereClause,
+            traits::DatabaseAdapter,
+            types::{DatabaseType, JsonbValue, PoolMetrics},
+        },
+        error::Result as FraiseQLResult,
+        runtime::Executor,
+        schema::{
+            CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig, FieldType,
+            TypeDefinition,
+        },
     };
 
     use super::*;
+    use crate::routes::graphql::AppState;
+
+    // ── Minimal no-op adapter for handler tests ──────────────────────────────
+
+    #[derive(Debug, Clone)]
+    struct StubAdapter;
+
+    // Reason: async_trait is required by the DatabaseAdapter trait definition
+    #[async_trait]
+    impl DatabaseAdapter for StubAdapter {
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::SQLite
+        }
+
+        async fn health_check(&self) -> FraiseQLResult<()> {
+            Ok(())
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics::default()
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    fn make_security_schema() -> CompiledSchema {
+        let email_field = FieldDefinition::new("email", FieldType::String).with_encryption(
+            FieldEncryptionConfig {
+                key_reference: "keys/email".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
+            },
+        );
+        let ssn_field = FieldDefinition::new("ssn", FieldType::String)
+            .with_requires_scope("read:pii")
+            .with_on_deny(FieldDenyPolicy::Mask);
+        let mut user_type = TypeDefinition::new("User", "v_user");
+        user_type.fields = vec![email_field, ssn_field];
+        CompiledSchema {
+            types: vec![user_type],
+            ..CompiledSchema::default()
+        }
+    }
+
+    // ── RED: handler returns correct JSON shape ───────────────────────────────
+
+    #[tokio::test]
+    async fn metadata_handler_returns_200_with_correct_body() {
+        let schema = make_security_schema();
+        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let state = AppState::new(executor);
+
+        let Json(resp) = metadata_handler(State(state)).await;
+
+        assert_eq!(resp.status, "success");
+
+        let meta = &resp.data.metadata;
+        assert_eq!(meta.len(), 2);
+
+        let email = meta.get("User.email").unwrap();
+        assert_eq!(email.encrypted, Some(true));
+        assert!(email.requires_scope.is_none());
+        assert!(email.on_deny.is_none());
+
+        let ssn = meta.get("User.ssn").unwrap();
+        assert_eq!(ssn.requires_scope.as_deref(), Some("read:pii"));
+        assert_eq!(ssn.on_deny.as_deref(), Some("mask"));
+        assert!(ssn.encrypted.is_none());
+    }
+
+    #[tokio::test]
+    async fn metadata_handler_body_serialises_to_expected_json() {
+        let schema = make_security_schema();
+        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let state = AppState::new(executor);
+
+        let Json(resp) = metadata_handler(State(state)).await;
+        let json = serde_json::to_value(&resp).unwrap();
+
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "status": "success",
+                "data": {
+                    "metadata": {
+                        "User.email": {"encrypted": true},
+                        "User.ssn":   {"requires_scope": "read:pii", "on_deny": "mask"}
+                    }
+                }
+            })
+        );
+    }
 
     // ── Test fixture ─────────────────────────────────────────────────────────
 
