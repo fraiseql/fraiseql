@@ -3467,6 +3467,7 @@ dependencies = [
  "ed25519-dalek",
  "fraiseql-arrow",
  "fraiseql-auth",
+ "fraiseql-cli",
  "fraiseql-core",
  "fraiseql-error",
  "fraiseql-federation",

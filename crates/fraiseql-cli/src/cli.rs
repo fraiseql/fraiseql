@@ -632,6 +632,7 @@ pub(crate) enum SchemaCommands {
         #[arg(short, long, value_name = "TOKEN")]
         token: Option<String>,
     },
+
 }
 
 #[derive(Subcommand)]

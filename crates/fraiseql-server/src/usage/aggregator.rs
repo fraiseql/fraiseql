@@ -89,6 +89,7 @@ pub fn validate_period(period: &str) -> bool {
 /// ```json
 /// { "mutations": { "User": 42, "Order": 7 } }
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize)]
 pub struct UsageSummary {
     /// Mutation counts keyed by entity type.

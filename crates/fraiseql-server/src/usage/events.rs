@@ -5,6 +5,7 @@
 ///
 /// The `period` field is a UTC calendar month bucket in `"YYYY-MM"` format,
 /// assigned at the moment the event is recorded by [`MutationAuditLayer`](super::layer::MutationAuditLayer).
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct MutationAuditEvent {
     /// GraphQL mutation field name (e.g. `"create_user"`).

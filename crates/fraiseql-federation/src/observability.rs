@@ -167,7 +167,7 @@ impl SubgraphLatencyTracker {
             let prefix = format!("federation.subgraph.{subgraph}");
             if count > 0 {
                 let avg_ms = (sum_us as f64 / count as f64) / 1000.0;
-                attrs.insert(format!("{prefix}.avg_latency_ms"), format!("{avg_ms:.2}"));
+                attrs.insert(format!("{prefix}.latency_ms"), format!("{avg_ms:.2}"));
             }
             attrs.insert(format!("{prefix}.count"), count.to_string());
             if count > 0 {
@@ -380,7 +380,7 @@ mod tests {
         tracker.record("users", Duration::from_millis(15), 10, true);
 
         let attrs = tracker.to_span_attributes();
-        assert!(attrs.contains_key("federation.subgraph.users.avg_latency_ms"));
+        assert!(attrs.contains_key("federation.subgraph.users.latency_ms"));
         assert_eq!(attrs["federation.subgraph.users.count"], "1");
         assert_eq!(attrs["federation.subgraph.users.success_rate"], "1.0000");
     }

@@ -2705,7 +2705,7 @@ mod mutation_audit {
         schema::MutationOperation,
     };
 
-    /// Minimal mock adapter that returns a valid mutation_response row.
+    /// Minimal mock adapter that returns a valid `mutation_response` row.
     struct AuditMockAdapter;
 
     #[async_trait]
@@ -2851,7 +2851,7 @@ mod mutation_audit {
 
     // ── tracing event emission ────────────────────────────────────────────
 
-    /// A-E1: Mutation audit event is emitted when audit_mutations=true.
+    /// A-E1: Mutation audit event is emitted when `audit_mutations=true`.
     #[tokio::test]
     async fn audit_event_emitted_when_enabled() {
         let captured = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -2875,7 +2875,7 @@ mod mutation_audit {
         );
     }
 
-    /// A-E2: No mutation audit event when audit_mutations=false (default).
+    /// A-E2: No mutation audit event when `audit_mutations=false` (default).
     #[tokio::test]
     async fn no_audit_event_when_disabled() {
         let captured = Arc::new(Mutex::new(Vec::<String>::new()));

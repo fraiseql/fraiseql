@@ -340,7 +340,7 @@ impl StateEncryptionService {
         security_json: &serde_json::Value,
     ) -> std::result::Result<Option<Arc<Self>>, anyhow::Error> {
         let cfg: StateEncryptionConfig = match security_json.get("state_encryption") {
-            None => return Ok(None),
+            None | Some(serde_json::Value::Null) => return Ok(None),
             Some(v) => serde_json::from_value(v.clone())
                 .map_err(|e| anyhow::anyhow!("invalid state_encryption config: {e}"))?,
         };

@@ -46,6 +46,7 @@ use crate::{
 // ── Query parameters ───────────────────────────────────────────────────────
 
 /// Query parameters for the usage endpoint.
+#[non_exhaustive]
 #[derive(Debug, Deserialize)]
 pub struct UsageQueryParams {
     /// Tenant identifier to query.
@@ -57,6 +58,7 @@ pub struct UsageQueryParams {
 // ── Response types ─────────────────────────────────────────────────────────
 
 /// Successful usage query response.
+#[non_exhaustive]
 #[derive(Debug, Serialize)]
 pub struct UsageResponse {
     /// The queried tenant identifier.

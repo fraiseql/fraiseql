@@ -433,7 +433,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .executor
                 .schema()
                 .federation_metadata()
-                .map(|m| m.remote_subscription_fields.clone())
+                .map(|m| m.remote_subscription_fields)
                 .unwrap_or_default();
 
             #[allow(unused_mut)] // Reason: `mut` is needed when the federation feature is enabled

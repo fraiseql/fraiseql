@@ -66,6 +66,7 @@ impl FieldSecurityMetadata {
 }
 
 /// Response body for `GET /api/v1/schema/metadata`.
+#[non_exhaustive]
 #[derive(Debug, Serialize)]
 pub struct MetadataResponse {
     /// Flat map of security annotations, keyed by `"TypeName"` or `"TypeName.fieldName"`.
