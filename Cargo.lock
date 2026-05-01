@@ -3356,6 +3356,7 @@ dependencies = [
  "fraiseql-error",
  "fraiseql-observers",
  "fraiseql-storage",
+ "lru 0.16.4",
  "rand 0.8.6",
  "reqwest",
  "serde",

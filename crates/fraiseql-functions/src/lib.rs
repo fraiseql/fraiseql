@@ -28,6 +28,8 @@ pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 pub use runtime::sandbox::{
     ConcurrencyLimiter, ConcurrencyLimiterRegistry, DEFAULT_MAX_CONCURRENT,
 };
+#[cfg(feature = "runtime-wasm")]
+pub use runtime::wasm::cache::{WasmModuleCache, DEFAULT_MODULE_CACHE_SIZE};
 pub use secrets::{FunctionSecretsStore, InMemorySecretsStore};
 pub use store::{FunctionRecord, FunctionStatus, FunctionStore};
 pub use store::memory::InMemoryFunctionStore;

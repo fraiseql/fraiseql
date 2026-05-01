@@ -22,6 +22,7 @@
 //! - `fraiseql:host/context`: access to event payload, auth, environment
 //! - `fraiseql:host/io`: calls back to the host for queries, storage, HTTP
 
+pub mod cache;
 pub mod limiter;
 pub mod store;
 
@@ -149,30 +150,45 @@ impl Default for WasmConfig {
 /// WASM runtime using wasmtime and the Component Model.
 pub struct WasmRuntime {
     engine: wasmtime::Engine,
+    module_cache: cache::WasmModuleCache,
 }
 
 impl std::fmt::Debug for WasmRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WasmRuntime").finish()
+        f.debug_struct("WasmRuntime")
+            .field("module_cache", &self.module_cache)
+            // engine intentionally omitted — wasmtime::Engine does not implement Debug
+            .finish_non_exhaustive()
     }
 }
 
 impl Clone for WasmRuntime {
     fn clone(&self) -> Self {
-        // Engines are thread-safe and cheap to clone
+        // Engine and cache are Arc-backed; cloning is cheap and shares state.
         Self {
             engine: self.engine.clone(),
+            module_cache: self.module_cache.clone(),
         }
     }
 }
 
 impl WasmRuntime {
-    /// Create a new WASM runtime with the given configuration.
+    /// Create a new WASM runtime with the given configuration and a default
+    /// module cache of [`cache::DEFAULT_MODULE_CACHE_SIZE`] entries.
     ///
     /// # Errors
     ///
     /// Returns `Err` if engine initialization fails.
     pub fn new(config: &WasmConfig) -> Result<Self> {
+        Self::with_module_cache(config, cache::WasmModuleCache::with_defaults())
+    }
+
+    /// Create a new WASM runtime with an explicit module cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if engine initialization fails.
+    pub fn with_module_cache(config: &WasmConfig, module_cache: cache::WasmModuleCache) -> Result<Self> {
         let mut wasm_config = wasmtime::Config::new();
         wasm_config.wasm_simd(config.enable_simd);
         wasm_config.wasm_relaxed_simd(false);
@@ -186,16 +202,21 @@ impl WasmRuntime {
             }
         })?;
 
-        Ok(Self { engine })
+        Ok(Self { engine, module_cache })
     }
 
     /// Get the underlying wasmtime engine.
-    ///
-    /// Available for integration with module caches and warm pools (Cycle 7).
-    #[allow(dead_code)] // Reason: used by module cache in Cycle 7
+    #[allow(dead_code)] // Reason: available for extensions and integration tests
     #[allow(clippy::missing_const_for_fn)] // Reason: reference return prevents const
     pub(crate) fn engine(&self) -> &wasmtime::Engine {
         &self.engine
+    }
+
+    /// Get a reference to the module cache.
+    ///
+    /// Exposed for testing and metrics collection.
+    pub const fn module_cache(&self) -> &cache::WasmModuleCache {
+        &self.module_cache
     }
 }
 
@@ -219,8 +240,12 @@ impl FunctionRuntime for WasmRuntime {
     where
         H: HostContext + ?Sized,
     {
-        let module_bytecode = module.bytecode.clone();
+        // Check the module cache before cloning the (potentially large) bytecode.
+        let cached = self.module_cache.get(&module.source_hash);
+        let module_bytecode = if cached.is_none() { Some(module.bytecode.clone()) } else { None };
+        let source_hash = module.source_hash.clone();
         let engine = self.engine.clone();
+        let module_cache = self.module_cache.clone();
         let max_duration = limits.max_duration;
 
         async move {
@@ -232,7 +257,7 @@ impl FunctionRuntime for WasmRuntime {
 
             // Run wasmtime synchronously in a blocking task to avoid blocking the async executor
             let result = tokio::task::spawn_blocking(move || {
-                invoke_sync(&engine, &module_bytecode, &event_json, limits)
+                invoke_sync_cached(&engine, cached, module_bytecode, source_hash, &module_cache, &event_json, limits)
             });
 
             // Apply timeout
@@ -297,28 +322,46 @@ impl crate::runtime::SendFunctionRuntime for WasmRuntime {
     }
 }
 
-/// Synchronous WASM component invocation.
+/// Synchronous WASM component invocation with module cache support.
+///
+/// On a cache hit (`cached_component` is `Some`), compilation is skipped.
+/// On a cache miss, the module is compiled from `module_bytecode` and the
+/// result is inserted into `module_cache` for future invocations.
 ///
 /// Runs entirely on the calling thread; wrap in `spawn_blocking` from async contexts.
 ///
 /// # Errors
 ///
 /// Returns `Err` if the component fails to load, instantiate, or execute.
-fn invoke_sync(
+fn invoke_sync_cached(
     engine: &wasmtime::Engine,
-    module_bytecode: &[u8],
+    cached_component: Option<std::sync::Arc<wasmtime::component::Component>>,
+    module_bytecode: Option<bytes::Bytes>,
+    source_hash: String,
+    module_cache: &cache::WasmModuleCache,
     event_json: &str,
     limits: ResourceLimits,
 ) -> Result<FunctionResult> {
     let start = std::time::Instant::now();
 
-    // Load the component from bytecode
-    let component = wasmtime::component::Component::new(engine, module_bytecode).map_err(|e| {
-        FraiseQLError::Validation {
-            message: format!("Failed to load WASM component: {e}"),
+    // Use cached component or compile from bytecode and populate the cache.
+    let component = if let Some(cached) = cached_component {
+        cached
+    } else {
+        let bytecode = module_bytecode.ok_or_else(|| FraiseQLError::Validation {
+            message: "module bytecode is required when no cached component is available".to_string(),
             path: None,
-        }
-    })?;
+        })?;
+        let compiled = wasmtime::component::Component::new(engine, &bytecode).map_err(|e| {
+            FraiseQLError::Validation {
+                message: format!("Failed to load WASM component: {e}"),
+                path: None,
+            }
+        })?;
+        let arc = std::sync::Arc::new(compiled);
+        module_cache.insert(source_hash, std::sync::Arc::clone(&arc));
+        arc
+    };
 
     // Create per-invocation store with resource limiter
     let store_data = StoreData::new(

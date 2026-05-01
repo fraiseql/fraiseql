@@ -19,6 +19,7 @@ fraiseql-db = {workspace = true, optional = true}
 fraiseql-storage = {workspace = true, optional = true}
 aes-gcm = {workspace = true, optional = true}
 base64 = {workspace = true, optional = true}
+lru = {workspace = true, optional = true}
 async-trait.workspace = true
 bytes.workspace = true
 serde = {workspace = true, features = ["derive"]}
@@ -46,7 +47,7 @@ name = "functions_bench"
 harness = false
 
 [features]
-runtime-wasm = ["wasmtime"]
+runtime-wasm = ["wasmtime", "dep:lru"]
 runtime-deno = ["deno_core"]
 host-live = ["fraiseql-core", "fraiseql-db", "sqlparser", "reqwest"]
 host-storage = ["fraiseql-storage"]
