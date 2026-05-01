@@ -4,6 +4,7 @@
 //! and implements the host import traits that allow WASM components to call back
 //! into the host for logging, context, and I/O operations.
 
+use crate::runtime::wasm::limiter::FunctionStoreLimiter;
 use crate::types::{EventPayload, LogEntry, LogLevel, ResourceLimits};
 
 /// Per-invocation state for WASM component execution.
@@ -28,14 +29,15 @@ pub struct StoreData {
 
     /// Current memory usage (for tracking).
     pub memory_current_bytes: u64,
+
+    /// Resource limiter enforcing memory and table limits.
+    pub limiter: FunctionStoreLimiter,
 }
 
 impl StoreData {
     /// Create a new store data for an invocation.
-    pub fn new(
-        event_payload: EventPayload,
-        limits: ResourceLimits,
-    ) -> Self {
+    pub fn new(event_payload: EventPayload, limits: ResourceLimits) -> Self {
+        let limiter = FunctionStoreLimiter::new(limits.max_memory_bytes);
         Self {
             event_payload,
             host_context: None,
@@ -43,6 +45,7 @@ impl StoreData {
             limits,
             memory_peak_bytes: 0,
             memory_current_bytes: 0,
+            limiter,
         }
     }
 
@@ -88,29 +91,23 @@ impl StoreData {
 
     /// Get the auth context (if available) as JSON or an error string.
     ///
-    /// # Implementation Note
-    ///
-    /// Stub implementation. Auth context extraction requires the `LiveHostContext` bridge
-    /// to be wired. Always returns an error until then.
+    /// Returns an error until a host context with auth support is wired in.
     ///
     /// # Errors
     ///
-    /// Always returns an error since auth context is not yet available.
+    /// Returns an error since auth context requires `LiveHostContext` wiring.
     pub fn get_auth_context_json(&self) -> wasmtime::Result<String> {
         Err(wasmtime::Error::msg("auth context not available"))
     }
 
     /// Get an environment variable value.
     ///
-    /// # Implementation Note
-    ///
-    /// Stub implementation. Environment variable access requires the `LiveHostContext`
-    /// bridge to be wired. Always returns `None` until then.
+    /// Returns `None` until a host context with env support is wired in.
     ///
     /// # Errors
     ///
     /// Never returns an error.
-    #[allow(clippy::missing_const_for_fn)]  // Reason: returns Result with generic type
+    #[allow(clippy::missing_const_for_fn)] // Reason: returns Result with generic type
     pub fn get_env_var_value(&self, _name: &str) -> wasmtime::Result<Option<String>> {
         Ok(None)
     }

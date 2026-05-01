@@ -1,23 +1,24 @@
-#[allow(non_snake_case)]
-pub mod exports {
-    pub mod handle {
-        pub struct Guest;
-        impl Guest {
-            pub fn handle(event_json: String) -> Result<String, String> {
-                // Parse JSON, add a transformed field, return new JSON
-                let mut obj: serde_json::Value = serde_json::from_str(&event_json)
-                    .map_err(|e| e.to_string())?;
+wit_bindgen::generate!({
+    path: "wit",
+    world: "fraiseql-function",
+});
 
-                // Add a transformed marker field
-                if let serde_json::Value::Object(ref mut map) = obj {
-                    map.insert("transformed".to_string(), serde_json::Value::Bool(true));
-                }
+struct GuestImpl;
 
-                serde_json::to_string(&obj).map_err(|e| e.to_string())
+impl Guest for GuestImpl {
+    fn handle(event_json: String) -> Result<String, String> {
+        // Insert "transformed":true before the final closing brace.
+        // EventPayload JSON ends with a timestamp string (which ends in `"`),
+        // so the very last `}` is the outer object's closing brace.
+        let trimmed = event_json.trim_end();
+        match trimmed.rfind('}') {
+            Some(idx) => {
+                let (before, after) = trimmed.split_at(idx);
+                Ok(format!("{},\"transformed\":true{}", before, after))
             }
+            None => Ok(event_json),
         }
     }
 }
 
-// Note: In a real setup, wit-bindgen would generate proper Component Model
-// bindings. For Cycle 5 testing, this stub allows compilation.
+export!(GuestImpl);
