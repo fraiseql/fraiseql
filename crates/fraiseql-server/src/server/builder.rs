@@ -404,6 +404,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             adapter_cache_enabled: false,
             broadcast_manager: None,
             presence_manager: None,
+            storage_backend: None,
+            #[cfg(feature = "functions")]
+            function_store: None,
+            #[cfg(feature = "functions")]
+            function_runtime: None,
         })
     }
 
@@ -453,6 +458,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         config.validate()?;
         self.pool_tuning_config = Some(config);
         Ok(self)
+    }
+
+    /// Attach an object storage backend and mount `/storage/v1/` routes.
+    ///
+    /// When set, the server mounts `GET`, `POST`, `DELETE /storage/v1/object/*key`
+    /// and `GET /storage/v1/object/sign/*key` endpoints backed by the given backend.
+    #[must_use]
+    pub fn with_storage(mut self, backend: Arc<dyn crate::storage::StorageBackend>) -> Self {
+        self.storage_backend = Some(backend);
+        self
+    }
+
+    /// Attach a function deployment store and runtime, mounting `/functions/v1/` routes.
+    ///
+    /// When set, the server mounts `POST /functions/v1/{name}` which loads the
+    /// function bytecode from `store`, executes it via `runtime`, and returns the
+    /// JSON-encoded [`FunctionResult`](fraiseql_functions::FunctionResult).
+    #[cfg(feature = "functions")]
+    #[must_use]
+    pub fn with_functions(
+        mut self,
+        store: Arc<dyn fraiseql_functions::FunctionStore>,
+        runtime: Arc<dyn fraiseql_functions::runtime::SendFunctionRuntime>,
+    ) -> Self {
+        self.function_store = Some(store);
+        self.function_runtime = Some(runtime);
+        self
     }
 
     /// Set secrets manager for the server.

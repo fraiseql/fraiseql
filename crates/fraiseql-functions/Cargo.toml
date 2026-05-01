@@ -17,6 +17,7 @@ fraiseql-observers.workspace = true
 fraiseql-core = {workspace = true, optional = true}
 fraiseql-db = {workspace = true, optional = true}
 fraiseql-storage = {workspace = true, optional = true}
+async-trait.workspace = true
 bytes.workspace = true
 serde = {workspace = true, features = ["derive"]}
 serde_json.workspace = true

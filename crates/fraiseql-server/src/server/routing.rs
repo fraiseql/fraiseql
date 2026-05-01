@@ -725,6 +725,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.add_observer_routes(app);
         }
 
+        // Storage routes (/storage/v1/) — mounted when a backend is configured.
+        if let Some(ref backend) = self.storage_backend {
+            use crate::routes::storage::{StorageRouteState, storage_router};
+
+            let storage_state = StorageRouteState::new(backend.clone());
+            app = app.merge(storage_router(storage_state));
+            info!("Storage endpoints enabled: /storage/v1/object/{{*key}}");
+        }
+
+        // Edge-function routes (/functions/v1/) — mounted when store + runtime are configured.
+        #[cfg(feature = "functions")]
+        {
+            use crate::routes::functions::{FunctionsRouteState, functions_router};
+
+            if let (Some(ref store), Some(ref runtime)) =
+                (&self.function_store, &self.function_runtime)
+            {
+                let functions_state = FunctionsRouteState {
+                    store: store.clone(),
+                    runtime: runtime.clone(),
+                };
+                app = app.merge(functions_router(functions_state));
+                info!("Functions endpoint enabled: POST /functions/v1/{{name}}");
+            }
+        }
+
         // Add middleware
         if self.config.tracing_enabled {
             app = app.layer(trace_layer());

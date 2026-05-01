@@ -3,6 +3,8 @@
 pub mod api;
 #[cfg(feature = "auth")]
 pub mod auth;
+#[cfg(feature = "functions")]
+pub mod functions;
 pub mod graphql;
 pub mod health;
 pub mod introspection;

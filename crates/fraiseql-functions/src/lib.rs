@@ -22,7 +22,7 @@ pub use host::{HostContext, NoopHostContext};
 pub use migrations::{cron_migration_sql, functions_migration_sql};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
-pub use store::{FunctionRecord, FunctionStatus, FunctionStore, SendFunctionStore};
+pub use store::{FunctionRecord, FunctionStatus, FunctionStore};
 pub use store::memory::InMemoryFunctionStore;
 pub use triggers::mutation::{
     AfterMutationTrigger, BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger,

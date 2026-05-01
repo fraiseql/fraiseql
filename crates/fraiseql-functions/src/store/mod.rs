@@ -10,6 +10,7 @@
 
 pub mod memory;
 
+use async_trait::async_trait;
 use crate::types::RuntimeType;
 use fraiseql_error::Result;
 
@@ -69,10 +70,9 @@ pub struct FunctionRecord {
 ///
 /// Implementors persist and retrieve versioned function bytecode.
 ///
-/// The `#[trait_variant::make]` macro generates `SendFunctionStore` which is
-/// object-safe for `Box<dyn SendFunctionStore>` dynamic dispatch.
-#[allow(clippy::trait_duplication_in_bounds)]
-#[trait_variant::make(SendFunctionStore: Send)]
+/// The `#[async_trait]` attribute generates a dyn-compatible vtable so that
+/// `Box<dyn FunctionStore>` / `Arc<dyn FunctionStore>` work for dynamic dispatch.
+#[async_trait]
 pub trait FunctionStore: Send + Sync {
     /// Store a new version of a function, bumping its version number.
     ///
@@ -82,12 +82,12 @@ pub trait FunctionStore: Send + Sync {
     /// # Errors
     ///
     /// Returns `Err` if the write fails.
-    fn store_function(
+    async fn store_function(
         &self,
         name: &str,
         runtime: RuntimeType,
         bytecode: bytes::Bytes,
-    ) -> impl std::future::Future<Output = Result<FunctionRecord>> + Send;
+    ) -> Result<FunctionRecord>;
 
     /// Retrieve the latest active version of a function by name.
     ///
@@ -96,19 +96,14 @@ pub trait FunctionStore: Send + Sync {
     /// # Errors
     ///
     /// Returns `Err` if the read fails.
-    fn get_function(
-        &self,
-        name: &str,
-    ) -> impl std::future::Future<Output = Result<Option<FunctionRecord>>> + Send;
+    async fn get_function(&self, name: &str) -> Result<Option<FunctionRecord>>;
 
     /// List all active function records.
     ///
     /// # Errors
     ///
     /// Returns `Err` if the read fails.
-    fn list_functions(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Vec<FunctionRecord>>> + Send;
+    async fn list_functions(&self) -> Result<Vec<FunctionRecord>>;
 
     /// Delete (deactivate) all versions of a function by name.
     ///
@@ -118,8 +113,6 @@ pub trait FunctionStore: Send + Sync {
     /// # Errors
     ///
     /// Returns `Err` if the write fails.
-    fn delete_function(
-        &self,
-        name: &str,
-    ) -> impl std::future::Future<Output = Result<bool>> + Send;
+    async fn delete_function(&self, name: &str) -> Result<bool>;
 }
+

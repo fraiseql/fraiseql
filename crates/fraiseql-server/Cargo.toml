@@ -36,6 +36,8 @@ ed25519-dalek = {version = "2", features = ["std"]}
 fraiseql-arrow = {workspace = true, optional = true}
 # Authentication
 fraiseql-auth = {workspace = true, optional = true}
+# Edge Functions runtime
+fraiseql-functions = {workspace = true, optional = true}
 # FraiseQL core
 fraiseql-core = {workspace = true, features = ["postgres", "schema-lint"]}
 fraiseql-error = {workspace = true, features = ["axum-compat"]}
@@ -147,6 +149,8 @@ gcs = []
 # gRPC transport
 grpc = ["dep:tonic", "dep:prost", "dep:prost-reflect", "dep:http-body", "dep:http-body-util"]
 federation = ["fraiseql-core/federation"]
+# Edge functions HTTP endpoint (POST /functions/v1/{name})
+functions = ["dep:fraiseql-functions"]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli", "tracing-opentelemetry"]

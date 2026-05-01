@@ -267,6 +267,32 @@ impl FunctionRuntime for WasmRuntime {
     }
 }
 
+impl crate::runtime::SendFunctionRuntime for WasmRuntime {
+    fn invoke_raw(
+        &self,
+        module: &crate::types::FunctionModule,
+        event: crate::types::EventPayload,
+        limits: crate::types::ResourceLimits,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = fraiseql_error::Result<crate::types::FunctionResult>> + Send + '_>,
+    > {
+        let host = crate::host::NoopHostContext::new(event.clone());
+        Box::pin(self.invoke(module, event, &host, limits))
+    }
+
+    fn supported_extensions(&self) -> &[&str] {
+        &[".wasm"]
+    }
+
+    fn supports_hot_reload(&self) -> bool {
+        false
+    }
+
+    fn name(&self) -> &str {
+        "wasm"
+    }
+}
+
 /// Synchronous WASM component invocation.
 ///
 /// Runs entirely on the calling thread; wrap in `spawn_blocking` from async contexts.

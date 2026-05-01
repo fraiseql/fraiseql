@@ -117,4 +117,21 @@ pub struct Server<A: DatabaseAdapter> {
 
     /// Presence manager for room-based member tracking.
     pub(super) presence_manager: Option<Arc<crate::subscriptions::PresenceManager>>,
+
+    /// Object storage backend for the `/storage/v1/` routes.
+    ///
+    /// Set via [`Server::with_storage`]. When `None`, storage routes are not mounted.
+    pub(super) storage_backend: Option<Arc<dyn crate::storage::StorageBackend>>,
+
+    /// Function deployment store for the `/functions/v1/` routes.
+    ///
+    /// Set via [`Server::with_functions`]. When `None`, function routes are not mounted.
+    #[cfg(feature = "functions")]
+    pub(super) function_store: Option<Arc<dyn fraiseql_functions::FunctionStore>>,
+
+    /// Function execution runtime for the `/functions/v1/` routes.
+    ///
+    /// Set via [`Server::with_functions`]. When `None`, function routes are not mounted.
+    #[cfg(feature = "functions")]
+    pub(super) function_runtime: Option<Arc<dyn fraiseql_functions::runtime::SendFunctionRuntime>>,
 }

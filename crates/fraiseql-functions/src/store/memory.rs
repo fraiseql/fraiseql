@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::types::RuntimeType;
@@ -48,6 +49,7 @@ impl InMemoryFunctionStore {
     }
 }
 
+#[async_trait]
 impl FunctionStore for InMemoryFunctionStore {
     async fn store_function(
         &self,
