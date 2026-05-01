@@ -22,6 +22,9 @@ pub async fn run() {
 
     init_logging(cli.verbose, cli.debug);
 
+    let json_output = cli.json;
+    let debug_output = cli.debug;
+
     let result = match cli.command {
         Commands::Compile {
             input,
@@ -149,13 +152,15 @@ pub async fn run() {
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
-            FederationCommands::Check { schema, against } => {
-                match commands::federation::check::run(&schema, against.as_deref()) {
+            FederationCommands::Check { schema, against, json } => {
+                match commands::federation::check::run(&schema, against.as_deref(), json || cli.json) {
                     Ok(result) => {
-                        println!(
-                            "{}",
-                            output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
-                        );
+                        if !json {
+                            println!(
+                                "{}",
+                                output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
+                            );
+                        }
                         Ok(())
                     },
                     Err(e) => Err(e),
@@ -397,12 +402,43 @@ pub async fn run() {
     };
 
     if let Err(e) = result {
-        eprintln!("Error: {e}");
-        if cli.debug {
-            eprintln!("\nDebug info:");
-            eprintln!("{e:?}");
-        }
+        let debug_info = if debug_output {
+            Some(format!("{e:?}"))
+        } else {
+            None
+        };
+        eprintln!("{}", format_cli_error(&e.to_string(), debug_info.as_deref(), json_output, 1));
         process::exit(1);
+    }
+}
+
+/// Format a CLI error as either plain text or a JSON object for machine-readable output.
+///
+/// When `json` is `true`, produces a JSON object:
+/// ```json
+/// { "error": { "message": "...", "code": 1 } }
+/// ```
+/// When `json` is `false`, produces a human-readable string:
+/// ```text
+/// Error: <message>
+/// ```
+/// If `debug_info` is provided and `json` is `false`, a debug section is appended.
+pub(crate) fn format_cli_error(message: &str, debug_info: Option<&str>, json: bool, code: i32) -> String {
+    if json {
+        serde_json::json!({
+            "error": {
+                "message": message,
+                "code": code
+            }
+        })
+        .to_string()
+    } else {
+        let mut out = format!("Error: {message}");
+        if let Some(debug) = debug_info {
+            out.push_str("\n\nDebug info:\n");
+            out.push_str(debug);
+        }
+        out
     }
 }
 
@@ -492,4 +528,47 @@ fn handle_introspection_flags() -> Option<i32> {
     );
     println!("{}", pretty_or_exit(&result, "command result"));
     Some(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_cli_error;
+
+    #[test]
+    fn format_cli_error_json_mode_produces_structured_object() {
+        let output = format_cli_error("something went wrong", None, true, 1);
+        let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
+        assert_eq!(parsed["error"]["message"], "something went wrong");
+        assert_eq!(parsed["error"]["code"], 1);
+    }
+
+    #[test]
+    fn format_cli_error_json_mode_uses_exit_code() {
+        let output = format_cli_error("validation failed", None, true, 2);
+        let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
+        assert_eq!(parsed["error"]["code"], 2);
+    }
+
+    #[test]
+    fn format_cli_error_plain_mode_produces_human_readable_text() {
+        let output = format_cli_error("file not found", None, false, 1);
+        assert_eq!(output, "Error: file not found");
+    }
+
+    #[test]
+    fn format_cli_error_plain_mode_appends_debug_info() {
+        let output = format_cli_error("oops", Some("stack trace here"), false, 1);
+        assert!(output.contains("Error: oops"));
+        assert!(output.contains("Debug info:"));
+        assert!(output.contains("stack trace here"));
+    }
+
+    #[test]
+    fn format_cli_error_json_mode_omits_debug_info() {
+        // In JSON mode, debug_info is not included — keep the output machine-parseable.
+        let output = format_cli_error("oops", Some("secret internals"), true, 1);
+        let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
+        let serialized = parsed.to_string();
+        assert!(!serialized.contains("secret internals"));
+    }
 }

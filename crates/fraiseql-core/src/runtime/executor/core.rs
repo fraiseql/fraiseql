@@ -158,6 +158,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
         // Build introspection responses at startup (zero-cost at runtime)
+        // `mut` is required by the `#[cfg(feature = "federation")]` block below.
+        #[cfg_attr(not(feature = "federation"), allow(unused_mut))]
         let mut introspection = IntrospectionResponses::build(&schema);
 
         // Filter @inaccessible fields from introspection (DX defence-in-depth).
