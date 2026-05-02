@@ -98,9 +98,21 @@ pub struct UsageSummary {
 
 // ── UsageAggregator ────────────────────────────────────────────────────────
 
-/// Thread-safe, in-memory usage counter store.
+/// Thread-safe, in-memory usage counter store with optional persistence backend.
 ///
 /// Cheaply cloneable via [`Arc`] — all clones share the same underlying map.
+///
+/// ## Persistence
+///
+/// By default, the aggregator uses [`NoopBackend`] and counters are lost on
+/// restart.  Pass a [`RedisBackend`] (or any [`UsageBackend`] impl) to
+/// [`UsageAggregator::new_with_backend`] to enable durable storage.
+///
+/// ```rust,no_run
+/// # use fraiseql_server::usage::aggregator::{UsageAggregator, NoopBackend};
+/// # use std::sync::Arc;
+/// let agg = UsageAggregator::new_with_backend(Arc::new(NoopBackend));
+/// ```
 ///
 /// # Example
 ///
@@ -121,18 +133,37 @@ pub struct UsageSummary {
 /// let summary = agg.query("acme", "2026-05");
 /// assert_eq!(summary.mutations["User"], 1);
 /// ```
-#[derive(Debug)]
 pub struct UsageAggregator {
     /// Key: `(tenant_id, period_yyyy_mm, entity_type)`.
     counters: DashMap<(String, String, String), AtomicU64>,
+    /// Optional persistence backend; defaults to [`NoopBackend`].
+    backend: std::sync::Arc<dyn UsageBackend>,
+}
+
+impl std::fmt::Debug for UsageAggregator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UsageAggregator")
+            .field("entry_count", &self.counters.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl UsageAggregator {
-    /// Create an empty aggregator.
+    /// Create an empty aggregator with no persistence (in-memory only).
     #[must_use]
     pub fn new() -> Self {
         Self {
             counters: DashMap::new(),
+            backend: std::sync::Arc::new(NoopBackend),
+        }
+    }
+
+    /// Create an empty aggregator backed by the given persistence backend.
+    #[must_use]
+    pub fn new_with_backend(backend: std::sync::Arc<dyn UsageBackend>) -> Self {
+        Self {
+            counters: DashMap::new(),
+            backend,
         }
     }
 
@@ -172,11 +203,185 @@ impl UsageAggregator {
     pub fn entry_count(&self) -> usize {
         self.counters.len()
     }
+
+    /// Flush all current counters to the persistence backend.
+    ///
+    /// A no-op when using the default [`NoopBackend`].
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying [`UsageBackend::flush`].
+    pub async fn flush_to_backend(&self) -> Result<(), String> {
+        let snapshot: HashMap<(String, String, String), u64> = self
+            .counters
+            .iter()
+            .map(|entry| (entry.key().clone(), entry.value().load(Ordering::Relaxed)))
+            .collect();
+        self.backend.flush(&snapshot).await
+    }
+
+    /// Load persisted counters from the backend into the in-memory map.
+    ///
+    /// Existing in-memory counters are **merged** (not replaced): the loaded
+    /// value is added to any in-flight in-memory count so that events recorded
+    /// between the last flush and this load are not lost.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from the underlying [`UsageBackend::load`].
+    pub async fn load_from_backend(&self) -> Result<(), String> {
+        let persisted = self.backend.load().await?;
+        for (key, count) in persisted {
+            self.counters
+                .entry(key)
+                .or_insert_with(|| AtomicU64::new(0))
+                .fetch_add(count, Ordering::Relaxed);
+        }
+        Ok(())
+    }
 }
 
 impl Default for UsageAggregator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ── Persistence backend ────────────────────────────────────────────────────
+
+/// Persistence backend for usage counters.
+///
+/// Implementations flush the aggregator's in-memory counters to a durable
+/// store and reload them on startup. The default [`NoopBackend`] is a no-op
+/// that preserves current in-memory-only behaviour.
+#[async_trait::async_trait]
+pub trait UsageBackend: Send + Sync {
+    /// Flush all current counter values to the backing store.
+    ///
+    /// The `counters` map has the form `(tenant_id, period_yyyy_mm, entity_type) → count`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backing store is unavailable or the write fails.
+    async fn flush(
+        &self,
+        counters: &std::collections::HashMap<(String, String, String), u64>,
+    ) -> Result<(), String>;
+
+    /// Load all persisted counters from the backing store.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backing store is unavailable or the read fails.
+    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String>;
+}
+
+/// No-op backend — counters are in-memory only, lost on restart.
+///
+/// This is the default when no persistence backend is configured.
+#[derive(Debug, Default)]
+pub struct NoopBackend;
+
+// ── Redis backend ──────────────────────────────────────────────────────────
+
+/// Redis-backed usage persistence.
+///
+/// Counters are stored as Redis hashes with the key pattern:
+/// `fraiseql:usage:{tenant_id}:{period_yyyy_mm}` where each hash field is an
+/// `entity_type` and the value is the cumulative mutation count.
+///
+/// Enable with the `redis-usage` Cargo feature.
+#[cfg(feature = "redis-usage")]
+#[derive(Debug, Clone)]
+pub struct RedisBackend {
+    client: ::redis::aio::ConnectionManager,
+}
+
+#[cfg(feature = "redis-usage")]
+impl RedisBackend {
+    /// Create a new Redis backend from an existing connection manager.
+    pub const fn new(client: ::redis::aio::ConnectionManager) -> Self {
+        Self { client }
+    }
+
+    fn redis_key(tenant_id: &str, period: &str) -> String {
+        format!("fraiseql:usage:{tenant_id}:{period}")
+    }
+}
+
+#[cfg(feature = "redis-usage")]
+#[async_trait::async_trait]
+impl UsageBackend for RedisBackend {
+    async fn flush(
+        &self,
+        counters: &std::collections::HashMap<(String, String, String), u64>,
+    ) -> Result<(), String> {
+        use ::redis::AsyncCommands as _;
+
+        // Group counters by (tenant, period) so we can HSET per Redis key
+        let mut grouped: std::collections::HashMap<String, Vec<(&str, u64)>> =
+            std::collections::HashMap::new();
+        for ((tenant, period, entity), &count) in counters {
+            let key = Self::redis_key(tenant, period);
+            grouped.entry(key).or_default().push((entity.as_str(), count));
+        }
+
+        let mut conn = self.client.clone();
+        for (key, fields) in &grouped {
+            if !fields.is_empty() {
+                conn.hset_multiple::<_, _, _, ()>(key, fields.as_slice())
+                    .await
+                    .map_err(|e| format!("Redis flush error: {e}"))?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
+        use ::redis::AsyncCommands as _;
+
+        let mut conn = self.client.clone();
+
+        // SCAN for all keys matching fraiseql:usage:*
+        let mut result = std::collections::HashMap::new();
+        let keys: Vec<String> = conn
+            .keys("fraiseql:usage:*")
+            .await
+            .map_err(|e| format!("Redis load scan error: {e}"))?;
+
+        for key in &keys {
+            // Key format: fraiseql:usage:{tenant}:{period}
+            let parts: Vec<&str> = key.splitn(4, ':').collect();
+            if parts.len() != 4 {
+                continue;
+            }
+            let tenant = parts[2].to_owned();
+            let period = parts[3].to_owned();
+
+            let hash: std::collections::HashMap<String, u64> = conn
+                .hgetall(key)
+                .await
+                .map_err(|e| format!("Redis load hgetall error for {key}: {e}"))?;
+
+            for (entity, count) in hash {
+                result.insert((tenant.clone(), period.clone(), entity), count);
+            }
+        }
+        Ok(result)
+    }
+}
+
+#[async_trait::async_trait]
+impl UsageBackend for NoopBackend {
+    async fn flush(
+        &self,
+        _counters: &std::collections::HashMap<(String, String, String), u64>,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
+        Ok(std::collections::HashMap::new())
     }
 }
 
@@ -330,5 +535,101 @@ mod tests {
         assert!(!validate_period("2026-4"));      // single-digit month
         assert!(!validate_period("2026-04-01"));  // too long
         assert!(!validate_period(""));            // empty
+    }
+
+    // ── persistence backend ────────────────────────────────────────────────
+
+    #[test]
+    fn test_counters_reset_on_new_aggregator_without_persistence() {
+        // Documents existing behaviour: in-memory counters are lost when a new
+        // aggregator is created.  This is the behaviour the backend feature fixes.
+        let agg = UsageAggregator::new();
+        agg.record(&event("tenant_a", "2026-05", "User"));
+        assert_eq!(agg.query("tenant_a", "2026-05").mutations["User"], 1);
+
+        let new_agg = UsageAggregator::new();
+        assert_eq!(new_agg.query("tenant_a", "2026-05").mutations.get("User"), None);
+    }
+
+    /// In-memory persistence backend used only in tests.
+    ///
+    /// Stores flushed counters in a `Mutex<HashMap>` so they survive across
+    /// `UsageAggregator` instances within the same process (simulating a restart).
+    struct InMemoryPersistenceBackend {
+        store: std::sync::Mutex<HashMap<(String, String, String), u64>>,
+    }
+
+    impl InMemoryPersistenceBackend {
+        fn new() -> Self {
+            Self { store: std::sync::Mutex::new(HashMap::new()) }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl UsageBackend for InMemoryPersistenceBackend {
+        async fn flush(
+            &self,
+            counters: &HashMap<(String, String, String), u64>,
+        ) -> Result<(), String> {
+            let mut store = self.store.lock().map_err(|e| e.to_string())?;
+            for (key, &count) in counters {
+                *store.entry(key.clone()).or_insert(0) = count;
+            }
+            Ok(())
+        }
+
+        async fn load(&self) -> Result<HashMap<(String, String, String), u64>, String> {
+            let store = self.store.lock().map_err(|e| e.to_string())?;
+            Ok(store.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_flush_and_load_round_trip() {
+        let backend = std::sync::Arc::new(InMemoryPersistenceBackend::new());
+
+        // Record events and flush
+        let agg = UsageAggregator::new_with_backend(backend.clone());
+        agg.record(&event("tenant_a", "2026-05", "User"));
+        agg.record(&event("tenant_a", "2026-05", "User"));
+        agg.record(&event("tenant_b", "2026-05", "Order"));
+        agg.flush_to_backend().await.expect("flush");
+
+        // Simulate restart: create a new aggregator with the same backend
+        let new_agg = UsageAggregator::new_with_backend(backend.clone());
+        assert_eq!(new_agg.query("tenant_a", "2026-05").mutations.get("User"), None); // not yet loaded
+
+        new_agg.load_from_backend().await.expect("load");
+        assert_eq!(new_agg.query("tenant_a", "2026-05").mutations["User"], 2);
+        assert_eq!(new_agg.query("tenant_b", "2026-05").mutations["Order"], 1);
+    }
+
+    #[tokio::test]
+    async fn test_load_merges_with_inflight_events() {
+        // Events recorded between flush and load should not be lost
+        let backend = std::sync::Arc::new(InMemoryPersistenceBackend::new());
+
+        let agg = UsageAggregator::new_with_backend(backend.clone());
+        agg.record(&event("t1", "2026-05", "User"));
+        agg.flush_to_backend().await.expect("flush"); // persists count=1
+
+        // Restart: new aggregator picks up 2 in-flight events before loading
+        let new_agg = UsageAggregator::new_with_backend(backend.clone());
+        new_agg.record(&event("t1", "2026-05", "User"));
+        new_agg.record(&event("t1", "2026-05", "User"));
+        new_agg.load_from_backend().await.expect("load"); // adds persisted 1 → total 3
+
+        assert_eq!(new_agg.query("t1", "2026-05").mutations["User"], 3);
+    }
+
+    #[tokio::test]
+    async fn test_noop_backend_flush_and_load_are_harmless() {
+        let agg = UsageAggregator::new(); // uses NoopBackend
+        agg.record(&event("t1", "2026-05", "User"));
+        agg.flush_to_backend().await.expect("flush ok");
+
+        let new_agg = UsageAggregator::new();
+        new_agg.load_from_backend().await.expect("load ok");
+        assert_eq!(new_agg.query("t1", "2026-05").mutations.get("User"), None); // noop
     }
 }

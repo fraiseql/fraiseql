@@ -179,6 +179,8 @@ redis-idempotency = ["redis", "rmp-serde"]
 rest = []
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]
+# Persist usage counters to Redis so they survive process restarts
+redis-usage = ["redis"]
 secrets = ["dep:fraiseql-secrets"]
 testing = []
 tracing-opentelemetry = ["opentelemetry", "opentelemetry_sdk", "opentelemetry-otlp", "dep:tracing-opentelemetry"]
