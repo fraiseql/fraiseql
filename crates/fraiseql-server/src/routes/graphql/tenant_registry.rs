@@ -492,7 +492,7 @@ mod tests {
         Arc::new(Executor::new(schema, Arc::new(StubAdapter::new(label))))
     }
 
-    // ── Cycle 1: basic registry ──────────────────────────────────────────
+    // ── basic registry ────────────────────────────────────────────────────
 
     #[test]
     fn test_registry_returns_default_when_no_tenant() {
@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(registry.len(), 1);
     }
 
-    // ── Cycle 3: hot-reload via upsert ───────────────────────────────────
+    // ── hot-reload via upsert ─────────────────────────────────────────────
 
     #[test]
     fn test_registry_hot_reload_tenant() {
@@ -643,7 +643,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ── Cycle 4: suspend/resume ─────────────────────────────────────────
+    // ── suspend/resume ───────────────────────────────────────────────────
 
     #[test]
     fn test_suspend_sets_status_to_suspended() {
@@ -749,7 +749,7 @@ mod tests {
         assert_eq!(TenantStatus::Suspended.as_str(), "suspended");
     }
 
-    // ── Cycle 5: quotas & concurrency ───────────────────────────────────
+    // ── quotas & concurrency ─────────────────────────────────────────────
 
     #[test]
     fn test_upsert_with_quota_sets_concurrency_limit() {

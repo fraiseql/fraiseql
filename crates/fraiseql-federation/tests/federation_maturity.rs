@@ -1,4 +1,4 @@
-//! Integration tests for Phase 19: Federation Maturity features.
+//! Integration tests for Federation Maturity features.
 //!
 //! Tests cross-cutting scenarios spanning directives, caching,
 //! observability, and health checking.

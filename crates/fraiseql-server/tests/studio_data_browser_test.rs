@@ -1,4 +1,4 @@
-//! Cycle 3 tests: Data browser backend at /admin/v1/data/*
+//! Data browser backend at /admin/v1/data/*
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none

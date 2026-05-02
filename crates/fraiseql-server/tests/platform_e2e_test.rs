@@ -1,4 +1,4 @@
-//! Platform E2E Integration Tests — Phase 8 Cycle 7
+//! Platform E2E Integration Tests
 //!
 //! End-to-end tests that verify the complete platform integration:
 //! storage, functions (before/after mutation, cron), and realtime.
@@ -383,7 +383,7 @@ async fn test_e2e_cron_fires_and_persists_state() {
     // Implementation: start scheduler with every-minute trigger, wait for tick,
     // query _fraiseql_cron_state, assert last_fire was updated.
     // Tracked for implementation when the migrations and full cron state persistence
-    // (Phase 8 Cycle 6 testcontainers pattern) are available.
+    // (testcontainers pattern) are available.
     todo!("requires running PostgreSQL with _fraiseql_cron_state table")
 }
 

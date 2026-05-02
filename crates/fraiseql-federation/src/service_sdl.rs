@@ -473,7 +473,7 @@ mod tests {
         );
     }
 
-    // --- Cycle 1 new tests: field-level directive emission ---
+    // --- field-level directive emission ---
 
     #[test]
     fn test_field_external_directive() {

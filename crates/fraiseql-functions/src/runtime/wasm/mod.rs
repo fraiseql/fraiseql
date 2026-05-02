@@ -76,7 +76,7 @@ impl generated::fraiseql::host::context::Host for StoreData {
     }
 }
 
-// Implement the I/O host interface on StoreData (stubs — wired in Cycle 4)
+// Implement the I/O host interface on StoreData (stubs — not yet wired)
 impl generated::fraiseql::host::io::Host for StoreData {
     fn query(
         &mut self,
@@ -461,7 +461,7 @@ mod tests {
         assert_eq!(module.name, "invalid");
     }
 
-    /// Cycle 1 RED → GREEN: invoke on guest-identity returns the event payload (real WASM, not mock).
+    /// Invoke on guest-identity returns the event payload (real WASM, not mock).
     #[tokio::test]
     async fn test_wasm_guest_returns_event_payload() {
         use crate::host::NoopHostContext;
@@ -670,7 +670,7 @@ mod tests {
         assert!(result.value.is_some());
     }
 
-    // ========== Phase 5B Cycle 1: WASM Host Function Bridge Tests ==========
+    // ========== WASM Host Function Bridge Tests ==========
 
     #[cfg(feature = "host-live")]
     #[tokio::test]

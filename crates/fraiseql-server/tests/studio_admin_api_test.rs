@@ -1,4 +1,4 @@
-//! Cycle 2 tests: Admin API endpoints (schema + health) under /admin/v1/*
+//! Admin API endpoints (schema + health) under /admin/v1/*
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none

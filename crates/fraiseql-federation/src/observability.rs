@@ -452,7 +452,7 @@ mod tests {
         assert!(tracker.to_span_attributes().is_empty());
     }
 
-    // --- Cycle 4 Prometheus tests ---
+    // --- Prometheus tests ---
 
     #[test]
     fn test_prometheus_histogram_valid_format() {

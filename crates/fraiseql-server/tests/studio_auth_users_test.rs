@@ -1,4 +1,4 @@
-//! Cycle 4 tests: Auth user management at /admin/v1/users/*
+//! Auth user management at /admin/v1/users/*
 #![allow(clippy::unwrap_used)]
 #![allow(missing_docs)]
 #![allow(clippy::missing_panics_doc)]

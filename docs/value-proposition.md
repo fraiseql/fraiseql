@@ -1,7 +1,7 @@
 # FraiseQL Value Proposition
 
-**Status**: v2.0.0-beta | Production-Ready
-**Last Updated**: February 19, 2026
+**Status**: v2.2.0 | Production-Ready
+**Last Updated**: May 2, 2026
 
 ---
 

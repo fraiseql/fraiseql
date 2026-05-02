@@ -1,4 +1,4 @@
-//! Cross-cutting integration tests for Phase 13 advanced authentication flows.
+//! Cross-cutting integration tests for advanced authentication flows.
 //!
 //! Tests the interactions between modules: multi-provider social login,
 //! account linking, email OTP, SMS OTP, TOTP MFA, and anonymous sessions.

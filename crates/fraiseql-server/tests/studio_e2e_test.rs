@@ -1,4 +1,4 @@
-//! Cycle 9 E2E tests: Full studio wiring check
+//! Full studio wiring check
 //!
 //! These tests verify the complete studio setup:
 //! - HTML shell contains expected Luxen UI markup

@@ -172,7 +172,7 @@ where
             .into_response();
     }
 
-    // Return empty paginated result — real query execution wired in Cycle 9.
+    // Return empty paginated result — real query execution not yet wired.
     Json(DataQueryResponse {
         rows: Vec::new(),
         total: 0,
@@ -213,7 +213,7 @@ where
             .into_response();
     }
 
-    // Read-only mode guard — wired to config in Cycle 9.
+    // Read-only mode guard — not yet wired to config.
     // For now, always allow; the guard will check `studio.read_only` from config.
     Json(serde_json::json!({"success": true})).into_response()
 }

@@ -243,7 +243,7 @@ async fn test_unknown_bucket_returns_404() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 7: Observability — error condition tests
+// Observability — error condition tests
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -280,7 +280,7 @@ async fn test_mime_type_rejection_returns_415() {
 }
 
 // ---------------------------------------------------------------------------
-// Cycle 6: OIDC-Aware Auth Tests
+// OIDC-Aware Auth Tests
 // ---------------------------------------------------------------------------
 
 /// Anonymous router: no `StorageUser` extension injected.

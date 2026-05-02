@@ -1,4 +1,4 @@
-//! Cycle 8 tests: Metrics summary endpoint /admin/v1/metrics/summary
+//! Metrics summary endpoint /admin/v1/metrics/summary
 #![allow(clippy::unwrap_used)]
 #![allow(missing_docs)]
 #![allow(clippy::missing_panics_doc)]

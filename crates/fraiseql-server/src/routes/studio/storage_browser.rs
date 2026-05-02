@@ -127,7 +127,7 @@ pub async fn list_buckets_handler<A>(State(_state): State<AppState<A>>) -> impl 
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    // Placeholder — routes through StorageBackend when wired in Cycle 9.
+    // Placeholder — not yet wired to StorageBackend.
     Json(BucketListResponse { buckets: vec![] })
 }
 
@@ -169,7 +169,7 @@ where
         Json(serde_json::json!({
             "error": "Not Implemented",
             "message": format!(
-                "Presign for {}/{} not yet wired (Cycle 9)",
+                "Presign for {}/{} not yet wired",
                 req.bucket, req.key
             )
         })),
@@ -193,7 +193,7 @@ where
         Json(serde_json::json!({
             "error": "Not Implemented",
             "message": format!(
-                "Delete {}/{} not yet wired (Cycle 9)",
+                "Delete {}/{} not yet wired",
                 req.bucket, req.key
             )
         })),

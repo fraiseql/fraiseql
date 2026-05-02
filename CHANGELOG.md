@@ -5,7 +5,7 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.2.0] - 2026-04-16
+## [2.2.0] - 2026-05-02
 
 ### Fixed
 
@@ -64,8 +64,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `set_config()` session variable propagation now applies to read queries, not
   only mutations, so RLS policies on SELECT can reference `current_setting()`.
 
-- **Cross-SDK parity CI** (`118bf496d`, `2660603bd`). Phase B generators and
+- **Cross-SDK parity CI** (`118bf496d`, `2660603bd`). Cross-SDK generators and
   CI jobs added for Java, Ruby, Dart, C#, F#, Rust, PHP, and Elixir SDKs.
+
+- **Apollo Federation 2 — full directive set** (`d78611a94`). `service_sdl.rs`
+  now emits all 7 field-level directives (`@external`, `@requires`, `@provides`,
+  `@shareable`, `@inaccessible`, `@override`, `@extends`) with correct `extend type`
+  syntax for `is_extends: true` types. `@link` import list is complete. Python and
+  TypeScript SDKs expose `FieldConfig(external=, requires=, provides=, shareable=,
+  inaccessible=, override_from=)` with validation matching spec rules.
+
+- **Federation constraint validation** — `fraiseql federation check` validates
+  `@key` field existence, `@override(from:)` non-empty subgraph name, `@requires`
+  target field existence, and `@provides` consistency. Unknown-subgraph overrides
+  are reported as errors when `--against` is supplied.
+
+- **Federated subscription passthrough** — `SubscriptionForwarder` proxies
+  subscriptions to the owning subgraph via the `graphql-transport-ws` WebSocket
+  protocol. SSRF protection applied on all remote URLs. Remote subscription field
+  ownership tracked via `remote_subscription_fields` on `FederationMetadata`.
+
+- **Federation plan visualization** — `GET /admin/v1/federation/plan?query=...`
+  returns the cached query plan as JSON, enabling gateway debuggability.
+
+- **Prometheus federation metrics** — `fraiseql_federation_subgraph_latency_seconds`
+  histogram and `fraiseql_federation_entity_resolution_total` counter wired in
+  `fraiseql-federation/src/observability.rs`.
+
+- **Mutation audit tracing** — the runtime emits a structured
+  `tracing::info!(target: "fraiseql::mutation_audit", ...)` event after every
+  successful mutation, carrying `tenant_id`, `entity_type`, `operation`, and
+  `duration_us`. Consumed by the in-process `MutationAuditLayer`.
+
+- **Usage aggregation store** — `MutationAuditLayer` subscribes to audit events
+  and maintains per-tenant, per-period, per-entity-type counters in a lock-free
+  `DashMap`. Exposed via `GET /api/v1/admin/usage?tenant_id=…&period=…`.
+
+- **Schema metadata endpoint** — `GET /api/v1/schema/metadata` returns the
+  compiled schema's version, entity count, query count, mutation count, and
+  field-level security metadata (required scopes, deny policy, deprecated status)
+  in a stable JSON envelope.
+
+- **`fraiseql schema metadata` CLI subcommand** — prints or JSON-outputs the
+  compiled schema's security metadata; `fraiseql federation check --json` flag
+  emits structured JSON errors for CI pipelines.
+
+- **Structured CLI error output** — non-zero-exit CLI errors now emit a JSON
+  envelope `{"error": "…", "code": "…", "details": {…}}` when `--json` is passed,
+  enabling machine-readable CI integration.
 
 ### Fixed
 

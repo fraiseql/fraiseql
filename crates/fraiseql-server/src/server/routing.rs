@@ -310,10 +310,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 };
                 let auth = BearerAuthState::new(token.clone());
                 let studio_admin_router = Router::new()
-                    // Schema + health (Cycle 2)
+                    // Schema + health
                     .route("/admin/v1/schema", get(studio_schema_handler::<A>))
                     .route("/admin/v1/health/detailed", get(studio_health_handler::<A>))
-                    // Data browser (Cycle 3)
+                    // Data browser
                     .route(
                         "/admin/v1/data/{entity}/query",
                         post(data_query_handler::<A>),
@@ -322,7 +322,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "/admin/v1/data/{entity}/mutate",
                         post(data_mutate_handler::<A>),
                     )
-                    // Auth user management (Cycle 4)
+                    // Auth user management
                     .route("/admin/v1/users", get(list_users_handler::<A>))
                     .route("/admin/v1/users/invite", post(invite_user_handler::<A>))
                     .route(
@@ -333,7 +333,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "/admin/v1/users/{id}/mfa",
                         get(mfa_status_handler::<A>),
                     )
-                    // Storage browser (Cycle 5)
+                    // Storage browser
                     .route(
                         "/admin/v1/storage/buckets",
                         get(list_buckets_handler::<A>),
@@ -350,7 +350,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "/admin/v1/storage/objects",
                         axum::routing::delete(delete_object_handler::<A>),
                     )
-                    // Realtime monitor (Cycle 6)
+                    // Realtime monitor
                     .route(
                         "/admin/v1/realtime/stats",
                         get(realtime_stats_handler::<A>),
@@ -364,7 +364,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         get(presence_rooms_handler::<A>),
                     )
                     .route("/admin/v1/realtime/cdc", get(cdc_lag_handler::<A>))
-                    // Function operations (Cycle 7)
+                    // Function operations
                     .route("/admin/v1/functions", get(list_functions_handler::<A>))
                     .route(
                         "/admin/v1/functions/{name}/invoke",
@@ -383,7 +383,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         put(set_secret_handler::<A>)
                             .delete(delete_secret_handler::<A>),
                     )
-                    // Metrics summary (Cycle 8)
+                    // Metrics summary
                     .route(
                         "/admin/v1/metrics/summary",
                         get(metrics_summary_handler::<A>),

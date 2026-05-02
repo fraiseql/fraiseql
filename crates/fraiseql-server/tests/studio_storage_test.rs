@@ -1,4 +1,4 @@
-//! Cycle 5 tests: Storage browser at /admin/v1/storage/*
+//! Storage browser at /admin/v1/storage/*
 #![allow(clippy::unwrap_used)]
 #![allow(missing_docs)]
 #![allow(clippy::missing_panics_doc)]

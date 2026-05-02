@@ -2691,7 +2691,7 @@ mod session_variables {
     }
 }
 
-// ── mod mutation_audit: Cycle 4 — audit event emission ───────────────────
+// ── mod mutation_audit: audit event emission ──────────────────────────────
 
 mod mutation_audit {
     use std::sync::{Arc, Mutex};

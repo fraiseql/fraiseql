@@ -88,7 +88,7 @@ pub async fn list_users_handler<A>(State(_state): State<AppState<A>>) -> impl In
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    // Placeholder — wired to auth session tables in Cycle 9.
+    // Placeholder — not yet wired to auth session tables.
     Json(UserListResponse {
         users: vec![],
         total: 0,

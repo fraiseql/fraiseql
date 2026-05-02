@@ -14,8 +14,12 @@ fraiseql (umbrella)
                      -> fraiseql-secrets (optional)
                      -> fraiseql-webhooks (optional)
                      -> fraiseql-arrow (optional)
+                     -> fraiseql-storage (optional)
+                     -> fraiseql-functions (optional)
   -> fraiseql-cli -> fraiseql-core, fraiseql-server (optional)
   -> fraiseql-wire (standalone, PostgreSQL only)
+  -> fraiseql-storage (standalone, multi-backend)
+  -> fraiseql-functions -> fraiseql-core (optional), fraiseql-storage (optional)
 ```
 
 ## Feature Flags by Crate
@@ -156,6 +160,29 @@ fraiseql (umbrella)
 |---------|---------|-------------|-----------|
 | `test-utils` | no | Test helper constructors | (empty) |
 | `unstable` | no | Pre-release APIs | (empty) |
+
+### fraiseql-storage
+
+| Feature | Default | Description | Activates |
+|---------|---------|-------------|-----------|
+| `postgres` | yes | PostgreSQL metadata store | (empty) |
+| `mysql` | no | MySQL metadata store | (empty) |
+| `sqlite` | no | SQLite metadata store | (empty) |
+| `sqlserver` | no | SQL Server metadata store | (empty) |
+| `aws-s3` | no | Amazon S3 backend | `dep:aws-sdk-s3`, `dep:aws-config` |
+| `gcs` | no | Google Cloud Storage backend | `dep:jsonwebtoken`, `dep:reqwest` |
+| `azure-blob` | no | Azure Blob Storage backend | `dep:reqwest`, `dep:hmac` |
+| `transforms` | no | Image transforms (resize, convert, EXIF) | `dep:image`, `dep:kamadak-exif` |
+
+### fraiseql-functions
+
+| Feature | Default | Description | Activates |
+|---------|---------|-------------|-----------|
+| `runtime-wasm` | no | WebAssembly function runtime (Wasmtime) | `dep:wasmtime`, `dep:lru` |
+| `runtime-deno` | no | JavaScript/TypeScript runtime (Deno) | `dep:deno_core` |
+| `host-live` | no | Live SQL query host ops | `dep:fraiseql-core`, `dep:fraiseql-db` |
+| `host-storage` | no | Storage host ops | `dep:fraiseql-storage` |
+| `function-secrets` | no | AES-256-GCM encrypted secrets store | `dep:aes-gcm`, `dep:rand`, `dep:base64` |
 
 ### fraiseql-webhooks
 

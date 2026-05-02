@@ -1,4 +1,4 @@
-//! Integration tests for the edge functions runtime — Cycle 8.
+//! Integration tests for the edge functions runtime.
 //!
 //! These tests exercise the full pipeline:
 //!   deploy → invoke → response

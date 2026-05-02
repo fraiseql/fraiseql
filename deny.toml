@@ -1,8 +1,9 @@
 # FraiseQL dependency policy
 # Run: cargo deny check
-# Skip entries last reviewed: 2026-04-17
+# Skip entries last reviewed: 2026-05-02
 # Pending resolution:
 # rustls 0.21  — aws-sdk-s3 (optional feature) transitively requires; EOL dependency
+# wasmtime 18.x — many CVEs accumulated; upgrade blocked on deno_core 0.290 compat; optional feature
 
 [advisories]
 db-path = "~/.cargo/advisory-db"
@@ -10,8 +11,29 @@ ignore = [
   # rsa: Marvin Attack — no upstream fix, transitive via sqlx-mysql (optional feature only)
   {id = "RUSTSEC-2023-0071", reason = "No upstream fix; only affects optional mysql feature path"},
   {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile: blocked on upstream bollard migration to rustls-pem"},
-  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Revisit by 2026-06-15."},
-  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Revisit by 2026-06-15."}
+  {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki additional name-constraint bug; same transitive chain as 0098/0099. Revisit by 2026-08-01."},
+  # wasmtime 18.x CVEs — optional runtime-wasm feature only; upgrade blocked on deno_core compat. Revisit by 2026-08-01.
+  {id = "RUSTSEC-2024-0438", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2025-0046", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2025-0118", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0020", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0021", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0085", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0086", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0087", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0088", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0089", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0091", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0092", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0093", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0094", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0095", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0096", reason = "wasmtime 18.x; optional runtime-wasm feature only. Revisit by 2026-08-01."},
+  # astral-tokio-tar CVEs — transitive via deno_core (optional runtime-deno feature). Revisit by 2026-08-01.
+  {id = "RUSTSEC-2026-0112", reason = "astral-tokio-tar; transitive via deno_core optional feature only. Revisit by 2026-08-01."},
+  {id = "RUSTSEC-2026-0113", reason = "astral-tokio-tar; transitive via deno_core optional feature only. Revisit by 2026-08-01."}
 ]
 unmaintained = "workspace"
 
@@ -41,6 +63,16 @@ version = "=0.24.1"
 
 [[bans.skip]]
 name = "hashbrown"
+reason = "transitive via older wasmtime/deno dependency"
+version = "=0.12.3"
+
+[[bans.skip]]
+name = "hashbrown"
+reason = "transitive via older wasmtime dependency"
+version = "=0.13.2"
+
+[[bans.skip]]
+name = "hashbrown"
 reason = "transitive via indexmap 2.x in some dependency chains"
 version = "=0.14.5"
 
@@ -48,6 +80,11 @@ version = "=0.14.5"
 name = "hashbrown"
 reason = "transitive; ecosystem migrating to 0.16"
 version = "=0.15.5"
+
+[[bans.skip]]
+name = "hashbrown"
+reason = "transitive via wasmtime 18.x"
+version = "=0.16.1"
 
 [[bans.skip]]
 name = "getrandom"
@@ -199,6 +236,137 @@ name = "winnow"
 reason = "transitive via toml_edit 0.22; ecosystem migrating to winnow 1.0"
 version = "=0.7.15"
 
+# ── New duplicates from wasmtime 18.x / deno_core 0.290 (added in v2.2.0) ──────
+[[bans.skip]]
+name = "addr2line"
+reason = "transitive via wasmtime 18.x backtrace support; older version required"
+version = "=0.21.0"
+
+[[bans.skip]]
+name = "base64"
+reason = "transitive via older dependency chain (wasmtime/aws-sdk)"
+version = "=0.21.7"
+
+[[bans.skip]]
+name = "base64-simd"
+reason = "transitive via older dependency"
+version = "=0.7.0"
+
+[[bans.skip]]
+name = "core-foundation"
+reason = "transitive via older macOS dependency chain"
+version = "=0.9.4"
+
+[[bans.skip]]
+name = "foldhash"
+reason = "transitive via older dependency"
+version = "=0.1.5"
+
+[[bans.skip]]
+name = "gimli"
+reason = "transitive via wasmtime 18.x backtrace support"
+version = "=0.28.1"
+
+[[bans.skip]]
+name = "heck"
+reason = "transitive via older code-generation dependencies"
+version = "=0.4.1"
+
+[[bans.skip]]
+name = "itertools"
+reason = "transitive via older dependency chain"
+version = "=0.10.5"
+
+[[bans.skip]]
+name = "linux-raw-sys"
+reason = "transitive via rustix 0.38.x (wasmtime/deno dependency chain)"
+version = "=0.4.15"
+
+[[bans.skip]]
+name = "miniz_oxide"
+reason = "transitive via wasmtime 18.x"
+version = "=0.7.4"
+
+[[bans.skip]]
+name = "object"
+reason = "transitive via wasmtime 18.x backtrace support"
+version = "=0.32.2"
+
+[[bans.skip]]
+name = "outref"
+reason = "transitive via older dependency"
+version = "=0.1.0"
+
+[[bans.skip]]
+name = "pastey"
+reason = "transitive via older dependency"
+version = "=0.1.1"
+
+[[bans.skip]]
+name = "rand"
+reason = "transitive via older dependency requiring rand 0.8"
+version = "=0.8.6"
+
+[[bans.skip]]
+name = "rand"
+reason = "transitive via dependency requiring rand 0.9"
+version = "=0.9.4"
+
+[[bans.skip]]
+name = "rand_chacha"
+reason = "transitive via rand 0.9"
+version = "=0.9.1"
+
+[[bans.skip]]
+name = "rustc_version"
+reason = "transitive via older build-dependency"
+version = "=0.2.3"
+
+[[bans.skip]]
+name = "rustix"
+reason = "transitive via older dependency chain requiring rustix 0.38"
+version = "=0.38.44"
+
+[[bans.skip]]
+name = "semver"
+reason = "transitive via older build-dependency requiring semver 0.9"
+version = "=0.9.0"
+
+[[bans.skip]]
+name = "tokio-tungstenite"
+reason = "fraiseql-server pins 0.28; axum 0.8.9 transitively requires 0.29. Upgrade tracked."
+version = "=0.28.0"
+
+[[bans.skip]]
+name = "toml"
+reason = "transitive via older dependency requiring toml 0.5"
+version = "=0.5.11"
+
+[[bans.skip]]
+name = "tungstenite"
+reason = "paired with tokio-tungstenite 0.28 pin"
+version = "=0.28.0"
+
+[[bans.skip]]
+name = "wasm-encoder"
+reason = "transitive via wasmtime 18.x (0.41) and wasm-tools 0.244"
+version = "=0.41.2"
+
+[[bans.skip]]
+name = "wasm-encoder"
+reason = "transitive via wasm-tools intermediate version"
+version = "=0.244.0"
+
+[[bans.skip]]
+name = "zstd"
+reason = "transitive via older dependency chain (clickhouse/parquet)"
+version = "=0.11.2+zstd.1.5.2"
+
+[[bans.skip]]
+name = "zstd-safe"
+reason = "transitive via zstd 0.11.x"
+version = "=5.0.2+zstd.1.5.2"
+
 [[bans.skip-tree]]
 name = "hyper"
 reason = "hyper 0.14 required by aws-sdk via aws-smithy-runtime; pulls in h2 0.3, http 0.2, http-body 0.4"
@@ -234,6 +402,7 @@ allow = [
   "MIT-0",
   "MPL-2.0",
   "OpenSSL",
+  "NCSA",
   "Unicode-3.0",
   "Unlicense",
   "Zlib"

@@ -126,7 +126,7 @@ pub async fn summary_handler<A>(State(_state): State<AppState<A>>) -> impl IntoR
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    // Placeholder — reads from MetricsCollector in Cycle 9.
+    // Placeholder — not yet wired to MetricsCollector.
     Json(MetricsSummary::zero())
 }
 

@@ -639,7 +639,7 @@ async fn test_execute_function_call_with_timing_enabled() {
 }
 
 // ========================================================================
-// Pool Pre-warming Tests (Phase 01, Issue #183)
+// Pool Pre-warming Tests (Issue #183)
 // ========================================================================
 
 #[tokio::test]

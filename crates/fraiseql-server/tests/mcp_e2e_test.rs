@@ -73,7 +73,7 @@ fn make_mcp_service() -> (
 }
 
 // ===========================================================================
-// Cycle 1: MCP initialization — ServerHandler::get_info()
+// MCP initialization — ServerHandler::get_info()
 // ===========================================================================
 
 /// Verify that `get_info` returns sensible server metadata and capabilities.
@@ -96,7 +96,7 @@ fn mcp_e2e_server_info_and_capabilities() {
 }
 
 // ===========================================================================
-// Cycle 2: Tool listing — schema_to_tools + get_tool
+// Tool listing — schema_to_tools + get_tool
 // ===========================================================================
 
 /// Verify that schema queries and mutations are converted to MCP tools.
@@ -178,7 +178,7 @@ fn mcp_e2e_tool_filtering() {
 }
 
 // ===========================================================================
-// Cycle 3: Tool execution (query) — call_tool through Executor
+// Tool execution (query) — call_tool through Executor
 // ===========================================================================
 
 /// Call the `users` tool through the full MCP executor pipeline.
@@ -221,7 +221,7 @@ async fn mcp_e2e_tool_call_query_no_args() {
 }
 
 // ===========================================================================
-// Cycle 4: Error cases
+// Error cases
 // ===========================================================================
 
 /// Calling a non-existent tool returns an error result.

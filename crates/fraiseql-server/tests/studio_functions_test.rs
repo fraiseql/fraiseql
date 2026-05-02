@@ -1,4 +1,4 @@
-//! Cycle 7 tests: Function operations at /admin/v1/functions/*
+//! Function operations at /admin/v1/functions/*
 #![allow(clippy::unwrap_used)]
 #![allow(missing_docs)]
 #![allow(clippy::missing_panics_doc)]

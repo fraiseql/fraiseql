@@ -1,4 +1,4 @@
-//! Cycle 6 tests: Realtime monitor at /admin/v1/realtime/*
+//! Realtime monitor at /admin/v1/realtime/*
 #![allow(clippy::unwrap_used)]
 #![allow(missing_docs)]
 #![allow(clippy::missing_panics_doc)]

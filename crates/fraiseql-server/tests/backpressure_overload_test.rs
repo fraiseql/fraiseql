@@ -21,11 +21,11 @@ async fn test_sustained_overload_sheds_load() {
     let mut accepted = 0u64;
     let mut rejected = 0u64;
 
-    // Phase 1: Saturate all 50 permits (RAII — held alive until explicit drop)
+    // Step 1: Saturate all 50 permits (RAII — held alive until explicit drop)
     let held_permits: Vec<_> =
         (0..50).map(|_| controller.try_acquire().expect("should acquire")).collect();
 
-    // Phase 2: Attempt 1000 more — all should be rejected (capacity full)
+    // Step 2: Attempt 1000 more — all should be rejected (capacity full)
     for _ in 0..1000 {
         match controller.try_acquire() {
             Some(_permit) => accepted += 1,
@@ -40,7 +40,7 @@ async fn test_sustained_overload_sheds_load() {
         "all 1000 requests must be rejected when permits are held (accepted={accepted})"
     );
 
-    // Phase 3: Release permits and verify recovery
+    // Step 3: Release permits and verify recovery
     drop(held_permits);
 
     let permit = controller.try_acquire();
@@ -53,17 +53,17 @@ async fn test_sustained_overload_sheds_load() {
 async fn test_recovery_after_overload_spike() {
     let controller = AdmissionController::new(50, 100);
 
-    // Phase 1: Saturate all permits (RAII — held alive until explicit drop)
+    // Step 1: Saturate all permits (RAII — held alive until explicit drop)
     let permits: Vec<_> =
         (0..50).map(|_| controller.try_acquire().expect("should acquire")).collect();
 
-    // Phase 2: Verify rejection during saturation
+    // Step 2: Verify rejection during saturation
     assert!(controller.try_acquire().is_none());
 
-    // Phase 3: Release all permits (simulating spike end)
+    // Step 3: Release all permits (simulating spike end)
     drop(permits);
 
-    // Phase 4: Verify immediate recovery — can acquire the full capacity again
+    // Step 4: Verify immediate recovery — can acquire the full capacity again
     let mut recovered = 0usize;
     for _ in 0..50 {
         if controller.try_acquire().is_some() {

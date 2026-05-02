@@ -50,7 +50,7 @@ pub async fn stats_handler<A>(State(_state): State<AppState<A>>) -> impl IntoRes
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    // Placeholder — reads from PresenceManager / BroadcastManager in Cycle 9.
+    // Placeholder — not yet wired to PresenceManager / BroadcastManager.
     Json(RealtimeStatsResponse {
         connections: 0,
         channels: vec![],

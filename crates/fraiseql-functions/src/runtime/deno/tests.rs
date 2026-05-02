@@ -171,7 +171,7 @@ async fn test_deno_supported_extensions() {
     assert!(exts.contains(&".mts"));
 }
 
-// Cycle 2: V8 Resource Limits (Memory & CPU Timeouts)
+// V8 Resource Limits (Memory & CPU Timeouts)
 
 #[tokio::test]
 async fn test_deno_memory_limit_terminates() {
@@ -328,7 +328,7 @@ export default async (event) => {
     // When fully implemented, should be Timeout error
 }
 
-// Cycle 3: Deno Host Ops (Structured Logging)
+// Deno Host Ops (Structured Logging)
 
 #[tokio::test]
 async fn test_deno_guest_can_call_log() {
@@ -471,7 +471,7 @@ async fn test_deno_guest_log_limit_enforced() {
     assert_eq!(result.logs[999].message, "log entry 999");
 }
 
-// ========== Phase 5B Cycle 2: Deno Host Op Bridge Tests (RED Phase) ==========
+// ========== Deno Host Op Bridge Tests ==========
 
 #[cfg(feature = "host-live")]
 #[tokio::test]

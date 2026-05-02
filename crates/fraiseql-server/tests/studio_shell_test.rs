@@ -1,4 +1,4 @@
-//! Cycle 1 tests: SPA shell + embedded assets for /studio
+//! SPA shell + embedded assets for /studio
 //!
 //! **Execution engine:** none
 //! **Infrastructure:** none

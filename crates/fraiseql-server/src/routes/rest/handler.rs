@@ -63,7 +63,7 @@ pub struct PreferHeader {
     pub resolution:            Option<String>,
     /// `tx=rollback` — dry-run mode (execute then rollback).
     pub tx_rollback:           bool,
-    /// `handling=strict` or `handling=lenient` (default: strict for Phase 1 compat).
+    /// `handling=strict` or `handling=lenient` (default: strict).
     pub handling:              Option<HandlingPreference>,
     /// `max-affected=N` — limit bulk operation scope.
     pub max_affected:          Option<u64>,
@@ -1650,7 +1650,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Extended Prefer header tests (Cycle 12)
+    // Extended Prefer header tests
     // -----------------------------------------------------------------------
 
     #[test]

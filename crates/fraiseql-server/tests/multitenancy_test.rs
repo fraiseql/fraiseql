@@ -125,7 +125,7 @@ fn make_single_tenant_state() -> AppState<StubAdapter> {
     )))
 }
 
-// ── Cycle 2: Explicit-but-unregistered tenant key → 403 ────────────────
+// ── Explicit-but-unregistered tenant key → 403 ─────────────────────────
 
 #[test]
 fn test_explicit_unregistered_tenant_returns_error() {
@@ -185,7 +185,7 @@ fn test_host_resolves_to_unregistered_tenant_returns_error() {
     assert!(reg.executor_for(key.as_deref()).is_err());
 }
 
-// ── Cycle 3: Default fallback (no key = single-tenant compat) ───────────
+// ── Default fallback (no key = single-tenant compat) ────────────────────
 
 #[test]
 fn test_no_key_returns_default_executor() {
@@ -215,7 +215,7 @@ fn test_request_without_tenant_headers_resolves_none() {
     assert_eq!(key, None, "no JWT, no header, no host match → None");
 }
 
-// ── Cycle 4: Single-tenant backward compatibility ───────────────────────
+// ── Single-tenant backward compatibility ────────────────────────────────
 
 #[test]
 fn test_single_tenant_no_registry() {
@@ -238,7 +238,7 @@ fn test_single_tenant_domain_registry_exists_but_empty() {
     assert!(state.domain_registry().is_empty());
 }
 
-// ── Cycle 5: Error cases ────────────────────────────────────────────────
+// ── Error cases ────────────────────────────────────────────────────────
 
 #[test]
 fn test_x_tenant_id_invalid_chars_rejected() {
@@ -295,7 +295,7 @@ fn test_valid_tenant_key_formats() {
     }
 }
 
-// ── Cycle 6: Hot-reload under concurrent load ───────────────────────────
+// ── Hot-reload under concurrent load ────────────────────────────────────
 
 #[tokio::test]
 async fn test_hot_reload_in_flight_requests_see_old_executor() {
@@ -354,7 +354,7 @@ async fn test_concurrent_reads_during_upsert() {
     }
 }
 
-// ── Cycle 7: Health check per tenant ────────────────────────────────────
+// ── Health check per tenant ─────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_health_check_registered_tenant_ok() {
@@ -477,7 +477,7 @@ fn test_remove_tenant_while_guard_held() {
     assert!(registry.executor_for(Some("tenant-a")).is_err());
 }
 
-// ── Cycle 7 (Phase 15): Isolation Verification Tests ──────────────────
+// ── Isolation Verification Tests ─────────────────────────────────────────
 
 // --- Cross-cutting: Suspend/Resume lifecycle ---
 

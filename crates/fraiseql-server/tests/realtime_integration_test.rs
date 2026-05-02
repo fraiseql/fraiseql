@@ -1,4 +1,4 @@
-//! Integration tests for Phase 16 realtime enhancements:
+//! Integration tests for realtime enhancements:
 //! CDC → `EventBridge` wiring, broadcast channels, presence, and tenant filtering.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 

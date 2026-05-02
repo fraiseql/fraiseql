@@ -1,4 +1,4 @@
-//! End-to-end integration tests for the gRPC transport (Cycle 7).
+//! End-to-end integration tests for the gRPC transport.
 #![cfg(feature = "grpc")]
 //! Tests the full stack: compile schema → build descriptor → build
 //! `DynamicGrpcService` → exercise gRPC requests via `tower::ServiceExt::oneshot`
@@ -732,7 +732,7 @@ async fn dispatch_table_has_correct_view_names() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cycle 8: Mutation tests
+// Mutation tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
@@ -900,7 +900,7 @@ async fn all_three_rpcs_are_callable() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cycle 9: Auth interceptor + RLS tests
+// Auth interceptor + RLS tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Build a `DynamicGrpcService` with OIDC authentication enabled.
@@ -1155,7 +1155,7 @@ async fn query_without_security_context_has_no_rls() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cycle 10: Rate limiting + observability tests
+// Rate limiting + observability tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Build a `DynamicGrpcService` with rate limiting enabled.
@@ -1282,7 +1282,7 @@ async fn no_rate_limiter_allows_all_requests() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Cycle 11: Reflection service tests
+// Reflection service tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]

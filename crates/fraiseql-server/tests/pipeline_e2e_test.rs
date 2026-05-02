@@ -1,4 +1,4 @@
-//! Phase 20 Cycle 7 — End-to-End Pipeline Integration Test
+//! End-to-End Pipeline Integration Test
 //!
 //! Proves the full compile → server → HTTP pipeline works without manual
 //! intervention:

@@ -608,7 +608,7 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
 mod tests {
     use super::*;
 
-    // ── CacheStatus (Phase 02, Issue #183) ─────────────────────────────────
+    // ── CacheStatus (Issue #183) ──────────────────────────────────────────────
 
     #[test]
     #[allow(deprecated)] // Reason: testing deprecated variant

@@ -1,4 +1,4 @@
-//! Tests for the realtime `WebSocket` module (Phase 7, Cycles 1–7).
+//! Tests for the realtime `WebSocket` module.
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -465,7 +465,7 @@ async fn test_websocket_token_revalidation_interval() {
     assert!(got_expired, "Expected token_expired from revalidation");
 }
 
-// ── Cycle 2: Subscription Protocol Tests ───────────────────────────────
+// ── Subscription Protocol Tests ──────────────────────────────────────────
 
 fn test_entities() -> HashSet<String> {
     ["Post", "Comment"].iter().map(|s| (*s).to_owned()).collect()
@@ -691,7 +691,7 @@ async fn test_duplicate_subscribe_is_idempotent() {
     ws.close(None).await.ok();
 }
 
-// ── Cycle 3: Event Delivery with RLS Tests ─────────────────────────────
+// ── Event Delivery with RLS Tests ────────────────────────────────────────
 
 /// RLS evaluator that allows all access.
 struct AllowAllRls;
@@ -1070,7 +1070,7 @@ async fn test_event_payload_format() {
     ws.close(None).await.ok();
 }
 
-// ── Cycle 4: RealtimeBroadcastObserver Tests ────────────────────────────
+// ── RealtimeBroadcastObserver Tests ───────────────────────────────────────
 
 #[tokio::test]
 async fn test_observer_receives_mutation_event() {
@@ -1303,7 +1303,7 @@ async fn test_observer_end_to_end() {
     ws.close(None).await.ok();
 }
 
-// ── Cycle 5: Security Context Hashing & Connection State ───────────────
+// ── Security Context Hashing & Connection State ──────────────────────────
 
 /// Build a `SecurityContextHashInput` for testing.
 fn make_ctx<'a>(
@@ -1431,7 +1431,7 @@ async fn test_connection_state_cleanup_on_disconnect() {
     }
 }
 
-// ── Cycle 6: Axum Route & Server Integration ───────────────────────────
+// ── Axum Route & Server Integration ──────────────────────────────────────
 
 /// Spawn a test server using `realtime_router()` and return its address.
 async fn spawn_router_test_server(validator: TestValidator) -> SocketAddr {
@@ -1535,7 +1535,7 @@ fn test_realtime_entities_from_schema() {
     assert_eq!(server.known_entities.len(), 2);
 }
 
-// ── Cycle 7: Coexistence with Existing GraphQL Subscriptions ──────────
+// ── Coexistence with Existing GraphQL Subscriptions ──────────────────────
 
 /// Build a minimal combined Axum app with both:
 /// - realtime `WebSocket` at `/realtime/v1`

@@ -744,12 +744,12 @@ export default async (event) => ({
     }
 
     // NOTE: The sequential (multi-trigger) chain test is verified at the unit level here
-    // using a mock observer, and the end-to-end behaviour is covered by Cycle 7 E2E tests.
+    // using a mock observer, and the end-to-end behaviour is covered by E2E integration tests.
     #[test]
     fn test_before_mutation_chain_execute_sequential_chain_structure() {
         // Verify that a chain with two triggers is built correctly and both triggers
         // are present in declaration order. The actual execution of sequential chains
-        // is tested via E2E integration tests (Cycle 7) using the full Deno runtime.
+        // is tested via E2E integration tests using the full Deno runtime.
         let chain = BeforeMutationChain {
             triggers: vec![
                 BeforeMutationTrigger {

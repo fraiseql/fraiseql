@@ -1,7 +1,7 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.1.0 (Released 2026-03-10)
-**In Development**: v2.2.0-dev (active branch: `dev`)
+**Current Stable**: v2.2.0 (Released 2026-05-02)
+**In Development**: v2.3.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
@@ -113,37 +113,29 @@ With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query
 
 ---
 
-## v2.2.0 - Federation Maturity
+## v2.2.0 - Federation Maturity ✅ Released 2026-05-02
 
-**Target**: Q1 2027
-**Minimum stabilisation**: 6 weeks on `dev` before release cut (earliest: 2026-04-21)
+**Released**: 2026-05-02
 
 Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes FraiseQL a production-grade federation participant.
 
-### Federation Gateway
+### Completed
 
-- **Apollo Federation 2 compatibility** - Full support for subgraph specs, entity resolution, cross-service queries
-- **Federated query planning** - Optimize query plans across multiple subgraph databases
-- **Entity type resolution** - Correct reference resolution for types owned by different services
-- **Field-level authorization** - Enforce ownership and permissions at federation boundaries
+- **Apollo Federation 2 — full directive set** — all 7 field-level directives emitted in SDL (`@external`, `@requires`, `@provides`, `@shareable`, `@inaccessible`, `@override`, `@extends`); `extend type` syntax for extending types
+- **Federation constraint validation** — `fraiseql federation check` validates `@key` fields, `@override` subgraph existence, `@requires`/`@provides` consistency
+- **Federated subscription passthrough** — `SubscriptionForwarder` proxies subscriptions to owning subgraph via `graphql-transport-ws`; SSRF-protected
+- **Federation plan visualization** — `GET /admin/v1/federation/plan?query=...` returns query plan JSON
+- **Prometheus federation metrics** — latency histogram and entity resolution counter
+- **SDK field-level federation annotations** — Python and TypeScript SDKs expose `FieldConfig(external=, requires=, provides=, shareable=, inaccessible=, override_from=)`
+- **Structured CLI JSON errors** — `fraiseql federation check --json` and `fraiseql schema metadata --json` for CI pipelines
+- **Schema metadata endpoint** — `GET /api/v1/schema/metadata` with field-level security metadata
+- **Mutation audit tracing** — runtime emits `fraiseql::mutation_audit` events after every write
+- **Usage aggregation** — per-tenant, per-period, per-entity-type counters via `GET /api/v1/admin/usage`
 
-### Federation Observability
+### Known Limitations (carry-forward to v2.3.0)
 
-- **Multi-service tracing** - Trace execution across subgraph boundaries with correct context propagation
-- **Federated query analytics** - Show which subgraphs contributed to query results
-- **Service health checks** - Automated monitoring of subgraph availability and response times
-
-### Subgraph Developer Experience
-
-- **Federation schema generation** - Python/TypeScript decorators auto-generate @external, @requires
-- **Reference entity support** - Simplified patterns for entities referenced across services
-- **Easy deployment** - Unified deployment model with gateway as optional configuration
-
-### Known Limitations (v2.1.x)
-
-Issues confirmed in benchmarking and tracked for v2.2.0 resolution:
-
-- **Cache mutation routing overhead** — When `cache_enabled = true`, mutations route through `CachedDatabaseAdapter` which performs a synchronous view-level cache invalidation after every write. On fraiseql-v variants this adds ~15% overhead (measured: 7,047 → 6,019 RPS). On fraiseql-tv variants the overhead is masked by run-order page fragmentation in sequential benchmarks but the invalidation path is equally coarse-grained. Fix planned for v2.2.0: write-through invalidation that skips the full key scan when no cached entries match the written entity, replacing the current evict-all-for-view strategy with targeted eviction.
+- **Cache mutation routing overhead** — `CachedDatabaseAdapter` performs a coarse-grained view-level invalidation after every write (~15% overhead measured at 7,047 → 6,019 RPS). Fix: write-through invalidation with targeted eviction. Tracked for v2.3.0.
+- **Usage aggregation is in-memory only** — counters reset on process restart; no persistence layer yet.
 
 ---
 
