@@ -12,6 +12,9 @@ import {
     External,
     Requires,
     Provides,
+    Shareable,
+    Inaccessible,
+    Override,
     ID,
     generateSchemaJson,
     validateFederation,
@@ -529,6 +532,102 @@ describe('TypeScript Federation Decorators', () => {
 
             const emailRefField = userType.fields.find((f: any) => f.name === 'email_ref');
             expect(emailRefField.federation.provides).toContain('Order.user_email');
+        });
+    });
+
+    describe('@Shareable decorator', () => {
+        it('marks field as shareable in schema JSON', () => {
+            @Key('id')
+            @Type()
+            class Product {
+                id: string = '';
+                @Shareable() name: string = '';
+            }
+
+            const schema = generateSchemaJson([Product] as any);
+            const product = schema.types.find((t: any) => t.name === 'Product');
+            const nameField = product.fields.find((f: any) => f.name === 'name');
+            expect(nameField.federation.shareable).toBe(true);
+        });
+    });
+
+    describe('@Inaccessible decorator', () => {
+        it('marks field as inaccessible in schema JSON', () => {
+            @Key('id')
+            @Type()
+            class User {
+                id: string = '';
+                @Inaccessible() internalId: string = '';
+            }
+
+            const schema = generateSchemaJson([User] as any);
+            const user = schema.types.find((t: any) => t.name === 'User');
+            const internalField = user.fields.find((f: any) => f.name === 'internalId');
+            expect(internalField.federation.inaccessible).toBe(true);
+        });
+
+        it('combines with @Requires (valid per spec)', () => {
+            @Key('id')
+            @Type()
+            class User {
+                id: string = '';
+                @Inaccessible() @Requires('id') ssn: string = '';
+            }
+
+            const schema = generateSchemaJson([User] as any);
+            const user = schema.types.find((t: any) => t.name === 'User');
+            const ssnField = user.fields.find((f: any) => f.name === 'ssn');
+            expect(ssnField.federation.inaccessible).toBe(true);
+            expect(ssnField.federation.requires).toBe('id');
+        });
+    });
+
+    describe('@Override decorator', () => {
+        it('marks field with override_from in schema JSON', () => {
+            @Key('id')
+            @Type()
+            class Product {
+                id: string = '';
+                @Override('old-pricing') price: number = 0;
+            }
+
+            const schema = generateSchemaJson([Product] as any);
+            const product = schema.types.find((t: any) => t.name === 'Product');
+            const priceField = product.fields.find((f: any) => f.name === 'price');
+            expect(priceField.federation.override_from).toBe('old-pricing');
+        });
+
+        it('throws on empty subgraph name', () => {
+            expect(() => Override('')).toThrow('non-empty');
+        });
+
+        it('validateFederation rejects @External + @Override on same field', () => {
+            @Extends()
+            @Key('id')
+            @Type()
+            class Product {
+                @External() @Override('old') id: string = '';
+            }
+
+            expect(() => validateFederation([Product] as any)).toThrow('@External and @Override');
+        });
+    });
+
+    describe('All three new decorators stacked', () => {
+        it('includes shareable, inaccessible, and override_from on same field', () => {
+            @Key('id')
+            @Type()
+            class Item {
+                id: string = '';
+                @Shareable() @Inaccessible() @Override('legacy') tag: string = '';
+            }
+
+            const schema = generateSchemaJson([Item] as any);
+            const item = schema.types.find((t: any) => t.name === 'Item');
+            const tagField = item.fields.find((f: any) => f.name === 'tag');
+            expect(tagField.federation.shareable).toBe(true);
+            expect(tagField.federation.inaccessible).toBe(true);
+            expect(tagField.federation.override_from).toBe('legacy');
         });
     });
 });

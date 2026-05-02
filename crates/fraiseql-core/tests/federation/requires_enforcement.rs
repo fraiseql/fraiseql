@@ -85,6 +85,7 @@ fn test_requires_enforcement_missing_field() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Entity representation missing email
@@ -129,6 +130,7 @@ fn test_requires_enforcement_field_present() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Entity representation has email
@@ -177,6 +179,7 @@ fn test_requires_enforcement_multiple_required_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Has weight but missing dimensions
@@ -237,6 +240,7 @@ fn test_requires_enforcement_no_directives() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Minimal representation
@@ -274,6 +278,7 @@ fn test_requires_enforcement_error_message_context() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -326,6 +331,7 @@ fn test_requires_multiple_fields_mixed_results() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Representation with email but not phone
@@ -387,6 +393,7 @@ fn test_requires_three_fields_all_present() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {
@@ -440,6 +447,7 @@ fn test_requires_three_fields_one_missing() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr = EntityRepresentation {

@@ -41,6 +41,7 @@ fn test_http_requires_validation_missing_field() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Entity representation missing email
@@ -85,6 +86,7 @@ fn test_http_requires_validation_field_present() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Entity representation has email
@@ -133,6 +135,7 @@ fn test_http_requires_validation_multiple_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Has weight but missing dimensions
@@ -194,6 +197,7 @@ fn test_http_requires_batch_validation() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let repr1 = EntityRepresentation {
@@ -275,6 +279,7 @@ fn test_http_query_includes_required_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Build augmented field list
@@ -326,6 +331,7 @@ fn test_http_query_deduplicates_fields() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![type_def],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let requested_fields = vec!["shippingEstimate".to_string(), "taxAmount".to_string()];

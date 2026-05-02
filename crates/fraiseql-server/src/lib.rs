@@ -163,6 +163,9 @@ pub mod trusted_documents;
 // Multi-tenancy: pool factory, executor construction, health monitoring
 pub mod tenancy;
 
+// Usage aggregation: in-memory mutation counters fed by tracing events
+pub mod usage;
+
 // Testing utilities
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;

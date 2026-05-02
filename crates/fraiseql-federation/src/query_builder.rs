@@ -140,12 +140,14 @@ mod tests {
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
+            type_shareable:  false,
         }];
 
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
             types,
+            remote_subscription_fields: HashMap::new(),
         }
     }
 

@@ -291,7 +291,9 @@ fn test_strategy_local_for_owned_entity() {
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // User type is not extended, so it should use local resolution
@@ -318,7 +320,9 @@ fn test_strategy_direct_db_when_available() {
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Order type is extended, so it should use DirectDB or HTTP
@@ -346,6 +350,7 @@ fn test_strategy_http_fallback() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
                 name:             "Product".to_string(),
@@ -358,8 +363,10 @@ fn test_strategy_http_fallback() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
         ],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Both types have resolvable keys, enabling HTTP fallback
@@ -499,6 +506,7 @@ fn test_federation_spec_version_2() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     assert!(metadata.enabled);
@@ -539,7 +547,9 @@ fn test_federation_directive_fields() {
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let user_type = &metadata.types[0];

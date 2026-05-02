@@ -134,4 +134,11 @@ pub struct Server<A: DatabaseAdapter> {
     /// Set via [`Server::with_functions`]. When `None`, function routes are not mounted.
     #[cfg(feature = "functions")]
     pub(super) function_runtime: Option<Arc<dyn fraiseql_functions::runtime::SendFunctionRuntime>>,
+
+    /// Shared usage aggregator — written by [`MutationAuditLayer`] and read by
+    /// the `GET /api/v1/admin/usage` endpoint via [`AppState::usage`].
+    ///
+    /// [`MutationAuditLayer`]: crate::usage::layer::MutationAuditLayer
+    /// [`AppState::usage`]: crate::routes::graphql::AppState::usage
+    pub(super) usage: Arc<crate::usage::aggregator::UsageAggregator>,
 }

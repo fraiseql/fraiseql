@@ -187,6 +187,98 @@ fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfi
     dot
 }
 
+/// Query parameter for plan endpoint.
+#[derive(Debug, Deserialize)]
+pub struct PlanQuery {
+    /// The GraphQL query to look up in the plan cache.
+    pub query: String,
+}
+
+/// Response from the plan visualization endpoint.
+#[derive(Debug, Serialize)]
+pub struct PlanResponse {
+    /// Whether a cached plan was found.
+    pub cached:             bool,
+    /// Schema fingerprint at plan creation time (if cached).
+    pub schema_fingerprint: String,
+    /// The fetch operations in the plan (if cached).
+    #[cfg(feature = "federation")]
+    pub fetches:            Option<Vec<fraiseql_core::federation::SubgraphFetch>>,
+    /// The fetch operations in the plan (stub when federation disabled).
+    #[cfg(not(feature = "federation"))]
+    pub fetches:            Option<serde_json::Value>,
+}
+
+/// Get federation query plan for a given query.
+///
+/// `GET /admin/v1/federation/plan?query=<url-encoded GraphQL query>`
+///
+/// Returns the cached plan breakdown showing subgraph fetches, or
+/// `{"cached": false, "fetches": null}` if no plan is cached for the query.
+///
+/// # Errors
+///
+/// Returns `ApiError` if the `query` parameter is missing or too long.
+#[cfg(feature = "federation")]
+pub async fn plan_handler<A: DatabaseAdapter>(
+    State(state): State<AppState<A>>,
+    Query(params): Query<PlanQuery>,
+) -> Result<Json<ApiResponse<PlanResponse>>, ApiError> {
+    if params.query.is_empty() {
+        return Err(ApiError::validation_error("query parameter is required"));
+    }
+
+    if params.query.len() > state.max_get_query_bytes {
+        return Err(ApiError::validation_error("query parameter too long"));
+    }
+
+    let Some(ref plan_cache) = state.federation_plan_cache else {
+        let response = PlanResponse {
+            cached:             false,
+            schema_fingerprint: String::new(),
+            fetches:            None,
+        };
+        return Ok(Json(ApiResponse {
+            status: "success".to_string(),
+            data:   response,
+        }));
+    };
+
+    // Normalize the query for cache lookup
+    let normalized = fraiseql_core::federation::query_plan_cache::normalize_query(&params.query);
+
+    // Try to find in cache — we need the schema fingerprint to look up.
+    // Use an empty fingerprint first; if the cache stores plans keyed by normalized query,
+    // iterate to find any matching plan.
+    let executor = state.executor();
+    let schema = executor.schema();
+    let fingerprint = schema
+        .federation
+        .as_ref()
+        .and_then(|f| f.version.clone())
+        .unwrap_or_default();
+
+    let plan = plan_cache.get(&normalized, &fingerprint);
+
+    let response = match plan {
+        Some(plan) => PlanResponse {
+            cached:             true,
+            schema_fingerprint: plan.schema_fingerprint.clone(),
+            fetches:            Some(plan.fetches),
+        },
+        None => PlanResponse {
+            cached:             false,
+            schema_fingerprint: fingerprint,
+            fetches:            None,
+        },
+    };
+
+    Ok(Json(ApiResponse {
+        status: "success".to_string(),
+        data:   response,
+    }))
+}
+
 fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
     use std::fmt::Write as _;
 
@@ -272,5 +364,52 @@ mod tests {
     fn test_generate_mermaid_graph_no_federation() {
         let mermaid = generate_mermaid_graph(None);
         assert!(mermaid.contains("graph LR"));
+    }
+
+    #[test]
+    fn test_plan_response_not_cached() {
+        let response = PlanResponse {
+            cached:             false,
+            schema_fingerprint: "abc123".to_string(),
+            #[cfg(feature = "federation")]
+            fetches:            None,
+            #[cfg(not(feature = "federation"))]
+            fetches:            None,
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["cached"], false);
+        assert!(json["fetches"].is_null());
+    }
+
+    #[cfg(feature = "federation")]
+    #[test]
+    fn test_plan_response_with_fetches() {
+        use fraiseql_core::federation::SubgraphFetch;
+
+        let response = PlanResponse {
+            cached:             true,
+            schema_fingerprint: "fp123".to_string(),
+            fetches:            Some(vec![SubgraphFetch {
+                subgraph:     "users".to_string(),
+                query:        "{ user(id: $id) { name } }".to_string(),
+                entity_types: vec!["User".to_string()],
+                depends_on:   None,
+            }]),
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(json["cached"], true);
+        let fetches = json["fetches"].as_array().unwrap();
+        assert_eq!(fetches.len(), 1);
+        assert_eq!(fetches[0]["subgraph"], "users");
+        assert_eq!(fetches[0]["query"], "{ user(id: $id) { name } }");
+    }
+
+    #[test]
+    fn test_plan_query_deserialization() {
+        let json = r#"{"query": "{ users { id name } }"}"#;
+        let query: PlanQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.query, "{ users { id name } }");
     }
 }

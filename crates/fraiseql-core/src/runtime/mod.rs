@@ -188,6 +188,19 @@ pub struct RuntimeConfig {
     /// Set `None` to disable (default) — useful when the caller applies
     /// validation at a higher layer, or when `fraiseql-server` is in use.
     pub query_validation: Option<QueryValidatorConfig>,
+
+    /// Emit structured `tracing` events for every successfully-executed mutation.
+    ///
+    /// When `true`, a `tracing::info!` event with target `"fraiseql::mutation_audit"` is
+    /// emitted at the end of every successful `execute_mutation_query_with_security()` call.
+    /// The event carries fields: `mutation_name`, `entity_type`, `operation`, `tenant_id`.
+    ///
+    /// **Zero-cost when disabled**: the guard `if !self.config.audit_mutations { return }`
+    /// short-circuits before any string formatting or allocation occurs.
+    ///
+    /// Set to `true` when `audit_logging_enabled = true` in the compiled schema's
+    /// `[security.enterprise]` section (threaded through `Server::new()` at startup).
+    pub audit_mutations: bool,
 }
 
 impl std::fmt::Debug for RuntimeConfig {
@@ -202,6 +215,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("query_timeout_ms", &self.query_timeout_ms)
             .field("jsonb_optimization", &self.jsonb_optimization)
             .field("query_validation", &self.query_validation)
+            .field("audit_mutations", &self.audit_mutations)
             .finish()
     }
 }
@@ -218,6 +232,7 @@ impl Default for RuntimeConfig {
             query_timeout_ms:     30_000, // 30 second default timeout
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
+            audit_mutations:      false,
         }
     }
 }

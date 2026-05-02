@@ -267,7 +267,220 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
     assert_eq!(resp["data"]["user"]["name"], "Bob");
 }
 
-// ─── Test 4: _entities returns null for missing entity ───────────────────────
+// ─── Test 4: Cross-subgraph entity resolution (E2E) ────────────────────────
+
+/// Cross-subgraph entity resolution: two FraiseQL subgraphs resolve User data
+/// from different perspectives and an internal fan-out validates the plan.
+///
+/// - Subgraph A owns `User { id, name }` with `@key(fields: "id")`
+/// - Subgraph B extends `User { id (external), reviewCount }` with `extend type User @key(fields: "id")`
+///
+/// This test validates:
+/// - Both subgraphs start and respond to `_service { sdl }`
+/// - Subgraph A resolves `_entities` for User by ID (returns name)
+/// - Subgraph B resolves `_entities` for User by ID (returns reviewCount)
+/// - The two responses can be merged on the `id` key (mini gateway fan-out)
+///
+/// Run with: `FRAISEQL_FEDERATION_E2E=1 FEDERATION_TESTS=1 cargo nextest run -p fraiseql-server --test federation_integration_test -- cross_subgraph`
+#[tokio::test]
+#[ignore = "requires Docker + PostgreSQL (FRAISEQL_FEDERATION_E2E=1)"]
+async fn cross_subgraph_entity_resolution_e2e() {
+    if std::env::var("FRAISEQL_FEDERATION_E2E").is_err() {
+        eprintln!("Skipping: FRAISEQL_FEDERATION_E2E not set");
+        return;
+    }
+
+    // ── Subgraph A: User(id, name) ──────────────────────────────────────────
+
+    let pg_a = Postgres::default()
+        .with_user("testuser")
+        .with_password("testpw")
+        .with_db_name("testdb")
+        .start()
+        .await
+        .expect("start postgres A");
+    let pg_a_port = pg_a.get_host_port_ipv4(5432).await.expect("pg A port");
+
+    let pg_a_client = setup_users_table(pg_a_port).await;
+    pg_a_client
+        .execute(
+            r#"INSERT INTO "user" (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
+            &[&"user-1", &"Alice"],
+        )
+        .await
+        .expect("insert user into subgraph A");
+
+    let db_url_a = format!("postgresql://testuser:testpw@127.0.0.1:{pg_a_port}/testdb");
+    let adapter_a = Arc::new(PostgresAdapter::new(&db_url_a).await.expect("pg adapter A"));
+    let schema_a = user_schema_with_federation();
+    let server_a = TestServer::start(schema_a, adapter_a).await;
+
+    // ── Subgraph B: User(id @external, reviewCount) ─────────────────────────
+
+    let pg_b = Postgres::default()
+        .with_user("testuser")
+        .with_password("testpw")
+        .with_db_name("testdb")
+        .start()
+        .await
+        .expect("start postgres B");
+    let pg_b_port = pg_b.get_host_port_ipv4(5432).await.expect("pg B port");
+
+    // Subgraph B stores review counts in its own user table
+    let pg_b_client = {
+        let (client, conn) = tokio_postgres::connect(
+            &format!("host=127.0.0.1 port={pg_b_port} user=testuser password=testpw dbname=testdb"),
+            tokio_postgres::NoTls,
+        )
+        .await
+        .expect("connect to pg B");
+        tokio::spawn(async move { conn.await.ok() });
+        client
+    };
+
+    pg_b_client
+        .batch_execute(
+            r#"CREATE TABLE IF NOT EXISTS "user" (
+               id TEXT PRIMARY KEY,
+               name TEXT NOT NULL DEFAULT '',
+               review_count INTEGER NOT NULL DEFAULT 0,
+               __typename TEXT DEFAULT 'User'
+            );"#,
+        )
+        .await
+        .expect("create user table on B");
+    pg_b_client
+        .execute(
+            r#"INSERT INTO "user" (id, review_count) VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
+            &[&"user-1", &42i32],
+        )
+        .await
+        .expect("insert review data into subgraph B");
+
+    let schema_b_json = r#"{
+        "types": [
+            {
+                "name": "User",
+                "table": "\"user\"",
+                "sql_source": "\"user\"",
+                "fields": [
+                    {"name": "id",          "field_type": "ID",  "nullable": false},
+                    {"name": "reviewCount", "field_type": "Int", "nullable": false, "column": "review_count"}
+                ]
+            }
+        ],
+        "queries": [],
+        "mutations": [],
+        "subscriptions": [],
+        "federation": {
+            "enabled": true,
+            "version": "v2",
+            "service_name": "reviews",
+            "entities": [
+                {"name": "User", "key_fields": ["id"]}
+            ]
+        },
+        "schema_sdl": "extend type User @key(fields: \"id\") {\n  id: ID! @external\n  reviewCount: Int!\n}\n"
+    }"#;
+    let schema_b = CompiledSchema::from_json(schema_b_json).expect("schema B valid");
+    let db_url_b = format!("postgresql://testuser:testpw@127.0.0.1:{pg_b_port}/testdb");
+    let adapter_b = Arc::new(PostgresAdapter::new(&db_url_b).await.expect("pg adapter B"));
+    let server_b = TestServer::start(schema_b, adapter_b).await;
+
+    // ── Validate both subgraphs serve federation SDL ────────────────────────
+
+    let http = Client::new();
+
+    let sdl_a = http
+        .post(format!("{}/graphql", server_a.url))
+        .json(&json!({"query": "{ _service { sdl } }"}))
+        .send()
+        .await
+        .expect("SDL A")
+        .json::<Value>()
+        .await
+        .expect("parse A");
+    assert!(
+        sdl_a["data"]["_service"]["sdl"].is_string(),
+        "Subgraph A should serve SDL: {sdl_a}"
+    );
+
+    let sdl_b = http
+        .post(format!("{}/graphql", server_b.url))
+        .json(&json!({"query": "{ _service { sdl } }"}))
+        .send()
+        .await
+        .expect("SDL B")
+        .json::<Value>()
+        .await
+        .expect("parse B");
+    assert!(
+        sdl_b["data"]["_service"]["sdl"].is_string(),
+        "Subgraph B should serve SDL: {sdl_b}"
+    );
+
+    // ── Cross-subgraph fan-out: resolve User from both subgraphs ────────────
+
+    // Step 1: Fetch User name from Subgraph A via _entities
+    let entities_a = http
+        .post(format!("{}/graphql", server_a.url))
+        .json(&json!({
+            "query": "query($repr: [_Any!]!) { _entities(representations: $repr) { ... on User { id name } } }",
+            "variables": {"repr": [{"__typename": "User", "id": "user-1"}]}
+        }))
+        .send()
+        .await
+        .expect("entities A")
+        .json::<Value>()
+        .await
+        .expect("parse entities A");
+
+    assert!(
+        entities_a["errors"].is_null(),
+        "Subgraph A entity errors: {}",
+        entities_a["errors"]
+    );
+    assert_eq!(entities_a["data"]["_entities"][0]["name"], "Alice");
+    assert_eq!(entities_a["data"]["_entities"][0]["id"], "user-1");
+
+    // Step 2: Fetch User reviewCount from Subgraph B via _entities
+    let entities_b = http
+        .post(format!("{}/graphql", server_b.url))
+        .json(&json!({
+            "query": "query($repr: [_Any!]!) { _entities(representations: $repr) { ... on User { id reviewCount } } }",
+            "variables": {"repr": [{"__typename": "User", "id": "user-1"}]}
+        }))
+        .send()
+        .await
+        .expect("entities B")
+        .json::<Value>()
+        .await
+        .expect("parse entities B");
+
+    assert!(
+        entities_b["errors"].is_null(),
+        "Subgraph B entity errors: {}",
+        entities_b["errors"]
+    );
+    assert_eq!(entities_b["data"]["_entities"][0]["reviewCount"], 42);
+    assert_eq!(entities_b["data"]["_entities"][0]["id"], "user-1");
+
+    // Step 3: Merge on `id` key — simulates gateway merge
+    let user_a = &entities_a["data"]["_entities"][0];
+    let user_b = &entities_b["data"]["_entities"][0];
+    assert_eq!(user_a["id"], user_b["id"], "merge key must match");
+
+    let merged = json!({
+        "id": user_a["id"],
+        "name": user_a["name"],
+        "reviewCount": user_b["reviewCount"],
+    });
+    assert_eq!(merged["name"], "Alice");
+    assert_eq!(merged["reviewCount"], 42);
+    eprintln!("Cross-subgraph merge successful: {merged}");
+}
+
+// ─── Test 5: _entities returns null for missing entity ───────────────────────
 
 /// `_entities` returns `null` (not an error) when an entity is not found.
 ///

@@ -17,14 +17,23 @@ pub struct FederationMetadata {
 
     /// Federation metadata per type
     pub types: Vec<FederatedType>,
+
+    /// Subscription fields owned by remote subgraphs.
+    ///
+    /// Maps root subscription field name (e.g., `"postCreated"`) to the
+    /// `WebSocket` URL of the owning subgraph (e.g., `"wss://posts.internal/graphql"`).
+    /// Fields not present in this map are resolved locally.
+    #[serde(default)]
+    pub remote_subscription_fields: HashMap<String, String>,
 }
 
 impl Default for FederationMetadata {
     fn default() -> Self {
         Self {
-            enabled: false,
-            version: "v2".to_string(),
-            types:   Vec::new(),
+            enabled:                      false,
+            version:                      "v2".to_string(),
+            types:                        Vec::new(),
+            remote_subscription_fields:   HashMap::new(),
         }
     }
 }
@@ -145,6 +154,10 @@ pub struct FederatedType {
 
     /// Field-level federation directives
     pub field_directives: HashMap<String, FieldFederationDirectives>,
+
+    /// Type-level @shareable directive — all fields are shareable across subgraphs
+    #[serde(default)]
+    pub type_shareable: bool,
 }
 
 impl FederatedType {
@@ -159,6 +172,7 @@ impl FederatedType {
             shareable_fields: Vec::new(),
             inaccessible_fields: Vec::new(),
             field_directives: HashMap::new(),
+            type_shareable: false,
         }
     }
 

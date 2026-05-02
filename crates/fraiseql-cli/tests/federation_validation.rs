@@ -43,6 +43,7 @@ fn test_validate_requires_field_exists() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // This should validate successfully
@@ -74,6 +75,7 @@ fn test_validate_requires_empty_path() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -110,6 +112,7 @@ fn test_validate_requires_nested_field_path() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -144,6 +147,7 @@ fn test_validate_provides_field_exists() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -175,6 +179,7 @@ fn test_validate_external_only_on_extends() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -201,6 +206,7 @@ fn test_validate_external_only_on_extends_fails() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -254,6 +260,7 @@ fn test_validate_two_node_circular_requires() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type, order_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -318,6 +325,7 @@ fn test_validate_three_node_cycle() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![type_a, type_b, type_c],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);
@@ -345,6 +353,7 @@ fn test_validate_key_fields_exist() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let result = validate_federation_metadata(&metadata);

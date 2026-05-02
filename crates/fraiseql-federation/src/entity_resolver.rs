@@ -56,8 +56,11 @@ pub fn deduplicate_representations(reps: &[EntityRepresentation]) -> Vec<EntityR
     let mut result = Vec::with_capacity(reps.len());
 
     for rep in reps {
-        // Create a key from typename + key_fields
-        let key = format!("{}:{:?}", rep.typename, rep.key_fields);
+        // Create a deterministic key from typename + sorted key_fields.
+        // HashMap::Debug output is non-deterministic, so we sort entries.
+        let mut sorted_fields: Vec<_> = rep.key_fields.iter().collect();
+        sorted_fields.sort_by_key(|(k, _)| (*k).clone());
+        let key = format!("{}:{:?}", rep.typename, sorted_fields);
         if seen.insert(key) {
             result.push(rep.clone());
         }
@@ -295,7 +298,11 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
             .with_attribute("typename", typename.clone())
             .with_attribute("batch_size", reps.len().to_string());
 
-        // Resolve this batch using database with trace context
+        // INVARIANT: Fields annotated with @override(from: "X") are owned by
+        // THIS subgraph and must be resolved locally. They are included in the
+        // local database resolution below — never delegated to another subgraph.
+        // The @override directive means "I am taking this field from X" — routing
+        // client requests is Apollo Router's responsibility, not the subgraph's.
         let result = resolve_entities_from_db_with_tracing(
             &reps,
             &typename,
@@ -595,5 +602,39 @@ mod tests {
 
         let deduped = deduplicate_representations(&reps);
         assert_eq!(deduped.len(), 2, "should deduplicate identical multi-key reps");
+    }
+
+    #[test]
+    fn test_override_field_included_in_local_resolution() {
+        // A field with @override(from: "old") must be resolved locally — the subgraph
+        // owns it. Verify that FederationResolver classifies the type as Local (not Http).
+        use crate::types::{FederatedType, FederationMetadata, KeyDirective};
+
+        let mut product = FederatedType::new("Product".to_string());
+        product.keys = vec![KeyDirective {
+            fields:     vec!["sku".to_string()],
+            resolvable: true,
+        }];
+        product.set_field_directives(
+            "price".to_string(),
+            crate::types::FieldFederationDirectives::new()
+                .with_override_from("old-pricing".to_string()),
+        );
+
+        let metadata = FederationMetadata {
+            enabled: true,
+            version: "v2".to_string(),
+            types:   vec![product],
+            remote_subscription_fields: std::collections::HashMap::new(),
+        };
+
+        let resolver = crate::types::FederationResolver::new(metadata);
+        let strategy = resolver.get_or_determine_strategy("Product").unwrap();
+
+        // Product is NOT an extended type, so it resolves locally
+        assert!(
+            matches!(strategy, crate::types::ResolutionStrategy::Local { .. }),
+            "Type with @override must resolve locally, got: {strategy}"
+        );
     }
 }

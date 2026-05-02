@@ -158,7 +158,22 @@ impl<A: DatabaseAdapter> Executor<A> {
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
         // Build introspection responses at startup (zero-cost at runtime)
-        let introspection = IntrospectionResponses::build(&schema);
+        // `mut` is required by the `#[cfg(feature = "federation")]` block below.
+        #[cfg_attr(not(feature = "federation"), allow(unused_mut))]
+        let mut introspection = IntrospectionResponses::build(&schema);
+
+        // Filter @inaccessible fields from introspection (DX defence-in-depth).
+        // Does NOT affect data responses or _entities — only __type/__schema.
+        #[cfg(feature = "federation")]
+        if let Some(fed_meta) = schema.federation_metadata() {
+            let inaccessible: HashMap<String, Vec<String>> = fed_meta
+                .types
+                .iter()
+                .filter(|t| !t.inaccessible_fields.is_empty())
+                .map(|t| (t.name.clone(), t.inaccessible_fields.clone()))
+                .collect();
+            introspection.filter_inaccessible(&inaccessible);
+        }
 
         // Build O(1) node-type index: return_type → sql_source.
         // The first query with a matching return_type and a non-None sql_source wins

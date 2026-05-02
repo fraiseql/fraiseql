@@ -16,7 +16,7 @@ use super::{tenant_key::DomainRegistry, tenant_registry::TenantExecutorRegistry}
 use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
 use crate::{
     config::error_sanitization::ErrorSanitizer, error::GraphQLError,
-    metrics_server::MetricsCollector,
+    metrics_server::MetricsCollector, usage::aggregator::UsageAggregator,
 };
 
 /// Server state containing executor and configuration.
@@ -44,6 +44,18 @@ pub struct AppState<A: DatabaseAdapter> {
     #[cfg(feature = "federation")]
     pub circuit_breaker:
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
+    /// Federation subgraph latency histogram tracker.
+    #[cfg(feature = "federation")]
+    pub federation_latency:
+        Arc<fraiseql_core::federation::SubgraphLatencyTracker>,
+    /// Federation entity resolution counter metrics.
+    #[cfg(feature = "federation")]
+    pub federation_entity_metrics:
+        Arc<fraiseql_core::federation::EntityResolutionMetrics>,
+    /// Federation query plan cache for plan visualization.
+    #[cfg(feature = "federation")]
+    pub federation_plan_cache:
+        Option<Arc<fraiseql_core::federation::QueryPlanCache>>,
     /// Error sanitizer — strips internal details before sending responses to clients.
     pub error_sanitizer:         Arc<ErrorSanitizer>,
     /// State encryption service (optional, enabled via `[security.state_encryption]`).
@@ -99,6 +111,11 @@ pub struct AppState<A: DatabaseAdapter> {
     pub domain_registry:         Arc<DomainRegistry>,
     /// Tenant audit log (optional, for lifecycle event recording).
     pub tenant_audit_log:        Option<crate::tenancy::audit::AuditLogHandle>,
+    /// Usage aggregator — shared with the `MutationAuditLayer` tracing subscriber.
+    ///
+    /// Always present (never `Option`): when audit logging is disabled the
+    /// aggregator simply receives no events and every query returns empty counts.
+    pub usage:                   Arc<UsageAggregator>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -121,6 +138,12 @@ impl<A: DatabaseAdapter> AppState<A> {
             field_encryption: None,
             #[cfg(feature = "federation")]
             circuit_breaker: None,
+            #[cfg(feature = "federation")]
+            federation_latency: Arc::new(fraiseql_core::federation::SubgraphLatencyTracker::new()),
+            #[cfg(feature = "federation")]
+            federation_entity_metrics: Arc::new(fraiseql_core::federation::EntityResolutionMetrics::new()),
+            #[cfg(feature = "federation")]
+            federation_plan_cache: None,
             error_sanitizer: Arc::new(ErrorSanitizer::disabled()),
             #[cfg(feature = "auth")]
             state_encryption: None,
@@ -142,6 +165,7 @@ impl<A: DatabaseAdapter> AppState<A> {
             tenant_executor_factory: None,
             domain_registry: Arc::new(DomainRegistry::new()),
             tenant_audit_log: None,
+            usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
         }
     }
 
@@ -222,6 +246,13 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_domain_registry(mut self, registry: Arc<DomainRegistry>) -> Self {
         self.domain_registry = registry;
+        self
+    }
+
+    /// Replace the usage aggregator (primarily for testing with an isolated aggregator).
+    #[must_use]
+    pub fn with_usage(mut self, usage: Arc<UsageAggregator>) -> Self {
+        self.usage = usage;
         self
     }
 

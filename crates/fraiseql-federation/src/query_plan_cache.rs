@@ -19,7 +19,7 @@ pub struct QueryPlan {
 }
 
 /// A single fetch operation targeting a subgraph
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SubgraphFetch {
     /// Subgraph name or URL
     pub subgraph: String,

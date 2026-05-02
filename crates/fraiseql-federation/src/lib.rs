@@ -70,6 +70,7 @@ pub mod saga_store;
 pub mod selection_parser;
 pub mod service_sdl;
 pub mod sql_utils;
+pub mod subscription_forwarder;
 pub mod tracing;
 pub mod types;
 
@@ -114,6 +115,10 @@ pub use saga_store::{
 pub use selection_parser::*;
 use serde_json::{Value, json};
 pub use service_sdl::*;
+pub use subscription_forwarder::{
+    ForwardError, ForwardedEvent, SubscriptionForwarder, extract_subscription_field_name,
+    lookup_remote_subscription,
+};
 pub use types::*;
 
 pub use crate::tracing::{FederationSpan, FederationTraceContext};

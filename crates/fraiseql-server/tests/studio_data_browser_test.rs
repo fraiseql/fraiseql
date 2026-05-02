@@ -78,7 +78,7 @@ fn test_mutate_operation_variants() {
     }
 }
 
-/// Default `DataBrowserQuery` uses page 1 and page_size 50.
+/// Default `DataBrowserQuery` uses page 1 and `page_size` 50.
 #[test]
 fn test_data_browser_query_defaults() {
     let q: DataBrowserQuery = serde_json::from_str("{}").unwrap();

@@ -302,6 +302,7 @@ fn test_executor_runtime_config_with_field_filter() {
         query_timeout_ms:     30_000,
         jsonb_optimization:   JsonbOptimizationOptions::default(),
         query_validation:     None,
+        audit_mutations:      false,
     };
 
     // WHEN: Config is created

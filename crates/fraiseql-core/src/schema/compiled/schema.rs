@@ -617,6 +617,7 @@ impl CompiledSchema {
                     shareable_fields: Vec::new(),
                     inaccessible_fields: Vec::new(),
                     field_directives: std::collections::HashMap::new(),
+                    type_shareable:  false,
                 })
                 .collect();
 
@@ -624,6 +625,7 @@ impl CompiledSchema {
                 enabled: fed.enabled,
                 version: fed.version.clone().unwrap_or_else(|| "v2".to_string()),
                 types,
+                remote_subscription_fields: HashMap::new(),
             }
         })
     }

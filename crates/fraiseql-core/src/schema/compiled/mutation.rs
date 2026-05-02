@@ -191,3 +191,29 @@ pub enum MutationOperation {
     #[default]
     Custom,
 }
+
+impl MutationOperation {
+    /// Return a lowercase string label for the operation kind.
+    ///
+    /// Used in structured audit log events to identify the DML type.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fraiseql_core::schema::MutationOperation;
+    ///
+    /// assert_eq!(MutationOperation::Insert { table: "users".into() }.kind_str(), "insert");
+    /// assert_eq!(MutationOperation::Update { table: "users".into() }.kind_str(), "update");
+    /// assert_eq!(MutationOperation::Delete { table: "users".into() }.kind_str(), "delete");
+    /// assert_eq!(MutationOperation::Custom.kind_str(), "custom");
+    /// ```
+    #[must_use]
+    pub const fn kind_str(&self) -> &'static str {
+        match self {
+            Self::Insert { .. } => "insert",
+            Self::Update { .. } => "update",
+            Self::Delete { .. } => "delete",
+            Self::Custom => "custom",
+        }
+    }
+}

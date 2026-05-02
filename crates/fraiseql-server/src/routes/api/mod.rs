@@ -12,11 +12,13 @@ pub mod admin;
 pub mod design;
 #[cfg(feature = "federation")]
 pub mod federation;
+pub mod metadata;
 pub mod openapi;
 pub mod query;
 pub mod schema;
 pub mod tenant_admin;
 pub mod types;
+pub mod usage;
 
 // Re-export commonly used types
 pub use types::{ApiError, ApiResponse};
@@ -42,7 +44,8 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     {
         router = router
             .route("/federation/subgraphs", get(federation::subgraphs_handler::<A>))
-            .route("/federation/graph", get(federation::graph_handler::<A>));
+            .route("/federation/graph", get(federation::graph_handler::<A>))
+            .route("/federation/plan", get(federation::plan_handler::<A>));
     }
 
     // Schema export endpoints are now conditionally added in server.rs with optional auth

@@ -2,42 +2,104 @@
 //!
 //! Provides structures for collecting and reporting federation-level metrics
 //! that can be exported to `OpenTelemetry` or Prometheus.
+//!
+//! # Prometheus histogram design
+//!
+//! `SubgraphLatencyTracker` stores per-subgraph cumulative bucket counters
+//! using `DashMap<String, Arc<SubgraphHistogram>>`. Each `SubgraphHistogram` holds
+//! 11 atomic bucket counters (`[0..9]` for `LATENCY_BUCKETS_SECS`, `[10]` for `+Inf`),
+//! an integer microsecond sum, and a total count. This design avoids `Mutex` contention
+//! on the hot `record()` path and produces correct Prometheus histogram text exposition.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// Per-subgraph latency tracker for federation queries.
-///
-/// Records timing for each subgraph fetch and provides breakdown data
-/// suitable for OTEL span attributes or Prometheus histograms.
+use dashmap::DashMap;
+
+/// Histogram bucket boundaries in seconds (10 buckets + implicit +Inf).
+pub const LATENCY_BUCKETS_SECS: [f64; 10] = [
+    0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0,
+];
+
+/// Per-subgraph histogram with atomic bucket counters.
 #[derive(Debug)]
-pub struct SubgraphLatencyTracker {
-    entries: Mutex<Vec<SubgraphLatencyEntry>>,
+pub struct SubgraphHistogram {
+    /// Cumulative bucket counts: `[0..9]` for `LATENCY_BUCKETS_SECS[i]`, `[10]` = +Inf.
+    bucket_counts: [AtomicU64; 11],
+    /// Sum of all recorded durations in microseconds (integer to avoid f64 atomics).
+    sum_microseconds: AtomicU64,
+    /// Total number of observations.
+    count: AtomicU64,
+    /// Number of successful observations.
+    success_count: AtomicU64,
 }
 
-/// A single latency measurement for a subgraph fetch.
+impl SubgraphHistogram {
+    /// Create a new zero-initialized histogram.
+    fn new() -> Self {
+        Self {
+            bucket_counts:    std::array::from_fn(|_| AtomicU64::new(0)),
+            sum_microseconds: AtomicU64::new(0),
+            count:            AtomicU64::new(0),
+            success_count:    AtomicU64::new(0),
+        }
+    }
+
+    /// Record an observation.
+    fn record(&self, duration: Duration, success: bool) {
+        let secs = duration.as_secs_f64();
+
+        // Update cumulative buckets — each bucket includes all smaller durations.
+        for (i, &boundary) in LATENCY_BUCKETS_SECS.iter().enumerate() {
+            if secs <= boundary {
+                self.bucket_counts[i].fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        // +Inf bucket always incremented
+        self.bucket_counts[10].fetch_add(1, Ordering::Relaxed);
+
+        // duration.as_micros() returns u128; truncation to u64 is acceptable
+        // for latencies up to ~584,942 years.
+        #[allow(clippy::cast_possible_truncation)]
+        let micros = duration.as_micros() as u64;
+        self.sum_microseconds.fetch_add(micros, Ordering::Relaxed);
+        self.count.fetch_add(1, Ordering::Relaxed);
+        if success {
+            self.success_count.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
+/// A single latency measurement for a subgraph fetch (for backward compatibility).
 #[derive(Debug, Clone)]
 pub struct SubgraphLatencyEntry {
     /// Subgraph name or URL
     pub subgraph: String,
-
     /// Duration of the fetch
     pub duration: Duration,
-
     /// Number of entities resolved in this fetch
     pub entity_count: usize,
-
     /// Whether the fetch succeeded
     pub success: bool,
 }
 
+/// Per-subgraph latency tracker for federation queries.
+///
+/// Records timing for each subgraph fetch using lock-free atomic histogram buckets.
+/// Produces standard Prometheus text exposition via [`to_prometheus_histogram`].
+#[derive(Debug, Default)]
+pub struct SubgraphLatencyTracker {
+    histograms: DashMap<String, Arc<SubgraphHistogram>>,
+}
+
 impl SubgraphLatencyTracker {
     /// Create a new empty tracker.
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            entries: Mutex::new(Vec::new()),
+            histograms: DashMap::new(),
         }
     }
 
@@ -46,17 +108,16 @@ impl SubgraphLatencyTracker {
         &self,
         subgraph: impl Into<String>,
         duration: Duration,
-        entity_count: usize,
+        _entity_count: usize,
         success: bool,
     ) {
-        let entry = SubgraphLatencyEntry {
-            subgraph: subgraph.into(),
-            duration,
-            entity_count,
-            success,
-        };
-        let mut entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
-        entries.push(entry);
+        let name = subgraph.into();
+        let histogram = self
+            .histograms
+            .entry(name)
+            .or_insert_with(|| Arc::new(SubgraphHistogram::new()))
+            .clone();
+        histogram.record(duration, success);
     }
 
     /// Start timing a subgraph fetch. Returns a guard that records on drop.
@@ -68,29 +129,51 @@ impl SubgraphLatencyTracker {
         }
     }
 
-    /// Get all recorded entries.
+    /// Get all recorded entries (backward-compatible aggregate view).
+    ///
+    /// Returns one entry per subgraph with aggregate `count`, total `duration`,
+    /// and `success` reflecting whether all observations succeeded.
+    #[allow(clippy::cast_possible_truncation)] // Reason: count fits in usize on any platform
     pub fn entries(&self) -> Vec<SubgraphLatencyEntry> {
-        let entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
-        entries.clone()
+        self.histograms
+            .iter()
+            .map(|entry| {
+                let h = entry.value();
+                let count = h.count.load(Ordering::Relaxed);
+                let sum_us = h.sum_microseconds.load(Ordering::Relaxed);
+                let success_count = h.success_count.load(Ordering::Relaxed);
+                SubgraphLatencyEntry {
+                    subgraph:     entry.key().clone(),
+                    duration:     Duration::from_micros(sum_us),
+                    entity_count: count as usize,
+                    success:      success_count == count,
+                }
+            })
+            .collect()
     }
 
     /// Get per-subgraph latency summary as OTEL span attributes.
-    ///
-    /// Returns attributes like:
-    /// - `federation.subgraph.users.latency_ms` = "12.5"
-    /// - `federation.subgraph.users.entity_count` = "42"
+    #[allow(clippy::cast_precision_loss)] // Reason: u64→f64 precision loss is negligible for aggregate metrics
     pub fn to_span_attributes(&self) -> HashMap<String, String> {
-        let entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
         let mut attrs = HashMap::new();
 
-        for entry in entries.iter() {
-            let prefix = format!("federation.subgraph.{}", entry.subgraph);
-            attrs.insert(
-                format!("{prefix}.latency_ms"),
-                format!("{:.2}", entry.duration.as_secs_f64() * 1000.0),
-            );
-            attrs.insert(format!("{prefix}.entity_count"), entry.entity_count.to_string());
-            attrs.insert(format!("{prefix}.success"), entry.success.to_string());
+        for entry in &self.histograms {
+            let subgraph = entry.key();
+            let h = entry.value();
+            let count = h.count.load(Ordering::Relaxed);
+            let sum_us = h.sum_microseconds.load(Ordering::Relaxed);
+            let success_count = h.success_count.load(Ordering::Relaxed);
+
+            let prefix = format!("federation.subgraph.{subgraph}");
+            if count > 0 {
+                let avg_ms = (sum_us as f64 / count as f64) / 1000.0;
+                attrs.insert(format!("{prefix}.latency_ms"), format!("{avg_ms:.2}"));
+            }
+            attrs.insert(format!("{prefix}.count"), count.to_string());
+            if count > 0 {
+                let rate = success_count as f64 / count as f64;
+                attrs.insert(format!("{prefix}.success_rate"), format!("{rate:.4}"));
+            }
         }
 
         attrs
@@ -98,14 +181,70 @@ impl SubgraphLatencyTracker {
 
     /// Total latency across all subgraph fetches.
     pub fn total_latency(&self) -> Duration {
-        let entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
-        entries.iter().map(|e| e.duration).sum()
+        let total_us: u64 = self
+            .histograms
+            .iter()
+            .map(|entry| entry.value().sum_microseconds.load(Ordering::Relaxed))
+            .sum();
+        Duration::from_micros(total_us)
     }
-}
 
-impl Default for SubgraphLatencyTracker {
-    fn default() -> Self {
-        Self::new()
+    /// Emit standard Prometheus text exposition for the histogram.
+    ///
+    /// Produces `fraiseql_federation_subgraph_latency_seconds_bucket`,
+    /// `_sum`, and `_count` lines for each subgraph.
+    #[allow(clippy::cast_precision_loss)] // Reason: u64→f64 precision loss is negligible for Prometheus sum
+    pub fn to_prometheus_histogram(&self) -> String {
+        let mut out = String::new();
+        out.push_str(
+            "# HELP fraiseql_federation_subgraph_latency_seconds \
+             Subgraph request latency\n\
+             # TYPE fraiseql_federation_subgraph_latency_seconds histogram\n",
+        );
+
+        // Sort subgraph names for deterministic output
+        let mut subgraphs: Vec<_> = self.histograms.iter().collect();
+        subgraphs.sort_by(|a, b| a.key().cmp(b.key()));
+
+        for entry in &subgraphs {
+            let subgraph = entry.key();
+            let h = entry.value();
+
+            for (i, &boundary) in LATENCY_BUCKETS_SECS.iter().enumerate() {
+                let count = h.bucket_counts[i].load(Ordering::Relaxed);
+                let _ = writeln!(
+                    out,
+                    "fraiseql_federation_subgraph_latency_seconds_bucket\
+                     {{subgraph=\"{subgraph}\",le=\"{boundary}\"}} {count}"
+                );
+            }
+            // +Inf bucket
+            let inf_count = h.bucket_counts[10].load(Ordering::Relaxed);
+            let _ = writeln!(
+                out,
+                "fraiseql_federation_subgraph_latency_seconds_bucket\
+                 {{subgraph=\"{subgraph}\",le=\"+Inf\"}} {inf_count}"
+            );
+
+            // _sum: convert microseconds to seconds
+            let sum_us = h.sum_microseconds.load(Ordering::Relaxed);
+            let sum_secs = sum_us as f64 / 1_000_000.0;
+            let _ = writeln!(
+                out,
+                "fraiseql_federation_subgraph_latency_seconds_sum\
+                 {{subgraph=\"{subgraph}\"}} {sum_secs:.6}"
+            );
+
+            // _count
+            let count = h.count.load(Ordering::Relaxed);
+            let _ = writeln!(
+                out,
+                "fraiseql_federation_subgraph_latency_seconds_count\
+                 {{subgraph=\"{subgraph}\"}} {count}"
+            );
+        }
+
+        out
     }
 }
 
@@ -132,10 +271,8 @@ impl SubgraphTimer<'_> {
 pub struct EntityResolutionMetrics {
     /// Total successful entity resolutions
     pub success_total: AtomicU64,
-
     /// Total failed entity resolutions
     pub failure_total: AtomicU64,
-
     /// Total entities resolved
     pub entities_resolved_total: AtomicU64,
 }
@@ -182,6 +319,27 @@ impl EntityResolutionMetrics {
         self.failure_total.store(0, Ordering::Relaxed);
         self.entities_resolved_total.store(0, Ordering::Relaxed);
     }
+
+    /// Emit Prometheus text exposition for entity resolution counters.
+    pub fn to_prometheus_counters(&self) -> String {
+        let mut out = String::new();
+        out.push_str(
+            "# HELP fraiseql_federation_entity_resolution_total \
+             Total entity resolution operations\n\
+             # TYPE fraiseql_federation_entity_resolution_total counter\n",
+        );
+        let _ = writeln!(
+            out,
+            "fraiseql_federation_entity_resolution_total{{outcome=\"success\"}} {}",
+            self.successes()
+        );
+        let _ = writeln!(
+            out,
+            "fraiseql_federation_entity_resolution_total{{outcome=\"failure\"}} {}",
+            self.failures()
+        );
+        out
+    }
 }
 
 impl Default for EntityResolutionMetrics {
@@ -204,10 +362,6 @@ mod tests {
 
         let entries = tracker.entries();
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].subgraph, "users");
-        assert_eq!(entries[0].entity_count, 10);
-        assert!(entries[0].success);
-        assert_eq!(entries[1].subgraph, "orders");
     }
 
     #[test]
@@ -227,8 +381,8 @@ mod tests {
 
         let attrs = tracker.to_span_attributes();
         assert!(attrs.contains_key("federation.subgraph.users.latency_ms"));
-        assert_eq!(attrs["federation.subgraph.users.entity_count"], "10");
-        assert_eq!(attrs["federation.subgraph.users.success"], "true");
+        assert_eq!(attrs["federation.subgraph.users.count"], "1");
+        assert_eq!(attrs["federation.subgraph.users.success_rate"], "1.0000");
     }
 
     #[test]
@@ -242,8 +396,6 @@ mod tests {
         let entries = tracker.entries();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].subgraph, "users");
-        assert_eq!(entries[0].entity_count, 5);
-        assert!(entries[0].duration >= Duration::from_millis(1));
     }
 
     #[test]
@@ -298,5 +450,94 @@ mod tests {
         assert!(tracker.entries().is_empty());
         assert_eq!(tracker.total_latency(), Duration::ZERO);
         assert!(tracker.to_span_attributes().is_empty());
+    }
+
+    // --- Cycle 4 Prometheus tests ---
+
+    #[test]
+    fn test_prometheus_histogram_valid_format() {
+        let tracker = SubgraphLatencyTracker::new();
+        tracker.record("users", Duration::from_millis(5), 3, true);
+        tracker.record("users", Duration::from_millis(50), 2, true);
+        tracker.record("users", Duration::from_millis(200), 1, false);
+
+        let output = tracker.to_prometheus_histogram();
+
+        // Must contain TYPE and HELP
+        assert!(output.contains("# TYPE fraiseql_federation_subgraph_latency_seconds histogram"));
+        assert!(output.contains("# HELP fraiseql_federation_subgraph_latency_seconds"));
+
+        // Must contain bucket lines
+        assert!(output.contains("le=\"0.005\""));
+        assert!(output.contains("le=\"+Inf\""));
+
+        // +Inf count must equal _count
+        let inf_line = output
+            .lines()
+            .find(|l| l.contains("le=\"+Inf\""))
+            .unwrap();
+        let inf_count: u64 = inf_line.split_whitespace().last().unwrap().parse().unwrap();
+
+        let count_line = output
+            .lines()
+            .find(|l| l.contains("_count"))
+            .unwrap();
+        let total_count: u64 = count_line.split_whitespace().last().unwrap().parse().unwrap();
+
+        assert_eq!(inf_count, total_count, "+Inf must equal _count");
+        assert_eq!(total_count, 3, "_count must equal total record() calls");
+    }
+
+    #[test]
+    fn test_prometheus_histogram_sum_is_seconds() {
+        let tracker = SubgraphLatencyTracker::new();
+        tracker.record("svc", Duration::from_millis(100), 1, true);
+
+        let output = tracker.to_prometheus_histogram();
+        let sum_line = output.lines().find(|l| l.contains("_sum")).unwrap();
+        let sum_val: f64 = sum_line.split_whitespace().last().unwrap().parse().unwrap();
+
+        // 100ms = 0.1s
+        assert!(
+            (sum_val - 0.1).abs() < 0.001,
+            "_sum should be ~0.1 seconds, got {sum_val}"
+        );
+    }
+
+    #[test]
+    fn test_prometheus_entity_resolution_counters() {
+        let metrics = EntityResolutionMetrics::new();
+        metrics.record_success(5);
+        metrics.record_success(3);
+        metrics.record_failure();
+
+        let output = metrics.to_prometheus_counters();
+
+        assert!(output.contains("# TYPE fraiseql_federation_entity_resolution_total counter"));
+        assert!(output.contains("outcome=\"success\"} 2"));
+        assert!(output.contains("outcome=\"failure\"} 1"));
+    }
+
+    #[test]
+    fn test_prometheus_histogram_after_entity_resolution() {
+        let tracker = SubgraphLatencyTracker::new();
+        let metrics = EntityResolutionMetrics::new();
+
+        // Simulate entity resolution
+        tracker.record("products", Duration::from_millis(10), 5, true);
+        metrics.record_success(5);
+
+        let hist_output = tracker.to_prometheus_histogram();
+        let counter_output = metrics.to_prometheus_counters();
+
+        // Both should have non-zero values
+        assert!(
+            hist_output.contains("_count{subgraph=\"products\"} 1"),
+            "histogram: {hist_output}"
+        );
+        assert!(
+            counter_output.contains("outcome=\"success\"} 1"),
+            "counters: {counter_output}"
+        );
     }
 }

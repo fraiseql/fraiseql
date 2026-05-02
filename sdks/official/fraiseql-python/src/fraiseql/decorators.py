@@ -168,15 +168,28 @@ class FieldConfig(Generic[T]):
     deprecated: str | None = None
     description: str | None = None
     computed: bool = False
+    # Federation field-level directives
+    external: bool = False
+    requires: str | None = None
+    provides: str | None = None
+    shareable: bool = False
+    inaccessible: bool = False
+    override_from: str | None = None
 
 
-def field(
+def field(  # noqa: PLR0913 — public API; all parameters are meaningful
     *,
     requires_scope: str | None = None,
     on_deny: str | None = None,
     deprecated: str | None = None,
     description: str | None = None,
     computed: bool = False,
+    external: bool = False,
+    requires: str | None = None,
+    provides: str | None = None,
+    shareable: bool = False,
+    inaccessible: bool = False,
+    override_from: str | None = None,
 ) -> FieldConfig[Any]:
     """Create a field configuration for use with Annotated type hints.
 
@@ -243,12 +256,28 @@ def field(
             msg = "on_deny has no effect without requires_scope"
             raise ValueError(msg)
 
+    # Validate federation directives
+    if override_from is not None and override_from == "":
+        msg = "override_from must be a non-empty subgraph name"
+        raise ValueError(msg)
+    if external and override_from is not None:
+        msg = (
+            "@external fields cannot use @override — external fields are owned by another subgraph"
+        )
+        raise ValueError(msg)
+
     return FieldConfig(
         requires_scope=requires_scope,
         on_deny=on_deny,
         deprecated=deprecated,
         description=description,
         computed=computed,
+        external=external,
+        requires=requires,
+        provides=provides,
+        shareable=shareable,
+        inaccessible=inaccessible,
+        override_from=override_from,
     )
 
 

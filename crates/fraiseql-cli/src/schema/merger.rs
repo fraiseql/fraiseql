@@ -470,7 +470,7 @@ impl SchemaMerger {
             queries_array.push(json!({
                 "name": query_name,
                 "return_type": toml_query.return_type,
-                "return_array": toml_query.return_array,
+                "returns_list": toml_query.return_array,
                 "sql_source": toml_query.sql_source,
                 "description": toml_query.description,
                 "args": toml_query.args.iter().map(|arg| json!({

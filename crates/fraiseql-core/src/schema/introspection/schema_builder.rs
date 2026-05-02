@@ -496,6 +496,65 @@ impl IntrospectionResponses {
         }
     }
 
+    /// Filter `@inaccessible` fields from introspection responses.
+    ///
+    /// Removes fields listed as inaccessible from both `__type` and `__schema`
+    /// responses. This is a DX defence-in-depth measure — Apollo Router uses
+    /// `_service { sdl }`, not live introspection, so hiding fields here protects
+    /// tooling that queries the subgraph directly.
+    ///
+    /// Does NOT affect data responses or `_entities` results.
+    pub fn filter_inaccessible(&mut self, inaccessible: &HashMap<String, Vec<String>>) {
+        if inaccessible.is_empty() {
+            return;
+        }
+
+        // Filter __type responses
+        for (type_name, field_names) in inaccessible {
+            if let Some(response) = self.type_responses.get_mut(type_name) {
+                let mut val = response.as_ref().clone();
+                if let Some(fields) = val
+                    .pointer_mut("/data/__type/fields")
+                    .and_then(|v| v.as_array_mut())
+                {
+                    fields.retain(|f| {
+                        f.get("name")
+                            .and_then(|n| n.as_str())
+                            .is_none_or(|name| !field_names.contains(&name.to_string()))
+                    });
+                }
+                *response = Arc::new(val);
+            }
+        }
+
+        // Filter __schema response (types array contains the same fields)
+        let mut schema_val = self.schema_response.as_ref().clone();
+        if let Some(types) = schema_val
+            .pointer_mut("/data/__schema/types")
+            .and_then(|v| v.as_array_mut())
+        {
+            for type_val in types.iter_mut() {
+                let type_name = type_val
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("");
+                if let Some(field_names) = inaccessible.get(type_name) {
+                    if let Some(fields) = type_val
+                        .get_mut("fields")
+                        .and_then(|v| v.as_array_mut())
+                    {
+                        fields.retain(|f| {
+                            f.get("name")
+                                .and_then(|n| n.as_str())
+                                .is_none_or(|name| !field_names.contains(&name.to_string()))
+                        });
+                    }
+                }
+            }
+        }
+        self.schema_response = Arc::new(schema_val);
+    }
+
     /// Get response for `__type(name: "...")` query.
     #[must_use]
     pub fn get_type_response(&self, type_name: &str) -> serde_json::Value {
@@ -509,5 +568,137 @@ impl IntrospectionResponses {
             },
             |v| v.as_ref().clone(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::*;
+
+    #[test]
+    fn test_filter_inaccessible_removes_fields_from_type_response() {
+        let user_response = serde_json::json!({
+            "data": {
+                "__type": {
+                    "name": "User",
+                    "kind": "OBJECT",
+                    "fields": [
+                        {"name": "id", "type": {"name": "ID"}},
+                        {"name": "name", "type": {"name": "String"}},
+                        {"name": "ssn", "type": {"name": "String"}},
+                        {"name": "internal_id", "type": {"name": "Int"}}
+                    ]
+                }
+            }
+        });
+
+        let schema_response = serde_json::json!({
+            "data": {
+                "__schema": {
+                    "types": [
+                        {
+                            "name": "User",
+                            "kind": "OBJECT",
+                            "fields": [
+                                {"name": "id"},
+                                {"name": "name"},
+                                {"name": "ssn"},
+                                {"name": "internal_id"}
+                            ]
+                        }
+                    ]
+                }
+            }
+        });
+
+        let mut responses = IntrospectionResponses {
+            schema_response: Arc::new(schema_response),
+            type_responses:  {
+                let mut map = HashMap::new();
+                map.insert("User".to_string(), Arc::new(user_response));
+                map
+            },
+        };
+
+        let mut inaccessible = HashMap::new();
+        inaccessible.insert(
+            "User".to_string(),
+            vec!["ssn".to_string(), "internal_id".to_string()],
+        );
+
+        responses.filter_inaccessible(&inaccessible);
+
+        // __type response should have ssn and internal_id removed
+        let type_resp = responses.get_type_response("User");
+        let fields = type_resp
+            .pointer("/data/__type/fields")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        let field_names: Vec<&str> = fields
+            .iter()
+            .map(|f| f.get("name").unwrap().as_str().unwrap())
+            .collect();
+        assert_eq!(field_names, vec!["id", "name"]);
+
+        // __schema response should also be filtered
+        let schema_types = responses
+            .schema_response
+            .pointer("/data/__schema/types")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        let user_type = schema_types
+            .iter()
+            .find(|t| t.get("name").unwrap().as_str().unwrap() == "User")
+            .unwrap();
+        let schema_fields: Vec<&str> = user_type
+            .get("fields")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f.get("name").unwrap().as_str().unwrap())
+            .collect();
+        assert_eq!(schema_fields, vec!["id", "name"]);
+    }
+
+    #[test]
+    fn test_filter_inaccessible_no_federation_returns_all_fields() {
+        let user_response = serde_json::json!({
+            "data": {
+                "__type": {
+                    "name": "User",
+                    "kind": "OBJECT",
+                    "fields": [
+                        {"name": "id"},
+                        {"name": "name"},
+                        {"name": "ssn"}
+                    ]
+                }
+            }
+        });
+
+        let mut responses = IntrospectionResponses {
+            schema_response: Arc::new(serde_json::json!({"data": {"__schema": {"types": []}}})),
+            type_responses:  {
+                let mut map = HashMap::new();
+                map.insert("User".to_string(), Arc::new(user_response));
+                map
+            },
+        };
+
+        // Empty inaccessible map — no filtering
+        responses.filter_inaccessible(&HashMap::new());
+
+        let type_resp = responses.get_type_response("User");
+        let fields = type_resp
+            .pointer("/data/__type/fields")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert_eq!(fields.len(), 3, "All fields should be returned");
     }
 }

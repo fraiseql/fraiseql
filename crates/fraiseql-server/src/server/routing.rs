@@ -87,6 +87,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // Thread adapter-level cache state through to admin handlers.
         state = state.with_adapter_cache_enabled(self.adapter_cache_enabled);
 
+        // Wire usage aggregator (shared with MutationAuditLayer tracing subscriber).
+        state = state.with_usage(self.usage.clone());
+
         // Attach error sanitizer (always present; disabled by default)
         state = state.with_error_sanitizer(self.error_sanitizer.clone());
         if self.error_sanitizer.is_enabled() {
@@ -424,9 +427,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Conditionally add subscription route (WebSocket)
         if self.config.subscriptions_enabled {
-            let subscription_state = SubscriptionState::new(self.subscription_manager.clone())
+            // Extract remote subscription fields from federation metadata (if enabled).
+            #[cfg(feature = "federation")]
+            let remote_sub_fields = self
+                .executor
+                .schema()
+                .federation_metadata()
+                .map(|m| m.remote_subscription_fields)
+                .unwrap_or_default();
+
+            #[allow(unused_mut)] // Reason: `mut` is needed when the federation feature is enabled
+            let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
                 .with_lifecycle(self.subscription_lifecycle.clone())
                 .with_max_subscriptions(self.max_subscriptions_per_connection);
+
+            #[cfg(feature = "federation")]
+            if !remote_sub_fields.is_empty() {
+                subscription_state = subscription_state.with_remote_subscription_fields(remote_sub_fields);
+            }
             info!(
                 subscription_path = %self.config.subscription_path,
                 "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols)"
@@ -469,6 +487,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     let schema_router = Router::new()
                         .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                         .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
+                        .route(
+                            "/api/v1/schema/metadata",
+                            get(api::metadata::metadata_handler::<A>),
+                        )
                         .route_layer(middleware::from_fn_with_state(
                             auth_state,
                             oidc_auth_middleware,
@@ -495,6 +517,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let schema_router = Router::new()
                     .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                     .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
+                    .route(
+                        "/api/v1/schema/metadata",
+                        get(api::metadata::metadata_handler::<A>),
+                    )
                     .with_state(state.clone());
                 app = app.merge(schema_router);
             }
@@ -624,6 +650,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route(
                         "/api/v1/admin/grafana-dashboard",
                         get(api::admin::grafana_dashboard_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/usage",
+                        get(api::usage::usage_handler::<A>),
                     )
                     .route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))
                     .with_state(state.clone());

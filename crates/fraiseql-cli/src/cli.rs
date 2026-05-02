@@ -519,6 +519,20 @@ EXAMPLES:
         port: u16,
     },
 
+    /// Inspect schema metadata from a running FraiseQL server
+    ///
+    /// Fetches field-level security metadata (encryption, scope requirements, deny actions)
+    /// from the server's `/api/v1/schema/metadata` endpoint and displays it as a table.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql schema metadata
+    fraiseql schema metadata --server http://localhost:8080
+    fraiseql schema metadata --server https://api.example.com --token mytoken")]
+    Schema {
+        #[command(subcommand)]
+        command: SchemaCommands,
+    },
+
     /// Run diagnostic checks for common FraiseQL setup problems
     ///
     /// Checks schema file, TOML config, DATABASE_URL, JWT secret, Redis, TLS,
@@ -585,6 +599,10 @@ pub(crate) enum FederationCommands {
         /// Path to supergraph schema for composition validation
         #[arg(short, long, value_name = "SUPERGRAPH")]
         against: Option<String>,
+
+        /// Output result as JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -600,6 +618,21 @@ pub(crate) enum IntrospectCommands {
         #[arg(short, long, value_name = "FORMAT", default_value = "python")]
         format: String,
     },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum SchemaCommands {
+    /// Display field-level security metadata from a running server
+    Metadata {
+        /// Server base URL
+        #[arg(short, long, value_name = "URL", default_value = "http://localhost:8080")]
+        server: String,
+
+        /// Bearer token for authentication
+        #[arg(short, long, value_name = "TOKEN")]
+        token: Option<String>,
+    },
+
 }
 
 #[derive(Subcommand)]

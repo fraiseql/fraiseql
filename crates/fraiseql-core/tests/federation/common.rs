@@ -225,7 +225,9 @@ pub fn metadata_single_key(type_name: &str, key_field: &str) -> FederationMetada
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 
@@ -250,7 +252,9 @@ pub fn metadata_extended_type(
             shareable_fields:    shareable_fields.iter().map(|s| (*s).to_string()).collect(),
             inaccessible_fields: vec![],
             field_directives:    std::collections::HashMap::new(),
+            type_shareable: false,
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 
@@ -270,7 +274,9 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
+        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 

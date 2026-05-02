@@ -53,6 +53,7 @@ fn test_typescript_basic_federation_key() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     assert!(metadata.enabled);
@@ -86,6 +87,7 @@ fn test_typescript_id_scalar_type() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let key_field = &metadata.types[0].keys[0].fields[0];
@@ -121,6 +123,7 @@ fn test_typescript_multiple_key_decorators() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![account_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     assert_eq!(metadata.types[0].keys.len(), 2);
@@ -159,6 +162,7 @@ fn test_typescript_extends_decorator() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     assert!(metadata.types[0].is_extends);
@@ -187,6 +191,7 @@ fn test_typescript_external_decorator() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let external = &metadata.types[0].external_fields;
@@ -233,6 +238,7 @@ fn test_typescript_requires_decorator() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let directives = metadata.types[0].get_field_directives("shippingEstimate");
@@ -273,6 +279,7 @@ fn test_typescript_requires_with_complex_field() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![order_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let directives = metadata.types[0].get_field_directives("shippingInfo");
@@ -315,6 +322,7 @@ fn test_typescript_provides_decorator() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let directives = metadata.types[0].get_field_directives("orders");
@@ -416,6 +424,7 @@ fn test_typescript_cross_subgraph_federation() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type, order_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     assert_eq!(metadata.types.len(), 2);
@@ -446,6 +455,7 @@ fn test_typescript_federation_query_type() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![query_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let query = fed_metadata.types.iter().find(|t| t.name == "Query");
@@ -489,6 +499,7 @@ fn test_typescript_shareable_directive() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     let directives = metadata.types[0].get_field_directives("id");
@@ -571,6 +582,7 @@ fn test_typescript_schema_roundtrip() {
         enabled: true,
         version: "v2".to_string(),
         types:   vec![user_type, order_type],
+        remote_subscription_fields: HashMap::new(),
     };
 
     // Verify roundtrip

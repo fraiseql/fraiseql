@@ -27,6 +27,7 @@ fn make_metadata(type_count: usize) -> FederationMetadata {
             shareable_fields: vec![],
                 inaccessible_fields: vec![],
             field_directives: HashMap::new(),
+            type_shareable:  false,
         })
         .collect();
 
@@ -34,6 +35,7 @@ fn make_metadata(type_count: usize) -> FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types,
+        remote_subscription_fields: HashMap::new(),
     }
 }
 

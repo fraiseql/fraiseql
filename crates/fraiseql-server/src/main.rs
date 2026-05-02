@@ -8,7 +8,10 @@ use fraiseql_core::db::FraiseWireAdapter;
 #[cfg(not(feature = "wire-backend"))]
 use fraiseql_core::db::postgres::PostgresAdapter;
 use fraiseql_core::schema::CompiledSchema;
-use fraiseql_server::{Cli, CompiledSchemaLoader, Server, ServerConfig};
+use fraiseql_server::{
+    Cli, CompiledSchemaLoader, Server, ServerConfig,
+    usage::{aggregator::global_aggregator, layer::MutationAuditLayer},
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // ── Helper functions ──────────────────────────────────────────────────────
@@ -61,9 +64,14 @@ fn init_tracing(config: &ServerConfig, is_json: bool) {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "fraiseql_server=info,tower_http=info,axum=info".into());
 
+    // Audit layer is always installed; it only records events with the
+    // `fraiseql::mutation_audit` target and is otherwise a zero-cost no-op.
+    let audit_layer = MutationAuditLayer::new(Arc::clone(global_aggregator()));
+
     if is_json {
         let subscriber = tracing_subscriber::registry()
             .with(env_filter)
+            .with(audit_layer)
             .with(tracing_subscriber::fmt::layer().json());
 
         #[cfg(feature = "tracing-opentelemetry")]
@@ -76,6 +84,7 @@ fn init_tracing(config: &ServerConfig, is_json: bool) {
     } else {
         let subscriber = tracing_subscriber::registry()
             .with(env_filter)
+            .with(audit_layer)
             .with(tracing_subscriber::fmt::layer());
 
         #[cfg(feature = "tracing-opentelemetry")]

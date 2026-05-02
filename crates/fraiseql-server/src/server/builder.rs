@@ -7,7 +7,7 @@ use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
     db::traits::DatabaseAdapter,
-    runtime::{Executor, SubscriptionManager},
+    runtime::{Executor, RuntimeConfig, SubscriptionManager},
     schema::CompiledSchema,
     security::{AuthConfig, AuthMiddleware, OidcValidator},
 };
@@ -179,7 +179,21 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
             .with_ttl_overrides_from_schema(&schema);
-        let executor = Arc::new(Executor::new(schema.clone(), Arc::new(cached)));
+
+        // Read audit_logging_enabled from compiled schema's enterprise security config.
+        // Path: security.additional["enterprise"]["audit_logging_enabled"]
+        let audit_mutations = schema
+            .security
+            .as_ref()
+            .and_then(|s| s.additional.get("enterprise"))
+            .and_then(|e| e.get("audit_logging_enabled"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if audit_mutations {
+            info!("Mutation audit logging enabled (target: fraiseql::mutation_audit)");
+        }
+        let executor_config = RuntimeConfig { audit_mutations, ..RuntimeConfig::default() };
+        let executor = Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let mut server = Self::from_executor(
@@ -409,6 +423,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             function_store: None,
             #[cfg(feature = "functions")]
             function_runtime: None,
+            usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
         })
     }
 

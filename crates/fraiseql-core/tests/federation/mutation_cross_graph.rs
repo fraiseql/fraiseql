@@ -29,6 +29,7 @@ fn test_mutation_coordinate_two_subgraph_updates() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
                 name:             "OrderItem".to_string(),
@@ -41,8 +42,10 @@ fn test_mutation_coordinate_two_subgraph_updates() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
         ],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -87,6 +90,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
                 name:             "Order".to_string(),
@@ -99,6 +103,7 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
                 name:             "Payment".to_string(),
@@ -111,8 +116,10 @@ fn test_mutation_coordinate_three_subgraph_updates() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
         ],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -179,6 +186,7 @@ fn test_mutation_circular_reference_handling() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
                 name:             "Book".to_string(),
@@ -191,8 +199,10 @@ fn test_mutation_circular_reference_handling() {
                 shareable_fields: vec![],
                 inaccessible_fields: vec![],
                 field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
         ],
+        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let runtime = tokio::runtime::Runtime::new().unwrap();

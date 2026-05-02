@@ -104,6 +104,7 @@ moka = {workspace = true}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-wire = {workspace = true}
 insta = {workspace = true}
+tracing-subscriber = {workspace = true}
 mutants = "0.0.4"
 proptest = {workspace = true}
 serial_test = "3"
