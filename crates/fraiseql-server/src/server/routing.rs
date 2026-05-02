@@ -467,6 +467,13 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Conditionally add introspection endpoint (with optional auth)
         if self.config.introspection_enabled {
+            // Metadata auth can be controlled independently from introspection.
+            // When metadata_require_auth is None, it falls back to introspection_require_auth.
+            let metadata_require_auth = self
+                .config
+                .metadata_require_auth
+                .unwrap_or(self.config.introspection_require_auth);
+
             if self.config.introspection_require_auth {
                 if let Some(ref validator) = self.oidc_validator {
                     info!(
@@ -487,10 +494,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     let schema_router = Router::new()
                         .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                         .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
-                        .route(
-                            "/api/v1/schema/metadata",
-                            get(api::metadata::metadata_handler::<A>),
-                        )
                         .route_layer(middleware::from_fn_with_state(
                             auth_state,
                             oidc_auth_middleware,
@@ -512,17 +515,44 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .with_state(state.clone());
                 app = app.merge(introspection_router);
 
-                // Schema export endpoints available without auth when introspection enabled without
-                // auth
+                // Schema export endpoints available without auth when introspection is public
                 let schema_router = Router::new()
                     .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                     .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
+                    .with_state(state.clone());
+                app = app.merge(schema_router);
+            }
+
+            // Mount metadata endpoint with independent auth control
+            if metadata_require_auth {
+                if let Some(ref validator) = self.oidc_validator {
+                    info!("Schema metadata endpoint enabled (OIDC auth required)");
+                    let auth_state = OidcAuthState::new(validator.clone());
+                    let metadata_router = Router::new()
+                        .route(
+                            "/api/v1/schema/metadata",
+                            get(api::metadata::metadata_handler::<A>),
+                        )
+                        .route_layer(middleware::from_fn_with_state(
+                            auth_state,
+                            oidc_auth_middleware,
+                        ))
+                        .with_state(state.clone());
+                    app = app.merge(metadata_router);
+                } else {
+                    warn!(
+                        "metadata_require_auth is true but no OIDC configured - metadata endpoint disabled"
+                    );
+                }
+            } else {
+                info!("Schema metadata endpoint enabled (no auth required)");
+                let metadata_router = Router::new()
                     .route(
                         "/api/v1/schema/metadata",
                         get(api::metadata::metadata_handler::<A>),
                     )
                     .with_state(state.clone());
-                app = app.merge(schema_router);
+                app = app.merge(metadata_router);
             }
         }
 

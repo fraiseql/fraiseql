@@ -234,6 +234,15 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_true")]
     pub introspection_require_auth: bool,
 
+    /// Require authentication for the schema metadata endpoint (default: None).
+    ///
+    /// When `Some(true)`, the `/api/v1/schema/metadata` endpoint requires OIDC auth
+    /// independently of introspection. When `Some(false)`, metadata is publicly
+    /// accessible regardless of introspection auth. When `None` (default), falls
+    /// back to `introspection_require_auth` for backwards compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata_require_auth: Option<bool>,
+
     /// Require authentication for design audit API endpoints (default: true).
     ///
     /// Design audit endpoints expose system architecture and optimization opportunities.
@@ -521,6 +530,7 @@ impl Default for ServerConfig {
             admin_readonly_token: None,
             introspection_enabled: false, // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
+            metadata_require_auth: None,   // Falls back to introspection_require_auth
             design_api_require_auth: true, // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),

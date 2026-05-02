@@ -265,3 +265,119 @@ fn test_introspection_path_customization() {
         .unwrap_or_else(|e| panic!("Config with custom introspection path should validate: {e}"));
     assert_eq!(config.introspection_path, "/api/introspection");
 }
+
+// =============================================================================
+// Metadata Endpoint Independent Auth Tests
+// =============================================================================
+
+#[test]
+fn test_metadata_require_auth_defaults_to_none() {
+    let config = ServerConfig::default();
+    assert!(
+        config.metadata_require_auth.is_none(),
+        "metadata_require_auth should default to None (fallback to introspection_require_auth)"
+    );
+}
+
+#[test]
+fn test_metadata_require_auth_true_while_introspection_public() {
+    // When introspection is public but metadata_require_auth is explicitly true,
+    // the metadata endpoint should require auth independently.
+    let config = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: false,
+        metadata_require_auth: Some(true),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+
+    config.validate().unwrap_or_else(|e| {
+        panic!("Config with metadata_require_auth=true, introspection public should validate: {e}")
+    });
+
+    // Effective metadata auth: Some(true) overrides introspection_require_auth=false
+    let effective = config.metadata_require_auth.unwrap_or(config.introspection_require_auth);
+    assert!(effective, "metadata should require auth when explicitly set to true");
+}
+
+#[test]
+fn test_metadata_require_auth_false_while_introspection_auth_required() {
+    // When introspection requires auth but metadata_require_auth is explicitly false,
+    // the metadata endpoint should be publicly accessible.
+    let config = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: true,
+        metadata_require_auth: Some(false),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+
+    config.validate().unwrap_or_else(|e| {
+        panic!("Config with metadata_require_auth=false, introspection auth should validate: {e}")
+    });
+
+    // Effective metadata auth: Some(false) overrides introspection_require_auth=true
+    let effective = config.metadata_require_auth.unwrap_or(config.introspection_require_auth);
+    assert!(!effective, "metadata should be public when explicitly set to false");
+}
+
+#[test]
+fn test_metadata_require_auth_unset_falls_back_to_introspection_require_auth() {
+    // When metadata_require_auth is None, it should fall back to introspection_require_auth.
+    let config_auth = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: true,
+        metadata_require_auth: None,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+
+    let effective_auth = config_auth
+        .metadata_require_auth
+        .unwrap_or(config_auth.introspection_require_auth);
+    assert!(effective_auth, "should fall back to introspection_require_auth=true");
+
+    let config_public = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: false,
+        metadata_require_auth: None,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+
+    let effective_public = config_public
+        .metadata_require_auth
+        .unwrap_or(config_public.introspection_require_auth);
+    assert!(!effective_public, "should fall back to introspection_require_auth=false");
+}
+
+#[test]
+fn test_metadata_require_auth_serialization_roundtrip() {
+    let config = ServerConfig {
+        introspection_enabled: true,
+        metadata_require_auth: Some(true),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+
+    let toml_str = toml::to_string(&config).expect("Serialization should work");
+    let restored: ServerConfig = toml::from_str(&toml_str).expect("Deserialization should work");
+
+    assert_eq!(restored.metadata_require_auth, Some(true));
+}
+
+#[test]
+fn test_metadata_require_auth_absent_in_toml_deserializes_as_none() {
+    // When metadata_require_auth is not present in TOML, it should deserialize as None
+    let toml_str = r#"
+schema_path = "schema.compiled.json"
+database_url = "postgres://localhost/test"
+introspection_enabled = true
+introspection_require_auth = false
+"#;
+    let config: ServerConfig = toml::from_str(toml_str).expect("Deserialization should work");
+    assert!(
+        config.metadata_require_auth.is_none(),
+        "absent field should deserialize as None"
+    );
+}
