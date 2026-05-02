@@ -152,8 +152,7 @@ impl PoolPressureMonitorConfig {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module — wildcard import keeps test boilerplate minimal
+    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard import keeps test boilerplate minimal
     use super::*;
 
     #[test]
