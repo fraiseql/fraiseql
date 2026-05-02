@@ -381,3 +381,92 @@ introspection_require_auth = false
         "absent field should deserialize as None"
     );
 }
+
+// =============================================================================
+// Schema Export Independent Auth Tests
+// =============================================================================
+
+#[test]
+fn test_schema_export_require_auth_defaults_to_none() {
+    let config = ServerConfig::default();
+    assert!(
+        config.schema_export_require_auth.is_none(),
+        "schema_export_require_auth should default to None (fallback to introspection_require_auth)"
+    );
+}
+
+#[test]
+fn test_schema_export_require_auth_true_while_introspection_public() {
+    // introspection_require_auth=false but schema_export_require_auth=true
+    // → schema export should require auth independently.
+    let config = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: false,
+        schema_export_require_auth: Some(true),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+
+    config.validate().unwrap_or_else(|e| {
+        panic!(
+            "Config with schema_export_require_auth=true, introspection public should validate: {e}"
+        )
+    });
+
+    let effective = config
+        .schema_export_require_auth
+        .unwrap_or(config.introspection_require_auth);
+    assert!(
+        effective,
+        "schema export should require auth when explicitly set to true"
+    );
+}
+
+#[test]
+fn test_schema_export_require_auth_unset_falls_back_to_introspection_require_auth() {
+    // When schema_export_require_auth is None it falls back to introspection_require_auth.
+    let config_auth = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: true,
+        schema_export_require_auth: None,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let effective_auth = config_auth
+        .schema_export_require_auth
+        .unwrap_or(config_auth.introspection_require_auth);
+    assert!(
+        effective_auth,
+        "should fall back to introspection_require_auth=true"
+    );
+
+    let config_public = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: false,
+        schema_export_require_auth: None,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let effective_public = config_public
+        .schema_export_require_auth
+        .unwrap_or(config_public.introspection_require_auth);
+    assert!(
+        !effective_public,
+        "should fall back to introspection_require_auth=false"
+    );
+}
+
+#[test]
+fn test_schema_export_require_auth_absent_in_toml_deserializes_as_none() {
+    let toml_str = r#"
+schema_path = "schema.compiled.json"
+database_url = "postgres://localhost/test"
+introspection_enabled = true
+introspection_require_auth = false
+"#;
+    let config: ServerConfig = toml::from_str(toml_str).expect("Deserialization should work");
+    assert!(
+        config.schema_export_require_auth.is_none(),
+        "absent field should deserialize as None"
+    );
+}

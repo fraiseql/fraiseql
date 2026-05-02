@@ -103,6 +103,10 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_METADATA_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub metadata_require_auth: Option<bool>,
 
+    /// Require authentication for schema export endpoints (overrides `introspection_require_auth` for `/api/v1/schema.graphql` and `/api/v1/schema.json`).
+    #[arg(long, env = "FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
+    pub schema_export_require_auth: Option<bool>,
+
     // ── Rate limiting ────────────────────────────────────────────────────
     /// Enable per-IP and per-user rate limiting.
     #[arg(long, env = "FRAISEQL_RATE_LIMITING_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
@@ -150,7 +154,8 @@ impl ServerArgs {
             admin_token:                std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
             introspection_enabled:      parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
             introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH"),
-            metadata_require_auth:      parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
+            metadata_require_auth:           parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
+            schema_export_require_auth:      parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"),
             rate_limiting_enabled:      parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
             rate_limit_rps_per_ip:      std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
                 .ok()
@@ -207,6 +212,9 @@ impl ServerArgs {
         }
         if let Some(require_auth) = self.metadata_require_auth {
             config.metadata_require_auth = Some(require_auth);
+        }
+        if let Some(require_auth) = self.schema_export_require_auth {
+            config.schema_export_require_auth = Some(require_auth);
         }
 
         // Rate limiting — apply all four overrides atomically.

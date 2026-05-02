@@ -243,6 +243,15 @@ pub struct ServerConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata_require_auth: Option<bool>,
 
+    /// Require authentication for schema export endpoints (default: None).
+    ///
+    /// Controls `/api/v1/schema.graphql` and `/api/v1/schema.json` independently of
+    /// introspection auth. When `Some(true)`, schema export requires OIDC auth. When
+    /// `Some(false)`, schema export is publicly accessible. When `None` (default),
+    /// falls back to `introspection_require_auth` for backwards compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_export_require_auth: Option<bool>,
+
     /// Require authentication for design audit API endpoints (default: true).
     ///
     /// Design audit endpoints expose system architecture and optimization opportunities.
@@ -530,7 +539,8 @@ impl Default for ServerConfig {
             admin_readonly_token: None,
             introspection_enabled: false, // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
-            metadata_require_auth: None,   // Falls back to introspection_require_auth
+            metadata_require_auth: None,        // Falls back to introspection_require_auth
+            schema_export_require_auth: None,   // Falls back to introspection_require_auth
             design_api_require_auth: true, // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),

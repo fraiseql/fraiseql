@@ -467,11 +467,15 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Conditionally add introspection endpoint (with optional auth)
         if self.config.introspection_enabled {
-            // Metadata auth can be controlled independently from introspection.
-            // When metadata_require_auth is None, it falls back to introspection_require_auth.
+            // Metadata and schema export auth can each be controlled independently.
+            // When either override is None, it falls back to introspection_require_auth.
             let metadata_require_auth = self
                 .config
                 .metadata_require_auth
+                .unwrap_or(self.config.introspection_require_auth);
+            let schema_export_require_auth = self
+                .config
+                .schema_export_require_auth
                 .unwrap_or(self.config.introspection_require_auth);
 
             if self.config.introspection_require_auth {
@@ -489,20 +493,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         ))
                         .with_state(state.clone());
                     app = app.merge(introspection_router);
-
-                    // Schema export endpoints follow same auth as introspection
-                    let schema_router = Router::new()
-                        .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
-                        .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
-                        .route_layer(middleware::from_fn_with_state(
-                            auth_state,
-                            oidc_auth_middleware,
-                        ))
-                        .with_state(state.clone());
-                    app = app.merge(schema_router);
                 } else {
                     warn!(
-                        "introspection_require_auth is true but no OIDC configured - introspection and schema export disabled"
+                        "introspection_require_auth is true but no OIDC configured - introspection disabled"
                     );
                 }
             } else {
@@ -514,11 +507,44 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route(&self.config.introspection_path, get(introspection_handler::<A>))
                     .with_state(state.clone());
                 app = app.merge(introspection_router);
+            }
 
-                // Schema export endpoints available without auth when introspection is public
+            // Mount schema export endpoints with independent auth control.
+            if schema_export_require_auth {
+                if let Some(ref validator) = self.oidc_validator {
+                    info!("Schema export endpoints enabled (OIDC auth required)");
+                    let auth_state = OidcAuthState::new(validator.clone());
+                    let schema_router = Router::new()
+                        .route(
+                            "/api/v1/schema.graphql",
+                            get(api::schema::export_sdl_handler::<A>),
+                        )
+                        .route(
+                            "/api/v1/schema.json",
+                            get(api::schema::export_json_handler::<A>),
+                        )
+                        .route_layer(middleware::from_fn_with_state(
+                            auth_state,
+                            oidc_auth_middleware,
+                        ))
+                        .with_state(state.clone());
+                    app = app.merge(schema_router);
+                } else {
+                    warn!(
+                        "schema_export_require_auth is true but no OIDC configured - schema export disabled"
+                    );
+                }
+            } else {
+                info!("Schema export endpoints enabled (no auth required)");
                 let schema_router = Router::new()
-                    .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
-                    .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
+                    .route(
+                        "/api/v1/schema.graphql",
+                        get(api::schema::export_sdl_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/schema.json",
+                        get(api::schema::export_json_handler::<A>),
+                    )
                     .with_state(state.clone());
                 app = app.merge(schema_router);
             }
