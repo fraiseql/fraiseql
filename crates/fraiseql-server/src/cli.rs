@@ -111,6 +111,10 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_PLAYGROUND_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub playground_require_auth: Option<bool>,
 
+    /// Require authentication for subscription endpoint (overrides `introspection_require_auth` for the `WebSocket` subscription path).
+    #[arg(long, env = "FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
+    pub subscription_require_auth: Option<bool>,
+
     // ── Rate limiting ────────────────────────────────────────────────────
     /// Enable per-IP and per-user rate limiting.
     #[arg(long, env = "FRAISEQL_RATE_LIMITING_ENABLED", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
@@ -161,6 +165,7 @@ impl ServerArgs {
             metadata_require_auth:           parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
             schema_export_require_auth:      parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"),
             playground_require_auth:         parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH"),
+            subscription_require_auth:       parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH"),
             rate_limiting_enabled:      parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
             rate_limit_rps_per_ip:      std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
                 .ok()
@@ -223,6 +228,9 @@ impl ServerArgs {
         }
         if let Some(require_auth) = self.playground_require_auth {
             config.playground_require_auth = Some(require_auth);
+        }
+        if let Some(require_auth) = self.subscription_require_auth {
+            config.subscription_require_auth = Some(require_auth);
         }
 
         // Rate limiting — apply all four overrides atomically.

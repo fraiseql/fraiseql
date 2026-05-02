@@ -456,7 +456,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = app.merge(security_router);
         }
 
-        // Conditionally add subscription route (WebSocket)
+        // Conditionally add subscription route (WebSocket).
+        // subscription_require_auth falls back to introspection_require_auth when None.
         if self.config.subscriptions_enabled {
             // Extract remote subscription fields from federation metadata (if enabled).
             #[cfg(feature = "federation")]
@@ -476,14 +477,43 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             if !remote_sub_fields.is_empty() {
                 subscription_state = subscription_state.with_remote_subscription_fields(remote_sub_fields);
             }
-            info!(
-                subscription_path = %self.config.subscription_path,
-                "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols)"
-            );
-            let subscription_router = Router::new()
-                .route(&self.config.subscription_path, get(subscription_handler))
-                .with_state(subscription_state);
-            app = app.merge(subscription_router);
+
+            let subscription_require_auth = self
+                .config
+                .subscription_require_auth
+                .unwrap_or(self.config.introspection_require_auth);
+
+            if subscription_require_auth {
+                if let Some(ref validator) = self.oidc_validator {
+                    info!(
+                        subscription_path = %self.config.subscription_path,
+                        "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols, OIDC auth required)"
+                    );
+                    let auth_state = OidcAuthState::new(validator.clone());
+                    let subscription_router = Router::new()
+                        .route(&self.config.subscription_path, get(subscription_handler))
+                        .route_layer(middleware::from_fn_with_state(
+                            auth_state,
+                            oidc_auth_middleware,
+                        ))
+                        .with_state(subscription_state);
+                    app = app.merge(subscription_router);
+                } else {
+                    warn!(
+                        subscription_path = %self.config.subscription_path,
+                        "subscription_require_auth is true but no OIDC configured — subscriptions disabled"
+                    );
+                }
+            } else {
+                info!(
+                    subscription_path = %self.config.subscription_path,
+                    "GraphQL subscriptions enabled (graphql-transport-ws + graphql-ws protocols)"
+                );
+                let subscription_router = Router::new()
+                    .route(&self.config.subscription_path, get(subscription_handler))
+                    .with_state(subscription_state);
+                app = app.merge(subscription_router);
+            }
         }
 
         // Conditionally add broadcast endpoint
