@@ -1,7 +1,7 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.2.0 (Released 2026-05-02)
-**In Development**: v2.3.0-dev (active branch: `dev`)
+**Current Stable**: v2.3.0 (Released 2026-05-02)
+**In Development**: v2.4.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
@@ -132,10 +132,34 @@ Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes Fraise
 - **Mutation audit tracing** — runtime emits `fraiseql::mutation_audit` events after every write
 - **Usage aggregation** — per-tenant, per-period, per-entity-type counters via `GET /api/v1/admin/usage`
 
-### Known Limitations (carry-forward to v2.3.0)
+### Known Limitations (resolved in v2.3.0)
 
-- **Cache mutation routing overhead** — `CachedDatabaseAdapter` performs a coarse-grained view-level invalidation after every write (~15% overhead measured at 7,047 → 6,019 RPS). Fix: write-through invalidation with targeted eviction. Tracked for v2.3.0.
-- **Usage aggregation is in-memory only** — counters reset on process restart; no persistence layer yet.
+- **Cache mutation routing overhead** — resolved in v2.3.0 via `DatabaseAdapter::on_schema_reload()` and hot-reload cache rebind fix.
+- **Usage aggregation is in-memory only** — carry-forward to v2.4.0.
+
+---
+
+## v2.3.0 - Security & Reliability ✅ Released 2026-05-02
+
+**Released**: 2026-05-02
+
+Focused on critical quality fixes identified in the pre-release assessment: stale cache after hot-reload, missing integration tests for new v2.2.0 features, and storage crate compile regressions.
+
+### Completed
+
+- **Hot-reload cache rebind fix** — query cache cleared on schema reload; resolves TODO #184; `DatabaseAdapter::on_schema_reload()` trait method added
+- **Studio metrics endpoint wired** — `GET /admin/v1/metrics/summary` returns live latency percentiles, error rates, and cache hit rate from `MetricsCollector`
+- **12 new integration tests** — 6 subscription forwarder tests + 6 `GET /auth/me` tests
+- **fraiseql-storage compile fixes and clippy cleanup** — storage crate builds cleanly under all feature combinations
+- **`platform_e2e_test` repaired** — 9 platform E2E tests passing
+
+---
+
+## v2.4.0 - TBD
+
+**Status**: Planning
+
+> Themes and scope to be defined. Candidates include: persistent usage aggregation, active pool resizing (bb8 migration), and additional SDK improvements.
 
 ---
 

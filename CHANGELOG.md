@@ -5,6 +5,36 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-05-02
+
+### Fixed
+
+- **Hot-reload cache rebind** — query cache is now cleared on schema reload, resolving a stale-cache
+  bug where post-reload queries could return results compiled against the old schema. The `TODO #184`
+  marker tracking this issue has been resolved. Implemented via `DatabaseAdapter::on_schema_reload()`
+  trait method, called by the hot-reload path in all adapter implementations.
+
+- **fraiseql-storage compile errors** — corrected multiple compile-time failures in the storage
+  crate introduced during the v2.2.0 federation work; clippy warnings also cleaned up.
+
+- **`platform_e2e_test` repaired** — 9 platform end-to-end tests now pass reliably after fixing
+  a test-setup race condition that caused intermittent failures.
+
+### Added
+
+- **Studio metrics endpoint** — `GET /admin/v1/metrics/summary` is now wired to the live
+  `MetricsCollector`, returning real-time latency percentiles (p50/p95/p99), per-operation error
+  rates, and cache hit rate. Previously returned a stub response.
+
+- **`DatabaseAdapter::on_schema_reload()` trait method** — adapters can now react to schema
+  hot-reload events (e.g. clear caches, reset prepared statement pools). Default no-op provided
+  for backwards compatibility.
+
+- **12 new integration tests**:
+  - 6 subscription forwarder tests covering SSRF protection, reconnect logic, and protocol
+    negotiation edge cases
+  - 6 `GET /auth/me` tests covering cookie fallback, claim filtering, and expiry handling
+
 ## [2.2.0] - 2026-05-02
 
 ### Fixed
