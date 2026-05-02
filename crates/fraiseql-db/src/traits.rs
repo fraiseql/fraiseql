@@ -836,6 +836,15 @@ pub trait DatabaseAdapter: Send + Sync {
                 .to_string(),
         })
     }
+
+    /// Notify the adapter that the schema has changed.
+    ///
+    /// Called during hot-reload after the new schema has been validated.
+    /// Adapters that maintain schema-dependent state (e.g. cache keyed by schema
+    /// version) should clear or rebuild that state here.
+    ///
+    /// The default implementation is a no-op.
+    fn on_schema_reload(&self) {}
 }
 
 /// Database capabilities and feature support.

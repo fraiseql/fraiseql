@@ -599,6 +599,15 @@ impl From<std::env::VarError> for FraiseQLError {
     }
 }
 
+impl From<crate::FileError> for FraiseQLError {
+    fn from(e: crate::FileError) -> Self {
+        Self::Storage {
+            message: e.to_string(),
+            code:    Some(e.error_code().to_owned()),
+        }
+    }
+}
+
 /// Extension trait for adding context to errors.
 pub trait ErrorContext<T> {
     /// Add context to an error.

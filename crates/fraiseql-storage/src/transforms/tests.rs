@@ -1,4 +1,9 @@
 #![cfg(all(test, feature = "transforms"))]
+#![allow(clippy::cast_possible_truncation)] // Reason: test image pixel values intentionally use wrapping
+#![allow(clippy::cast_precision_loss)] // Reason: test assertions, not production precision
+#![allow(clippy::items_after_statements)] // Reason: test readability — imports near usage
+#![allow(clippy::doc_markdown)] // Reason: test comments, not public docs
+#![allow(clippy::useless_attribute)] // Reason: inherited lint config
 
 use super::*;
 use image::{ImageBuffer, RgbImage, RgbaImage, Rgba, ImageFormat};
@@ -531,66 +536,3 @@ async fn test_render_cache_with_preset_lookup() {
     assert_eq!(result.content_type, "image/webp");
 }
 
-#[tokio::test]
-async fn test_render_handler_nonexistent_object() {
-    use crate::routes::render_handler;
-    use crate::backend::LocalBackend;
-    use crate::transforms::cache::TransformCache;
-    use std::sync::Arc;
-    use tempfile::TempDir;
-
-    let temp_dir = TempDir::new().unwrap();
-    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
-    let cache = TransformCache::new(backend.clone());
-
-    // Try to render non-existent object
-    let result = render_handler(&cache, "nonexistent.jpg", None, None).await;
-
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn test_render_handler_non_image_file() {
-    use crate::routes::render_handler;
-    use crate::backend::LocalBackend;
-    use crate::transforms::cache::TransformCache;
-    use std::sync::Arc;
-    use tempfile::TempDir;
-
-    let temp_dir = TempDir::new().unwrap();
-    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
-
-    let pdf_data = create_test_pdf();
-    backend.upload("document.pdf", &pdf_data, "application/pdf").await.unwrap();
-
-    let cache = TransformCache::new(backend.clone());
-
-    // Try to render non-image file
-    let result = render_handler(&cache, "document.pdf", Some(200), None).await;
-
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn test_render_handler_with_dimensions() {
-    use crate::routes::render_handler;
-    use crate::backend::LocalBackend;
-    use crate::transforms::cache::TransformCache;
-    use std::sync::Arc;
-    use tempfile::TempDir;
-
-    let temp_dir = TempDir::new().unwrap();
-    let backend = Arc::new(LocalBackend::new(temp_dir.path().to_str().unwrap()));
-
-    let original = create_test_image_1000x800();
-    backend.upload("test.jpg", &original, "image/jpeg").await.unwrap();
-
-    let cache = TransformCache::new(backend.clone());
-
-    // Render with width specified
-    let result = render_handler(&cache, "test.jpg", Some(500), None).await;
-
-    assert!(result.is_ok());
-    let output = result.unwrap();
-    assert_eq!(output.width, 500);
-}

@@ -141,6 +141,11 @@ impl AzureBackend {
         Ok(key.to_owned())
     }
 
+    /// Downloads the contents of the given key from Azure Blob Storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the download fails or the key does not exist.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
         let url = self.blob_url(key);
@@ -172,6 +177,11 @@ impl AzureBackend {
             .map_err(|e| azure_err("download body", e))
     }
 
+    /// Deletes the object at the given key from Azure Blob Storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the delete fails or the key does not exist.
     pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         let url = self.blob_url(key);
@@ -200,6 +210,11 @@ impl AzureBackend {
         Ok(())
     }
 
+    /// Checks whether an object exists at the given key in Azure Blob Storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         let url = self.blob_url(key);
@@ -224,6 +239,11 @@ impl AzureBackend {
         }
     }
 
+    /// Generates a presigned URL for direct access to an Azure Blob.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` as SAS token generation is not yet implemented.
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         // Azure presigned access uses SAS (Shared Access Signature) tokens,
         // which require HMAC signing of the resource path, permissions, and
@@ -241,7 +261,7 @@ impl AzureBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "not_implemented" since list
+    /// Returns `FraiseQLError::Storage` with code "`not_implemented`" since list
     /// is not yet implemented for Azure Blob.
     pub async fn list(
         &self,

@@ -328,6 +328,46 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         self
     }
 
+    /// Rebuild this adapter for a new compiled schema.
+    ///
+    /// Returns a new `CachedDatabaseAdapter` that:
+    /// - Shares the same underlying `QueryResultCache` (via `Arc`)
+    /// - Uses the new schema's content hash as schema version
+    /// - Has per-view TTL overrides from the new schema
+    /// - Clears the shared cache (stale entries from old schema)
+    ///
+    /// The underlying database adapter (connection pool) is **reused** — no
+    /// connections are closed or reopened.
+    ///
+    /// This is the hot-reload counterpart to the startup path
+    /// (`new()` + `with_ttl_overrides_from_schema()`).
+    #[must_use]
+    pub fn rebuilt_for_schema(self, schema: &CompiledSchema) -> Self {
+        // Clear existing cache entries (stale under new schema).
+        let _ = self.cache.clear();
+
+        // Construct a new adapter with updated schema version and TTL overrides,
+        // reusing the same inner adapter and shared cache.
+        let mut rebuilt = Self {
+            adapter:             self.adapter,
+            cache:               self.cache,
+            schema_version:      schema.content_hash(),
+            view_ttl_overrides:  HashMap::new(),
+            cacheable_views:     HashSet::new(),
+            opt_in_mode:         true,
+            fact_table_config:   self.fact_table_config,
+            version_provider:    self.version_provider,
+            cascade_invalidator: self.cascade_invalidator,
+        };
+        for query in &schema.queries {
+            if let (Some(view), Some(ttl)) = (&query.sql_source, query.cache_ttl_seconds) {
+                rebuilt.cacheable_views.insert(view.clone());
+                rebuilt.view_ttl_overrides.insert(view.clone(), ttl);
+            }
+        }
+        rebuilt
+    }
+
     /// Create new cached database adapter with fact table caching configuration.
     ///
     /// # Arguments
@@ -659,6 +699,12 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
         self.bump_fact_table_versions_impl(tables).await
+    }
+
+    fn on_schema_reload(&self) {
+        // Clear all cached entries — they reference the old schema's content hash
+        // and per-view TTL configuration.
+        let _ = self.cache.clear();
     }
 }
 

@@ -480,6 +480,39 @@ impl Default for Histogram {
     }
 }
 
+impl Histogram {
+    /// Estimate the value at a given quantile (0.0–1.0) from bucket data.
+    ///
+    /// Uses linear interpolation within the bucket that contains the target
+    /// quantile. Returns 0 if the histogram is empty.
+    #[allow(clippy::cast_precision_loss)] // Reason: u64 counters in practice are < 2^53
+    #[allow(clippy::cast_possible_truncation)] // Reason: product of u64 count × quantile (0..1) is always ≤ original count
+    #[allow(clippy::cast_sign_loss)] // Reason: quantile is always in [0, 1], so product is non-negative
+    #[must_use]
+    pub fn estimate_quantile_us(&self, quantile: f64) -> u64 {
+        let total = self.count.load(Ordering::Relaxed);
+        if total == 0 {
+            return 0;
+        }
+
+        let target = (total as f64 * quantile) as u64;
+        let mut cumulative = 0u64;
+
+        for (i, &bound) in HISTOGRAM_BUCKET_BOUNDS_US.iter().enumerate() {
+            let bucket_count = self.bucket_counts[i].load(Ordering::Relaxed);
+            cumulative += bucket_count;
+            if cumulative >= target {
+                // Target falls in this bucket — return the bucket upper bound
+                // as the estimate (conservative: overestimates latency slightly).
+                return bound;
+            }
+        }
+
+        // Beyond all buckets — return last bucket bound
+        HISTOGRAM_BUCKET_BOUNDS_US[HISTOGRAM_BUCKET_BOUNDS_US.len() - 1]
+    }
+}
+
 /// Guard for timing metrics.
 pub struct TimingGuard {
     start:           Instant,

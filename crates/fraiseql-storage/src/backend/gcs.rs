@@ -92,6 +92,10 @@ impl GcsBackend {
     }
 
     /// Returns a valid access token, refreshing via JWT exchange if needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if JWT creation or token exchange fails.
     pub async fn get_token(&self) -> Result<String> {
         match &self.auth {
             GcsAuth::BearerToken(token) => Ok(token.clone()),
@@ -118,6 +122,11 @@ impl GcsBackend {
         }
     }
 
+    /// Exchanges a signed JWT for an `OAuth2` access token from Google.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the HTTP request fails or the response is invalid.
     pub async fn exchange_jwt(&self, jwt: &str) -> Result<String> {
         let resp = self
             .client
@@ -192,6 +201,11 @@ fn gcs_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
 }
 
 impl GcsBackend {
+    /// Uploads data to GCS and returns the storage key.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the upload request fails.
     pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -219,6 +233,11 @@ impl GcsBackend {
         Ok(key.to_owned())
     }
 
+    /// Downloads the contents of the given key from GCS.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the download fails or the key does not exist.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -247,6 +266,11 @@ impl GcsBackend {
         resp.bytes().await.map(|b| b.to_vec()).map_err(|e| gcs_err("download body", e))
     }
 
+    /// Deletes the object at the given key from GCS.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` if the delete fails or the key does not exist.
     pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -272,6 +296,11 @@ impl GcsBackend {
         Ok(())
     }
 
+    /// Checks whether an object exists at the given key in GCS.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -297,6 +326,11 @@ impl GcsBackend {
         }
     }
 
+    /// Generates a presigned URL for direct access to a GCS object.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Storage` as V4 signing is not yet implemented.
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         // GCS V4 signed URLs require the service account private key and a
         // complex canonical-request construction.  This is planned but not yet
@@ -312,7 +346,7 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "not_implemented" since list
+    /// Returns `FraiseQLError::Storage` with code "`not_implemented`" since list
     /// is not yet implemented for GCS.
     pub async fn list(
         &self,

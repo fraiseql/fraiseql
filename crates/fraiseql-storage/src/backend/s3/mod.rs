@@ -27,7 +27,7 @@ impl S3Backend {
     /// variables, shared credentials file, instance profile, etc.).
     ///
     /// Set `endpoint` for S3-compatible services like Hetzner, Scaleway, OVH,
-    /// Exoscale, Backblaze B2, Cloudflare R2, or MinIO.
+    /// Exoscale, Backblaze B2, Cloudflare R2, or `MinIO`.
     pub async fn new(bucket: &str, region: Option<&str>, endpoint: Option<&str>) -> Self {
         let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
         if let Some(r) = region {
@@ -83,7 +83,7 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "not_found" if the key does not exist,
+    /// Returns `FraiseQLError::Storage` with code "`not_found`" if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
@@ -179,6 +179,8 @@ impl S3Backend {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Storage` on backend failures.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)] // Reason: list limit is always a small positive number
+    #[allow(clippy::cast_sign_loss)] // Reason: object size is always non-negative
     pub async fn list(
         &self,
         prefix: &str,
@@ -206,8 +208,7 @@ impl S3Backend {
             let etag = obj.e_tag().unwrap_or("").to_string();
             let last_modified = obj
                 .last_modified()
-                .map(|dt| dt.to_string())
-                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+                .map_or_else(|| chrono::Utc::now().to_rfc3339(), |dt| dt.to_string());
 
             objects.push(super::types::ObjectInfo {
                 key,
@@ -230,7 +231,7 @@ impl S3Backend {
     }
 }
 
-/// Implementation of PresignCapable for S3Backend.
+/// Implementation of `PresignCapable` for `S3Backend`.
 ///
 /// Enables time-limited direct access URLs for S3 objects, allowing clients
 /// to upload/download without going through the FraiseQL server.

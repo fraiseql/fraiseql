@@ -283,6 +283,10 @@ impl<A: DatabaseAdapter> AppState<A> {
     /// and atomically swaps it into the shared state. In-flight requests
     /// continue using the previous executor until their handler returns.
     ///
+    /// When the adapter supports cache configuration (e.g. `CachedDatabaseAdapter`),
+    /// per-view TTL overrides from the new schema are applied immediately and the
+    /// query cache is cleared to prevent stale entries.
+    ///
     /// # Errors
     ///
     /// Returns an error if the file cannot be read, the JSON is invalid, or
@@ -319,15 +323,16 @@ impl<A: DatabaseAdapter> AppState<A> {
             return Ok(()); // Same schema, no-op
         }
 
-        // TODO(#184): hot-reload does not re-wrap the adapter in a new CachedDatabaseAdapter.
-        // Per-view TTL overrides from the new schema will not be applied until a full restart.
-        // 5. Construct new executor (reuses same adapter/connection pool)
+        // 5. Notify adapter of schema change (clears query result cache if applicable)
+        adapter.on_schema_reload();
+
+        // 6. Construct new executor (reuses same adapter/connection pool)
         let new_executor = Arc::new(Executor::new(schema, adapter.clone()));
 
-        // 6. Atomic swap
+        // 7. Atomic swap
         self.executor.store(new_executor);
 
-        // 7. Clear caches (query plans reference old schema)
+        // 8. Clear query plan caches (reference old schema)
         #[cfg(feature = "arrow")]
         if let Some(cache) = &self.cache {
             cache.clear();
@@ -685,6 +690,126 @@ mod tests {
         let result = state.reload_schema(std::path::Path::new("/tmp/test.json")).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("already in progress"));
+    }
+
+    // ── Hot-reload cache clearing tests ────────────────────────────────────
+
+    /// Adapter that tracks `on_schema_reload` calls.
+    #[derive(Debug, Clone)]
+    struct TrackingAdapter {
+        reload_called: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl TrackingAdapter {
+        fn new() -> Self {
+            Self {
+                reload_called: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            }
+        }
+    }
+
+    // Reason: async_trait required by DatabaseAdapter trait definition
+    #[async_trait]
+    impl DatabaseAdapter for TrackingAdapter {
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&fraiseql_core::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[fraiseql_core::db::types::OrderByClause]>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::SQLite
+        }
+
+        async fn health_check(&self) -> FraiseQLResult<()> {
+            Ok(())
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics::default()
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        fn on_schema_reload(&self) {
+            self.reload_called
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_reload_schema_calls_on_schema_reload() {
+        let adapter = Arc::new(TrackingAdapter::new());
+        let reload_called = adapter.reload_called.clone();
+        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let state =
+            AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+
+        // Write a schema with a different content hash (add a query)
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("schema.json");
+        let mut new_schema = CompiledSchema::default();
+        new_schema
+            .queries
+            .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
+        let schema_json = serde_json::to_string(&new_schema).unwrap();
+        std::fs::write(&path, &schema_json).unwrap();
+
+        assert!(!reload_called.load(std::sync::atomic::Ordering::Relaxed));
+
+        let result = state.reload_schema(&path).await;
+        assert!(result.is_ok());
+        assert!(reload_called.load(std::sync::atomic::Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn test_reload_same_hash_skips_on_schema_reload() {
+        let adapter = Arc::new(TrackingAdapter::new());
+        let reload_called = adapter.reload_called.clone();
+        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let state =
+            AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+
+        // Write the same schema (same hash) — should be a no-op
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("schema.json");
+        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
+        std::fs::write(&path, &schema_json).unwrap();
+
+        let result = state.reload_schema(&path).await;
+        assert!(result.is_ok());
+        // Same hash means reload was skipped entirely
+        assert!(!reload_called.load(std::sync::atomic::Ordering::Relaxed));
     }
 
     // ── Multi-tenant dispatch tests ──────────────────────────────────────

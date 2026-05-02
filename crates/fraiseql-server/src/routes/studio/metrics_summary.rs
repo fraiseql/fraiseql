@@ -4,10 +4,13 @@
 //! formatted for SPA consumption. This is complementary to the Prometheus
 //! `/metrics` endpoint — it does NOT replace it.
 
+use std::sync::atomic::Ordering;
+
 use axum::{Json, extract::State, response::IntoResponse};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
+use crate::metrics_server::MetricsCollector;
 use crate::routes::graphql::app_state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -122,17 +125,76 @@ impl MetricsSummary {
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn summary_handler<A>(State(_state): State<AppState<A>>) -> impl IntoResponse
+pub async fn summary_handler<A>(State(state): State<AppState<A>>) -> impl IntoResponse
 where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
-    // Placeholder — not yet wired to MetricsCollector.
-    Json(MetricsSummary::zero())
+    Json(build_summary(&state.metrics))
+}
+
+/// Build a `MetricsSummary` from the live `MetricsCollector`.
+fn build_summary(m: &MetricsCollector) -> MetricsSummary {
+    let latency = LatencyStats {
+        p50_ms: m.http_request_duration.estimate_quantile_us(0.5) / 1_000,
+        p95_ms: m.http_request_duration.estimate_quantile_us(0.95) / 1_000,
+        p99_ms: m.http_request_duration.estimate_quantile_us(0.99) / 1_000,
+    };
+
+    // Lifetime error rate (approximate — windowed rates deferred to v2.4.0)
+    let total = m.queries_total.load(Ordering::Relaxed);
+    let errors = m.queries_error.load(Ordering::Relaxed);
+    #[allow(clippy::cast_precision_loss)] // Reason: counter values in practice are < 2^53
+    let error_rate = if total > 0 {
+        errors as f64 / total as f64
+    } else {
+        0.0
+    };
+    let errors_stats = ErrorRates {
+        rate_5m:  error_rate,
+        rate_1h:  error_rate,
+        rate_24h: error_rate,
+    };
+
+    // Cache stats
+    let hits = m.cache_hits.load(Ordering::Relaxed);
+    let misses = m.cache_misses.load(Ordering::Relaxed);
+    #[allow(clippy::cast_precision_loss)] // Reason: counter values in practice are < 2^53
+    let hit_rate = if hits + misses > 0 {
+        hits as f64 / (hits + misses) as f64
+    } else {
+        0.0
+    };
+    let cache = CacheStats {
+        hit_rate,
+        entries: 0, // Not tracked by MetricsCollector
+    };
+
+    // Pool stats — not available from MetricsCollector (requires adapter-level access)
+    let pool = PoolStats {
+        active:      0,
+        idle:        0,
+        max:         0,
+        utilization: 0.0,
+    };
+
+    // Subscription count — not tracked in AppState metrics
+    let subscriptions = SubscriptionStats { active: 0 };
+
+    MetricsSummary {
+        latency,
+        errors: errors_stats,
+        pool,
+        cache,
+        subscriptions,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
+    #![allow(clippy::float_cmp)] // Reason: testing exact 0.0 from zero-division guards
+    use std::sync::atomic::Ordering;
+
     use super::*;
 
     #[test]
@@ -145,5 +207,61 @@ mod tests {
         assert!(json.contains("\"pool\""));
         assert!(json.contains("\"cache\""));
         assert!(json.contains("\"subscriptions\""));
+    }
+
+    #[test]
+    fn test_build_summary_latency_from_histogram() {
+        let collector = MetricsCollector::new();
+        // Record requests in the 5ms bucket (5000 us)
+        for _ in 0..100 {
+            collector.http_request_duration.observe_us(4_000);
+        }
+        // Record a few slow requests in the 100ms bucket
+        for _ in 0..5 {
+            collector.http_request_duration.observe_us(80_000);
+        }
+
+        let summary = build_summary(&collector);
+        // P50 should be in the 5ms bucket (5000 us → 5 ms)
+        assert_eq!(summary.latency.p50_ms, 5);
+        // P99 should be in the 100ms bucket
+        assert_eq!(summary.latency.p99_ms, 100);
+    }
+
+    #[test]
+    fn test_build_summary_empty_histogram_returns_zero() {
+        let collector = MetricsCollector::new();
+        let summary = build_summary(&collector);
+        assert_eq!(summary.latency.p50_ms, 0);
+        assert_eq!(summary.latency.p95_ms, 0);
+        assert_eq!(summary.latency.p99_ms, 0);
+    }
+
+    #[test]
+    fn test_build_summary_error_rate() {
+        let collector = MetricsCollector::new();
+        collector.queries_total.store(100, Ordering::Relaxed);
+        collector.queries_error.store(10, Ordering::Relaxed);
+
+        let summary = build_summary(&collector);
+        assert!((summary.errors.rate_5m - 0.1).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_build_summary_cache_hit_rate() {
+        let collector = MetricsCollector::new();
+        collector.cache_hits.store(75, Ordering::Relaxed);
+        collector.cache_misses.store(25, Ordering::Relaxed);
+
+        let summary = build_summary(&collector);
+        assert!((summary.cache.hit_rate - 0.75).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_build_summary_zero_division_safe() {
+        let collector = MetricsCollector::new();
+        let summary = build_summary(&collector);
+        assert_eq!(summary.errors.rate_5m, 0.0);
+        assert_eq!(summary.cache.hit_rate, 0.0);
     }
 }

@@ -33,7 +33,7 @@ use crate::rls::StorageRlsEvaluator;
 use fraiseql_error::FraiseQLError;
 
 #[cfg(feature = "aws-s3")]
-use crate::{PresignCapable, PresignedUrl};
+use crate::PresignedUrl;
 
 // ---------------------------------------------------------------------------
 // State
@@ -411,15 +411,12 @@ async fn presign_handler(
         let expires_in = Duration::from_secs(request.expires_in_secs);
 
         let result = if operation == "upload" {
-            let content_type = match request.content_type {
-                Some(ct) => ct,
-                None => {
-                    return error_response(
-                        StatusCode::BAD_REQUEST,
-                        "missing_content_type",
-                        "content_type required for upload",
-                    );
-                }
+            let Some(content_type) = request.content_type else {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "missing_content_type",
+                    "content_type required for upload",
+                );
             };
             state.backend.presign_put(&key, &content_type, expires_in).await
         } else {
