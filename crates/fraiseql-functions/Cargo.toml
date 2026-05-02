@@ -55,7 +55,7 @@ host-storage = ["fraiseql-storage"]
 function-secrets = ["dep:aes-gcm", "dep:rand", "dep:base64"]
 
 [dependencies.wasmtime]
-version = "18"
+version = "44"
 optional = true
 features = ["component-model"]
 

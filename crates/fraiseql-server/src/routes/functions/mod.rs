@@ -170,7 +170,7 @@ mod tests {
             fn supports_hot_reload(&self) -> bool {
                 false
             }
-            fn name(&self) -> &str {
+            fn name(&self) -> &'static str {
                 "noop"
             }
         }

@@ -562,7 +562,7 @@ mod tests {
     #[tokio::test]
     async fn test_before_mutation_chain_execute_empty_chain_proceeds() {
         use crate::{
-            FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
+            FunctionModule, FunctionObserver, ResourceLimits,
             host::NoopHostContext,
         };
         use std::collections::HashMap;
@@ -607,7 +607,7 @@ mod tests {
         let module = FunctionModule::from_source("validateUser".to_string(), source, RuntimeType::Deno);
 
         let mut observer = FunctionObserver::new();
-        let runtime = DenoRuntime::new(&DenoConfig::default()).unwrap();
+        let runtime = DenoRuntime::new(&DenoConfig::default()).expect("deno runtime");
         observer.register_runtime(RuntimeType::Deno, runtime);
 
         let mut modules: HashMap<String, FunctionModule> = HashMap::new();
@@ -656,7 +656,7 @@ mod tests {
         let module = FunctionModule::from_source("validateUser".to_string(), source, RuntimeType::Deno);
 
         let mut observer = FunctionObserver::new();
-        let runtime = DenoRuntime::new(&DenoConfig::default()).unwrap();
+        let runtime = DenoRuntime::new(&DenoConfig::default()).expect("deno runtime");
         observer.register_runtime(RuntimeType::Deno, runtime);
 
         let mut modules: HashMap<String, FunctionModule> = HashMap::new();
@@ -700,15 +700,15 @@ mod tests {
         use std::collections::HashMap;
 
         // Function that uppercases the name and returns {"input": {modified}}
-        let source = r#"
+        let source = r"
 export default async (event) => ({
   input: { ...event, name: event.name.toUpperCase() }
 });
-"#.to_string();
+".to_string();
         let module = FunctionModule::from_source("transformUser".to_string(), source, RuntimeType::Deno);
 
         let mut observer = FunctionObserver::new();
-        let runtime = DenoRuntime::new(&DenoConfig::default()).unwrap();
+        let runtime = DenoRuntime::new(&DenoConfig::default()).expect("deno runtime");
         observer.register_runtime(RuntimeType::Deno, runtime);
 
         let mut modules: HashMap<String, FunctionModule> = HashMap::new();

@@ -81,12 +81,10 @@ impl StoreData {
 
     /// Get the event payload as a JSON string.
     ///
-    /// # Errors
-    ///
-    /// Returns `Err` if serialization fails (should not happen for valid `EventPayload`).
-    pub fn get_event_payload_json(&self) -> wasmtime::Result<String> {
+    /// Falls back to `"{}"` if serialization fails (should not happen for valid `EventPayload`).
+    pub fn get_event_payload_json(&self) -> String {
         serde_json::to_string(&self.event_payload)
-            .map_err(|e| wasmtime::Error::msg(e.to_string()))
+            .unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Get the auth context (if available) as JSON or an error string.
@@ -95,21 +93,16 @@ impl StoreData {
     ///
     /// # Errors
     ///
-    /// Returns an error since auth context requires `LiveHostContext` wiring.
-    pub fn get_auth_context_json(&self) -> wasmtime::Result<String> {
-        Err(wasmtime::Error::msg("auth context not available"))
+    /// Returns `Err` always until a host context with auth support is wired in.
+    pub fn get_auth_context_json(&self) -> Result<String, String> {
+        Err("auth context not available".to_string())
     }
 
     /// Get an environment variable value.
     ///
     /// Returns `None` until a host context with env support is wired in.
-    ///
-    /// # Errors
-    ///
-    /// Never returns an error.
-    #[allow(clippy::missing_const_for_fn)] // Reason: returns Result with generic type
-    pub fn get_env_var_value(&self, _name: &str) -> wasmtime::Result<Option<String>> {
-        Ok(None)
+    pub const fn get_env_var_value(&self, _name: &str) -> Option<String> {
+        None
     }
 }
 
@@ -177,7 +170,7 @@ mod tests {
         };
         let store = StoreData::new(event, ResourceLimits::default());
 
-        let json = store.get_event_payload_json().expect("serialize");
+        let json = store.get_event_payload_json();
         let parsed: serde_json::Value = serde_json::from_str(&json).expect("parse");
 
         assert_eq!(parsed["trigger_type"], "mutation");

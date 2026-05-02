@@ -49,7 +49,7 @@ impl generated::fraiseql::host::logging::Host for StoreData {
         &mut self,
         level: generated::fraiseql::host::logging::LogLevel,
         message: String,
-    ) -> wasmtime::Result<()> {
+    ) {
         let lvl = match level {
             generated::fraiseql::host::logging::LogLevel::Debug => LogLevel::Debug,
             generated::fraiseql::host::logging::LogLevel::Info => LogLevel::Info,
@@ -57,21 +57,20 @@ impl generated::fraiseql::host::logging::Host for StoreData {
             generated::fraiseql::host::logging::LogLevel::Error => LogLevel::Error,
         };
         StoreData::log(self, lvl, &message);
-        Ok(())
     }
 }
 
 // Implement the context host interface on StoreData
 impl generated::fraiseql::host::context::Host for StoreData {
-    fn get_event_payload(&mut self) -> wasmtime::Result<String> {
+    fn get_event_payload(&mut self) -> String {
         self.get_event_payload_json()
     }
 
-    fn get_auth_context(&mut self) -> wasmtime::Result<std::result::Result<String, String>> {
-        Ok(self.get_auth_context_json().map_err(|e| e.to_string()))
+    fn get_auth_context(&mut self) -> std::result::Result<String, String> {
+        self.get_auth_context_json()
     }
 
-    fn get_env_var(&mut self, name: String) -> wasmtime::Result<Option<String>> {
+    fn get_env_var(&mut self, name: String) -> Option<String> {
         self.get_env_var_value(&name)
     }
 }
@@ -82,16 +81,16 @@ impl generated::fraiseql::host::io::Host for StoreData {
         &mut self,
         _graphql: String,
         _variables: String,
-    ) -> wasmtime::Result<std::result::Result<String, String>> {
-        Ok(Err("query not yet implemented in WASM host".to_string()))
+    ) -> std::result::Result<String, String> {
+        Err("query not yet implemented in WASM host".to_string())
     }
 
     fn sql_query(
         &mut self,
         _sql: String,
         _params: String,
-    ) -> wasmtime::Result<std::result::Result<String, String>> {
-        Ok(Err("sql_query not yet implemented in WASM host".to_string()))
+    ) -> std::result::Result<String, String> {
+        Err("sql_query not yet implemented in WASM host".to_string())
     }
 
     fn http_request(
@@ -100,16 +99,16 @@ impl generated::fraiseql::host::io::Host for StoreData {
         _url: String,
         _headers: Vec<(String, String)>,
         _body: Option<Vec<u8>>,
-    ) -> wasmtime::Result<std::result::Result<generated::fraiseql::host::io::HttpResponse, String>> {
-        Ok(Err("http_request not yet implemented in WASM host".to_string()))
+    ) -> std::result::Result<generated::fraiseql::host::io::HttpResponse, String> {
+        Err("http_request not yet implemented in WASM host".to_string())
     }
 
     fn storage_get(
         &mut self,
         _bucket: String,
         _key: String,
-    ) -> wasmtime::Result<std::result::Result<Vec<u8>, String>> {
-        Ok(Err("storage_get not yet implemented in WASM host".to_string()))
+    ) -> std::result::Result<Vec<u8>, String> {
+        Err("storage_get not yet implemented in WASM host".to_string())
     }
 
     fn storage_put(
@@ -118,8 +117,8 @@ impl generated::fraiseql::host::io::Host for StoreData {
         _key: String,
         _body: Vec<u8>,
         _content_type: String,
-    ) -> wasmtime::Result<std::result::Result<(), String>> {
-        Ok(Err("storage_put not yet implemented in WASM host".to_string()))
+    ) -> std::result::Result<(), String> {
+        Err("storage_put not yet implemented in WASM host".to_string())
     }
 }
 
@@ -377,7 +376,7 @@ fn invoke_sync_cached(
     // Build linker with host imports (stubs; guest may not call all of them)
     let mut linker: wasmtime::component::Linker<StoreData> =
         wasmtime::component::Linker::new(engine);
-    generated::FraiseqlFunction::add_to_linker(&mut linker, |s| s).map_err(|e| {
+    generated::FraiseqlFunction::add_to_linker::<StoreData, wasmtime::component::HasSelf<StoreData>>(&mut linker, |s| s).map_err(|e| {
         FraiseQLError::Validation {
             message: format!("Failed to add host imports to linker: {e}"),
             path: None,
@@ -385,7 +384,7 @@ fn invoke_sync_cached(
     })?;
 
     // Instantiate and call the exported handle function
-    let (instance, _wasm_instance) =
+    let instance =
         generated::FraiseqlFunction::instantiate(&mut store, &component, &linker).map_err(|e| {
             FraiseQLError::Validation {
                 message: format!("Failed to instantiate WASM component: {e}"),
