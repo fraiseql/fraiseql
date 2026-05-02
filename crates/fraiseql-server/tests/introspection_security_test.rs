@@ -470,3 +470,81 @@ introspection_require_auth = false
         "absent field should deserialize as None"
     );
 }
+
+// =============================================================================
+// Playground Independent Auth Tests
+// =============================================================================
+
+#[test]
+fn test_playground_require_auth_defaults_to_none() {
+    let config = ServerConfig::default();
+    assert!(
+        config.playground_require_auth.is_none(),
+        "playground_require_auth should default to None (fallback to introspection_require_auth)"
+    );
+}
+
+#[test]
+fn test_playground_require_auth_true_overrides_public_introspection() {
+    // When introspection is public but playground_require_auth is explicitly true,
+    // the playground should require auth independently.
+    // playground_enabled is false here — we're testing the option logic, not routing.
+    let config = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: false,
+        playground_require_auth: Some(true),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+
+    config.validate().unwrap_or_else(|e| {
+        panic!(
+            "Config with playground_require_auth=true, introspection public should validate: {e}"
+        )
+    });
+
+    // Effective playground auth: Some(true) overrides introspection_require_auth=false
+    let effective = config.playground_require_auth.unwrap_or(config.introspection_require_auth);
+    assert!(effective, "playground should require auth when explicitly set to true");
+}
+
+#[test]
+fn test_playground_require_auth_fallback_both_directions() {
+    // When playground_require_auth is None, it falls back to introspection_require_auth.
+    let config_auth = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: true,
+        playground_require_auth: None,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let effective_auth =
+        config_auth.playground_require_auth.unwrap_or(config_auth.introspection_require_auth);
+    assert!(effective_auth, "should fall back to introspection_require_auth=true");
+
+    let config_public = ServerConfig {
+        introspection_enabled: true,
+        introspection_require_auth: false,
+        playground_require_auth: None,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let effective_public =
+        config_public.playground_require_auth.unwrap_or(config_public.introspection_require_auth);
+    assert!(!effective_public, "should fall back to introspection_require_auth=false");
+}
+
+#[test]
+fn test_playground_require_auth_absent_in_toml_deserializes_as_none() {
+    let toml_str = r#"
+schema_path = "schema.compiled.json"
+database_url = "postgres://localhost/test"
+introspection_enabled = true
+introspection_require_auth = false
+"#;
+    let config: ServerConfig = toml::from_str(toml_str).expect("Deserialization should work");
+    assert!(
+        config.playground_require_auth.is_none(),
+        "absent playground_require_auth field should deserialize as None"
+    );
+}

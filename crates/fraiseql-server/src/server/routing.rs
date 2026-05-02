@@ -395,19 +395,50 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
-        // Conditionally add playground route
+        // Conditionally add playground route (with optional independent auth).
+        // playground_require_auth falls back to introspection_require_auth when None.
         if self.config.playground_enabled {
+            let playground_require_auth = self
+                .config
+                .playground_require_auth
+                .unwrap_or(self.config.introspection_require_auth);
+
             let playground_state =
                 PlaygroundState::new(self.config.graphql_path.clone(), self.config.playground_tool);
-            info!(
-                playground_path = %self.config.playground_path,
-                playground_tool = ?self.config.playground_tool,
-                "GraphQL playground enabled"
-            );
-            let playground_router = Router::new()
-                .route(&self.config.playground_path, get(playground_handler))
-                .with_state(playground_state);
-            app = app.merge(playground_router);
+
+            if playground_require_auth {
+                if let Some(ref validator) = self.oidc_validator {
+                    info!(
+                        playground_path = %self.config.playground_path,
+                        playground_tool = ?self.config.playground_tool,
+                        "GraphQL playground enabled (OIDC auth required)"
+                    );
+                    let auth_state = OidcAuthState::new(validator.clone());
+                    let playground_router = Router::new()
+                        .route(&self.config.playground_path, get(playground_handler))
+                        .route_layer(middleware::from_fn_with_state(
+                            auth_state,
+                            oidc_auth_middleware,
+                        ))
+                        .with_state(playground_state);
+                    app = app.merge(playground_router);
+                } else {
+                    warn!(
+                        playground_path = %self.config.playground_path,
+                        "playground_require_auth is true but no OIDC configured — playground disabled"
+                    );
+                }
+            } else {
+                info!(
+                    playground_path = %self.config.playground_path,
+                    playground_tool = ?self.config.playground_tool,
+                    "GraphQL playground enabled (no auth required)"
+                );
+                let playground_router = Router::new()
+                    .route(&self.config.playground_path, get(playground_handler))
+                    .with_state(playground_state);
+                app = app.merge(playground_router);
+            }
         }
 
         // Conditionally add /.well-known/security.txt (RFC 9116)
@@ -488,7 +519,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     let introspection_router = Router::new()
                         .route(&self.config.introspection_path, get(introspection_handler::<A>))
                         .route_layer(middleware::from_fn_with_state(
-                            auth_state.clone(),
+                            auth_state,
                             oidc_auth_middleware,
                         ))
                         .with_state(state.clone());

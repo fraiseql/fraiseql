@@ -252,6 +252,15 @@ pub struct ServerConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_export_require_auth: Option<bool>,
 
+    /// Require authentication for the GraphQL Playground endpoint (default: None).
+    ///
+    /// Controls the playground independently of introspection auth. When `Some(true)`,
+    /// the playground requires OIDC auth. When `Some(false)`, the playground is publicly
+    /// accessible. When `None` (default), falls back to `introspection_require_auth`
+    /// for backwards compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub playground_require_auth: Option<bool>,
+
     /// Require authentication for design audit API endpoints (default: true).
     ///
     /// Design audit endpoints expose system architecture and optimization opportunities.
@@ -541,6 +550,7 @@ impl Default for ServerConfig {
             introspection_require_auth: true, // Require auth when enabled
             metadata_require_auth: None,        // Falls back to introspection_require_auth
             schema_export_require_auth: None,   // Falls back to introspection_require_auth
+            playground_require_auth: None,      // Falls back to introspection_require_auth
             design_api_require_auth: true, // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),
