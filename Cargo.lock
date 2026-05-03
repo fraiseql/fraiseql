@@ -3385,6 +3385,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-postgres",
  "tokio-tungstenite 0.28.0",

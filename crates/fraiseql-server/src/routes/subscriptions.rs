@@ -361,14 +361,28 @@ async fn handle_subscription_connection(
             event = event_receiver.recv() => {
                 match event {
                     Ok(payload) => {
-                        if let Some((op_id, _)) = active_operations
-                            .iter()
-                            .find(|(_, sub_id)| **sub_id == payload.subscription_id)
-                        {
-                            let msg = create_next_message(op_id, &payload);
-                            if send_server_message(&codec, &mut sender, msg).await.is_err() {
-                                warn!(connection_id = %connection_id, "Failed to send event");
-                                break;
+                        // Defense-in-depth tenant guard: when both the connection and the
+                        // event carry an explicit tenant_id they must agree. Primary
+                        // isolation is already guaranteed by subscription_id UUIDs, but
+                        // this check catches any future path that introduces deterministic
+                        // subscription IDs (which could collide across tenants).
+                        let tenant_matches = match (
+                            tenant_id.as_deref(),
+                            payload.event.tenant_id.as_deref(),
+                        ) {
+                            (Some(conn_tid), Some(evt_tid)) => conn_tid == evt_tid,
+                            _ => true, // either side absent → no conflict
+                        };
+                        if tenant_matches {
+                            if let Some((op_id, _)) = active_operations
+                                .iter()
+                                .find(|(_, sub_id)| **sub_id == payload.subscription_id)
+                            {
+                                let msg = create_next_message(op_id, &payload);
+                                if send_server_message(&codec, &mut sender, msg).await.is_err() {
+                                    warn!(connection_id = %connection_id, "Failed to send event");
+                                    break;
+                                }
                             }
                         }
                     }
@@ -772,5 +786,39 @@ mod tests {
         assert_eq!(extract_subscription_name("query { users { id } }"), None);
         assert_eq!(extract_subscription_name("{ users { id } }"), None);
         assert_eq!(extract_subscription_name("subscription { }"), None);
+    }
+
+    // tenant_matches logic extracted from the event dispatch loop for unit testing.
+    fn tenant_matches_logic(
+        conn_tenant: Option<&str>,
+        evt_tenant: Option<&str>,
+    ) -> bool {
+        match (conn_tenant, evt_tenant) {
+            (Some(conn_tid), Some(evt_tid)) => conn_tid == evt_tid,
+            _ => true,
+        }
+    }
+
+    #[test]
+    fn event_dispatch_tenant_filter_same_tenant_passes() {
+        assert!(tenant_matches_logic(Some("tenant-a"), Some("tenant-a")));
+    }
+
+    #[test]
+    fn event_dispatch_tenant_filter_different_tenant_blocks() {
+        assert!(!tenant_matches_logic(Some("tenant-a"), Some("tenant-b")));
+    }
+
+    #[test]
+    fn event_dispatch_tenant_filter_no_connection_tenant_passes() {
+        // Connection has no tenant (single-tenant deployment) → events pass through.
+        assert!(tenant_matches_logic(None, Some("tenant-a")));
+        assert!(tenant_matches_logic(None, None));
+    }
+
+    #[test]
+    fn event_dispatch_tenant_filter_no_event_tenant_passes() {
+        // Event has no tenant (legacy event without tenant tag) → passes through.
+        assert!(tenant_matches_logic(Some("tenant-a"), None));
     }
 }

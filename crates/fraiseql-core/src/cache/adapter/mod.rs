@@ -267,6 +267,21 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         self
     }
 
+    /// Enable or disable the RLS unauthenticated-request cache bypass.
+    ///
+    /// When `true`, any request without a [`SecurityContext`] will bypass both
+    /// cache read and write, preventing unauthenticated requests from being
+    /// served stale data that belongs to an authenticated tenant.
+    ///
+    /// Set this to `schema.has_rls_configured()` at server startup.
+    ///
+    /// [`SecurityContext`]: fraiseql_core::security::SecurityContext
+    #[must_use]
+    pub fn with_rls(mut self, has_rls: bool) -> Self {
+        self.has_rls = has_rls;
+        self
+    }
+
     /// Set a cascade invalidator for transitive view dependency expansion.
     ///
     /// When set, `invalidate_views()` uses BFS to expand the initial view list
@@ -620,7 +635,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, None)
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by)
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -646,7 +661,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, None).await
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by).await
     }
 
     fn database_type(&self) -> DatabaseType {

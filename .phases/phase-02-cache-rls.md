@@ -51,4 +51,4 @@ from schema configuration, and that it correctly bypasses the cache when no
 - Phase 1 (compiled schema must load correctly for the RLS config to be available)
 
 ## Status
-[ ] Not Started
+[x] Complete

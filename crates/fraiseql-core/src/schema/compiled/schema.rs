@@ -354,21 +354,13 @@ impl CompiledSchema {
     ///
     /// # Integrity Checking
     ///
-    /// When `fraiseql-cli compile` embeds a `_content_hash` field in the compiled JSON,
-    /// the runtime should verify it against `content_hash()` before accepting the schema.
-    /// This guards against accidental corruption or tampering between compilation and
-    /// deployment. The check is not performed here because `_content_hash` is not yet
-    /// written by the CLI; once it is, add a post-deserialization step:
+    /// `fraiseql-cli compile` embeds a `_content_hash` field (SHA-256 of the compiled JSON
+    /// body, first 16 bytes as lowercase hex) in the compiled output. This function
+    /// extracts that field, recomputes the hash over the remaining JSON, and compares.
     ///
-    /// ```rust,ignore
-    /// let schema = CompiledSchema::from_json(json, false)?;
-    /// if let Some(expected) = &schema._content_hash {
-    ///     let actual = schema.content_hash();
-    ///     if *expected != actual {
-    ///         return Err(IntegrityError::HashMismatch { expected, actual });
-    ///     }
-    /// }
-    /// ```
+    /// - `strict_integrity = true`: missing or mismatched hash returns `Err`.
+    /// - `strict_integrity = false`: missing hash logs a warning; mismatch logs a warning
+    ///   but proceeds (backwards compatibility for schemas compiled without `_content_hash`).
     ///
     /// # Errors
     ///

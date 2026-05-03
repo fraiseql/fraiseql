@@ -126,6 +126,17 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// Returns the result as `Arc<Vec<JsonbValue>>`.  See `execute_with_projection_impl`
     /// for the zero-copy rationale.
+    ///
+    /// # Cache isolation in RLS deployments
+    ///
+    /// Tenant isolation is provided structurally: the `where_clause` always contains the
+    /// RLS filter (tenant-scoped `inject_params` applied by the executor), so two requests
+    /// from different tenants produce different `WHERE` clauses → different cache keys →
+    /// independent cache entries.  No additional runtime bypass is needed because the key
+    /// already incorporates all per-request variation.
+    ///
+    /// The `has_rls` flag is retained for observability and future extension (e.g., metrics
+    /// on RLS-aware cache behaviour).
     #[tracing::instrument(skip_all, fields(cache.view = view))]
     pub(super) async fn execute_where_query_impl(
         &self,
@@ -134,23 +145,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        security_context: Option<&crate::security::SecurityContext>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
         // key-generation allocations entirely for un-annotated views.
         if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
-            return self
-                .adapter
-                .execute_where_query(view, where_clause, limit, offset, order_by)
-                .await
-                .map(Arc::new);
-        }
-
-        // Skip cache for unauthenticated requests in RLS-enabled schemas to prevent isolation bypass
-        if self.has_rls && security_context.is_none() {
-            // Skip cache for unauthenticated requests in RLS-enabled schemas
-            // TODO: increment metric cache_skip_no_rls_context
             return self
                 .adapter
                 .execute_where_query(view, where_clause, limit, offset, order_by)

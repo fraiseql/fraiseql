@@ -397,6 +397,111 @@ audit_logging_enabled = false
 
 /// Full CLI compile pipeline with field-level assertions.
 ///
+/// The CLI embeds a `_content_hash` in compiled output.  With `strict_integrity=true`,
+/// `from_json` must accept CLI-produced output, reject tampered output, and accept
+/// `--skip-hash` output with `strict_integrity=false`.
+mod schema_integrity_cli_tests {
+    use super::*;
+
+    fn minimal_fixtures(temp_dir: &tempfile::TempDir) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+        let types_json = r#"{"types":[{"name":"Thing","sql_source":"v_thing","fields":[{"name":"id","type":"ID","nullable":false}]}],"queries":[{"name":"things","return_type":"Thing","returns_list":true,"nullable":false,"sql_source":"v_thing"}],"mutations":[]}"#;
+        let toml_config = r#"
+[schema]
+name = "hash_test"
+version = "1.0.0"
+database_target = "postgresql"
+[database]
+url = "postgresql://localhost/test"
+[security]
+default_policy = "public"
+[security.enterprise]
+rate_limiting_enabled = false
+audit_logging_enabled = false
+"#;
+        let types_path = temp_dir.path().join("types.json");
+        let toml_path = temp_dir.path().join("fraiseql.toml");
+        let output_path = temp_dir.path().join("schema.compiled.json");
+        fs::write(&types_path, types_json).unwrap();
+        fs::write(&toml_path, toml_config).unwrap();
+        (types_path, toml_path, output_path)
+    }
+
+    fn run_compile(toml_path: &std::path::Path, types_path: &std::path::Path, output_path: &std::path::Path, extra_args: &[&str]) {
+        let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
+        let mut args = vec![
+            "compile",
+            toml_path.to_str().unwrap(),
+            "--types",
+            types_path.to_str().unwrap(),
+            "--output",
+            output_path.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra_args);
+        let output = Command::new(cli_path).args(&args).output().expect("Failed to run CLI");
+        if !output.status.success() {
+            panic!(
+                "CLI compile failed.\nstdout: {}\nstderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+
+    #[test]
+    fn cli_output_accepted_in_strict_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let (types_path, toml_path, output_path) = minimal_fixtures(&temp_dir);
+        run_compile(&toml_path, &types_path, &output_path, &[]);
+
+        let compiled_json = fs::read_to_string(&output_path).expect("compiled schema missing");
+        // _content_hash field must be present in the output
+        assert!(compiled_json.contains("_content_hash"), "CLI must embed _content_hash");
+        // strict_integrity=true must accept it without error
+        fraiseql_core::schema::CompiledSchema::from_json(&compiled_json, true)
+            .expect("strict from_json must accept CLI-produced schema");
+    }
+
+    #[test]
+    fn tampered_body_rejected_in_strict_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let (types_path, toml_path, output_path) = minimal_fixtures(&temp_dir);
+        run_compile(&toml_path, &types_path, &output_path, &[]);
+
+        let compiled_json = fs::read_to_string(&output_path).unwrap();
+        // Replace a field value in the body (after the hash line) to simulate tampering
+        let tampered = compiled_json.replace("\"v_thing\"", "\"v_TAMPERED\"");
+        assert_ne!(tampered, compiled_json, "replacement must have changed something");
+        let result = fraiseql_core::schema::CompiledSchema::from_json(&tampered, true);
+        assert!(result.is_err(), "strict from_json must reject tampered schema");
+        let msg = format!("{}", result.unwrap_err());
+        assert!(msg.contains("hash mismatch") || msg.contains("integrity"), "error must mention hash: {msg}");
+    }
+
+    #[test]
+    fn skip_hash_output_accepted_in_non_strict_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let (types_path, toml_path, output_path) = minimal_fixtures(&temp_dir);
+        run_compile(&toml_path, &types_path, &output_path, &["--skip-hash"]);
+
+        let compiled_json = fs::read_to_string(&output_path).unwrap();
+        assert!(!compiled_json.contains("_content_hash"), "--skip-hash must omit _content_hash");
+        // non-strict must accept (with a warning)
+        fraiseql_core::schema::CompiledSchema::from_json(&compiled_json, false)
+            .expect("non-strict from_json must accept schema without hash");
+    }
+
+    #[test]
+    fn skip_hash_output_rejected_in_strict_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let (types_path, toml_path, output_path) = minimal_fixtures(&temp_dir);
+        run_compile(&toml_path, &types_path, &output_path, &["--skip-hash"]);
+
+        let compiled_json = fs::read_to_string(&output_path).unwrap();
+        let result = fraiseql_core::schema::CompiledSchema::from_json(&compiled_json, true);
+        assert!(result.is_err(), "strict from_json must reject schema without _content_hash");
+    }
+}
+
 /// types.json carries `inject` and `cache_ttl_seconds` on a query, and
 /// `invalidates_views` on a mutation.  We compile via the CLI binary and then
 /// parse the compiled JSON with `CompiledSchema::from_json()` to assert that

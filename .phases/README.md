@@ -42,8 +42,8 @@ implementations has not been verified beyond "it compiles."
 
 | Phase | File | Goal | Status |
 |-------|------|------|--------|
-| 1 | [phase-01-schema-integrity.md](phase-01-schema-integrity.md) | Verify hash round-trip end-to-end | [ ] |
-| 2 | [phase-02-cache-rls.md](phase-02-cache-rls.md) | Audit RLS guard initialization and key composition | [ ] |
-| 3 | [phase-03-tenant-isolation.md](phase-03-tenant-isolation.md) | Verify tenant cross-validation, subscription filtering, rate limiting | [ ] |
-| 4 | [phase-04-mtls-integration.md](phase-04-mtls-integration.md) | Integration test for mTLS handshake with reqwest | [ ] |
-| 5 | [phase-05-finalize.md](phase-05-finalize.md) | Squash history, merge to dev | [ ] |
+| 1 | [phase-01-schema-integrity.md](phase-01-schema-integrity.md) | Verify hash round-trip end-to-end | [x] |
+| 2 | [phase-02-cache-rls.md](phase-02-cache-rls.md) | Audit RLS guard initialization and key composition | [x] |
+| 3 | [phase-03-tenant-isolation.md](phase-03-tenant-isolation.md) | Verify tenant cross-validation, subscription filtering, rate limiting | [x] |
+| 4 | [phase-04-mtls-integration.md](phase-04-mtls-integration.md) | Integration test for mTLS handshake with reqwest | [x] |
+| 5 | [phase-05-finalize.md](phase-05-finalize.md) | Squash history, merge to dev | [x] |

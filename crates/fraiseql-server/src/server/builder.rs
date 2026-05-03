@@ -178,7 +178,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         let inner = Arc::into_inner(adapter)
             .expect("CachedDatabaseAdapter wrapping requires exclusive Arc ownership at startup");
         let cached = CachedDatabaseAdapter::new(inner, cache, schema.content_hash())
-            .with_ttl_overrides_from_schema(&schema);
+            .with_ttl_overrides_from_schema(&schema)
+            .with_rls(schema.has_rls_configured());
 
         // Read audit_logging_enabled from compiled schema's enterprise security config.
         // Path: security.additional["enterprise"]["audit_logging_enabled"]

@@ -1505,3 +1505,87 @@ async fn test_ttl_overrides_from_empty_schema_bypasses_cache() {
         "with_ttl_overrides_from_schema on unannotated schema must bypass cache entirely"
     );
 }
+
+// RLS guard — has_rls initialization and cache key isolation
+
+#[test]
+fn with_rls_sets_has_rls_field() {
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let adapter_rls = CachedDatabaseAdapter::new(mock, cache, "v1".to_string()).with_rls(true);
+    assert!(adapter_rls.has_rls, "with_rls(true) must set has_rls=true");
+
+    let mock2 = MockAdapter::new();
+    let cache2 = QueryResultCache::new(CacheConfig::enabled());
+    let adapter_no_rls = CachedDatabaseAdapter::new(mock2, cache2, "v1".to_string()).with_rls(false);
+    assert!(!adapter_no_rls.has_rls, "with_rls(false) must set has_rls=false");
+}
+
+#[test]
+fn default_has_rls_is_false() {
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "v1".to_string());
+    assert!(!adapter.has_rls, "default has_rls must be false");
+}
+
+#[tokio::test]
+async fn cache_key_differs_for_different_where_clauses() {
+    // Isolation in RLS deployments relies on tenants having different WHERE clauses
+    // (because the RLS inject_params produce tenant-specific filters). Verify that
+    // two otherwise identical queries with different WHERE clauses never share a
+    // cache entry.
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "v1".to_string())
+        .with_view_ttl_overrides(std::collections::HashMap::from([("v_item".to_string(), 60_u64)]));
+
+    let where_tenant_a = WhereClause::Field {
+        path:     vec!["tenant_id".to_string()],
+        operator: WhereOperator::Eq,
+        value:    serde_json::json!("tenant-a"),
+    };
+    let where_tenant_b = WhereClause::Field {
+        path:     vec!["tenant_id".to_string()],
+        operator: WhereOperator::Eq,
+        value:    serde_json::json!("tenant-b"),
+    };
+
+    // Tenant A: 1 DB call, result cached
+    adapter.execute_where_query("v_item", Some(&where_tenant_a), None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1);
+
+    // Tenant A again: cache hit, no extra DB call
+    adapter.execute_where_query("v_item", Some(&where_tenant_a), None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1, "second request for same tenant must be a cache hit");
+
+    // Tenant B: different WHERE clause → different cache key → DB call
+    adapter.execute_where_query("v_item", Some(&where_tenant_b), None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 2, "different tenant WHERE clause must be a cache miss");
+}
+
+#[tokio::test]
+async fn with_rls_does_not_disable_cache() {
+    // After the fix: has_rls=true must NOT bypass the cache for all requests.
+    // Cache isolation is provided structurally by the WHERE clause; the has_rls
+    // flag is for observability and future extension only.
+    let mock = MockAdapter::new();
+    let cache = QueryResultCache::new(CacheConfig::enabled());
+    let adapter = CachedDatabaseAdapter::new(mock, cache, "v1".to_string())
+        .with_view_ttl_overrides(std::collections::HashMap::from([("v_thing".to_string(), 60_u64)]))
+        .with_rls(true);
+
+    let where_clause = WhereClause::Field {
+        path:     vec!["tenant_id".to_string()],
+        operator: WhereOperator::Eq,
+        value:    serde_json::json!("tenant-x"),
+    };
+
+    // First call → DB hit
+    adapter.execute_where_query("v_thing", Some(&where_clause), None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1);
+
+    // Second call with same WHERE → cache hit (has_rls=true must NOT disable cache)
+    adapter.execute_where_query("v_thing", Some(&where_clause), None, None, None).await.unwrap();
+    assert_eq!(adapter.inner().call_count(), 1, "has_rls=true must not prevent cache hits");
+}
