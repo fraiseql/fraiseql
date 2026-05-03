@@ -192,7 +192,7 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         .map_err(|e| ApiError::parse_error(format!("Failed to read schema file: {}", e)))?;
 
     // Step 2: Validate schema structure
-    let _validated_schema = CompiledSchema::from_json(&schema_json)
+    let _validated_schema = CompiledSchema::from_json(&schema_json, false)
         .map_err(|e| ApiError::parse_error(format!("Invalid schema JSON: {}", e)))?;
 
     if req.validate_only {

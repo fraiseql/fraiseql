@@ -19,7 +19,7 @@ fn test_empty_schema_creation() {
 #[test]
 fn test_schema_from_json_empty() {
     let json = r#"{"types": [], "queries": [], "mutations": [], "subscriptions": []}"#;
-    let schema = CompiledSchema::from_json(json).unwrap();
+    let schema = CompiledSchema::from_json(, falsejson).unwrap();
     assert!(schema.types.is_empty());
 }
 
@@ -27,7 +27,7 @@ fn test_schema_from_json_empty() {
 fn test_schema_from_json_with_defaults() {
     // Minimal JSON - all fields should default
     let json = r"{}";
-    let schema = CompiledSchema::from_json(json).unwrap();
+    let schema = CompiledSchema::from_json(, falsejson).unwrap();
     assert!(schema.types.is_empty());
     assert!(schema.queries.is_empty());
 }
@@ -84,7 +84,7 @@ fn test_schema_from_json_full() {
         }]
     }"#;
 
-    let schema = CompiledSchema::from_json(json).unwrap();
+    let schema = CompiledSchema::from_json(, falsejson).unwrap();
 
     // Check types
     assert_eq!(schema.types.len(), 1);
@@ -154,7 +154,7 @@ fn test_query_full_fields() {
         .join("tests/fixtures/golden/05-security-inject-cache.json");
     let json =
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
-    let schema = CompiledSchema::from_json(&json).unwrap();
+    let schema = CompiledSchema::from_json(, false&json).unwrap();
 
     let q = schema.find_query("orders").unwrap();
     assert_eq!(q.inject_params.len(), 1);
@@ -176,7 +176,7 @@ fn test_mutation_full_fields() {
         .join("tests/fixtures/golden/05-security-inject-cache.json");
     let json =
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Cannot read fixture 05: {e}"));
-    let schema = CompiledSchema::from_json(&json).unwrap();
+    let schema = CompiledSchema::from_json(, false&json).unwrap();
 
     let m = schema.find_mutation("createOrder").unwrap();
     // sql_source — regression-proof against issue #53
@@ -220,7 +220,7 @@ fn test_schema_to_json_roundtrip() {
     };
 
     let json = schema.to_json().unwrap();
-    let parsed = CompiledSchema::from_json(&json).unwrap();
+    let parsed = CompiledSchema::from_json(, false&json).unwrap();
 
     assert_eq!(schema, parsed);
 }
@@ -500,7 +500,7 @@ fn test_python_generated_json_compat() {
 }"#;
 
     // Parse the JSON - this must succeed for Python/Rust interop to work
-    let schema = CompiledSchema::from_json(python_json)
+    let schema = CompiledSchema::from_json(, falsepython_json)
         .expect("Python-generated JSON should parse successfully");
 
     // Verify types
@@ -745,7 +745,7 @@ fn test_schema_with_vector_field_json() {
         "subscriptions": []
     }"#;
 
-    let schema = CompiledSchema::from_json(json).unwrap();
+    let schema = CompiledSchema::from_json(, falsejson).unwrap();
 
     assert_eq!(schema.types.len(), 1);
     let doc_type = &schema.types[0];
@@ -797,7 +797,7 @@ fn test_vector_field_roundtrip() {
     };
 
     let json = schema.to_json().unwrap();
-    let parsed = CompiledSchema::from_json(&json).unwrap();
+    let parsed = CompiledSchema::from_json(, false&json).unwrap();
 
     assert_eq!(schema, parsed);
 
@@ -842,7 +842,7 @@ fn test_python_generated_vector_schema_compat() {
     }"#;
 
     // Parse should succeed
-    let schema = CompiledSchema::from_json(python_json)
+    let schema = CompiledSchema::from_json(, falsepython_json)
         .expect("Python-generated vector schema should parse");
 
     // Verify type

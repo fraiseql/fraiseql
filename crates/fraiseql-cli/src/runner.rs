@@ -36,6 +36,7 @@ pub async fn run() {
             mutation_files,
             output,
             check,
+            skip_hash,
             database,
             emit_ddl,
             check_migrations,
@@ -52,6 +53,7 @@ pub async fn run() {
                 database.as_deref(),
                 emit_ddl.as_deref(),
                 check_migrations,
+                skip_hash,
             )
             .await
         },

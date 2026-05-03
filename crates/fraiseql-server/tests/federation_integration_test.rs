@@ -72,7 +72,7 @@ fn user_schema_with_federation() -> CompiledSchema {
         "schema_sdl": "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}\n"
     }"#;
 
-    CompiledSchema::from_json(json).expect("test schema must be valid")
+    CompiledSchema::from_json(json, false).expect("test schema must be valid")
 }
 
 // ─── PostgreSQL helpers ──────────────────────────────────────────────────────
@@ -382,7 +382,7 @@ async fn cross_subgraph_entity_resolution_e2e() {
         },
         "schema_sdl": "extend type User @key(fields: \"id\") {\n  id: ID! @external\n  reviewCount: Int!\n}\n"
     }"#;
-    let schema_b = CompiledSchema::from_json(schema_b_json).expect("schema B valid");
+    let schema_b = CompiledSchema::from_json(schema_b_json, false).expect("schema B valid");
     let db_url_b = format!("postgresql://testuser:testpw@127.0.0.1:{pg_b_port}/testdb");
     let adapter_b = Arc::new(PostgresAdapter::new(&db_url_b).await.expect("pg adapter B"));
     let server_b = TestServer::start(schema_b, adapter_b).await;

@@ -136,7 +136,7 @@ fn tenant_security_context() -> SecurityContext {
 #[test]
 fn fixture_05_has_inject_params_on_orders_query() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture 05 must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture 05 must parse");
 
     let q = schema
         .find_query("orders")
@@ -153,7 +153,7 @@ fn fixture_05_has_inject_params_on_orders_query() {
 #[test]
 fn fixture_05_has_inject_params_on_order_summary_query() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture 05 must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture 05 must parse");
 
     let q = schema
         .find_query("orderSummary")
@@ -180,7 +180,7 @@ fn fixture_05_has_inject_params_on_order_summary_query() {
 #[tokio::test]
 async fn executor_rejects_inject_query_without_security_context() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture 05 must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture 05 must parse");
     let adapter = Arc::new(NoopAdapter);
     let executor = Executor::new(schema, adapter);
 
@@ -201,7 +201,7 @@ async fn executor_rejects_inject_query_without_security_context() {
 #[tokio::test]
 async fn executor_rejects_role_guarded_inject_query_without_security_context() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture 05 must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture 05 must parse");
     let adapter = Arc::new(NoopAdapter);
     let executor = Executor::new(schema, adapter);
 
@@ -230,7 +230,7 @@ async fn executor_rejects_role_guarded_inject_query_without_security_context() {
 #[tokio::test]
 async fn executor_resolves_inject_params_with_security_context() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture 05 must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture 05 must parse");
     let adapter = Arc::new(NoopAdapter);
     let executor = Executor::new(schema, adapter);
 

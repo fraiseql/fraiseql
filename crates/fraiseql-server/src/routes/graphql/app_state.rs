@@ -310,7 +310,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
         // 2. Parse and validate
         let schema =
-            CompiledSchema::from_json(&json).map_err(|e| format!("Invalid schema JSON: {e}"))?;
+            CompiledSchema::from_json(&json, false).map_err(|e| format!("Invalid schema JSON: {e}"))?;
 
         // 3. Validate format version
         schema

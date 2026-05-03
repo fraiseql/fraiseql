@@ -89,6 +89,10 @@ EXAMPLES:
         #[arg(long)]
         check: bool,
 
+        /// Skip embedding content hash in compiled schema (for test fixtures)
+        #[arg(long)]
+        skip_hash: bool,
+
         /// Optional database URL for indexed column validation
         /// When provided, validates that indexed columns exist in database views
         #[arg(long, value_name = "DATABASE_URL")]

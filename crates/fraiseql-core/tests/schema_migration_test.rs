@@ -16,7 +16,7 @@ use fraiseql_core::schema::CompiledSchema;
 #[test]
 fn test_v2_0_schema_loads_on_current_runtime() {
     let schema_json = include_str!("fixtures/schemas/compiled_v2_0.json");
-    let result = CompiledSchema::from_json(schema_json);
+    let result = CompiledSchema::from_json(schema_json, false);
     assert!(
         result.is_ok(),
         "v2.0 compiled schema failed to load on current runtime: {:?}",
@@ -28,7 +28,7 @@ fn test_v2_0_schema_loads_on_current_runtime() {
 #[test]
 fn test_v2_0_schema_passes_format_version_check() {
     let schema_json = include_str!("fixtures/schemas/compiled_v2_0.json");
-    let schema = CompiledSchema::from_json(schema_json).expect("schema must load");
+    let schema = CompiledSchema::from_json(schema_json, false).expect("schema must load");
     assert!(
         schema.schema_format_version.is_none(),
         "v2.0 fixture must not carry a schema_format_version"
@@ -114,7 +114,7 @@ fn test_mismatched_format_version_is_rejected() {
         "subscriptions": [],
         "schema_format_version": 9999
     }"#;
-    let schema = CompiledSchema::from_json(schema_json).expect("JSON is valid — must parse");
+    let schema = CompiledSchema::from_json(schema_json, false).expect("JSON is valid — must parse");
     let version_check = schema.validate_format_version();
     assert!(
         version_check.is_err(),

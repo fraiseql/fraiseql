@@ -89,7 +89,7 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
     pool_config: &TenantPoolConfig,
 ) -> Result<Arc<Executor<A>>> {
     // 1. Parse and validate schema
-    let schema = CompiledSchema::from_json(schema_json).map_err(|e| FraiseQLError::Parse {
+    let schema = CompiledSchema::from_json(schema_json, false).map_err(|e| FraiseQLError::Parse {
         message:  format!("Invalid compiled schema JSON: {e}"),
         location: String::new(),
     })?;

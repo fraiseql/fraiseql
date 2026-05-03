@@ -70,7 +70,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
     /// ```text
     /// // Requires: running PostgreSQL database and compiled schema file.
     /// let config = ServerConfig::default();
-    /// let schema = CompiledSchema::from_json(schema_json)?;
+    /// let schema = CompiledSchema::from_json(schema_json, false)?;
     /// let adapter = Arc::new(PostgresAdapter::new(db_url).await?);
     ///
     /// let server = Server::new(config, schema, adapter, None).await?;

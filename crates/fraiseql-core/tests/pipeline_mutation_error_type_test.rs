@@ -123,7 +123,7 @@ impl SupportsMutations for ErrorMockAdapter {}
 #[tokio::test]
 async fn mutation_error_status_produces_graphql_level_response() {
     let json = include_str!("../../../tests/fixtures/golden/04-error-type.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let mut row = HashMap::new();
     row.insert("succeeded".to_string(), json!(false));
@@ -170,7 +170,7 @@ async fn mutation_error_status_produces_graphql_level_response() {
 #[tokio::test]
 async fn mutation_failed_conflict_returns_non_empty_response() {
     let json = include_str!("../../../tests/fixtures/golden/04-error-type.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let mut row = HashMap::new();
     row.insert("succeeded".to_string(), json!(false));
@@ -200,7 +200,7 @@ async fn mutation_failed_conflict_returns_non_empty_response() {
 #[tokio::test]
 async fn mutation_generic_error_status_produces_valid_response() {
     let json = include_str!("../../../tests/fixtures/golden/04-error-type.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let mut row = HashMap::new();
     row.insert("succeeded".to_string(), json!(false));
@@ -240,7 +240,7 @@ async fn mutation_generic_error_status_produces_valid_response() {
 #[tokio::test]
 async fn mutation_success_status_includes_entity_in_data() {
     let json = include_str!("../../../tests/fixtures/golden/04-error-type.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let entity_id = "new-user-uuid-456";
     let mut row = HashMap::new();

@@ -105,7 +105,7 @@ impl CompiledSchemaLoader {
         serde_json::from_str::<serde_json::Value>(&contents)?;
 
         // Create CompiledSchema from JSON string
-        let schema = CompiledSchema::from_json(&contents)
+        let schema = CompiledSchema::from_json(&contents, false)
             .map_err(|e| SchemaLoadError::ValidationError(e.to_string()))?;
 
         info!(path = %self.path.display(), "Schema loaded successfully");

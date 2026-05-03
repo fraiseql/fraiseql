@@ -6,6 +6,7 @@ use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType};
+use indexmap::IndexMap;
 use tracing::{info, warn};
 
 use crate::{
@@ -33,6 +34,8 @@ pub struct CompileOptions<'a> {
     pub mutation_files: Vec<String>,
     /// Optional database URL for indexed column validation.
     pub database:       Option<&'a str>,
+    /// Skip embedding content hash in compiled schema (for test fixtures).
+    pub skip_hash:      bool,
 }
 
 impl<'a> CompileOptions<'a> {
@@ -327,14 +330,7 @@ pub async fn compile_to_schema(
 /// * `database` - Optional database URL for indexed column validation
 /// * `emit_ddl` - Optional directory to write `CREATE TABLE` DDL files (confiture format)
 /// * `check_migrations` - If true, run `confiture migrate validate` after compilation
-///
-/// # Workflows
-///
-/// 1. TOML-only: `fraiseql compile fraiseql.toml`
-/// 2. Language + TOML: `fraiseql compile fraiseql.toml --types types.json`
-/// 3. Multi-file auto-discovery: `fraiseql compile fraiseql.toml --schema-dir schema/`
-/// 4. Multi-file explicit: `fraiseql compile fraiseql.toml --type-file a.json --type-file b.json`
-/// 5. Legacy JSON: `fraiseql compile schema.json`
+/// * `skip_hash` - Skip embedding content hash (for test fixtures)
 ///
 /// # Errors
 ///
@@ -360,6 +356,7 @@ pub async fn run(
     database: Option<&str>,
     emit_ddl: Option<&str>,
     check_migrations: bool,
+    skip_hash: bool,
 ) -> Result<()> {
     let opts = CompileOptions {
         input,
@@ -369,6 +366,7 @@ pub async fn run(
         query_files,
         mutation_files,
         database,
+        skip_hash,
     };
     let (schema, optimization_report) = compile_to_schema(opts).await?;
 
@@ -384,8 +382,28 @@ pub async fn run(
 
     // Write compiled schema
     info!("Writing compiled schema to: {output}");
-    let output_json =
+    let mut output_json =
         serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
+
+    if !skip_hash {
+        use sha2::{Digest, Sha256};
+
+        let hash = Sha256::digest(output_json.as_bytes());
+        let hash_hex = hex::encode(&hash[..16]);
+
+        // Wrap with {"_content_hash": "hash_hex", ...}
+        let mut value: serde_json::Value = serde_json::from_str(&output_json)?;
+        let obj = value.as_object_mut().unwrap();
+
+        let mut new_obj = IndexMap::new();
+        new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
+        for (k, v) in obj.iter() {
+            new_obj.insert(k.clone(), v.clone());
+        }
+        let wrapped_value = serde_json::Value::Object(new_obj);
+        output_json = serde_json::to_string_pretty(&wrapped_value)?;
+    }
+
     fs::write(output, output_json).context("Failed to write compiled schema")?;
 
     // Success message

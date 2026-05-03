@@ -178,7 +178,7 @@ fn admin_security_context() -> SecurityContext {
 #[tokio::test]
 async fn mutation_invalidates_listed_views_in_cache() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     // Verify fixture has invalidates_views
     let m = schema
@@ -244,7 +244,7 @@ async fn mutation_invalidates_listed_views_in_cache() {
 #[tokio::test]
 async fn failed_mutation_does_not_invalidate_cache() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let m = schema.find_mutation("createOrder").expect("createOrder must exist");
     let views = m.invalidates_views.clone();
@@ -312,7 +312,7 @@ async fn failed_mutation_does_not_invalidate_cache() {
 #[tokio::test]
 async fn mutation_bumps_fact_table_version_counter() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     // Verify fixture has invalidates_fact_tables
     let m = schema
@@ -374,7 +374,7 @@ async fn mutation_bumps_fact_table_version_counter() {
 #[tokio::test]
 async fn mutation_skips_bump_for_time_based_strategy() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let m = schema.find_mutation("createOrder").expect("createOrder must exist");
     assert!(

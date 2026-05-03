@@ -188,7 +188,7 @@ impl SupportsMutations for RecordingMockAdapter {}
 #[tokio::test]
 async fn mutation_executor_uses_sql_source_from_compiled_schema() {
     let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     // Assert the golden fixture has the expected sql_source before testing
     let m = schema
@@ -223,7 +223,7 @@ async fn mutation_executor_uses_sql_source_from_compiled_schema() {
 #[tokio::test]
 async fn mutation_executor_passes_arguments_to_function_call() {
     let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let mock = Arc::new(RecordingMockAdapter::new(mutation_success_row()));
     let executor = Executor::new(schema, Arc::clone(&mock));
@@ -248,7 +248,7 @@ async fn mutation_executor_passes_arguments_to_function_call() {
 #[tokio::test]
 async fn mutation_executor_wraps_response_in_data_envelope() {
     let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let mock = Arc::new(RecordingMockAdapter::new(mutation_success_row()));
     let executor = Executor::new(schema, Arc::clone(&mock));
@@ -278,7 +278,7 @@ async fn mutation_executor_wraps_response_in_data_envelope() {
 #[tokio::test]
 async fn mutation_executor_appends_inject_params_from_jwt() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     // Verify the fixture has inject_params before running
     let m = schema
@@ -350,7 +350,7 @@ fn mutation_error_row() -> HashMap<String, serde_json::Value> {
 #[tokio::test]
 async fn error_path_applies_selection_filtering() {
     let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");
-    let schema = CompiledSchema::from_json(json).expect("fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("fixture must parse");
 
     let mock = Arc::new(RecordingMockAdapter::new(mutation_error_row()));
     let executor = Executor::new(schema, Arc::clone(&mock));
@@ -390,7 +390,7 @@ async fn error_path_applies_selection_filtering() {
 #[tokio::test]
 async fn error_path_populates_array_fields() {
     let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");
-    let schema = CompiledSchema::from_json(json).expect("fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("fixture must parse");
 
     let mock = Arc::new(RecordingMockAdapter::new(mutation_error_row()));
     let executor = Executor::new(schema, Arc::clone(&mock));
@@ -418,7 +418,7 @@ async fn error_path_populates_array_fields() {
 #[tokio::test]
 async fn error_path_populates_nested_object_fields() {
     let json = include_str!("../../../tests/fixtures/golden/09-mutation-error-union.json");
-    let schema = CompiledSchema::from_json(json).expect("fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("fixture must parse");
 
     let mock = Arc::new(RecordingMockAdapter::new(mutation_error_row()));
     let executor = Executor::new(schema, Arc::clone(&mock));
@@ -447,7 +447,7 @@ async fn error_path_populates_nested_object_fields() {
 #[tokio::test]
 async fn mutation_cascade_json_is_surfaced_in_response() {
     let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let cascade_payload = json!({
         "updated": [
@@ -484,7 +484,7 @@ async fn mutation_cascade_json_is_surfaced_in_response() {
 #[tokio::test]
 async fn mutation_executor_rejects_inject_params_without_security_context() {
     let json = include_str!("../../../tests/fixtures/golden/05-security-inject-cache.json");
-    let schema = CompiledSchema::from_json(json).expect("golden fixture must parse");
+    let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
 
     let mock = Arc::new(RecordingMockAdapter::new(order_success_row()));
     let executor = Executor::new(schema, Arc::clone(&mock));
