@@ -797,9 +797,9 @@ mod inject {
         use chrono::Utc;
         let now = Utc::now();
         SecurityContext {
-            user_id:          user_id.to_string(),
+            user_id:          crate::types::UserId::new(user_id),
             roles:            vec![],
-            tenant_id:        tenant_id.map(str::to_string),
+            tenant_id:        tenant_id.map(crate::types::TenantId::new),
             scopes:           vec![],
             attributes:       extra.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect(),
             request_id:       "test-req".to_string(),

@@ -46,7 +46,7 @@ fn make_auth_user(
     extra_claims: HashMap<String, serde_json::Value>,
 ) -> AuthUser {
     AuthUser(AuthenticatedUser {
-        user_id: user_id.to_owned(),
+        user_id: fraiseql_core::types::UserId::new(user_id),
         scopes: vec!["read".to_owned()],
         expires_at: Utc::now() + Duration::hours(1),
         extra_claims,

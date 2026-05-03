@@ -54,9 +54,9 @@ pub fn resolve_session_variables(
                         v.to_string()
                     })
                 } else if claim == "sub" || claim == "user_id" {
-                    Some(security_context.user_id.clone())
+                    Some(security_context.user_id.0.clone())
                 } else if claim == "tenant_id" {
-                    security_context.tenant_id.clone()
+                    security_context.tenant_id.as_ref().map(|t| t.0.clone())
                 } else {
                     None
                 }
@@ -440,9 +440,9 @@ mod session_variable_tests {
         attributes.insert("x-tenant-id".to_string(), serde_json::json!("header-tenant"));
         attributes.insert("region".to_string(), serde_json::json!("eu-west-1"));
         SecurityContext {
-            user_id: "user-42".to_string(),
+            user_id: crate::types::UserId::new("user-42"),
             roles: vec!["admin".to_string()],
-            tenant_id: Some("tenant-123".to_string()),
+            tenant_id: Some(crate::types::TenantId::new("tenant-123")),
             scopes: vec![],
             attributes,
             request_id: "req-test".to_string(),

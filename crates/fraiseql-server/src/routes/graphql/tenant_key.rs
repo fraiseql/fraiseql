@@ -48,8 +48,8 @@ impl TenantKeyResolver {
         // 1. JWT tenant_id (highest priority, trusted)
         if let Some(ctx) = security_context {
             if let Some(ref tid) = ctx.tenant_id {
-                resolved_value = Some(tid.clone());
-                sources.push(("JWT".to_string(), tid.clone()));
+                resolved_value = Some(tid.0.clone());
+                sources.push(("JWT".to_string(), tid.0.clone()));
             }
         }
 
@@ -207,9 +207,9 @@ mod tests {
         use chrono::Utc;
 
         SecurityContext {
-            user_id:          "test-user".to_string(),
+            user_id:          fraiseql_core::types::UserId::new("test-user"),
             roles:            vec![],
-            tenant_id:        Some(tenant_id.to_string()),
+            tenant_id:        Some(fraiseql_core::types::TenantId::new(tenant_id)),
             scopes:           vec![],
             attributes:       HashMap::new(),
             request_id:       "test-req".to_string(),

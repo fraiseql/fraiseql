@@ -32,6 +32,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::security::AuthenticatedUser;
+use crate::types::{TenantId, UserId};
 
 /// Security context for authorization evaluation.
 ///
@@ -54,7 +55,7 @@ use crate::security::AuthenticatedUser;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityContext {
     /// User ID (from JWT 'sub' claim)
-    pub user_id: String,
+    pub user_id: UserId,
 
     /// User's roles (e.g., `["admin", "moderator"]`)
     ///
@@ -66,7 +67,7 @@ pub struct SecurityContext {
     ///
     /// When present, RLS policies can enforce tenant isolation.
     /// Extracted from JWT '`tenant_id`' or X-Tenant-Id header.
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<TenantId>,
 
     /// OAuth/permission scopes
     ///
@@ -257,8 +258,8 @@ impl SecurityContext {
     }
 
     /// Set tenant ID (for multi-tenancy).
-    pub fn with_tenant(mut self, tenant_id: String) -> Self {
-        self.tenant_id = Some(tenant_id);
+    pub fn with_tenant(mut self, tenant_id: impl Into<TenantId>) -> Self {
+        self.tenant_id = Some(tenant_id.into());
         self
     }
 

@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use crate::security::errors::{Result, SecurityError};
+use crate::types::UserId;
 
 /// Authenticated user information extracted from JWT claims
 ///
@@ -14,7 +15,7 @@ use crate::security::errors::{Result, SecurityError};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticatedUser {
     /// User ID (from 'sub' claim in JWT)
-    pub user_id: String,
+    pub user_id: UserId,
 
     /// Scopes/permissions (from 'scope' claim if present)
     pub scopes: Vec<String>,
@@ -39,7 +40,7 @@ impl fmt::Display for AuthenticatedUser {
         write!(
             f,
             "User({}, expires={})",
-            self.user_id,
+            self.user_id.as_str(),
             self.expires_at.format("%Y-%m-%d %H:%M:%S UTC")
         )
     }

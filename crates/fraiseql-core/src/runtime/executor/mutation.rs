@@ -590,7 +590,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 entity_type = %mutation_def.return_type,
                 operation = %mutation_def.operation.kind_str(),
                 tenant_id = %security_ctx
-                    .and_then(|c| c.tenant_id.as_deref())
+                    .and_then(|c| c.tenant_id.as_ref().map(|t| t.as_str()))
                     .unwrap_or(""),
                 "mutation.executed"
             );

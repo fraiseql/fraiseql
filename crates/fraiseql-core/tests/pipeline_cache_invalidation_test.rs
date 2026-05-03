@@ -148,8 +148,8 @@ fn order_success_row() -> HashMap<String, serde_json::Value> {
 
 fn admin_security_context() -> SecurityContext {
     SecurityContext {
-        user_id:          "user-123".to_string(),
-        tenant_id:        Some("tenant-456".to_string()),
+        user_id:          fraiseql_core::types::UserId::new("user-123"),
+        tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-456")),
         roles:            vec!["admin".to_string()],
         scopes:           vec![],
         attributes:       HashMap::new(),

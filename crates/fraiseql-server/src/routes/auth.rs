@@ -438,8 +438,8 @@ pub async fn auth_me(
     let user = &auth_user.0;
 
     let mut map = serde_json::Map::new();
-    map.insert("sub".to_owned(), serde_json::Value::String(user.user_id.clone()));
-    map.insert("user_id".to_owned(), serde_json::Value::String(user.user_id.clone()));
+    map.insert("sub".to_owned(), serde_json::Value::String(user.user_id.0.clone()));
+    map.insert("user_id".to_owned(), serde_json::Value::String(user.user_id.0.clone()));
     map.insert("expires_at".to_owned(), serde_json::Value::String(user.expires_at.to_rfc3339()));
 
     for claim_name in &state.expose_claims {
@@ -479,7 +479,7 @@ mod tests {
         extra: std::collections::HashMap<String, serde_json::Value>,
     ) -> AuthUser {
         AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id:      user_id.to_owned(),
+            user_id:      fraiseql_core::types::UserId::new(user_id),
             scopes:       vec![],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
             extra_claims: extra,

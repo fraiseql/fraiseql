@@ -62,7 +62,7 @@ where
 
                 let mut context = SecurityContext::from_user(&authenticated_user, request_id);
                 context.ip_address = ip_address;
-                context.tenant_id = tenant_id;
+                context.tenant_id = tenant_id.map(fraiseql_core::types::TenantId::new);
 
                 // Forward JWT extra_claims to security context attributes.
                 // This makes custom claims (org_id, roles, etc.) available to RLS policies
@@ -78,7 +78,7 @@ where
                     if let Some(org_id) =
                         authenticated_user.extra_claims.get("org_id").and_then(|v| v.as_str())
                     {
-                        context.tenant_id = Some(org_id.to_string());
+                        context.tenant_id = Some(fraiseql_core::types::TenantId::new(org_id));
                     }
                 }
 
@@ -211,7 +211,7 @@ mod tests {
 
         // Simulate an authenticated user from the OIDC middleware
         let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id:      "user123".to_string(),
+            user_id:      fraiseql_core::types::UserId::new("user123"),
             scopes:       vec!["read:user".to_string(), "write:post".to_string()],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
             extra_claims: std::collections::HashMap::new(),
@@ -235,13 +235,13 @@ mod tests {
                 request_id,
             );
             context.ip_address = ip_address;
-            context.tenant_id = tenant_id;
+            context.tenant_id = tenant_id.map(fraiseql_core::types::TenantId::new);
             context
         });
 
         // Verify context was created correctly
         let sec_ctx = security_context.unwrap();
-        assert_eq!(sec_ctx.user_id, "user123");
+        assert_eq!(sec_ctx.user_id, fraiseql_core::types::UserId::new("user123"));
         assert_eq!(sec_ctx.scopes, vec!["read:user".to_string(), "write:post".to_string()]);
         // SECURITY: Tenant ID is no longer extracted from headers (spoofable).
         // Should come from TenantContext (authenticated tenant_middleware) or JWT claims.

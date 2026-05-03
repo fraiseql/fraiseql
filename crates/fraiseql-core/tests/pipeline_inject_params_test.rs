@@ -110,8 +110,8 @@ impl SupportsMutations for NoopAdapter {}
 
 fn tenant_security_context() -> SecurityContext {
     SecurityContext {
-        user_id:          "user-999".to_string(),
-        tenant_id:        Some("tenant-abc".to_string()),
+        user_id:          fraiseql_core::types::UserId::new("user-999"),
+        tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-abc")),
         roles:            vec!["admin".to_string()],
         scopes:           vec![],
         attributes:       HashMap::new(),

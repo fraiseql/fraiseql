@@ -15,7 +15,7 @@ use tonic::Request;
 /// Create a test authenticated user for testing.
 fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
     AuthenticatedUser {
-        user_id:      user_id.to_string(),
+        user_id:      fraiseql_core::types::UserId::new(user_id),
         scopes:       scopes.into_iter().map(|s| s.to_string()).collect(),
         expires_at:   Utc::now() + chrono::Duration::hours(1),
         extra_claims: std::collections::HashMap::new(),
@@ -50,7 +50,7 @@ fn create_test_session_token(user: &AuthenticatedUser) -> String {
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = TestSessionTokenClaims {
-        sub:          user.user_id.clone(),
+        sub:          user.user_id.0.clone(),
         exp:          exp.timestamp(),
         iat:          now.timestamp(),
         scopes:       user.scopes.clone(),
@@ -513,7 +513,7 @@ async fn test_security_context_has_user_info() {
     );
 
     // Verify context has user information
-    assert_eq!(context.user_id, "user-abc-123");
+    assert_eq!(context.user_id, fraiseql_core::types::UserId::new("user-abc-123"));
     assert_eq!(context.scopes.len(), 3);
     assert!(context.scopes.contains(&"user".to_string()));
     assert!(context.scopes.contains(&"read".to_string()));

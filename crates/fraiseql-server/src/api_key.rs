@@ -223,7 +223,7 @@ fn sha256_hash(input: &[u8]) -> [u8; 32] {
 /// Build a `SecurityContext` for an API key identity.
 fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext {
     let user = AuthenticatedUser {
-        user_id:      format!("apikey:{key_name}"),
+        user_id:      fraiseql_core::types::UserId::new(format!("apikey:{key_name}")),
         scopes:       scopes.to_vec(),
         expires_at:   Utc::now() + chrono::Duration::hours(24),
         extra_claims: std::collections::HashMap::new(),
@@ -283,7 +283,7 @@ mod tests {
 
         match auth.authenticate(&headers).await {
             ApiKeyResult::Authenticated(ctx) => {
-                assert_eq!(ctx.user_id, "apikey:test-key");
+                assert_eq!(ctx.user_id, fraiseql_core::types::UserId::new("apikey:test-key"));
                 assert_eq!(ctx.scopes, vec!["read:*".to_string()]);
             },
             ref other => panic!("expected Authenticated, got {other:?}"),

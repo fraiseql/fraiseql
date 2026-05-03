@@ -180,7 +180,7 @@ mod tests {
         use chrono::Utc;
 
         let user = AuthenticatedUser {
-            user_id:      "user123".to_string(),
+            user_id:      fraiseql_core::types::UserId::new("user123"),
             scopes:       vec!["read".to_string()],
             expires_at:   Utc::now(),
             extra_claims: std::collections::HashMap::new(),
