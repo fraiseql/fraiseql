@@ -3,6 +3,8 @@
 //! Derives REST resources and routes from a [`CompiledSchema`] by grouping
 //! operations by return type and mapping them to HTTP methods and paths.
 
+pub mod helpers;
+
 use std::{collections::HashMap, fmt};
 
 use fraiseql_core::schema::{
@@ -10,6 +12,14 @@ use fraiseql_core::schema::{
     MutationOperation, QueryDefinition, RestConfig, TypeDefinition,
 };
 use tracing::debug;
+
+use helpers::{
+    should_skip_query, is_filtered_out, derive_resource_name, strip_cqrs_prefix,
+    type_name_to_snake, simple_pluralize, detect_id_arg, derive_resource,
+    derive_mutation_routes, classify_update_coverage, is_id_like_arg, derive_action_name,
+    camel_to_kebab, validate_cqrs_query, validate_cqrs_mutation, validate_field_types,
+    detect_conflicts, parse_http_method,
+};
 
 // ---------------------------------------------------------------------------
 // Public types
