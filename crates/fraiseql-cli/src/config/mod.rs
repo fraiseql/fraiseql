@@ -135,7 +135,6 @@ impl TomlProjectConfig {
 ///
 /// Unknown variables are left as-is (no panic, silent passthrough).
 #[allow(clippy::expect_used)] // Reason: regex pattern is a compile-time constant guaranteed to be valid
-#[allow(clippy::unwrap_used)] // Reason: cap.get(0) is always Some for a successful regex capture
 pub(crate) fn expand_env_vars(content: &str) -> Result<String> {
     use std::sync::LazyLock;
 
@@ -147,7 +146,8 @@ pub(crate) fn expand_env_vars(content: &str) -> Result<String> {
     let mut last_end = 0;
 
     for cap in ENV_VAR_REGEX.captures_iter(content) {
-        let m = cap.get(0).unwrap();
+        // INVARIANT: Regex captures iterator yields Captures where group 0 (the full match) is always present
+        let m = cap.get(0).expect("INVARIANT: Regex captures group 0 is always present");
         result.push_str(&content[last_end..m.start()]);
         let var_name = &cap[1];
         match std::env::var(var_name) {
