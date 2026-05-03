@@ -28,6 +28,7 @@ use super::{
 
 /// Count preference mode for collection queries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CountPreference {
     /// `count=exact` — execute a parallel `SELECT COUNT(*)` query.
     Exact,
@@ -39,6 +40,7 @@ pub enum CountPreference {
 
 /// Handling preference (RFC 7240 §4.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum HandlingPreference {
     /// Unknown parameters/preferences are silently ignored.
     Lenient,

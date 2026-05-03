@@ -15,6 +15,7 @@ use crate::{AuthError, FileError, RuntimeError, WebhookError};
 /// Fields that are `None` are omitted from the serialised JSON to keep
 /// responses compact.
 #[derive(Debug, Serialize)]
+#[non_exhaustive]
 pub struct ErrorResponse {
     /// Short machine-readable error category (e.g. `"authentication_error"`).
     pub error:             String,

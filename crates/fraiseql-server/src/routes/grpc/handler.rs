@@ -36,6 +36,7 @@ const DEFAULT_GRPC_LIMIT: u32 = 100;
 /// Distinguishes query RPCs (row-shaped view reads) from mutation RPCs
 /// (database function calls).
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum RpcKind {
     /// A read query against a row-shaped view (`vr_*`).
     Query {

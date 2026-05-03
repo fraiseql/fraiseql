@@ -13,11 +13,19 @@ use crate::types::sql_hints::{OrderByClause, SqlProjectionHint};
 
 /// Result from a relay pagination query, containing rows and an optional total count.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RelayPageResult {
     /// The page of JSONB rows (already trimmed to the requested page size).
     pub rows:        Vec<JsonbValue>,
     /// Total count of matching rows (only populated when requested via `include_total_count`).
     pub total_count: Option<u64>,
+}
+
+impl RelayPageResult {
+    /// Creates a new `RelayPageResult`.
+    pub fn new(rows: Vec<JsonbValue>, total_count: Option<u64>) -> Self {
+        Self { rows, total_count }
+    }
 }
 
 /// Database adapter for executing queries against views.

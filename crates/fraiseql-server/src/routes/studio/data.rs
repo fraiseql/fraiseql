@@ -27,6 +27,7 @@ use crate::routes::graphql::app_state::AppState;
 /// Filter comparison operators for data browser queries.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum FilterOp {
     /// Equal.
     Eq,
@@ -47,6 +48,7 @@ pub enum FilterOp {
 /// Sort direction.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum SortDir {
     /// Ascending order.
     Asc,
@@ -102,6 +104,7 @@ pub struct DataBrowserQuery {
 /// Mutation operation type.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum MutateOperation {
     /// Insert a new row.
     Insert,

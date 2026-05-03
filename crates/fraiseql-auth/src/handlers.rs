@@ -66,6 +66,7 @@ pub struct AuthCallbackQuery {
 /// the user agent to the frontend application with tokens in a URL fragment;
 /// this JSON form is suitable for API clients and testing.
 #[derive(Debug, Serialize)]
+#[non_exhaustive]
 pub struct AuthCallbackResponse {
     /// Access token for API requests
     pub access_token:  String,
@@ -75,6 +76,13 @@ pub struct AuthCallbackResponse {
     pub token_type:    String,
     /// Time in seconds until token expires
     pub expires_in:    u64,
+}
+
+impl AuthCallbackResponse {
+    /// Creates a new `AuthCallbackResponse`.
+    pub fn new(access_token: String, refresh_token: Option<String>, token_type: String, expires_in: u64) -> Self {
+        Self { access_token, refresh_token, token_type, expires_in }
+    }
 }
 
 /// Request body for auth/refresh endpoint

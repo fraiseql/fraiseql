@@ -41,6 +41,7 @@ pub trait ActionExecutor: Send + Sync {
 
 /// Result of executing an action
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ActionResult {
     /// Type of action that was executed
     pub action_type: String,
@@ -50,6 +51,13 @@ pub struct ActionResult {
     pub message:     String,
     /// Execution time in milliseconds
     pub duration_ms: f64,
+}
+
+impl ActionResult {
+    /// Creates a new `ActionResult`.
+    pub fn new(action_type: String, success: bool, message: String, duration_ms: f64) -> Self {
+        Self { action_type, success, message, duration_ms }
+    }
 }
 
 /// Dead letter queue abstraction for testing

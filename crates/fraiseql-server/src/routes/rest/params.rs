@@ -85,6 +85,7 @@ pub struct ExtractedParams {
 
 /// Pagination mode and parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PaginationParams {
     /// Offset-based pagination.
     Offset {
@@ -113,6 +114,7 @@ pub enum PaginationParams {
 /// Named `RestFieldSpec` (not `FieldSelection`) to avoid collision with the
 /// existing `graphql::types::FieldSelection` used by `QueryMatch.selections`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RestFieldSpec {
     /// All fields requested (no `?select=` param).
     All,
@@ -122,6 +124,7 @@ pub enum RestFieldSpec {
 
 /// A single entry in a parsed `?select=` list, either a flat field or embedded resource.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SelectEntry {
     /// A flat field name (e.g., `"id"`).
     Field(String),

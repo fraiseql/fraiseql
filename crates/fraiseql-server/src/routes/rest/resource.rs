@@ -17,6 +17,7 @@ use tracing::debug;
 
 /// HTTP method for a REST route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum HttpMethod {
     /// HTTP GET.
     Get,
@@ -44,6 +45,7 @@ impl fmt::Display for HttpMethod {
 
 /// Classification of an Update mutation's field coverage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum UpdateCoverage {
     /// Mutation covers all writable fields — generates both PUT and PATCH.
     Full,
@@ -53,6 +55,7 @@ pub enum UpdateCoverage {
 
 /// The kind of operation backing a REST route.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RouteSource {
     /// Backed by a compiled query.
     Query {
@@ -117,6 +120,7 @@ pub struct Diagnostic {
 
 /// Severity of a diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DiagnosticLevel {
     /// Informational (e.g., fallback resource name derived from type).
     Info,

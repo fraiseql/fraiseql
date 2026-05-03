@@ -52,6 +52,7 @@ pub enum OrderByFieldType {
 /// | JSONB (with cast) | Correct | Correct | Correct |
 /// | Native column | Correct | Correct | Correct + indexable |
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct OrderByClause {
     /// Field to order by (GraphQL camelCase name).
     pub field:         String,
@@ -226,6 +227,7 @@ impl OrderByClause {
 /// SQL that projects only the requested fields, reducing network payload
 /// and JSON deserialization overhead.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct SqlProjectionHint {
     /// Database type — typed to prevent silent typos (e.g. `"postgresq"`) that
     /// would cause adapters to silently ignore the hint.
@@ -238,6 +240,13 @@ pub struct SqlProjectionHint {
 
     /// Estimated reduction in payload size (percentage 0-100).
     pub estimated_reduction_percent: u32,
+}
+
+impl SqlProjectionHint {
+    /// Creates a new `SqlProjectionHint`.
+    pub fn new(database: DatabaseType, projection_template: String, estimated_reduction_percent: u32) -> Self {
+        Self { database, projection_template, estimated_reduction_percent }
+    }
 }
 
 #[cfg(test)]

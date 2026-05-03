@@ -39,6 +39,7 @@ impl EventKind {
 
 /// Comparison operator for field filters.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FilterOperator {
     /// Equal (`eq`).
     Eq,

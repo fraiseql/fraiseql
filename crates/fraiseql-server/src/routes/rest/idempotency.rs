@@ -27,6 +27,7 @@ use xxhash_rust::xxh3::xxh3_64;
 
 /// Result of checking an idempotency key.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum IdempotencyCheck {
     /// No previous request with this key — proceed with execution.
     New,

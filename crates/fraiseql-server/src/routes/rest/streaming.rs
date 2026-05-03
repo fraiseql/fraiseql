@@ -263,6 +263,7 @@ pub struct NdjsonResponse {
 }
 
 /// Body of an NDJSON response.
+#[non_exhaustive]
 pub enum NdjsonBody {
     /// Streaming body (batched execution).
     Stream(
