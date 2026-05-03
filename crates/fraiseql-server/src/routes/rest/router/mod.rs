@@ -4,6 +4,8 @@
 //! mounts it with middleware (compression, `X-Request-Id`).  Auth, rate
 //! limiting, and CORS are applied at the server level and inherited.
 
+pub mod helpers;
+
 use std::sync::Arc;
 
 use axum::{
@@ -27,9 +29,12 @@ use super::{
     resource::{HttpMethod, RestRouteTable, RouteSource},
 };
 use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
+use helpers::{to_axum_path, strip_base_path, parse_query_pairs, rest_result_to_response, error_response};
 
 // ---------------------------------------------------------------------------
 // Public API
+// ---------------------------------------------------------------------------
+
 // ---------------------------------------------------------------------------
 
 /// Derive REST configuration, route table, and shared state from the compiled schema.
