@@ -7,7 +7,7 @@ use super::{Executor, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
-    runtime::{ExecutionContext, classify_field_access},
+    runtime::ExecutionContext,
     schema::{SessionVariableSource, SessionVariablesConfig},
     security::{FieldAccessError, SecurityContext},
 };
@@ -276,7 +276,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 2. Route to appropriate handler (with RLS support for regular queries)
         match query_type {
             QueryType::Regular => {
-                self.execute_regular_query_with_security(query, variables, security_context)
+                self.query_runner().execute_regular_query_with_security(query, variables, security_context)
                     .await
             },
             // Other query types don't support RLS yet (relay is handled inside
@@ -318,7 +318,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .await
             },
             QueryType::NodeQuery { selections } => {
-                self.execute_node_query(query, variables, &selections).await
+                self.query_runner().execute_node_query(query, variables, &selections).await
             },
         }
     }
@@ -353,52 +353,6 @@ impl<A: DatabaseAdapter> Executor<A> {
             // No filter configured, allow all access
             Ok(())
         }
-    }
-
-    /// Apply field-level RBAC filtering to projection fields.
-    ///
-    /// Classifies each requested field against the user's security context:
-    /// - **Allowed**: user has the required scope (or field is public)
-    /// - **Masked**: user lacks scope, but `on_deny = Mask` → field value will be nulled
-    /// - **Rejected**: user lacks scope, `on_deny = Reject` → query fails with FORBIDDEN
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Forbidden` if any requested field has `on_deny = Reject`
-    /// and the user lacks the required scope.
-    pub(super) fn apply_field_rbac_filtering(
-        &self,
-        return_type: &str,
-        projection_fields: Vec<String>,
-        security_context: &SecurityContext,
-    ) -> Result<super::super::field_filter::FieldAccessResult> {
-        use super::super::field_filter::FieldAccessResult;
-
-        // Try to extract security config from compiled schema
-        if let Some(security_config) = self.ctx.schema.security.as_ref() {
-            if let Some(type_def) = self.ctx.schema.types.iter().find(|t| t.name == return_type) {
-                return classify_field_access(
-                    security_context,
-                    security_config,
-                    &type_def.fields,
-                    projection_fields,
-                )
-                .map_err(|rejected_field| FraiseQLError::Authorization {
-                    message:  format!(
-                        "Access denied: field '{rejected_field}' on type '{return_type}' \
-                         requires a scope you do not have"
-                    ),
-                    action:   Some("read".to_string()),
-                    resource: Some(format!("{return_type}.{rejected_field}")),
-                });
-            }
-        }
-
-        // No security config or type not found → all fields allowed, none masked
-        Ok(FieldAccessResult {
-            allowed: projection_fields,
-            masked:  Vec::new(),
-        })
     }
 
     /// Execute a query and return parsed JSON.

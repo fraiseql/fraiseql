@@ -7,11 +7,14 @@ use moka::sync::Cache as MokaCache;
 use super::{
     context::ExecutorContext,
     relay::{RelayDispatch, RelayDispatchImpl},
+    runners,
 };
 use crate::{
     db::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
-    runtime::{QueryMatcher, QueryPlanner, RuntimeConfig},
+    error::Result,
+    runtime::{QueryMatcher, QueryPlanner, RuntimeConfig, matcher::QueryMatch},
     schema::{CompiledSchema, IntrospectionResponses},
+    security::SecurityContext,
 };
 
 /// Maximum number of distinct query strings whose parsed ASTs are cached in memory.
@@ -207,6 +210,31 @@ impl<A: DatabaseAdapter> Executor<A> {
     #[must_use]
     pub fn response_cache(&self) -> Option<&Arc<crate::cache::ResponseCache>> {
         self.ctx.response_cache.as_ref()
+    }
+
+    /// Construct a query runner on demand.
+    ///
+    /// Zero-cost: `Arc::clone` is one atomic increment, no allocation.
+    pub(super) fn query_runner(&self) -> runners::query::QueryRunner<A> {
+        runners::query::QueryRunner::new(Arc::clone(&self.ctx))
+    }
+
+    /// Count rows matching a query's filters.
+    ///
+    /// Delegates to [`QueryRunner::count_rows`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source, or if
+    /// inject params are required but no security context is provided.
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub async fn count_rows(
+        &self,
+        query_match: &QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<u64> {
+        self.query_runner().count_rows(query_match, variables, security_context).await
     }
 }
 

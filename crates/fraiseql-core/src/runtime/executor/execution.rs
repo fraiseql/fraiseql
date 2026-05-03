@@ -107,7 +107,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     let data = pr.merge_into_data_map();
                     return Ok(serde_json::json!({ "data": data }));
                 }
-                self.execute_regular_query(query, variables).await
+                self.query_runner().execute_regular_query(query, variables).await
             },
             QueryType::Aggregate(query_name) => {
                 self.execute_aggregate_dispatch(&query_name, variables).await
@@ -140,7 +140,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 type_selections,
             } => self.execute_mutation_query(&name, variables, &type_selections).await,
             QueryType::NodeQuery { selections } => {
-                self.execute_node_query(query, variables, &selections).await
+                self.query_runner().execute_node_query(query, variables, &selections).await
             },
         }
     }

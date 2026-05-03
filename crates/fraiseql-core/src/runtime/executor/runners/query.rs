@@ -1,8 +1,12 @@
-//! Regular and relay query execution.
+//! Regular query execution runner.
+//!
+//! [`QueryRunner`] executes regular GraphQL queries (non-aggregate, non-mutation)
+//! against the database. It is the execution engine for the most common path.
 
 use std::sync::Arc;
 
-use super::{Executor, null_masked_fields, resolve_inject_value};
+use super::super::context::ExecutorContext;
+use super::super::{null_masked_fields, resolve_inject_value};
 use crate::{
     db::{
         CursorValue, ProjectionField, WhereClause, WhereOperator,
@@ -11,7 +15,7 @@ use crate::{
     },
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
-    runtime::{JsonbStrategy, ResultProjector},
+    runtime::{JsonbStrategy, ResultProjector, classify_field_access, field_filter::FieldAccessResult},
     schema::{CompiledSchema, SqlProjectionHint},
     security::{RlsWhereClause, SecurityContext},
 };
@@ -149,7 +153,217 @@ fn enrich_order_by_clauses(
     clauses
 }
 
-impl<A: DatabaseAdapter> Executor<A> {
+/// Estimate the payload reduction percentage from projecting N fields.
+///
+/// Uses a simple heuristic: each projected field saves proportional space
+/// relative to a baseline of 20 typical JSONB fields per row. Clamped to
+/// [10, 90] so the hint is never misleadingly extreme.
+fn compute_projection_reduction(projected_field_count: usize) -> u32 {
+    // Baseline: assume a typical type has 20 fields.
+    const BASELINE_FIELD_COUNT: usize = 20;
+    let requested = projected_field_count.min(BASELINE_FIELD_COUNT);
+    let saved = BASELINE_FIELD_COUNT.saturating_sub(requested);
+    // saved / BASELINE * 100, clamped to [10, 90]
+    #[allow(clippy::cast_possible_truncation)] // Reason: result is in 0..=100, fits u32
+    let percent = ((saved * 100) / BASELINE_FIELD_COUNT) as u32;
+    percent.clamp(10, 90)
+}
+
+/// Return `true` if `field_name` appears in `selections`, including inside inline
+/// fragment entries (`FieldSelection` whose name starts with `"..."`).
+///
+/// Named fragment spreads are already flattened by [`FragmentResolver`] before this
+/// is called, so we only need to recurse one level into inline fragments.
+fn selections_contain_field(
+    selections: &[crate::graphql::FieldSelection],
+    field_name: &str,
+) -> bool {
+    for sel in selections {
+        if sel.name == field_name {
+            return true;
+        }
+        // Inline fragment: name starts with "..." (e.g. "...on UserConnection")
+        if sel.name.starts_with("...") && selections_contain_field(&sel.nested_fields, field_name) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Auto-wired argument names that are handled by the `auto_params` system.
+/// These are never treated as explicit WHERE filters.
+const AUTO_PARAM_NAMES: &[&str] = &[
+    "where", "limit", "offset", "orderBy", "first", "last", "after", "before",
+];
+
+/// Build a `WhereClause` for a single inject param, respecting `native_columns`.
+fn inject_param_where_clause(
+    col: &str,
+    value: serde_json::Value,
+    native_columns: &std::collections::HashMap<String, String>,
+) -> WhereClause {
+    if let Some(pg_type) = native_columns.get(col) {
+        WhereClause::NativeField {
+            column: col.to_string(),
+            pg_cast: pg_type_to_cast(pg_type).to_string(),
+            operator: WhereOperator::Eq,
+            value,
+        }
+    } else {
+        WhereClause::Field {
+            path: vec![col.to_string()],
+            operator: WhereOperator::Eq,
+            value,
+        }
+    }
+}
+
+/// Convert PostgreSQL `information_schema.data_type` to a safe SQL cast suffix.
+///
+/// Returns an empty string for types that need no cast (e.g. `text`, `varchar`).
+/// Normalise a database type name for use as the `pg_cast` hint in
+/// `WhereClause::NativeField`.
+///
+/// The returned string is the **canonical PostgreSQL type name** (e.g. `"uuid"`,
+/// `"int4"`, `"timestamp"`).  It is passed to `SqlDialect::cast_native_param`
+/// which translates it into the dialect-appropriate cast expression:
+/// - PostgreSQL: `$1::text::uuid`  (two-step to avoid binary wire-format mismatch)
+/// - MySQL:      `CAST(? AS CHAR)`
+/// - SQLite:     `CAST(? AS TEXT)`
+/// - SQL Server: `CAST(@p1 AS UNIQUEIDENTIFIER)`
+///
+/// Returns `""` for text-like types that need no cast.
+fn pg_type_to_cast(data_type: &str) -> &'static str {
+    crate::runtime::native_columns::pg_type_to_cast(data_type)
+}
+
+/// Executes regular GraphQL queries and relay/node lookups.
+pub(in super::super) struct QueryRunner<A: DatabaseAdapter> {
+    ctx: Arc<ExecutorContext<A>>,
+}
+
+impl<A: DatabaseAdapter> QueryRunner<A> {
+    pub(in super::super) const fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
+        Self { ctx }
+    }
+
+    /// Classify each requested field against the user's security context.
+    ///
+    /// Mirrors [`Executor::apply_field_rbac_filtering`] for use within the runner.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Authorization` if any field has `on_deny = Reject`
+    /// and the user lacks the required scope.
+    fn apply_field_rbac_filtering(
+        &self,
+        return_type: &str,
+        projection_fields: Vec<String>,
+        security_context: &SecurityContext,
+    ) -> Result<FieldAccessResult> {
+        if let Some(security_config) = self.ctx.schema.security.as_ref() {
+            if let Some(type_def) =
+                self.ctx.schema.types.iter().find(|t| t.name == return_type)
+            {
+                return classify_field_access(
+                    security_context,
+                    security_config,
+                    &type_def.fields,
+                    projection_fields,
+                )
+                .map_err(|rejected_field| FraiseQLError::Authorization {
+                    message:  format!(
+                        "Access denied: field '{rejected_field}' on type '{return_type}' \
+                         requires a scope you do not have"
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some(format!("{return_type}.{rejected_field}")),
+                });
+            }
+        }
+
+        Ok(FieldAccessResult {
+            allowed: projection_fields,
+            masked:  Vec::new(),
+        })
+    }
+
+    /// Extract an inline node ID literal from a `node(id: "...")` query string.
+    ///
+    /// Used as a fallback when the ID is not provided via variables.
+    /// Returns `None` if no inline string literal can be found.
+    fn extract_inline_node_id(query: &str) -> Option<String> {
+        let after_node = query.find("node(")?;
+        let args_region = &query[after_node..];
+        let after_id = args_region.find("id:")?;
+        let after_colon = args_region[after_id + 3..].trim_start();
+        let quote_char = after_colon.chars().next()?;
+        if quote_char != '"' && quote_char != '\'' {
+            return None;
+        }
+        let inner = &after_colon[1..];
+        let end = inner.find(quote_char)?;
+        Some(inner[..end].to_string())
+    }
+}
+
+/// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into
+/// WHERE equality conditions and AND them onto `existing`.
+///
+/// Arguments whose names match auto-wired parameters (`where`, `limit`,
+/// `offset`, `orderBy`, `first`, `last`, `after`, `before`) are skipped —
+/// they are handled separately by the auto-params system.
+///
+/// When an argument has a matching entry in `native_columns`, a
+/// `WhereClause::NativeField` is emitted (enabling B-tree index lookup via
+/// `WHERE col = $N::type`).  Otherwise a `WhereClause::Field` is emitted
+/// (JSONB extraction: `WHERE data->>'col' = $N`).
+fn combine_explicit_arg_where(
+    existing: Option<WhereClause>,
+    defined_args: &[crate::schema::ArgumentDefinition],
+    provided_args: &std::collections::HashMap<String, serde_json::Value>,
+    native_columns: &std::collections::HashMap<String, String>,
+) -> Option<WhereClause> {
+    let explicit_conditions: Vec<WhereClause> = defined_args
+        .iter()
+        .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
+        .filter_map(|arg| {
+            provided_args.get(&arg.name).map(|value| {
+                if let Some(pg_type) = native_columns.get(&arg.name) {
+                    WhereClause::NativeField {
+                        column:   arg.name.clone(),
+                        pg_cast:  pg_type_to_cast(pg_type).to_string(),
+                        operator: WhereOperator::Eq,
+                        value:    value.clone(),
+                    }
+                } else {
+                    WhereClause::Field {
+                        path:     vec![arg.name.clone()],
+                        operator: WhereOperator::Eq,
+                        value:    value.clone(),
+                    }
+                }
+            })
+        })
+        .collect();
+
+    if explicit_conditions.is_empty() {
+        return existing;
+    }
+
+    let mut all_conditions = Vec::new();
+    if let Some(prev) = existing {
+        all_conditions.push(prev);
+    }
+    all_conditions.extend(explicit_conditions);
+
+    match all_conditions.len() {
+        1 => Some(all_conditions.remove(0)),
+        _ => Some(WhereClause::And(all_conditions)),
+    }
+}
+
+impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Execute a regular query with row-level security (RLS) filtering.
     ///
     /// This method:
@@ -168,7 +382,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * [`FraiseQLError::Validation`] — security token expired, role check failed, or query not
     ///   found in schema.
     /// * [`FraiseQLError::Database`] — the database adapter returned an error.
-    pub(super) async fn execute_regular_query_with_security(
+    pub(in super::super) async fn execute_regular_query_with_security(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
@@ -480,7 +694,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Returns [`FraiseQLError::Validation`] if the query does not match a compiled
     /// template or requires a security context that is not present.
     /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
-    pub(super) async fn execute_regular_query(
+    pub(in super::super) async fn execute_regular_query(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
@@ -648,7 +862,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Returns `FraiseQLError::Validation` if the query has no SQL source.
     /// Returns `FraiseQLError::Database` if the adapter returns an error.
-    pub async fn execute_query_direct(
+    pub(in super::super) async fn execute_query_direct(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         _variables: Option<&serde_json::Value>,
@@ -771,100 +985,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok(response)
     }
 
-    /// Execute a mutation with security context for REST transport.
-    ///
-    /// Delegates to the standard mutation execution path with RLS enforcement.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Database` if the adapter returns an error.
-    /// Returns `FraiseQLError::Validation` if inject params require a missing security context.
-    pub async fn execute_mutation_with_security(
-        &self,
-        mutation_name: &str,
-        arguments: &serde_json::Value,
-        security_context: Option<&crate::security::SecurityContext>,
-    ) -> crate::error::Result<serde_json::Value> {
-        // Build a synthetic GraphQL mutation query and delegate to execute()
-        let args_str = if let Some(obj) = arguments.as_object() {
-            obj.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(", ")
-        } else {
-            String::new()
-        };
-        let query = if args_str.is_empty() {
-            format!("mutation {{ {mutation_name} {{ status entity_id message }} }}")
-        } else {
-            format!("mutation {{ {mutation_name}({args_str}) {{ status entity_id message }} }}")
-        };
-
-        if let Some(ctx) = security_context {
-            self.execute_with_security(&query, None, ctx).await
-        } else {
-            self.execute(&query, None).await
-        }
-    }
-
-    /// Execute a batch of mutations (for REST bulk insert).
-    ///
-    /// Executes each mutation individually and collects results into a `BulkResult`.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first error encountered during batch execution.
-    pub async fn execute_mutation_batch(
-        &self,
-        mutation_name: &str,
-        items: &[serde_json::Value],
-        security_context: Option<&crate::security::SecurityContext>,
-    ) -> crate::error::Result<crate::runtime::BulkResult> {
-        let mut entities = Vec::with_capacity(items.len());
-        for item in items {
-            let result = self
-                .execute_mutation_with_security(mutation_name, item, security_context)
-                .await?;
-            entities.push(result);
-        }
-        Ok(crate::runtime::BulkResult {
-            affected_rows: entities.len() as u64,
-            entities:      Some(entities),
-        })
-    }
-
-    /// Execute a bulk operation (collection-level PATCH/DELETE) by filter.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Database` if the adapter returns an error.
-    pub async fn execute_bulk_by_filter(
-        &self,
-        query_match: &crate::runtime::matcher::QueryMatch,
-        mutation_name: &str,
-        body: Option<&serde_json::Value>,
-        _id_field: &str,
-        _max_affected: u64,
-        security_context: Option<&SecurityContext>,
-    ) -> crate::error::Result<crate::runtime::BulkResult> {
-        // Execute the filter query to find matching rows.
-        let filter_result = self.execute_query_direct(query_match, None, security_context).await?;
-
-        let args = body.cloned().unwrap_or(serde_json::json!({}));
-        let result = self
-            .execute_mutation_with_security(mutation_name, &args, security_context)
-            .await?;
-
-        let count = filter_result
-            .get("data")
-            .and_then(|d| d.as_object())
-            .and_then(|o| o.values().next())
-            .and_then(|v| v.as_array())
-            .map_or(1, |a| a.len() as u64);
-
-        Ok(crate::runtime::BulkResult {
-            affected_rows: count,
-            entities:      Some(vec![result]),
-        })
-    }
-
     /// Count the total number of rows matching the query's WHERE and RLS conditions.
     ///
     /// Issues a `SELECT COUNT(*) FROM {view} WHERE {conditions}` query, ignoring
@@ -882,7 +1002,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Returns `FraiseQLError::Validation` if the query has no SQL source, or if
     /// inject params are required but no security context is provided.
     /// Returns `FraiseQLError::Database` if the adapter returns an error.
-    pub async fn count_rows(
+    pub(in super::super) async fn count_rows(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         _variables: Option<&serde_json::Value>,
@@ -992,7 +1112,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Returns [`FraiseQLError::Validation`] if required pagination variables are
     /// missing or contain invalid cursor values.
     /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
-    pub(super) async fn execute_relay_query(
+    pub(in super::super) async fn execute_relay_query(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
@@ -1326,7 +1446,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Returns `FraiseQLError::Validation` when:
     /// - The `id` argument is missing or malformed
     /// - No SQL view is registered for the requested type
-    pub(super) async fn execute_node_query(
+    pub(in super::super) async fn execute_node_query(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
@@ -1416,146 +1536,6 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(response)
-    }
-}
-
-/// Estimate the payload reduction percentage from projecting N fields.
-///
-/// Uses a simple heuristic: each projected field saves proportional space
-/// relative to a baseline of 20 typical JSONB fields per row. Clamped to
-/// [10, 90] so the hint is never misleadingly extreme.
-fn compute_projection_reduction(projected_field_count: usize) -> u32 {
-    // Baseline: assume a typical type has 20 fields.
-    const BASELINE_FIELD_COUNT: usize = 20;
-    let requested = projected_field_count.min(BASELINE_FIELD_COUNT);
-    let saved = BASELINE_FIELD_COUNT.saturating_sub(requested);
-    // saved / BASELINE * 100, clamped to [10, 90]
-    #[allow(clippy::cast_possible_truncation)] // Reason: result is in 0..=100, fits u32
-    let percent = ((saved * 100) / BASELINE_FIELD_COUNT) as u32;
-    percent.clamp(10, 90)
-}
-
-/// Return `true` if `field_name` appears in `selections`, including inside inline
-/// fragment entries (`FieldSelection` whose name starts with `"..."`).
-///
-/// Named fragment spreads are already flattened by [`FragmentResolver`] before this
-/// is called, so we only need to recurse one level into inline fragments.
-fn selections_contain_field(
-    selections: &[crate::graphql::FieldSelection],
-    field_name: &str,
-) -> bool {
-    for sel in selections {
-        if sel.name == field_name {
-            return true;
-        }
-        // Inline fragment: name starts with "..." (e.g. "...on UserConnection")
-        if sel.name.starts_with("...") && selections_contain_field(&sel.nested_fields, field_name) {
-            return true;
-        }
-    }
-    false
-}
-
-/// Auto-wired argument names that are handled by the `auto_params` system.
-/// These are never treated as explicit WHERE filters.
-const AUTO_PARAM_NAMES: &[&str] = &[
-    "where", "limit", "offset", "orderBy", "first", "last", "after", "before",
-];
-
-/// Build a `WhereClause` for a single inject param, respecting `native_columns`.
-fn inject_param_where_clause(
-    col: &str,
-    value: serde_json::Value,
-    native_columns: &std::collections::HashMap<String, String>,
-) -> WhereClause {
-    if let Some(pg_type) = native_columns.get(col) {
-        WhereClause::NativeField {
-            column: col.to_string(),
-            pg_cast: pg_type_to_cast(pg_type).to_string(),
-            operator: WhereOperator::Eq,
-            value,
-        }
-    } else {
-        WhereClause::Field {
-            path: vec![col.to_string()],
-            operator: WhereOperator::Eq,
-            value,
-        }
-    }
-}
-
-/// Convert PostgreSQL `information_schema.data_type` to a safe SQL cast suffix.
-///
-/// Returns an empty string for types that need no cast (e.g. `text`, `varchar`).
-/// Normalise a database type name for use as the `pg_cast` hint in
-/// `WhereClause::NativeField`.
-///
-/// The returned string is the **canonical PostgreSQL type name** (e.g. `"uuid"`,
-/// `"int4"`, `"timestamp"`).  It is passed to `SqlDialect::cast_native_param`
-/// which translates it into the dialect-appropriate cast expression:
-/// - PostgreSQL: `$1::text::uuid`  (two-step to avoid binary wire-format mismatch)
-/// - MySQL:      `CAST(? AS CHAR)`
-/// - SQLite:     `CAST(? AS TEXT)`
-/// - SQL Server: `CAST(@p1 AS UNIQUEIDENTIFIER)`
-///
-/// Returns `""` for text-like types that need no cast.
-fn pg_type_to_cast(data_type: &str) -> &'static str {
-    crate::runtime::native_columns::pg_type_to_cast(data_type)
-}
-
-/// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into
-/// WHERE equality conditions and AND them onto `existing`.
-///
-/// Arguments whose names match auto-wired parameters (`where`, `limit`,
-/// `offset`, `orderBy`, `first`, `last`, `after`, `before`) are skipped —
-/// they are handled separately by the auto-params system.
-///
-/// When an argument has a matching entry in `native_columns`, a
-/// `WhereClause::NativeField` is emitted (enabling B-tree index lookup via
-/// `WHERE col = $N::type`).  Otherwise a `WhereClause::Field` is emitted
-/// (JSONB extraction: `WHERE data->>'col' = $N`).
-fn combine_explicit_arg_where(
-    existing: Option<WhereClause>,
-    defined_args: &[crate::schema::ArgumentDefinition],
-    provided_args: &std::collections::HashMap<String, serde_json::Value>,
-    native_columns: &std::collections::HashMap<String, String>,
-) -> Option<WhereClause> {
-    let explicit_conditions: Vec<WhereClause> = defined_args
-        .iter()
-        .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
-        .filter_map(|arg| {
-            provided_args.get(&arg.name).map(|value| {
-                if let Some(pg_type) = native_columns.get(&arg.name) {
-                    WhereClause::NativeField {
-                        column:   arg.name.clone(),
-                        pg_cast:  pg_type_to_cast(pg_type).to_string(),
-                        operator: WhereOperator::Eq,
-                        value:    value.clone(),
-                    }
-                } else {
-                    WhereClause::Field {
-                        path:     vec![arg.name.clone()],
-                        operator: WhereOperator::Eq,
-                        value:    value.clone(),
-                    }
-                }
-            })
-        })
-        .collect();
-
-    if explicit_conditions.is_empty() {
-        return existing;
-    }
-
-    let mut all_conditions = Vec::new();
-    if let Some(prev) = existing {
-        all_conditions.push(prev);
-    }
-    all_conditions.extend(explicit_conditions);
-
-    match all_conditions.len() {
-        1 => Some(all_conditions.remove(0)),
-        _ => Some(WhereClause::And(all_conditions)),
     }
 }
 

@@ -190,7 +190,7 @@ mod explain;
 mod federation;
 mod mutation;
 mod planning;
-mod query;
+mod runners;
 pub mod security;
 
 #[cfg(test)]

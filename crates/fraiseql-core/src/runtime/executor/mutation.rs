@@ -599,4 +599,98 @@ impl<A: DatabaseAdapter> Executor<A> {
         let response = ResultProjector::wrap_in_data_envelope(result_json, &mutation_name_owned);
         Ok(response)
     }
+
+    /// Execute a mutation with security context for REST transport.
+    ///
+    /// Delegates to the standard mutation execution path with RLS enforcement.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    /// Returns `FraiseQLError::Validation` if inject params require a missing security context.
+    pub async fn execute_mutation_with_security(
+        &self,
+        mutation_name: &str,
+        arguments: &serde_json::Value,
+        security_context: Option<&crate::security::SecurityContext>,
+    ) -> crate::error::Result<serde_json::Value> {
+        // Build a synthetic GraphQL mutation query and delegate to execute()
+        let args_str = if let Some(obj) = arguments.as_object() {
+            obj.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(", ")
+        } else {
+            String::new()
+        };
+        let query = if args_str.is_empty() {
+            format!("mutation {{ {mutation_name} {{ status entity_id message }} }}")
+        } else {
+            format!("mutation {{ {mutation_name}({args_str}) {{ status entity_id message }} }}")
+        };
+
+        if let Some(ctx) = security_context {
+            self.execute_with_security(&query, None, ctx).await
+        } else {
+            self.execute(&query, None).await
+        }
+    }
+
+    /// Execute a batch of mutations (for REST bulk insert).
+    ///
+    /// Executes each mutation individually and collects results into a `BulkResult`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error encountered during batch execution.
+    pub async fn execute_mutation_batch(
+        &self,
+        mutation_name: &str,
+        items: &[serde_json::Value],
+        security_context: Option<&crate::security::SecurityContext>,
+    ) -> crate::error::Result<crate::runtime::BulkResult> {
+        let mut entities = Vec::with_capacity(items.len());
+        for item in items {
+            let result = self
+                .execute_mutation_with_security(mutation_name, item, security_context)
+                .await?;
+            entities.push(result);
+        }
+        Ok(crate::runtime::BulkResult {
+            affected_rows: entities.len() as u64,
+            entities:      Some(entities),
+        })
+    }
+
+    /// Execute a bulk operation (collection-level PATCH/DELETE) by filter.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub async fn execute_bulk_by_filter(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        mutation_name: &str,
+        body: Option<&serde_json::Value>,
+        _id_field: &str,
+        _max_affected: u64,
+        security_context: Option<&SecurityContext>,
+    ) -> crate::error::Result<crate::runtime::BulkResult> {
+        // Execute the filter query to find matching rows.
+        let filter_result = self.query_runner().execute_query_direct(query_match, None, security_context).await?;
+
+        let args = body.cloned().unwrap_or(serde_json::json!({}));
+        let result = self
+            .execute_mutation_with_security(mutation_name, &args, security_context)
+            .await?;
+
+        let count = filter_result
+            .get("data")
+            .and_then(|d| d.as_object())
+            .and_then(|o| o.values().next())
+            .and_then(|v| v.as_array())
+            .map_or(1, |a| a.len() as u64);
+
+        Ok(crate::runtime::BulkResult {
+            affected_rows: count,
+            entities:      Some(vec![result]),
+        })
+    }
 }

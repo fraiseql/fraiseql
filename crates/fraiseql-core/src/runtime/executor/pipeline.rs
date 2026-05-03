@@ -192,11 +192,16 @@ impl<A: DatabaseAdapter> Executor<A> {
             .map(|f| (f.response_key().to_string(), field_selection_to_query(f)))
             .collect();
 
-        // Create all futures in a Vec; each borrows `self` and a slice of `field_queries`.
-        // Both borrows are valid for the lifetime of `execute_parallel`.
-        let futs: Vec<_> = field_queries
+        // Pre-create one QueryRunner per sub-query (each is a cheap Arc::clone).
+        // Storing them in a Vec ensures they live long enough for the futures to borrow from.
+        let runners: Vec<_> = field_queries.iter().map(|_| self.query_runner()).collect();
+
+        // Build futures — each borrows from its corresponding runner in `runners`.
+        // Both `runners` and `futs` are owned by this function scope, so the borrows are valid.
+        let futs: Vec<_> = runners
             .iter()
-            .map(|(_, query)| self.execute_regular_query(query.as_str(), variables))
+            .zip(field_queries.iter())
+            .map(|(runner, (_, query))| runner.execute_regular_query(query.as_str(), variables))
             .collect();
 
         // Drive all futures concurrently (single-threaded cooperative multitasking).

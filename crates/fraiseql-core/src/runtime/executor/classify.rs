@@ -156,26 +156,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         Ok((QueryType::Regular, Some(parsed)))
     }
 
-    /// Extract an inline node ID literal from a `node(id: "...")` query string.
-    ///
-    /// Used as a fallback when the ID is not provided via variables.
-    /// Returns `None` if no inline string literal can be found.
-    pub(super) fn extract_inline_node_id(query: &str) -> Option<String> {
-        // Look for  node(  ...  id:  "value"  or  id: 'value'
-        let after_node = query.find("node(")?;
-        let args_region = &query[after_node..];
-        // Find `id:` within the argument region.
-        let after_id = args_region.find("id:")?;
-        let after_colon = args_region[after_id + 3..].trim_start();
-        // Expect a quoted string.
-        let quote_char = after_colon.chars().next()?;
-        if quote_char != '"' && quote_char != '\'' {
-            return None;
-        }
-        let inner = &after_colon[1..];
-        let end = inner.find(quote_char)?;
-        Some(inner[..end].to_string())
-    }
 }
 
 /// Extract the value of a named string argument from the first (root) field of
