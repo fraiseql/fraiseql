@@ -1,12 +1,14 @@
 # Phase 09: Hot-Reload Cache Rebind (TODO #184)
 
 ## Objective
+
 Fix the documented limitation in `AppState::reload_schema` where a hot-reload
 swaps the schema but does not re-wrap the raw adapter in a new
 `CachedDatabaseAdapter`. After a reload, per-view TTL overrides from the new
 schema are silently ignored until a full server restart.
 
 ## Success Criteria
+
 - [ ] After a schema reload, the new schema's per-view TTL overrides take effect
   immediately (no restart required)
 - [ ] The cache is cleared on reload (preventing stale entries from the old schema)
@@ -30,6 +32,7 @@ executor, it passes the raw adapter directly — bypassing the
 ### What `CachedDatabaseAdapter` does
 
 `CachedDatabaseAdapter` is constructed with the schema's TTL config:
+
 - Default TTL from `schema.cache_config.default_ttl_seconds`
 - Per-view overrides from `schema.view_cache_ttls` map
 
@@ -39,6 +42,7 @@ new schema's config.
 ### Fix strategy
 
 The `AppState` needs to store enough context to re-wrap the adapter on reload:
+
 - Store the `CacheConfig` (or a factory closure) alongside `reload_adapter`
 - On reload: construct a new `CachedDatabaseAdapter<A>` with the new schema's
   TTL tables, then pass that to the new `Executor`
@@ -82,8 +86,10 @@ reused (not recreated) to avoid connection churn.
 - **CLEANUP**: All tests pass; no new clippy warnings
 
 ## Dependencies
+
 - Requires: Phase 07 (clean workspace build)
 - Blocks: Phase 10 (finalize)
 
 ## Status
+
 [ ] Not Started

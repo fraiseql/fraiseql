@@ -1,9 +1,11 @@
 # Phase 10: Finalize v2.3.0
 
 ## Objective
+
 Ship v2.3.0. Version bump, changelog, final verification, and release tag.
 
 ## Success Criteria
+
 - [ ] `cargo clippy --workspace --all-targets --all-features -- -D warnings` clean
 - [ ] `cargo test --workspace` passes (excluding infra-gated tests)
 - [ ] `cargo build --release` succeeds
@@ -17,18 +19,21 @@ Ship v2.3.0. Version bump, changelog, final verification, and release tag.
 ## Steps
 
 ### 1. Final Verification
+
 - [ ] All tests pass
 - [ ] All lints pass
 - [ ] Release build succeeds
 - [ ] `cargo semver-checks` passes (no accidental breaking changes vs v2.2.0)
 
 ### 2. Version Bump
+
 - [ ] `crates/fraiseql-*/Cargo.toml` — bump version to `2.3.0`
 - [ ] Root `Cargo.toml` workspace version (if set)
 - [ ] Inter-crate dependency version pins updated
 - [ ] `cargo check` after bump to confirm consistency
 
 ### 3. Changelog
+
 - [ ] Add `## [2.3.0] - YYYY-MM-DD` section to `CHANGELOG.md`
 - [ ] Document: wasmtime upgrade (16 CVEs eliminated)
 - [ ] Document: usage aggregation Redis persistence backend
@@ -39,16 +44,20 @@ Ship v2.3.0. Version bump, changelog, final verification, and release tag.
 - [ ] Document: Studio metrics endpoint wired to live collectors
 
 ### 4. Roadmap Update
+
 - [ ] Mark v2.3.0 as released in `roadmap.md`
 - [ ] Update "Current Stable" and "In Development" lines
 - [ ] Add v2.4.0 placeholder section
 
 ### 5. Release
+
 Follow `releasing.md` process.
 
 ## Dependencies
+
 - Requires: All phases 06–09 complete
 - Blocks: nothing (this is the release)
 
 ## Status
+
 [ ] Not Started

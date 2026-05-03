@@ -1,10 +1,12 @@
 # Phase 07: fraiseql-storage Repair
 
 ## Objective
+
 Fix pre-existing compile errors in `fraiseql-storage` and `platform_e2e_test.rs`
 so `cargo check --workspace --all-features` is fully clean.
 
 ## Success Criteria
+
 - [ ] `cargo check -p fraiseql-storage --all-features` produces zero errors
 - [ ] `cargo test -p fraiseql-server --test platform_e2e_test --all-features` compiles and passes
 - [ ] `cargo clippy --workspace --all-targets --all-features -- -D warnings` is clean
@@ -17,6 +19,7 @@ pre-existing. They need to be fixed before v2.3.0 can ship a clean workspace bui
 ### fraiseql-storage errors (3 files)
 
 Affected files:
+
 - `crates/fraiseql-storage/src/backend/azure.rs` (lines 162, 193)
 - `crates/fraiseql-storage/src/backend/gcs.rs` (lines 240, 265)
 - `crates/fraiseql-storage/src/backend/mod.rs` (lines 272, 292)
@@ -56,8 +59,10 @@ Fix: update the test imports to use the current public API.
 - **CLEANUP**: Test compiles and all 15 platform E2E tests pass (10 structural + 5 gated)
 
 ## Dependencies
+
 - Requires: Phase 06 may run in parallel
 - Blocks: Phase 10 (finalize)
 
 ## Status
+
 [ ] Not Started

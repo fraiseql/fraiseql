@@ -1,11 +1,13 @@
 # Phase 08: Studio Metrics Backend
 
 ## Objective
+
 Wire the `GET /admin/v1/metrics/summary` endpoint to real metric collectors,
 replacing the `MetricsSummary::zero()` placeholder. The response shape is
 already agreed with the Luxen UI author — only the data source changes.
 
 ## Success Criteria
+
 - [ ] `summary_handler` reads from `AppState.metrics` (the live `MetricsCollector`)
 - [ ] `latency` fields are computed from `http_request_duration` histogram (P50/P95/P99)
 - [ ] `errors.rate_*` fields are computed from rolling counters over 5m/1h/24h windows
@@ -31,6 +33,7 @@ already agreed with the Luxen UI author — only the data source changes.
 ### Error rate sliding window
 
 `MetricsCollector` has cumulative counters only. For rolling error rates, two options:
+
 1. **Simple**: snapshot counters at endpoint call time and compute rate from deltas
    across a background ticker that records periodic snapshots (ring buffer of 288
    5-minute buckets for 24h). Add to `MetricsCollector`.
@@ -77,8 +80,10 @@ Recommend option 2 for v2.3.0 (accurate shape, approximate value) with a
 - **CLEANUP**: Integration test with full pipeline: subscribe → query summary → assert ≥ 1
 
 ## Dependencies
+
 - Requires: Phase 07 (fraiseql-storage repair, so workspace builds cleanly)
 - Blocks: Phase 10 (finalize)
 
 ## Status
+
 [ ] Not Started
