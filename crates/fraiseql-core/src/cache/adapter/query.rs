@@ -134,6 +134,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
@@ -141,7 +142,17 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
-                .execute_where_query(view, where_clause, limit, offset, order_by)
+                .execute_where_query(view, where_clause, limit, offset, order_by, security_context)
+                .await
+                .map(Arc::new);
+        }
+
+        // Skip cache for unauthenticated requests in RLS-enabled schemas to prevent isolation bypass
+        if self.has_rls && security_context.is_none() {
+            // TODO: increment metric cache_skip_no_rls_context
+            return self
+                .adapter
+                .execute_where_query(view, where_clause, limit, offset, order_by, security_context)
                 .await
                 .map(Arc::new);
         }
@@ -164,7 +175,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
         let arc = Arc::new(
             self.adapter
-                .execute_where_query(view, where_clause, limit, offset, order_by)
+                .execute_where_query(view, where_clause, limit, offset, order_by, security_context)
                 .await?,
         );
 

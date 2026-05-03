@@ -220,6 +220,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// * `where_clause` - Optional WHERE clause AST
     /// * `limit` - Optional row limit (for pagination)
     /// * `offset` - Optional row offset (for pagination)
+    /// * `security_context` - Optional security context for RLS and caching decisions
     ///
     /// # Returns
     ///
@@ -237,7 +238,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // Simple query without WHERE clause
     /// let all_users = adapter
-    ///     .execute_where_query("v_user", None, Some(10), Some(0), None)
+    ///     .execute_where_query("v_user", None, Some(10), Some(0), None, None)
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -249,6 +250,7 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Vec<JsonbValue>>;
 
     /// Execute a WHERE query with SQL field projection optimization.
@@ -396,8 +398,9 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query(view, where_clause, limit, offset, order_by)
+        self.execute_where_query(view, where_clause, limit, offset, order_by, security_context)
             .await
             .map(Arc::new)
     }

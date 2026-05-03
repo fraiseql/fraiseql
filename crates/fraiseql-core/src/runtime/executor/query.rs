@@ -964,7 +964,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 4. Execute COUNT query via adapter
         let rows = self
             .adapter
-            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
+            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None, None)
             .await?;
 
         // Return the row count

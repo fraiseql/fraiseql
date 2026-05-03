@@ -175,6 +175,9 @@ pub struct CachedDatabaseAdapter<A: DatabaseAdapter> {
     /// usage that do not use per-query TTL annotations.
     pub(super) opt_in_mode: bool,
 
+    /// Whether the schema has RLS configured (affects caching for unauthenticated requests).
+    pub(super) has_rls: bool,
+
     /// Configuration for fact table aggregation caching.
     pub(super) fact_table_config: FactTableCacheConfig,
 
@@ -227,6 +230,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             view_ttl_overrides: HashMap::new(),
             cacheable_views: HashSet::new(),
             opt_in_mode: false,
+            has_rls: false,
             fact_table_config: FactTableCacheConfig::default(),
             version_provider: Arc::new(FactTableVersionProvider::default()),
             cascade_invalidator: None,
@@ -612,8 +616,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by)
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, security_context)
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -638,8 +643,9 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by).await
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, security_context).await
     }
 
     fn database_type(&self) -> DatabaseType {
