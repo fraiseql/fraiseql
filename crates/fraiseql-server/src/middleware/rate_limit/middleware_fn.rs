@@ -169,6 +169,9 @@ pub async fn rate_limit_middleware(
         .and_then(|v| v.to_str().ok())
         .and_then(extract_jwt_subject);
 
+    // Extract tenant for tenant-aware limiting.
+    let tenant_id = req.headers().get("X-Tenant-ID").and_then(|v| v.to_str().ok()).map(str::to_string);
+
     // ── Per-path limit (strictest, always enforced) ───────────────────────
     let path_result = limiter.check_path_limit(&path, &ip).await;
     if !path_result.allowed {
@@ -181,10 +184,10 @@ pub async fn rate_limit_middleware(
     // ── Per-user or per-IP limit ──────────────────────────────────────────
     let limit_result = if let Some(ref uid) = user_id {
         // Authenticated: apply the higher per-user bucket.
-        limiter.check_user_limit(uid).await
+        limiter.check_user_limit(uid, tenant_id.as_deref()).await
     } else {
         // Unauthenticated: apply the shared IP bucket.
-        limiter.check_ip_limit(&ip).await
+        limiter.check_ip_limit(&ip.to_string(), tenant_id.as_deref()).await
     };
 
     if !limit_result.allowed {

@@ -84,20 +84,20 @@ impl RateLimiter {
     }
 
     /// Check whether a request from `ip` is within the global IP rate limit.
-    pub async fn check_ip_limit(&self, ip: &str) -> CheckResult {
+    pub async fn check_ip_limit(&self, ip: &str, tenant_id: Option<&str>) -> CheckResult {
         match self {
-            Self::InMemory(rl) => rl.check_ip_limit(ip).await,
+            Self::InMemory(rl) => rl.check_ip_limit(ip, tenant_id).await,
             #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(rl) => rl.check_ip_limit(ip).await,
+            Self::Redis(rl) => rl.check_ip_limit(ip, tenant_id).await,
         }
     }
 
     /// Check whether a request from `user_id` is within the per-user limit.
-    pub async fn check_user_limit(&self, user_id: &str) -> CheckResult {
+    pub async fn check_user_limit(&self, user_id: &str, tenant_id: Option<&str>) -> CheckResult {
         match self {
-            Self::InMemory(rl) => rl.check_user_limit(user_id).await,
+            Self::InMemory(rl) => rl.check_user_limit(user_id, tenant_id).await,
             #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(rl) => rl.check_user_limit(user_id).await,
+            Self::Redis(rl) => rl.check_user_limit(user_id, tenant_id).await,
         }
     }
 

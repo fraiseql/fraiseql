@@ -139,7 +139,7 @@ impl InMemoryRateLimiter {
     }
 
     /// Check if request is allowed for given IP.
-    pub(super) async fn check_ip_limit(&self, ip: &str) -> CheckResult {
+    pub(super) async fn check_ip_limit(&self, ip: &str, tenant_id: Option<&str>) -> CheckResult {
         if !self.config.enabled {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }
@@ -173,7 +173,7 @@ impl InMemoryRateLimiter {
     }
 
     /// Check if request is allowed for given user.
-    pub(super) async fn check_user_limit(&self, user_id: &str) -> CheckResult {
+    pub(super) async fn check_user_limit(&self, user_id: &str, tenant_id: Option<&str>) -> CheckResult {
         if !self.config.enabled {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }

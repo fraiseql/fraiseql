@@ -107,7 +107,7 @@ impl TomlProjectConfig {
         }
 
         let raw = std::fs::read_to_string(path).context("Failed to read fraiseql.toml")?;
-        let toml_content = expand_env_vars(&raw);
+        let toml_content = expand_env_vars(&raw)?;
 
         let config: TomlProjectConfig = toml::from_str(&toml_content)
             .map_err(|e| anyhow::anyhow!("Failed to parse fraiseql.toml: {e}"))?;
@@ -135,18 +135,51 @@ impl TomlProjectConfig {
 ///
 /// Unknown variables are left as-is (no panic, silent passthrough).
 #[allow(clippy::expect_used)] // Reason: regex pattern is a compile-time constant guaranteed to be valid
-pub(crate) fn expand_env_vars(content: &str) -> String {
+pub(crate) fn expand_env_vars(content: &str) -> Result<String> {
     use std::sync::LazyLock;
 
     static ENV_VAR_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
         regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").expect("env var regex is valid")
     });
 
-    ENV_VAR_REGEX
-        .replace_all(content, |caps: &regex::Captures| {
-            std::env::var(&caps[1]).unwrap_or_else(|_| format!("${{{}}}", &caps[1]))
-        })
-        .into_owned()
+    let mut result = String::with_capacity(content.len());
+    let mut last_end = 0;
+
+    for cap in ENV_VAR_REGEX.captures_iter(content) {
+        let m = cap.get(0).unwrap();
+        result.push_str(&content[last_end..m.start()]);
+        let var_name = &cap[1];
+        match std::env::var(var_name) {
+            Ok(val) => {
+                validate_env_var_value(var_name, &val)?;
+                result.push_str(&val);
+            }
+            Err(_) => {
+                result.push_str(&format!("${{{}}}", var_name));
+            }
+        }
+        last_end = m.end();
+    }
+    result.push_str(&content[last_end..]);
+    Ok(result)
+}
+
+fn validate_env_var_value(var_name: &str, value: &str) -> Result<()> {
+    if value.contains('\n') {
+        anyhow::bail!("Environment variable {} contains newline character", var_name);
+    }
+    if value.contains('\r') {
+        anyhow::bail!("Environment variable {} contains carriage return character", var_name);
+    }
+    if value.contains('\0') {
+        anyhow::bail!("Environment variable {} contains null character", var_name);
+    }
+    // Check for unescaped TOML metacharacters: ", ', \, ], [, {, }
+    if value.contains('"') || value.contains('\'') || value.contains('\\') ||
+       value.contains(']') || value.contains('[') || value.contains('{') || value.contains('}') {
+        anyhow::bail!("Environment variable {} contains TOML metacharacter that could break TOML parsing", var_name);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

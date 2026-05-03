@@ -195,7 +195,7 @@ impl TomlSchema {
     /// Returns an error if the TOML string cannot be deserialized into a
     /// `TomlSchema`.
     pub fn parse_toml(content: &str) -> Result<Self> {
-        let expanded = expand_env_vars(content);
+        let expanded = expand_env_vars(content)?;
         toml::from_str(&expanded).context("Failed to parse TOML schema")
     }
 
