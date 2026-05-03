@@ -12,6 +12,7 @@ use super::connections::ConnectionId;
 
 /// Event kind for filtering subscription events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum EventKind {
     /// `INSERT` — new row created.
     Insert,

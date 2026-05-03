@@ -23,6 +23,7 @@ use crate::routes::{
 /// an accurate picture of what `cache_enabled` actually activates.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum CacheStatus {
     /// `cache_enabled = false` — no cache guard or caching active.
     Disabled,
