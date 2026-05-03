@@ -1,7 +1,7 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.3.0 (Released 2026-05-02)
-**In Development**: v2.4.0-dev (active branch: `dev`)
+**Current Stable**: v2.4.0 (Released 2026-05-03)
+**In Development**: v2.5.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
@@ -135,7 +135,7 @@ Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes Fraise
 ### Known Limitations (resolved in v2.3.0)
 
 - **Cache mutation routing overhead** — resolved in v2.3.0 via `DatabaseAdapter::on_schema_reload()` and hot-reload cache rebind fix.
-- **Usage aggregation is in-memory only** — carry-forward to v2.4.0.
+- **Usage aggregation is in-memory only** — resolved in v2.4.0 via `PostgresBackend` and background flush lifecycle.
 
 ---
 
@@ -155,11 +155,36 @@ Focused on critical quality fixes identified in the pre-release assessment: stal
 
 ---
 
-## v2.4.0 - TBD
+## v2.4.0 - Production Hardening ✅ Released 2026-05-03
+
+**Released**: 2026-05-03
+
+Focused on eliminating deferred quality items from v2.3.0: durable usage
+counter persistence, panic audit, and pool limitation documentation.
+
+### Completed
+
+- **PostgreSQL usage persistence** — `UsageAggregator` backed by `PostgresBackend`
+  with auto-created schema, idempotent UPSERT flushes, and startup recovery.
+  Background flush task runs on configurable interval (`[usage] flush_interval_secs`).
+- **`UsageAggregator::set_backend()`** — runtime backend swap enabling deferred
+  initialization after the database pool is available.
+- **Panic audit** — full triage of 5,656 grep hits revealed zero unjustified
+  production panics; `expect()` messages strengthened where the invariant
+  explanation was incomplete.
+- **bb8 migration cancelled** — investigated `bb8 0.9.x`; confirmed neither
+  `bb8-postgres` nor `deadpool-postgres` support runtime pool resizing. Roadmap
+  updated to reflect the true state of async Rust pool libraries.
+
+---
+
+## v2.5.0 - TBD
 
 **Status**: Planning
 
-> Themes and scope to be defined. Candidates include: persistent usage aggregation, active pool resizing (bb8 migration), and additional SDK improvements.
+> Themes and scope to be defined. Candidates include: additional SDK improvements,
+> `async_trait` migration (pending RTN stabilization), and `# Errors` doc coverage
+> expansion in fraiseql-core.
 
 ---
 
@@ -213,8 +238,10 @@ metrics and log lines, but **cannot resize the pool at runtime** — `deadpool-p
 has no `resize()` API. Operators act on recommendations by adjusting `max_connections`
 in `fraiseql.toml` and restarting the server.
 
-**Future work**: migrate to `bb8` (which supports `pool.resize()`) to enable active
-pool resizing. Tracked as a v2.2.0 or v2.3.0 milestone.
+**Future work**: Neither `deadpool-postgres` nor `bb8-postgres` (as of 2026-05)
+support runtime pool resizing — `max_size` is construction-time only in both
+libraries. Active resizing requires a custom pool implementation or a future
+upstream addition. Revisit when a suitable async pool crate with `resize()` exists.
 
 
 ### `async_trait` migration to native async-fn-in-trait
