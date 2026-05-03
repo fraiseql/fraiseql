@@ -243,19 +243,35 @@ impl HttpEntityResolver {
     ///
     /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised
     /// (e.g., invalid TLS configuration).
-    pub fn new(config: HttpClientConfig) -> fraiseql_error::Result<Self> {
+    pub fn new(config: HttpClientConfig, mtls: Option<&super::tls::MtlsConfig>) -> fraiseql_error::Result<Self> {
         // Redirects are disabled to prevent redirect-chain SSRF attacks:
         // a compromised subgraph could redirect to an internal network address,
         // bypassing the URL-parse SSRF guard applied to the initial URL only.
-        let client = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .https_only(true)
-            .timeout(Duration::from_millis(config.timeout_ms))
-            .build()
-            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
-                message: format!("HTTP client initialisation failed for federation resolver: {e}"),
-                source:  None,
+            .timeout(Duration::from_millis(config.timeout_ms));
+
+        if let Some(mtls_config) = mtls {
+            let mtls_material = super::tls::MtlsMaterial::load(mtls_config).map_err(|e| {
+                fraiseql_error::FraiseQLError::Internal {
+                    message: format!("mTLS material loading failed: {}", e),
+                    source: None,
+                }
             })?;
+            builder = mtls_material.apply(builder).map_err(|e| {
+                fraiseql_error::FraiseQLError::Internal {
+                    message: format!("mTLS application failed: {}", e),
+                    source: None,
+                }
+            })?;
+            info!("mTLS enabled for federation subgraph resolver");
+        }
+
+        let client = builder.build().map_err(|e| fraiseql_error::FraiseQLError::Internal {
+            message: format!("HTTP client initialisation failed for federation resolver: {e}"),
+            source:  None,
+        })?;
 
         let allow_insecure = std::env::var("FRAISEQL_FEDERATION_ALLOW_INSECURE")
             .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
