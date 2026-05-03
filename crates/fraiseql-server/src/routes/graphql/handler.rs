@@ -462,8 +462,9 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let _cb_entity_types: Vec<String> = vec![];
 
     // Resolve tenant key from JWT / X-Tenant-ID header / Host header.
-    // TODO: determine strict based on schema RLS mode and config
-    let strict_tenant_validation = false; // default for now
+    // Enforce strict tenant validation when RLS is configured (for multi-tenancy safety).
+    let executor = state.executor.load();
+    let strict_tenant_validation = executor.schema().has_rls_configured();
     let tenant_key = super::TenantKeyResolver::resolve(
         security_context.as_ref(),
         headers,

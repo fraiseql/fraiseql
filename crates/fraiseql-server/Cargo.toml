@@ -163,7 +163,7 @@ federation = ["fraiseql-core/federation", "dep:fraiseql-federation"]
 functions = ["dep:fraiseql-functions"]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
-default = ["auth", "cli", "tracing-opentelemetry"]
+default = ["auth", "cli"]
 # MCP (Model Context Protocol) server
 mcp = ["rmcp", "schemars"]
 metrics = ["dep:metrics", "metrics-exporter-prometheus"]
