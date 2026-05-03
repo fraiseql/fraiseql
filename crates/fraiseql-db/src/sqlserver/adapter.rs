@@ -322,9 +322,9 @@ impl DatabaseAdapter for SqlServerAdapter {
                 sql.push_str(" ORDER BY (SELECT NULL)");
             }
             let off = offset.unwrap_or(0);
-            write!(sql, " OFFSET {off} ROWS").expect("write to String");
+            write!(sql, " OFFSET {off} ROWS").expect("write to String is infallible: fmt::Write for String always returns Ok");
             if let Some(lim) = limit {
-                write!(sql, " FETCH NEXT {lim} ROWS ONLY").expect("write to String");
+                write!(sql, " FETCH NEXT {lim} ROWS ONLY").expect("write to String is infallible: fmt::Write for String always returns Ok");
             }
         }
 
@@ -383,18 +383,18 @@ impl DatabaseAdapter for SqlServerAdapter {
             }
             let off = offset.unwrap_or(0);
             param_count += 1;
-            write!(sql, " OFFSET @p{param_count} ROWS").expect("write to String");
+            write!(sql, " OFFSET @p{param_count} ROWS").expect("write to String is infallible: fmt::Write for String always returns Ok");
             params.push(serde_json::Value::Number(off.into()));
             if let Some(lim) = limit {
                 param_count += 1;
-                write!(sql, " FETCH NEXT @p{param_count} ROWS ONLY").expect("write to String");
+                write!(sql, " FETCH NEXT @p{param_count} ROWS ONLY").expect("write to String is infallible: fmt::Write for String always returns Ok");
                 params.push(serde_json::Value::Number(lim.into()));
             }
         } else if has_order && limit.is_some() {
             // ORDER BY without OFFSET — SQL Server needs OFFSET 0 for FETCH
             param_count += 1;
             write!(sql, " OFFSET 0 ROWS FETCH NEXT @p{param_count} ROWS ONLY")
-                .expect("write to String");
+                .expect("write to String is infallible: fmt::Write for String always returns Ok");
             params.push(serde_json::Value::Number(limit.expect("checked above").into()));
         }
 

@@ -350,7 +350,7 @@ where
     // NDJSON content negotiation
     if super::streaming::accepts_ndjson(&parts.headers) {
         let schema = rest.executor.schema();
-        let config = schema.rest_config.as_ref().expect("REST config must exist");
+        let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
         let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
         let result = super::streaming::handle_ndjson_get(
             &handler,
@@ -371,7 +371,7 @@ where
                     Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
                         .body(Body::empty())
-                        .expect("fallback response")
+                        .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
                 })
             },
             Err(rest_err) => rest_result_to_response(Err(rest_err)),
@@ -379,7 +379,7 @@ where
     }
 
     let schema = rest.executor.schema();
-    let config = schema.rest_config.as_ref().expect("REST config must exist");
+    let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
@@ -407,7 +407,7 @@ where
     };
 
     let schema = rest.executor.schema();
-    let config = schema.rest_config.as_ref().expect("REST config must exist");
+    let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table)
         .with_idempotency_store(&rest.idempotency_store);
 
@@ -436,7 +436,7 @@ where
     };
 
     let schema = rest.executor.schema();
-    let config = schema.rest_config.as_ref().expect("REST config must exist");
+    let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
@@ -468,7 +468,7 @@ where
     };
 
     let schema = rest.executor.schema();
-    let config = schema.rest_config.as_ref().expect("REST config must exist");
+    let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
@@ -501,7 +501,7 @@ where
         query_pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 
     let schema = rest.executor.schema();
-    let config = schema.rest_config.as_ref().expect("REST config must exist");
+    let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
@@ -742,14 +742,14 @@ fn rest_result_to_response(result: Result<RestResponse, RestError>) -> Response 
                         Response::builder()
                             .status(StatusCode::INTERNAL_SERVER_ERROR)
                             .body(Body::empty())
-                            .expect("fallback response")
+                            .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
                     })
                 },
                 None => builder.body(Body::empty()).unwrap_or_else(|_| {
                     Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
                         .body(Body::empty())
-                        .expect("fallback response")
+                        .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
                 }),
             }
         },
@@ -764,7 +764,7 @@ fn rest_result_to_response(result: Result<RestResponse, RestError>) -> Response 
                 Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(Body::empty())
-                    .expect("fallback response")
+                    .expect("fallback response: Response::builder() with INTERNAL_SERVER_ERROR status and empty body is infallible")
             })
         },
     }
@@ -783,7 +783,7 @@ fn error_response(status: StatusCode, code: &str, message: &str) -> Response {
         .status(status)
         .header("content-type", "application/json")
         .body(Body::from(body_bytes))
-        .expect("error response")
+        .expect("error response: Response::builder() with known-valid status, content-type header, and body bytes is infallible")
 }
 
 // ---------------------------------------------------------------------------
