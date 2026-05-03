@@ -180,8 +180,12 @@ pub async fn subscription_handler(
         },
     };
 
+    // Resolve tenant from headers (similar to GraphQL)
+    let tenant_id = headers.get("X-Tenant-ID").and_then(|v| v.to_str().ok()).map(str::to_string);
+
     ws.protocols([protocol.as_str()])
-        .on_upgrade(move |socket| handle_subscription_connection(socket, state, protocol))
+
+        .on_upgrade(move |socket| handle_subscription_connection(socket, state, protocol, tenant_id))
         .into_response()
 }
 
@@ -191,6 +195,7 @@ async fn handle_subscription_connection(
     socket: WebSocket,
     state: SubscriptionState,
     protocol: WsProtocol,
+    tenant_id: Option<String>,
 ) {
     let connection_id = uuid::Uuid::new_v4().to_string();
     let codec = ProtocolCodec::new(protocol);
@@ -593,10 +598,35 @@ async fn handle_client_message(
                 }
             }
 
+            // Validate client-provided tenant variable against server-resolved
+            if let Some(server_tid) = &tenant_id {
+                if let Some(client_tid) = variables_value.get("tenant_id").and_then(|v| v.as_str()) {
+                    if client_tid != server_tid {
+                        let error = ServerMessage::error(
+                            &op_id,
+                            vec![GraphQLError::with_code(
+                                format!("Tenant mismatch: client provided '{}', server resolved '{}'", client_tid, server_tid),
+                                "TENANT_MISMATCH",
+                            )],
+                        );
+                        if let Err(send_err) = send_server_message(codec, sender, error).await {
+                            debug!(connection_id = %connection_id, error = %send_err, "Could not send tenant mismatch error to client");
+                        }
+                        return Ok(());
+                    }
+                }
+            }
+
+            // Build context with server-resolved tenant_id
+            let mut context = serde_json::json!({});
+            if let Some(tid) = &tenant_id {
+                context["tenant_id"] = serde_json::Value::String(tid.clone());
+            }
+
             // Subscribe locally (field is owned by this subgraph)
             match state.manager.subscribe(
                 &subscription_name,
-                serde_json::json!({}),
+                context,
                 variables_value,
                 connection_id,
             ) {

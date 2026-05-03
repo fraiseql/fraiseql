@@ -198,6 +198,12 @@ impl ActiveSubscription {
         variables: serde_json::Value,
         connection_id: impl Into<String>,
     ) -> Self {
+        // Extract tenant_id from user_context if present
+        let tenant_id = user_context
+            .get("tenant_id")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+
         Self {
             id: SubscriptionId::new(),
             subscription_name: subscription_name.into(),
@@ -207,7 +213,7 @@ impl ActiveSubscription {
             created_at: chrono::Utc::now(),
             connection_id: connection_id.into(),
             rls_conditions: Vec::new(),
-            tenant_id: None,
+            tenant_id,
         }
     }
 
