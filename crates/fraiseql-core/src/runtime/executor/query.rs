@@ -183,7 +183,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // 2. Match query to compiled template
-        let query_match = self.matcher.match_query(query, variables)?;
+        let query_match = self.ctx.matcher.match_query(query, variables)?;
 
         // 2b. Enforce requires_role — return "not found" (not "forbidden") to prevent enumeration
         if let Some(ref required_role) = query_match.query_def.requires_role {
@@ -202,7 +202,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // values (e.g. `app.tenant_id`) are effective for read queries, matching the
         // behaviour already in place for mutations.
         {
-            let sv = &self.schema.session_variables;
+            let sv = &self.ctx.schema.session_variables;
             if !sv.variables.is_empty() || sv.inject_started_at {
                 let vars = crate::runtime::executor::security::resolve_session_variables(
                     sv,
@@ -211,7 +211,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 if !vars.is_empty() {
                     let pairs: Vec<(&str, &str)> =
                         vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                    self.adapter.set_session_variables(&pairs).await?;
+                    self.ctx.adapter.set_session_variables(&pairs).await?;
                 }
             }
         }
@@ -223,7 +223,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
         let response_cache_key =
-            self.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
+            self.ctx.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
                 let query_key = Self::compute_response_cache_key(&query_match);
                 let sec_hash =
                     crate::cache::response_cache::hash_security_context(Some(security_context));
@@ -231,7 +231,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             });
 
         if let (Some((query_key, sec_hash)), Some(rc)) =
-            (response_cache_key, self.response_cache.as_ref())
+            (response_cache_key, self.ctx.response_cache.as_ref())
         {
             if let Some(cached) = rc.get(query_key, sec_hash)? {
                 return Ok((*cached).clone());
@@ -239,13 +239,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // 3. Create execution plan
-        let plan = self.planner.plan(&query_match)?;
+        let plan = self.ctx.planner.plan(&query_match)?;
 
         // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
         //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
         //    evaluation.
         let rls_where_clause: Option<RlsWhereClause> =
-            if let Some(ref rls_policy) = self.config.rls_policy {
+            if let Some(ref rls_policy) = self.ctx.config.rls_policy {
                 // Evaluate RLS policy with user's security context
                 rls_policy.evaluate(security_context, &query_match.query_def.name)?
             } else {
@@ -276,7 +276,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
             let typed_fields = build_typed_projection_fields(
                 root_fields,
-                &self.schema,
+                &self.ctx.schema,
                 &query_match.query_def.return_type,
                 0,
             );
@@ -287,7 +287,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint::new(
-                self.adapter.database_type(),
+                self.ctx.adapter.database_type(),
                 projection_sql,
                 compute_projection_reduction(plan.projection_fields.len()),
             ))
@@ -384,7 +384,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .map(|clauses| {
                     enrich_order_by_clauses(
                         clauses,
-                        &self.schema,
+                        &self.ctx.schema,
                         &query_match.query_def.return_type,
                         &query_match.query_def.native_columns,
                     )
@@ -395,7 +395,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 9. Execute query with combined WHERE clause filter
         let results = self
-            .adapter
+            .ctx.adapter
             .execute_with_projection_arc(
                 sql_source,
                 projection_hint.as_ref(),
@@ -435,7 +435,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 13. Store in response cache (if enabled) and return value
         if let (Some((query_key, sec_hash)), Some(rc)) =
-            (response_cache_key, self.response_cache.as_ref())
+            (response_cache_key, self.ctx.response_cache.as_ref())
         {
             let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
             let _ = rc.put(
@@ -486,7 +486,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
         // 1. Match query to compiled template
-        let query_match = self.matcher.match_query(query, variables)?;
+        let query_match = self.ctx.matcher.match_query(query, variables)?;
 
         // Guard: role-restricted queries are invisible to unauthenticated users
         if query_match.query_def.requires_role.is_some() {
@@ -513,7 +513,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // 2. Create execution plan
-        let plan = self.planner.plan(&query_match)?;
+        let plan = self.ctx.planner.plan(&query_match)?;
 
         // 3. Execute SQL query
         let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
@@ -535,7 +535,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
             let typed_fields = build_typed_projection_fields(
                 root_fields,
-                &self.schema,
+                &self.ctx.schema,
                 &query_match.query_def.return_type,
                 0,
             );
@@ -545,7 +545,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .unwrap_or_else(|_| "data".to_string());
 
             Some(SqlProjectionHint::new(
-                self.adapter.database_type(),
+                self.ctx.adapter.database_type(),
                 projection_sql,
                 compute_projection_reduction(plan.projection_fields.len()),
             ))
@@ -602,7 +602,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .map(|clauses| {
                     enrich_order_by_clauses(
                         clauses,
-                        &self.schema,
+                        &self.ctx.schema,
                         &query_match.query_def.return_type,
                         &query_match.query_def.native_columns,
                     )
@@ -612,7 +612,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         };
 
         let results = self
-            .adapter
+            .ctx.adapter
             .execute_with_projection_arc(
                 sql_source,
                 projection_hint.as_ref(),
@@ -656,7 +656,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         // Evaluate RLS policy if present.
         let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
-            (&self.config.rls_policy, security_context)
+            (&self.ctx.config.rls_policy, security_context)
         {
             rls_policy.evaluate(ctx, &query_match.query_def.name)?
         } else {
@@ -675,7 +675,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 })?;
 
         // Build execution plan.
-        let plan = self.planner.plan(query_match)?;
+        let plan = self.ctx.planner.plan(query_match)?;
 
         // Extract auto_params from arguments.
         let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
@@ -708,7 +708,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             .map(|clauses| {
                 enrich_order_by_clauses(
                     clauses,
-                    &self.schema,
+                    &self.ctx.schema,
                     &query_match.query_def.return_type,
                     &query_match.query_def.native_columns,
                 )
@@ -745,7 +745,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Execute.
         let results = self
-            .adapter
+            .ctx.adapter
             .execute_with_projection_arc(
                 sql_source,
                 None,
@@ -890,7 +890,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<u64> {
         // 1. Evaluate RLS policy
         let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
-            (&self.config.rls_policy, security_context)
+            (&self.ctx.config.rls_policy, security_context)
         {
             rls_policy.evaluate(ctx, &query_match.query_def.name)?
         } else {
@@ -959,7 +959,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 4. Execute COUNT query via adapter
         let rows = self
-            .adapter
+            .ctx.adapter
             .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
             .await?;
 
@@ -1037,12 +1037,12 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Guard: relay pagination requires the executor to have been constructed
         // via `Executor::new_with_relay` with a `RelayDatabaseAdapter`.
-        let relay = self.relay.as_ref().ok_or_else(|| FraiseQLError::Validation {
+        let relay = self.ctx.relay.as_ref().ok_or_else(|| FraiseQLError::Validation {
             message: format!(
                 "Relay pagination is not supported by the {} adapter. \
                  Use a relay-capable adapter (e.g. PostgreSQL) and construct \
                  the executor with `Executor::new_with_relay`.",
-                self.adapter.database_type()
+                self.ctx.adapter.database_type()
             ),
             path:    None,
         })?;
@@ -1050,7 +1050,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // --- RLS + inject_params evaluation (same logic as execute_from_match) ---
         // Evaluate RLS policy to generate security WHERE clause.
         let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
-            (&self.config.rls_policy, security_context)
+            (&self.ctx.config.rls_policy, security_context)
         {
             rls_policy.evaluate(ctx, &query_def.name)?
         } else {
@@ -1192,7 +1192,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .map(|clauses| {
                     enrich_order_by_clauses(
                         clauses,
-                        &self.schema,
+                        &self.ctx.schema,
                         &query_def.return_type,
                         &query_def.native_columns,
                     )
@@ -1361,7 +1361,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Find the SQL view for this type (O(1) index lookup built at startup).
         let sql_source: Arc<str> =
-            self.node_type_index.get(&type_name).cloned().ok_or_else(|| {
+            self.ctx.node_type_index.get(&type_name).cloned().ok_or_else(|| {
                 FraiseQLError::Validation {
                     message: format!("node query: no registered SQL view for type '{type_name}'"),
                     path:    Some("node.id".to_string()),
@@ -1378,13 +1378,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 5. Build projection hint from selections (mirrors regular query path).
         let projection_hint = if !selections.is_empty() {
             let typed_fields =
-                build_typed_projection_fields(selections, &self.schema, &type_name, 0);
+                build_typed_projection_fields(selections, &self.ctx.schema, &type_name, 0);
             let generator = PostgresProjectionGenerator::new();
             let projection_sql = generator
                 .generate_typed_projection_sql(&typed_fields)
                 .unwrap_or_else(|_| "data".to_string());
             Some(SqlProjectionHint::new(
-                self.adapter.database_type(),
+                self.ctx.adapter.database_type(),
                 projection_sql,
                 compute_projection_reduction(typed_fields.len()),
             ))
@@ -1394,7 +1394,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 6. Execute the query (limit 1) with projection.
         let rows = self
-            .adapter
+            .ctx.adapter
             .execute_with_projection_arc(
                 &sql_source,
                 projection_hint.as_ref(),

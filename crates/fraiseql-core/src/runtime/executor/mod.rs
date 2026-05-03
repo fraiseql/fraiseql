@@ -161,6 +161,7 @@
 pub mod pipeline;
 
 mod relay;
+mod context;
 
 use std::collections::HashMap;
 #[cfg(test)]

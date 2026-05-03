@@ -91,7 +91,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         filter: &crate::security::FieldFilter,
     ) -> Result<()> {
         // Parse query to get field selections
-        let query_match = self.matcher.match_query(query, variables)?;
+        let query_match = self.ctx.matcher.match_query(query, variables)?;
 
         // Get the return type name from the query definition
         let type_name = &query_match.query_def.return_type;
@@ -239,8 +239,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         security_context: &SecurityContext,
     ) -> Result<serde_json::Value> {
         // Apply query timeout if configured
-        if self.config.query_timeout_ms > 0 {
-            let timeout_duration = Duration::from_millis(self.config.query_timeout_ms);
+        if self.ctx.config.query_timeout_ms > 0 {
+            let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
             tokio::time::timeout(
                 timeout_duration,
                 self.execute_with_security_internal(query, variables, security_context),
@@ -253,7 +253,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     query.to_string()
                 };
                 FraiseQLError::Timeout {
-                    timeout_ms: self.config.query_timeout_ms,
+                    timeout_ms: self.ctx.config.query_timeout_ms,
                     query:      Some(query_snippet),
                 }
             })?
@@ -300,10 +300,10 @@ impl<A: DatabaseAdapter> Executor<A> {
                 })
             },
             QueryType::IntrospectionSchema => {
-                Ok(self.introspection.schema_response.as_ref().clone())
+                Ok(self.ctx.introspection.schema_response.as_ref().clone())
             },
             QueryType::IntrospectionType(type_name) => {
-                Ok(self.introspection.get_type_response(&type_name))
+                Ok(self.ctx.introspection.get_type_response(&type_name))
             },
             QueryType::Mutation {
                 name,
@@ -347,7 +347,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         field_name: &str,
         user_scopes: &[String],
     ) -> std::result::Result<(), FieldAccessError> {
-        if let Some(ref filter) = self.config.field_filter {
+        if let Some(ref filter) = self.ctx.config.field_filter {
             filter.can_access(type_name, field_name, user_scopes)
         } else {
             // No filter configured, allow all access
@@ -375,8 +375,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         use super::super::field_filter::FieldAccessResult;
 
         // Try to extract security config from compiled schema
-        if let Some(security_config) = self.schema.security.as_ref() {
-            if let Some(type_def) = self.schema.types.iter().find(|t| t.name == return_type) {
+        if let Some(security_config) = self.ctx.schema.security.as_ref() {
+            if let Some(type_def) = self.ctx.schema.types.iter().find(|t| t.name == return_type) {
                 return classify_field_access(
                     security_context,
                     security_config,

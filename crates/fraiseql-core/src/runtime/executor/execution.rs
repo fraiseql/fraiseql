@@ -32,7 +32,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value> {
         // GATE 1: Query structure validation (DoS protection for direct embedders).
-        if let Some(ref cfg) = self.config.query_validation {
+        if let Some(ref cfg) = self.ctx.config.query_validation {
             QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
                 FraiseQLError::Validation {
                     message: e.to_string(),
@@ -42,8 +42,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
 
         // Apply query timeout if configured
-        if self.config.query_timeout_ms > 0 {
-            let timeout_duration = Duration::from_millis(self.config.query_timeout_ms);
+        if self.ctx.config.query_timeout_ms > 0 {
+            let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
             tokio::time::timeout(timeout_duration, self.execute_internal(query, variables))
                 .await
                 .map_err(|_| {
@@ -54,7 +54,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         query.to_string()
                     };
                     FraiseQLError::Timeout {
-                        timeout_ms: self.config.query_timeout_ms,
+                        timeout_ms: self.ctx.config.query_timeout_ms,
                         query:      Some(query_snippet),
                     }
                 })?
@@ -83,11 +83,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         // The parse result is memoised in `parse_cache` (keyed by xxHash64 of
         // the query string) so repeated identical queries skip re-parsing.
         let cache_key = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
-        let (query_type, maybe_parsed) = if let Some(arc) = self.parse_cache.get(&cache_key) {
+        let (query_type, maybe_parsed) = if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
             arc.as_ref().clone()
         } else {
             let pair = self.classify_query_with_parse(query)?;
-            self.parse_cache.insert(cache_key, Arc::new(pair.clone()));
+            self.ctx.parse_cache.insert(cache_key, Arc::new(pair.clone()));
             pair
         };
 
@@ -129,11 +129,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::IntrospectionSchema => {
                 // Return pre-built __schema response (zero-cost at runtime)
-                Ok(self.introspection.schema_response.as_ref().clone())
+                Ok(self.ctx.introspection.schema_response.as_ref().clone())
             },
             QueryType::IntrospectionType(type_name) => {
                 // Return pre-built __type response (zero-cost at runtime)
-                Ok(self.introspection.get_type_response(&type_name))
+                Ok(self.ctx.introspection.get_type_response(&type_name))
             },
             QueryType::Mutation {
                 name,
@@ -185,7 +185,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         user_scopes: &[String],
     ) -> Result<serde_json::Value> {
         // GATE 1: Query structure validation (mirrors execute() — DoS protection).
-        if let Some(ref cfg) = self.config.query_validation {
+        if let Some(ref cfg) = self.ctx.config.query_validation {
             QueryValidator::from_config(cfg.clone()).validate(query).map_err(|e| {
                 FraiseQLError::Validation {
                     message: e.to_string(),
@@ -198,7 +198,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let query_type = self.classify_query(query)?;
 
         // 3. Validate field access if filter is configured
-        if let Some(ref filter) = self.config.field_filter {
+        if let Some(ref filter) = self.ctx.config.field_filter {
             // Only validate for regular queries (not introspection)
             if matches!(query_type, QueryType::Regular) {
                 self.validate_field_access(query, variables, user_scopes, filter)?;

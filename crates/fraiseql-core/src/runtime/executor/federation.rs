@@ -36,13 +36,13 @@ impl<A: DatabaseAdapter> Executor<A> {
     async fn execute_service_query(&self) -> Result<serde_json::Value> {
         // Get federation metadata from schema
         let fed_metadata =
-            self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
+            self.ctx.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
                 path:    None,
             })?;
 
         // Generate SDL with federation directives
-        let raw_schema = self.schema.raw_schema();
+        let raw_schema = self.ctx.schema.raw_schema();
         let sdl = crate::federation::generate_service_sdl(&raw_schema, &fed_metadata);
 
         // Return federation response format
@@ -65,7 +65,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<serde_json::Value> {
         // Get federation metadata from schema
         let fed_metadata =
-            self.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
+            self.ctx.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
                 message: "Federation not enabled in schema".to_string(),
                 path:    None,
             })?;
@@ -117,7 +117,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let entities = crate::federation::batch_load_entities_with_tracing(
             &representations,
             &fed_resolver,
-            Arc::clone(&self.adapter),
+            Arc::clone(&self.ctx.adapter),
             &selection,
             Some(trace_context),
         )

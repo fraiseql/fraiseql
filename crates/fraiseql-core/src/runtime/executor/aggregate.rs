@@ -30,8 +30,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
-            let known: Vec<&str> = self.schema.list_fact_tables();
+        let metadata = self.ctx.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+            let known: Vec<&str> = self.ctx.schema.list_fact_tables();
             let suggestion = suggest_similar(&fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
             let message = match suggestion.as_slice() {
@@ -74,8 +74,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         let fact_table_name = format!("tf_{}", table_name);
 
         // Get fact table metadata from schema
-        let metadata = self.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
-            let known: Vec<&str> = self.schema.list_fact_tables();
+        let metadata = self.ctx.schema.get_fact_table(&fact_table_name).ok_or_else(|| {
+            let known: Vec<&str> = self.ctx.schema.list_fact_tables();
             let suggestion = suggest_similar(&fact_table_name, &known);
             let base = format!("Fact table '{}' not found in schema", fact_table_name);
             let message = match suggestion.as_slice() {
@@ -151,12 +151,12 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Generate parameterized SQL
         let sql_generator =
-            super::super::AggregationSqlGenerator::new(self.adapter.database_type());
+            super::super::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
         let parameterized = sql_generator.generate_parameterized(&plan)?;
 
         // 4. Execute with bind parameters (eliminates escape-based injection risk)
         let rows = self
-            .adapter
+            .ctx.adapter
             .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params)
             .await?;
 
@@ -223,13 +223,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         let plan = crate::compiler::window_functions::WindowPlanner::plan(request, metadata)?;
 
         // 3. Generate SQL
-        let sql_generator = super::super::WindowSqlGenerator::new(self.adapter.database_type());
+        let sql_generator = super::super::WindowSqlGenerator::new(self.ctx.adapter.database_type());
         let sql = sql_generator.generate(&plan)?;
 
         // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
         //    values are passed as prepared-statement parameters, not inlined.
         let rows = self
-            .adapter
+            .ctx.adapter
             .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters)
             .await?;
 

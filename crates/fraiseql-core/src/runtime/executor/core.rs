@@ -5,12 +5,11 @@ use std::{collections::HashMap, sync::Arc};
 use moka::sync::Cache as MokaCache;
 
 use super::{
-    QueryType,
+    context::ExecutorContext,
     relay::{RelayDispatch, RelayDispatchImpl},
 };
 use crate::{
     db::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
-    graphql::ParsedQuery,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig},
     schema::{CompiledSchema, IntrospectionResponses},
 };
@@ -66,54 +65,8 @@ const PARSE_CACHE_CAPACITY: u64 = 1_024;
 /// When a query exceeds this timeout, it returns `FraiseQLError::Timeout` without panicking.
 /// Set `query_timeout_ms` to 0 to disable timeout enforcement.
 pub struct Executor<A: DatabaseAdapter> {
-    /// Compiled schema with optimized SQL templates
-    pub(super) schema: CompiledSchema,
-
-    /// Shared database adapter for query execution
-    /// Wrapped in Arc to allow multiple executors to use the same connection pool
-    pub(super) adapter: Arc<A>,
-
-    /// Type-erased relay capability slot.
-    ///
-    /// `Some` when the executor was constructed via `new_with_relay` (requires
-    /// `A: RelayDatabaseAdapter`).  `None` causes relay queries to return a
-    /// `FraiseQLError::Validation` — no `unreachable!()`, no capability flag.
-    pub(super) relay: Option<Arc<dyn RelayDispatch>>,
-
-    /// Query matching engine (stateless)
-    pub(super) matcher: QueryMatcher,
-
-    /// Query execution planner (stateless)
-    pub(super) planner: QueryPlanner,
-
-    /// Runtime configuration (timeouts, complexity limits, etc.)
-    pub(super) config: RuntimeConfig,
-
-    /// Pre-built introspection responses cached for `__schema` and `__type` queries
-    /// Avoids recomputing schema introspection on every request
-    pub(super) introspection: IntrospectionResponses,
-
-    /// O(1) lookup index for Relay `node(id)` queries: maps `return_type → sql_source`.
-    ///
-    /// Built once at `Executor::with_config()` from the compiled schema, so every
-    /// `execute_node_query()` call is a single `HashMap::get()` rather than an O(N)
-    /// linear scan over `schema.queries`.
-    pub(super) node_type_index: HashMap<String, Arc<str>>,
-
-    /// Parsed GraphQL AST cache, keyed by xxHash64 of the query string.
-    ///
-    /// Repeated identical queries skip re-parsing entirely — a lock-free moka hit
-    /// instead of a full lexer + recursive-descent parse.  No TTL: parsed ASTs are
-    /// immutable and deterministic; the same query string always produces the same result.
-    /// Only successful parses are stored; errors are never cached.
-    pub(super) parse_cache: MokaCache<u64, Arc<(QueryType, Option<ParsedQuery>)>>,
-
-    /// Optional executor-level response cache.
-    ///
-    /// When enabled, caches the final projected GraphQL response (after RBAC,
-    /// projection, envelope wrapping) to skip all redundant work on cache hits.
-    /// Keyed by `(query_cache_key, security_context_hash)`.
-    pub(super) response_cache: Option<Arc<crate::cache::ResponseCache>>,
+    /// All shared state — schema, adapter, config, caches, relay.
+    pub(super) ctx: Arc<ExecutorContext<A>>,
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -185,7 +138,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             }
         }
 
-        Self {
+        let ctx = Arc::new(ExecutorContext {
             schema,
             adapter,
             relay: None,
@@ -196,7 +149,9 @@ impl<A: DatabaseAdapter> Executor<A> {
             node_type_index,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
             response_cache: None,
-        }
+        });
+
+        Self { ctx }
     }
 
     /// Return current connection pool metrics from the underlying database adapter.
@@ -204,25 +159,25 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// Values are sampled live on each call — not cached — so callers (e.g., the
     /// `/metrics` endpoint) always observe up-to-date pool health.
     pub fn pool_metrics(&self) -> PoolMetrics {
-        self.adapter.pool_metrics()
+        self.ctx.pool_metrics()
     }
 
     /// Get the compiled schema.
     #[must_use]
-    pub const fn schema(&self) -> &CompiledSchema {
-        &self.schema
+    pub fn schema(&self) -> &CompiledSchema {
+        &self.ctx.schema
     }
 
     /// Get runtime configuration.
     #[must_use]
-    pub const fn config(&self) -> &RuntimeConfig {
-        &self.config
+    pub fn config(&self) -> &RuntimeConfig {
+        &self.ctx.config
     }
 
     /// Get database adapter reference.
     #[must_use]
-    pub const fn adapter(&self) -> &Arc<A> {
-        &self.adapter
+    pub fn adapter(&self) -> &Arc<A> {
+        &self.ctx.adapter
     }
 
     /// Return the number of entries currently held in the parsed-query AST cache.
@@ -232,7 +187,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     #[cfg(test)]
     #[must_use]
     pub fn parse_cache_entry_count(&self) -> u64 {
-        self.parse_cache.entry_count()
+        self.ctx.parse_cache.entry_count()
     }
 
     /// Attach an executor-level response cache.
@@ -242,14 +197,16 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// redundant work on cache hits.
     #[must_use]
     pub fn with_response_cache(mut self, cache: Arc<crate::cache::ResponseCache>) -> Self {
-        self.response_cache = Some(cache);
+        Arc::get_mut(&mut self.ctx)
+            .expect("with_response_cache called after Arc was shared")
+            .response_cache = Some(cache);
         self
     }
 
     /// Get response cache reference (if configured).
     #[must_use]
-    pub const fn response_cache(&self) -> Option<&Arc<crate::cache::ResponseCache>> {
-        self.response_cache.as_ref()
+    pub fn response_cache(&self) -> Option<&Arc<crate::cache::ResponseCache>> {
+        self.ctx.response_cache.as_ref()
     }
 }
 
@@ -288,7 +245,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
         adapter: Arc<A>,
         config: RuntimeConfig,
     ) -> Self {
-        let relay: Arc<dyn RelayDispatch> = Arc::new(RelayDispatchImpl(adapter.clone()));
+        let relay_dispatch: Arc<dyn RelayDispatch> = Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
         let introspection = IntrospectionResponses::build(&schema);
@@ -300,10 +257,10 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             }
         }
 
-        Self {
+        let ctx = Arc::new(ExecutorContext {
             schema,
             adapter,
-            relay: Some(relay),
+            relay: Some(relay_dispatch),
             matcher,
             planner,
             config,
@@ -311,6 +268,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
             node_type_index,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
             response_cache: None,
-        }
+        });
+
+        Self { ctx }
     }
 }

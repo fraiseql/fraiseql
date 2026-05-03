@@ -129,7 +129,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // determines the operation type at runtime, which precludes compile-time
         // mutation gating. A future API revision (separate execute_mutation() method)
         // would move this to a compile-time bound (see roadmap.md).
-        if !self.adapter.supports_mutations() {
+        if !self.ctx.adapter.supports_mutations() {
             return Err(FraiseQLError::Validation {
                 message: format!(
                     "Mutation '{mutation_name}' cannot be executed: the configured database \
@@ -171,12 +171,12 @@ impl<A: DatabaseAdapter> Executor<A> {
         type_selections: &HashMap<String, Vec<String>>,
     ) -> Result<serde_json::Value> {
         // 1. Locate the mutation definition
-        let mutation_def = self.schema.find_mutation(mutation_name).ok_or_else(|| {
+        let mutation_def = self.ctx.schema.find_mutation(mutation_name).ok_or_else(|| {
             let display_names: Vec<String> = self
-                .schema
+                .ctx.schema
                 .mutations
                 .iter()
-                .map(|m| self.schema.display_name(&m.name))
+                .map(|m| self.ctx.schema.display_name(&m.name))
                 .collect();
             let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
             let suggestion = suggest_similar(mutation_name, &candidate_refs);
@@ -275,7 +275,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 missing_required.push("input");
             }
         } else if let Some(input_type) =
-            input_type_name.and_then(|n| self.schema.find_input_type(n))
+            input_type_name.and_then(|n| self.ctx.schema.find_input_type(n))
         {
             // Insert / Delete / Custom: flatten Input type fields to positional typed args.
             let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
@@ -341,20 +341,20 @@ impl<A: DatabaseAdapter> Executor<A> {
         // and only on the authenticated path (security context present). The no-op default
         // on non-PostgreSQL adapters means this call is effectively free there.
         {
-            let sv = &self.schema.session_variables;
+            let sv = &self.ctx.schema.session_variables;
             if !sv.variables.is_empty() || sv.inject_started_at {
                 if let Some(ctx) = security_ctx {
                     let vars =
                         crate::runtime::executor::security::resolve_session_variables(sv, ctx);
                     let pairs: Vec<(&str, &str)> =
                         vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-                    self.adapter.set_session_variables(&pairs).await?;
+                    self.ctx.adapter.set_session_variables(&pairs).await?;
                 }
             }
         }
 
         // 4. Call the database function
-        let rows = self.adapter.execute_function_call(sql_source, &args).await?;
+        let rows = self.ctx.adapter.execute_function_call(sql_source, &args).await?;
 
         // 5. Expect at least one row
         let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
@@ -375,7 +375,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         if matches!(outcome, MutationOutcome::Success { .. })
             && !mutation_def.invalidates_fact_tables.is_empty()
         {
-            self.adapter
+            self.ctx.adapter
                 .bump_fact_table_versions(&mutation_def.invalidates_fact_tables)
                 .await?;
         }
@@ -397,13 +397,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         {
             // Entity-aware path: precise eviction for UPDATE/DELETE.
             if let (Some(etype), Some(eid)) = (entity_type.as_deref(), entity_id.as_deref()) {
-                self.adapter.invalidate_by_entity(etype, eid).await?;
+                self.ctx.adapter.invalidate_by_entity(etype, eid).await?;
 
                 // The response cache doesn't have entity-level granularity, so
                 // invalidate by the inferred view for this entity type.
-                if let Some(ref rc) = self.response_cache {
+                if let Some(ref rc) = self.ctx.response_cache {
                     let inferred_view = self
-                        .schema
+                        .ctx.schema
                         .types
                         .iter()
                         .find(|t| t.name == etype)
@@ -419,7 +419,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             // explicitly declared invalidates_views to also refresh list queries.
             if entity_id.is_none() || !mutation_def.invalidates_views.is_empty() {
                 let views_to_invalidate = if mutation_def.invalidates_views.is_empty() {
-                    self.schema
+                    self.ctx.schema
                         .types
                         .iter()
                         .find(|t| t.name == mutation_def.return_type)
@@ -435,14 +435,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                         // CREATE: the new entity is absent from all existing cache entries,
                         // so point-lookup entries for other entities remain valid.  Only
                         // list queries need eviction (the new row must appear in results).
-                        self.adapter.invalidate_list_queries(&views_to_invalidate).await?;
+                        self.ctx.adapter.invalidate_list_queries(&views_to_invalidate).await?;
                     } else {
                         // Developer-declared invalidates_views on an UPDATE/DELETE: honour
                         // the explicit annotation with a full view sweep.
-                        self.adapter.invalidate_views(&views_to_invalidate).await?;
+                        self.ctx.adapter.invalidate_views(&views_to_invalidate).await?;
                     }
                     // Also invalidate the response cache for these views
-                    if let Some(ref rc) = self.response_cache {
+                    if let Some(ref rc) = self.ctx.response_cache {
                         let _ = rc.invalidate_views(&views_to_invalidate);
                     }
                 }
@@ -483,11 +483,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let typename = entity_type
                     .or_else(|| {
                         // Fall back to first non-error union member
-                        self.schema
+                        self.ctx.schema
                             .find_union(&mutation_return_type)
                             .and_then(|u| {
                                 u.member_types.iter().find(|t| {
-                                    self.schema.find_type(t).is_none_or(|td| !td.is_error)
+                                    self.ctx.schema.find_type(t).is_none_or(|td| !td.is_error)
                                 })
                             })
                             .cloned()
@@ -534,9 +534,9 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let status = error_class.as_str();
 
                 // Find the matching error type from the return union
-                let error_type = self.schema.find_union(&mutation_return_type).and_then(|u| {
+                let error_type = self.ctx.schema.find_union(&mutation_return_type).and_then(|u| {
                     u.member_types.iter().find_map(|t| {
-                        let td = self.schema.find_type(t)?;
+                        let td = self.ctx.schema.find_type(t)?;
                         if td.is_error { Some(td) } else { None }
                     })
                 });
@@ -550,7 +550,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                         let mut visited = std::collections::HashSet::new();
                         let mappings = build_field_mappings_from_type(
                             &td.fields,
-                            &self.schema,
+                            &self.ctx.schema,
                             requested_slice,
                             &mut visited,
                         );
@@ -583,7 +583,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // This is the single chokepoint for all mutation paths (GraphQL handler,
         // REST handler, typed execute_mutation, bulk filter). Zero-cost when disabled:
         // the branch is not taken and no string formatting or allocation occurs.
-        if self.config.audit_mutations {
+        if self.ctx.config.audit_mutations {
             tracing::info!(
                 target: "fraiseql::mutation_audit",
                 mutation_name = mutation_name,

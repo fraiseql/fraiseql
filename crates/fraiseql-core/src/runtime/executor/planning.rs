@@ -25,13 +25,13 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         match query_type {
             QueryType::Regular => {
-                let query_match = self.matcher.match_query(query, variables)?;
+                let query_match = self.ctx.matcher.match_query(query, variables)?;
                 let view = query_match
                     .query_def
                     .sql_source
                     .clone()
                     .unwrap_or_else(|| "unknown".to_string());
-                let plan = self.planner.plan(&query_match)?;
+                let plan = self.ctx.planner.plan(&query_match)?;
                 Ok(super::super::ExplainPlan {
                     sql:            plan.sql,
                     parameters:     plan.parameters,
@@ -42,12 +42,12 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::Mutation { ref name, .. } => {
                 let mutation_def =
-                    self.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(|| {
+                    self.ctx.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(|| {
                         let display_names: Vec<String> = self
-                            .schema
+                            .ctx.schema
                             .mutations
                             .iter()
-                            .map(|m| self.schema.display_name(&m.name))
+                            .map(|m| self.ctx.schema.display_name(&m.name))
                             .collect();
                         let candidate_refs: Vec<&str> =
                             display_names.iter().map(String::as_str).collect();
@@ -75,7 +75,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::Aggregate(ref name) => {
                 let sql_source = self
-                    .schema
+                    .ctx.schema
                     .queries
                     .iter()
                     .find(|q| q.name == *name)
@@ -91,7 +91,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::Window(ref name) => {
                 let sql_source = self
-                    .schema
+                    .ctx.schema
                     .queries
                     .iter()
                     .find(|q| q.name == *name)
