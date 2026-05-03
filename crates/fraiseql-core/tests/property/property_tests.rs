@@ -114,7 +114,7 @@ proptest! {
         }
 
         let json = schema.to_json().expect("serialization should succeed");
-        let restored = CompiledSchema::from_json(&json).expect("deserialization should succeed");
+        let restored = CompiledSchema::from_json(&json, false).expect("deserialization should succeed");
 
         prop_assert_eq!(schema.types.len(), restored.types.len());
         prop_assert_eq!(schema.queries.len(), restored.queries.len());
@@ -422,7 +422,7 @@ proptest! {
         }
 
         let json = schema.to_json().expect("should serialize");
-        let restored = CompiledSchema::from_json(&json).expect("should deserialize");
+        let restored = CompiledSchema::from_json(&json, false).expect("should deserialize");
 
         prop_assert_eq!(schema.types.len(), restored.types.len());
     }

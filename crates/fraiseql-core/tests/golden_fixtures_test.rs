@@ -32,7 +32,7 @@ fn load_golden(name: &str) -> CompiledSchema {
     let path = fixtures_dir().join(name);
     let json = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Cannot read fixture {name}: {e}"));
-    CompiledSchema::from_json(&json).unwrap_or_else(|e| panic!("Cannot parse fixture {name}: {e}"))
+    CompiledSchema::from_json(&json, false).unwrap_or_else(|e| panic!("Cannot parse fixture {name}: {e}"))
 }
 
 fn load_golden_json(name: &str) -> String {
@@ -558,13 +558,13 @@ const FIXTURE_NAMES: &[&str] = &[
 fn roundtrip_all_fixtures() {
     for name in FIXTURE_NAMES {
         let original_json = load_golden_json(name);
-        let schema1 = CompiledSchema::from_json(&original_json)
+        let schema1 = CompiledSchema::from_json(&original_json, false)
             .unwrap_or_else(|e| panic!("Parse failed for {name}: {e}"));
 
         let reserialised =
             schema1.to_json().unwrap_or_else(|e| panic!("Serialise failed for {name}: {e}"));
 
-        let schema2 = CompiledSchema::from_json(&reserialised)
+        let schema2 = CompiledSchema::from_json(&reserialised, false)
             .unwrap_or_else(|e| panic!("Re-parse failed for {name}: {e}"));
 
         // PartialEq covers all structural fields (types, queries, mutations,

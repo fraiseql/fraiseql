@@ -187,7 +187,7 @@ pub async fn rate_limit_middleware(
         limiter.check_user_limit(uid, tenant_id.as_deref()).await
     } else {
         // Unauthenticated: apply the shared IP bucket.
-        limiter.check_ip_limit(&ip.to_string(), tenant_id.as_deref()).await
+        limiter.check_ip_limit(&ip, tenant_id.as_deref()).await
     };
 
     if !limit_result.allowed {

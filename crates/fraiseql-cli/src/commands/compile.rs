@@ -6,7 +6,6 @@ use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType};
-use indexmap::IndexMap;
 use tracing::{info, warn};
 
 use crate::{
@@ -386,16 +385,18 @@ pub async fn run(
         serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?
     } else {
         use sha2::{Digest, Sha256};
-        use indexmap::IndexMap;
 
         let body = serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
-        let hash = Sha256::digest(body.as_bytes());
+        let value: serde_json::Value = serde_json::from_str(&body)?;
+        // Hash the canonical Value representation (matches what from_json verifies against)
+        let canonical = serde_json::to_string_pretty(&value)?;
+        let hash = Sha256::digest(canonical.as_bytes());
         let hash_hex = hex::encode(&hash[..16]);
 
-        let mut value: serde_json::Value = serde_json::from_str(&body)?;
-        let obj = value.as_object_mut().unwrap();
+        let obj = value.as_object().context("schema must serialise as JSON object")?;
 
-        let mut new_obj = IndexMap::new();
+        // Insert _content_hash as the first field (serde_json::Map preserves insertion order)
+        let mut new_obj = serde_json::Map::new();
         new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
         for (k, v) in obj {
             new_obj.insert(k.clone(), v.clone());

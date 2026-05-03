@@ -177,6 +177,10 @@ impl UsageAggregator {
     /// Called during server startup to upgrade from the default [`NoopBackend`]
     /// to a durable backend (e.g. [`PostgresBackend`]) once the database pool
     /// is available.  Any in-flight in-memory counters are preserved.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the backend `RwLock` is poisoned (unrecoverable state).
     pub fn set_backend(&self, backend: std::sync::Arc<dyn UsageBackend>) {
         *self.backend.write().expect("backend lock poisoned") = backend;
     }
@@ -225,6 +229,10 @@ impl UsageAggregator {
     /// # Errors
     ///
     /// Propagates errors from the underlying [`UsageBackend::flush`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the backend `RwLock` is poisoned (unrecoverable state).
     pub async fn flush_to_backend(&self) -> Result<(), String> {
         let snapshot: HashMap<(String, String, String), u64> = self
             .counters
@@ -245,6 +253,10 @@ impl UsageAggregator {
     /// # Errors
     ///
     /// Propagates errors from the underlying [`UsageBackend::load`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the backend `RwLock` is poisoned (unrecoverable state).
     pub async fn load_from_backend(&self) -> Result<(), String> {
         // Clone the Arc before awaiting so we don't hold the RwLock across await points.
         let backend = self.backend.read().expect("backend lock poisoned").clone();

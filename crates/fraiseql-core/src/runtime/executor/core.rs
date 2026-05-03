@@ -136,7 +136,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # let schema_json = r#"{"types":[],"queries":[]}"#;
     /// # let connection_string = "postgresql://localhost/mydb";
-    /// let schema = CompiledSchema::from_json(schema_json)?;
+    /// let schema = CompiledSchema::from_json(schema_json, false)?;
     /// let adapter = PostgresAdapter::new(connection_string).await?;
     /// let executor = Executor::new(schema, Arc::new(adapter));
     /// # Ok(()) }

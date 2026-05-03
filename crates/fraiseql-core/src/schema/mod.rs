@@ -30,10 +30,10 @@
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! # let json_str = r#"{"types":[],"queries":[]}"#;
 //! // From schema.compiled.json produced by `fraiseql-cli compile`
-//! let schema = CompiledSchema::from_json(json_str)?;
+//! let schema = CompiledSchema::from_json(json_str, false)?;
 //!
 //! // From CLI config file
-//! let schema = CompiledSchema::from_json(&std::fs::read_to_string("schema.json")?)?;
+//! let schema = CompiledSchema::from_json(&std::fs::read_to_string("schema.json", false)?)?;
 //!
 //! // Access schema info
 //! println!("Types: {}", schema.types.len());

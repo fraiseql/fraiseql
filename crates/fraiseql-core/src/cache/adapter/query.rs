@@ -134,7 +134,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        security_context: Option<&fraiseql_core::security::SecurityContext>,
+        security_context: Option<&crate::security::SecurityContext>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates

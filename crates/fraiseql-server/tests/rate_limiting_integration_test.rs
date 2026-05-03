@@ -31,12 +31,12 @@ mod tests {
 
         // First 5 requests should be allowed
         for i in 0..5 {
-            let result = limiter.check_ip_limit("192.168.1.1").await;
+            let result = limiter.check_ip_limit("192.168.1.1", None).await;
             assert!(result.allowed, "Request {} should be allowed within rate limit", i + 1);
         }
 
         // 6th request should be denied
-        let result = limiter.check_ip_limit("192.168.1.1").await;
+        let result = limiter.check_ip_limit("192.168.1.1", None).await;
         assert!(!result.allowed, "Request 6 should exceed rate limit");
     }
 
@@ -45,14 +45,14 @@ mod tests {
         let limiter = create_test_limiter(2, 2);
 
         // IP 1 gets 2 requests
-        assert!(limiter.check_ip_limit("192.168.1.1").await.allowed);
-        assert!(limiter.check_ip_limit("192.168.1.1").await.allowed);
-        assert!(!limiter.check_ip_limit("192.168.1.1").await.allowed);
+        assert!(limiter.check_ip_limit("192.168.1.1", None).await.allowed);
+        assert!(limiter.check_ip_limit("192.168.1.1", None).await.allowed);
+        assert!(!limiter.check_ip_limit("192.168.1.1", None).await.allowed);
 
         // IP 2 should have its own limit
-        assert!(limiter.check_ip_limit("192.168.1.2").await.allowed);
-        assert!(limiter.check_ip_limit("192.168.1.2").await.allowed);
-        assert!(!limiter.check_ip_limit("192.168.1.2").await.allowed);
+        assert!(limiter.check_ip_limit("192.168.1.2", None).await.allowed);
+        assert!(limiter.check_ip_limit("192.168.1.2", None).await.allowed);
+        assert!(!limiter.check_ip_limit("192.168.1.2", None).await.allowed);
     }
 
     #[tokio::test]
@@ -80,7 +80,7 @@ mod tests {
 
         // Even with extremely low limits, should allow through when disabled
         for _ in 0..100 {
-            assert!(limiter.check_ip_limit("192.168.1.1").await.allowed);
+            assert!(limiter.check_ip_limit("192.168.1.1", None).await.allowed);
         }
     }
 
@@ -89,12 +89,12 @@ mod tests {
         let limiter = create_test_limiter(10, 10);
 
         // First request: remaining is burst_size - 1 = 9
-        let first = limiter.check_ip_limit("192.168.1.1").await;
+        let first = limiter.check_ip_limit("192.168.1.1", None).await;
         assert!(first.allowed);
         assert!(first.remaining < 10.0, "remaining should decrease after first request");
 
         // Second request: remaining decreases again
-        let second = limiter.check_ip_limit("192.168.1.1").await;
+        let second = limiter.check_ip_limit("192.168.1.1", None).await;
         assert!(second.remaining < first.remaining, "remaining must decrease per request");
     }
 
@@ -112,12 +112,12 @@ mod tests {
         });
 
         // Should allow 3 requests for authenticated user
-        assert!(limiter.check_user_limit("user123").await.allowed);
-        assert!(limiter.check_user_limit("user123").await.allowed);
-        assert!(limiter.check_user_limit("user123").await.allowed);
+        assert!(limiter.check_user_limit("user123", None).await.allowed);
+        assert!(limiter.check_user_limit("user123", None).await.allowed);
+        assert!(limiter.check_user_limit("user123", None).await.allowed);
 
         // 4th request should be denied
-        assert!(!limiter.check_user_limit("user123").await.allowed);
+        assert!(!limiter.check_user_limit("user123", None).await.allowed);
     }
 
     #[tokio::test]
@@ -134,14 +134,14 @@ mod tests {
         });
 
         // User 1 gets 2 requests
-        assert!(limiter.check_user_limit("user1").await.allowed);
-        assert!(limiter.check_user_limit("user1").await.allowed);
-        assert!(!limiter.check_user_limit("user1").await.allowed);
+        assert!(limiter.check_user_limit("user1", None).await.allowed);
+        assert!(limiter.check_user_limit("user1", None).await.allowed);
+        assert!(!limiter.check_user_limit("user1", None).await.allowed);
 
         // User 2 should have independent limit
-        assert!(limiter.check_user_limit("user2").await.allowed);
-        assert!(limiter.check_user_limit("user2").await.allowed);
-        assert!(!limiter.check_user_limit("user2").await.allowed);
+        assert!(limiter.check_user_limit("user2", None).await.allowed);
+        assert!(limiter.check_user_limit("user2", None).await.allowed);
+        assert!(!limiter.check_user_limit("user2", None).await.allowed);
     }
 
     #[tokio::test]
@@ -157,11 +157,11 @@ mod tests {
             max_buckets:           100_000,
         });
 
-        let first = limiter.check_user_limit("user123").await;
+        let first = limiter.check_user_limit("user123", None).await;
         assert!(first.allowed);
         assert!(first.remaining < 10.0, "remaining should decrease after first request");
 
-        let second = limiter.check_user_limit("user123").await;
+        let second = limiter.check_user_limit("user123", None).await;
         assert!(second.remaining < first.remaining, "remaining must decrease per request");
     }
 
@@ -170,8 +170,8 @@ mod tests {
         let limiter = create_test_limiter(10, 10);
 
         // Use some requests
-        limiter.check_ip_limit("192.168.1.1").await;
-        limiter.check_ip_limit("192.168.1.2").await;
+        limiter.check_ip_limit("192.168.1.1", None).await;
+        limiter.check_ip_limit("192.168.1.2", None).await;
 
         // Cleanup should not panic
         limiter.cleanup().await;
@@ -193,11 +193,11 @@ mod tests {
 
         // Should be able to get initial burst_size worth of tokens
         for _ in 0..5 {
-            assert!(limiter.check_ip_limit("192.168.1.1").await.allowed);
+            assert!(limiter.check_ip_limit("192.168.1.1", None).await.allowed);
         }
 
         // But no more than burst_size
-        assert!(!limiter.check_ip_limit("192.168.1.1").await.allowed);
+        assert!(!limiter.check_ip_limit("192.168.1.1", None).await.allowed);
     }
 
     #[test]

@@ -104,7 +104,7 @@ impl MtlsMaterial {
 
     /// Apply mTLS material to a reqwest client builder.
     ///
-    /// Consumes the material (moving identity_pem into the client).
+    /// Consumes the material (moving `identity_pem` into the client).
     /// Call this before `build()`.
     ///
     /// # Errors

@@ -156,7 +156,7 @@ fn test_unregistered_tenant_via_header() {
     let mut headers = HeaderMap::new();
     headers.insert("X-Tenant-ID", HeaderValue::from_static("ghost-tenant"));
 
-    let key = TenantKeyResolver::resolve(None, &headers, &registry).unwrap();
+    let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
     assert_eq!(key, Some("ghost-tenant".to_string()));
 
     // The resolver returns the key — it's the registry that rejects it.
@@ -176,7 +176,7 @@ fn test_host_resolves_to_unregistered_tenant_returns_error() {
     let mut headers = HeaderMap::new();
     headers.insert("Host", HeaderValue::from_static("api.ghost.com"));
 
-    let key = TenantKeyResolver::resolve(None, &headers, &domain_registry).unwrap();
+    let key = TenantKeyResolver::resolve(None, &headers, Some(&domain_registry), false).unwrap();
     assert_eq!(key, Some("ghost-tenant".to_string()));
 
     // ghost-tenant is not in the executor registry → must fail
@@ -211,7 +211,7 @@ fn test_request_without_tenant_headers_resolves_none() {
     let headers = HeaderMap::new();
     let domain_registry = DomainRegistry::new();
 
-    let key = TenantKeyResolver::resolve(None, &headers, &domain_registry).unwrap();
+    let key = TenantKeyResolver::resolve(None, &headers, Some(&domain_registry), false).unwrap();
     assert_eq!(key, None, "no JWT, no header, no host match → None");
 }
 
@@ -248,7 +248,7 @@ fn test_x_tenant_id_invalid_chars_rejected() {
     let mut headers = HeaderMap::new();
     headers.insert("X-Tenant-ID", HeaderValue::from_static("../../../etc/passwd"));
 
-    let result = TenantKeyResolver::resolve(None, &headers, &domain_registry);
+    let result = TenantKeyResolver::resolve(None, &headers, Some(&domain_registry), false);
     assert!(result.is_err(), "path traversal chars must be rejected");
 }
 
@@ -261,7 +261,7 @@ fn test_x_tenant_id_too_long_rejected() {
     let mut headers = HeaderMap::new();
     headers.insert("X-Tenant-ID", HeaderValue::from_str(&long_key).unwrap());
 
-    let result = TenantKeyResolver::resolve(None, &headers, &domain_registry);
+    let result = TenantKeyResolver::resolve(None, &headers, Some(&domain_registry), false);
     assert!(result.is_err(), "oversized tenant key must be rejected");
 }
 
@@ -289,7 +289,7 @@ fn test_valid_tenant_key_formats() {
         let mut headers = HeaderMap::new();
         headers.insert("X-Tenant-ID", HeaderValue::from_str(key).unwrap());
 
-        let result = TenantKeyResolver::resolve(None, &headers, &domain_registry);
+        let result = TenantKeyResolver::resolve(None, &headers, Some(&domain_registry), false);
         assert!(result.is_ok(), "key '{key}' should be valid");
         assert_eq!(result.unwrap(), Some((*key).to_string()));
     }
@@ -426,21 +426,21 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     headers.insert("Host", HeaderValue::from_static("api.acme.com"));
 
     // All three sources present → JWT wins
-    let key = TenantKeyResolver::resolve(Some(&ctx), &headers, &domain_reg).unwrap();
+    let key = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&domain_reg), false).unwrap();
     assert_eq!(key, Some("from-jwt".to_string()));
 
     // No JWT → header wins
-    let key = TenantKeyResolver::resolve(None, &headers, &domain_reg).unwrap();
+    let key = TenantKeyResolver::resolve(None, &headers, Some(&domain_reg), false).unwrap();
     assert_eq!(key, Some("from-header".to_string()));
 
     // No JWT, no header → host wins
     let mut host_only = HeaderMap::new();
     host_only.insert("Host", HeaderValue::from_static("api.acme.com"));
-    let key = TenantKeyResolver::resolve(None, &host_only, &domain_reg).unwrap();
+    let key = TenantKeyResolver::resolve(None, &host_only, Some(&domain_reg), false).unwrap();
     assert_eq!(key, Some("from-host".to_string()));
 
     // Nothing → None
-    let key = TenantKeyResolver::resolve(None, &HeaderMap::new(), &domain_reg).unwrap();
+    let key = TenantKeyResolver::resolve(None, &HeaderMap::new(), Some(&domain_reg), false).unwrap();
     assert_eq!(key, None);
 }
 

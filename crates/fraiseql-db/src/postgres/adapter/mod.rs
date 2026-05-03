@@ -512,7 +512,7 @@ impl PostgresAdapter {
     ) -> Result<Vec<JsonbValue>> {
         // If no projection, fall back to standard query
         if projection.is_none() {
-            return self.execute_where_query(view, where_clause, limit, offset, order_by, None).await;
+            return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
         let projection = projection.expect("projection is Some; None was returned above");

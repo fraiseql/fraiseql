@@ -3233,6 +3233,7 @@ dependencies = [
  "fraiseql-core",
  "fraiseql-server",
  "glob",
+ "hex",
  "http-body-util",
  "indexmap 2.14.0",
  "insta",
@@ -3390,6 +3391,7 @@ dependencies = [
  "tracing",
  "uuid",
  "wiremock",
+ "zeroize",
 ]
 
 [[package]]

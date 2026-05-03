@@ -175,7 +175,7 @@ fn test_entity_resolution_ssrf_blocked_loopback_ip() {
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     let result = rt.block_on(async {
-        HttpEntityResolver::new(HttpClientConfig::default())
+        HttpEntityResolver::new(HttpClientConfig::default(), None)
             .unwrap()
             .resolve_entities(blocked_url, &reps, &sel)
             .await

@@ -135,6 +135,7 @@ impl TomlProjectConfig {
 ///
 /// Unknown variables are left as-is (no panic, silent passthrough).
 #[allow(clippy::expect_used)] // Reason: regex pattern is a compile-time constant guaranteed to be valid
+#[allow(clippy::unwrap_used)] // Reason: cap.get(0) is always Some for a successful regex capture
 pub(crate) fn expand_env_vars(content: &str) -> Result<String> {
     use std::sync::LazyLock;
 
@@ -184,6 +185,8 @@ fn validate_env_var_value(var_name: &str, value: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
+
     use super::*;
 
     #[test]
@@ -308,7 +311,7 @@ ssl_mode = "require"
 [database]
 url = "${TEST_DB_URL}"
 "#;
-            let expanded = expand_env_vars(toml_str);
+            let expanded = expand_env_vars(toml_str).unwrap();
             let config: TomlProjectConfig =
                 toml::from_str(&expanded).expect("Failed to parse TOML");
             assert_eq!(config.database.url, Some("postgres://test/db".to_string()));
@@ -319,7 +322,7 @@ url = "${TEST_DB_URL}"
     fn test_env_var_expansion_unknown_var_passthrough() {
         // Unknown variables should be left as-is, not panic
         let toml_str = r#"url = "${NONEXISTENT_VAR_XYZ123}""#;
-        let expanded = expand_env_vars(toml_str);
+        let expanded = expand_env_vars(toml_str).unwrap();
         assert_eq!(expanded, toml_str, "Unknown vars must be left unchanged");
     }
 
@@ -327,7 +330,7 @@ url = "${TEST_DB_URL}"
     fn test_env_var_expansion_multiple_occurrences() {
         temp_env::with_var("FRAISEQL_TEST_HOST", Some("db.example.com"), || {
             let toml_str = r#"primary = "${FRAISEQL_TEST_HOST}" replica = "${FRAISEQL_TEST_HOST}""#;
-            let expanded = expand_env_vars(toml_str);
+            let expanded = expand_env_vars(toml_str).unwrap();
             assert_eq!(expanded, r#"primary = "db.example.com" replica = "db.example.com""#);
         });
     }

@@ -32,6 +32,7 @@ tokio-postgres = {workspace = true}
 tokio-tungstenite = {workspace = true}
 tracing = {workspace = true}
 uuid = {workspace = true}
+zeroize = "1.8"
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["html_reports"]}

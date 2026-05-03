@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use fraiseql_error::{GraphQLError, Result};
 use serde_json::{Value, json};
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{
     selection_parser::FieldSelection, tracing::FederationTraceContext, types::EntityRepresentation,
@@ -670,13 +670,13 @@ mod tests {
     #[test]
     fn test_http_resolver_creation() {
         let config = HttpClientConfig::default();
-        let _resolver = HttpEntityResolver::new(config).unwrap();
+        let _resolver = HttpEntityResolver::new(config, None).unwrap();
     }
 
     #[test]
     fn test_empty_representations() {
         // Empty representations return early (no URL contact) — https:// check not triggered.
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default(), None).unwrap();
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         rt.block_on(async {
@@ -692,7 +692,7 @@ mod tests {
 
     #[test]
     fn test_graphql_query_building() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default(), None).unwrap();
         let reps = vec![mock_representation("User", "123")];
         let selection = FieldSelection {
             fields: vec!["id".to_string(), "email".to_string()],
@@ -709,7 +709,7 @@ mod tests {
 
     #[test]
     fn test_multiple_types_in_query() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default(), None).unwrap();
         let reps = vec![
             mock_representation("User", "123"),
             mock_representation("Order", "456"),
@@ -726,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_response_parsing_success() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default(), None).unwrap();
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
@@ -747,7 +747,7 @@ mod tests {
 
     #[test]
     fn test_response_parsing_with_errors() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default(), None).unwrap();
         let representations = vec![mock_representation("User", "123")];
 
         let response = GraphQLResponse {
@@ -764,7 +764,7 @@ mod tests {
 
     #[test]
     fn test_response_parsing_entity_count_mismatch() {
-        let resolver = HttpEntityResolver::new(HttpClientConfig::default()).unwrap();
+        let resolver = HttpEntityResolver::new(HttpClientConfig::default(), None).unwrap();
         let representations = vec![
             mock_representation("User", "123"),
             mock_representation("User", "456"),

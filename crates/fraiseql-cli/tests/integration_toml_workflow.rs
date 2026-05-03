@@ -486,7 +486,7 @@ audit_logging_enabled = false
     }
 
     let compiled_json = fs::read_to_string(&output_path).expect("compiled schema missing");
-    let schema = fraiseql_core::schema::CompiledSchema::from_json(&compiled_json)
+    let schema = fraiseql_core::schema::CompiledSchema::from_json(&compiled_json, false)
         .expect("compiled schema must parse");
 
     // Query field survival

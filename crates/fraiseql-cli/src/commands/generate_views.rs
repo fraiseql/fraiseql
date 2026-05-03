@@ -108,7 +108,7 @@ pub fn run(config: GenerateViewsConfig, formatter: &OutputFormatter) -> Result<(
     if config.verbose {
         formatter.progress("   ok: Reading schema...");
     }
-    let schema = CompiledSchema::from_json(&schema_json).context("Failed to parse schema.json")?;
+    let schema = CompiledSchema::from_json(&schema_json, false).context("Failed to parse schema.json")?;
 
     // 3. Validate entity exists in schema
     if config.verbose {

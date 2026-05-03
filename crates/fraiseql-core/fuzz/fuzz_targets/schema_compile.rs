@@ -4,7 +4,7 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
     // Try to deserialize fuzzed JSON as a CompiledSchema, then verify roundtrip
-    let Ok(schema) = fraiseql_core::schema::CompiledSchema::from_json(data) else {
+    let Ok(schema) = fraiseql_core::schema::CompiledSchema::from_json(data, false) else {
         return;
     };
 
@@ -14,7 +14,7 @@ fuzz_target!(|data: &str| {
         .expect("Compiled schema failed to serialize");
 
     // Re-deserialization must succeed (no panics, no errors)
-    let reloaded = fraiseql_core::schema::CompiledSchema::from_json(&json_str)
+    let reloaded = fraiseql_core::schema::CompiledSchema::from_json(&json_str, false)
         .expect("Compiled schema failed roundtrip deserialization");
 
     // Verify typed fields roundtrip exactly. We skip security/federation

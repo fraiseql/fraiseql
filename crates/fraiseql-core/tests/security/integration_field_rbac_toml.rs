@@ -549,7 +549,7 @@ fn test_compiled_schema_with_security_config() {
       }
     }"#;
 
-    let schema = CompiledSchema::from_json(schema_json).expect("Parse schema");
+    let schema = CompiledSchema::from_json(schema_json, false).expect("Parse schema");
 
     // Verify schema was loaded
     assert_eq!(schema.types.len(), 1);

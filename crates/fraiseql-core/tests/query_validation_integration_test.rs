@@ -83,7 +83,7 @@ fn compiled_schema_from_json_roundtrip() {
         .build();
 
     let json = serde_json::to_string(&schema).unwrap();
-    let restored = fraiseql_core::schema::CompiledSchema::from_json(&json).unwrap();
+    let restored = fraiseql_core::schema::CompiledSchema::from_json(&json, false).unwrap();
 
     assert_eq!(restored.types.len(), 1);
     assert_eq!(restored.types[0].name, "User");

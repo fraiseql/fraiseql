@@ -92,8 +92,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
-        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
+        assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
+        assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
     }
 
     #[tokio::test]
@@ -106,8 +106,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
-        assert!(!limiter.check_ip_limit("127.0.0.1").await.allowed);
+        assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
+        assert!(!limiter.check_ip_limit("127.0.0.1", None).await.allowed);
     }
 
     #[tokio::test]
@@ -120,8 +120,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed);
-        assert!(limiter.check_ip_limit("127.0.0.1").await.allowed); // Should allow despite limit
+        assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed);
+        assert!(limiter.check_ip_limit("127.0.0.1", None).await.allowed); // Should allow despite limit
     }
 
     #[tokio::test]
@@ -134,8 +134,8 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_ip_limit("192.168.1.1").await.allowed);
-        assert!(limiter.check_ip_limit("192.168.1.2").await.allowed);
+        assert!(limiter.check_ip_limit("192.168.1.1", None).await.allowed);
+        assert!(limiter.check_ip_limit("192.168.1.2", None).await.allowed);
     }
 
     #[tokio::test]
@@ -148,9 +148,9 @@ mod tests {
         };
 
         let limiter = RateLimiter::new(config);
-        assert!(limiter.check_user_limit("user123").await.allowed);
-        assert!(limiter.check_user_limit("user123").await.allowed);
-        assert!(!limiter.check_user_limit("user123").await.allowed);
+        assert!(limiter.check_user_limit("user123", None).await.allowed);
+        assert!(limiter.check_user_limit("user123", None).await.allowed);
+        assert!(!limiter.check_user_limit("user123", None).await.allowed);
     }
 
     #[tokio::test]
@@ -164,11 +164,11 @@ mod tests {
 
         let limiter = RateLimiter::new(config);
         // First check: bucket full — remaining should equal burst_size - 1
-        let first = limiter.check_ip_limit("127.0.0.1").await;
+        let first = limiter.check_ip_limit("127.0.0.1", None).await;
         assert!(first.allowed);
         assert!(first.remaining < 10.0, "remaining should be 9 after first token consumed");
 
-        let second = limiter.check_ip_limit("127.0.0.1").await;
+        let second = limiter.check_ip_limit("127.0.0.1", None).await;
         assert!(second.remaining < first.remaining, "remaining must decrease per request");
     }
 
@@ -177,7 +177,7 @@ mod tests {
         let config = RateLimitConfig::default();
         let limiter = RateLimiter::new(config);
 
-        limiter.check_ip_limit("127.0.0.1").await;
+        limiter.check_ip_limit("127.0.0.1", None).await;
         limiter.cleanup().await; // Should not panic
     }
 
@@ -531,18 +531,18 @@ mod tests {
         let limiter = RateLimiter::new(config);
 
         // Fill the map with two IPs
-        assert!(limiter.check_ip_limit("1.1.1.1").await.allowed, "first IP should be tracked");
-        assert!(limiter.check_ip_limit("2.2.2.2").await.allowed, "second IP should be tracked");
+        assert!(limiter.check_ip_limit("1.1.1.1", None).await.allowed, "first IP should be tracked");
+        assert!(limiter.check_ip_limit("2.2.2.2", None).await.allowed, "second IP should be tracked");
 
         // Known IPs are still allowed even though the map is full
         assert!(
-            limiter.check_ip_limit("1.1.1.1").await.allowed,
+            limiter.check_ip_limit("1.1.1.1", None).await.allowed,
             "known IP must still pass after cap is reached"
         );
 
         // A brand-new IP is denied (cap exceeded)
         assert!(
-            !limiter.check_ip_limit("3.3.3.3").await.allowed,
+            !limiter.check_ip_limit("3.3.3.3", None).await.allowed,
             "unseen IP must be denied when ip_buckets is at max_buckets"
         );
     }
@@ -558,18 +558,18 @@ mod tests {
         };
         let limiter = RateLimiter::new(config);
 
-        assert!(limiter.check_user_limit("alice").await.allowed, "first user should be tracked");
-        assert!(limiter.check_user_limit("bob").await.allowed, "second user should be tracked");
+        assert!(limiter.check_user_limit("alice", None).await.allowed, "first user should be tracked");
+        assert!(limiter.check_user_limit("bob", None).await.allowed, "second user should be tracked");
 
         // Existing user still allowed
         assert!(
-            limiter.check_user_limit("alice").await.allowed,
+            limiter.check_user_limit("alice", None).await.allowed,
             "known user must pass after cap"
         );
 
         // New user denied
         assert!(
-            !limiter.check_user_limit("carol").await.allowed,
+            !limiter.check_user_limit("carol", None).await.allowed,
             "unseen user must be denied when user_buckets is at max_buckets"
         );
     }
@@ -677,9 +677,9 @@ mod tests {
         // Use a unique key to avoid interference between test runs
         let ip = format!("test_allow:{}", uuid::Uuid::new_v4());
         for _ in 0..5 {
-            assert!(rl.check_ip_limit(&ip).await.allowed, "should be allowed within capacity");
+            assert!(rl.check_ip_limit(&ip, None).await.allowed, "should be allowed within capacity");
         }
-        assert!(!rl.check_ip_limit(&ip).await.allowed, "6th request should be rejected");
+        assert!(!rl.check_ip_limit(&ip, None).await.allowed, "6th request should be rejected");
     }
 
     #[cfg(feature = "redis-rate-limiting")]
@@ -706,13 +706,13 @@ mod tests {
         let ip = format!("test_shared:{suffix}");
 
         // Instance A consumes 2 tokens
-        assert!(a.check_ip_limit(&ip).await.allowed);
-        assert!(a.check_ip_limit(&ip).await.allowed);
+        assert!(a.check_ip_limit(&ip, None).await.allowed);
+        assert!(a.check_ip_limit(&ip, None).await.allowed);
         // Instance B consumes the 3rd token
-        assert!(b.check_ip_limit(&ip).await.allowed);
+        assert!(b.check_ip_limit(&ip, None).await.allowed);
         // 4th token across both instances should be rejected
         assert!(
-            !b.check_ip_limit(&ip).await.allowed,
+            !b.check_ip_limit(&ip, None).await.allowed,
             "4th request should be rejected across instances"
         );
     }

@@ -78,9 +78,6 @@ impl TenantKeyResolver {
                 }
             }
         }
-                }
-            }
-        }
 
         // Cross-validate sources
         if sources.len() > 1 {
@@ -246,7 +243,7 @@ mod tests {
     #[test]
     fn test_resolve_from_host_header() {
         let headers = headers_with_host("api.example.com");
-        let mut registry = DomainRegistry::new();
+        let registry = DomainRegistry::new();
         registry.register("api.example.com", "from-host");
         let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(key, Some("from-host".to_string()));
@@ -266,7 +263,7 @@ mod tests {
     fn test_resolve_rejects_invalid_header_chars() {
         let headers = headers_with_tenant_id("invalid@chars!");
         let registry = DomainRegistry::new();
-        let result = TenantKeyResolver::resolve(None, &headers, &registry, false);
+        let result = TenantKeyResolver::resolve(None, &headers, Some(&registry), false);
         assert!(result.is_err());
     }
 
@@ -275,7 +272,7 @@ mod tests {
         let oversized = "a".repeat(MAX_TENANT_KEY_LEN + 1);
         let headers = headers_with_tenant_id(&oversized);
         let registry = DomainRegistry::new();
-        let result = TenantKeyResolver::resolve(None, &headers, &registry, false);
+        let result = TenantKeyResolver::resolve(None, &headers, Some(&registry), false);
         assert!(result.is_err());
     }
 
@@ -292,7 +289,7 @@ mod tests {
     #[test]
     fn test_domain_registry_lookup() {
         let headers = headers_with_host("api.example.com");
-        let mut registry = DomainRegistry::new();
+        let registry = DomainRegistry::new();
         registry.register("api.example.com", "tenant-abc");
         let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(key, Some("tenant-abc".to_string()));

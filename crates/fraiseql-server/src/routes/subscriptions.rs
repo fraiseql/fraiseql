@@ -180,8 +180,8 @@ pub async fn subscription_handler(
         },
     };
 
-    // Resolve tenant from headers (same as GraphQL)
-    let tenant_id = super::TenantKeyResolver::resolve(None, headers, None, false).ok().flatten();
+    // Resolve tenant from headers (same as GraphQL handler)
+    let tenant_id = super::graphql::TenantKeyResolver::resolve(None, &headers, None, false).ok().flatten();
 
     ws.protocols([protocol.as_str()])
 
@@ -328,6 +328,7 @@ async fn handle_subscription_connection(
                             &mut active_operations,
                             remote_msg_tx.clone(),
                             &mut sender,
+                            tenant_id.as_deref(),
                         ).await {
                             // Best-effort: connection is already being closed.
                             let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
@@ -416,6 +417,7 @@ async fn handle_subscription_connection(
 /// `remote_msg_tx` is used by federation forwarder tasks to send pre-encoded
 /// `ServerMessage` values back to the client connection loop.
 #[allow(clippy::cognitive_complexity)] // Reason: WebSocket message dispatch with subscribe/unsubscribe/query protocol handling
+#[allow(clippy::too_many_arguments)] // Reason: WebSocket handler needs connection state, protocol codec, and tenant context
 async fn handle_client_message(
     text: &str,
     connection_id: &str,
@@ -424,6 +426,7 @@ async fn handle_client_message(
     active_operations: &mut HashMap<String, SubscriptionId>,
     remote_msg_tx: tokio::sync::mpsc::Sender<ServerMessage>,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
+    tenant_id: Option<&str>,
 ) -> Result<(), CloseCode> {
     // remote_msg_tx is only consumed inside the #[cfg(feature = "federation")] block below.
     // When the feature is disabled the parameter goes unused; suppress the warning.
@@ -599,13 +602,13 @@ async fn handle_client_message(
             }
 
             // Validate client-provided tenant variable against server-resolved
-            if let Some(server_tid) = &tenant_id {
+            if let Some(server_tid) = tenant_id {
                 if let Some(client_tid) = variables_value.get("tenant_id").and_then(|v| v.as_str()) {
                     if client_tid != server_tid {
                         let error = ServerMessage::error(
                             &op_id,
                             vec![GraphQLError::with_code(
-                                format!("Tenant mismatch: client provided '{}', server resolved '{}'", client_tid, server_tid),
+                                format!("Tenant mismatch: client provided '{client_tid}', server resolved '{server_tid}'"),
                                 "TENANT_MISMATCH",
                             )],
                         );
@@ -619,8 +622,8 @@ async fn handle_client_message(
 
             // Build context with server-resolved tenant_id
             let mut context = serde_json::json!({});
-            if let Some(tid) = &tenant_id {
-                context["tenant_id"] = serde_json::Value::String(tid.clone());
+            if let Some(tid) = tenant_id {
+                context["tenant_id"] = serde_json::Value::String(tid.to_string());
             }
 
             // Subscribe locally (field is owned by this subgraph)

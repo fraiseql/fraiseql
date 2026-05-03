@@ -3,7 +3,7 @@
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let Ok(schema) = fraiseql_core::schema::CompiledSchema::from_json(data) else {
+    let Ok(schema) = fraiseql_core::schema::CompiledSchema::from_json(data, false) else {
         return;
     };
 
@@ -13,7 +13,7 @@ fuzz_target!(|data: &str| {
 
     // Re-deserialize and compare
     let json_str = json.unwrap();
-    let roundtripped = fraiseql_core::schema::CompiledSchema::from_json(&json_str);
+    let roundtripped = fraiseql_core::schema::CompiledSchema::from_json(&json_str, false);
     assert!(
         roundtripped.is_ok(),
         "CompiledSchema failed JSON roundtrip: serialized OK but deserialization failed"

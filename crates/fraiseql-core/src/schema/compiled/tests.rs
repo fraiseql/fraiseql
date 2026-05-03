@@ -38,7 +38,7 @@ fn test_compiled_schema_with_observers() {
         ]
     }"#;
 
-    let schema = CompiledSchema::from_json(json).unwrap();
+    let schema = CompiledSchema::from_json(json, false).unwrap();
 
     assert!(schema.has_observers());
     assert_eq!(schema.observer_count(), 1);
@@ -66,7 +66,7 @@ fn test_compiled_schema_backward_compatible() {
         "subscriptions": []
     }"#;
 
-    let schema = CompiledSchema::from_json(json).unwrap();
+    let schema = CompiledSchema::from_json(json, false).unwrap();
     assert!(!schema.has_observers());
     assert_eq!(schema.observer_count(), 0);
 }

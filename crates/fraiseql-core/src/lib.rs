@@ -51,7 +51,7 @@
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! # let schema_json = r#"{"types":[],"queries":[]}"#;
 //! // Load compiled schema
-//! let schema = CompiledSchema::from_json(schema_json)?;
+//! let schema = CompiledSchema::from_json(schema_json, false)?;
 //!
 //! // Create executor (db_pool is a DatabaseAdapter implementation)
 //! let db_pool = Arc::new(PostgresAdapter::new("postgresql://localhost/mydb").await?);
