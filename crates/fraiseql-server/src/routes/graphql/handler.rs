@@ -462,10 +462,13 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let _cb_entity_types: Vec<String> = vec![];
 
     // Resolve tenant key from JWT / X-Tenant-ID header / Host header.
+    // TODO: determine strict based on schema RLS mode and config
+    let strict_tenant_validation = false; // default for now
     let tenant_key = super::TenantKeyResolver::resolve(
         security_context.as_ref(),
         headers,
         state.domain_registry(),
+        strict_tenant_validation,
     )
     .map_err(|e| {
         ErrorResponse::from_error(GraphQLError::new(
