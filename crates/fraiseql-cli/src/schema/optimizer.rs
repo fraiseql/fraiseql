@@ -177,11 +177,11 @@ impl SchemaOptimizer {
         // Actual reduction varies by schema and query pattern; not a guaranteed figure.
         let estimated_reduction = Self::estimate_reduction_percent(type_def.fields.len());
 
-        SqlProjectionHint {
-            database:                    DatabaseType::PostgreSQL,
-            projection_template:         Self::generate_postgresql_projection_template(type_def),
-            estimated_reduction_percent: estimated_reduction,
-        }
+        SqlProjectionHint::new(
+            DatabaseType::PostgreSQL,
+            Self::generate_postgresql_projection_template(type_def),
+            estimated_reduction,
+        )
     }
 
     /// Estimate the percentage of payload that can be reduced through SQL projection.

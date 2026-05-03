@@ -286,13 +286,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .generate_typed_projection_sql(&typed_fields)
                 .unwrap_or_else(|_| "data".to_string());
 
-            Some(SqlProjectionHint {
-                database:                    self.adapter.database_type(),
-                projection_template:         projection_sql,
-                estimated_reduction_percent: compute_projection_reduction(
-                    plan.projection_fields.len(),
-                ),
-            })
+            Some(SqlProjectionHint::new(
+                self.adapter.database_type(),
+                projection_sql,
+                compute_projection_reduction(plan.projection_fields.len()),
+            ))
         } else {
             // Stream strategy: return full JSONB, no projection hint
             None
@@ -546,13 +544,11 @@ impl<A: DatabaseAdapter> Executor<A> {
                 .generate_typed_projection_sql(&typed_fields)
                 .unwrap_or_else(|_| "data".to_string());
 
-            Some(SqlProjectionHint {
-                database:                    self.adapter.database_type(),
-                projection_template:         projection_sql,
-                estimated_reduction_percent: compute_projection_reduction(
-                    plan.projection_fields.len(),
-                ),
-            })
+            Some(SqlProjectionHint::new(
+                self.adapter.database_type(),
+                projection_sql,
+                compute_projection_reduction(plan.projection_fields.len()),
+            ))
         } else {
             // Stream strategy: return full JSONB, no projection hint
             None
@@ -1387,11 +1383,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             let projection_sql = generator
                 .generate_typed_projection_sql(&typed_fields)
                 .unwrap_or_else(|_| "data".to_string());
-            Some(SqlProjectionHint {
-                database:                    self.adapter.database_type(),
-                projection_template:         projection_sql,
-                estimated_reduction_percent: compute_projection_reduction(typed_fields.len()),
-            })
+            Some(SqlProjectionHint::new(
+                self.adapter.database_type(),
+                projection_sql,
+                compute_projection_reduction(typed_fields.len()),
+            ))
         } else {
             None
         };

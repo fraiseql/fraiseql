@@ -451,10 +451,7 @@ impl RelayDatabaseAdapter for FailingAdapter {
         self.check_failure(view)?;
         let all_rows = self.get_response(view);
         let rows: Vec<JsonbValue> = all_rows.into_iter().take(limit as usize).collect();
-        Ok(RelayPageResult {
-            rows,
-            total_count: None,
-        })
+        Ok(RelayPageResult::new(rows, None))
     }
 }
 

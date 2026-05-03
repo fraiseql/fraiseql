@@ -22,12 +22,11 @@ use serde_json::json;
 /// Test that projection hints can be created and used
 #[test]
 fn test_sql_projection_hint_creation() {
-    let hint = SqlProjectionHint {
-        database:                    DatabaseType::PostgreSQL,
-        projection_template:
-            "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
-        estimated_reduction_percent: 65,
-    };
+    let hint = SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
+        65,
+    );
 
     assert_eq!(hint.database, DatabaseType::PostgreSQL);
     assert_eq!(hint.estimated_reduction_percent, 65);
@@ -252,11 +251,11 @@ fn test_projection_field_escaping() {
 #[test]
 fn test_projection_hint_reduction_calculation() {
     // Create a hint that represents projecting 5 out of 20 fields
-    let hint = SqlProjectionHint {
-        database: DatabaseType::PostgreSQL,
-        projection_template: "jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email', 'status', data->>'status', 'created_at', data->>'created_at')".to_string(),
-        estimated_reduction_percent: 75, // 5/20 = 25% remain, so 75% reduction
-    };
+    let hint = SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "jsonb_build_object('id', data->>'id', 'name', data->>'name', 'email', data->>'email', 'status', data->>'status', 'created_at', data->>'created_at')".to_string(),
+        75, // 5/20 = 25% remain, so 75% reduction
+    );
 
     assert_eq!(hint.estimated_reduction_percent, 75);
     assert_eq!(hint.database, DatabaseType::PostgreSQL);
@@ -334,12 +333,11 @@ fn test_projection_with_nested_structure() {
 #[test]
 fn test_complete_projection_pipeline() {
     // Step 1: Create projection hint
-    let _hint = SqlProjectionHint {
-        database:                    DatabaseType::PostgreSQL,
-        projection_template:
-            "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
-        estimated_reduction_percent: 87,
-    };
+    let _hint = SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "jsonb_build_object('id', \"data\"->>'id', 'name', \"data\"->>'name')".to_string(),
+        87,
+    );
 
     // Step 2: Generate SQL using hint template (note: in real scenario, projection_template would
     // be used)
