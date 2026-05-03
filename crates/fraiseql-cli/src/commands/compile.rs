@@ -382,21 +382,26 @@ pub async fn run(
 
     // Write compiled schema
     info!("Writing compiled schema to: {output}");
-    let mut output_json =
-        serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
-
-    if !skip_hash {
+    let output_json = if skip_hash {
+        serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?
+    } else {
         use sha2::{Digest, Sha256};
+        use indexmap::IndexMap;
 
-        let hash = Sha256::digest(output_json.as_bytes());
+        let body = serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
+        let hash = Sha256::digest(body.as_bytes());
         let hash_hex = hex::encode(&hash[..16]);
 
-        // Insert "_content_hash": "hash_hex", as the first field
-        let hash_field = format!("  \"_content_hash\": \"{}\",\n", hash_hex);
-        // output_json starts with {\n  "field": ...
-        // Insert after {\n
-        output_json = format!("{{\n{hash_field}{}", &output_json[3..]);
-    }
+        let mut value: serde_json::Value = serde_json::from_str(&body)?;
+        let obj = value.as_object_mut().unwrap();
+
+        let mut new_obj = IndexMap::new();
+        new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
+        for (k, v) in obj {
+            new_obj.insert(k.clone(), v.clone());
+        }
+        serde_json::to_string_pretty(&serde_json::Value::Object(new_obj))?
+    };
 
     fs::write(output, output_json).context("Failed to write compiled schema")?;
 

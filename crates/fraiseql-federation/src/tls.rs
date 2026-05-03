@@ -29,15 +29,15 @@ pub struct MtlsMaterial {
 }
 
 impl MtlsMaterial {
-/// Load mTLS material from configuration.
-///
-/// Reads PEM files from disk and validates format. Fails startup if
-/// `enabled: true` but cert files are missing or malformed.
-///
-/// # Errors
-///
-/// Returns `fraiseql_error::FraiseQLError::Internal` on file I/O errors or invalid PEM.
-pub fn load(config: &MtlsConfig) -> Result<Self, fraiseql_error::FraiseQLError> {
+    /// Load mTLS material from configuration.
+    ///
+    /// Reads PEM files from disk and validates format. Fails startup if
+    /// `enabled: true` but cert files are missing or malformed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `fraiseql_error::FraiseQLError::Internal` on file I/O errors or invalid PEM.
+    pub fn load(config: &MtlsConfig) -> Result<Self, fraiseql_error::FraiseQLError> {
         if !config.enabled {
             return Ok(Self {
                 identity_pem: None,
@@ -102,15 +102,15 @@ pub fn load(config: &MtlsConfig) -> Result<Self, fraiseql_error::FraiseQLError> 
         })
     }
 
-/// Apply mTLS material to a reqwest client builder.
-///
-/// Consumes the material (moving identity_pem into the client).
-/// Call this before `build()`.
-///
-/// # Errors
-///
-/// Returns `fraiseql_error::FraiseQLError::Internal` if identity loading fails.
-pub fn apply(self, builder: reqwest::ClientBuilder) -> Result<reqwest::ClientBuilder, fraiseql_error::FraiseQLError> {
+    /// Apply mTLS material to a reqwest client builder.
+    ///
+    /// Consumes the material (moving identity_pem into the client).
+    /// Call this before `build()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `fraiseql_error::FraiseQLError::Internal` if identity loading fails.
+    pub fn apply(self, builder: reqwest::ClientBuilder) -> Result<reqwest::ClientBuilder, fraiseql_error::FraiseQLError> {
         let mut builder = builder;
         if let Some(identity_pem) = self.identity_pem {
             builder = builder.identity(reqwest::Identity::from_pem(&identity_pem).map_err(|e| {

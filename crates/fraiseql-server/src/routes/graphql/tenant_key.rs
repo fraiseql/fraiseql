@@ -39,7 +39,7 @@ impl TenantKeyResolver {
     pub fn resolve(
         security_context: Option<&SecurityContext>,
         headers: &HeaderMap,
-        domain_registry: &DomainRegistry,
+        domain_registry: Option<&DomainRegistry>,
         strict: bool,
     ) -> Result<Option<String>> {
         let mut sources = Vec::new();
@@ -66,13 +66,18 @@ impl TenantKeyResolver {
         }
 
         // 3. Host header → domain registry lookup
-        if let Some(val) = headers.get("Host") {
-            if let Ok(host) = val.to_str() {
-                if let Some(key) = domain_registry.lookup(host) {
-                    sources.push(("Host".to_string(), key.clone()));
-                    if resolved_value.is_none() {
-                        resolved_value = Some(key);
+        if let Some(registry) = domain_registry {
+            if let Some(val) = headers.get("Host") {
+                if let Ok(host) = val.to_str() {
+                    if let Some(key) = registry.lookup(host) {
+                        sources.push(("Host".to_string(), key.clone()));
+                        if resolved_value.is_none() {
+                            resolved_value = Some(key);
+                        }
                     }
+                }
+            }
+        }
                 }
             }
         }
@@ -226,7 +231,7 @@ mod tests {
         let ctx = ctx_with_tenant("from-jwt");
         let headers = headers_with_tenant_id("from-header");
         let registry = DomainRegistry::new();
-        let key = TenantKeyResolver::resolve(Some(&ctx), &headers, &registry, false).unwrap();
+        let key = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), false).unwrap();
         assert_eq!(key, Some("from-jwt".to_string()));
     }
 
@@ -234,7 +239,7 @@ mod tests {
     fn test_resolve_from_header_when_no_jwt() {
         let headers = headers_with_tenant_id("from-header");
         let registry = DomainRegistry::new();
-        let key = TenantKeyResolver::resolve(None, &headers, &registry, false).unwrap();
+        let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(key, Some("from-header".to_string()));
     }
 
@@ -243,7 +248,7 @@ mod tests {
         let headers = headers_with_host("api.example.com");
         let mut registry = DomainRegistry::new();
         registry.register("api.example.com", "from-host");
-        let key = TenantKeyResolver::resolve(None, &headers, &registry, false).unwrap();
+        let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(key, Some("from-host".to_string()));
     }
 
@@ -251,7 +256,7 @@ mod tests {
     fn test_resolve_returns_none_when_no_tenant() {
         let headers = HeaderMap::new();
         let registry = DomainRegistry::new();
-        let key = TenantKeyResolver::resolve(None, &headers, &registry, false).unwrap();
+        let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(key, None);
     }
 
@@ -278,7 +283,7 @@ mod tests {
     fn test_resolve_accepts_valid_header() {
         let headers = headers_with_tenant_id("valid-tenant_123");
         let registry = DomainRegistry::new();
-        let result = TenantKeyResolver::resolve(None, &headers, &registry, false).unwrap();
+        let result = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(result, Some("valid-tenant_123".to_string()));
     }
 
@@ -289,7 +294,7 @@ mod tests {
         let headers = headers_with_host("api.example.com");
         let mut registry = DomainRegistry::new();
         registry.register("api.example.com", "tenant-abc");
-        let key = TenantKeyResolver::resolve(None, &headers, &registry, false).unwrap();
+        let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(key, Some("tenant-abc".to_string()));
     }
 
@@ -322,7 +327,7 @@ mod tests {
     fn test_host_header_unregistered_domain_returns_none() {
         let headers = headers_with_host("unknown.com");
         let registry = DomainRegistry::new();
-        let key = TenantKeyResolver::resolve(None, &headers, &registry, false).unwrap();
+        let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
         assert_eq!(key, None);
     }
 
@@ -331,7 +336,7 @@ mod tests {
         let ctx = ctx_with_tenant("jwt-tenant");
         let headers = headers_with_tenant_id("header-tenant");
         let registry = DomainRegistry::new();
-        let result = TenantKeyResolver::resolve(Some(&ctx), &headers, &registry, true);
+        let result = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), true);
         assert!(result.is_err());
         if let Err(FraiseQLError::Validation { message, .. }) = result {
             assert!(message.contains("Conflicting tenant values"));

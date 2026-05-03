@@ -467,7 +467,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let tenant_key = super::TenantKeyResolver::resolve(
         security_context.as_ref(),
         headers,
-        state.domain_registry(),
+        Some(state.domain_registry()),
         strict_tenant_validation,
     )
     .map_err(|e| {
