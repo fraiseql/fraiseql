@@ -11,6 +11,8 @@
 //! - Bracket operator documentation in filter parameters
 //! - `Prefer` header documentation on collection/delete endpoints
 
+pub mod helpers;
+
 use fraiseql_core::schema::{
     Cardinality, CompiledSchema, DeleteResponse, FieldType, MutationDefinition, MutationOperation,
     QueryDefinition, RestConfig, TypeDefinition,
@@ -18,6 +20,10 @@ use fraiseql_core::schema::{
 use serde_json::{Map, Value, json};
 
 use super::resource::{HttpMethod, RestResource, RestRoute, RestRouteTable, RouteSource};
+use helpers::{
+    field_type_to_json_schema, method_to_string, should_have_prefer_header, capitalize, 
+    to_snake, extract_action, BRACKET_OPERATORS_DESC,
+};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -47,6 +53,11 @@ pub fn generate_openapi(
 // ---------------------------------------------------------------------------
 
 /// Generates an `OpenAPI` 3.0.3 spec from schema metadata.
+struct OpenApiGenerator<'a> {
+    schema:      &'a CompiledSchema,
+    route_table: &'a RestRouteTable,
+    config:      &'a RestConfig,
+}
 struct OpenApiGenerator<'a> {
     schema:      &'a CompiledSchema,
     route_table: &'a RestRouteTable,
@@ -1130,125 +1141,6 @@ impl<'a> OpenApiGenerator<'a> {
         schema
     }
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Bracket operators documented in filter parameter descriptions.
-const BRACKET_OPERATORS_DESC: &str = "eq, ne, gt, gte, lt, lte, in, nin, like, ilike, is_null, contains, icontains, startswith, endswith";
-
-/// Map a `FieldType` to a JSON Schema type object.
-fn field_type_to_json_schema(ft: &FieldType) -> Value {
-    match ft {
-        FieldType::Int => json!({ "type": "integer" }),
-        FieldType::Float => json!({ "type": "number" }),
-        FieldType::Boolean => json!({ "type": "boolean" }),
-        FieldType::Id | FieldType::Uuid => json!({ "type": "string", "format": "uuid" }),
-        FieldType::DateTime => json!({ "type": "string", "format": "date-time" }),
-        FieldType::Date => json!({ "type": "string", "format": "date" }),
-        FieldType::Time => json!({ "type": "string", "format": "time" }),
-        FieldType::Json => json!({ "type": "object" }),
-        FieldType::Decimal => json!({ "type": "string", "format": "decimal" }),
-        FieldType::Vector => json!({ "type": "array", "items": { "type": "number" } }),
-        FieldType::Scalar(name) => scalar_to_json_schema(name),
-        FieldType::List(inner) => {
-            json!({ "type": "array", "items": field_type_to_json_schema(inner) })
-        },
-        FieldType::Object(name) | FieldType::Enum(name) | FieldType::Input(name) => {
-            json!({ "$ref": format!("#/components/schemas/{name}") })
-        },
-        FieldType::Interface(name) | FieldType::Union(name) => {
-            json!({ "type": "object", "description": format!("See {name}") })
-        },
-        // Reason: FieldType is #[non_exhaustive]; default to string for unknown variants.
-        _ => json!({ "type": "string" }),
-    }
-}
-
-/// Map well-known scalar names to JSON Schema.
-fn scalar_to_json_schema(name: &str) -> Value {
-    match name {
-        "Email" => json!({ "type": "string", "format": "email" }),
-        "URL" | "Uri" => json!({ "type": "string", "format": "uri" }),
-        "PhoneNumber" => json!({ "type": "string", "format": "phone" }),
-        _ => json!({ "type": "string" }),
-    }
-}
-
-const fn method_to_string(method: HttpMethod) -> &'static str {
-    match method {
-        HttpMethod::Get => "get",
-        HttpMethod::Post => "post",
-        HttpMethod::Put => "put",
-        HttpMethod::Patch => "patch",
-        HttpMethod::Delete => "delete",
-    }
-}
-
-fn should_have_prefer_header(route: &RestRoute) -> bool {
-    match route.method {
-        HttpMethod::Get => {
-            // Collection GET endpoints (no path parameter).
-            !route.path.contains('{')
-        },
-        HttpMethod::Post | HttpMethod::Patch | HttpMethod::Delete => true,
-        HttpMethod::Put => false,
-    }
-}
-
-fn capitalize(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_uppercase().to_string() + chars.as_str(),
-    }
-}
-
-fn to_snake(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
-                result.push('_');
-            }
-            result.extend(c.to_lowercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
-
-/// Extract an action name from a mutation name by stripping the type prefix.
-///
-/// Example: `archiveUser` on type `User` → `archive`
-fn extract_action(mutation_name: &str, type_name: &str) -> String {
-    // Try stripping type name suffix (e.g., `archiveUser` → `archive`).
-    let lower_type = type_name.to_lowercase();
-    let lower_name = mutation_name.to_lowercase();
-
-    if let Some(prefix) = lower_name.strip_suffix(&lower_type) {
-        if !prefix.is_empty() {
-            return prefix.trim_end_matches('_').replace('_', "-");
-        }
-    }
-
-    // Try stripping type name prefix (e.g., `userArchive` → `archive`).
-    if let Some(suffix) = lower_name.strip_prefix(&lower_type) {
-        let trimmed = suffix.trim_start_matches('_');
-        if !trimmed.is_empty() {
-            return trimmed.replace('_', "-");
-        }
-    }
-
-    // Fallback: use the full mutation name kebab-cased.
-    to_snake(mutation_name).replace('_', "-")
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: test code
