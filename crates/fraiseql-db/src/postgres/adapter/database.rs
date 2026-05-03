@@ -185,7 +185,6 @@ impl DatabaseAdapter for PostgresAdapter {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        _security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Vec<JsonbValue>> {
         let (sql, typed_params) =
             build_where_select_sql_ordered(view, where_clause, limit, offset, order_by)?;

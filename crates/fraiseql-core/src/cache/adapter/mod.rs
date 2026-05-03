@@ -616,9 +616,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, security_context)
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, None)
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -643,9 +642,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, security_context).await
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, None).await
     }
 
     fn database_type(&self) -> DatabaseType {

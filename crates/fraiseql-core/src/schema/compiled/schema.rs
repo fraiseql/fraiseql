@@ -384,27 +384,17 @@ impl CompiledSchema {
     /// let schema = CompiledSchema::from_json(json, false).unwrap();
     /// ```
     pub fn from_json(json: &str, strict_integrity: bool) -> Result<Self> {
-        // Parse as Value to extract hash
-        let mut value: Value = serde_json::from_str(json)?;
-
-        let obj = value.as_object_mut().ok_or_else(|| {
-            FraiseQLError::Validation {
+        let json = json.trim();
+        if !json.starts_with('{') {
+            return Err(FraiseQLError::Validation {
                 message: "Schema JSON must be an object".to_string(),
                 path: None,
-            }
-        })?;
+            });
+        }
 
-        // Extract and remove _content_hash
-        let expected_hash = if let Some(hash_val) = obj.remove("_content_hash") {
-            if let Some(hash_str) = hash_val.as_str() {
-                Some(hash_str.to_string())
-            } else {
-                return Err(FraiseQLError::Validation {
-                    message: "_content_hash must be a string".to_string(),
-                    path: None,
-                });
-            }
-        } else {
+        // Find the _content_hash field
+        let hash_marker = "  \"_content_hash\": \"";
+        let Some(start) = json.find(hash_marker) else {
             if strict_integrity {
                 return Err(FraiseQLError::Validation {
                     message: "Schema integrity check failed: missing _content_hash field. Enable strict_schema_integrity=false for backwards compatibility.".to_string(),
@@ -412,24 +402,45 @@ impl CompiledSchema {
                 });
             } else {
                 warn!("Schema integrity check skipped: no _content_hash field present. Consider recompiling with a newer CLI for integrity verification.");
-                None
+                // No hash, parse directly
+                let schema: Self = serde_json::from_str(json)?;
+                schema.build_indexes();
+                return Ok(schema);
             }
         };
 
-        // Serialize the remaining JSON
-        let remaining_json = serde_json::to_string(&value)?;
+        let quote_start = start + hash_marker.len();
+        let Some(quote_end_offset) = json[quote_start..].find('"') else {
+            return Err(FraiseQLError::Validation {
+                message: "_content_hash field malformed".to_string(),
+                path: None,
+            });
+        };
+        let quote_end = quote_start + quote_end_offset;
+        let expected_hash = &json[quote_start..quote_end];
+
+        let field_end_marker = "\",\n";
+        let Some(field_end_offset) = json[quote_end..].find(field_end_marker) else {
+            return Err(FraiseQLError::Validation {
+                message: "_content_hash field malformed".to_string(),
+                path: None,
+            });
+        };
+        let field_end = quote_end + field_end_marker.len();
+
+        // Remaining JSON: { + json[field_end..]
+        let remaining_json = format!("{{{}}}", &json[field_end..]);
+
         let computed_digest = Sha256::digest(remaining_json.as_bytes());
         let computed_hash = hex::encode(&computed_digest[..16]);
 
-        if let Some(expected) = expected_hash {
-            if expected != computed_hash {
-                return Err(FraiseQLError::Validation {
-                    message: format!("Schema integrity check failed: hash mismatch (expected {}, got {})", expected, computed_hash),
-                    path: None,
-                });
-            } else {
-                info!("Schema integrity verified: hash matches");
-            }
+        if expected_hash != computed_hash {
+            return Err(FraiseQLError::Validation {
+                message: format!("Schema integrity check failed: hash mismatch (expected {}, got {})", expected_hash, computed_hash),
+                path: None,
+            });
+        } else {
+            info!("Schema integrity verified: hash matches");
         }
 
         // Now deserialize the schema from the remaining JSON
@@ -1761,21 +1772,33 @@ mod tests {
     #[test]
     fn schema_integrity_verification() {
         let schema = CompiledSchema::new();
-        let json = schema.to_json().unwrap();
+        let body = schema.to_json().unwrap();
 
-        // Simulate CLI: compute hash on body, wrap
+        // Simulate CLI: compute hash on body, insert hash field
         use sha2::{Digest, Sha256};
-        let hash = Sha256::digest(json.as_bytes());
+        let hash = Sha256::digest(body.as_bytes());
         let hash_hex = hex::encode(&hash[..16]);
+        let hash_field = format!("  \"_content_hash\": \"{}\",\n", hash_hex);
+        let wrapped_json = format!("{{\n{hash_field}{}", &body[3..]);
 
-        let mut value: serde_json::Value = serde_json::from_str(&json).unwrap();
-        let obj = value.as_object_mut().unwrap();
+        // from_json with strict=true should accept
+        let restored = CompiledSchema::from_json(&wrapped_json, true).unwrap();
+        assert_eq!(restored.types.len(), schema.types.len());
 
-        let mut new_obj = indexmap::IndexMap::new();
-        new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex.clone()));
-        for (k, v) in obj.iter() {
-            new_obj.insert(k.clone(), v.clone());
-        }
+        // Test mismatch: change hash
+        let wrong_hash = "0000000000000000";
+        let mismatch_json = wrapped_json.replace(&hash_hex, wrong_hash);
+        let result = CompiledSchema::from_json(&mismatch_json, true);
+        assert!(result.is_err(), "Expected validation error for hash mismatch");
+
+        // Test missing hash with strict
+        let result = CompiledSchema::from_json(&body, true);
+        assert!(result.is_err(), "Expected error for missing hash in strict mode");
+
+        // Test missing hash with non-strict
+        let restored = CompiledSchema::from_json(&body, false).unwrap();
+        assert_eq!(restored.types.len(), schema.types.len());
+    }
         let wrapped_value = serde_json::Value::Object(new_obj);
         let wrapped_json = serde_json::to_string(&wrapped_value).unwrap();
 

@@ -71,6 +71,7 @@ pub mod selection_parser;
 pub mod service_sdl;
 pub mod sql_utils;
 pub mod subscription_forwarder;
+pub mod tls;
 pub mod tracing;
 pub mod types;
 

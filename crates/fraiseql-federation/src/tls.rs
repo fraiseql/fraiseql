@@ -29,15 +29,15 @@ pub struct MtlsMaterial {
 }
 
 impl MtlsMaterial {
-    /// Load mTLS material from configuration.
-    ///
-    /// Reads PEM files from disk and validates format. Fails startup if
-    /// `enabled: true` but cert files are missing or malformed.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FederationError::TlsConfig` on file I/O errors or invalid PEM.
-    pub fn load(config: &MtlsConfig) -> Result<Self, FederationError> {
+/// Load mTLS material from configuration.
+///
+/// Reads PEM files from disk and validates format. Fails startup if
+/// `enabled: true` but cert files are missing or malformed.
+///
+/// # Errors
+///
+/// Returns `fraiseql_error::FraiseQLError::Internal` on file I/O errors or invalid PEM.
+pub fn load(config: &MtlsConfig) -> Result<Self, fraiseql_error::FraiseQLError> {
         if !config.enabled {
             return Ok(Self {
                 identity_pem: None,
@@ -46,43 +46,51 @@ impl MtlsMaterial {
         }
 
         let client_cert_path = config.client_cert_pem.as_ref().ok_or_else(|| {
-            FederationError::TlsConfig {
+            fraiseql_error::FraiseQLError::Internal {
                 message: "mTLS enabled but no client_cert_pem configured".to_string(),
+                source: None,
             }
         })?;
 
         let mut identity_pem = Vec::new();
         std::fs::File::open(client_cert_path)
-            .map_err(|e| FederationError::TlsConfig {
+            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("failed to open client cert file {}: {}", client_cert_path, e),
+                source: None,
             })?
             .read_to_end(&mut identity_pem)
-            .map_err(|e| FederationError::TlsConfig {
+            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("failed to read client cert file {}: {}", client_cert_path, e),
+                source: None,
             })?;
 
         // Basic PEM validation: must contain cert and key markers
-        let pem_str = std::str::from_utf8(&identity_pem).map_err(|_| FederationError::TlsConfig {
+        let pem_str = std::str::from_utf8(&identity_pem).map_err(|_| fraiseql_error::FraiseQLError::Internal {
             message: "client cert PEM contains invalid UTF-8".to_string(),
+            source: None,
         })?;
         if !pem_str.contains("BEGIN CERTIFICATE") || (!pem_str.contains("BEGIN PRIVATE KEY") && !pem_str.contains("BEGIN EC PRIVATE KEY") && !pem_str.contains("BEGIN RSA PRIVATE KEY")) {
-            return Err(FederationError::TlsConfig {
+            return Err(fraiseql_error::FraiseQLError::Internal {
                 message: "client cert PEM must contain at least one certificate and one private key".to_string(),
+                source: None,
             });
         }
 
         let ca_cert = if let Some(ca_path) = &config.root_ca_pem {
             let mut ca_pem = Vec::new();
             std::fs::File::open(ca_path)
-                .map_err(|e| FederationError::TlsConfig {
+                .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                     message: format!("failed to open CA cert file {}: {}", ca_path, e),
+                    source: None,
                 })?
                 .read_to_end(&mut ca_pem)
-                .map_err(|e| FederationError::TlsConfig {
+                .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                     message: format!("failed to read CA cert file {}: {}", ca_path, e),
+                    source: None,
                 })?;
-            Some(Certificate::from_pem(&ca_pem).map_err(|e| FederationError::TlsConfig {
+            Some(Certificate::from_pem(&ca_pem).map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("invalid CA cert PEM in {}: {}", ca_path, e),
+                source: None,
             })?)
         } else {
             None
@@ -94,20 +102,21 @@ impl MtlsMaterial {
         })
     }
 
-    /// Apply mTLS material to a reqwest client builder.
-    ///
-    /// Consumes the material (moving identity_pem into the client).
-    /// Call this before `build()`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FederationError::TlsConfig` if identity loading fails.
-    pub fn apply(self, builder: reqwest::ClientBuilder) -> Result<reqwest::ClientBuilder, FederationError> {
+/// Apply mTLS material to a reqwest client builder.
+///
+/// Consumes the material (moving identity_pem into the client).
+/// Call this before `build()`.
+///
+/// # Errors
+///
+/// Returns `fraiseql_error::FraiseQLError::Internal` if identity loading fails.
+pub fn apply(self, builder: reqwest::ClientBuilder) -> Result<reqwest::ClientBuilder, fraiseql_error::FraiseQLError> {
         let mut builder = builder;
         if let Some(identity_pem) = self.identity_pem {
             builder = builder.identity(reqwest::Identity::from_pem(&identity_pem).map_err(|e| {
-                FederationError::TlsConfig {
+                fraiseql_error::FraiseQLError::Internal {
                     message: format!("failed to load client identity: {}", e),
+                    source: None,
                 }
             })?);
         }
@@ -118,9 +127,4 @@ impl MtlsMaterial {
     }
 }
 
-/// Federation-specific error type (placeholder for TlsConfig variant).
-#[derive(Debug, thiserror::Error)]
-pub enum FederationError {
-    #[error("TLS configuration error: {message}")]
-    TlsConfig { message: String },
-}
+

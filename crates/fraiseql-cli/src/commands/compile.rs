@@ -391,17 +391,11 @@ pub async fn run(
         let hash = Sha256::digest(output_json.as_bytes());
         let hash_hex = hex::encode(&hash[..16]);
 
-        // Wrap with {"_content_hash": "hash_hex", ...}
-        let mut value: serde_json::Value = serde_json::from_str(&output_json)?;
-        let obj = value.as_object_mut().unwrap();
-
-        let mut new_obj = IndexMap::new();
-        new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
-        for (k, v) in obj.iter() {
-            new_obj.insert(k.clone(), v.clone());
-        }
-        let wrapped_value = serde_json::Value::Object(new_obj);
-        output_json = serde_json::to_string_pretty(&wrapped_value)?;
+        // Insert "_content_hash": "hash_hex", as the first field
+        let hash_field = format!("  \"_content_hash\": \"{}\",\n", hash_hex);
+        // output_json starts with {\n  "field": ...
+        // Insert after {\n
+        output_json = format!("{{\n{hash_field}{}", &output_json[3..]);
     }
 
     fs::write(output, output_json).context("Failed to write compiled schema")?;

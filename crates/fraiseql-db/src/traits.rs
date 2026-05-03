@@ -250,7 +250,6 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Vec<JsonbValue>>;
 
     /// Execute a WHERE query with SQL field projection optimization.
@@ -398,9 +397,8 @@ pub trait DatabaseAdapter: Send + Sync {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        security_context: Option<&fraiseql_core::security::SecurityContext>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query(view, where_clause, limit, offset, order_by, security_context)
+        self.execute_where_query(view, where_clause, limit, offset, order_by)
             .await
             .map(Arc::new)
     }

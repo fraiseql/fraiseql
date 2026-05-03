@@ -253,18 +253,8 @@ impl HttpEntityResolver {
             .timeout(Duration::from_millis(config.timeout_ms));
 
         if let Some(mtls_config) = mtls {
-            let mtls_material = super::tls::MtlsMaterial::load(mtls_config).map_err(|e| {
-                fraiseql_error::FraiseQLError::Internal {
-                    message: format!("mTLS material loading failed: {}", e),
-                    source: None,
-                }
-            })?;
-            builder = mtls_material.apply(builder).map_err(|e| {
-                fraiseql_error::FraiseQLError::Internal {
-                    message: format!("mTLS application failed: {}", e),
-                    source: None,
-                }
-            })?;
+            let mtls_material = super::tls::MtlsMaterial::load(mtls_config)?;
+            builder = mtls_material.apply(builder)?;
             info!("mTLS enabled for federation subgraph resolver");
         }
 

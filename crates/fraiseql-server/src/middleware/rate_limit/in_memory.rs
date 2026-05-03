@@ -144,12 +144,14 @@ impl InMemoryRateLimiter {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
+        let key = tenant_id.map_or_else(|| ip.to_string(), |tid| format!("{}:{}", tid, ip));
         let mut buckets = self.ip_buckets.write().await;
-        if !buckets.contains_key(ip) && buckets.len() >= self.config.max_buckets {
-            debug!(ip = ip, "IP bucket capacity reached — denying unseen IP");
+        if !buckets.contains_key(&key) && buckets.len() >= self.config.max_buckets {
+            debug!(ip = ip, tenant_id = ?tenant_id, "IP bucket capacity reached — denying unseen IP");
             return CheckResult::deny(1);
         }
-        let bucket = buckets.entry(ip.to_string()).or_insert_with(|| {
+
+        let bucket = buckets.entry(key).or_insert_with(|| {
             TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_ip))
         });
 
@@ -178,12 +180,14 @@ impl InMemoryRateLimiter {
             return CheckResult::allow(f64::from(self.config.burst_size));
         }
 
+        let key = tenant_id.map_or_else(|| user_id.to_string(), |tid| format!("{}:{}", tid, user_id));
         let mut buckets = self.user_buckets.write().await;
-        if !buckets.contains_key(user_id) && buckets.len() >= self.config.max_buckets {
-            debug!(user_id = user_id, "User bucket capacity reached — denying unseen user");
+        if !buckets.contains_key(&key) && buckets.len() >= self.config.max_buckets {
+            debug!(user_id = user_id, tenant_id = ?tenant_id, "User bucket capacity reached — denying unseen user");
             return CheckResult::deny(1);
         }
-        let bucket = buckets.entry(user_id.to_string()).or_insert_with(|| {
+
+        let bucket = buckets.entry(key).or_insert_with(|| {
             TokenBucket::new(f64::from(self.config.burst_size), f64::from(self.config.rps_per_user))
         });
 

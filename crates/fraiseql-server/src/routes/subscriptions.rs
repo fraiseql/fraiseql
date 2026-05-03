@@ -180,8 +180,8 @@ pub async fn subscription_handler(
         },
     };
 
-    // Resolve tenant from headers (similar to GraphQL)
-    let tenant_id = headers.get("X-Tenant-ID").and_then(|v| v.to_str().ok()).map(str::to_string);
+    // Resolve tenant from headers (same as GraphQL)
+    let tenant_id = super::TenantKeyResolver::resolve(None, headers, None, false).ok().flatten();
 
     ws.protocols([protocol.as_str()])
 
