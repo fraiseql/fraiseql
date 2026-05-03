@@ -234,6 +234,6 @@ impl RelayDatabaseAdapter for PostgresAdapter {
             None
         };
 
-        Ok(RelayPageResult { rows, total_count })
+        Ok(RelayPageResult::new(rows, total_count))
     }
 }

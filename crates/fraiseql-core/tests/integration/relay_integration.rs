@@ -223,7 +223,7 @@ impl RelayDatabaseAdapter for RelayMockAdapter {
 
         let rows = filtered.into_iter().take(limit as usize).cloned().collect();
 
-        Ok(fraiseql_core::db::traits::RelayPageResult { rows, total_count })
+        Ok(fraiseql_core::db::traits::RelayPageResult::new(rows, total_count))
     }
 }
 
@@ -810,7 +810,7 @@ impl RelayDatabaseAdapter for UuidRelayMockAdapter {
         }
 
         let rows = filtered.into_iter().take(limit as usize).cloned().collect();
-        Ok(fraiseql_core::db::traits::RelayPageResult { rows, total_count })
+        Ok(fraiseql_core::db::traits::RelayPageResult::new(rows, total_count))
     }
 }
 
@@ -1184,7 +1184,7 @@ mod relay_security {
             }
 
             let rows = filtered.into_iter().take(limit as usize).cloned().collect();
-            Ok(fraiseql_core::db::traits::RelayPageResult { rows, total_count })
+            Ok(fraiseql_core::db::traits::RelayPageResult::new(rows, total_count))
         }
     }
 
