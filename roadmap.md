@@ -1,7 +1,7 @@
 # FraiseQL v2 Roadmap
 
-**Current Stable**: v2.4.0 (Released 2026-05-03)
-**In Development**: v2.5.0-dev (active branch: `dev`)
+**Current Stable**: v2.3.0 (Released 2026-05-03)
+**In Development**: v2.4.0-dev (active branch: `dev`)
 
 **Vision**: A compiled GraphQL execution engine delivering zero-cost schema compilation, deterministic SQL generation, and enterprise-grade observability at runtime.
 
@@ -82,7 +82,7 @@ With stability locked in v2.0.0, v2.1.0 delivers enterprise observability, query
 
 - **Pool pressure monitoring** - Emits `fraiseql_pool_tuning_*` Prometheus metrics and scaling
   recommendations; operators act on recommendations by adjusting `max_connections` and restarting.
-  Active resizing requires a pool library with `resize()` API (tracked: migrate to `bb8` in v2.2.0 or later)
+  Active resizing requires a pool library with `resize()` API (neither `deadpool-postgres` nor `bb8-postgres` support this as of 2026-05; revisit when a suitable crate exists)
 - **Multi-root query pipelining** - Parallel execution of multi-root GraphQL queries via
   `try_join_all`; `fraiseql_multi_root_queries_total` counter
 - **Performance dashboard** - Pre-built 12-panel Grafana 10+ dashboard served from
@@ -135,15 +135,15 @@ Apollo Federation enables distributed GraphQL architectures. v2.2.0 makes Fraise
 ### Known Limitations (resolved in v2.3.0)
 
 - **Cache mutation routing overhead** — resolved in v2.3.0 via `DatabaseAdapter::on_schema_reload()` and hot-reload cache rebind fix.
-- **Usage aggregation is in-memory only** — resolved in v2.4.0 via `PostgresBackend` and background flush lifecycle.
+- **Usage aggregation is in-memory only** — resolved in v2.3.0 via `PostgresBackend` and background flush lifecycle.
 
 ---
 
-## v2.3.0 - Security & Reliability ✅ Released 2026-05-02
+## v2.3.0 - Security & Reliability ✅ Released 2026-05-03
 
-**Released**: 2026-05-02
+**Released**: 2026-05-03
 
-Focused on critical quality fixes identified in the pre-release assessment: stale cache after hot-reload, missing integration tests for new v2.2.0 features, and storage crate compile regressions.
+Focused on critical quality fixes and production hardening: stale cache after hot-reload, missing integration tests for new v2.2.0 features, storage crate compile regressions, and durable usage counter persistence.
 
 ### Completed
 
@@ -152,33 +152,13 @@ Focused on critical quality fixes identified in the pre-release assessment: stal
 - **12 new integration tests** — 6 subscription forwarder tests + 6 `GET /auth/me` tests
 - **fraiseql-storage compile fixes and clippy cleanup** — storage crate builds cleanly under all feature combinations
 - **`platform_e2e_test` repaired** — 9 platform E2E tests passing
+- **PostgreSQL usage persistence** — `PostgresBackend` with auto-schema, idempotent UPSERT flushes, startup recovery, and configurable background flush task
+- **Panic audit** — full triage confirmed zero unjustified production panics; `expect()` messages clarified
+- **bb8 investigation** — confirmed neither `bb8-postgres` nor `deadpool-postgres` support runtime pool resizing; roadmap updated
 
 ---
 
-## v2.4.0 - Production Hardening ✅ Released 2026-05-03
-
-**Released**: 2026-05-03
-
-Focused on eliminating deferred quality items from v2.3.0: durable usage
-counter persistence, panic audit, and pool limitation documentation.
-
-### Completed
-
-- **PostgreSQL usage persistence** — `UsageAggregator` backed by `PostgresBackend`
-  with auto-created schema, idempotent UPSERT flushes, and startup recovery.
-  Background flush task runs on configurable interval (`[usage] flush_interval_secs`).
-- **`UsageAggregator::set_backend()`** — runtime backend swap enabling deferred
-  initialization after the database pool is available.
-- **Panic audit** — full triage of 5,656 grep hits revealed zero unjustified
-  production panics; `expect()` messages strengthened where the invariant
-  explanation was incomplete.
-- **bb8 migration cancelled** — investigated `bb8 0.9.x`; confirmed neither
-  `bb8-postgres` nor `deadpool-postgres` support runtime pool resizing. Roadmap
-  updated to reflect the true state of async Rust pool libraries.
-
----
-
-## v2.5.0 - TBD
+## v2.4.0 - TBD
 
 **Status**: Planning
 

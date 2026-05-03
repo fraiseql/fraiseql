@@ -3133,7 +3133,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "fraiseql-arrow",
  "fraiseql-cli",
@@ -3147,7 +3147,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -3181,7 +3181,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3221,7 +3221,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cli"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -3261,7 +3261,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "ahash",
  "arrow",
@@ -3326,7 +3326,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "async-trait",
  "bb8",
@@ -3357,7 +3357,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "axum",
  "serde",
@@ -3369,7 +3369,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-federation"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -3394,7 +3394,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-functions"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -3427,7 +3427,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "arrow",
  "async-nats",
@@ -3467,7 +3467,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -3494,7 +3494,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "aes-gcm",
  "ahash",
@@ -3586,7 +3586,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-storage"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -3623,7 +3623,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-test-utils"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "async-trait",
  "fraiseql-core",
@@ -3635,7 +3635,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-webhooks"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -3660,7 +3660,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-wire"
-version = "2.4.0"
+version = "2.3.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",

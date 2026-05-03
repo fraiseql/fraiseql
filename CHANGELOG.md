@@ -5,54 +5,7 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.0] - 2026-05-03
-
-### Added
-
-- **PostgreSQL usage persistence backend** — `UsageAggregator` now ships with a
-  `PostgresBackend` that stores mutation counters in a `fraiseql_usage_counters`
-  table. Counters survive server restarts; the schema is created automatically on
-  first use (idempotent `CREATE TABLE IF NOT EXISTS`).
-
-- **Automatic background flush lifecycle** — when `[usage]` is configured in
-  `fraiseql.toml`, the server spawns a background task that flushes counters to
-  PostgreSQL on a configurable interval (`flush_interval_secs`, default 60s) and
-  restores persisted state from the database at startup.
-
-- **`UsageAggregator::set_backend()`** — new method allows swapping the persistence
-  backend at runtime. Used internally to upgrade from `NoopBackend` to
-  `PostgresBackend` after the database pool is available, without disturbing the
-  in-flight tracing subscriber.
-
-- **`[usage]` TOML configuration section** — `ServerConfig` gains an optional
-  `usage: Option<UsagePersistenceConfig>` field. Example:
-  ```toml
-  [usage]
-  flush_interval_secs = 60
-  ```
-
-### Changed
-
-- **`UsageAggregator.backend`** upgraded from `Arc<dyn UsageBackend>` to
-  `RwLock<Arc<dyn UsageBackend>>` to allow runtime backend swapping. Public API
-  is unchanged; `flush_to_backend()` and `load_from_backend()` continue to work
-  identically.
-
-### Fixed
-
-- **`expect()` messages strengthened** — production `expect()` calls in
-  `routes/rest/router.rs` and `fraiseql-db/sqlserver/adapter.rs` now explain
-  concretely *why* the operation is infallible, satisfying the `// Reason:`
-  documentation policy.
-
-### Known Limitations Update
-
-- **Pool Pressure Monitor** — confirmed that neither `deadpool-postgres` nor
-  `bb8-postgres` (as of 2026-05) support runtime pool resizing. The planned
-  bb8 migration was cancelled after investigation. The `PoolPressureMonitor`
-  remains in recommendation-only mode. Roadmap updated accordingly.
-
-## [2.3.0] - 2026-05-02
+## [2.3.0] - 2026-05-03
 
 ### Fixed
 
@@ -66,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`platform_e2e_test` repaired** — 9 platform end-to-end tests now pass reliably after fixing
   a test-setup race condition that caused intermittent failures.
+
+- **`expect()` messages strengthened** — production `expect()` calls in
+  `routes/rest/router.rs` and `fraiseql-db/sqlserver/adapter.rs` now explain
+  concretely *why* the operation is infallible.
 
 ### Added
 
@@ -81,6 +38,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 6 subscription forwarder tests covering SSRF protection, reconnect logic, and protocol
     negotiation edge cases
   - 6 `GET /auth/me` tests covering cookie fallback, claim filtering, and expiry handling
+
+- **PostgreSQL usage persistence backend** — `UsageAggregator` now ships with a
+  `PostgresBackend` that stores mutation counters in a `fraiseql_usage_counters`
+  table. Counters survive server restarts; the schema is created automatically on
+  first use (idempotent `CREATE TABLE IF NOT EXISTS`).
+
+- **Automatic background flush lifecycle** — when `[usage]` is configured in
+  `fraiseql.toml`, the server spawns a background task that flushes counters to
+  PostgreSQL on a configurable interval (`flush_interval_secs`, default 60s) and
+  restores persisted state from the database at startup.
+
+- **`UsageAggregator::set_backend()`** — new method allows swapping the persistence
+  backend at runtime. Used internally to upgrade from `NoopBackend` to
+  `PostgresBackend` after the database pool is available.
+
+- **`[usage]` TOML configuration section** — `ServerConfig` gains an optional
+  `usage: Option<UsagePersistenceConfig>` field. Example:
+  ```toml
+  [usage]
+  flush_interval_secs = 60
+  ```
+
+### Changed
+
+- **`UsageAggregator.backend`** upgraded from `Arc<dyn UsageBackend>` to
+  `RwLock<Arc<dyn UsageBackend>>` to allow runtime backend swapping. Public API
+  is unchanged; `flush_to_backend()` and `load_from_backend()` continue to work
+  identically.
+
+### Known Limitations Update
+
+- **Pool Pressure Monitor** — confirmed that neither `deadpool-postgres` nor
+  `bb8-postgres` (as of 2026-05) support runtime pool resizing. The `PoolPressureMonitor`
+  remains in recommendation-only mode. Roadmap updated accordingly.
 
 ## [2.2.0] - 2026-05-02
 
