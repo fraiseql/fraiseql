@@ -48,7 +48,7 @@ pub struct HostContextConfig {
 impl Default for HostContextConfig {
     fn default() -> Self {
         Self {
-            allowed_domains: vec!["*".to_string()], // Allow all by default (should be restricted)
+            allowed_domains: vec![], // secure by default: deny all
             allowed_env_vars: HashSet::new(),
             max_http_response_bytes: 10 * 1024 * 1024, // 10 MB
             http_connect_timeout_ms: 5000,

@@ -29,7 +29,7 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            allowed_domains: vec!["*".to_string()],
+            allowed_domains: vec![], // secure by default: deny all
             max_response_bytes: 10 * 1024 * 1024, // 10 MB
             connect_timeout_ms: 5000,
             read_timeout_ms: 30000,
@@ -206,6 +206,13 @@ mod tests {
         };
         assert!(is_domain_allowed("example.com", &config.allowed_domains));
         assert!(is_domain_allowed("any.domain.anywhere", &config.allowed_domains));
+    }
+
+    #[test]
+    fn test_default_config_denies_all() {
+        let config = HttpClientConfig::default();
+        assert!(!is_domain_allowed("example.com", &config.allowed_domains));
+        assert!(!is_domain_allowed("any.domain", &config.allowed_domains));
     }
 
     #[test]
