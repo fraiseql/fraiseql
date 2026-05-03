@@ -137,7 +137,12 @@ pub struct UsageAggregator {
     /// Key: `(tenant_id, period_yyyy_mm, entity_type)`.
     counters: DashMap<(String, String, String), AtomicU64>,
     /// Optional persistence backend; defaults to [`NoopBackend`].
-    backend: std::sync::Arc<dyn UsageBackend>,
+    ///
+    /// Wrapped in `RwLock` so the backend can be swapped after initialization
+    /// (e.g. to upgrade from `NoopBackend` to `PostgresBackend` once the DB pool
+    /// is available at server startup, after the tracing subscriber has already
+    /// taken a reference via [`global_aggregator`]).
+    backend: std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
 }
 
 impl std::fmt::Debug for UsageAggregator {
@@ -154,7 +159,7 @@ impl UsageAggregator {
     pub fn new() -> Self {
         Self {
             counters: DashMap::new(),
-            backend: std::sync::Arc::new(NoopBackend),
+            backend: std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
         }
     }
 
@@ -163,8 +168,17 @@ impl UsageAggregator {
     pub fn new_with_backend(backend: std::sync::Arc<dyn UsageBackend>) -> Self {
         Self {
             counters: DashMap::new(),
-            backend,
+            backend: std::sync::RwLock::new(backend),
         }
+    }
+
+    /// Replace the persistence backend at runtime.
+    ///
+    /// Called during server startup to upgrade from the default [`NoopBackend`]
+    /// to a durable backend (e.g. [`PostgresBackend`]) once the database pool
+    /// is available.  Any in-flight in-memory counters are preserved.
+    pub fn set_backend(&self, backend: std::sync::Arc<dyn UsageBackend>) {
+        *self.backend.write().expect("backend lock poisoned") = backend;
     }
 
     /// Record one mutation audit event, incrementing the appropriate counter.
@@ -217,7 +231,9 @@ impl UsageAggregator {
             .iter()
             .map(|entry| (entry.key().clone(), entry.value().load(Ordering::Relaxed)))
             .collect();
-        self.backend.flush(&snapshot).await
+        // Clone the Arc before awaiting so we don't hold the RwLock across await points.
+        let backend = self.backend.read().expect("backend lock poisoned").clone();
+        backend.flush(&snapshot).await
     }
 
     /// Load persisted counters from the backend into the in-memory map.
@@ -230,7 +246,9 @@ impl UsageAggregator {
     ///
     /// Propagates errors from the underlying [`UsageBackend::load`].
     pub async fn load_from_backend(&self) -> Result<(), String> {
-        let persisted = self.backend.load().await?;
+        // Clone the Arc before awaiting so we don't hold the RwLock across await points.
+        let backend = self.backend.read().expect("backend lock poisoned").clone();
+        let persisted = backend.load().await?;
         for (key, count) in persisted {
             self.counters
                 .entry(key)
@@ -382,6 +400,107 @@ impl UsageBackend for NoopBackend {
 
     async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
         Ok(std::collections::HashMap::new())
+    }
+}
+
+// ── PostgreSQL backend ─────────────────────────────────────────────────────
+
+/// PostgreSQL-backed usage persistence.
+///
+/// Counters are stored in a `fraiseql_usage_counters` table using UPSERT
+/// semantics. The schema is created automatically on [`PostgresBackend::new`]
+/// if it does not already exist.
+///
+/// The table schema is:
+///
+/// ```sql
+/// CREATE TABLE fraiseql_usage_counters (
+///     tenant_id   TEXT NOT NULL,
+///     period      TEXT NOT NULL,
+///     entity_type TEXT NOT NULL,
+///     count       BIGINT NOT NULL DEFAULT 0,
+///     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+///     PRIMARY KEY (tenant_id, period, entity_type)
+/// );
+/// ```
+#[derive(Debug, Clone)]
+pub struct PostgresBackend {
+    pool: sqlx::PgPool,
+}
+
+impl PostgresBackend {
+    /// Create a new PostgreSQL backend, ensuring the schema exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the schema migration fails.
+    pub async fn new(pool: sqlx::PgPool) -> Result<Self, String> {
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS fraiseql_usage_counters (
+                tenant_id   TEXT NOT NULL,
+                period      TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                count       BIGINT NOT NULL DEFAULT 0,
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (tenant_id, period, entity_type)
+            )",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("PostgresBackend schema migration failed: {e}"))?;
+
+        Ok(Self { pool })
+    }
+}
+
+#[async_trait::async_trait]
+impl UsageBackend for PostgresBackend {
+    async fn flush(
+        &self,
+        counters: &std::collections::HashMap<(String, String, String), u64>,
+    ) -> Result<(), String> {
+        if counters.is_empty() {
+            return Ok(());
+        }
+
+        // UPSERT each counter — SET count = excluded.count so repeated flushes
+        // of the same snapshot are idempotent (last writer wins per key).
+        for ((tenant_id, period, entity_type), &count) in counters {
+            sqlx::query(
+                "INSERT INTO fraiseql_usage_counters
+                    (tenant_id, period, entity_type, count, updated_at)
+                 VALUES ($1, $2, $3, $4, NOW())
+                 ON CONFLICT (tenant_id, period, entity_type)
+                 DO UPDATE SET count = EXCLUDED.count, updated_at = NOW()",
+            )
+            .bind(tenant_id)
+            .bind(period)
+            .bind(entity_type)
+            .bind(count.cast_signed())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| format!("PostgresBackend flush error: {e}"))?;
+        }
+        Ok(())
+    }
+
+    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
+        let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
+            "SELECT tenant_id, period, entity_type, count
+             FROM fraiseql_usage_counters",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("PostgresBackend load error: {e}"))?;
+
+        let result = rows
+            .into_iter()
+            .map(|(tenant_id, period, entity_type, count)| {
+                ((tenant_id, period, entity_type), count.max(0).cast_unsigned())
+            })
+            .collect();
+
+        Ok(result)
     }
 }
 

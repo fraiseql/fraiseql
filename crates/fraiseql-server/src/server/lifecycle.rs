@@ -48,6 +48,70 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // Initialize usage persistence backend if configured.
+        // Must run before build_router() so the aggregator is populated before
+        // serving requests, but after the DB pool is available (async context).
+        if let Some(ref usage_cfg) = self.config.usage.clone() {
+            use std::time::Duration;
+            use sqlx::postgres::PgPoolOptions;
+            use tokio::time::MissedTickBehavior;
+            use crate::usage::aggregator::{PostgresBackend, global_aggregator};
+
+            match PgPoolOptions::new()
+                .max_connections(2) // small dedicated pool — only used for periodic flushes
+                .connect(&self.config.database_url)
+                .await
+            {
+                Ok(pool) => {
+                    match PostgresBackend::new(pool).await {
+                        Ok(backend) => {
+                            let backend = std::sync::Arc::new(backend);
+                            // Upgrade global aggregator's backend from NoopBackend.
+                            global_aggregator().set_backend(backend.clone());
+                            // Restore persisted counters before serving requests.
+                            if let Err(e) = global_aggregator().load_from_backend().await {
+                                warn!(error = %e, "Usage persistence: startup load failed — continuing with in-memory counters");
+                            } else {
+                                info!("Usage persistence: loaded counters from PostgreSQL");
+                            }
+                            // Spawn background flush task.
+                            let flush_interval = Duration::from_secs(usage_cfg.flush_interval_secs);
+                            let agg = std::sync::Arc::clone(global_aggregator());
+                            tokio::spawn(async move {
+                                let mut ticker = tokio::time::interval(flush_interval);
+                                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                                ticker.tick().await; // skip immediate first tick
+                                loop {
+                                    ticker.tick().await;
+                                    if let Err(e) = agg.flush_to_backend().await {
+                                        warn!(error = %e, "Usage persistence: background flush failed");
+                                    }
+                                }
+                            });
+                            info!(
+                                flush_interval_secs = usage_cfg.flush_interval_secs,
+                                "Usage persistence: PostgreSQL backend active"
+                            );
+                        },
+                        Err(e) => {
+                            warn!(
+                                error = %e,
+                                "Usage persistence: PostgresBackend initialization failed — \
+                                 continuing with in-memory (NoopBackend)"
+                            );
+                        },
+                    }
+                },
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        "Usage persistence: failed to connect to PostgreSQL — \
+                         continuing with in-memory (NoopBackend)"
+                    );
+                },
+            }
+        }
+
         let (app, app_state) = self.build_router();
 
         // Spawn SIGUSR1 schema reload handler when running on Unix.

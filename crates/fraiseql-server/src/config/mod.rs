@@ -31,6 +31,32 @@ pub use pool_tuning::{PoolPressureMonitorConfig, PoolTuningConfig};
 pub use rate_limiting::{BackpressureConfig, RateLimitRule, RateLimitingConfig};
 pub use tracing::TracingConfig;
 
+/// Configuration for durable usage counter persistence.
+///
+/// Add a `[usage]` section to `fraiseql.toml` (or `ServerConfig`) to enable:
+///
+/// ```toml
+/// [usage]
+/// flush_interval_secs = 60
+/// ```
+///
+/// When absent (default), the [`NoopBackend`] is used and counters are
+/// in-memory only (reset on process restart).
+///
+/// [`NoopBackend`]: crate::usage::aggregator::NoopBackend
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct UsagePersistenceConfig {
+    /// How often (in seconds) to flush in-memory counters to PostgreSQL.
+    ///
+    /// Defaults to `60` seconds.
+    #[serde(default = "default_flush_interval_secs")]
+    pub flush_interval_secs: u64,
+}
+
+const fn default_flush_interval_secs() -> u64 {
+    60
+}
+
 /// Root configuration structure loaded from `fraiseql.toml`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {

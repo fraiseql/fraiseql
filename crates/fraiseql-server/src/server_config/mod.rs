@@ -520,6 +520,20 @@ pub struct ServerConfig {
     /// Override with `FRAISEQL_SHUTDOWN_TIMEOUT_SECS`.
     #[serde(default = "defaults::default_shutdown_timeout_secs")]
     pub shutdown_timeout_secs: u64,
+
+    /// Usage counter persistence configuration (optional).
+    ///
+    /// When set, mutation usage counters are periodically flushed to PostgreSQL
+    /// and restored on server startup.  Requires a PostgreSQL database URL.
+    ///
+    /// ```toml
+    /// [usage]
+    /// flush_interval_secs = 60
+    /// ```
+    ///
+    /// When absent (default), counters are in-memory only and reset on restart.
+    #[serde(default)]
+    pub usage: Option<crate::config::UsagePersistenceConfig>,
 }
 
 impl Default for ServerConfig {
@@ -584,6 +598,7 @@ impl Default for ServerConfig {
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),
+            usage: None, // Usage persistence disabled by default
         }
     }
 }
