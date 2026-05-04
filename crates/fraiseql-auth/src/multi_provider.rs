@@ -132,6 +132,79 @@ pub struct AuthTokenResponse {
     pub provider:      String,
 }
 
+impl AuthTokenResponse {
+    /// Returns a builder for `AuthTokenResponse`.
+    pub fn builder() -> AuthTokenResponseBuilder {
+        AuthTokenResponseBuilder::default()
+    }
+}
+
+/// Builder for [`AuthTokenResponse`].
+#[derive(Debug, Default)]
+pub struct AuthTokenResponseBuilder {
+    access_token:  Option<String>,
+    refresh_token: Option<String>,
+    token_type:    Option<String>,
+    expires_in:    Option<u64>,
+    provider:      Option<String>,
+}
+
+impl AuthTokenResponseBuilder {
+    /// Sets the access token.
+    pub fn access_token(mut self, access_token: impl Into<String>) -> Self {
+        self.access_token = Some(access_token.into());
+        self
+    }
+
+    /// Sets the refresh token.
+    pub fn refresh_token(mut self, refresh_token: impl Into<String>) -> Self {
+        self.refresh_token = Some(refresh_token.into());
+        self
+    }
+
+    /// Sets the token type (typically `"Bearer"`).
+    pub fn token_type(mut self, token_type: impl Into<String>) -> Self {
+        self.token_type = Some(token_type.into());
+        self
+    }
+
+    /// Sets the number of seconds until the access token expires.
+    pub const fn expires_in(mut self, expires_in: u64) -> Self {
+        self.expires_in = Some(expires_in);
+        self
+    }
+
+    /// Sets the provider that authenticated the user.
+    pub fn provider(mut self, provider: impl Into<String>) -> Self {
+        self.provider = Some(provider.into());
+        self
+    }
+
+    /// Builds the [`AuthTokenResponse`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if any required field (`access_token`, `token_type`,
+    /// `expires_in`, or `provider`) was not set.
+    pub fn build(self) -> Result<AuthTokenResponse, String> {
+        Ok(AuthTokenResponse {
+            access_token:  self
+                .access_token
+                .ok_or("AuthTokenResponse: access_token is required")?,
+            refresh_token: self.refresh_token,
+            token_type:    self
+                .token_type
+                .ok_or("AuthTokenResponse: token_type is required")?,
+            expires_in:    self
+                .expires_in
+                .ok_or("AuthTokenResponse: expires_in is required")?,
+            provider:      self
+                .provider
+                .ok_or("AuthTokenResponse: provider is required")?,
+        })
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

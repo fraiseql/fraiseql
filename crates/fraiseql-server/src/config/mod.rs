@@ -436,3 +436,284 @@ pub struct RealtimeConfig {}
 /// Reserved: placeholder for future custom HTTP endpoint configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CustomEndpointsConfig {}
+
+// ---------------------------------------------------------------------------
+// Builders
+// ---------------------------------------------------------------------------
+
+impl HttpServerConfig {
+    /// Returns a builder for `HttpServerConfig`.
+    pub fn builder() -> HttpServerConfigBuilder {
+        HttpServerConfigBuilder::default()
+    }
+}
+
+/// Builder for [`HttpServerConfig`].
+#[derive(Debug)]
+pub struct HttpServerConfigBuilder {
+    port:    u16,
+    host:    String,
+    workers: Option<usize>,
+    tls:     Option<TlsConfig>,
+    limits:  Option<ServerLimitsConfig>,
+}
+
+impl Default for HttpServerConfigBuilder {
+    fn default() -> Self {
+        Self {
+            port:    default_port(),
+            host:    default_host(),
+            workers: None,
+            tls:     None,
+            limits:  None,
+        }
+    }
+}
+
+impl HttpServerConfigBuilder {
+    /// Sets the TCP port to listen on.
+    pub const fn port(mut self, port: u16) -> Self {
+        self.port = port;
+        self
+    }
+
+    /// Sets the network interface to bind.
+    pub fn host(mut self, host: impl Into<String>) -> Self {
+        self.host = host.into();
+        self
+    }
+
+    /// Sets the number of async worker threads.
+    pub const fn workers(mut self, workers: usize) -> Self {
+        self.workers = Some(workers);
+        self
+    }
+
+    /// Sets the TLS configuration.
+    pub fn tls(mut self, tls: TlsConfig) -> Self {
+        self.tls = Some(tls);
+        self
+    }
+
+    /// Sets the per-request and concurrency limits.
+    pub fn limits(mut self, limits: ServerLimitsConfig) -> Self {
+        self.limits = Some(limits);
+        self
+    }
+
+    /// Builds the [`HttpServerConfig`].
+    pub fn build(self) -> HttpServerConfig {
+        HttpServerConfig {
+            port:    self.port,
+            host:    self.host,
+            workers: self.workers,
+            tls:     self.tls,
+            limits:  self.limits,
+        }
+    }
+}
+
+impl ServerLimitsConfig {
+    /// Returns a builder for `ServerLimitsConfig`.
+    pub fn builder() -> ServerLimitsConfigBuilder {
+        ServerLimitsConfigBuilder::default()
+    }
+}
+
+/// Builder for [`ServerLimitsConfig`].
+#[derive(Debug)]
+pub struct ServerLimitsConfigBuilder {
+    max_request_size:     String,
+    request_timeout:      String,
+    max_concurrent_requests: usize,
+    max_queue_depth:      usize,
+}
+
+impl Default for ServerLimitsConfigBuilder {
+    fn default() -> Self {
+        Self {
+            max_request_size:        default_max_request_size(),
+            request_timeout:         default_request_timeout(),
+            max_concurrent_requests: default_max_concurrent(),
+            max_queue_depth:         default_max_queue_depth(),
+        }
+    }
+}
+
+impl ServerLimitsConfigBuilder {
+    /// Sets the maximum request body size (e.g. `"10MB"`).
+    pub fn max_request_size(mut self, max_request_size: impl Into<String>) -> Self {
+        self.max_request_size = max_request_size.into();
+        self
+    }
+
+    /// Sets the maximum request processing time (e.g. `"30s"`).
+    pub fn request_timeout(mut self, request_timeout: impl Into<String>) -> Self {
+        self.request_timeout = request_timeout.into();
+        self
+    }
+
+    /// Sets the maximum number of concurrent requests.
+    pub const fn max_concurrent_requests(mut self, max_concurrent_requests: usize) -> Self {
+        self.max_concurrent_requests = max_concurrent_requests;
+        self
+    }
+
+    /// Sets the maximum request queue depth.
+    pub const fn max_queue_depth(mut self, max_queue_depth: usize) -> Self {
+        self.max_queue_depth = max_queue_depth;
+        self
+    }
+
+    /// Builds the [`ServerLimitsConfig`].
+    pub fn build(self) -> ServerLimitsConfig {
+        ServerLimitsConfig {
+            max_request_size:        self.max_request_size,
+            request_timeout:         self.request_timeout,
+            max_concurrent_requests: self.max_concurrent_requests,
+            max_queue_depth:         self.max_queue_depth,
+        }
+    }
+}
+
+impl DatabaseConfig {
+    /// Returns a builder for `DatabaseConfig`.
+    pub fn builder() -> DatabaseConfigBuilder {
+        DatabaseConfigBuilder::default()
+    }
+}
+
+/// Builder for [`DatabaseConfig`].
+#[derive(Debug, Default)]
+pub struct DatabaseConfigBuilder {
+    url_env:               Option<String>,
+    pool_size:             u32,
+    pool_timeout:          Option<String>,
+    statement_timeout:     Option<String>,
+    replicas:              Vec<ReplicaConfig>,
+    health_check_interval: Option<String>,
+}
+
+impl DatabaseConfigBuilder {
+    /// Sets the environment variable name that holds the database URL.
+    pub fn url_env(mut self, url_env: impl Into<String>) -> Self {
+        self.url_env = Some(url_env.into());
+        self
+    }
+
+    /// Sets the maximum number of connections in the pool.
+    pub const fn pool_size(mut self, pool_size: u32) -> Self {
+        self.pool_size = pool_size;
+        self
+    }
+
+    /// Sets how long to wait for a connection before returning an error.
+    pub fn pool_timeout(mut self, pool_timeout: impl Into<String>) -> Self {
+        self.pool_timeout = Some(pool_timeout.into());
+        self
+    }
+
+    /// Sets the per-query statement timeout.
+    pub fn statement_timeout(mut self, statement_timeout: impl Into<String>) -> Self {
+        self.statement_timeout = Some(statement_timeout.into());
+        self
+    }
+
+    /// Adds a read replica.
+    pub fn replica(mut self, replica: ReplicaConfig) -> Self {
+        self.replicas.push(replica);
+        self
+    }
+
+    /// Sets the health-check ping interval.
+    pub fn health_check_interval(mut self, health_check_interval: impl Into<String>) -> Self {
+        self.health_check_interval = Some(health_check_interval.into());
+        self
+    }
+
+    /// Builds the [`DatabaseConfig`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if `url_env` was not set.
+    pub fn build(self) -> Result<DatabaseConfig, String> {
+        let url_env = self
+            .url_env
+            .ok_or_else(|| "DatabaseConfig: url_env is required".to_string())?;
+        Ok(DatabaseConfig {
+            url_env,
+            pool_size: if self.pool_size == 0 {
+                default_pool_size()
+            } else {
+                self.pool_size
+            },
+            pool_timeout:          self.pool_timeout,
+            statement_timeout:     self.statement_timeout,
+            replicas:              self.replicas,
+            health_check_interval: self.health_check_interval,
+        })
+    }
+}
+
+impl LifecycleConfig {
+    /// Returns a builder for `LifecycleConfig`.
+    pub fn builder() -> LifecycleConfigBuilder {
+        LifecycleConfigBuilder::default()
+    }
+}
+
+/// Builder for [`LifecycleConfig`].
+#[derive(Debug)]
+pub struct LifecycleConfigBuilder {
+    shutdown_timeout: String,
+    shutdown_delay:   String,
+    health_path:      String,
+    ready_path:       String,
+}
+
+impl Default for LifecycleConfigBuilder {
+    fn default() -> Self {
+        Self {
+            shutdown_timeout: default_shutdown_timeout(),
+            shutdown_delay:   default_shutdown_delay(),
+            health_path:      default_health_path(),
+            ready_path:       default_ready_path(),
+        }
+    }
+}
+
+impl LifecycleConfigBuilder {
+    /// Sets the graceful-shutdown timeout (e.g. `"30s"`).
+    pub fn shutdown_timeout(mut self, shutdown_timeout: impl Into<String>) -> Self {
+        self.shutdown_timeout = shutdown_timeout.into();
+        self
+    }
+
+    /// Sets the pre-shutdown delay for load balancer deregistration (e.g. `"5s"`).
+    pub fn shutdown_delay(mut self, shutdown_delay: impl Into<String>) -> Self {
+        self.shutdown_delay = shutdown_delay.into();
+        self
+    }
+
+    /// Sets the health-check endpoint path.
+    pub fn health_path(mut self, health_path: impl Into<String>) -> Self {
+        self.health_path = health_path.into();
+        self
+    }
+
+    /// Sets the readiness-check endpoint path.
+    pub fn ready_path(mut self, ready_path: impl Into<String>) -> Self {
+        self.ready_path = ready_path.into();
+        self
+    }
+
+    /// Builds the [`LifecycleConfig`].
+    pub fn build(self) -> LifecycleConfig {
+        LifecycleConfig {
+            shutdown_timeout: self.shutdown_timeout,
+            shutdown_delay:   self.shutdown_delay,
+            health_path:      self.health_path,
+            ready_path:       self.ready_path,
+        }
+    }
+}

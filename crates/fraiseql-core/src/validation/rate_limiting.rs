@@ -83,6 +83,67 @@ impl Default for ValidationRateLimitingConfig {
     }
 }
 
+impl ValidationRateLimitingConfig {
+    /// Returns a builder for `ValidationRateLimitingConfig`.
+    pub fn builder() -> ValidationRateLimitingConfigBuilder {
+        ValidationRateLimitingConfigBuilder::default()
+    }
+}
+
+/// Builder for [`ValidationRateLimitingConfig`].
+#[derive(Debug, Default)]
+pub struct ValidationRateLimitingConfigBuilder {
+    inner: ValidationRateLimitingConfig,
+}
+
+impl ValidationRateLimitingConfigBuilder {
+    /// Sets whether validation rate limiting is enabled.
+    pub const fn enabled(mut self, enabled: bool) -> Self {
+        self.inner.enabled = enabled;
+        self
+    }
+
+    /// Sets the max requests and window for validation errors.
+    pub const fn validation_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
+        self.inner.validation_errors_max_requests = max_requests;
+        self.inner.validation_errors_window_secs = window_secs;
+        self
+    }
+
+    /// Sets the max requests and window for depth errors.
+    pub const fn depth_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
+        self.inner.depth_errors_max_requests = max_requests;
+        self.inner.depth_errors_window_secs = window_secs;
+        self
+    }
+
+    /// Sets the max requests and window for complexity errors.
+    pub const fn complexity_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
+        self.inner.complexity_errors_max_requests = max_requests;
+        self.inner.complexity_errors_window_secs = window_secs;
+        self
+    }
+
+    /// Sets the max requests and window for malformed errors.
+    pub const fn malformed_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
+        self.inner.malformed_errors_max_requests = max_requests;
+        self.inner.malformed_errors_window_secs = window_secs;
+        self
+    }
+
+    /// Sets the max requests and window for async validation errors.
+    pub const fn async_validation_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
+        self.inner.async_validation_errors_max_requests = max_requests;
+        self.inner.async_validation_errors_window_secs = window_secs;
+        self
+    }
+
+    /// Builds the [`ValidationRateLimitingConfig`].
+    pub const fn build(self) -> ValidationRateLimitingConfig {
+        self.inner
+    }
+}
+
 /// Request record for tracking
 #[derive(Debug, Clone)]
 struct RequestRecord {
