@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use super::Executor;
+use super::super::Executor;
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
@@ -16,7 +16,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * [`FraiseQLError::Validation`] — the query name is not `_service` or `_entities`, or
     ///   federation is not enabled in the compiled schema.
     /// * [`FraiseQLError::Database`] — the `_entities` lookup query fails.
-    pub(super) async fn execute_federation_query(
+    pub(in crate::runtime::executor) async fn execute_federation_query(
         &self,
         query_name: &str,
         query: &str,

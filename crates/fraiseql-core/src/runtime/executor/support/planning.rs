@@ -1,10 +1,10 @@
 //! Query planning — `plan_query()` without executing against the database.
 
-use super::{Executor, QueryType};
+use super::super::{Executor, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
-    runtime::suggest_similar,
+    runtime::{ExplainPlan, suggest_similar},
 };
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -20,7 +20,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
-    ) -> Result<super::super::ExplainPlan> {
+    ) -> Result<ExplainPlan> {
         let query_type = self.classify_query(query)?;
 
         match query_type {
@@ -32,7 +32,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .clone()
                     .unwrap_or_else(|| "unknown".to_string());
                 let plan = self.ctx.planner.plan(&query_match)?;
-                Ok(super::super::ExplainPlan {
+                Ok(ExplainPlan {
                     sql:            plan.sql,
                     parameters:     plan.parameters,
                     estimated_cost: plan.estimated_cost,
@@ -65,7 +65,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     })?;
                 let fn_name =
                     mutation_def.sql_source.clone().unwrap_or_else(|| format!("fn_{name}"));
-                Ok(super::super::ExplainPlan {
+                Ok(ExplainPlan {
                     sql:            format!("SELECT * FROM {fn_name}(...)"),
                     parameters:     Vec::new(),
                     estimated_cost: 100,
@@ -81,7 +81,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .find(|q| q.name == *name)
                     .and_then(|q| q.sql_source.clone())
                     .unwrap_or_else(|| "unknown".to_string());
-                Ok(super::super::ExplainPlan {
+                Ok(ExplainPlan {
                     sql:            format!("SELECT ... FROM {sql_source} -- aggregate"),
                     parameters:     Vec::new(),
                     estimated_cost: 200,
@@ -97,7 +97,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     .find(|q| q.name == *name)
                     .and_then(|q| q.sql_source.clone())
                     .unwrap_or_else(|| "unknown".to_string());
-                Ok(super::super::ExplainPlan {
+                Ok(ExplainPlan {
                     sql:            format!("SELECT ... FROM {sql_source} -- window"),
                     parameters:     Vec::new(),
                     estimated_cost: 250,
@@ -106,7 +106,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 })
             },
             QueryType::IntrospectionSchema | QueryType::IntrospectionType(_) => {
-                Ok(super::super::ExplainPlan {
+                Ok(ExplainPlan {
                     sql:            String::new(),
                     parameters:     Vec::new(),
                     estimated_cost: 0,
@@ -114,14 +114,14 @@ impl<A: DatabaseAdapter> Executor<A> {
                     query_type:     "introspection".to_string(),
                 })
             },
-            QueryType::Federation(_) => Ok(super::super::ExplainPlan {
+            QueryType::Federation(_) => Ok(ExplainPlan {
                 sql:            String::new(),
                 parameters:     Vec::new(),
                 estimated_cost: 0,
                 views_accessed: Vec::new(),
                 query_type:     "federation".to_string(),
             }),
-            QueryType::NodeQuery { .. } => Ok(super::super::ExplainPlan {
+            QueryType::NodeQuery { .. } => Ok(ExplainPlan {
                 sql:            String::new(),
                 parameters:     Vec::new(),
                 estimated_cost: 50,

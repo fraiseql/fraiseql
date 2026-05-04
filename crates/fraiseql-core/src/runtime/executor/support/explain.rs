@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use super::Executor;
+use super::super::Executor;
 use crate::{
     db::{WhereClause, WhereOperator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use super::{Executor, QueryType};
+use super::super::{Executor, QueryType};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
@@ -38,7 +38,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// // __schema       → Introspection
     /// // _entities      → Federation
     /// ```
-    pub(super) fn classify_query(&self, query: &str) -> Result<QueryType> {
+    pub(in crate::runtime::executor) fn classify_query(&self, query: &str) -> Result<QueryType> {
         self.classify_query_with_parse(query).map(|(qt, _)| qt)
     }
 
@@ -51,7 +51,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// # Errors
     ///
     /// Returns [`FraiseQLError::Parse`] if the query string is malformed GraphQL.
-    pub(super) fn classify_query_with_parse(
+    pub(in crate::runtime::executor) fn classify_query_with_parse(
         &self,
         query: &str,
     ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {

@@ -6,7 +6,7 @@ use moka::sync::Cache as MokaCache;
 
 use super::{
     context::ExecutorContext,
-    relay::{RelayDispatch, RelayDispatchImpl},
+    support::relay::{RelayDispatch, RelayDispatchImpl},
     runners,
 };
 use crate::{

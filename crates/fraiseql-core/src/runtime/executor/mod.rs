@@ -158,9 +158,6 @@
 //! - `DatabaseAdapter` — Trait for database-specific implementations
 //! - `FraiseQLError` — Error types
 
-pub mod pipeline;
-
-mod relay;
 mod context;
 
 use std::collections::HashMap;
@@ -178,16 +175,14 @@ use crate::{
 mod core;
 pub use core::Executor;
 
-mod classify;
 mod execution;
-mod explain;
-#[cfg(feature = "federation")]
-mod federation;
 mod mutation;
-mod planning;
 mod runners;
 pub mod security;
 mod support;
+
+// Re-export pipeline at this level so `runtime/mod.rs` can use `executor::pipeline::*`.
+pub use support::pipeline;
 
 #[cfg(test)]
 pub mod test_support;

@@ -15,7 +15,7 @@ use crate::{
     schema::{CompiledSchema, IntrospectionResponses},
 };
 
-use super::{QueryType, relay::RelayDispatch};
+use super::{QueryType, support::relay::RelayDispatch};
 
 /// All shared state for an executor instance.
 ///

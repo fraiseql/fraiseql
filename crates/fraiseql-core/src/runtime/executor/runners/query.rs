@@ -1073,7 +1073,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Returns [`FraiseQLError::Validation`] if required pagination variables are
     /// missing or contain invalid cursor values.
     /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
-    pub(in super::super) async fn execute_relay_query(
+    async fn execute_relay_query(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,

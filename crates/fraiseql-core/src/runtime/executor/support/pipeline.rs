@@ -15,7 +15,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::Executor;
+use super::super::Executor;
 use crate::{
     db::traits::DatabaseAdapter,
     error::Result,

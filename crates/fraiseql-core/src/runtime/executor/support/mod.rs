@@ -1,6 +1,13 @@
 //! Supporting modules for executor runners.
 //!
-//! Pure helper functions shared across runners — no `&self`, no `DatabaseAdapter`
-//! type parameter required.
+//! These modules provide stateless helpers and dispatch logic used by the
+//! runner types. They do not define their own sub-executor types.
 
+pub(super) mod classify;
+pub(super) mod explain;
+#[cfg(feature = "federation")]
+pub(super) mod federation;
+pub mod pipeline;
+pub(super) mod planning;
+pub(super) mod relay;
 pub(super) mod security;
