@@ -15,7 +15,7 @@ use crate::{
     },
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
-    runtime::{JsonbStrategy, ResultProjector, classify_field_access, field_filter::FieldAccessResult},
+    runtime::{JsonbStrategy, ResultProjector},
     schema::{CompiledSchema, SqlProjectionHint},
     security::{RlsWhereClause, SecurityContext},
 };
@@ -247,46 +247,6 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         Self { ctx }
     }
 
-    /// Classify each requested field against the user's security context.
-    ///
-    /// Mirrors [`Executor::apply_field_rbac_filtering`] for use within the runner.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Authorization` if any field has `on_deny = Reject`
-    /// and the user lacks the required scope.
-    fn apply_field_rbac_filtering(
-        &self,
-        return_type: &str,
-        projection_fields: Vec<String>,
-        security_context: &SecurityContext,
-    ) -> Result<FieldAccessResult> {
-        if let Some(security_config) = self.ctx.schema.security.as_ref() {
-            if let Some(type_def) =
-                self.ctx.schema.types.iter().find(|t| t.name == return_type)
-            {
-                return classify_field_access(
-                    security_context,
-                    security_config,
-                    &type_def.fields,
-                    projection_fields,
-                )
-                .map_err(|rejected_field| FraiseQLError::Authorization {
-                    message:  format!(
-                        "Access denied: field '{rejected_field}' on type '{return_type}' \
-                         requires a scope you do not have"
-                    ),
-                    action:   Some("read".to_string()),
-                    resource: Some(format!("{return_type}.{rejected_field}")),
-                });
-            }
-        }
-
-        Ok(FieldAccessResult {
-            allowed: projection_fields,
-            masked:  Vec::new(),
-        })
-    }
 
     /// Extract an inline node ID literal from a `node(id: "...")` query string.
     ///
@@ -621,7 +581,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .await?;
 
         // 10. Apply field-level RBAC filtering (reject / mask / allow)
-        let access = self.apply_field_rbac_filtering(
+        let access = super::super::support::security::apply_field_rbac_filtering(
+            &self.ctx.schema,
             &query_match.query_def.return_type,
             plan.projection_fields,
             security_context,
