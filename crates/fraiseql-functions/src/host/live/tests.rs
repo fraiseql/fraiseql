@@ -6,6 +6,7 @@
 
 use super::*;
 use std::sync::Arc;
+use fraiseql_core::types::{TenantId, UserId};
 
 /// Mock query executor for testing.
 struct MockQueryExecutor {
@@ -840,10 +841,10 @@ async fn test_host_auth_context_returns_claims() {
 
     let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
     ctx.security_context = SecurityContext {
-        user_id: "user123".to_string(),
+        user_id: UserId("user123".to_string()),
         roles: vec!["admin".to_string(), "user".to_string()],
         scopes: vec!["read:users".to_string(), "write:users".to_string()],
-        tenant_id: Some("tenant456".to_string()),
+        tenant_id: Some(TenantId("tenant456".to_string())),
         expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
         authenticated_at: chrono::Utc::now(),
         request_id: "req-123".to_string(),
@@ -878,10 +879,10 @@ async fn test_host_auth_context_redacts_sensitive() {
 
     let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
     ctx.security_context = SecurityContext {
-        user_id: "user123".to_string(),
+        user_id: UserId("user123".to_string()),
         roles: vec!["admin".to_string()],
         scopes: vec!["read:users".to_string()],
-        tenant_id: Some("tenant456".to_string()),
+        tenant_id: Some(TenantId("tenant456".to_string())),
         expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
         authenticated_at: chrono::Utc::now(),
         request_id: "req-123".to_string(),

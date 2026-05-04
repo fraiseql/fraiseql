@@ -22,6 +22,7 @@ use crate::types::{EventPayload, LogEntry, LogLevel};
 use crate::HostContext;
 use fraiseql_error::Result;
 use fraiseql_core::security::SecurityContext;
+use fraiseql_core::types::UserId;
 
 /// Configuration for host context operations.
 #[derive(Debug, Clone)]
@@ -220,7 +221,7 @@ impl LiveHostContext {
             .as_nanos();
 
         SecurityContext {
-            user_id: "anonymous".to_string(),
+            user_id: UserId("anonymous".to_string()),
             roles: vec![],
             tenant_id: None,
             scopes: vec![],

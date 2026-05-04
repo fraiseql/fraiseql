@@ -403,14 +403,15 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     use axum::http::{HeaderMap, HeaderValue};
     use chrono::Utc;
     use fraiseql_core::security::SecurityContext;
+    use fraiseql_core::types::{TenantId, UserId};
 
     let domain_reg = DomainRegistry::new();
     domain_reg.register("api.acme.com", "from-host");
 
     let ctx = SecurityContext {
-        user_id:          "u1".to_string(),
+        user_id:          UserId("u1".to_string()),
         roles:            vec![],
-        tenant_id:        Some("from-jwt".to_string()),
+        tenant_id:        Some(TenantId("from-jwt".to_string())),
         scopes:           vec![],
         attributes:       std::collections::HashMap::new(),
         request_id:       "r1".to_string(),

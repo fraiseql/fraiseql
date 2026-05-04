@@ -250,7 +250,7 @@ pub(super) async fn handle(
     let db_adapter = svc.db_adapter.clone();
     let executor = svc.executor.clone();
     let subscription_manager = svc.subscription_manager.clone();
-    let user_id = authenticated_user.user_id.0.clone();
+    let user_id = authenticated_user.user_id.0;
 
     tokio::spawn(async move {
         while let Ok(Some(flight_data)) = incoming.message().await {
