@@ -15,7 +15,7 @@ pub(in super::super) struct AggregateRunner<A: DatabaseAdapter> {
 }
 
 impl<A: DatabaseAdapter> AggregateRunner<A> {
-    pub(in super::super) fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
+    pub(in super::super) const fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
         Self { ctx }
     }
 
