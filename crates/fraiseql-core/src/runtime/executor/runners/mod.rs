@@ -4,6 +4,6 @@
 //! one class of database operation. Runners do not call each other directly —
 //! all cross-runner coordination goes through [`Executor`].
 
+pub(super) mod mutation;
 pub(super) mod query;
-// pub(super) mod mutation;    ← added in Phase 3
 // pub(super) mod aggregate;   ← added in Phase 4

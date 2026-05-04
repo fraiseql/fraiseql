@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use super::{Executor, QueryType};
+use super::{Executor, QueryType, runners};
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
@@ -309,7 +309,8 @@ impl<A: DatabaseAdapter> Executor<A> {
                 name,
                 type_selections,
             } => {
-                self.execute_mutation_query_with_security(
+                runners::mutation::execute_mutation_impl(
+                    &self.ctx,
                     &name,
                     variables,
                     Some(security_context),

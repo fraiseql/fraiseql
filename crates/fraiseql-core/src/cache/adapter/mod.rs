@@ -277,7 +277,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// [`SecurityContext`]: fraiseql_core::security::SecurityContext
     #[must_use]
-    pub fn with_rls(mut self, has_rls: bool) -> Self {
+    pub const fn with_rls(mut self, has_rls: bool) -> Self {
         self.has_rls = has_rls;
         self
     }

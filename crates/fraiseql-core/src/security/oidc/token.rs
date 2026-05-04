@@ -307,7 +307,7 @@ impl OidcValidator {
         let user_id_str = claims.sub.ok_or(SecurityError::TokenMissingClaim {
             claim: "sub".to_string(),
         })?;
-        let user_id = crate::types::UserId::new(user_id_str.clone());
+        let user_id = crate::types::UserId::new(user_id_str);
 
         // Extract expiration (required)
         let exp = claims.exp.ok_or(SecurityError::TokenMissingClaim {

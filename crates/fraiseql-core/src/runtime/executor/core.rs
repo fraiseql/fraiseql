@@ -198,6 +198,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// When enabled, the executor caches the final projected response
     /// (after RBAC, projection, and envelope wrapping) to skip all
     /// redundant work on cache hits.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called after the internal `Arc<ExecutorContext>` has been shared
+    /// (i.e., after the executor has been cloned).  Always call this immediately
+    /// after construction, before sharing the executor.
     #[must_use]
     pub fn with_response_cache(mut self, cache: Arc<crate::cache::ResponseCache>) -> Self {
         Arc::get_mut(&mut self.ctx)
