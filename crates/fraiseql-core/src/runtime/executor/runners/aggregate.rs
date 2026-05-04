@@ -1,13 +1,24 @@
-//! Aggregate and window query execution.
+//! Aggregate and window query execution runner.
 
-use super::Executor;
+use std::sync::Arc;
+
+use super::super::context::ExecutorContext;
 use crate::{
     db::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     runtime::suggest_similar,
 };
 
-impl<A: DatabaseAdapter> Executor<A> {
+/// Runner for aggregate and window analytics queries.
+pub(in super::super) struct AggregateRunner<A: DatabaseAdapter> {
+    ctx: Arc<ExecutorContext<A>>,
+}
+
+impl<A: DatabaseAdapter> AggregateRunner<A> {
+    pub(in super::super) fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
+        Self { ctx }
+    }
+
     /// Execute an aggregate query dispatch.
     ///
     /// # Errors
@@ -15,7 +26,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * [`FraiseQLError::Validation`] — the query name does not end with `_aggregate`, or the
     ///   derived fact table is not found in the compiled schema.
     /// * Propagates errors from [`execute_aggregate_query`](Self::execute_aggregate_query).
-    pub(super) async fn execute_aggregate_dispatch(
+    pub(in super::super) async fn execute_aggregate_dispatch(
         &self,
         query_name: &str,
         variables: Option<&serde_json::Value>,
@@ -59,7 +70,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * [`FraiseQLError::Validation`] — the query name does not end with `_window`, or the derived
     ///   fact table is not found in the compiled schema.
     /// * Propagates errors from [`execute_window_query`](Self::execute_window_query).
-    pub(super) async fn execute_window_dispatch(
+    pub(in super::super) async fn execute_window_dispatch(
         &self,
         query_name: &str,
         variables: Option<&serde_json::Value>,
@@ -130,7 +141,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// });
     /// // let result = executor.execute_aggregate_query(&query_json, "sales_aggregate", &metadata).await?;
     /// ```
-    pub async fn execute_aggregate_query(
+    pub(in super::super) async fn execute_aggregate_query(
         &self,
         query_json: &serde_json::Value,
         query_name: &str,
@@ -143,7 +154,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             &metadata.denormalized_filters,
         );
         let request =
-            super::super::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
+            crate::runtime::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
 
         // 2. Generate execution plan
         let plan =
@@ -151,7 +162,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // 3. Generate parameterized SQL
         let sql_generator =
-            super::super::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
+            crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
         let parameterized = sql_generator.generate_parameterized(&plan)?;
 
         // 4. Execute with bind parameters (eliminates escape-based injection risk)
@@ -161,11 +172,11 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // 5. Project results
-        let projected = super::super::AggregationProjector::project(rows, &plan)?;
+        let projected = crate::runtime::AggregationProjector::project(rows, &plan)?;
 
         // 6. Wrap in GraphQL data envelope
         let response =
-            super::super::AggregationProjector::wrap_in_data_envelope(projected, query_name);
+            crate::runtime::AggregationProjector::wrap_in_data_envelope(projected, query_name);
 
         // 7. Serialize to JSON string
         Ok(response)
@@ -210,20 +221,21 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// });
     /// // let result = executor.execute_window_query(&query_json, "sales_window", &metadata).await?;
     /// ```
-    pub async fn execute_window_query(
+    pub(in super::super) async fn execute_window_query(
         &self,
         query_json: &serde_json::Value,
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
     ) -> Result<serde_json::Value> {
         // 1. Parse JSON query into WindowRequest
-        let request = super::super::WindowQueryParser::parse(query_json, metadata)?;
+        let request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
 
         // 2. Generate execution plan (validates semantic names against metadata)
         let plan = crate::compiler::window_functions::WindowPlanner::plan(request, metadata)?;
 
         // 3. Generate SQL
-        let sql_generator = super::super::WindowSqlGenerator::new(self.ctx.adapter.database_type());
+        let sql_generator =
+            crate::runtime::WindowSqlGenerator::new(self.ctx.adapter.database_type());
         let sql = sql_generator.generate(&plan)?;
 
         // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
@@ -234,10 +246,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             .await?;
 
         // 5. Project results
-        let projected = super::super::WindowProjector::project(rows, &plan)?;
+        let projected = crate::runtime::WindowProjector::project(rows, &plan)?;
 
         // 6. Wrap in GraphQL data envelope
-        let response = super::super::WindowProjector::wrap_in_data_envelope(projected, query_name);
+        let response = crate::runtime::WindowProjector::wrap_in_data_envelope(projected, query_name);
 
         // 7. Serialize to JSON string
         Ok(response)

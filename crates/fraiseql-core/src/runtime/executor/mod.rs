@@ -182,7 +182,6 @@ use crate::{
 mod core;
 pub use core::Executor;
 
-mod aggregate;
 mod classify;
 mod execution;
 mod explain;

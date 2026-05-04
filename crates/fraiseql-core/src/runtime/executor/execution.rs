@@ -110,10 +110,10 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.query_runner().execute_regular_query(query, variables).await
             },
             QueryType::Aggregate(query_name) => {
-                self.execute_aggregate_dispatch(&query_name, variables).await
+                self.aggregate_runner().execute_aggregate_dispatch(&query_name, variables).await
             },
             QueryType::Window(query_name) => {
-                self.execute_window_dispatch(&query_name, variables).await
+                self.aggregate_runner().execute_window_dispatch(&query_name, variables).await
             },
             #[cfg(feature = "federation")]
             QueryType::Federation(query_name) => {

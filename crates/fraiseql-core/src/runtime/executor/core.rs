@@ -225,6 +225,43 @@ impl<A: DatabaseAdapter> Executor<A> {
         runners::query::QueryRunner::new(Arc::clone(&self.ctx))
     }
 
+    /// Construct an aggregate runner on demand.
+    ///
+    /// Zero-cost: `Arc::clone` is one atomic increment, no allocation.
+    pub(super) fn aggregate_runner(&self) -> runners::aggregate::AggregateRunner<A> {
+        runners::aggregate::AggregateRunner::new(Arc::clone(&self.ctx))
+    }
+
+    /// Execute an aggregate query directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if query parsing, plan generation, SQL generation, database execution,
+    /// or result projection fails.
+    pub async fn execute_aggregate_query(
+        &self,
+        query_json: &serde_json::Value,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+    ) -> Result<serde_json::Value> {
+        self.aggregate_runner().execute_aggregate_query(query_json, query_name, metadata).await
+    }
+
+    /// Execute a window query directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if query parsing, plan generation, SQL generation, database execution,
+    /// or result projection fails.
+    pub async fn execute_window_query(
+        &self,
+        query_json: &serde_json::Value,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+    ) -> Result<serde_json::Value> {
+        self.aggregate_runner().execute_window_query(query_json, query_name, metadata).await
+    }
+
     /// Count rows matching a query's filters.
     ///
     /// Delegates to [`QueryRunner::count_rows`].
