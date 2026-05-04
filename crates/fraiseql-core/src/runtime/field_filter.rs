@@ -166,7 +166,7 @@ mod tests {
 
     fn create_test_context(roles: &[&str]) -> SecurityContext {
         SecurityContext {
-            user_id:          "test-user".to_string(),
+            user_id:          "test-user".into(),
             roles:            roles.iter().map(|&r| r.to_string()).collect(),
             tenant_id:        None,
             scopes:           vec![],

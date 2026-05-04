@@ -640,9 +640,9 @@ mod tests {
     ) -> SecurityContext {
         use chrono::Utc;
         SecurityContext {
-            user_id:          user_id.to_string(),
+            user_id:          user_id.into(),
             roles:            roles.iter().map(|s| (*s).to_string()).collect(),
-            tenant_id:        tenant_id.map(str::to_string),
+            tenant_id:        tenant_id.map(Into::into),
             scopes:           scopes.iter().map(|s| (*s).to_string()).collect(),
             attributes:       std::collections::HashMap::new(),
             request_id:       "test-request".to_string(),

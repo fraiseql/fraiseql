@@ -1824,3 +1824,7 @@ mod tests {
         assert_eq!(pg_type_to_cast("unknown_type"), "");
     }
 }
+
+#[cfg(test)]
+#[path = "query_tests.rs"]
+mod query_runner_tests;

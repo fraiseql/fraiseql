@@ -127,7 +127,7 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
 /// Helper to create a `SecurityContext` with specific roles
 fn create_security_context(roles: Vec<String>) -> fraiseql_core::security::SecurityContext {
     fraiseql_core::security::SecurityContext {
-        user_id: "user-123".to_string(),
+        user_id: "user-123".into(),
         roles,
         tenant_id: None,
         scopes: vec![],

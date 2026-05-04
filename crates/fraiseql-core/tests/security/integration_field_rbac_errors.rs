@@ -165,7 +165,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
 /// Helper to create context
 fn create_context(role: &str) -> SecurityContext {
     SecurityContext {
-        user_id:          format!("user-{}", role),
+        user_id:          format!("user-{}", role).into(),
         roles:            vec![role.to_string()],
         tenant_id:        None,
         scopes:           vec![],

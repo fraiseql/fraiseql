@@ -503,3 +503,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     let response = ResultProjector::wrap_in_data_envelope(result_json, &mutation_name_owned);
     Ok(response)
 }
+
+#[cfg(test)]
+#[path = "mutation_tests.rs"]
+mod tests;

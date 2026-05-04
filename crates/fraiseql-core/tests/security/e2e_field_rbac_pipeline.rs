@@ -192,7 +192,7 @@ fn create_compiled_schema_with_rbac() -> CompiledSchema {
 /// Helper to create a security context for a specific role
 fn create_user_context(role: &str) -> SecurityContext {
     SecurityContext {
-        user_id:          format!("user-{}", role),
+        user_id:          format!("user-{}", role).into(),
         roles:            vec![role.to_string()],
         tenant_id:        None,
         scopes:           vec![],
@@ -377,7 +377,7 @@ fn test_e2e_multi_tenant_field_filtering() {
     let security_config = schema.security.as_ref().expect("security config present").clone();
 
     let mut tenant_context = create_user_context("viewer");
-    tenant_context.tenant_id = Some("tenant-acme".to_string());
+    tenant_context.tenant_id = Some("tenant-acme".into());
     tenant_context
         .attributes
         .insert("region".to_string(), serde_json::Value::String("us-west".to_string()));

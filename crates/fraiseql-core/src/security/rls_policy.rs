@@ -546,9 +546,9 @@ mod tests {
 
     fn make_context(user_id: &str, roles: Vec<&str>, tenant_id: Option<&str>) -> SecurityContext {
         SecurityContext {
-            user_id:          user_id.to_string(),
+            user_id:          user_id.into(),
             roles:            roles.into_iter().map(String::from).collect(),
-            tenant_id:        tenant_id.map(String::from),
+            tenant_id:        tenant_id.map(Into::into),
             scopes:           vec![],
             attributes:       HashMap::new(),
             request_id:       "req1".to_string(),
@@ -853,7 +853,7 @@ mod tests {
         let mut attrs = HashMap::new();
         attrs.insert("department".to_string(), serde_json::json!("engineering"));
         let ctx = SecurityContext {
-            user_id:          "u1".to_string(),
+            user_id:          "u1".into(),
             roles:            vec![],
             tenant_id:        None,
             scopes:           vec![],

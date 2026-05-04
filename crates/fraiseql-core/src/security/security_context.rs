@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn test_has_role() {
         let context = SecurityContext {
-            user_id:          "user123".to_string(),
+            user_id:          "user123".into(),
             roles:            vec!["admin".to_string(), "moderator".to_string()],
             tenant_id:        None,
             scopes:           vec![],
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn test_has_scope() {
         let context = SecurityContext {
-            user_id:          "user123".to_string(),
+            user_id:          "user123".into(),
             roles:            vec![],
             tenant_id:        None,
             scopes:           vec!["read:user".to_string(), "write:post".to_string()],
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn test_wildcard_scopes() {
         let context = SecurityContext {
-            user_id:          "user123".to_string(),
+            user_id:          "user123".into(),
             roles:            vec![],
             tenant_id:        None,
             scopes:           vec!["admin:*".to_string()],
@@ -388,9 +388,10 @@ mod tests {
 
     #[test]
     fn test_builder_pattern() {
+        use crate::types::TenantId;
         let now = Utc::now();
         let context = SecurityContext {
-            user_id:          "user123".to_string(),
+            user_id:          "user123".into(),
             roles:            vec![],
             tenant_id:        None,
             scopes:           vec![],
@@ -408,6 +409,6 @@ mod tests {
 
         assert!(context.has_role("admin"));
         assert!(context.has_scope("read:user"));
-        assert_eq!(context.tenant_id, Some("tenant-1".to_string()));
+        assert_eq!(context.tenant_id, Some(TenantId::new("tenant-1")));
     }
 }

@@ -1190,9 +1190,9 @@ mod relay_security {
 
     fn security_context(user_id: &str, tenant_id: &str) -> SecurityContext {
         SecurityContext {
-            user_id:          user_id.to_string(),
+            user_id:          user_id.into(),
             roles:            vec!["user".to_string()],
-            tenant_id:        Some(tenant_id.to_string()),
+            tenant_id:        Some(tenant_id.into()),
             scopes:           vec![],
             attributes:       HashMap::new(),
             request_id:       "test-req".to_string(),
@@ -1206,9 +1206,9 @@ mod relay_security {
 
     fn admin_context() -> SecurityContext {
         SecurityContext {
-            user_id:          "admin-1".to_string(),
+            user_id:          "admin-1".into(),
             roles:            vec!["admin".to_string()],
-            tenant_id:        Some("tenant-abc".to_string()),
+            tenant_id:        Some("tenant-abc".into()),
             scopes:           vec![],
             attributes:       HashMap::new(),
             request_id:       "test-admin-req".to_string(),

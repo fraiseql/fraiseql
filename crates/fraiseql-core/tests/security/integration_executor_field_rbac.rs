@@ -158,7 +158,7 @@ fn create_executor_test_schema() -> CompiledSchema {
 /// Helper to create security context
 fn create_executor_context(role: &str) -> SecurityContext {
     SecurityContext {
-        user_id:          format!("user-{}", role),
+        user_id:          format!("user-{}", role).into(),
         roles:            vec![role.to_string()],
         tenant_id:        None,
         scopes:           vec![],

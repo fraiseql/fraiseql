@@ -168,10 +168,6 @@ use std::collections::HashMap;
 use std::{sync::Arc, time::Duration};
 
 #[cfg(test)]
-use crate::db::traits::DatabaseAdapter;
-#[cfg(test)]
-use crate::db::types::{DatabaseType, PoolMetrics};
-#[cfg(test)]
 use crate::runtime::ExecutionContext;
 use crate::{
     error::{FraiseQLError, Result},
@@ -192,6 +188,9 @@ mod planning;
 mod runners;
 pub mod security;
 mod support;
+
+#[cfg(test)]
+pub mod test_support;
 
 #[cfg(test)]
 mod tests;

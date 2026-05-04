@@ -447,7 +447,7 @@ async fn validate_token_with_real_rsa_keypair_and_wiremock_jwks() {
     // ── 5. Validate the token end-to-end ─────────────────────────────
     let user = validator.validate_token(&token).await.expect("token validation should succeed");
 
-    assert_eq!(user.user_id, "user-42");
+    assert_eq!(user.user_id.as_str(), "user-42");
     assert_eq!(user.scopes, vec!["read", "write", "admin"]);
     assert!(user.expires_at > chrono::Utc::now(), "token should not be expired yet");
 }

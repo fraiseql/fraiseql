@@ -599,7 +599,7 @@ mod tests {
         let user = middleware
             .validate_request(&req)
             .unwrap_or_else(|e| panic!("expected user_id extraction to succeed: {e}"));
-        assert_eq!(user.user_id, "user_12345");
+        assert_eq!(user.user_id.as_str(), "user_12345");
     }
 
     #[test]
@@ -688,7 +688,7 @@ mod tests {
     #[test]
     fn test_user_has_scope() {
         let user = AuthenticatedUser {
-            user_id:      "user123".to_string(),
+            user_id:      "user123".into(),
             scopes:       vec!["read".to_string(), "write".to_string()],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
             extra_claims: HashMap::new(),
@@ -702,7 +702,7 @@ mod tests {
     #[test]
     fn test_user_is_not_expired() {
         let user = AuthenticatedUser {
-            user_id:      "user123".to_string(),
+            user_id:      "user123".into(),
             scopes:       vec![],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
             extra_claims: HashMap::new(),
@@ -714,7 +714,7 @@ mod tests {
     #[test]
     fn test_user_is_expired() {
         let user = AuthenticatedUser {
-            user_id:      "user123".to_string(),
+            user_id:      "user123".into(),
             scopes:       vec![],
             expires_at:   Utc::now() - chrono::Duration::hours(1),
             extra_claims: HashMap::new(),
@@ -728,7 +728,7 @@ mod tests {
         let now = Utc::now();
         let expires_at = now + chrono::Duration::hours(2);
         let user = AuthenticatedUser {
-            user_id: "user123".to_string(),
+            user_id: "user123".into(),
             scopes: vec![],
             expires_at,
             extra_claims: HashMap::new(),
@@ -742,7 +742,7 @@ mod tests {
     #[test]
     fn test_user_display() {
         let user = AuthenticatedUser {
-            user_id:      "user123".to_string(),
+            user_id:      "user123".into(),
             scopes:       vec![],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
             extra_claims: HashMap::new(),
@@ -866,7 +866,7 @@ mod tests {
         assert!(result.is_ok(), "Expected valid token, got: {:?}", result);
 
         let user = result.unwrap();
-        assert_eq!(user.user_id, "user123");
+        assert_eq!(user.user_id.as_str(), "user123");
         assert_eq!(user.scopes, vec!["read", "write"]);
     }
 
