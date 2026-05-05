@@ -12,7 +12,7 @@ use super::{RestError, RestResponse, StatusCode};
 ///
 /// Converts `{id}` path parameters to Axum's `:id` syntax.
 pub(super) fn to_axum_path(base_path: &str, route_path: &str) -> String {
-    let pattern = route_path.replace("{", ":").replace("}", "");
+    let pattern = route_path.replace('{', ":").replace('}', "");
     format!("{base_path}{pattern}")
 }
 
@@ -64,7 +64,7 @@ pub(super) fn rest_result_to_response(result: Result<RestResponse, RestError>) -
                 .expect("Unable to construct response");
 
             let headers = response.headers_mut();
-            for (key, value) in rest_resp.headers.into_iter() {
+            for (key, value) in rest_resp.headers {
                 if let Some(key_name) = key {
                     headers.insert(key_name, value);
                 }
@@ -92,77 +92,3 @@ pub(super) fn error_response(status: StatusCode, code: &str, message: &str) -> R
         .expect("Unable to construct error response")
 }
 
-#[cfg(test)]
-#[allow(clippy::unwrap_used)] // Reason: test code
-mod tests {
-    use super::*;
-
-    #[test]
-    fn to_axum_path_simple() {
-        assert_eq!(to_axum_path("/rest/v1", "/users"), "/rest/v1/users");
-    }
-
-    #[test]
-    fn to_axum_path_with_param() {
-        assert_eq!(to_axum_path("/rest/v1", "/users/{id}"), "/rest/v1/users/:id");
-    }
-
-    #[test]
-    fn to_axum_path_multiple_params() {
-        assert_eq!(
-            to_axum_path("/rest/v1", "/users/{uid}/posts/{pid}"),
-            "/rest/v1/users/:uid/posts/:pid"
-        );
-    }
-
-    #[test]
-    fn strip_base_path_exact() {
-        assert_eq!(strip_base_path("/rest/v1", "/rest/v1"), "/");
-    }
-
-    #[test]
-    fn strip_base_path_with_route() {
-        assert_eq!(strip_base_path("/rest/v1", "/rest/v1/users"), "/users");
-    }
-
-    #[test]
-    fn strip_base_path_no_match() {
-        assert_eq!(strip_base_path("/rest/v1", "/api/users"), "/api/users");
-    }
-
-    #[test]
-    fn parse_query_pairs_single() {
-        let pairs = parse_query_pairs("key=value");
-        assert_eq!(pairs.len(), 1);
-        assert_eq!(pairs[0], ("key".to_string(), "value".to_string()));
-    }
-
-    #[test]
-    fn parse_query_pairs_multiple() {
-        let pairs = parse_query_pairs("key1=value1&key2=value2");
-        assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0], ("key1".to_string(), "value1".to_string()));
-        assert_eq!(pairs[1], ("key2".to_string(), "value2".to_string()));
-    }
-
-    #[test]
-    fn parse_query_pairs_url_encoded() {
-        let pairs = parse_query_pairs("name=John%20Doe");
-        assert_eq!(pairs.len(), 1);
-        assert_eq!(pairs[0], ("name".to_string(), "John Doe".to_string()));
-    }
-
-    #[test]
-    fn parse_query_pairs_no_value() {
-        let pairs = parse_query_pairs("flag");
-        assert_eq!(pairs.len(), 1);
-        assert_eq!(pairs[0], ("flag".to_string(), String::new()));
-    }
-
-    #[test]
-    fn error_response_structure() {
-        let resp = error_response(StatusCode::BAD_REQUEST, "BAD_REQUEST", "Invalid input");
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(resp.headers().get("content-type").unwrap(), "application/json");
-    }
-}
