@@ -1025,3 +1025,99 @@ fn test_subscription_error_rbac_variants_constructible() {
         "Forbidden variant should format correctly: {forbidden_err}"
     );
 }
+
+mod protocol_tests {
+    #![allow(clippy::unwrap_used)]
+    use super::super::protocol::*;
+
+    #[test]
+    fn test_client_message_type_parsing() {
+        assert_eq!(
+            ClientMessageType::from_str("connection_init"),
+            Some(ClientMessageType::ConnectionInit)
+        );
+        assert_eq!(ClientMessageType::from_str("subscribe"), Some(ClientMessageType::Subscribe));
+        assert_eq!(ClientMessageType::from_str("invalid"), None);
+    }
+
+    #[test]
+    fn test_server_message_connection_ack() {
+        let msg = ServerMessage::connection_ack(None);
+        assert_eq!(msg.message_type, "connection_ack");
+        assert!(msg.id.is_none());
+
+        let json = msg.to_json().unwrap();
+        assert!(json.contains("connection_ack"));
+    }
+
+    #[test]
+    fn test_server_message_next() {
+        let data = serde_json::json!({"orderCreated": {"id": "ord_123"}});
+        let msg = ServerMessage::next("op_1", data);
+
+        assert_eq!(msg.message_type, "next");
+        assert_eq!(msg.id, Some("op_1".to_string()));
+
+        let json = msg.to_json().unwrap();
+        assert!(json.contains("next"));
+        assert!(json.contains("op_1"));
+        assert!(json.contains("orderCreated"));
+    }
+
+    #[test]
+    fn test_server_message_error() {
+        let errors = vec![GraphQLError::with_code(
+            "Subscription not found",
+            "SUBSCRIPTION_NOT_FOUND",
+        )];
+        let msg = ServerMessage::error("op_1", errors);
+
+        assert_eq!(msg.message_type, "error");
+        let json = msg.to_json().unwrap();
+        assert!(json.contains("Subscription not found"));
+    }
+
+    #[test]
+    fn test_server_message_complete() {
+        let msg = ServerMessage::complete("op_1");
+
+        assert_eq!(msg.message_type, "complete");
+        assert_eq!(msg.id, Some("op_1".to_string()));
+        assert!(msg.payload.is_none());
+    }
+
+    #[test]
+    fn test_client_message_parsing() {
+        let json = r#"{
+            "type": "subscribe",
+            "id": "op_1",
+            "payload": {
+                "query": "subscription { orderCreated { id } }"
+            }
+        }"#;
+
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        assert_eq!(msg.parsed_type(), Some(ClientMessageType::Subscribe));
+        assert_eq!(msg.id, Some("op_1".to_string()));
+
+        let payload = msg.subscription_payload().unwrap();
+        assert!(payload.query.contains("orderCreated"));
+    }
+
+    #[test]
+    fn test_close_codes() {
+        assert_eq!(CloseCode::Normal.code(), 1000);
+        assert_eq!(CloseCode::Unauthorized.code(), 4401);
+        assert_eq!(CloseCode::SubscriberAlreadyExists.code(), 4409);
+    }
+
+    #[test]
+    fn test_graphql_error() {
+        let error = GraphQLError::with_code("Test error", "TEST_ERROR");
+        assert_eq!(error.message, "Test error");
+        assert!(error.extensions.is_some());
+
+        let json = serde_json::to_string(&error).unwrap();
+        assert!(json.contains("TEST_ERROR"));
+    }
+}

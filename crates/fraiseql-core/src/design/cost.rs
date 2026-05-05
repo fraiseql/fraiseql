@@ -208,15 +208,4 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn test_cost_analyze_empty_schema() {
-        let schema = serde_json::json!({});
-        let mut audit = DesignAudit::new();
-        analyze(&schema, &mut audit);
-        // Should not panic
-    }
-}

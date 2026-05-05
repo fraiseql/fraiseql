@@ -253,27 +253,4 @@ impl Default for DesignAudit {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_issue_severity_weight() {
-        assert_eq!(IssueSeverity::Critical.weight(), 3);
-        assert_eq!(IssueSeverity::Warning.weight(), 2);
-        assert_eq!(IssueSeverity::Info.weight(), 1);
-    }
-
-    #[test]
-    fn test_empty_audit_score() {
-        let audit = DesignAudit::new();
-        assert_eq!(audit.score(), 100);
-    }
-
-    #[test]
-    fn test_severity_count_empty() {
-        let audit = DesignAudit::new();
-        assert_eq!(audit.severity_count(IssueSeverity::Critical), 0);
-        assert_eq!(audit.severity_count(IssueSeverity::Warning), 0);
-        assert_eq!(audit.severity_count(IssueSeverity::Info), 0);
-    }
-}
+mod tests;

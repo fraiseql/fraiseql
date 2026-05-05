@@ -203,41 +203,4 @@ fn check_missing_cardinality_hints(schema: &Value, audit: &mut DesignAudit) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn test_compilation_analyze_empty_schema() {
-        let schema = serde_json::json!({});
-        let mut audit = DesignAudit::new();
-        analyze(&schema, &mut audit);
-    }
-
-    #[test]
-    fn test_circular_types_detection() {
-        let schema = serde_json::json!({
-            "types": [
-                {
-                    "name": "User",
-                    "fields": [
-                        {"name": "id", "type": "ID"},
-                        {"name": "posts", "type": "[Post]"}
-                    ]
-                },
-                {
-                    "name": "Post",
-                    "fields": [
-                        {"name": "id", "type": "ID"},
-                        {"name": "author", "type": "User"}
-                    ]
-                }
-            ]
-        });
-
-        let mut audit = DesignAudit::new();
-        analyze(&schema, &mut audit);
-
-        assert!(!audit.schema_issues.is_empty());
-    }
-}

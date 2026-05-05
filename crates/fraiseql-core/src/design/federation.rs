@@ -211,29 +211,3 @@ fn check_missing_compilation_metadata(schema: &Value, _audit: &mut DesignAudit) 
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_federation_analyze_empty_schema() {
-        let schema = serde_json::json!({});
-        let mut audit = DesignAudit::new();
-        analyze(&schema, &mut audit);
-        // Should not panic or error
-    }
-
-    #[test]
-    fn test_over_federation_detection() {
-        let schema = serde_json::json!({
-            "subgraphs": [
-                {"name": "service-a", "entities": ["User"]},
-                {"name": "service-b", "entities": ["User"]},
-                {"name": "service-c", "entities": ["User"]},
-            ]
-        });
-        let mut audit = DesignAudit::new();
-        analyze(&schema, &mut audit);
-        assert!(!audit.federation_issues.is_empty());
-    }
-}
