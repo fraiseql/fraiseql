@@ -169,27 +169,4 @@ pub enum HealthStatus {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_event_filter_default() {
-        let filter = EventFilter::default();
-        assert!(filter.entity_type.is_none());
-        assert!(filter.operation.is_none());
-        assert!(filter.tenant_id.is_none());
-    }
-
-    #[test]
-    fn test_health_status_equality() {
-        assert_eq!(HealthStatus::Healthy, HealthStatus::Healthy);
-        assert_ne!(HealthStatus::Healthy, HealthStatus::Degraded);
-    }
-
-    #[test]
-    fn test_transport_type_equality() {
-        assert_eq!(TransportType::PostgresNotify, TransportType::PostgresNotify);
-        assert_eq!(TransportType::InMemory, TransportType::InMemory);
-        assert_ne!(TransportType::PostgresNotify, TransportType::InMemory);
-    }
-}
+mod tests;

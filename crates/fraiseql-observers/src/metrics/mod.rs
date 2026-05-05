@@ -59,3 +59,7 @@ impl Default for MetricsRegistry {
         Self::new()
     }
 }
+
+#[cfg(feature = "metrics")]
+#[cfg(test)]
+mod tests;

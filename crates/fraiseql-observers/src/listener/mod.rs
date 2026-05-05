@@ -201,25 +201,4 @@ impl EventListener {
 }
 
 #[cfg(test)]
-mod tests {
-    use uuid::Uuid;
-
-    use crate::event::{EntityEvent, EventKind};
-
-    #[tokio::test]
-    async fn test_event_deserialization() {
-        let event = EntityEvent::new(
-            EventKind::Created,
-            "Order".to_string(),
-            Uuid::new_v4(),
-            serde_json::json!({"total": 100}),
-        );
-
-        let serialized = serde_json::to_string(&event).expect("Failed to serialize");
-        let deserialized: EntityEvent =
-            serde_json::from_str(&serialized).expect("Failed to deserialize");
-
-        assert_eq!(deserialized.entity_type, "Order");
-        assert_eq!(deserialized.data["total"], 100);
-    }
-}
+mod tests;

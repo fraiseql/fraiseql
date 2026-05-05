@@ -34,7 +34,7 @@ pub struct PostgresNotifyTransport {
     /// Inner change log listener (wrapped)
     listener:      Arc<Mutex<ChangeLogListener>>,
     /// Poll interval for checking new events
-    poll_interval: Duration,
+    pub(crate) poll_interval: Duration,
 }
 
 impl PostgresNotifyTransport {
@@ -152,81 +152,3 @@ impl EventTransport for PostgresNotifyTransport {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::env;
-
-    use sqlx::postgres::PgPool;
-
-    use super::*;
-    use crate::listener::ChangeLogListenerConfig;
-
-    /// Returns `None` if `TEST_DATABASE_URL` is not set, allowing tests to skip gracefully.
-    async fn try_test_pool() -> Option<PgPool> {
-        let database_url = env::var("TEST_DATABASE_URL").ok()?;
-        Some(
-            PgPool::connect(&database_url)
-                .await
-                .expect("Failed to connect to TEST_DATABASE_URL"),
-        )
-    }
-
-    #[tokio::test]
-    async fn test_postgres_transport_creation() {
-        let Some(pool) = try_test_pool().await else {
-            eprintln!("Skipping: TEST_DATABASE_URL not set");
-            return;
-        };
-
-        let config = ChangeLogListenerConfig::new(pool);
-        let transport = PostgresNotifyTransport::from_config(config);
-
-        assert_eq!(transport.transport_type(), TransportType::PostgresNotify);
-    }
-
-    #[tokio::test]
-    async fn test_postgres_transport_health_check() {
-        let Some(pool) = try_test_pool().await else {
-            eprintln!("Skipping: TEST_DATABASE_URL not set");
-            return;
-        };
-
-        let config = ChangeLogListenerConfig::new(pool);
-        let transport = PostgresNotifyTransport::from_config(config);
-
-        let health = transport.health_check().await.expect("health_check should succeed");
-        assert_eq!(health.status, HealthStatus::Healthy);
-    }
-
-    #[tokio::test]
-    async fn test_postgres_transport_subscribe() {
-        let Some(pool) = try_test_pool().await else {
-            eprintln!("Skipping: TEST_DATABASE_URL not set");
-            return;
-        };
-
-        let config = ChangeLogListenerConfig::new(pool).with_poll_interval(50);
-        let transport = PostgresNotifyTransport::from_config(config);
-
-        // Verify the stream can be created (won't produce events without data)
-        let stream = transport
-            .subscribe(EventFilter::default())
-            .await
-            .expect("subscribe should succeed");
-        drop(stream);
-    }
-
-    #[tokio::test]
-    async fn test_postgres_transport_poll_interval() {
-        let Some(pool) = try_test_pool().await else {
-            eprintln!("Skipping: TEST_DATABASE_URL not set");
-            return;
-        };
-
-        let config = ChangeLogListenerConfig::new(pool);
-        let transport = PostgresNotifyTransport::from_config(config)
-            .with_poll_interval(Duration::from_millis(200));
-
-        assert_eq!(transport.poll_interval, Duration::from_millis(200));
-    }
-}

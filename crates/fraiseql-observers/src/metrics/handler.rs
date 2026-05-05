@@ -34,14 +34,3 @@ pub async fn metrics_handler() -> ([(String, String); 1], String) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_metrics_handler_returns_text() {
-        let (headers, body) = metrics_handler().await;
-        assert_eq!(headers[0].0, "content-type", "Should return content-type header");
-        assert!(body.contains("fraiseql_observer"), "Should contain observer metrics");
-    }
-}
