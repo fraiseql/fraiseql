@@ -28,7 +28,7 @@ const SD_ID: &str = "audit@49152";
 const MAX_UDP_MSG_LEN: usize = 2048;
 
 /// Syslog transport.
-enum Transport {
+pub(crate) enum Transport {
     Udp(UdpSocket),
     Tcp(TcpStream),
 }
@@ -52,8 +52,8 @@ impl Transport {
 
 /// RFC 5424 syslog audit exporter for GraphQL operation audit entries.
 pub struct SyslogAuditExporter {
-    transport: Mutex<Transport>,
-    hostname:  String,
+    pub(crate) transport: Mutex<Transport>,
+    pub(crate) hostname:  String,
 }
 
 impl SyslogAuditExporter {
@@ -88,7 +88,7 @@ impl SyslogAuditExporter {
     }
 
     /// Map audit level to RFC 5424 severity (0-7).
-    const fn severity(level: AuditLevel) -> u8 {
+    pub(crate) const fn severity(level: AuditLevel) -> u8 {
         match level {
             AuditLevel::INFO => 6,  // Informational
             AuditLevel::WARN => 4,  // Warning
@@ -97,7 +97,7 @@ impl SyslogAuditExporter {
     }
 
     /// Format an audit entry as an RFC 5424 message.
-    fn format_message(&self, entry: &AuditEntry) -> String {
+    pub(crate) fn format_message(&self, entry: &AuditEntry) -> String {
         let severity = Self::severity(entry.level);
         // Facility 10 (authpriv) * 8 + severity
         let priority = 80 + u16::from(severity);
@@ -148,156 +148,6 @@ impl AuditExporter for SyslogAuditExporter {
 }
 
 /// Escape characters that are special in RFC 5424 SD-VALUE: `"`, `\`, `]`.
-fn escape_sd_value(s: &str) -> String {
+pub(crate) fn escape_sd_value(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"").replace(']', "\\]")
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use std::{io::Read, net::UdpSocket};
-
-    use chrono::Utc;
-
-    use super::*;
-
-    fn test_entry() -> AuditEntry {
-        AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(42),
-            previous_hash:  None,
-            integrity_hash: None,
-        }
-    }
-
-    #[test]
-    fn test_format_message_rfc5424() {
-        let exporter = SyslogAuditExporter {
-            transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname:  "test-host".to_string(),
-        };
-
-        let msg = exporter.format_message(&test_entry());
-
-        // Priority = authpriv(10) * 8 + severity(6) = 86
-        assert!(msg.starts_with("<86>1 "), "should start with priority 86, got: {msg}");
-        assert!(msg.contains("test-host"));
-        assert!(msg.contains("fraiseql"));
-        assert!(msg.contains("AUDIT"));
-        assert!(msg.contains(r#"user="123""#));
-        assert!(msg.contains(r#"tenant="456""#));
-        assert!(msg.contains(r#"operation="query""#));
-        assert!(msg.contains(r#"level="INFO""#));
-        assert!(msg.contains("{ users { id name } }"));
-    }
-
-    #[test]
-    fn test_format_message_with_error() {
-        let exporter = SyslogAuditExporter {
-            transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname:  "test-host".to_string(),
-        };
-
-        let mut entry = test_entry();
-        entry.level = AuditLevel::ERROR;
-        entry.error = Some("timeout".to_string());
-
-        let msg = exporter.format_message(&entry);
-
-        // Priority = authpriv(10) * 8 + severity(3) = 83
-        assert!(msg.starts_with("<83>1 "), "error priority should be 83");
-        assert!(msg.contains(r#"error="timeout""#));
-        assert!(msg.contains(r#"level="ERROR""#));
-    }
-
-    #[test]
-    fn test_severity_mapping() {
-        assert_eq!(SyslogAuditExporter::severity(AuditLevel::INFO), 6);
-        assert_eq!(SyslogAuditExporter::severity(AuditLevel::WARN), 4);
-        assert_eq!(SyslogAuditExporter::severity(AuditLevel::ERROR), 3);
-    }
-
-    #[test]
-    fn test_syslog_udp_export() {
-        let receiver = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let recv_addr = receiver.local_addr().unwrap();
-        receiver.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
-
-        let config = SyslogExportConfig {
-            address:  "127.0.0.1".to_string(),
-            port:     recv_addr.port(),
-            protocol: "udp".to_string(),
-        };
-
-        let exporter = SyslogAuditExporter::new(&config).unwrap();
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-        rt.block_on(exporter.export(&test_entry())).unwrap();
-
-        let mut buf = [0u8; 4096];
-        let n = receiver.recv(&mut buf).unwrap();
-        let received = std::str::from_utf8(&buf[..n]).unwrap();
-
-        assert!(received.contains("AUDIT"));
-        assert!(received.contains(r#"user="123""#));
-    }
-
-    #[test]
-    fn test_syslog_tcp_export() {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let listen_addr = listener.local_addr().unwrap();
-
-        let config = SyslogExportConfig {
-            address:  "127.0.0.1".to_string(),
-            port:     listen_addr.port(),
-            protocol: "tcp".to_string(),
-        };
-
-        let exporter = SyslogAuditExporter::new(&config).unwrap();
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-        rt.block_on(exporter.export(&test_entry())).unwrap();
-
-        let (mut conn, _) = listener.accept().unwrap();
-        conn.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
-
-        let mut buf = [0u8; 4096];
-        let n = conn.read(&mut buf).unwrap();
-        let received = std::str::from_utf8(&buf[..n]).unwrap();
-
-        assert!(received.contains("AUDIT"));
-        assert!(received.ends_with('\n'), "TCP syslog should end with newline");
-    }
-
-    #[test]
-    fn test_escape_sd_value() {
-        assert_eq!(escape_sd_value(r#"a"b"#), r#"a\"b"#);
-        assert_eq!(escape_sd_value(r"a\b"), r"a\\b");
-        assert_eq!(escape_sd_value("a]b"), r"a\]b");
-    }
-
-    #[test]
-    fn test_long_query_truncated() {
-        let exporter = SyslogAuditExporter {
-            transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname:  "test-host".to_string(),
-        };
-
-        let mut entry = test_entry();
-        entry.query = "x".repeat(500);
-
-        let msg = exporter.format_message(&entry);
-        // Query should be truncated to 200 chars + "..."
-        assert!(msg.len() < 600, "message should be bounded");
-        assert!(msg.contains("..."));
-    }
 }

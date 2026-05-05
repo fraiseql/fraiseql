@@ -40,3 +40,6 @@ pub use base::{ArcKmsProvider, BaseKmsProvider};
 pub use error::{KmsError, KmsResult};
 pub use models::{DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState, RotationPolicy};
 pub use vault::{VaultConfig, VaultKmsProvider};
+
+#[cfg(test)]
+mod tests;

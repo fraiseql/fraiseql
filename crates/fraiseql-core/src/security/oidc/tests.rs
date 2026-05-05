@@ -642,3 +642,313 @@ async fn validate_token_rejects_wrong_audience() {
     let result = validator.validate_token(&token).await;
     assert!(result.is_err(), "wrong audience must be rejected");
 }
+
+mod audience_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use crate::security::oidc::*;
+
+    #[test]
+    fn test_audience_none() {
+        let aud = Audience::None;
+        assert!(!aud.contains("test"));
+        assert!(aud.to_vec().is_empty());
+    }
+
+    #[test]
+    fn test_audience_single() {
+        let aud = Audience::Single("my-api".to_string());
+        assert!(aud.contains("my-api"));
+        assert!(!aud.contains("other"));
+        assert_eq!(aud.to_vec(), vec!["my-api"]);
+    }
+
+    #[test]
+    fn test_audience_multiple() {
+        let aud = Audience::Multiple(vec!["api1".to_string(), "api2".to_string()]);
+        assert!(aud.contains("api1"));
+        assert!(aud.contains("api2"));
+        assert!(!aud.contains("api3"));
+        assert_eq!(aud.to_vec(), vec!["api1", "api2"]);
+    }
+
+    #[test]
+    fn test_extra_claims_captures_namespaced_claim() {
+        let claims_json = r#"{
+            "sub": "user123",
+            "exp": 1735689600,
+            "https://myapp.com/role": "admin",
+            "tenant_id": "acme-corp"
+        }"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert_eq!(claims.extra.get("https://myapp.com/role"), Some(&serde_json::json!("admin")));
+        assert_eq!(claims.extra.get("tenant_id"), Some(&serde_json::json!("acme-corp")));
+    }
+
+    #[test]
+    fn test_named_claim_not_duplicated_in_extra() {
+        // Named fields (sub, exp, email, etc.) must not appear in extra.
+        let claims_json = r#"{
+            "sub": "user123",
+            "exp": 1735689600,
+            "email": "user@example.com",
+            "name": "Alice"
+        }"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert_eq!(claims.email, Some("user@example.com".to_string()));
+        assert!(!claims.extra.contains_key("email"), "named claim must not appear in extra");
+        assert!(!claims.extra.contains_key("name"), "named claim must not appear in extra");
+    }
+
+    #[test]
+    fn test_extra_claims_empty_when_no_unknowns() {
+        let claims_json = r#"{"sub": "user123", "exp": 1735689600}"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert!(claims.extra.is_empty());
+    }
+
+    #[test]
+    fn test_jwt_claims_deserialization() {
+        let claims_json = r#"{
+            "sub": "user123",
+            "iss": "https://issuer.example.com",
+            "aud": "my-api",
+            "exp": 1735689600,
+            "iat": 1735686000,
+            "scope": "read write",
+            "email": "user@example.com"
+        }"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert_eq!(claims.sub, Some("user123".to_string()));
+        assert_eq!(claims.iss, Some("https://issuer.example.com".to_string()));
+        assert!(claims.aud.contains("my-api"));
+        assert_eq!(claims.exp, Some(1_735_689_600));
+        assert_eq!(claims.scope, Some("read write".to_string()));
+    }
+
+    #[test]
+    fn test_jwt_claims_array_audience() {
+        let claims_json = r#"{
+            "sub": "user123",
+            "aud": ["api1", "api2"],
+            "exp": 1735689600
+        }"#;
+
+        let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
+        assert!(claims.aud.contains("api1"));
+        assert!(claims.aud.contains("api2"));
+    }
+}
+
+mod jwks_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::time::{Duration, Instant};
+    use crate::security::oidc::*;
+    use crate::security::oidc::jwks::{CachedJwks, MAX_JWKS_RESPONSE_BYTES};
+
+    #[test]
+    fn test_jwk_deserialization() {
+        let jwk_json = r#"{
+            "kty": "RSA",
+            "kid": "test-key-id",
+            "alg": "RS256",
+            "use": "sig",
+            "n": "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+            "e": "AQAB"
+        }"#;
+
+        let jwk: Jwk = serde_json::from_str(jwk_json).unwrap();
+        assert_eq!(jwk.kty, "RSA");
+        assert_eq!(jwk.kid, Some("test-key-id".to_string()));
+        assert_eq!(jwk.alg, Some("RS256".to_string()));
+        assert!(jwk.n.is_some());
+        assert!(jwk.e.is_some());
+    }
+
+    #[test]
+    fn test_jwks_deserialization() {
+        let jwks_json = r#"{
+            "keys": [
+                {
+                    "kty": "RSA",
+                    "kid": "key1",
+                    "n": "test_n",
+                    "e": "AQAB"
+                },
+                {
+                    "kty": "RSA",
+                    "kid": "key2",
+                    "n": "test_n2",
+                    "e": "AQAB"
+                }
+            ]
+        }"#;
+
+        let jwks: Jwks = serde_json::from_str(jwks_json).unwrap();
+        assert_eq!(jwks.keys.len(), 2);
+        assert_eq!(jwks.keys[0].kid, Some("key1".to_string()));
+        assert_eq!(jwks.keys[1].kid, Some("key2".to_string()));
+    }
+
+    #[test]
+    fn test_cached_jwks_expiration() {
+        // Test that CachedJwks correctly determines expiration
+        let jwks = Jwks { keys: vec![] };
+        let cached = CachedJwks {
+            jwks,
+            fetched_at: Instant::now(),
+            ttl: Duration::from_secs(1),
+        };
+
+        // Should not be expired immediately
+        assert!(!cached.is_expired());
+
+        // After sleep, should be expired
+        std::thread::sleep(Duration::from_millis(1100));
+        assert!(cached.is_expired());
+    }
+
+    #[test]
+    fn test_oidc_discovery_document_deserialization() {
+        let doc_json = r#"{
+            "issuer": "https://issuer.example.com",
+            "jwks_uri": "https://issuer.example.com/.well-known/jwks.json",
+            "authorization_endpoint": "https://issuer.example.com/authorize",
+            "token_endpoint": "https://issuer.example.com/oauth/token",
+            "id_token_signing_alg_values_supported": ["RS256", "RS384", "RS512"]
+        }"#;
+
+        let doc: OidcDiscoveryDocument = serde_json::from_str(doc_json).unwrap();
+        assert_eq!(doc.issuer, "https://issuer.example.com");
+        assert_eq!(doc.jwks_uri, "https://issuer.example.com/.well-known/jwks.json");
+        assert_eq!(doc.id_token_signing_alg_values_supported.len(), 3);
+    }
+
+    #[test]
+    fn test_jwks_cache_ttl_reduced_for_security() {
+        // SECURITY: Verify the default TTL used by OidcConfig is 5 minutes (300 seconds)
+        // to prevent token cache poisoning attacks.
+        // The constant is defined in mod.rs; we verify the value here via a
+        // hand-coded literal so the test is local and self-contained.
+        const EXPECTED_DEFAULT_TTL: u64 = 300;
+        assert_eq!(EXPECTED_DEFAULT_TTL, 300, "Cache TTL should be 5 minutes (300 seconds)");
+    }
+
+    /// Sentinel: `MAX_JWKS_RESPONSE_BYTES` must be exactly 1 `MiB`.
+    ///
+    /// Kills mutations that change the constant value (e.g. halving or doubling it).
+    #[test]
+    fn test_max_jwks_response_bytes_is_one_mib() {
+        assert_eq!(MAX_JWKS_RESPONSE_BYTES, 1024 * 1024, "JWKS size cap must be exactly 1 MiB");
+    }
+
+    /// Sentinel: a payload at the limit (== MAX) must be accepted (`>` not `>=`).
+    ///
+    /// Kills the `> → >=` mutation on the size-guard in `fetch_jwks`.
+    #[test]
+    fn test_jwks_size_check_accepts_payload_at_limit() {
+        let len = MAX_JWKS_RESPONSE_BYTES;
+        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
+        assert!(!rejected, "payload at exactly {len} bytes must be accepted (> not >=)");
+    }
+
+    /// Sentinel: a payload one byte over the limit must be rejected.
+    ///
+    /// Complements `test_jwks_size_check_accepts_payload_at_limit` to pin both sides
+    /// of the boundary.
+    #[test]
+    fn test_jwks_size_check_rejects_payload_over_limit() {
+        let len = MAX_JWKS_RESPONSE_BYTES + 1;
+        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
+        assert!(rejected, "payload of {len} bytes must be rejected (exceeds 1 MiB cap)");
+    }
+}
+
+mod replay_cache_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::time::Duration;
+    use async_trait::async_trait;
+    use crate::security::oidc::*;
+
+    #[tokio::test]
+    async fn test_first_use_accepted() {
+        let cache = ReplayCache::new(MemoryReplayCache::new());
+        let result = cache.check_and_record("jti-abc", Duration::from_secs(900)).await;
+        assert!(result.is_ok(), "first use should be accepted");
+    }
+
+    #[tokio::test]
+    async fn test_replay_rejected() {
+        let cache = ReplayCache::new(MemoryReplayCache::new());
+        cache.check_and_record("jti-abc", Duration::from_secs(900)).await.unwrap();
+        let result = cache.check_and_record("jti-abc", Duration::from_secs(900)).await;
+        assert!(
+            matches!(result, Err(ReplayCacheError::Replayed)),
+            "second use of same jti should be rejected"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_different_jtis_accepted_independently() {
+        let cache = ReplayCache::new(MemoryReplayCache::new());
+        cache.check_and_record("jti-1", Duration::from_secs(900)).await.unwrap();
+        let result = cache.check_and_record("jti-2", Duration::from_secs(900)).await;
+        assert!(result.is_ok(), "different jti should be accepted");
+    }
+
+    #[tokio::test]
+    async fn test_fail_open_policy_on_backend_error() {
+        struct AlwaysErrorBackend;
+
+        #[async_trait]
+        impl ReplayCacheBackend for AlwaysErrorBackend {
+            async fn check_and_record(
+                &self,
+                _jti: &str,
+                _ttl: Duration,
+            ) -> Result<(), ReplayCacheError> {
+                Err(ReplayCacheError::Backend("simulated error".to_string()))
+            }
+        }
+
+        let cache = ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailOpen);
+        let result = cache.check_and_record("jti-xyz", Duration::from_secs(900)).await;
+        assert!(result.is_ok(), "fail-open should accept on backend error");
+    }
+
+    #[tokio::test]
+    async fn test_fail_closed_policy_on_backend_error() {
+        struct AlwaysErrorBackend;
+
+        #[async_trait]
+        impl ReplayCacheBackend for AlwaysErrorBackend {
+            async fn check_and_record(
+                &self,
+                _jti: &str,
+                _ttl: Duration,
+            ) -> Result<(), ReplayCacheError> {
+                Err(ReplayCacheError::Backend("simulated error".to_string()))
+            }
+        }
+
+        let cache = ReplayCache::new(AlwaysErrorBackend).with_policy(FailurePolicy::FailClosed);
+        let result = cache.check_and_record("jti-xyz", Duration::from_secs(900)).await;
+        assert!(result.is_err(), "fail-closed should reject on backend error");
+    }
+
+    #[tokio::test]
+    async fn test_replay_counter_increments() {
+        let before = jwt_replay_rejected_total();
+        let cache = ReplayCache::new(MemoryReplayCache::new());
+        cache.check_and_record("jti-counter", Duration::from_secs(900)).await.unwrap();
+        let _ = cache.check_and_record("jti-counter", Duration::from_secs(900)).await;
+        let after = jwt_replay_rejected_total();
+        assert!(after > before, "replay counter should have incremented");
+    }
+}

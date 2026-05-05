@@ -287,13 +287,3 @@ pub struct RotationPolicyInfo {
     /// Unix timestamp (seconds) when the next rotation is scheduled, if known.
     pub next_rotation:        Option<i64>,
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::utils::clock::{Clock as _, SystemClock};
-
-    #[test]
-    fn test_system_clock_timestamp_is_positive() {
-        assert!(SystemClock.now_secs_i64() > 0);
-    }
-}

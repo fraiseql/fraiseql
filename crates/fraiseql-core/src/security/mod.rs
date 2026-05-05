@@ -66,3 +66,6 @@ pub use validation_audit::{
 };
 
 pub use crate::graphql::complexity::QueryMetrics;
+
+#[cfg(test)]
+mod tests;

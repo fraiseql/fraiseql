@@ -35,9 +35,9 @@ const WEBHOOK_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Webhook audit exporter that POSTs JSON batches to a configurable URL.
 pub struct WebhookAuditExporter {
-    client: Client,
-    config: WebhookExportConfig,
-    buffer: Arc<Mutex<Vec<AuditEntry>>>,
+    client:            Client,
+    config:            WebhookExportConfig,
+    pub(crate) buffer: Arc<Mutex<Vec<AuditEntry>>>,
 }
 
 impl WebhookAuditExporter {
@@ -135,114 +135,5 @@ impl AuditExporter for WebhookAuditExporter {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use chrono::Utc;
-
-    use super::*;
-    use crate::security::audit::AuditLevel;
-
-    fn test_entry() -> AuditEntry {
-        AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(42),
-            previous_hash:  None,
-            integrity_hash: None,
-        }
-    }
-
-    #[test]
-    fn test_buffer_accumulates_entries() {
-        let config = WebhookExportConfig {
-            url:                 "https://example.com/audit".to_string(),
-            headers:             std::collections::HashMap::new(),
-            batch_size:          10,
-            flush_interval_secs: 30,
-        };
-
-        let exporter = WebhookAuditExporter::new(&config).unwrap();
-
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-
-        // Add entries below batch_size — should not flush.
-        for _ in 0..5 {
-            // Export will buffer but not flush (no server, so flush would fail).
-            rt.block_on(exporter.export(&test_entry())).unwrap();
-        }
-
-        assert_eq!(exporter.buffer.lock().len(), 5);
-    }
-
-    #[test]
-    fn test_flush_empties_buffer() {
-        let config = WebhookExportConfig {
-            url:                 "https://example.com/audit".to_string(),
-            headers:             std::collections::HashMap::new(),
-            batch_size:          100,
-            flush_interval_secs: 30,
-        };
-
-        let exporter = WebhookAuditExporter::new(&config).unwrap();
-
-        // Manually push entries into buffer.
-        {
-            let mut buf = exporter.buffer.lock();
-            for _ in 0..5 {
-                buf.push(test_entry());
-            }
-        }
-
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-
-        // Flush will fail (no server) but should still drain the buffer.
-        let _ = rt.block_on(exporter.flush());
-
-        // Buffer should be empty even though send failed.
-        assert_eq!(exporter.buffer.lock().len(), 0);
-    }
-
-    #[test]
-    fn test_config_defaults() {
-        let json = r#"{"url": "https://example.com/audit"}"#;
-        let config: WebhookExportConfig = serde_json::from_str(json).unwrap();
-
-        assert_eq!(config.batch_size, 100);
-        assert_eq!(config.flush_interval_secs, 30);
-        assert!(config.headers.is_empty());
-    }
-
-    #[test]
-    fn test_syslog_config_defaults() {
-        use crate::security::audit::SyslogExportConfig;
-        let json = r#"{"address": "syslog.internal"}"#;
-        let config: SyslogExportConfig = serde_json::from_str(json).unwrap();
-
-        assert_eq!(config.port, 514);
-        assert_eq!(config.protocol, "udp");
-    }
-
-    #[test]
-    fn test_export_config_optional_fields() {
-        use crate::security::audit::AuditExportConfig;
-        let json = "{}";
-        let config: AuditExportConfig = serde_json::from_str(json).unwrap();
-
-        assert!(config.syslog.is_none());
-        assert!(config.webhook.is_none());
     }
 }

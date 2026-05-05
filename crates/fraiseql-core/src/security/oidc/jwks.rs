@@ -18,7 +18,7 @@ use crate::security::{
 /// A legitimate JWKS document (a few RSA/EC public keys) is well under 64 `KiB`.
 /// A 1 `MiB` cap prevents a malicious or compromised OIDC provider from sending
 /// a response large enough to exhaust server memory.
-const MAX_JWKS_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
+pub const MAX_JWKS_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
 
 // ============================================================================
 // OIDC Discovery Response
@@ -89,7 +89,7 @@ pub struct Jwk {
 
 /// Cached JWKS with expiration.
 #[derive(Debug)]
-pub(super) struct CachedJwks {
+pub struct CachedJwks {
     pub(super) jwks:       Jwks,
     pub(super) fetched_at: Instant,
     pub(super) ttl:        Duration,
@@ -253,129 +253,5 @@ impl OidcValidator {
                 })
             },
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::*;
-
-    #[test]
-    fn test_jwk_deserialization() {
-        let jwk_json = r#"{
-            "kty": "RSA",
-            "kid": "test-key-id",
-            "alg": "RS256",
-            "use": "sig",
-            "n": "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
-            "e": "AQAB"
-        }"#;
-
-        let jwk: Jwk = serde_json::from_str(jwk_json).unwrap();
-        assert_eq!(jwk.kty, "RSA");
-        assert_eq!(jwk.kid, Some("test-key-id".to_string()));
-        assert_eq!(jwk.alg, Some("RS256".to_string()));
-        assert!(jwk.n.is_some());
-        assert!(jwk.e.is_some());
-    }
-
-    #[test]
-    fn test_jwks_deserialization() {
-        let jwks_json = r#"{
-            "keys": [
-                {
-                    "kty": "RSA",
-                    "kid": "key1",
-                    "n": "test_n",
-                    "e": "AQAB"
-                },
-                {
-                    "kty": "RSA",
-                    "kid": "key2",
-                    "n": "test_n2",
-                    "e": "AQAB"
-                }
-            ]
-        }"#;
-
-        let jwks: Jwks = serde_json::from_str(jwks_json).unwrap();
-        assert_eq!(jwks.keys.len(), 2);
-        assert_eq!(jwks.keys[0].kid, Some("key1".to_string()));
-        assert_eq!(jwks.keys[1].kid, Some("key2".to_string()));
-    }
-
-    #[test]
-    fn test_cached_jwks_expiration() {
-        // Test that CachedJwks correctly determines expiration
-        let jwks = Jwks { keys: vec![] };
-        let cached = CachedJwks {
-            jwks,
-            fetched_at: Instant::now(),
-            ttl: Duration::from_secs(1),
-        };
-
-        // Should not be expired immediately
-        assert!(!cached.is_expired());
-
-        // After sleep, should be expired
-        std::thread::sleep(Duration::from_millis(1100));
-        assert!(cached.is_expired());
-    }
-
-    #[test]
-    fn test_oidc_discovery_document_deserialization() {
-        let doc_json = r#"{
-            "issuer": "https://issuer.example.com",
-            "jwks_uri": "https://issuer.example.com/.well-known/jwks.json",
-            "authorization_endpoint": "https://issuer.example.com/authorize",
-            "token_endpoint": "https://issuer.example.com/oauth/token",
-            "id_token_signing_alg_values_supported": ["RS256", "RS384", "RS512"]
-        }"#;
-
-        let doc: OidcDiscoveryDocument = serde_json::from_str(doc_json).unwrap();
-        assert_eq!(doc.issuer, "https://issuer.example.com");
-        assert_eq!(doc.jwks_uri, "https://issuer.example.com/.well-known/jwks.json");
-        assert_eq!(doc.id_token_signing_alg_values_supported.len(), 3);
-    }
-
-    #[test]
-    fn test_jwks_cache_ttl_reduced_for_security() {
-        // SECURITY: Verify the default TTL used by OidcConfig is 5 minutes (300 seconds)
-        // to prevent token cache poisoning attacks.
-        // The constant is defined in mod.rs; we verify the value here via a
-        // hand-coded literal so the test is local and self-contained.
-        const EXPECTED_DEFAULT_TTL: u64 = 300;
-        assert_eq!(EXPECTED_DEFAULT_TTL, 300, "Cache TTL should be 5 minutes (300 seconds)");
-    }
-
-    /// Sentinel: `MAX_JWKS_RESPONSE_BYTES` must be exactly 1 `MiB`.
-    ///
-    /// Kills mutations that change the constant value (e.g. halving or doubling it).
-    #[test]
-    fn test_max_jwks_response_bytes_is_one_mib() {
-        assert_eq!(MAX_JWKS_RESPONSE_BYTES, 1024 * 1024, "JWKS size cap must be exactly 1 MiB");
-    }
-
-    /// Sentinel: a payload at the limit (== MAX) must be accepted (`>` not `>=`).
-    ///
-    /// Kills the `> → >=` mutation on the size-guard in `fetch_jwks`.
-    #[test]
-    fn test_jwks_size_check_accepts_payload_at_limit() {
-        let len = MAX_JWKS_RESPONSE_BYTES;
-        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
-        assert!(!rejected, "payload at exactly {len} bytes must be accepted (> not >=)");
-    }
-
-    /// Sentinel: a payload one byte over the limit must be rejected.
-    ///
-    /// Complements `test_jwks_size_check_accepts_payload_at_limit` to pin both sides
-    /// of the boundary.
-    #[test]
-    fn test_jwks_size_check_rejects_payload_over_limit() {
-        let len = MAX_JWKS_RESPONSE_BYTES + 1;
-        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
-        assert!(rejected, "payload of {len} bytes must be rejected (exceeds 1 MiB cap)");
     }
 }

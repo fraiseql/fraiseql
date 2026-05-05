@@ -63,3 +63,6 @@ pub use config::AuthConfig;
 pub use middleware::AuthMiddleware;
 pub use signing_key::SigningKey;
 pub use types::{AuthRequest, AuthenticatedUser, TokenClaims};
+
+#[cfg(test)]
+mod tests;

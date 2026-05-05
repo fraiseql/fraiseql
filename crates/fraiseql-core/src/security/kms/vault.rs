@@ -3,7 +3,7 @@
 use std::{collections::HashMap, time::Duration};
 
 /// Timeout for all outbound Vault API requests.
-const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const VAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -97,7 +97,7 @@ impl VaultConfig {
     }
 
     /// Build full API URL for a path.
-    fn api_url(&self, path: &str) -> String {
+    pub(crate) fn api_url(&self, path: &str) -> String {
         let addr = self.vault_addr.trim_end_matches('/');
         format!("{}/v1/{}/{}", addr, self.mount_path, path)
     }
@@ -448,7 +448,7 @@ impl BaseKmsProvider for VaultKmsProvider {
 }
 
 /// Encode bytes as base64.
-fn base64_encode(data: &[u8]) -> String {
+pub(crate) fn base64_encode(data: &[u8]) -> String {
     #[allow(clippy::wildcard_imports)]
     // Reason: base64::prelude::* is the canonical usage pattern recommended by the base64
     // crate
@@ -457,62 +457,10 @@ fn base64_encode(data: &[u8]) -> String {
 }
 
 /// Decode base64 to bytes.
-fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
+pub(crate) fn base64_decode(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
     #[allow(clippy::wildcard_imports)]
     // Reason: base64::prelude::* is the canonical usage pattern recommended by the base64
     // crate
     use base64::prelude::*;
     BASE64_STANDARD.decode(s)
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::*;
-
-    #[test]
-    fn test_vault_config_api_url() {
-        let config =
-            VaultConfig::new("https://vault.example.com".to_string(), "token123".to_string());
-        assert_eq!(
-            config.api_url("encrypt/my-key"),
-            "https://vault.example.com/v1/transit/encrypt/my-key"
-        );
-    }
-
-    #[test]
-    fn test_vault_config_custom_mount_path() {
-        let config =
-            VaultConfig::new("https://vault.example.com".to_string(), "token123".to_string())
-                .with_mount_path("custom-transit".to_string());
-
-        assert_eq!(
-            config.api_url("encrypt/my-key"),
-            "https://vault.example.com/v1/custom-transit/encrypt/my-key"
-        );
-    }
-
-    #[test]
-    fn test_base64_roundtrip() {
-        let data = b"hello world";
-        let encoded = base64_encode(data);
-        let decoded = base64_decode(&encoded).unwrap();
-        assert_eq!(decoded, data);
-    }
-
-    // ── S25-H2: VaultKmsProvider client timeout ───────────────────────────────
-
-    #[test]
-    fn vault_request_timeout_is_set() {
-        let secs = VAULT_REQUEST_TIMEOUT.as_secs();
-        assert!(secs > 0 && secs <= 120, "Vault timeout should be 1–120 s, got {secs}");
-    }
-
-    #[test]
-    fn vault_provider_new_succeeds() {
-        let config = VaultConfig::new("https://vault.example.com".to_string(), "token".to_string());
-        let provider = VaultKmsProvider::new(config);
-        assert!(provider.is_ok(), "VaultKmsProvider::new() must succeed with valid config");
-    }
 }
