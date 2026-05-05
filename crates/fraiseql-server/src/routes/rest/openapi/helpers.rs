@@ -1,12 +1,12 @@
-//! Helper functions for OpenAPI specification generation.
+//! Helper functions for `OpenAPI` specification generation.
 //!
 //! Contains utility functions for JSON schema generation, string transformations,
-//! and HTTP method mapping used throughout OpenAPI spec building.
+//! and HTTP method mapping used throughout `OpenAPI` spec building.
 
 use fraiseql_core::schema::FieldType;
 use serde_json::{json, Value};
 
-use super::resource::{HttpMethod, RestRoute};
+use super::super::resource::{HttpMethod, RestRoute};
 
 /// Bracket operators documented in filter parameter descriptions.
 pub(super) const BRACKET_OPERATORS_DESC: &str = "eq, ne, gt, gte, lt, lte, in, nin, like, ilike, is_null, contains, icontains, startswith, endswith";
@@ -60,7 +60,7 @@ pub(super) const fn method_to_string(method: HttpMethod) -> &'static str {
     }
 }
 
-/// Determine if a route should include a Prefer header in its OpenAPI documentation.
+/// Determine if a route should include a Prefer header in its `OpenAPI` documentation.
 pub(super) fn should_have_prefer_header(route: &RestRoute) -> bool {
     match route.method {
         HttpMethod::Get => {
@@ -81,7 +81,7 @@ pub(super) fn capitalize(s: &str) -> String {
     }
 }
 
-/// Convert a string to snake_case.
+/// Convert a string to `snake_case`.
 pub(super) fn to_snake(s: &str) -> String {
     let mut result = String::new();
     for (i, c) in s.chars().enumerate() {
@@ -173,7 +173,7 @@ mod tests {
         let mut route = RestRoute {
             method:          HttpMethod::Get,
             path:            "/users".to_string(),
-            source:          super::super::resource::RouteSource::Query {
+            source:          super::super::super::resource::RouteSource::Query {
                 name: "users".to_string(),
             },
             update_coverage: None,
@@ -190,7 +190,7 @@ mod tests {
         let route = RestRoute {
             method:          HttpMethod::Post,
             path:            "/users".to_string(),
-            source:          super::super::resource::RouteSource::Mutation {
+            source:          super::super::super::resource::RouteSource::Mutation {
                 name: "createUser".to_string(),
             },
             update_coverage: None,
@@ -204,7 +204,7 @@ mod tests {
         let route = RestRoute {
             method:          HttpMethod::Put,
             path:            "/users/{id}".to_string(),
-            source:          super::super::resource::RouteSource::Mutation {
+            source:          super::super::super::resource::RouteSource::Mutation {
                 name: "updateUser".to_string(),
             },
             update_coverage: None,
