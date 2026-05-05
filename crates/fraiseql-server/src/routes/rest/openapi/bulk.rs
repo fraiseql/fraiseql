@@ -3,7 +3,7 @@
 use fraiseql_core::schema::MutationOperation;
 use serde_json::{Map, Value, json};
 
-use super::{OpenApiGenerator, helpers::capitalize};
+use super::{OpenApiGenerator, format::capitalize};
 use crate::routes::rest::resource::{RestResource, RouteSource};
 
 impl OpenApiGenerator<'_> {

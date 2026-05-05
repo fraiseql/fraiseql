@@ -3,7 +3,7 @@
 use fraiseql_core::schema::{DeleteResponse, MutationDefinition, TypeDefinition};
 use serde_json::{Map, Value, json};
 
-use super::{OpenApiGenerator, helpers::field_type_to_json_schema};
+use super::{OpenApiGenerator, format::field_type_to_json_schema};
 use crate::routes::rest::resource::{HttpMethod, RestResource, RestRoute, RouteSource};
 
 impl OpenApiGenerator<'_> {

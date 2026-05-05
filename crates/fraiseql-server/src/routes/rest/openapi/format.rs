@@ -1,7 +1,7 @@
-//! Helper functions for `OpenAPI` specification generation.
+//! Type conversion and formatting utilities for `OpenAPI` specification generation.
 //!
-//! Contains utility functions for JSON schema generation, string transformations,
-//! and HTTP method mapping used throughout `OpenAPI` spec building.
+//! Converts Rust types to JSON Schema representations, maps HTTP methods to strings,
+//! and provides string transformation helpers used throughout `OpenAPI` spec building.
 
 use fraiseql_core::schema::FieldType;
 use serde_json::{json, Value};

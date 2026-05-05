@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use super::{
     OpenApiGenerator,
-    helpers::{BRACKET_OPERATORS_DESC, field_type_to_json_schema, should_have_prefer_header},
+    format::{BRACKET_OPERATORS_DESC, field_type_to_json_schema, should_have_prefer_header},
 };
 use crate::routes::rest::resource::{HttpMethod, RestResource, RestRoute, RouteSource};
 

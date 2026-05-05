@@ -3,7 +3,7 @@
 use fraiseql_core::schema::{Cardinality, FieldType, TypeDefinition};
 use serde_json::{Map, Value, json};
 
-use super::{OpenApiGenerator, helpers::field_type_to_json_schema};
+use super::{OpenApiGenerator, format::field_type_to_json_schema};
 
 impl OpenApiGenerator<'_> {
     /// Build the `components` object (schemas + security schemes).

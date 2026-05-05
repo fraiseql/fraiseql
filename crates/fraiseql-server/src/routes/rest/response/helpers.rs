@@ -1,15 +1,12 @@
 //! Helper functions for REST response formatting.
 //!
-//! Contains utility functions for ETag computation, data extraction, and link building.
+//! Contains utility functions for `ETag` computation, data extraction, and link building.
 
 use axum::http::{HeaderMap, HeaderValue};
 use serde_json::{json, Value};
-use uuid::Uuid;
 use xxhash_rust::xxh3::xxh3_64;
 
-use super::super::params::PaginationParams;
-
-/// Compute an ETag for response body data.
+/// Compute an `ETag` for response body data.
 pub(super) fn compute_etag(body: &[u8]) -> String {
     let hash = xxh3_64(body);
     format!("W/\"{hash:016x}\"")
@@ -235,18 +232,6 @@ pub(super) fn extract_end_cursor(data: &Value) -> Option<&str> {
         .as_str()
 }
 
-/// Set `X-Request-Id` header: echo from request or generate a new UUID.
-pub(super) fn set_request_id(request_headers: &HeaderMap, response_headers: &mut HeaderMap) {
-    let request_id = request_headers
-        .get("x-request-id")
-        .and_then(|v| v.to_str().ok())
-        .map_or_else(|| Uuid::new_v4().to_string(), |s| s.to_string());
-
-    if let Ok(val) = HeaderValue::from_str(&request_id) {
-        response_headers.insert("x-request-id", val);
-    }
-}
-
 /// Create a `HeaderValue` from an `ETag` string.
 ///
 /// # Panics
@@ -346,24 +331,4 @@ mod tests {
         assert!(links["last"].is_string());
     }
 
-    #[test]
-    fn set_request_id_from_request() {
-        let mut req_headers = HeaderMap::new();
-        req_headers.insert("x-request-id", HeaderValue::from_static("test-id-123"));
-        let mut resp_headers = HeaderMap::new();
-        set_request_id(&req_headers, &mut resp_headers);
-        assert_eq!(
-            resp_headers.get("x-request-id").unwrap().to_str().unwrap(),
-            "test-id-123"
-        );
-    }
-
-    #[test]
-    fn set_request_id_generates_uuid() {
-        let req_headers = HeaderMap::new();
-        let mut resp_headers = HeaderMap::new();
-        set_request_id(&req_headers, &mut resp_headers);
-        let id_str = resp_headers.get("x-request-id").unwrap().to_str().unwrap();
-        assert!(Uuid::parse_str(id_str).is_ok());
-    }
 }

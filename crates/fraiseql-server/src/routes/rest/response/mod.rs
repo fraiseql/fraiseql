@@ -13,14 +13,14 @@ use fraiseql_core::schema::{DeleteResponse, RestConfig};
 use serde_json::json;
 
 use super::{
-    handler::{PreferHeader, RestError, RestResponse},
+    handler::{PreferHeader, RestError, RestResponse, set_request_id},
     params::PaginationParams,
     resource::HttpMethod,
 };
 use helpers::{
     check_if_none_match, compute_etag, extract_collection_data, extract_delete_entity,
     extract_id_from_data, extract_mutation_data, extract_relay_page_info, extract_single_data,
-    format_id_for_url, build_offset_links, build_cursor_links, header_value, set_request_id,
+    format_id_for_url, build_offset_links, build_cursor_links, header_value,
 };
 
 // ---------------------------------------------------------------------------
@@ -163,8 +163,8 @@ impl<'a> RestResponseFormatter<'a> {
             PaginationParams::Cursor {
                 first,
                 after,
-                last,
-                before,
+                last: _,
+                before: _,
             } => {
                 let mut meta = serde_json::Map::new();
 
@@ -368,10 +368,6 @@ impl RestError {
 mod tests {
     use super::*;
 
-    fn v(s: &str) -> serde_json::Value {
-        serde_json::from_str(s).unwrap()
-    }
-
     fn default_config() -> RestConfig {
         RestConfig::default()
     }
@@ -392,12 +388,6 @@ mod tests {
 
     fn empty_headers() -> HeaderMap {
         HeaderMap::new()
-    }
-
-    fn headers_with_request_id(id: &str) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        h.insert("x-request-id", HeaderValue::from_str(id).unwrap());
-        h
     }
 
     #[test]
@@ -457,8 +447,9 @@ mod tests {
 
         let resp = formatter.format_collection(&result, &pagination, &headers).unwrap();
         assert_eq!(resp.status, StatusCode::OK);
-        assert!(resp.body.unwrap()["meta"]["limit"].is_number());
-        assert!(resp.body.unwrap()["links"]["self"].is_string());
+        let body = resp.body.unwrap();
+        assert!(body["meta"]["limit"].is_number());
+        assert!(body["links"]["self"].is_string());
     }
 
     #[test]

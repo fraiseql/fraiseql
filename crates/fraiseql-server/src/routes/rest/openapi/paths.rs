@@ -5,7 +5,7 @@ use serde_json::{Map, Value, json};
 
 use super::{
     OpenApiGenerator,
-    helpers::{capitalize, extract_action, method_to_string, to_snake},
+    format::{capitalize, extract_action, method_to_string, to_snake},
 };
 use crate::routes::rest::resource::{HttpMethod, RestResource, RestRoute, RouteSource};
 

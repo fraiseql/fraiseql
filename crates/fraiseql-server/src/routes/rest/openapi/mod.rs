@@ -12,7 +12,7 @@
 //! - `Prefer` header documentation on collection/delete endpoints
 
 pub mod bulk;
-pub mod helpers;
+pub mod format;
 pub mod parameters;
 pub mod paths;
 pub mod responses;
