@@ -71,3 +71,6 @@ pub use scalar_validator::{
     validate_custom_scalar_parse_value,
 };
 pub use validators::{EnumValidator, LengthValidator, PatternValidator, RangeValidator, Validator};
+
+#[cfg(test)]
+mod tests;

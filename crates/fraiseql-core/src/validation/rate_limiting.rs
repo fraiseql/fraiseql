@@ -154,7 +154,7 @@ struct RequestRecord {
 }
 
 /// Single dimension rate limiter
-struct DimensionRateLimiter {
+pub(crate) struct DimensionRateLimiter {
     records:   Arc<Mutex<LruCache<String, RequestRecord>>>,
     dimension: RateLimitDimension,
     clock:     Arc<dyn Clock>,
@@ -162,11 +162,11 @@ struct DimensionRateLimiter {
 
 impl DimensionRateLimiter {
     #[cfg(test)]
-    fn new(max_requests: u32, window_secs: u64) -> Self {
+    pub(crate) fn new(max_requests: u32, window_secs: u64) -> Self {
         Self::new_with_clock(max_requests, window_secs, Arc::new(SystemClock))
     }
 
-    fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
+    pub(crate) fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
         #[allow(clippy::expect_used)]
         // Reason: MAX_RATE_LIMITER_ENTRIES is a non-zero compile-time constant
         let cap = NonZeroUsize::new(MAX_RATE_LIMITER_ENTRIES)
@@ -181,7 +181,7 @@ impl DimensionRateLimiter {
         }
     }
 
-    fn check(&self, key: &str) -> Result<(), FraiseQLError> {
+    pub(crate) fn check(&self, key: &str) -> Result<(), FraiseQLError> {
         if self.dimension.is_rate_limited() {
             return Ok(());
         }
@@ -215,7 +215,7 @@ impl DimensionRateLimiter {
         }
     }
 
-    fn clear(&self) {
+    pub(crate) fn clear(&self) {
         let mut records = self.records.lock().expect("records mutex poisoned");
         records.clear();
     }
@@ -336,224 +336,5 @@ impl ValidationRateLimiter {
         self.complexity_errors.clear();
         self.malformed_errors.clear();
         self.async_validation_errors.clear();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_dimension_rate_limiter_allows_within_limit() {
-        let limiter = DimensionRateLimiter::new(3, 60);
-        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 1: {e}"));
-        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 2: {e}"));
-        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 3: {e}"));
-    }
-
-    #[test]
-    fn test_dimension_rate_limiter_rejects_over_limit() {
-        let limiter = DimensionRateLimiter::new(2, 60);
-        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 1: {e}"));
-        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok on request 2: {e}"));
-        assert!(
-            matches!(limiter.check("key"), Err(FraiseQLError::RateLimited { .. })),
-            "expected RateLimited error on request 3, got: {:?}",
-            limiter.check("key")
-        );
-    }
-
-    #[test]
-    fn test_dimension_rate_limiter_per_key() {
-        let limiter = DimensionRateLimiter::new(2, 60);
-        limiter
-            .check("key1")
-            .unwrap_or_else(|e| panic!("expected Ok for key1 request 1: {e}"));
-        limiter
-            .check("key1")
-            .unwrap_or_else(|e| panic!("expected Ok for key1 request 2: {e}"));
-        limiter
-            .check("key2")
-            .unwrap_or_else(|e| panic!("expected Ok for key2 request 1 (independent key): {e}"));
-    }
-
-    #[test]
-    fn test_dimension_rate_limiter_clear() {
-        let limiter = DimensionRateLimiter::new(1, 60);
-        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok before limit: {e}"));
-        assert!(
-            matches!(limiter.check("key"), Err(FraiseQLError::RateLimited { .. })),
-            "expected RateLimited error at limit, got: {:?}",
-            limiter.check("key")
-        );
-        limiter.clear();
-        limiter.check("key").unwrap_or_else(|e| panic!("expected Ok after clear: {e}"));
-    }
-
-    #[test]
-    fn test_config_defaults() {
-        let config = ValidationRateLimitingConfig::default();
-        assert!(config.enabled);
-        assert!(config.validation_errors_max_requests > 0);
-        assert!(config.depth_errors_max_requests > 0);
-        assert!(config.complexity_errors_max_requests > 0);
-        assert!(config.malformed_errors_max_requests > 0);
-        assert!(config.async_validation_errors_max_requests > 0);
-    }
-
-    #[test]
-    fn test_validation_limiter_independent_dimensions() {
-        let config = ValidationRateLimitingConfig::default();
-        let limiter = ValidationRateLimiter::new(&config);
-        let key = "test-key";
-
-        // Fill up validation errors
-        for _ in 0..100 {
-            let _ = limiter.check_validation_errors(key);
-        }
-
-        // Validation errors should be limited
-        assert!(
-            matches!(limiter.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
-            "expected RateLimited after exhausting validation_errors quota"
-        );
-
-        // But other dimensions should still work
-        limiter
-            .check_depth_errors(key)
-            .unwrap_or_else(|e| panic!("depth_errors should still allow: {e}"));
-        limiter
-            .check_complexity_errors(key)
-            .unwrap_or_else(|e| panic!("complexity_errors should still allow: {e}"));
-        limiter
-            .check_malformed_errors(key)
-            .unwrap_or_else(|e| panic!("malformed_errors should still allow: {e}"));
-        limiter
-            .check_async_validation_errors(key)
-            .unwrap_or_else(|e| panic!("async_validation_errors should still allow: {e}"));
-    }
-
-    #[test]
-    fn test_validation_limiter_clone_shares_state() {
-        let config = ValidationRateLimitingConfig::default();
-        let limiter1 = ValidationRateLimiter::new(&config);
-        let limiter2 = limiter1.clone();
-
-        let key = "shared-key";
-
-        for _ in 0..100 {
-            let _ = limiter1.check_validation_errors(key);
-        }
-
-        // limiter2 should see the same limit
-        assert!(
-            matches!(limiter2.check_validation_errors(key), Err(FraiseQLError::RateLimited { .. })),
-            "cloned limiter should share rate limit state"
-        );
-    }
-
-    #[test]
-    fn test_window_rollover_does_not_leak_across_windows() {
-        use std::time::Duration;
-
-        use crate::utils::clock::ManualClock;
-
-        let clock = ManualClock::new();
-        let clock_arc: Arc<dyn Clock> = Arc::new(clock.clone());
-        let config = ValidationRateLimitingConfig {
-            enabled: true,
-            validation_errors_max_requests: 2,
-            validation_errors_window_secs: 60,
-            ..ValidationRateLimitingConfig::default()
-        };
-        let limiter = ValidationRateLimiter::new_with_clock(&config, clock_arc);
-
-        limiter
-            .check_validation_errors("u1")
-            .unwrap_or_else(|e| panic!("expected Ok on 1st request: {e}")); // 1st
-        limiter
-            .check_validation_errors("u1")
-            .unwrap_or_else(|e| panic!("expected Ok on 2nd request: {e}")); // 2nd
-        assert!(
-            matches!(limiter.check_validation_errors("u1"), Err(FraiseQLError::RateLimited { .. })),
-            "expected RateLimited on 3rd request (over limit)"
-        ); // over limit
-
-        clock.advance(Duration::from_secs(61)); // cross the window boundary
-
-        limiter
-            .check_validation_errors("u1")
-            .unwrap_or_else(|e| panic!("expected Ok after window rollover: {e}")); // new window, limit reset
-    }
-
-    /// Sentinel: advancing by exactly `window_secs` must reset the window.
-    ///
-    /// Kills the `>= → >` mutation on the window-expiry check:
-    /// `now >= record.window_start + self.dimension.window_secs`
-    #[test]
-    fn test_window_exact_boundary_triggers_rollover() {
-        use std::time::Duration;
-
-        use crate::utils::clock::ManualClock;
-
-        let clock = ManualClock::new();
-        let clock_arc: Arc<dyn Clock> = Arc::new(clock.clone());
-        let window_secs = 60u64;
-        let max = 2u32;
-        let limiter = DimensionRateLimiter::new_with_clock(max, window_secs, clock_arc);
-
-        // Fill to limit
-        for _ in 0..max {
-            limiter.check("u").unwrap_or_else(|e| panic!("expected Ok filling window: {e}"));
-        }
-        assert!(
-            matches!(limiter.check("u"), Err(FraiseQLError::RateLimited { .. })),
-            "expected RateLimited when over limit"
-        );
-
-        // Advance by EXACTLY window_secs — the `>=` boundary must trigger a reset
-        clock.advance(Duration::from_secs(window_secs));
-
-        limiter
-            .check("u")
-            .unwrap_or_else(|e| panic!("expected Ok at exact window boundary (>= not >): {e}"));
-    }
-
-    /// Sentinel: `max_requests = 0` must disable the limiter (every request allowed).
-    ///
-    /// Kills the `== 0 → != 0` and `== 0 → > 0` mutations on `is_rate_limited()`.
-    #[test]
-    fn test_max_requests_zero_disables_limiter() {
-        let limiter = DimensionRateLimiter::new(0, 60);
-
-        for i in 0..10u32 {
-            limiter
-                .check("key")
-                .unwrap_or_else(|e| panic!("expected Ok with max_requests=0 on request {i}: {e}"));
-        }
-    }
-
-    /// Sentinel: `window_secs = 0` must not panic.
-    ///
-    /// With a zero-length window `now >= window_start + 0` is always true, so
-    /// every call resets the counter and the limiter never triggers.
-    #[test]
-    fn test_window_secs_zero_does_not_panic() {
-        use crate::utils::clock::ManualClock;
-
-        let clock_arc: Arc<dyn Clock> = Arc::new(ManualClock::new());
-        // max_requests > 0 so the limiter is "active", but window_secs = 0
-        let limiter = DimensionRateLimiter::new_with_clock(5, 0, clock_arc);
-
-        // Every request resets the window because now >= window_start + 0 is always true
-        limiter
-            .check("key")
-            .unwrap_or_else(|e| panic!("expected Ok with window_secs=0 (1st): {e}"));
-        limiter
-            .check("key")
-            .unwrap_or_else(|e| panic!("expected Ok with window_secs=0 (2nd): {e}"));
-        limiter
-            .check("key")
-            .unwrap_or_else(|e| panic!("expected Ok with window_secs=0 (3rd): {e}"));
     }
 }
