@@ -102,12 +102,22 @@ fn okta_discovery_doc(tenant: &str) -> serde_json::Value {
     })
 }
 
+/// Allow mock HTTP servers in OIDC tests (wiremock binds to `http://127.0.0.1`).
+///
+/// The SSRF guard requires `https://` in production. Tests use a local mock
+/// server over plain HTTP and set `FRAISEQL_OIDC_ALLOW_INSECURE=true` to
+/// bypass that guard, which is the documented escape hatch.
+fn allow_insecure_for_test() {
+    std::env::set_var("FRAISEQL_OIDC_ALLOW_INSECURE", "true");
+}
+
 // ============================================================================
 // OIDC PROVIDER DISCOVERY TESTS
 // ============================================================================
 
 #[tokio::test]
 async fn test_oidc_provider_discovery() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     // Mock the OIDC discovery endpoint
@@ -134,6 +144,7 @@ async fn test_oidc_provider_discovery() {
 
 #[tokio::test]
 async fn test_oidc_discovery_document_structure() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     let discovery = standard_discovery_doc();
@@ -165,6 +176,7 @@ async fn test_oidc_discovery_document_structure() {
 
 #[tokio::test]
 async fn test_oidc_discovery_missing_required_field() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     // Discovery doc missing required field
@@ -197,6 +209,7 @@ async fn test_oidc_discovery_missing_required_field() {
 
 #[tokio::test]
 async fn test_oidc_discovery_endpoint_404() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -219,6 +232,7 @@ async fn test_oidc_discovery_endpoint_404() {
 
 #[tokio::test]
 async fn test_oidc_discovery_invalid_json() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -248,6 +262,7 @@ async fn test_oidc_discovery_invalid_json() {
 
 #[tokio::test]
 async fn test_jwks_retrieval() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     // Mock OIDC discovery
@@ -344,6 +359,7 @@ async fn test_jwks_multiple_keys() {
 
 #[tokio::test]
 async fn test_auth0_provider_discovery() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     let tenant = "test-tenant";
@@ -379,6 +395,7 @@ async fn test_auth0_discovery_contains_oauth_token_endpoint() {
 
 #[tokio::test]
 async fn test_google_provider_discovery() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -413,6 +430,7 @@ async fn test_google_discovery_endpoints() {
 
 #[tokio::test]
 async fn test_microsoft_provider_discovery() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -446,6 +464,7 @@ async fn test_microsoft_discovery_v2_endpoints() {
 
 #[tokio::test]
 async fn test_okta_provider_discovery() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -480,6 +499,7 @@ async fn test_okta_discovery_tenant_specific_endpoints() {
 
 #[tokio::test]
 async fn test_provider_name_preserved() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -503,6 +523,7 @@ async fn test_provider_name_preserved() {
 
 #[tokio::test]
 async fn test_authorization_url_generation() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -534,6 +555,7 @@ async fn test_authorization_url_generation() {
 
 #[tokio::test]
 async fn test_multiple_provider_instances() {
+    allow_insecure_for_test();
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))

@@ -438,13 +438,12 @@ audit_logging_enabled = false
         ];
         args.extend_from_slice(extra_args);
         let output = Command::new(cli_path).args(&args).output().expect("Failed to run CLI");
-        if !output.status.success() {
-            panic!(
-                "CLI compile failed.\nstdout: {}\nstderr: {}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
+        assert!(
+            output.status.success(),
+            "CLI compile failed.\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     #[test]

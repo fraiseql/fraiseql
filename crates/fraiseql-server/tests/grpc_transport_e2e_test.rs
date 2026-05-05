@@ -1063,7 +1063,7 @@ async fn query_with_security_context_applies_rls_where_clause() {
 
     // Build a SecurityContext for user "user-42" (non-admin).
     let ctx = SecurityContext {
-        user_id:          "user-42".to_string(),
+        user_id:          fraiseql_core::types::UserId("user-42".to_string()),
         roles:            vec!["viewer".to_string()],
         tenant_id:        None,
         scopes:           vec![],
