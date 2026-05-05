@@ -133,7 +133,7 @@ where
 }
 
 /// Build a `MetricsSummary` from the live `MetricsCollector`.
-fn build_summary(m: &MetricsCollector) -> MetricsSummary {
+pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
     let latency = LatencyStats {
         p50_ms: m.http_request_duration.estimate_quantile_us(0.5) / 1_000,
         p95_ms: m.http_request_duration.estimate_quantile_us(0.95) / 1_000,
@@ -189,79 +189,3 @@ fn build_summary(m: &MetricsCollector) -> MetricsSummary {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    #![allow(clippy::float_cmp)] // Reason: testing exact 0.0 from zero-division guards
-    use std::sync::atomic::Ordering;
-
-    use super::*;
-
-    #[test]
-    fn test_metrics_summary_serializes() {
-        let m = MetricsSummary::zero();
-        let json = serde_json::to_string(&m).unwrap();
-        assert!(json.contains("\"latency\""));
-        assert!(json.contains("\"p50_ms\""));
-        assert!(json.contains("\"errors\""));
-        assert!(json.contains("\"pool\""));
-        assert!(json.contains("\"cache\""));
-        assert!(json.contains("\"subscriptions\""));
-    }
-
-    #[test]
-    fn test_build_summary_latency_from_histogram() {
-        let collector = MetricsCollector::new();
-        // Record requests in the 5ms bucket (5000 us)
-        for _ in 0..100 {
-            collector.http_request_duration.observe_us(4_000);
-        }
-        // Record a few slow requests in the 100ms bucket
-        for _ in 0..5 {
-            collector.http_request_duration.observe_us(80_000);
-        }
-
-        let summary = build_summary(&collector);
-        // P50 should be in the 5ms bucket (5000 us → 5 ms)
-        assert_eq!(summary.latency.p50_ms, 5);
-        // P99 should be in the 100ms bucket
-        assert_eq!(summary.latency.p99_ms, 100);
-    }
-
-    #[test]
-    fn test_build_summary_empty_histogram_returns_zero() {
-        let collector = MetricsCollector::new();
-        let summary = build_summary(&collector);
-        assert_eq!(summary.latency.p50_ms, 0);
-        assert_eq!(summary.latency.p95_ms, 0);
-        assert_eq!(summary.latency.p99_ms, 0);
-    }
-
-    #[test]
-    fn test_build_summary_error_rate() {
-        let collector = MetricsCollector::new();
-        collector.queries_total.store(100, Ordering::Relaxed);
-        collector.queries_error.store(10, Ordering::Relaxed);
-
-        let summary = build_summary(&collector);
-        assert!((summary.errors.rate_5m - 0.1).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_build_summary_cache_hit_rate() {
-        let collector = MetricsCollector::new();
-        collector.cache_hits.store(75, Ordering::Relaxed);
-        collector.cache_misses.store(25, Ordering::Relaxed);
-
-        let summary = build_summary(&collector);
-        assert!((summary.cache.hit_rate - 0.75).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_build_summary_zero_division_safe() {
-        let collector = MetricsCollector::new();
-        let summary = build_summary(&collector);
-        assert_eq!(summary.errors.rate_5m, 0.0);
-        assert_eq!(summary.cache.hit_rate, 0.0);
-    }
-}

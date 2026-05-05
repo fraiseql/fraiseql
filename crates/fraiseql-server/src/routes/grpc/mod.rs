@@ -161,9 +161,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
         if let Some(ref limiter) = self.rate_limiter {
             // Per-user limit if authenticated, per-IP otherwise.
             let result = if let Some(ref ctx) = security_context {
-                limiter.check_user_limit(&ctx.user_id).await
+                limiter.check_user_limit(ctx.user_id.as_str(), None).await
             } else {
-                limiter.check_ip_limit(&client_ip).await
+                limiter.check_ip_limit(&client_ip, None).await
             };
 
             if !result.allowed {
@@ -593,3 +593,5 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         service_name,
     }))
 }
+
+#[cfg(test)] mod tests;

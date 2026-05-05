@@ -36,3 +36,5 @@ pub use playground::{PlaygroundState, playground_handler};
 pub use realtime::{BroadcastState, broadcast_handler};
 pub use subscriptions::{SubscriptionState, subscription_handler, subscription_metrics};
 pub use well_known::security_txt_handler;
+
+#[cfg(test)] mod tests;

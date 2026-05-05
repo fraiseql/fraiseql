@@ -267,7 +267,7 @@ pub async fn stats_handler<A: DatabaseAdapter>(
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /// Generate warnings based on AST-based complexity metrics.
-fn generate_warnings(complexity: &ComplexityInfo) -> Vec<String> {
+pub(crate) fn generate_warnings(complexity: &ComplexityInfo) -> Vec<String> {
     let mut warnings = vec![];
 
     if complexity.depth > 10 {
@@ -295,7 +295,7 @@ fn generate_warnings(complexity: &ComplexityInfo) -> Vec<String> {
 }
 
 /// Estimate execution cost based on AST-based complexity metrics.
-const fn estimate_cost(complexity: &ComplexityInfo) -> usize {
+pub(crate) const fn estimate_cost(complexity: &ComplexityInfo) -> usize {
     let base_cost = 50;
     let depth_cost = complexity.depth.saturating_mul(10);
     let complexity_cost = complexity.complexity.saturating_mul(5);
@@ -304,149 +304,7 @@ const fn estimate_cost(complexity: &ComplexityInfo) -> usize {
 }
 
 /// Check whether DB-level EXPLAIN is enabled in the debug configuration.
-fn is_db_explain_enabled(debug_config: Option<&fraiseql_core::schema::DebugConfig>) -> bool {
+pub(crate) fn is_db_explain_enabled(debug_config: Option<&fraiseql_core::schema::DebugConfig>) -> bool {
     debug_config.is_some_and(|c| c.enabled && c.database_explain)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_generate_warnings_deep() {
-        let complexity = ComplexityInfo {
-            depth:       15,
-            complexity:  10,
-            alias_count: 0,
-        };
-        let warnings = generate_warnings(&complexity);
-        assert!(!warnings.is_empty());
-        assert!(warnings[0].contains("depth"));
-    }
-
-    #[test]
-    fn test_generate_warnings_high_complexity() {
-        let complexity = ComplexityInfo {
-            depth:       3,
-            complexity:  200,
-            alias_count: 0,
-        };
-        let warnings = generate_warnings(&complexity);
-        assert!(!warnings.is_empty());
-        assert!(warnings.iter().any(|w| w.contains("complexity")));
-    }
-
-    #[test]
-    fn test_generate_warnings_high_alias_count() {
-        let complexity = ComplexityInfo {
-            depth:       2,
-            complexity:  5,
-            alias_count: 35,
-        };
-        let warnings = generate_warnings(&complexity);
-        assert!(warnings.iter().any(|w| w.contains("alias")));
-    }
-
-    #[test]
-    fn test_estimate_cost() {
-        let complexity = ComplexityInfo {
-            depth:       2,
-            complexity:  3,
-            alias_count: 0,
-        };
-        let cost = estimate_cost(&complexity);
-        assert!(cost > 0);
-    }
-
-    #[test]
-    fn test_stats_response_structure() {
-        let response = StatsResponse {
-            total_queries:      100,
-            successful_queries: 95,
-            failed_queries:     5,
-            average_latency_ms: 42.5,
-        };
-        assert_eq!(response.total_queries, 100);
-        assert_eq!(response.successful_queries, 95);
-        assert_eq!(response.failed_queries, 5);
-        assert!(response.average_latency_ms > 0.0);
-    }
-
-    #[test]
-    fn test_explain_response_structure() {
-        let response = ExplainResponse {
-            query:          "query { users { id } }".to_string(),
-            sql:            Some("SELECT id FROM users".to_string()),
-            complexity:     ComplexityInfo {
-                depth:       2,
-                complexity:  2,
-                alias_count: 0,
-            },
-            warnings:       vec![],
-            estimated_cost: 50,
-            views_accessed: vec!["v_user".to_string()],
-            query_type:     "regular".to_string(),
-            database_plan:  None,
-        };
-
-        assert!(!response.query.is_empty());
-        assert_eq!(response.sql.as_deref(), Some("SELECT id FROM users"));
-        assert_eq!(response.complexity.depth, 2);
-        assert_eq!(response.estimated_cost, 50);
-    }
-
-    #[test]
-    fn test_validate_request_structure() {
-        let request = ValidateRequest {
-            query: "query { users { id } }".to_string(),
-        };
-        assert!(!request.query.is_empty());
-    }
-
-    #[test]
-    fn test_explain_request_structure() {
-        let request = ExplainRequest {
-            query:     "query { users { id } }".to_string(),
-            variables: None,
-        };
-        assert!(!request.query.is_empty());
-    }
-
-    #[test]
-    fn test_debug_disabled_no_db_explain() {
-        use fraiseql_core::schema::DebugConfig;
-
-        assert!(!is_db_explain_enabled(None));
-
-        let config = DebugConfig {
-            enabled: true,
-            database_explain: false,
-            ..Default::default()
-        };
-        assert!(!is_db_explain_enabled(Some(&config)));
-    }
-
-    #[test]
-    fn test_debug_enabled_db_explain() {
-        use fraiseql_core::schema::DebugConfig;
-
-        let config = DebugConfig {
-            enabled: true,
-            database_explain: true,
-            ..Default::default()
-        };
-        assert!(is_db_explain_enabled(Some(&config)));
-    }
-
-    #[test]
-    fn test_debug_master_switch_required() {
-        use fraiseql_core::schema::DebugConfig;
-
-        let config = DebugConfig {
-            enabled: false,
-            database_explain: true,
-            ..Default::default()
-        };
-        assert!(!is_db_explain_enabled(Some(&config)));
-    }
-}

@@ -53,7 +53,7 @@ pub struct GraphFormatQuery {
     pub format: String,
 }
 
-fn default_format() -> String {
+pub(crate) fn default_format() -> String {
     "json".to_string()
 }
 
@@ -150,7 +150,7 @@ fn generate_federation_graph(
     }
 }
 
-fn generate_json_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+pub(crate) fn generate_json_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
     let subgraphs: Vec<serde_json::Value> = match federation {
         Some(fed) if fed.enabled => {
             let name = fed.service_name.clone().unwrap_or_else(|| "this-service".to_string());
@@ -168,7 +168,7 @@ fn generate_json_graph(federation: Option<&fraiseql_core::schema::FederationConf
     .unwrap_or_else(|_| r#"{"subgraphs":[],"edges":[]}"#.to_string())
 }
 
-fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+pub(crate) fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
     use std::fmt::Write as _;
 
     let mut dot =
@@ -279,7 +279,7 @@ pub async fn plan_handler<A: DatabaseAdapter>(
     }))
 }
 
-fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+pub(crate) fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
     use std::fmt::Write as _;
 
     let mut mermaid = "graph LR\n".to_string();
@@ -295,121 +295,3 @@ fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::FederationC
     mermaid
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
-    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
-    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
-    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
-    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
-    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
-    #![allow(missing_docs)] // Reason: test code
-    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
-
-    use super::*;
-
-    #[test]
-    fn test_default_format() {
-        assert_eq!(default_format(), "json");
-    }
-
-    #[test]
-    fn test_subgraph_info_creation() {
-        let info = SubgraphInfo {
-            name:     "test".to_string(),
-            url:      "http://test.local".to_string(),
-            entities: vec!["Entity1".to_string()],
-            healthy:  true,
-        };
-
-        assert_eq!(info.name, "test");
-        assert!(info.healthy);
-    }
-
-    #[test]
-    fn test_subgraphs_response_creation() {
-        let response = SubgraphsResponse { subgraphs: vec![] };
-
-        assert!(response.subgraphs.is_empty());
-    }
-
-    #[test]
-    fn test_graph_response_creation() {
-        let response = GraphResponse {
-            format:  "json".to_string(),
-            content: "{}".to_string(),
-        };
-
-        assert_eq!(response.format, "json");
-    }
-
-    #[test]
-    fn test_generate_json_graph_no_federation() {
-        let json = generate_json_graph(None);
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-
-        assert!(parsed["subgraphs"].as_array().unwrap().is_empty());
-        assert!(parsed["edges"].as_array().unwrap().is_empty());
-    }
-
-    #[test]
-    fn test_generate_dot_graph_no_federation() {
-        let dot = generate_dot_graph(None);
-        assert!(dot.contains("digraph"));
-        assert!(dot.contains("rankdir"));
-    }
-
-    #[test]
-    fn test_generate_mermaid_graph_no_federation() {
-        let mermaid = generate_mermaid_graph(None);
-        assert!(mermaid.contains("graph LR"));
-    }
-
-    #[test]
-    fn test_plan_response_not_cached() {
-        let response = PlanResponse {
-            cached:             false,
-            schema_fingerprint: "abc123".to_string(),
-            #[cfg(feature = "federation")]
-            fetches:            None,
-            #[cfg(not(feature = "federation"))]
-            fetches:            None,
-        };
-
-        let json = serde_json::to_value(&response).unwrap();
-        assert_eq!(json["cached"], false);
-        assert!(json["fetches"].is_null());
-    }
-
-    #[cfg(feature = "federation")]
-    #[test]
-    fn test_plan_response_with_fetches() {
-        use fraiseql_core::federation::SubgraphFetch;
-
-        let response = PlanResponse {
-            cached:             true,
-            schema_fingerprint: "fp123".to_string(),
-            fetches:            Some(vec![SubgraphFetch {
-                subgraph:     "users".to_string(),
-                query:        "{ user(id: $id) { name } }".to_string(),
-                entity_types: vec!["User".to_string()],
-                depends_on:   None,
-            }]),
-        };
-
-        let json = serde_json::to_value(&response).unwrap();
-        assert_eq!(json["cached"], true);
-        let fetches = json["fetches"].as_array().unwrap();
-        assert_eq!(fetches.len(), 1);
-        assert_eq!(fetches[0]["subgraph"], "users");
-        assert_eq!(fetches[0]["query"], "{ user(id: $id) { name } }");
-    }
-
-    #[test]
-    fn test_plan_query_deserialization() {
-        let json = r#"{"query": "{ users { id name } }"}"#;
-        let query: PlanQuery = serde_json::from_str(json).unwrap();
-        assert_eq!(query.query, "{ users { id name } }");
-    }
-}

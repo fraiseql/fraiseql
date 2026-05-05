@@ -156,7 +156,7 @@ pub async fn studio_asset_handler(Path(file): Path<String>) -> Response {
 }
 
 /// Derive MIME type from file extension.
-fn mime_for_filename(name: &str) -> &'static str {
+pub(crate) fn mime_for_filename(name: &str) -> &'static str {
     let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("");
     if ext.eq_ignore_ascii_case("js") {
         "application/javascript; charset=utf-8"
@@ -169,44 +169,5 @@ fn mime_for_filename(name: &str) -> &'static str {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn test_shell_contains_l_tabs() {
-        let html = studio_shell_html();
-        assert!(html.contains("<l-tabs"), "shell must contain <l-tabs>");
-    }
-
-    #[test]
-    fn test_shell_contains_all_sections() {
-        let html = studio_shell_html();
-        for s in [
-            "Data",
-            "Auth",
-            "Storage",
-            "Functions",
-            "Realtime",
-            "Metrics",
-        ] {
-            assert!(html.contains(s), "shell must contain section '{s}'");
-        }
-    }
-
-    #[test]
-    fn test_shell_references_app_js() {
-        let html = studio_shell_html();
-        assert!(html.contains("app.js"), "shell must reference app.js");
-    }
-
-    #[test]
-    fn test_mime_for_js() {
-        assert!(mime_for_filename("app.js").contains("javascript"));
-    }
-
-    #[test]
-    fn test_mime_for_css() {
-        assert!(mime_for_filename("app.css").contains("css"));
-    }
-}
+#[cfg(test)] mod tests;

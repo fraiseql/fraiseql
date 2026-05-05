@@ -115,6 +115,11 @@ pub fn parse_select_entries(input: &str) -> Result<Vec<SelectEntry>, FraiseQLErr
 }
 
 /// Validate that embedding depth does not exceed the configured maximum.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Validation` if `current_depth` exceeds `max_depth`
+/// or if any nested embedded spec violates the depth limit.
 pub fn validate_embedding_depth(
     spec: &EmbeddedSpec,
     current_depth: usize,

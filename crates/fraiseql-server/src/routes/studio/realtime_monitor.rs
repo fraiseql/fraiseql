@@ -95,26 +95,3 @@ where
     Json(serde_json::json!({ "cdc_lag_ms": null }))
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::*;
-
-    #[test]
-    fn test_realtime_stats_serializes() {
-        let resp = RealtimeStatsResponse {
-            connections: 5,
-            channels: vec!["users".to_string()],
-            presence_rooms: vec![PresenceRoom {
-                room: "lobby".to_string(),
-                members: 3,
-            }],
-            cdc_lag_ms: Some(10),
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"connections\""));
-        assert!(json.contains("\"channels\""));
-        assert!(json.contains("\"presence_rooms\""));
-        assert!(json.contains("\"cdc_lag_ms\""));
-    }
-}

@@ -39,7 +39,7 @@ pub async fn playground_handler(State(state): State<PlaygroundState>) -> impl In
 }
 
 /// Generate `GraphiQL` HTML page.
-fn graphiql_html(endpoint: &str) -> String {
+pub(crate) fn graphiql_html(endpoint: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -91,7 +91,7 @@ fn graphiql_html(endpoint: &str) -> String {
 }
 
 /// Generate Apollo Sandbox HTML page.
-fn apollo_sandbox_html(endpoint: &str) -> String {
+pub(crate) fn apollo_sandbox_html(endpoint: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -127,30 +127,3 @@ fn apollo_sandbox_html(endpoint: &str) -> String {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_graphiql_html_contains_endpoint() {
-        let html = graphiql_html("/graphql");
-        assert!(html.contains("/graphql"));
-        assert!(html.contains("GraphiQL"));
-        assert!(html.contains("graphiql.min.js"));
-    }
-
-    #[test]
-    fn test_apollo_sandbox_html_contains_endpoint() {
-        let html = apollo_sandbox_html("/graphql");
-        assert!(html.contains("/graphql"));
-        assert!(html.contains("EmbeddedSandbox"));
-        assert!(html.contains("embeddable-sandbox.umd.production.min.js"));
-    }
-
-    #[test]
-    fn test_playground_state_new() {
-        let state = PlaygroundState::new("/graphql", PlaygroundTool::ApolloSandbox);
-        assert_eq!(state.graphql_endpoint, "/graphql");
-        assert_eq!(state.tool, PlaygroundTool::ApolloSandbox);
-    }
-}

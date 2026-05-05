@@ -153,27 +153,3 @@ where
     )
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::*;
-
-    #[test]
-    fn test_user_list_response_serializes() {
-        let resp = UserListResponse {
-            users: vec![],
-            total: 0,
-            page: 1,
-            page_size: 50,
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"users\""));
-    }
-
-    #[test]
-    fn test_user_invite_request_parses() {
-        let input = r#"{"email":"a@b.com"}"#;
-        let req: UserInviteRequest = serde_json::from_str(input).unwrap();
-        assert_eq!(req.email, "a@b.com");
-    }
-}

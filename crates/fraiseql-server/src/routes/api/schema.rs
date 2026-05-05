@@ -76,25 +76,3 @@ pub async fn export_json_handler<A: DatabaseAdapter>(
     }))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_graphql_response_creation() {
-        let response = GraphQLSchemaResponse {
-            schema: "type Query { hello: String }".to_string(),
-        };
-
-        assert_eq!(response.schema, "type Query { hello: String }");
-    }
-
-    #[test]
-    fn test_json_response_creation() {
-        let response = JsonSchemaResponse {
-            schema: serde_json::json!({"types": []}),
-        };
-
-        assert!(response.schema.is_object());
-    }
-}

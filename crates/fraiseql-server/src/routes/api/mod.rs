@@ -52,3 +52,5 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     // Design audit endpoints are now conditionally added in server.rs with optional auth
     router.with_state(state)
 }
+
+#[cfg(test)] mod tests;

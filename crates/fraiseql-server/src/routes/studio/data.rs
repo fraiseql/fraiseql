@@ -221,39 +221,3 @@ where
     Json(serde_json::json!({"success": true})).into_response()
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::*;
-
-    #[test]
-    fn test_data_query_response_serializes() {
-        let resp = DataQueryResponse {
-            rows: vec![serde_json::json!({"id": 1})],
-            total: 1,
-            page: 1,
-            page_size: 50,
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"rows\""));
-        assert!(json.contains("\"total\""));
-    }
-
-    #[test]
-    fn test_filter_op_round_trips() {
-        for (raw, expected) in [
-            ("\"eq\"", FilterOp::Eq),
-            ("\"contains\"", FilterOp::Contains),
-        ] {
-            let op: FilterOp = serde_json::from_str(raw).unwrap();
-            assert_eq!(op, expected);
-        }
-    }
-
-    #[test]
-    fn test_defaults() {
-        let q: DataBrowserQuery = serde_json::from_str("{}").unwrap();
-        assert_eq!(q.page, 1);
-        assert_eq!(q.page_size, 50);
-    }
-}

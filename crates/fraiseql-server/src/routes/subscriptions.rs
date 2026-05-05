@@ -727,7 +727,7 @@ fn create_next_message(operation_id: &str, payload: &SubscriptionPayload) -> Ser
 }
 
 /// Extract subscription name from a GraphQL subscription query.
-fn extract_subscription_name(query: &str) -> Option<String> {
+pub(crate) fn extract_subscription_name(query: &str) -> Option<String> {
     let query = query.trim();
 
     let sub_idx = query.find("subscription")?;
@@ -747,78 +747,3 @@ fn extract_subscription_name(query: &str) -> Option<String> {
     Some(after_brace[..name_end].to_string())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_subscription_name_simple() {
-        let query = "subscription { orderCreated { id } }";
-        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
-    }
-
-    #[test]
-    fn test_extract_subscription_name_with_operation() {
-        let query = "subscription OnOrderCreated { orderCreated { id amount } }";
-        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
-    }
-
-    #[test]
-    fn test_extract_subscription_name_with_variables() {
-        let query = "subscription ($userId: ID!) { userUpdated(userId: $userId) { id name } }";
-        assert_eq!(extract_subscription_name(query), Some("userUpdated".to_string()));
-    }
-
-    #[test]
-    fn test_extract_subscription_name_whitespace() {
-        let query = r"
-            subscription {
-                orderCreated {
-                    id
-                }
-            }
-        ";
-        assert_eq!(extract_subscription_name(query), Some("orderCreated".to_string()));
-    }
-
-    #[test]
-    fn test_extract_subscription_name_invalid() {
-        assert_eq!(extract_subscription_name("query { users { id } }"), None);
-        assert_eq!(extract_subscription_name("{ users { id } }"), None);
-        assert_eq!(extract_subscription_name("subscription { }"), None);
-    }
-
-    // tenant_matches logic extracted from the event dispatch loop for unit testing.
-    fn tenant_matches_logic(
-        conn_tenant: Option<&str>,
-        evt_tenant: Option<&str>,
-    ) -> bool {
-        match (conn_tenant, evt_tenant) {
-            (Some(conn_tid), Some(evt_tid)) => conn_tid == evt_tid,
-            _ => true,
-        }
-    }
-
-    #[test]
-    fn event_dispatch_tenant_filter_same_tenant_passes() {
-        assert!(tenant_matches_logic(Some("tenant-a"), Some("tenant-a")));
-    }
-
-    #[test]
-    fn event_dispatch_tenant_filter_different_tenant_blocks() {
-        assert!(!tenant_matches_logic(Some("tenant-a"), Some("tenant-b")));
-    }
-
-    #[test]
-    fn event_dispatch_tenant_filter_no_connection_tenant_passes() {
-        // Connection has no tenant (single-tenant deployment) → events pass through.
-        assert!(tenant_matches_logic(None, Some("tenant-a")));
-        assert!(tenant_matches_logic(None, None));
-    }
-
-    #[test]
-    fn event_dispatch_tenant_filter_no_event_tenant_passes() {
-        // Event has no tenant (legacy event without tenant tag) → passes through.
-        assert!(tenant_matches_logic(Some("tenant-a"), None));
-    }
-}

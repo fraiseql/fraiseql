@@ -347,7 +347,7 @@ pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync 
 /// - `"degraded"` (200): database is up but one or more optional subsystems are failing
 /// - `"healthy"` (200): all enabled subsystems are operational
 #[cfg(feature = "federation")]
-fn determine_status(
+pub(crate) fn determine_status(
     db_healthy: bool,
     observers: Option<&ObserverHealth>,
     secrets: Option<&SecretsHealth>,
@@ -374,7 +374,7 @@ fn determine_status(
 }
 
 #[cfg(not(feature = "federation"))]
-fn determine_status(
+pub(crate) fn determine_status(
     db_healthy: bool,
     observers: Option<&ObserverHealth>,
     secrets: Option<&SecretsHealth>,
@@ -393,166 +393,3 @@ fn determine_status(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
-    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
-    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
-    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
-    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
-    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
-    #![allow(missing_docs)] // Reason: test code
-    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
-
-    use super::*;
-
-    #[test]
-    fn test_determine_status_all_healthy() {
-        #[cfg(feature = "federation")]
-        assert_eq!(determine_status(true, None, None, None), "healthy");
-        #[cfg(not(feature = "federation"))]
-        assert_eq!(determine_status(true, None, None), "healthy");
-    }
-
-    #[test]
-    fn test_determine_status_db_down_is_unhealthy() {
-        #[cfg(feature = "federation")]
-        assert_eq!(determine_status(false, None, None, None), "unhealthy");
-        #[cfg(not(feature = "federation"))]
-        assert_eq!(determine_status(false, None, None), "unhealthy");
-    }
-
-    #[test]
-    fn test_determine_status_observers_not_running_is_degraded() {
-        let observers = Some(ObserverHealth {
-            running:        false,
-            pending_events: 0,
-            last_error:     None,
-        });
-        #[cfg(feature = "federation")]
-        assert_eq!(determine_status(true, observers.as_ref(), None, None), "degraded");
-        #[cfg(not(feature = "federation"))]
-        assert_eq!(determine_status(true, observers.as_ref(), None), "degraded");
-    }
-
-    #[test]
-    fn test_determine_status_secrets_disconnected_is_degraded() {
-        let secrets = Some(SecretsHealth {
-            connected: false,
-            backend:   "vault".to_string(),
-        });
-        #[cfg(feature = "federation")]
-        assert_eq!(determine_status(true, None, secrets.as_ref(), None), "degraded");
-        #[cfg(not(feature = "federation"))]
-        assert_eq!(determine_status(true, None, secrets.as_ref()), "degraded");
-    }
-
-    #[cfg(feature = "federation")]
-    #[test]
-    fn test_determine_status_federation_circuit_open_is_degraded() {
-        use crate::federation::circuit_breaker::{CircuitHealthState, SubgraphCircuitHealth};
-
-        let federation = Some(FederationHealth {
-            configured: true,
-            subgraphs:  vec![SubgraphCircuitHealth {
-                subgraph: "Product".to_string(),
-                state:    CircuitHealthState::Open,
-            }],
-        });
-        assert_eq!(determine_status(true, None, None, federation.as_ref()), "degraded");
-    }
-
-    #[test]
-    fn test_determine_status_db_down_overrides_degraded() {
-        let secrets = Some(SecretsHealth {
-            connected: false,
-            backend:   "vault".to_string(),
-        });
-        #[cfg(feature = "federation")]
-        assert_eq!(determine_status(false, None, secrets.as_ref(), None), "unhealthy");
-        #[cfg(not(feature = "federation"))]
-        assert_eq!(determine_status(false, None, secrets.as_ref()), "unhealthy");
-    }
-
-    #[test]
-    fn test_health_response_serialization() {
-        let response = HealthResponse {
-            status: "healthy".to_string(),
-            database: DatabaseStatus {
-                connected:          true,
-                database_type:      "PostgreSQL".to_string(),
-                active_connections: Some(2),
-                idle_connections:   Some(8),
-            },
-            observers: None,
-            cache: None,
-            secrets: None,
-            #[cfg(feature = "federation")]
-            federation: None,
-            version: "2.0.0-a1".to_string(),
-            schema_hash: Some("abc123def456abc1".to_string()),
-        };
-
-        let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("healthy"));
-        assert!(json.contains("PostgreSQL"));
-    }
-
-    #[cfg(feature = "federation")]
-    #[test]
-    fn test_health_response_omits_federation_when_none() {
-        let response = HealthResponse {
-            status:      "healthy".to_string(),
-            database:    DatabaseStatus {
-                connected:          true,
-                database_type:      "PostgreSQL".to_string(),
-                active_connections: None,
-                idle_connections:   None,
-            },
-            observers:   None,
-            cache:       None,
-            secrets:     None,
-            federation:  None,
-            version:     "2.0.0".to_string(),
-            schema_hash: None,
-        };
-
-        let json = serde_json::to_string(&response).unwrap();
-        assert!(!json.contains("federation"), "federation key must be absent when field is None");
-    }
-
-    #[cfg(feature = "federation")]
-    #[test]
-    fn test_health_response_includes_federation_when_present() {
-        use crate::federation::circuit_breaker::{CircuitHealthState, SubgraphCircuitHealth};
-
-        let response = HealthResponse {
-            status:      "healthy".to_string(),
-            database:    DatabaseStatus {
-                connected:          true,
-                database_type:      "PostgreSQL".to_string(),
-                active_connections: None,
-                idle_connections:   None,
-            },
-            observers:   None,
-            cache:       None,
-            secrets:     None,
-            federation:  Some(FederationHealth {
-                configured: true,
-                subgraphs:  vec![SubgraphCircuitHealth {
-                    subgraph: "Product".to_string(),
-                    state:    CircuitHealthState::Open,
-                }],
-            }),
-            version:     "2.0.0".to_string(),
-            schema_hash: None,
-        };
-
-        let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("federation"), "federation key must be present");
-        assert!(json.contains("configured"), "configured field must appear");
-        assert!(json.contains("Product"), "subgraph name must appear");
-        assert!(json.contains("open"), "circuit state must be serialised as snake_case");
-    }
-}

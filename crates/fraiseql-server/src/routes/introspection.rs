@@ -129,30 +129,3 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     })
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
-    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
-    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
-    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
-    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
-    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
-    #![allow(missing_docs)] // Reason: test code
-    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
-
-    use super::*;
-
-    #[test]
-    fn test_type_info_serialization() {
-        let type_info = TypeInfo {
-            name:        "User".to_string(),
-            description: Some("A user in the system".to_string()),
-            field_count: 3,
-        };
-
-        let json = serde_json::to_string(&type_info).unwrap();
-        assert!(json.contains("User"));
-        assert!(json.contains("field_count"));
-    }
-}

@@ -194,22 +194,3 @@ where
     Json(serde_json::json!({"success": true}))
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::*;
-
-    #[test]
-    fn test_function_list_serializes() {
-        let resp = FunctionListResponse { functions: vec![] };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"functions\""));
-    }
-
-    #[test]
-    fn test_secret_set_request_parses() {
-        let input = r#"{"value":"s3cr3t"}"#;
-        let req: SecretSetRequest = serde_json::from_str(input).unwrap();
-        assert_eq!(req.value, "s3cr3t");
-    }
-}

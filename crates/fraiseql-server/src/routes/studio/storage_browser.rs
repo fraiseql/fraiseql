@@ -200,28 +200,3 @@ where
     )
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
-    use super::*;
-
-    #[test]
-    fn test_object_list_response_serializes() {
-        let resp = ObjectListResponse {
-            objects: vec![],
-            total: 0,
-            page: 1,
-            page_size: 50,
-        };
-        let json = serde_json::to_string(&resp).unwrap();
-        assert!(json.contains("\"objects\""));
-    }
-
-    #[test]
-    fn test_presign_request_parses() {
-        let input = r#"{"bucket":"b","key":"k","expires_in_secs":60}"#;
-        let req: PresignRequest = serde_json::from_str(input).unwrap();
-        assert_eq!(req.bucket, "b");
-        assert_eq!(req.expires_in_secs, 60);
-    }
-}
