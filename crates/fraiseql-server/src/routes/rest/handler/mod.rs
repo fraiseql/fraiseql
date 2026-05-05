@@ -13,6 +13,9 @@ pub mod response;
 pub mod routing;
 pub mod search;
 
+#[cfg(test)]
+mod tests;
+
 // Re-export public types from submodules for external use
 pub use prefer::{CountPreference, HandlingPreference, PreferHeader};
 pub use response::{RestError, RestResponse};

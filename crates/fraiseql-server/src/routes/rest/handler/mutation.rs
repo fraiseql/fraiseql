@@ -617,27 +617,3 @@ pub(super) fn stored_response_to_rest(
         body: stored.body,
     }
 }
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used)] // Reason: test code
-#[allow(clippy::missing_panics_doc)] // Reason: test code
-mod tests {
-    use super::*;
-
-    #[test]
-    fn stored_response_replay() {
-        let stored = StoredResponse {
-            status:  201,
-            headers: vec![("x-rows-affected".to_string(), "1".to_string())],
-            body:    Some(json!({"id": 1})),
-        };
-        let request_headers = HeaderMap::new();
-        let rest = stored_response_to_rest(stored, &request_headers);
-        assert_eq!(rest.status, StatusCode::CREATED);
-        assert_eq!(
-            rest.headers.get("idempotency-key").unwrap().to_str().unwrap(),
-            "replayed=true"
-        );
-        assert_eq!(rest.body.unwrap()["id"], 1);
-    }
-}
