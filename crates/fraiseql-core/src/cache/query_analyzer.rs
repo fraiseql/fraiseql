@@ -219,7 +219,7 @@ impl QueryAnalyzer {
     ///
     /// Analyzes WHERE clause and LIMIT to determine how many entities
     /// the query typically returns.
-    fn classify_cardinality(&self, query_str: &str) -> QueryCardinality {
+    pub(crate) fn classify_cardinality(&self, query_str: &str) -> QueryCardinality {
         let query_lower = query_str.to_lowercase();
 
         // Check for single entity query: WHERE id = ?
@@ -273,65 +273,5 @@ impl QueryAnalyzer {
 impl Default for QueryAnalyzer {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_where_id_constraint() {
-        let analyzer = QueryAnalyzer::new();
-        let cardinality = analyzer.classify_cardinality("SELECT * FROM users WHERE id = ?");
-        assert_eq!(cardinality, QueryCardinality::Single);
-    }
-
-    #[test]
-    fn test_parse_where_id_in_constraint() {
-        let analyzer = QueryAnalyzer::new();
-        let cardinality =
-            analyzer.classify_cardinality("SELECT * FROM users WHERE id IN (?, ?, ?)");
-        assert_eq!(cardinality, QueryCardinality::Multiple);
-    }
-
-    #[test]
-    fn test_list_queries_no_entity_constraint() {
-        let analyzer = QueryAnalyzer::new();
-        let cardinality = analyzer.classify_cardinality("SELECT * FROM users");
-        assert_eq!(cardinality, QueryCardinality::List);
-    }
-
-    #[test]
-    fn test_nested_entity_queries() {
-        let analyzer = QueryAnalyzer::new();
-        let cardinality = analyzer.classify_cardinality(
-            "SELECT * FROM (SELECT * FROM users WHERE id = ?) AS u WHERE u.active = true",
-        );
-        assert_eq!(cardinality, QueryCardinality::Single);
-    }
-
-    #[test]
-    fn test_complex_where_clauses() {
-        let analyzer = QueryAnalyzer::new();
-        let cardinality = analyzer.classify_cardinality(
-            "SELECT * FROM users WHERE id = ? AND status = 'active' AND created_at > ?",
-        );
-        assert_eq!(cardinality, QueryCardinality::Single);
-    }
-
-    #[test]
-    fn test_multiple_where_conditions() {
-        let analyzer = QueryAnalyzer::new();
-        let cardinality = analyzer
-            .classify_cardinality("SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1");
-        assert_eq!(cardinality, QueryCardinality::List);
-    }
-
-    #[test]
-    fn test_cardinality_hit_rates() {
-        assert!((QueryCardinality::Single.expected_hit_rate() - 0.91).abs() < f64::EPSILON);
-        assert!((QueryCardinality::Multiple.expected_hit_rate() - 0.88).abs() < f64::EPSILON);
-        assert!((QueryCardinality::List.expected_hit_rate() - 0.60).abs() < f64::EPSILON);
     }
 }

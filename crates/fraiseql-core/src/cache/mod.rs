@@ -236,3 +236,6 @@ pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
 pub use response_cache::{ResponseCache, ResponseCacheConfig};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;
+
+#[cfg(test)]
+mod tests;
