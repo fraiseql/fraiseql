@@ -6,19 +6,19 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 /// Timeout for all OIDC HTTP operations (discovery, token exchange, user info, refresh).
-const OIDC_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const OIDC_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Maximum byte size for an OIDC discovery document response.
 ///
 /// A well-formed `.well-known/openid-configuration` payload is a few `KiB`.
 /// 64 `KiB` blocks allocation bombs from a compromised OIDC provider.
-const MAX_OIDC_DISCOVERY_BYTES: usize = 64 * 1024; // 64 KiB
+pub(crate) const MAX_OIDC_DISCOVERY_BYTES: usize = 64 * 1024; // 64 KiB
 
 /// Maximum byte size for OIDC token and user-info responses.
 ///
 /// Token responses carry JWTs and a handful of metadata fields.
 /// 1 `MiB` is generous while preventing runaway allocation.
-const MAX_OIDC_TOKEN_BYTES: usize = 1024 * 1024; // 1 MiB
+pub(crate) const MAX_OIDC_TOKEN_BYTES: usize = 1024 * 1024; // 1 MiB
 
 use crate::{
     error::{AuthError, Result},
@@ -27,14 +27,14 @@ use crate::{
 
 /// OIDC Discovery document
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct OidcDiscovery {
-    issuer:                 String,
-    authorization_endpoint: String,
-    token_endpoint:         String,
-    userinfo_endpoint:      String,
-    jwks_uri:               Option<String>,
+pub(crate) struct OidcDiscovery {
+    pub(crate) issuer:                 String,
+    pub(crate) authorization_endpoint: String,
+    pub(crate) token_endpoint:         String,
+    pub(crate) userinfo_endpoint:      String,
+    pub(crate) jwks_uri:               Option<String>,
     #[serde(default)]
-    revocation_endpoint:    Option<String>,
+    pub(crate) revocation_endpoint:    Option<String>,
 }
 
 /// Generic OIDC provider that works with any OIDC-compliant service
@@ -56,15 +56,15 @@ struct OidcDiscovery {
 /// # }
 /// ```
 pub struct OidcProvider {
-    name:          String,
-    issuer_url:    String,
-    client_id:     String,
+    pub(crate) name:          String,
+    pub(crate) issuer_url:    String,
+    pub(crate) client_id:     String,
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
-    client_secret: Zeroizing<String>,
-    redirect_uri:  String,
-    discovery:     OidcDiscovery,
-    client:        reqwest::Client,
+    pub(crate) client_secret: Zeroizing<String>,
+    pub(crate) redirect_uri:  String,
+    pub(crate) discovery:     OidcDiscovery,
+    pub(crate) client:        reqwest::Client,
 }
 
 #[derive(Debug, Serialize)]
@@ -111,7 +111,7 @@ struct UserInfoRaw {
 ///
 /// Returns [`AuthError::OidcMetadataError`] if the URL is invalid, uses a non-HTTPS
 /// scheme, or targets a private/loopback address.
-fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
+pub(crate) fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
     // When `FRAISEQL_OIDC_ALLOW_INSECURE=true` all SSRF guards are disabled.
     // This is intended for local development and integration testing only —
     // never set in production.
@@ -250,7 +250,7 @@ impl OidcProvider {
     }
 
     /// Add authorization URL parameter
-    fn add_auth_params(&self, url: &mut String, state: &str, pkce_challenge: Option<&str>) {
+    pub(crate) fn add_auth_params(&self, url: &mut String, state: &str, pkce_challenge: Option<&str>) {
         url.push('?');
         write!(url, "client_id={}", urlencoding::encode(&self.client_id))
             .expect("write to String is infallible");
@@ -457,402 +457,5 @@ impl std::fmt::Debug for OidcProvider {
             .field("client_id", &self.client_id)
             .field("redirect_uri", &self.redirect_uri)
             .finish_non_exhaustive() // client_secret and client omitted for security
-    }
-}
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module — wildcard keeps test boilerplate minimal
-    use super::*;
-
-    // ── S24-H1: OidcProvider response size caps ────────────────────────────────
-
-    #[test]
-    fn oidc_discovery_cap_constant_is_reasonable() {
-        const { assert!(MAX_OIDC_DISCOVERY_BYTES >= 1024) }
-        const { assert!(MAX_OIDC_DISCOVERY_BYTES <= 10 * 1024 * 1024) }
-    }
-
-    #[test]
-    fn oidc_token_cap_constant_is_reasonable() {
-        const { assert!(MAX_OIDC_TOKEN_BYTES >= 64 * 1024) }
-        const { assert!(MAX_OIDC_TOKEN_BYTES <= 100 * 1024 * 1024) }
-    }
-
-    #[test]
-    fn oidc_request_timeout_is_set() {
-        let secs = OIDC_REQUEST_TIMEOUT.as_secs();
-        assert!(secs > 0 && secs <= 120, "OIDC timeout should be 1–120 s, got {secs}");
-    }
-
-    #[tokio::test]
-    async fn oidc_discovery_oversized_response_is_rejected() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-
-        let mock_server = MockServer::start().await;
-        let oversized = vec![b'x'; MAX_OIDC_DISCOVERY_BYTES + 1];
-        Mock::given(method("GET"))
-            .and(path("/.well-known/openid-configuration"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
-            .mount(&mock_server)
-            .await;
-
-        // FRAISEQL_OIDC_ALLOW_INSECURE=1 disables SSRF guards so the wiremock
-        // http:// server can be used as a test fixture without triggering the scheme check.
-        let result = temp_env::async_with_vars(
-            [("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1"))],
-            OidcProvider::new(
-                "test",
-                &mock_server.uri(),
-                "client_id",
-                "client_secret",
-                "http://localhost/callback",
-            ),
-        )
-        .await;
-
-        assert!(result.is_err(), "oversized discovery response must be rejected");
-        let msg = result.err().unwrap().to_string();
-        assert!(
-            msg.contains("too large") || msg.contains("large"),
-            "error must mention size: {msg}"
-        );
-    }
-
-    #[tokio::test]
-    async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-
-        let mock_server = MockServer::start().await;
-        // Valid but minimal discovery document — will fail at parse stage (missing fields),
-        // proving the size gate was passed.
-        let tiny = b"{}".to_vec();
-        Mock::given(method("GET"))
-            .and(path("/.well-known/openid-configuration"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(tiny))
-            .mount(&mock_server)
-            .await;
-
-        // FRAISEQL_OIDC_ALLOW_INSECURE=1 disables SSRF guards so the wiremock
-        // http:// server can be used as a test fixture without triggering the scheme check.
-        let result = temp_env::async_with_vars(
-            [("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1"))],
-            OidcProvider::new(
-                "test",
-                &mock_server.uri(),
-                "client_id",
-                "client_secret",
-                "http://localhost/callback",
-            ),
-        )
-        .await;
-
-        // Should fail at JSON parse (missing fields), not at the size gate
-        assert!(
-            result.is_err(),
-            "expected Err when discovery doc has missing fields, got: {result:?}"
-        );
-        let msg = result.err().unwrap().to_string();
-        assert!(
-            !msg.contains("too large"),
-            "size gate must not trigger for a small response: {msg}"
-        );
-    }
-
-    #[test]
-    fn test_oauth_provider_name() {
-        let provider = OidcProvider {
-            name:          "my-oidc".to_string(),
-            issuer_url:    "https://example.com".to_string(),
-            client_id:     "client_id".to_string(),
-            client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri:  "http://localhost:8000/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 "https://example.com".to_string(),
-                authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint:         "https://example.com/token".to_string(),
-                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
-                jwks_uri:               None,
-                revocation_endpoint:    None,
-            },
-            client:        reqwest::Client::new(),
-        };
-        assert_eq!(OAuthProvider::name(&provider), "my-oidc");
-    }
-
-    #[test]
-    fn test_oauth_provider_debug() {
-        let provider = OidcProvider {
-            name:          "test".to_string(),
-            issuer_url:    "https://example.com".to_string(),
-            client_id:     "client_id".to_string(),
-            client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri:  "http://localhost:8000/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 "https://example.com".to_string(),
-                authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint:         "https://example.com/token".to_string(),
-                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
-                jwks_uri:               None,
-                revocation_endpoint:    None,
-            },
-            client:        reqwest::Client::new(),
-        };
-
-        let debug_str = format!("{:?}", provider);
-        assert!(debug_str.contains("OidcProvider"));
-        assert!(debug_str.contains("test"));
-    }
-
-    #[test]
-    fn test_add_auth_params() {
-        let provider = OidcProvider {
-            name:          "test".to_string(),
-            issuer_url:    "https://example.com".to_string(),
-            client_id:     "my_client".to_string(),
-            client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri:  "http://localhost:8000/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 "https://example.com".to_string(),
-                authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint:         "https://example.com/token".to_string(),
-                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
-                jwks_uri:               None,
-                revocation_endpoint:    None,
-            },
-            client:        reqwest::Client::new(),
-        };
-
-        let mut url = "https://example.com/auth".to_string();
-        provider.add_auth_params(&mut url, "state123", None);
-
-        assert!(url.contains("client_id=my_client"));
-        assert!(url.contains("state=state123"));
-        assert!(url.contains("response_type=code"));
-        assert!(url.contains("scope=openid"));
-    }
-
-    // ── S29-H1: revoke_token HTTP status check ────────────────────────────────
-
-    #[tokio::test]
-    async fn revoke_token_non_success_status_is_rejected() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/revoke"))
-            .respond_with(ResponseTemplate::new(400))
-            .mount(&mock_server)
-            .await;
-
-        let provider = OidcProvider {
-            name:          "test".to_string(),
-            issuer_url:    mock_server.uri(),
-            client_id:     "client_id".to_string(),
-            client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri:  "http://localhost/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 mock_server.uri(),
-                authorization_endpoint: format!("{}/auth", mock_server.uri()),
-                token_endpoint:         format!("{}/token", mock_server.uri()),
-                userinfo_endpoint:      format!("{}/userinfo", mock_server.uri()),
-                jwks_uri:               None,
-                revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
-            },
-            client:        reqwest::Client::new(),
-        };
-
-        let result = provider.revoke_token("some_token").await;
-        assert!(result.is_err(), "non-2xx revocation response must be rejected");
-        let msg = result.err().unwrap().to_string();
-        assert!(
-            msg.contains("400") || msg.contains("revocation"),
-            "error must mention HTTP status or revocation failure: {msg}"
-        );
-    }
-
-    #[tokio::test]
-    async fn revoke_token_success_returns_ok() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-
-        let mock_server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/revoke"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&mock_server)
-            .await;
-
-        let provider = OidcProvider {
-            name:          "test".to_string(),
-            issuer_url:    mock_server.uri(),
-            client_id:     "client_id".to_string(),
-            client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri:  "http://localhost/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 mock_server.uri(),
-                authorization_endpoint: format!("{}/auth", mock_server.uri()),
-                token_endpoint:         format!("{}/token", mock_server.uri()),
-                userinfo_endpoint:      format!("{}/userinfo", mock_server.uri()),
-                jwks_uri:               None,
-                revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
-            },
-            client:        reqwest::Client::new(),
-        };
-
-        provider
-            .revoke_token("some_token")
-            .await
-            .unwrap_or_else(|e| panic!("200 revocation response must return Ok: {e}"));
-    }
-
-    // ── S36: OIDC SSRF protection ─────────────────────────────────────────────
-    // All SSRF tests use `temp_env::with_vars` to explicitly unset
-    // `FRAISEQL_OIDC_ALLOW_INSECURE` so they are immune to env var bleed-through
-    // from parallel tests that use wiremock with the insecure escape hatch.
-
-    #[test]
-    fn oidc_issuer_url_must_use_https_scheme() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("http://accounts.google.com");
-            assert!(result.is_err(), "http:// issuer URL must be rejected");
-            let msg = result.unwrap_err().to_string();
-            assert!(
-                msg.contains("https") || msg.contains("scheme"),
-                "error must mention scheme requirement: {msg}"
-            );
-        });
-    }
-
-    #[test]
-    fn oidc_issuer_url_rejects_non_url_scheme() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("ftp://accounts.example.com");
-            assert!(result.is_err(), "non-https scheme must be rejected");
-        });
-    }
-
-    #[test]
-    fn oidc_issuer_url_accepts_https_public_host() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("https://accounts.google.com");
-            assert!(result.is_ok(), "valid https public URL should be accepted: {result:?}");
-        });
-    }
-
-    #[test]
-    fn oidc_issuer_url_rejects_localhost() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("https://localhost:8080");
-            assert!(result.is_err(), "localhost issuer must be rejected (SSRF protection)");
-            let msg = result.unwrap_err().to_string();
-            assert!(
-                msg.contains("SSRF") || msg.contains("loopback") || msg.contains("private"),
-                "error must mention SSRF protection: {msg}"
-            );
-        });
-    }
-
-    #[test]
-    fn oidc_issuer_url_rejects_loopback_ipv4() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("https://127.0.0.1");
-            assert!(result.is_err(), "loopback IPv4 issuer must be rejected");
-        });
-    }
-
-    #[test]
-    fn oidc_issuer_url_rejects_loopback_ipv6() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("https://[::1]");
-            assert!(result.is_err(), "loopback IPv6 issuer must be rejected");
-        });
-    }
-
-    #[test]
-    fn oidc_issuer_url_rejects_rfc1918_private_range() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("https://10.0.0.1");
-            assert!(result.is_err(), "RFC 1918 private IP must be rejected (SSRF protection)");
-            let result2 = validate_oidc_issuer_url("https://172.16.0.1");
-            assert!(result2.is_err(), "172.16/12 private IP must be rejected");
-            let result3 = validate_oidc_issuer_url("https://192.168.1.1");
-            assert!(result3.is_err(), "192.168/16 private IP must be rejected");
-        });
-    }
-
-    #[test]
-    fn oidc_issuer_url_rejects_link_local() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("https://169.254.169.254");
-            assert!(result.is_err(), "link-local (AWS IMDS) IP must be rejected (SSRF protection)");
-        });
-    }
-
-    #[tokio::test]
-    async fn oidc_provider_new_rejects_http_issuer() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            // validate_oidc_issuer_url is synchronous, so we can test the guard
-            // without making an HTTP request (which would trigger a network error instead).
-            let result = validate_oidc_issuer_url("http://evil.example.com");
-            assert!(result.is_err(), "http:// issuer URL must be rejected by SSRF guard");
-            let msg = result.unwrap_err().to_string();
-            assert!(
-                msg.contains("https") || msg.contains("scheme"),
-                "error must mention scheme requirement: {msg}"
-            );
-        });
-    }
-
-    #[tokio::test]
-    async fn oidc_provider_new_rejects_loopback_issuer() {
-        temp_env::with_vars([("FRAISEQL_OIDC_ALLOW_INSECURE", None::<&str>)], || {
-            let result = validate_oidc_issuer_url("https://127.0.0.1:9999");
-            assert!(result.is_err(), "OidcProvider::new must reject loopback issuer URLs");
-        });
-    }
-
-    // ── S38: SCRAM / auth key-material zeroization ────────────────────────────
-
-    #[test]
-    fn oidc_provider_client_secret_is_zeroized_on_drop() {
-        // Security (S38): OidcProvider.client_secret must be Zeroizing<String> so
-        // the key material is wiped from memory when the provider is dropped.
-        let mut secret = zeroize::Zeroizing::new("oidc-provider-secret-12345".to_string());
-        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
-        zeroize::Zeroize::zeroize(&mut *secret);
-        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
-
-        // Compile-time proof: OidcProvider.client_secret must accept Zeroizing<String>.
-        let provider = OidcProvider {
-            name:          "test".to_string(),
-            issuer_url:    "https://example.com".to_string(),
-            client_id:     "id".to_string(),
-            client_secret: zeroize::Zeroizing::new("my_secret".to_string()),
-            redirect_uri:  "https://example.com/callback".to_string(),
-            discovery:     OidcDiscovery {
-                issuer:                 "https://example.com".to_string(),
-                authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint:         "https://example.com/token".to_string(),
-                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
-                jwks_uri:               None,
-                revocation_endpoint:    None,
-            },
-            client:        reqwest::Client::new(),
-        };
-        let _: &zeroize::Zeroizing<String> = &provider.client_secret;
     }
 }

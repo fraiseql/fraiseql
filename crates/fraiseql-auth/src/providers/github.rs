@@ -6,14 +6,14 @@ use serde::Deserialize;
 use tracing::warn;
 
 /// Timeout for all GitHub API HTTP requests.
-const GITHUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const GITHUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Maximum byte size for a GitHub API response.
 ///
 /// GitHub user and team responses are small JSON documents (< 10 `KiB`).
 /// 5 `MiB` is a generous cap that blocks allocation bombs from network
 /// intermediaries while accommodating any legitimate response size.
-const MAX_GITHUB_RESPONSE_BYTES: usize = 5 * 1024 * 1024; // 5 MiB
+pub(crate) const MAX_GITHUB_RESPONSE_BYTES: usize = 5 * 1024 * 1024; // 5 MiB
 
 use crate::{
     error::{AuthError, Result},
@@ -338,54 +338,3 @@ impl OAuthProvider for GitHubOAuth {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module — wildcard keeps test boilerplate minimal
-    use super::*;
-
-    #[test]
-    fn test_map_github_teams_to_roles() {
-        let teams = vec![
-            "acme-corp:admin".to_string(),
-            "acme-corp:operators".to_string(),
-            "acme-corp:unknown".to_string(),
-            "other-org:viewer".to_string(),
-        ];
-
-        let roles = GitHubOAuth::map_teams_to_roles(teams);
-
-        assert_eq!(roles.len(), 3);
-        assert!(roles.contains(&"admin".to_string()));
-        assert!(roles.contains(&"operator".to_string()));
-        assert!(roles.contains(&"viewer".to_string()));
-    }
-
-    #[test]
-    fn test_map_teams_empty() {
-        let roles = GitHubOAuth::map_teams_to_roles(vec![]);
-        assert!(roles.is_empty());
-    }
-
-    #[test]
-    fn test_map_teams_no_matches() {
-        let teams = vec!["org:unknown-team".to_string(), "org:other".to_string()];
-        let roles = GitHubOAuth::map_teams_to_roles(teams);
-        assert!(roles.is_empty());
-    }
-
-    // ── S23-H3: GitHub API response size caps ─────────────────────────────────
-
-    #[test]
-    fn github_response_cap_constant_is_reasonable() {
-        const { assert!(MAX_GITHUB_RESPONSE_BYTES >= 1024 * 1024) }
-        const { assert!(MAX_GITHUB_RESPONSE_BYTES <= 100 * 1024 * 1024) }
-    }
-
-    #[test]
-    fn github_request_timeout_is_set() {
-        // Verify the timeout is non-zero (non-const value, evaluated at runtime).
-        let secs = GITHUB_REQUEST_TIMEOUT.as_secs();
-        assert!(secs > 0 && secs <= 120, "GitHub timeout should be 1–120 s, got {secs}");
-    }
-}

@@ -70,7 +70,7 @@ impl LogtoOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
-    fn extract_roles(raw_claims: &serde_json::Value) -> Vec<String> {
+    pub(crate) fn extract_roles(raw_claims: &serde_json::Value) -> Vec<String> {
         raw_claims
             .get("roles")
             .and_then(|roles| roles.as_array())
@@ -84,7 +84,7 @@ impl LogtoOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
-    fn extract_organizations(raw_claims: &serde_json::Value) -> Vec<String> {
+    pub(crate) fn extract_organizations(raw_claims: &serde_json::Value) -> Vec<String> {
         raw_claims
             .get("organizations")
             .and_then(|orgs| orgs.as_array())
@@ -98,7 +98,7 @@ impl LogtoOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
-    fn extract_organization_roles(raw_claims: &serde_json::Value) -> Vec<String> {
+    pub(crate) fn extract_organization_roles(raw_claims: &serde_json::Value) -> Vec<String> {
         let mut org_roles = Vec::new();
 
         if let Some(org_roles_obj) = raw_claims.get("organization_roles") {
@@ -124,7 +124,7 @@ impl LogtoOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
-    fn extract_organization_id(raw_claims: &serde_json::Value) -> Option<String> {
+    pub(crate) fn extract_organization_id(raw_claims: &serde_json::Value) -> Option<String> {
         raw_claims
             .get("organization_id")
             .and_then(|org_id| org_id.as_str())
@@ -231,195 +231,3 @@ impl OAuthProvider for LogtoOAuth {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module — wildcard keeps test boilerplate minimal
-    use super::*;
-
-    #[test]
-    fn test_extract_roles_from_claim() {
-        let claims = json!({
-            "roles": ["admin", "operator", "viewer"]
-        });
-
-        let roles = LogtoOAuth::extract_roles(&claims);
-        assert_eq!(roles.len(), 3);
-        assert!(roles.contains(&"admin".to_string()));
-        assert!(roles.contains(&"operator".to_string()));
-    }
-
-    #[test]
-    fn test_extract_roles_missing() {
-        let claims = json!({});
-        let roles = LogtoOAuth::extract_roles(&claims);
-        assert!(roles.is_empty());
-    }
-
-    #[test]
-    fn test_extract_organizations() {
-        let claims = json!({
-            "organizations": ["org-1", "org-2", "org-3"]
-        });
-
-        let orgs = LogtoOAuth::extract_organizations(&claims);
-        assert_eq!(orgs.len(), 3);
-        assert!(orgs.contains(&"org-1".to_string()));
-    }
-
-    #[test]
-    fn test_extract_organizations_missing() {
-        let claims = json!({});
-        let orgs = LogtoOAuth::extract_organizations(&claims);
-        assert!(orgs.is_empty());
-    }
-
-    #[test]
-    fn test_extract_organization_roles() {
-        let claims = json!({
-            "organization_roles": {
-                "org-1": ["admin"],
-                "org-2": ["member", "operator"]
-            }
-        });
-
-        let org_roles = LogtoOAuth::extract_organization_roles(&claims);
-        assert_eq!(org_roles.len(), 3);
-        assert!(org_roles.contains(&"admin".to_string()));
-        assert!(org_roles.contains(&"member".to_string()));
-        assert!(org_roles.contains(&"operator".to_string()));
-    }
-
-    #[test]
-    fn test_extract_organization_roles_missing() {
-        let claims = json!({});
-        let org_roles = LogtoOAuth::extract_organization_roles(&claims);
-        assert!(org_roles.is_empty());
-    }
-
-    #[test]
-    fn test_extract_organization_id() {
-        let claims = json!({
-            "organization_id": "current-org"
-        });
-
-        let org_id = LogtoOAuth::extract_organization_id(&claims);
-        assert_eq!(org_id, Some("current-org".to_string()));
-    }
-
-    #[test]
-    fn test_extract_organization_id_missing() {
-        let claims = json!({});
-        let org_id = LogtoOAuth::extract_organization_id(&claims);
-        assert!(org_id.is_none());
-    }
-
-    #[test]
-    fn test_map_logto_roles_to_fraiseql() {
-        let roles = vec![
-            "admin".to_string(),
-            "logto-operator".to_string(),
-            "user".to_string(),
-            "unknown".to_string(),
-        ];
-
-        let fraiseql_roles = LogtoOAuth::map_logto_roles_to_fraiseql(roles);
-
-        assert_eq!(fraiseql_roles.len(), 3);
-        assert!(fraiseql_roles.contains(&"admin".to_string()));
-        assert!(fraiseql_roles.contains(&"operator".to_string()));
-        assert!(fraiseql_roles.contains(&"viewer".to_string()));
-    }
-
-    #[test]
-    fn test_map_logto_roles_case_insensitive() {
-        let roles = vec![
-            "ADMIN".to_string(),
-            "Operator".to_string(),
-            "VIEWER".to_string(),
-        ];
-
-        let fraiseql_roles = LogtoOAuth::map_logto_roles_to_fraiseql(roles);
-
-        assert_eq!(fraiseql_roles.len(), 3);
-        assert!(fraiseql_roles.contains(&"admin".to_string()));
-        assert!(fraiseql_roles.contains(&"operator".to_string()));
-        assert!(fraiseql_roles.contains(&"viewer".to_string()));
-    }
-
-    #[test]
-    fn test_map_logto_roles_organization_pattern() {
-        let roles = vec![
-            "organization:admin".to_string(),
-            "organization:member".to_string(),
-            "organization:operator".to_string(),
-        ];
-
-        let fraiseql_roles = LogtoOAuth::map_logto_roles_to_fraiseql(roles);
-
-        assert_eq!(fraiseql_roles.len(), 3);
-        assert!(fraiseql_roles.contains(&"admin".to_string()));
-        assert!(fraiseql_roles.contains(&"viewer".to_string()));
-        assert!(fraiseql_roles.contains(&"operator".to_string()));
-    }
-
-    #[test]
-    fn test_map_logto_roles_substring_matching() {
-        let roles = vec![
-            "my_custom_admin_role".to_string(),
-            "operator_special".to_string(),
-            "viewer_guest".to_string(),
-        ];
-
-        let fraiseql_roles = LogtoOAuth::map_logto_roles_to_fraiseql(roles);
-
-        assert_eq!(fraiseql_roles.len(), 3);
-        assert!(fraiseql_roles.contains(&"admin".to_string()));
-        assert!(fraiseql_roles.contains(&"operator".to_string()));
-        assert!(fraiseql_roles.contains(&"viewer".to_string()));
-    }
-
-    #[test]
-    fn test_extract_org_id_fallback_to_first_org() {
-        let claims = json!({
-            "organizations": ["org-1", "org-2"]
-        });
-
-        let org_id = LogtoOAuth::extract_organization_id(&claims);
-        assert!(org_id.is_none()); // Should be None because organization_id is missing
-
-        // Simulating the fallback logic from user_info()
-        let orgs = LogtoOAuth::extract_organizations(&claims);
-        let fallback_org = if orgs.is_empty() {
-            None
-        } else {
-            Some(orgs[0].clone())
-        };
-
-        assert_eq!(fallback_org, Some("org-1".to_string()));
-    }
-
-    #[test]
-    fn test_extract_all_claims() {
-        let claims = json!({
-            "roles": ["admin", "operator"],
-            "organizations": ["org-1", "org-2"],
-            "organization_id": "org-1",
-            "organization_roles": {
-                "org-1": ["admin"]
-            }
-        });
-
-        let roles = LogtoOAuth::extract_roles(&claims);
-        let orgs = LogtoOAuth::extract_organizations(&claims);
-        let org_id = LogtoOAuth::extract_organization_id(&claims);
-        let org_roles = LogtoOAuth::extract_organization_roles(&claims);
-        let mapped_roles = LogtoOAuth::map_logto_roles_to_fraiseql(roles.clone());
-
-        assert_eq!(roles.len(), 2);
-        assert_eq!(orgs.len(), 2);
-        assert_eq!(org_id, Some("org-1".to_string()));
-        assert_eq!(org_roles.len(), 1);
-        assert_eq!(mapped_roles.len(), 2);
-    }
-}

@@ -99,7 +99,7 @@ pub fn init_security_config(schema_json_str: &str) -> Result<SecurityConfigFromS
 /// # Errors
 ///
 /// Returns error if security configuration section is invalid or missing required fields
-fn init_security_config_from_value(schema_json: &JsonValue) -> Result<SecurityConfigFromSchema> {
+pub(crate) fn init_security_config_from_value(schema_json: &JsonValue) -> Result<SecurityConfigFromSchema> {
     debug!("Initializing security configuration from schema");
 
     // Extract security section from schema
@@ -253,102 +253,4 @@ pub fn validate_security_config(config: &SecurityConfigFromSchema) -> Result<()>
 
     info!("Security configuration validation passed");
     Ok(())
-}
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module — wildcard keeps test boilerplate minimal
-    use super::*;
-
-    #[test]
-    fn test_init_default_security_config() {
-        let config = init_default_security_config();
-        assert!(config.audit_logging.enabled);
-        assert!(config.error_sanitization.enabled);
-        assert!(config.rate_limiting.enabled);
-        assert!(config.state_encryption.enabled);
-    }
-
-    #[test]
-    fn test_validate_security_config_success() {
-        let config = SecurityConfigFromSchema::default();
-        validate_security_config(&config)
-            .unwrap_or_else(|e| panic!("expected Ok for default security config: {e}"));
-    }
-
-    #[test]
-    fn test_validate_security_config_leak_sensitive_fails() {
-        let mut config = SecurityConfigFromSchema::default();
-        config.error_sanitization.leak_sensitive_details = true;
-        let result = validate_security_config(&config);
-        assert!(
-            matches!(result, Err(AuthError::ConfigError { .. })),
-            "expected ConfigError when leak_sensitive_details=true, got: {result:?}"
-        );
-    }
-
-    #[test]
-    fn test_log_security_config() {
-        let config = SecurityConfigFromSchema::default();
-        // Just verify the function doesn't panic
-        log_security_config(&config);
-    }
-
-    #[test]
-    fn test_init_security_config_from_json() {
-        let json = serde_json::json!({
-            "security": {
-                "auditLogging": {
-                    "enabled": true,
-                    "logLevel": "debug"
-                },
-                "rateLimiting": {
-                    "enabled": true,
-                    "authStart": {
-                        "maxRequests": 200,
-                        "windowSecs": 60
-                    }
-                }
-            }
-        });
-
-        let cfg = init_security_config_from_value(&json)
-            .unwrap_or_else(|e| panic!("expected Ok for valid security JSON: {e}"));
-        assert_eq!(cfg.audit_logging.log_level, "debug");
-        assert_eq!(cfg.rate_limiting.auth_start_max_requests, 200);
-    }
-
-    #[test]
-    fn test_init_security_config_from_string() {
-        let json_str = r#"{
-            "security": {
-                "auditLogging": {
-                    "enabled": true,
-                    "logLevel": "info"
-                },
-                "errorSanitization": {
-                    "enabled": true,
-                    "genericMessages": true
-                }
-            }
-        }"#;
-
-        let cfg = init_security_config(json_str)
-            .unwrap_or_else(|e| panic!("expected Ok for valid security JSON string: {e}"));
-        assert_eq!(cfg.audit_logging.log_level, "info");
-        assert!(cfg.error_sanitization.generic_messages);
-    }
-
-    #[test]
-    fn test_init_security_config_missing_section() {
-        let json = serde_json::json!({});
-        let config = init_security_config_from_value(&json);
-        // Should return error because security section is required
-        assert!(
-            matches!(config, Err(AuthError::ConfigError { .. })),
-            "expected ConfigError when security section is missing, got: {config:?}"
-        );
-    }
 }

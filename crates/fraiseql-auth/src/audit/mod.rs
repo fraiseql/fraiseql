@@ -2,3 +2,6 @@
 
 pub mod chain;
 pub mod logger;
+
+#[cfg(test)]
+mod tests;

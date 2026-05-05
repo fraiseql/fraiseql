@@ -58,6 +58,9 @@ mod integration_security_tests;
 #[cfg(test)]
 mod advanced_auth_integration_tests;
 
+#[cfg(test)]
+mod tests;
+
 pub use audit::logger::{
     AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
     get_audit_logger, init_audit_logger,

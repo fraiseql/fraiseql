@@ -41,7 +41,7 @@ type HmacSha256 = Hmac<Sha256>;
 /// # Returns
 ///
 /// A 32-byte raw HMAC-SHA256 output.
-fn compute_chain_hash(prev_hash: &[u8; 32], entry_json: &str) -> [u8; 32] {
+pub(crate) fn compute_chain_hash(prev_hash: &[u8; 32], entry_json: &str) -> [u8; 32] {
     #[allow(clippy::unwrap_used)]
     // Reason: HmacSha256::new_from_slice only fails on empty keys; 32-byte array is always valid
     let mut mac = HmacSha256::new_from_slice(prev_hash)
@@ -51,7 +51,7 @@ fn compute_chain_hash(prev_hash: &[u8; 32], entry_json: &str) -> [u8; 32] {
 }
 
 /// Hex-encode a 32-byte hash to a 64-character lowercase hex string.
-fn encode_chain_hash(hash: &[u8; 32]) -> String {
+pub(crate) fn encode_chain_hash(hash: &[u8; 32]) -> String {
     hex::encode(hash)
 }
 
@@ -190,121 +190,3 @@ pub fn verify_chain(
     Ok(count)
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::*;
-
-    const TEST_SEED: [u8; 32] = *b"test-seed-32-bytes-exactly-here!";
-
-    fn make_entry(action: &str, hasher: &mut ChainHasher) -> serde_json::Value {
-        let mut entry = serde_json::json!({ "action": action, "user": "u1" });
-        let hash = hasher.advance(&entry.to_string());
-        entry["chain_hash"] = serde_json::Value::String(hash);
-        entry
-    }
-
-    fn generate_chained_entries(n: usize, seed: [u8; 32]) -> Vec<serde_json::Value> {
-        let mut hasher = ChainHasher::new(seed);
-        (0..n).map(|i| make_entry(&format!("action-{i}"), &mut hasher)).collect()
-    }
-
-    #[test]
-    fn test_chain_hash_is_deterministic() {
-        let h1 = compute_chain_hash(&TEST_SEED, "entry-1");
-        let h2 = compute_chain_hash(&TEST_SEED, "entry-1");
-        assert_eq!(h1, h2, "same inputs must produce same hash");
-    }
-
-    #[test]
-    fn test_chain_hash_changes_with_content() {
-        let h1 = compute_chain_hash(&TEST_SEED, r#"{"action":"query"}"#);
-        let h2 = compute_chain_hash(&TEST_SEED, r#"{"action":"mutation"}"#);
-        assert_ne!(h1, h2, "different content must produce different hash");
-    }
-
-    #[test]
-    fn test_chain_is_sequential() {
-        let h1 = compute_chain_hash(&TEST_SEED, "entry-1");
-        let h2 = compute_chain_hash(&h1, "entry-2");
-        let h3 = compute_chain_hash(&h2, "entry-3");
-        // Re-compute h3 skipping h2 — must differ.
-        let h3_alt = compute_chain_hash(&h1, "entry-3");
-        assert_ne!(h3, h3_alt, "sequential hashes must differ from skipped chain");
-    }
-
-    #[test]
-    fn test_chain_hash_output_is_64_hex_chars() {
-        let h = encode_chain_hash(&compute_chain_hash(&TEST_SEED, "entry"));
-        assert_eq!(h.len(), 64, "hex-encoded SHA256 must be 64 characters");
-        assert!(h.chars().all(|c| c.is_ascii_hexdigit()));
-    }
-
-    #[test]
-    fn test_hasher_advance_changes_state() {
-        let mut hasher = ChainHasher::new(TEST_SEED);
-        let h1 = hasher.advance("entry-1");
-        let h2 = hasher.advance("entry-1"); // same content, different state
-        assert_ne!(h1, h2, "advancing changes internal state");
-    }
-
-    #[test]
-    fn test_verify_valid_chain_passes() {
-        let entries = generate_chained_entries(100, TEST_SEED);
-        let result = verify_chain(entries, TEST_SEED);
-        assert!(result.is_ok(), "valid chain must pass verification");
-        assert_eq!(result.unwrap(), 100);
-    }
-
-    #[test]
-    fn test_verify_detects_modified_entry() {
-        let mut entries = generate_chained_entries(100, TEST_SEED);
-        entries[50]["action"] = serde_json::Value::String("TAMPERED".to_string());
-        let result = verify_chain(entries, TEST_SEED);
-        assert!(
-            matches!(
-                result,
-                Err(ChainVerifyError::BrokenLink {
-                    entry_index: 50,
-                    ..
-                })
-            ),
-            "modified entry must break chain at that index"
-        );
-    }
-
-    #[test]
-    fn test_verify_detects_deleted_entry() {
-        let mut entries = generate_chained_entries(100, TEST_SEED);
-        entries.remove(50);
-        let result = verify_chain(entries, TEST_SEED);
-        assert!(
-            matches!(
-                result,
-                Err(ChainVerifyError::BrokenLink {
-                    entry_index: 50,
-                    ..
-                })
-            ),
-            "deleted entry must break chain at the deletion point"
-        );
-    }
-
-    #[test]
-    fn test_verify_empty_chain_passes() {
-        let result = verify_chain([], TEST_SEED);
-        assert_eq!(result.unwrap(), 0);
-    }
-
-    #[test]
-    fn test_verify_detects_missing_chain_hash() {
-        let entries = vec![serde_json::json!({ "action": "query" })]; // no chain_hash
-        let result = verify_chain(entries, TEST_SEED);
-        assert!(matches!(result, Err(ChainVerifyError::MissingChainHash { entry_index: 0 })));
-    }
-}

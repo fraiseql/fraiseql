@@ -66,7 +66,7 @@ impl OryOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
-    fn extract_groups(raw_claims: &serde_json::Value) -> Vec<String> {
+    pub(crate) fn extract_groups(raw_claims: &serde_json::Value) -> Vec<String> {
         raw_claims
             .get("groups")
             .and_then(|groups| {
@@ -132,7 +132,7 @@ impl OryOAuth {
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
     /// * `email` - User email address
-    fn extract_org_id(raw_claims: &serde_json::Value, email: &str) -> Option<String> {
+    pub(crate) fn extract_org_id(raw_claims: &serde_json::Value, email: &str) -> Option<String> {
         // Try to get org_id directly from claims
         if let Some(org_id) = raw_claims.get("org_id") {
             if let Some(org_id_str) = org_id.as_str() {
@@ -196,132 +196,3 @@ impl OAuthProvider for OryOAuth {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module — wildcard keeps test boilerplate minimal
-    use super::*;
-
-    #[test]
-    fn test_extract_groups_from_array() {
-        let claims = json!({
-            "groups": ["admin", "operators", "viewers"]
-        });
-
-        let groups = OryOAuth::extract_groups(&claims);
-        assert_eq!(groups.len(), 3);
-        assert!(groups.contains(&"admin".to_string()));
-        assert!(groups.contains(&"operators".to_string()));
-    }
-
-    #[test]
-    fn test_extract_groups_from_string() {
-        let claims = json!({
-            "groups": "admin"
-        });
-
-        let groups = OryOAuth::extract_groups(&claims);
-        assert_eq!(groups.len(), 1);
-        assert_eq!(groups[0], "admin");
-    }
-
-    #[test]
-    fn test_extract_groups_missing() {
-        let claims = json!({});
-        let groups = OryOAuth::extract_groups(&claims);
-        assert!(groups.is_empty());
-    }
-
-    #[test]
-    fn test_map_ory_groups_to_fraiseql() {
-        let groups = vec![
-            "admin".to_string(),
-            "ory-operator".to_string(),
-            "user".to_string(),
-            "unknown".to_string(),
-        ];
-
-        let fraiseql_roles = OryOAuth::map_ory_groups_to_fraiseql(groups);
-
-        assert_eq!(fraiseql_roles.len(), 3);
-        assert!(fraiseql_roles.contains(&"admin".to_string()));
-        assert!(fraiseql_roles.contains(&"operator".to_string()));
-        assert!(fraiseql_roles.contains(&"viewer".to_string()));
-    }
-
-    #[test]
-    fn test_map_ory_groups_case_insensitive() {
-        let groups = vec![
-            "ADMIN".to_string(),
-            "Operator".to_string(),
-            "VIEWER".to_string(),
-        ];
-
-        let fraiseql_roles = OryOAuth::map_ory_groups_to_fraiseql(groups);
-
-        assert_eq!(fraiseql_roles.len(), 3);
-        assert!(fraiseql_roles.contains(&"admin".to_string()));
-        assert!(fraiseql_roles.contains(&"operator".to_string()));
-        assert!(fraiseql_roles.contains(&"viewer".to_string()));
-    }
-
-    #[test]
-    fn test_map_ory_groups_keto_patterns() {
-        let groups = vec![
-            "fraiseql:admin".to_string(),
-            "fraiseql:operator".to_string(),
-            "fraiseql:viewer".to_string(),
-            "other:role".to_string(),
-        ];
-
-        let fraiseql_roles = OryOAuth::map_ory_groups_to_fraiseql(groups);
-
-        assert_eq!(fraiseql_roles.len(), 3);
-        assert!(fraiseql_roles.contains(&"admin".to_string()));
-        assert!(fraiseql_roles.contains(&"operator".to_string()));
-        assert!(fraiseql_roles.contains(&"viewer".to_string()));
-    }
-
-    #[test]
-    fn test_extract_org_id_from_claim() {
-        let claims = json!({
-            "org_id": "acme-corp"
-        });
-
-        let org_id = OryOAuth::extract_org_id(&claims, "user@example.com");
-        assert_eq!(org_id, Some("acme-corp".to_string()));
-    }
-
-    #[test]
-    fn test_extract_org_id_from_email_domain() {
-        let claims = json!({});
-
-        let org_id = OryOAuth::extract_org_id(&claims, "user@example.com");
-        assert_eq!(org_id, Some("example.com".to_string()));
-    }
-
-    #[test]
-    fn test_extract_org_id_missing() {
-        let claims = json!({});
-
-        let org_id = OryOAuth::extract_org_id(&claims, "");
-        assert!(org_id.is_none());
-    }
-
-    #[test]
-    fn test_extract_all_roles_and_org() {
-        let claims = json!({
-            "groups": ["admin", "operators"],
-            "org_id": "my-org"
-        });
-
-        let groups = OryOAuth::extract_groups(&claims);
-        let roles = OryOAuth::map_ory_groups_to_fraiseql(groups);
-        let org_id = OryOAuth::extract_org_id(&claims, "user@example.com");
-
-        assert_eq!(roles.len(), 2);
-        assert!(roles.contains(&"admin".to_string()));
-        assert!(roles.contains(&"operator".to_string()));
-        assert_eq!(org_id, Some("my-org".to_string()));
-    }
-}

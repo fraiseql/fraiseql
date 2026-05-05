@@ -60,7 +60,7 @@ pub struct OidcServerClient {
     /// Intentionally private: the secret must never be accessible via a field.
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
-    client_secret:          Zeroizing<String>,
+    pub(crate) client_secret:          Zeroizing<String>,
     server_redirect_uri:    String,
     authorization_endpoint: String,
     token_endpoint:         String,
@@ -84,19 +84,19 @@ impl OidcServerClient {
     /// Values longer than 128 characters exceed the RFC ceiling; rejecting them
     /// before the outbound token request prevents log injection and memory
     /// exhaustion on the provider side.
-    const MAX_CODE_VERIFIER_BYTES: usize = 128;
+    pub(crate) const MAX_CODE_VERIFIER_BYTES: usize = 128;
     /// Maximum byte size accepted from the OIDC token endpoint response.
     ///
     /// A well-formed token response is a few KiB at most.  1 MiB prevents a
     /// malicious or compromised OIDC provider from exhausting server memory.
-    const MAX_OIDC_RESPONSE_BYTES: usize = 1024 * 1024;
+    pub(crate) const MAX_OIDC_RESPONSE_BYTES: usize = 1024 * 1024;
     /// Minimum byte length for an inbound PKCE `code_verifier` (RFC 7636 §4.1).
     ///
     /// RFC 7636 mandates that the code verifier be between 43 and 128 characters.
     /// Rejecting values below this floor prevents malformed verifiers — which
     /// a browser extension or man-in-the-browser attack might supply — from
     /// reaching the upstream OIDC provider.
-    const MIN_CODE_VERIFIER_BYTES: usize = 43;
+    pub(crate) const MIN_CODE_VERIFIER_BYTES: usize = 43;
 
     /// Construct a client directly from resolved credentials and endpoints.
     ///
@@ -275,248 +275,3 @@ impl OidcServerClient {
 // ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    #[allow(clippy::wildcard_imports)]
-    // Reason: test module — wildcard keeps test boilerplate minimal
-    use super::*;
-
-    /// A valid 43-character PKCE code verifier (minimum per RFC 7636 §4.1).
-    const VALID_VERIFIER: &str = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-
-    fn test_client() -> OidcServerClient {
-        OidcServerClient::new(
-            "test-client",
-            "test-secret",
-            "https://api.example.com/auth/callback",
-            "https://provider.example.com/authorize",
-            "https://provider.example.com/token",
-        )
-    }
-
-    #[test]
-    fn test_authorization_url_contains_required_pkce_params() {
-        let client = test_client();
-        let url = client.authorization_url("my_state", "my_challenge", "S256");
-        assert!(url.contains("response_type=code"), "missing response_type");
-        assert!(url.contains("client_id=test-client"), "missing client_id");
-        assert!(url.contains("code_challenge=my_challenge"), "missing code_challenge");
-        assert!(url.contains("code_challenge_method=S256"), "missing method");
-        assert!(url.contains("state="), "missing state");
-        assert!(url.contains("redirect_uri="), "missing redirect_uri");
-    }
-
-    #[test]
-    fn oidc_response_cap_constant_is_reasonable() {
-        assert_eq!(OidcServerClient::MAX_OIDC_RESPONSE_BYTES, 1024 * 1024);
-    }
-
-    #[test]
-    fn oidc_response_cap_covers_error_path() {
-        // The size guard now fires BEFORE the status check, so both 2xx and
-        // non-2xx responses are bounded. Verify the constant is sane.
-        const { assert!(OidcServerClient::MAX_OIDC_RESPONSE_BYTES >= 64 * 1024) }
-        const { assert!(OidcServerClient::MAX_OIDC_RESPONSE_BYTES <= 100 * 1024 * 1024) }
-    }
-
-    #[tokio::test]
-    async fn oidc_oversized_error_response_is_rejected() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-
-        let mock_server = MockServer::start().await;
-        // Non-2xx response with oversized body — must be rejected before status check.
-        let oversized = vec![b'e'; OidcServerClient::MAX_OIDC_RESPONSE_BYTES + 1];
-        Mock::given(method("POST"))
-            .and(path("/token"))
-            .respond_with(ResponseTemplate::new(400).set_body_bytes(oversized))
-            .mount(&mock_server)
-            .await;
-
-        let client = OidcServerClient::new(
-            "client_id",
-            "client_secret",
-            "https://example.com/callback",
-            "https://example.com/auth",
-            format!("{}/token", mock_server.uri()),
-        );
-        let http = reqwest::Client::new();
-        let result = client.exchange_code("code", VALID_VERIFIER, &http).await;
-
-        assert!(result.is_err(), "oversized error response must be rejected");
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("too large"), "error must mention size limit, got: {msg}");
-    }
-
-    #[tokio::test]
-    async fn oidc_oversized_success_response_is_rejected() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-
-        let mock_server = MockServer::start().await;
-        let oversized = vec![b'x'; OidcServerClient::MAX_OIDC_RESPONSE_BYTES + 1];
-        Mock::given(method("POST"))
-            .and(path("/token"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
-            .mount(&mock_server)
-            .await;
-
-        let client = OidcServerClient::new(
-            "client_id",
-            "client_secret",
-            "https://example.com/callback",
-            "https://example.com/auth",
-            format!("{}/token", mock_server.uri()),
-        );
-        let http = reqwest::Client::new();
-        let result = client.exchange_code("code", VALID_VERIFIER, &http).await;
-
-        assert!(result.is_err(), "oversized success response must be rejected, got: {result:?}");
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("too large"), "error must mention size limit, got: {msg}");
-    }
-
-    #[test]
-    fn test_authorization_url_includes_openid_scope() {
-        let client = test_client();
-        let url = client.authorization_url("s", "c", "S256");
-        // scope must include "openid" (percent-encoded as openid%20email%20profile)
-        assert!(url.contains("openid"), "authorization URL must request the openid scope: {url}");
-    }
-
-    #[test]
-    fn test_authorization_url_state_is_percent_encoded() {
-        // State tokens produced by encryption may contain +, /, = (base64url-no-pad
-        // avoids = and /, but base64std does not). Ensure the value is encoded.
-        let client = test_client();
-        let state_with_spaces = "hello world+test";
-        let url = client.authorization_url(state_with_spaces, "challenge", "S256");
-        // The raw space must not appear unencoded
-        let state_segment = url.split("state=").nth(1).unwrap().split('&').next().unwrap();
-        assert!(!state_segment.contains(' '), "space in state must be percent-encoded");
-        assert!(!state_segment.contains('+'), "plus in state must be percent-encoded");
-    }
-
-    #[test]
-    fn test_from_compiled_schema_absent_auth_returns_none() {
-        let json = serde_json::json!({});
-        assert!(OidcServerClient::from_compiled_schema(&json).is_none());
-    }
-
-    #[test]
-    fn test_from_compiled_schema_missing_env_var_returns_none() {
-        // Use an env var name that is extremely unlikely to be set in CI.
-        // If somehow set, the test would pass the env lookup but fail at
-        // auth_endpoints (since they aren't present either).
-        let json = serde_json::json!({
-            "auth": {
-                "discovery_url":       "https://example.com",
-                "client_id":           "x",
-                "client_secret_env":   "__FRAISEQL_TEST_DEFINITELY_UNSET_42XYZ__",
-                "server_redirect_uri": "https://api.example.com/auth/callback"
-            },
-            "auth_endpoints": {
-                "authorization_endpoint": "https://example.com/auth",
-                "token_endpoint":         "https://example.com/token"
-            }
-        });
-        // Either the env var lookup fails (most likely) OR the endpoints exist
-        // but the env var is somehow set — either way returns None if no secret.
-        // We can't guarantee env state, so just assert the call doesn't panic.
-        let _ = OidcServerClient::from_compiled_schema(&json);
-        // Primary assertion: missing env var → None (relies on var not being set).
-        // This is inherently best-effort in a test environment.
-    }
-
-    #[test]
-    fn test_from_compiled_schema_missing_endpoints_returns_none() {
-        // auth section present, env var set (via a known-present env var), but no auth_endpoints
-        // cache. Use PATH which is always set in any Unix environment.
-        let json = serde_json::json!({
-            "auth": {
-                "discovery_url":       "https://example.com",
-                "client_id":           "x",
-                "client_secret_env":   "PATH",
-                "server_redirect_uri": "https://api.example.com/auth/callback"
-            }
-            // no "auth_endpoints" — this is what we're testing
-        });
-        assert!(
-            OidcServerClient::from_compiled_schema(&json).is_none(),
-            "missing auth_endpoints must return None"
-        );
-    }
-
-    #[test]
-    fn test_debug_redacts_client_secret() {
-        let client = test_client();
-        let debug_str = format!("{client:?}");
-        assert!(
-            !debug_str.contains("test-secret"),
-            "Debug output must not expose the client secret: {debug_str}"
-        );
-        assert!(debug_str.contains("[REDACTED]"));
-    }
-
-    // ── S38: SCRAM / auth key-material zeroization ────────────────────────────
-
-    #[test]
-    fn oidc_server_client_secret_is_zeroized_on_drop() {
-        // Security (S38): client_secret must be stored as Zeroizing<String> so
-        // the key material is wiped from memory when the struct is dropped.
-        //
-        // Verify via explicit zeroize() call (safe, no unsafe pointer access).
-        let mut secret = zeroize::Zeroizing::new("oidc-server-secret-12345".to_string());
-        assert!(!secret.is_empty(), "secret should be non-empty before zeroize");
-        zeroize::Zeroize::zeroize(&mut *secret);
-        assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
-
-        // Compile-time check: OidcServerClient.client_secret must accept Zeroizing<String>.
-        let client = test_client();
-        let _: &zeroize::Zeroizing<String> = &client.client_secret;
-    }
-
-    // ── S39: code_verifier inbound length guard ───────────────────────────────
-
-    #[tokio::test]
-    async fn exchange_code_rejects_short_code_verifier() {
-        // RFC 7636 §4.1: code_verifier must be at least 43 chars.
-        let client = test_client();
-        let http = reqwest::Client::new();
-        let short = "a".repeat(OidcServerClient::MIN_CODE_VERIFIER_BYTES - 1);
-        let result = client.exchange_code("code_abc", &short, &http).await;
-        assert!(result.is_err(), "exchange_code must reject a short code_verifier");
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("too short"), "error must mention 'too short', got: {msg}");
-    }
-
-    #[tokio::test]
-    async fn exchange_code_rejects_long_code_verifier() {
-        // RFC 7636 §4.1: code_verifier must be at most 128 chars.
-        let client = test_client();
-        let http = reqwest::Client::new();
-        let long = "a".repeat(OidcServerClient::MAX_CODE_VERIFIER_BYTES + 1);
-        let result = client.exchange_code("code_abc", &long, &http).await;
-        assert!(result.is_err(), "exchange_code must reject an oversized code_verifier");
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("too long"), "error must mention 'too long', got: {msg}");
-    }
-
-    #[test]
-    fn code_verifier_bounds_match_rfc7636() {
-        assert_eq!(OidcServerClient::MIN_CODE_VERIFIER_BYTES, 43);
-        assert_eq!(OidcServerClient::MAX_CODE_VERIFIER_BYTES, 128);
-    }
-
-    #[test]
-    fn valid_verifier_constant_is_within_bounds() {
-        assert!(VALID_VERIFIER.len() >= OidcServerClient::MIN_CODE_VERIFIER_BYTES);
-        assert!(VALID_VERIFIER.len() <= OidcServerClient::MAX_CODE_VERIFIER_BYTES);
-    }
-}
