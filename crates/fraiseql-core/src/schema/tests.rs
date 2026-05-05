@@ -903,3 +903,774 @@ fn test_legacy_schema_without_version_warns_but_loads() {
         .validate_format_version()
         .unwrap_or_else(|e| panic!("expected legacy schema (no version) to be accepted: {e:?}"));
 }
+
+// ---------------------------------------------------------------------------
+// graphql_value.rs tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn roundtrip_int() {
+    let v = GraphQLValue::Int(42);
+    assert_eq!(GraphQLValue::from_json(&v.to_json()).expect("roundtrip"), v);
+}
+
+#[test]
+fn roundtrip_float() {
+    let v = GraphQLValue::Float(1.5);
+    let rt = GraphQLValue::from_json(&v.to_json()).expect("roundtrip");
+    assert!(matches!(rt, GraphQLValue::Float(_)));
+}
+
+#[test]
+fn roundtrip_string() {
+    let v = GraphQLValue::String("hello".to_string());
+    assert_eq!(GraphQLValue::from_json(&v.to_json()).expect("roundtrip"), v);
+}
+
+#[test]
+fn roundtrip_list() {
+    let v = GraphQLValue::List(vec![GraphQLValue::Int(1), GraphQLValue::Null]);
+    assert_eq!(GraphQLValue::from_json(&v.to_json()).expect("roundtrip"), v);
+}
+
+#[test]
+fn roundtrip_null() {
+    let v = GraphQLValue::Null;
+    assert_eq!(GraphQLValue::from_json(&v.to_json()).expect("roundtrip"), v);
+}
+
+#[test]
+fn roundtrip_boolean() {
+    let v = GraphQLValue::Boolean(true);
+    assert_eq!(GraphQLValue::from_json(&v.to_json()).expect("roundtrip"), v);
+}
+
+#[test]
+fn json_null_parses_as_null() {
+    assert_eq!(
+        GraphQLValue::from_json(&serde_json::Value::Null).expect("parse"),
+        GraphQLValue::Null
+    );
+}
+
+#[test]
+fn serde_roundtrip_via_json_string() {
+    let v = GraphQLValue::List(vec![GraphQLValue::Int(1), GraphQLValue::Null]);
+    let json_str = serde_json::to_string(&v).expect("serialize");
+    let back: GraphQLValue = serde_json::from_str(&json_str).expect("deserialize");
+    assert_eq!(back, v);
+}
+
+
+// ---------------------------------------------------------------------------
+// scalar_types.rs tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_builtin_scalars_recognized() {
+    // Test all builtin scalars are recognized
+    for &scalar in BUILTIN_SCALARS {
+        assert!(is_known_scalar(scalar), "Builtin scalar '{}' should be recognized", scalar);
+    }
+}
+
+#[test]
+fn test_rich_scalars_recognized() {
+    // Test all rich scalars are recognized
+    for &scalar in RICH_SCALARS {
+        assert!(is_known_scalar(scalar), "Rich scalar '{}' should be recognized", scalar);
+    }
+}
+
+#[test]
+fn test_unknown_types_not_recognized() {
+    assert!(!is_known_scalar("User"));
+    assert!(!is_known_scalar("Post"));
+    assert!(!is_known_scalar("CustomType"));
+    assert!(!is_known_scalar(""));
+}
+
+#[test]
+fn test_builtin_scalar_count() {
+    // Verify we have the expected number of builtin scalars
+    assert_eq!(BUILTIN_SCALARS.len(), 14);
+}
+
+#[test]
+fn test_rich_scalar_count() {
+    // Verify we have the expected number of rich scalars
+    assert_eq!(RICH_SCALARS.len(), 51);
+}
+
+#[test]
+fn test_no_duplicate_scalars() {
+    // Ensure no scalar appears in both lists
+    for &builtin in BUILTIN_SCALARS {
+        assert!(
+            !RICH_SCALARS.contains(&builtin),
+            "Scalar '{}' appears in both BUILTIN and RICH lists",
+            builtin
+        );
+    }
+}
+
+#[test]
+fn test_specific_builtin_scalars() {
+    // Verify specific important builtin scalars
+    assert!(is_known_scalar("ID"));
+    assert!(is_known_scalar("String"));
+    assert!(is_known_scalar("Int"));
+    assert!(is_known_scalar("Float"));
+    assert!(is_known_scalar("Boolean"));
+    assert!(is_known_scalar("DateTime"));
+}
+
+#[test]
+fn test_specific_rich_scalars() {
+    // Verify specific important rich scalars
+    assert!(is_known_scalar("Email"));
+    assert!(is_known_scalar("UUID"));
+    assert!(is_known_scalar("URL"));
+    assert!(is_known_scalar("IBAN"));
+    assert!(is_known_scalar("IPAddress"));
+}
+
+#[test]
+fn test_case_sensitive_matching() {
+    // Scalar matching is case-sensitive (exact match required)
+    assert!(is_known_scalar("String"));
+    assert!(!is_known_scalar("string"));
+    assert!(is_known_scalar("Email"));
+    assert!(!is_known_scalar("email"));
+}
+
+
+// ---------------------------------------------------------------------------
+// security_config.rs tests
+// ---------------------------------------------------------------------------
+
+
+// ── TenancyMode ─────────────────────────────────────────────────────
+
+#[test]
+fn tenancy_mode_default_is_none() {
+    assert_eq!(TenancyMode::default(), TenancyMode::None);
+}
+
+#[test]
+fn tenancy_mode_serde_round_trip() {
+    for (mode, expected_str) in [
+        (TenancyMode::None, "\"none\""),
+        (TenancyMode::Row, "\"row\""),
+        (TenancyMode::Schema, "\"schema\""),
+    ] {
+        let json = serde_json::to_string(&mode).unwrap();
+        assert_eq!(json, expected_str, "serialization of {mode}");
+        let back: TenancyMode = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, mode, "deserialization of {expected_str}");
+    }
+}
+
+#[test]
+fn tenancy_mode_invalid_string_rejected() {
+    let result: Result<TenancyMode, _> = serde_json::from_str("\"invalid\"");
+    assert!(result.is_err(), "unknown variant must fail");
+}
+
+#[test]
+fn tenancy_mode_display() {
+    assert_eq!(TenancyMode::None.to_string(), "none");
+    assert_eq!(TenancyMode::Row.to_string(), "row");
+    assert_eq!(TenancyMode::Schema.to_string(), "schema");
+}
+
+// ── TenancyConfig ───────────────────────────────────────────────────
+
+#[test]
+fn tenancy_config_default_values() {
+    let config = TenancyConfig::default();
+    assert_eq!(config.mode, TenancyMode::None);
+    assert_eq!(config.tenant_claim, "tenant_id");
+}
+
+#[test]
+fn tenancy_config_serde_round_trip() {
+    let config = TenancyConfig {
+        mode:         TenancyMode::Row,
+        tenant_claim: "org_id".to_string(),
+    };
+    let json = serde_json::to_string(&config).unwrap();
+    let back: TenancyConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, config);
+}
+
+#[test]
+fn tenancy_config_deserialize_from_compiled_json() {
+    let json = r#"{"mode": "schema", "tenant_claim": "tenant_id"}"#;
+    let config: TenancyConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.mode, TenancyMode::Schema);
+    assert_eq!(config.tenant_claim, "tenant_id");
+}
+
+#[test]
+fn tenancy_config_defaults_when_empty() {
+    let config: TenancyConfig = serde_json::from_str("{}").unwrap();
+    assert_eq!(config.mode, TenancyMode::None);
+    assert_eq!(config.tenant_claim, "tenant_id");
+}
+
+// ── SecurityConfig with tenancy ─────────────────────────────────────
+
+#[test]
+fn security_config_tenancy_defaults_to_none() {
+    let config = SecurityConfig::default();
+    assert_eq!(config.tenancy.mode, TenancyMode::None);
+}
+
+#[test]
+fn security_config_tenancy_skipped_when_default() {
+    let config = SecurityConfig::default();
+    let json = serde_json::to_string(&config).unwrap();
+    // tenancy field should be absent when it's the default
+    assert!(
+        !json.contains("tenancy"),
+        "default tenancy should be skipped in serialization"
+    );
+}
+
+#[test]
+fn security_config_tenancy_present_when_non_default() {
+    let config = SecurityConfig {
+        tenancy: TenancyConfig {
+            mode:         TenancyMode::Row,
+            tenant_claim: "tenant_id".to_string(),
+        },
+        ..SecurityConfig::default()
+    };
+    let json = serde_json::to_string(&config).unwrap();
+    assert!(json.contains("tenancy"), "non-default tenancy should be serialized");
+    assert!(json.contains("\"row\""), "mode=row should appear in JSON");
+}
+
+#[test]
+fn security_config_with_tenancy_round_trip() {
+    let config = SecurityConfig {
+        tenancy: TenancyConfig {
+            mode:         TenancyMode::Schema,
+            tenant_claim: "org_id".to_string(),
+        },
+        ..SecurityConfig::default()
+    };
+    let json = serde_json::to_string(&config).unwrap();
+    let back: SecurityConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.tenancy.mode, TenancyMode::Schema);
+    assert_eq!(back.tenancy.tenant_claim, "org_id");
+}
+
+
+// ---------------------------------------------------------------------------
+// field_type.rs tests
+// ---------------------------------------------------------------------------
+
+
+#[test]
+fn test_parse_builtin_scalars() {
+    assert_eq!(FieldType::parse("String"), FieldType::String);
+    assert_eq!(FieldType::parse("Int"), FieldType::Int);
+    assert_eq!(FieldType::parse("Float"), FieldType::Float);
+    assert_eq!(FieldType::parse("Boolean"), FieldType::Boolean);
+    assert_eq!(FieldType::parse("ID"), FieldType::Id);
+    assert_eq!(FieldType::parse("DateTime"), FieldType::DateTime);
+    assert_eq!(FieldType::parse("Date"), FieldType::Date);
+    assert_eq!(FieldType::parse("Time"), FieldType::Time);
+    assert_eq!(FieldType::parse("JSON"), FieldType::Json);
+    assert_eq!(FieldType::parse("UUID"), FieldType::Uuid);
+}
+
+#[test]
+fn test_parse_rich_scalars_exact_case() {
+    // Email is in RICH_SCALARS and should be recognized with exact case
+    let result = FieldType::parse("Email");
+    assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+    // IBAN is in RICH_SCALARS
+    let result = FieldType::parse("IBAN");
+    assert_eq!(result, FieldType::Scalar("IBAN".to_string()));
+
+    // URL is in RICH_SCALARS
+    let result = FieldType::parse("URL");
+    assert_eq!(result, FieldType::Scalar("URL".to_string()));
+}
+
+#[test]
+fn test_parse_rich_scalars_case_insensitive() {
+    // Email is in RICH_SCALARS - should match case-insensitively
+    let result = FieldType::parse("email");
+    assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+    // Should also work for mixed case
+    let result = FieldType::parse("EMAIL");
+    assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+    // IBAN - case insensitive matching
+    let result = FieldType::parse("iban");
+    assert_eq!(result, FieldType::Scalar("IBAN".to_string()));
+
+    // PhoneNumber - case insensitive
+    let result = FieldType::parse("phonenumber");
+    assert_eq!(result, FieldType::Scalar("PhoneNumber".to_string()));
+}
+
+#[test]
+fn test_parse_all_rich_scalars() {
+    // Test a sampling of all rich scalar categories
+    let rich_scalars = vec![
+        // Contact/Communication
+        "Email",
+        "PhoneNumber",
+        "URL",
+        "DomainName",
+        "Hostname",
+        // Location/Address
+        "PostalCode",
+        "Latitude",
+        "Longitude",
+        "Coordinates",
+        "Timezone",
+        // Financial
+        "IBAN",
+        "CUSIP",
+        "CurrencyCode",
+        "Money",
+        "StockSymbol",
+        // Identifiers
+        "Slug",
+        "SemanticVersion",
+        "APIKey",
+        "VIN",
+        // Networking
+        "IPAddress",
+        "IPv4",
+        "IPv6",
+        "MACAddress",
+        "CIDR",
+        // Transportation
+        "AirportCode",
+        "FlightNumber",
+        // Content
+        "Markdown",
+        "HTML",
+        "MimeType",
+        "Color",
+        // Database
+        "LTree",
+        // Ranges
+        "DateRange",
+        "Duration",
+        "Percentage",
+    ];
+
+    for scalar_name in rich_scalars {
+        let result = FieldType::parse(scalar_name);
+        assert_eq!(
+            result,
+            FieldType::Scalar(scalar_name.to_string()),
+            "Failed to parse rich scalar: {}",
+            scalar_name
+        );
+    }
+}
+
+#[test]
+fn test_parse_unknown_type_as_object() {
+    // Unknown types should become Object types
+    let result = FieldType::parse("CustomType");
+    assert_eq!(result, FieldType::Object("CustomType".to_string()));
+
+    let result = FieldType::parse("User");
+    assert_eq!(result, FieldType::Object("User".to_string()));
+}
+
+#[test]
+fn test_parse_with_list_syntax() {
+    // List of builtin scalar
+    let result = FieldType::parse("[String]");
+    assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
+
+    // List of rich scalar
+    let result = FieldType::parse("[Email]");
+    assert_eq!(result, FieldType::List(Box::new(FieldType::Scalar("Email".to_string()))));
+
+    // List of object type
+    let result = FieldType::parse("[User]");
+    assert_eq!(result, FieldType::List(Box::new(FieldType::Object("User".to_string()))));
+}
+
+#[test]
+fn test_parse_with_non_null_marker() {
+    // Non-null scalar
+    let result = FieldType::parse("String!");
+    assert_eq!(result, FieldType::String);
+
+    // Non-null rich scalar
+    let result = FieldType::parse("Email!");
+    assert_eq!(result, FieldType::Scalar("Email".to_string()));
+
+    // Non-null list of non-null items
+    let result = FieldType::parse("[String!]!");
+    assert_eq!(result, FieldType::List(Box::new(FieldType::String)));
+}
+
+#[test]
+fn test_parse_nested_lists() {
+    // Nested list
+    let result = FieldType::parse("[[String]]");
+    assert_eq!(result, FieldType::List(Box::new(FieldType::List(Box::new(FieldType::String)))));
+
+    // Nested list with rich scalar
+    let result = FieldType::parse("[[Email]]");
+    assert_eq!(
+        result,
+        FieldType::List(Box::new(FieldType::List(Box::new(FieldType::Scalar(
+            "Email".to_string()
+        )))))
+    );
+}
+
+#[test]
+fn test_parse_as_scalar_if_unknown_converts_objects() {
+    let mut known_types = std::collections::HashSet::new();
+
+    // Without known_types, unknown types become objects
+    let result = FieldType::parse("CustomType");
+    assert_eq!(result, FieldType::Object("CustomType".to_string()));
+
+    // With parse_as_scalar_if_unknown, they become scalars
+    let result = FieldType::parse_as_scalar_if_unknown("CustomType", &known_types);
+    assert_eq!(result, FieldType::Scalar("CustomType".to_string()));
+
+    // But if it's in known_types, it stays an object
+    known_types.insert("CustomType".to_string());
+    let result = FieldType::parse_as_scalar_if_unknown("CustomType", &known_types);
+    assert_eq!(result, FieldType::Object("CustomType".to_string()));
+}
+
+#[test]
+fn test_parse_case_variations() {
+    // Test various case combinations for builtin types
+    assert_eq!(FieldType::parse("string"), FieldType::String);
+    assert_eq!(FieldType::parse("STRING"), FieldType::String);
+    assert_eq!(FieldType::parse("String"), FieldType::String);
+
+    // Test integer variations
+    assert_eq!(FieldType::parse("int"), FieldType::Int);
+    assert_eq!(FieldType::parse("INT"), FieldType::Int);
+    assert_eq!(FieldType::parse("integer"), FieldType::Int);
+    assert_eq!(FieldType::parse("INTEGER"), FieldType::Int);
+}
+
+#[test]
+fn test_field_encryption_config_deserialization() {
+    let json = r#"{
+        "name": "email",
+        "field_type": "String",
+        "encryption": {
+            "key_reference": "keys/email",
+            "algorithm": "AES-256-GCM"
+        }
+    }"#;
+    let field: FieldDefinition = serde_json::from_str(json).unwrap();
+    assert!(field.encryption.is_some());
+    let enc = field.encryption.unwrap();
+    assert_eq!(enc.key_reference, "keys/email");
+    assert_eq!(enc.algorithm, "AES-256-GCM");
+}
+
+#[test]
+fn test_field_without_encryption() {
+    let json = r#"{"name": "id", "field_type": "Int"}"#;
+    let field: FieldDefinition = serde_json::from_str(json).unwrap();
+    assert!(field.encryption.is_none());
+    assert!(!field.is_encrypted());
+}
+
+#[test]
+fn test_field_encryption_default_algorithm() {
+    let json = r#"{"key_reference": "keys/ssn"}"#;
+    let config: FieldEncryptionConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.algorithm, "AES-256-GCM");
+}
+
+#[test]
+fn test_field_with_encryption_builder() {
+    let field = FieldDefinition::new("email", FieldType::String).with_encryption(
+        FieldEncryptionConfig {
+            key_reference: "keys/email".to_string(),
+            algorithm:     "AES-256-GCM".to_string(),
+        },
+    );
+    assert!(field.is_encrypted());
+    assert_eq!(field.encryption.unwrap().key_reference, "keys/email");
+}
+
+#[test]
+fn test_field_encryption_roundtrip_serialization() {
+    let field = FieldDefinition::new("email", FieldType::String).with_encryption(
+        FieldEncryptionConfig {
+            key_reference: "keys/email".to_string(),
+            algorithm:     "AES-256-GCM".to_string(),
+        },
+    );
+    let json = serde_json::to_string(&field).unwrap();
+    let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
+    assert_eq!(field, deserialized);
+}
+
+
+// ---------------------------------------------------------------------------
+// config_types.rs tests
+// ---------------------------------------------------------------------------
+
+
+#[test]
+fn test_federation_config_default() {
+    let config = FederationConfig::default();
+    assert!(!config.enabled);
+    assert_eq!(config.version, None);
+    assert!(config.entities.is_empty());
+    assert!(config.circuit_breaker.is_none());
+}
+
+#[test]
+fn test_circuit_breaker_config_default() {
+    let config = CircuitBreakerConfig::default();
+    assert!(!config.enabled);
+    assert_eq!(config.failure_threshold, 5);
+    assert_eq!(config.recovery_timeout_secs, 30);
+    assert_eq!(config.success_threshold, 2);
+    assert!(config.per_entity.is_empty());
+}
+
+#[test]
+fn test_security_config_default() {
+    let config = CompiledSecurityConfig::default();
+    assert!(config.default_policy.is_none());
+    assert!(config.rules.is_empty());
+    assert!(config.policies.is_empty());
+    assert!(config.field_auth.is_empty());
+    assert!(config.enterprise.rate_limiting_enabled);
+}
+
+#[test]
+fn test_observers_config_default() {
+    let config = ObserversConfig::default();
+    assert!(!config.enabled);
+    assert_eq!(config.backend, "redis");
+    assert!(config.handlers.is_empty());
+}
+
+#[test]
+fn test_federation_config_serde() {
+    let json = r#"{
+        "enabled": true,
+        "version": "v2",
+        "entities": [{"name": "User", "key_fields": ["id"]}],
+        "circuit_breaker": {
+            "enabled": true,
+            "failure_threshold": 3,
+            "recovery_timeout_secs": 15,
+            "success_threshold": 1
+        }
+    }"#;
+
+    let config: FederationConfig = serde_json::from_str(json).unwrap();
+    assert!(config.enabled);
+    assert_eq!(config.version, Some("v2".to_string()));
+    assert_eq!(config.entities.len(), 1);
+    assert_eq!(config.entities[0].name, "User");
+
+    let cb = config.circuit_breaker.unwrap();
+    assert!(cb.enabled);
+    assert_eq!(cb.failure_threshold, 3);
+}
+
+#[test]
+fn test_entity_override() {
+    let config = CircuitBreakerConfig {
+        per_entity: vec![EntityCircuitBreakerOverride {
+            entity:            "Product".to_string(),
+            failure_threshold: Some(2),
+            recovery_timeout:  None,
+            success_threshold: None,
+        }],
+        ..Default::default()
+    };
+
+    assert_eq!(config.per_entity[0].entity, "Product");
+    assert_eq!(config.per_entity[0].failure_threshold, Some(2));
+}
+
+#[test]
+fn test_roundtrip_serialization() {
+    let config = FederationConfig {
+        enabled:         true,
+        version:         Some("v2".to_string()),
+        service_name:    Some("my-service".to_string()),
+        schema_url:      None,
+        entities:        vec![FederationEntity {
+            name:       "User".to_string(),
+            key_fields: vec!["id".to_string()],
+        }],
+        circuit_breaker: Some(CircuitBreakerConfig::default()),
+    };
+
+    let json = serde_json::to_string(&config).unwrap();
+    let restored: FederationConfig = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(config, restored);
+}
+
+// ── CrudNamingConfig ─────────────────────────────────────────────────────
+
+#[test]
+fn crud_trinity_resolves_create() {
+    let cfg = CrudNamingConfig {
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("CREATE", "user"), Some("create_user".to_string()));
+}
+
+#[test]
+fn crud_trinity_resolves_update() {
+    let cfg = CrudNamingConfig {
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("UPDATE", "user"), Some("update_user".to_string()));
+}
+
+#[test]
+fn crud_trinity_resolves_delete() {
+    let cfg = CrudNamingConfig {
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("DELETE", "user"), Some("delete_user".to_string()));
+}
+
+#[test]
+fn crud_function_schema_prefix_applied() {
+    let cfg = CrudNamingConfig {
+        function_schema: Some("app".to_string()),
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("CREATE", "user"), Some("app.create_user".to_string()));
+}
+
+#[test]
+fn crud_function_schema_prefix_applied_to_custom_template() {
+    let cfg = CrudNamingConfig {
+        function_schema: Some("app".to_string()),
+        create_template: Some("insert_{entity}".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("CREATE", "order"), Some("app.insert_order".to_string()));
+}
+
+#[test]
+fn crud_custom_template_overrides_preset() {
+    let cfg = CrudNamingConfig {
+        function_naming: Some(CrudNamingPreset::Trinity),
+        create_template: Some("insert_{entity}".to_string()),
+        ..Default::default()
+    };
+    // Custom template wins over trinity
+    assert_eq!(cfg.resolve("CREATE", "user"), Some("insert_user".to_string()));
+    // Other operations fall back to trinity
+    assert_eq!(cfg.resolve("UPDATE", "user"), Some("update_user".to_string()));
+}
+
+#[test]
+fn crud_no_config_returns_none() {
+    let cfg = CrudNamingConfig::default();
+    assert_eq!(cfg.resolve("CREATE", "user"), None);
+    assert_eq!(cfg.resolve("UPDATE", "user"), None);
+    assert_eq!(cfg.resolve("DELETE", "user"), None);
+}
+
+#[test]
+fn crud_unknown_operation_returns_none() {
+    let cfg = CrudNamingConfig {
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("UPSERT", "user"), None);
+}
+
+#[test]
+fn crud_operation_case_insensitive() {
+    let cfg = CrudNamingConfig {
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("create", "user"), Some("create_user".to_string()));
+    assert_eq!(cfg.resolve("Create", "user"), Some("create_user".to_string()));
+}
+
+#[test]
+fn crud_entity_with_underscores() {
+    let cfg = CrudNamingConfig {
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    assert_eq!(cfg.resolve("CREATE", "user_profile"), Some("create_user_profile".to_string()));
+}
+
+#[test]
+fn crud_serde_roundtrip_trinity() {
+    let cfg = CrudNamingConfig {
+        function_schema: Some("app".to_string()),
+        function_naming: Some(CrudNamingPreset::Trinity),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&cfg).unwrap();
+    let restored: CrudNamingConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(cfg, restored);
+}
+
+#[test]
+fn crud_serde_roundtrip_custom_templates() {
+    let cfg = CrudNamingConfig {
+        function_schema: Some("app".to_string()),
+        create_template: Some("insert_{entity}".to_string()),
+        update_template: Some("upsert_{entity}".to_string()),
+        delete_template: Some("remove_{entity}".to_string()),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&cfg).unwrap();
+    let restored: CrudNamingConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(cfg, restored);
+}
+
+#[test]
+fn test_naming_convention_default_is_preserve() {
+    assert_eq!(NamingConvention::default(), NamingConvention::Preserve);
+}
+
+#[test]
+fn test_naming_convention_serde_roundtrip() {
+    let camel = NamingConvention::CamelCase;
+    let json = serde_json::to_string(&camel).unwrap();
+    assert_eq!(json, r#""camelCase""#);
+    let restored: NamingConvention = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored, NamingConvention::CamelCase);
+
+    let preserve = NamingConvention::Preserve;
+    let json = serde_json::to_string(&preserve).unwrap();
+    assert_eq!(json, r#""preserve""#);
+    let restored: NamingConvention = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored, NamingConvention::Preserve);
+}
+
