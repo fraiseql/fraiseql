@@ -154,39 +154,3 @@ pub enum ApqError {
 ///
 /// Used for thread-safe, reference-counted storage of APQ backends.
 pub type ArcApqStorage = std::sync::Arc<dyn ApqStorage>;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_apq_stats_creation() {
-        let stats = ApqStats::new(100, "memory".to_string());
-        assert_eq!(stats.total_queries, 100);
-        assert_eq!(stats.backend, "memory");
-        assert_eq!(stats.extra, json!({}));
-    }
-
-    #[test]
-    fn test_apq_stats_with_extra() {
-        let extra = json!({
-            "hits": 500,
-            "misses": 50,
-            "hit_rate": 0.909
-        });
-
-        let stats = ApqStats::with_extra(100, "postgresql".to_string(), extra.clone());
-        assert_eq!(stats.total_queries, 100);
-        assert_eq!(stats.backend, "postgresql");
-        assert_eq!(stats.extra, extra);
-    }
-
-    #[test]
-    fn test_apq_error_display() {
-        let err = ApqError::QueryTooLarge;
-        assert_eq!(err.to_string(), "Query size exceeds maximum limit (100KB)");
-
-        let err = ApqError::StorageError("connection failed".to_string());
-        assert!(err.to_string().contains("connection failed"));
-    }
-}

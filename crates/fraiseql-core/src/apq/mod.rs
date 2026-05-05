@@ -30,3 +30,6 @@ pub use metrics::ApqMetrics;
 #[cfg(feature = "redis-apq")]
 pub use redis_storage::RedisApqStorage;
 pub use storage::{ApqError, ApqStats, ApqStorage, ArcApqStorage};
+
+#[cfg(test)]
+mod tests;

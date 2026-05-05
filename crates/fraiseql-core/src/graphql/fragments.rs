@@ -11,7 +11,7 @@ use crate::graphql::types::{FragmentDefinition, ParsedQuery};
 #[derive(Debug)]
 pub struct FragmentGraph {
     /// Map of fragment name to set of fragment names it depends on
-    dependencies: HashMap<String, HashSet<String>>,
+    pub(crate) dependencies: HashMap<String, HashSet<String>>,
 }
 
 impl FragmentGraph {
@@ -158,87 +158,5 @@ impl FragmentGraph {
     pub fn validate_fragments(&self) -> Result<(), String> {
         self.detect_cycles()
             .map_err(|cycle| format!("Fragment cycle detected: {}", cycle.join(" -> ")))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::*;
-
-    #[test]
-    fn test_no_cycles() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragC".to_string()])),
-                ("FragC".to_string(), HashSet::new()),
-            ]),
-        };
-        graph
-            .detect_cycles()
-            .unwrap_or_else(|c| panic!("expected no cycles, got: {c:?}"));
-    }
-
-    #[test]
-    fn test_simple_cycle() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragA".to_string()])),
-            ]),
-        };
-        let cycle = graph.detect_cycles().expect_err("expected cycle to be detected");
-        // Cycle can start from either FragA or FragB depending on iteration order
-        assert!(cycle.len() >= 2, "cycle must contain at least 2 fragments, got: {cycle:?}");
-    }
-
-    #[test]
-    fn test_complex_cycle() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragC".to_string()])),
-                ("FragC".to_string(), HashSet::from(["FragA".to_string()])),
-                ("FragD".to_string(), HashSet::from(["FragE".to_string()])),
-                ("FragE".to_string(), HashSet::new()),
-            ]),
-        };
-        let result = graph.detect_cycles();
-        assert!(result.is_err(), "expected A→B→C→A cycle to be detected, got: {result:?}");
-    }
-
-    #[test]
-    fn test_multiple_cycles() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragA".to_string()])),
-                ("FragC".to_string(), HashSet::from(["FragD".to_string()])),
-                ("FragD".to_string(), HashSet::from(["FragC".to_string()])),
-            ]),
-        };
-        let cycle = graph.detect_cycles().expect_err("expected at least one cycle to be detected");
-        // Should detect one of the cycles (DFS order dependent)
-        assert!(
-            cycle.len() >= 2,
-            "cycle must contain at least 2 fragments (A→B or C→D), got: {cycle:?}"
-        );
-    }
-
-    #[test]
-    fn test_self_reference_cycle() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([(
-                "FragA".to_string(),
-                HashSet::from(["FragA".to_string()]),
-            )]),
-        };
-        let result = graph.detect_cycles();
-        assert!(
-            result.is_err(),
-            "expected self-reference FragA→FragA to be detected as cycle, got: {result:?}"
-        );
     }
 }

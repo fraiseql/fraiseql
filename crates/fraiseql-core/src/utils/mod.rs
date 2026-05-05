@@ -20,3 +20,6 @@ pub use clock::{Clock, SystemClock};
 pub use opaque_id::OpaqueId;
 pub use operators::{OperatorCategory, OperatorInfo, get_operator_info, is_operator};
 pub use vector::{PlaceholderStyle, VectorParam, VectorQueryBuilder, VectorSearchQuery};
+
+#[cfg(test)]
+mod tests;

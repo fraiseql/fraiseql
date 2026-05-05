@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OpaqueId {
     // The encoded ID (base64url + optional signature)
-    id: String,
+    pub(crate) id: String,
 }
 
 impl OpaqueId {
@@ -112,84 +112,4 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     }
 
     result == 0
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_opaque_id_creation() {
-        let opaque = OpaqueId::new("12345");
-        assert!(!opaque.as_str().is_empty());
-        // Opaque ID should not contain the original ID in plain text
-        assert!(!opaque.as_str().contains("12345"));
-    }
-
-    #[test]
-    fn test_opaque_id_decode() {
-        let db_id = "user_42";
-        let opaque = OpaqueId::new(db_id);
-        let decoded = opaque.decode();
-        assert_eq!(decoded, Some(db_id.to_string()));
-    }
-
-    #[test]
-    fn test_opaque_id_with_signature() {
-        let db_id = "12345";
-        let secret = b"secret_key";
-        let opaque = OpaqueId::with_signature(db_id, secret);
-
-        // Should be able to verify with correct secret
-        assert!(opaque.verify_signature(secret));
-
-        // Should fail with wrong secret
-        assert!(!opaque.verify_signature(b"wrong_secret"));
-    }
-
-    #[test]
-    fn test_opaque_id_signature_tampering() {
-        let db_id = "sensitive_id_789";
-        let secret = b"super_secret";
-        let mut opaque = OpaqueId::with_signature(db_id, secret);
-
-        // Verify original
-        assert!(opaque.verify_signature(secret));
-
-        // Tamper with the opaque ID
-        opaque.id = opaque.id.chars().rev().collect();
-
-        // Should fail verification
-        assert!(!opaque.verify_signature(secret));
-    }
-
-    #[test]
-    fn test_opaque_id_equality() {
-        let opaque1 = OpaqueId::new("same_id");
-        let opaque2 = OpaqueId::new("same_id");
-        assert_eq!(opaque1, opaque2);
-
-        let opaque3 = OpaqueId::new("different_id");
-        assert_ne!(opaque1, opaque3);
-    }
-
-    #[test]
-    fn test_opaque_id_prevents_enumeration() {
-        let ids: Vec<String> = (1..=5).map(|i| i.to_string()).collect();
-        let opaque_ids: Vec<OpaqueId> = ids.iter().map(OpaqueId::new).collect();
-
-        // Even though original IDs are sequential, opaque IDs should look random
-        for i in 1..opaque_ids.len() {
-            // Check that opaque IDs don't follow a predictable pattern
-            assert_ne!(opaque_ids[i].as_str(), opaque_ids[i - 1].as_str());
-        }
-
-        // Verify that opaque IDs are different from the original sequential pattern
-        for i in 0..opaque_ids.len() {
-            let original = ids[i].as_str();
-            let opaque = opaque_ids[i].as_str();
-            // Opaque ID should not contain the original ID in plain text
-            assert!(!opaque.contains(original));
-        }
-    }
 }

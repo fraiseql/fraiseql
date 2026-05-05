@@ -57,7 +57,7 @@ impl RequirePermissionDirective {
     /// - `query:*` matches any query permission
     /// - `query:users:*` matches any user query permission
     /// - `query:users:read` matches exact permission
-    fn permission_matches(user_permission: &str, required_permission: &str) -> bool {
+    pub(crate) fn permission_matches(user_permission: &str, required_permission: &str) -> bool {
         // Exact match
         if user_permission == required_permission {
             return true;
@@ -173,32 +173,5 @@ impl DirectiveHandler for RequirePermissionDirective {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_permission_matches_exact() {
-        assert!(RequirePermissionDirective::permission_matches(
-            "query:users:read",
-            "query:users:read"
-        ));
-        assert!(!RequirePermissionDirective::permission_matches(
-            "query:users:read",
-            "query:users:write"
-        ));
-    }
-
-    #[test]
-    fn test_permission_matches_wildcard() {
-        assert!(RequirePermissionDirective::permission_matches("*:*", "query:users:read"));
-        assert!(RequirePermissionDirective::permission_matches("query:*", "query:users:read"));
-        assert!(!RequirePermissionDirective::permission_matches(
-            "mutation:*",
-            "query:users:read"
-        ));
     }
 }
