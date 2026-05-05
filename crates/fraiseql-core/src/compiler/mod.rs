@@ -33,41 +33,4 @@ pub use validator::{SchemaValidationError, SchemaValidator};
 pub use window_functions::{WindowExecutionPlan, WindowFunction, WindowFunctionPlanner};
 
 #[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use crate::{
-        compiler::fact_table::{DimensionColumn, FactTableMetadata},
-        schema::CompiledSchema,
-    };
-
-    #[test]
-    fn test_compiled_schema_fact_table_operations() {
-        let mut schema = CompiledSchema::new();
-
-        let metadata = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn {
-                name:  "data".to_string(),
-                paths: vec![],
-            },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-        };
-
-        schema.add_fact_table("tf_sales".to_string(), metadata.clone());
-
-        assert!(schema.has_fact_tables());
-
-        let tables = schema.list_fact_tables();
-        assert_eq!(tables.len(), 1);
-        assert!(tables.contains(&"tf_sales"));
-
-        let retrieved = schema.get_fact_table("tf_sales");
-        assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap(), &metadata);
-
-        assert!(schema.get_fact_table("tf_nonexistent").is_none());
-    }
-}
+mod tests;
