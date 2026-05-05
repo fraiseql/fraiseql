@@ -67,6 +67,11 @@ jobs:
         with:
           components: clippy
 
+      - name: Enforce tests.rs layout in routes/rest/
+        run: make lint-tests-layout
+        # Prevents inline #[cfg(test)] blocks from returning to routes/rest/ source files.
+        # Correct pattern: sibling tests.rs declared via `#[cfg(test)] mod tests;`.
+
       - name: Run Clippy
         # --all-features is avoided because test-postgres/test-mysql/test-sqlserver
         # compile database integration test code that requires infrastructure not

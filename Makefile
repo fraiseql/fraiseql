@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect release load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect lint-tests-layout release load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -380,6 +380,23 @@ lint-gate-errors-doc-server:
 	[ "$$count" -ge "$(FRAISEQL_SERVER_ERRORS_DOC_MIN)" ] || \
 	  (echo "ERROR: fraiseql-server # Errors regressed ($$count < $(FRAISEQL_SERVER_ERRORS_DOC_MIN))"; exit 1); \
 	echo "OK fraiseql-server: $$count (≥$(FRAISEQL_SERVER_ERRORS_DOC_MIN))"
+
+# Gate: ensure no inline #[cfg(test)] blocks return to routes/rest/ source files.
+# The correct pattern is a sibling tests.rs file declared via `#[cfg(test)] mod tests;`.
+# Inline blocks (those with an opening `{`) are prohibited; declarations (`;`) are fine.
+# Scoped to routes/rest/ — the only area where this layout has been fully enforced.
+.PHONY: lint-tests-layout
+lint-tests-layout:
+	@echo "=== Checking for inline test blocks in routes/rest/ ==="
+	@violations=$$(grep -rn "^mod tests {" \
+		crates/fraiseql-server/src/routes/rest/ --include="*.rs" \
+		| grep -v "/tests\.rs:" || true); \
+	if [ -n "$$violations" ]; then \
+		echo "ERROR: inline test blocks found in routes/rest/ — extract to tests.rs:"; \
+		echo "$$violations"; \
+		exit 1; \
+	fi; \
+	echo "OK: no inline test blocks in routes/rest/"
 
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:
