@@ -71,7 +71,7 @@ pub fn slack_execution_example(channel: &str) -> SlackTracer {
 ///
 /// Shows how to use ActionSpan for tracking multiple related actions
 pub struct ActionBatchExecutor {
-    actions: Vec<ActionSpan>,
+    pub(crate) actions: Vec<ActionSpan>,
 }
 
 impl ActionBatchExecutor {
@@ -148,101 +148,5 @@ impl ActionChain {
             .iter()
             .map(|_action| self.trace_context.to_headers())
             .collect()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_webhook_execution_example() {
-        let trace_context = TraceContext::new(
-            "a".repeat(32),
-            "b".repeat(16),
-            0x01,
-        );
-
-        let headers = webhook_execution_example(&trace_context, "http://example.com/webhook");
-
-        assert!(headers.contains_key("traceparent"));
-    }
-
-    #[test]
-    fn test_email_execution_example() {
-        let recipients = vec!["user1@example.com", "user2@example.com"];
-        let tracers = email_execution_example(&recipients);
-
-        assert_eq!(tracers.len(), 2);
-    }
-
-    #[test]
-    fn test_slack_execution_example() {
-        let tracer = slack_execution_example("#notifications");
-        assert_eq!(tracer.channel, "#notifications");
-    }
-
-    #[test]
-    fn test_action_batch_executor() {
-        let mut executor = ActionBatchExecutor::new();
-        executor.add_action("webhook", "notify_user");
-        executor.add_action("email", "send_confirmation");
-        executor.add_action("slack", "alert_team");
-
-        let results = vec![(true, 50.0), (true, 150.0), (false, 3000.0)];
-        executor.execute_batch(&results);
-
-        assert_eq!(executor.actions.len(), 3);
-    }
-
-    #[test]
-    fn test_action_batch_executor_errors() {
-        let mut executor = ActionBatchExecutor::new();
-        executor.add_action("webhook", "notify_user");
-        executor.add_action("email", "send_confirmation");
-
-        let errors = vec![("webhook", "connection timeout")];
-        executor.record_batch_errors(&errors);
-
-        assert_eq!(executor.actions.len(), 2);
-    }
-
-    #[test]
-    fn test_action_chain() {
-        let trace_context = TraceContext::new(
-            "a".repeat(32),
-            "b".repeat(16),
-            0x01,
-        );
-
-        let mut chain = ActionChain::new(trace_context);
-        let webhook_ctx = chain.add_action("webhook");
-        let email_ctx = chain.add_action("email");
-        let slack_ctx = chain.add_action("slack");
-
-        // Verify trace IDs match parent
-        assert_eq!(webhook_ctx.trace_id, "a".repeat(32));
-        assert_eq!(email_ctx.trace_id, "a".repeat(32));
-        assert_eq!(slack_ctx.trace_id, "a".repeat(32));
-    }
-
-    #[test]
-    fn test_action_chain_execution() {
-        let trace_context = TraceContext::new(
-            "a".repeat(32),
-            "b".repeat(16),
-            0x01,
-        );
-
-        let mut chain = ActionChain::new(trace_context);
-        chain.add_action("webhook");
-        chain.add_action("email");
-
-        let headers = chain.execute_action_chain();
-
-        assert_eq!(headers.len(), 2);
-        for header_map in headers {
-            assert!(header_map.contains_key("traceparent"));
-        }
     }
 }

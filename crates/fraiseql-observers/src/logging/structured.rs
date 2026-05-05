@@ -7,9 +7,9 @@ use super::correlation::{TraceContext, get_current_trace_id};
 /// Structured logger with automatic trace ID field injection
 pub struct StructuredLogger {
     /// Service/component name
-    service: String,
+    pub(crate) service: String,
     /// Span ID for this logger instance
-    span_id: Option<String>,
+    pub(crate) span_id: Option<String>,
 }
 
 impl StructuredLogger {
@@ -110,7 +110,7 @@ impl StructuredLogger {
 
     /// Format fields as structured output
     #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
-    fn format_fields(&self, fields: &HashMap<&str, &str>) -> String {
+    pub(crate) fn format_fields(&self, fields: &HashMap<&str, &str>) -> String {
         fields
             .iter()
             .map(|(k, v)| {
@@ -128,10 +128,10 @@ impl StructuredLogger {
 /// Builder for structured log fields
 #[must_use = "call .debug(), .info(), .warn(), or .error() to emit the log entry"]
 pub struct LogBuilder {
-    service:  String,
-    fields:   Vec<(String, String)>,
-    trace_id: Option<String>,
-    span_id:  Option<String>,
+    pub(crate) service: String,
+    pub(crate) fields:  Vec<(String, String)>,
+    trace_id:           Option<String>,
+    span_id:            Option<String>,
 }
 
 impl LogBuilder {
@@ -196,54 +196,5 @@ impl LogBuilder {
         let logger = StructuredLogger::with_span(&self.service, "");
         let fields = self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>();
         logger.error(event, fields);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_structured_logger_creation() {
-        let logger = StructuredLogger::new("test-service");
-        assert_eq!(logger.service, "test-service");
-        assert_eq!(logger.span_id, None);
-    }
-
-    #[test]
-    fn test_logger_with_span() {
-        let logger = StructuredLogger::with_span("test-service", "span-123");
-        assert_eq!(logger.service, "test-service");
-        assert_eq!(logger.span_id, Some("span-123".to_string()));
-    }
-
-    #[test]
-    fn test_log_builder() {
-        let builder = LogBuilder::new("service")
-            .field("status", "200")
-            .field_i64("duration_ms", 42)
-            .field_f64("latency", 3.15);
-
-        assert_eq!(builder.service, "service");
-        assert_eq!(builder.fields.len(), 3);
-    }
-
-    #[test]
-    fn test_format_fields() {
-        let logger = StructuredLogger::new("test");
-        let mut fields = HashMap::new();
-        fields.insert("status", "200");
-        fields.insert("message", "request successful");
-
-        let formatted = logger.format_fields(&fields);
-        assert!(formatted.contains("status=200"));
-        assert!(formatted.contains("message="));
-    }
-
-    #[test]
-    fn test_trace_context_with_logger() {
-        let context = TraceContext::new("trace-123".to_string(), "span-456".to_string(), true);
-        let logger = StructuredLogger::with_context("service", &context);
-        assert_eq!(logger.span_id, Some("span-456".to_string()));
     }
 }

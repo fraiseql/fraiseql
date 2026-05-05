@@ -86,35 +86,3 @@ pub fn init_tracing(config: TracingConfig) -> Result<Option<JaegerExporter>> {
     tracing::info!("Tracing initialized successfully");
     Ok(Some(exporter))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tracing_init_disabled() {
-        let config = TracingConfig {
-            enabled: false,
-            service_name: "test".to_string(),
-            jaeger_endpoint: "http://localhost:14268/api/traces".to_string(),
-            sample_rate: 1.0,
-        };
-
-        // Should not panic or error
-        let result = init_tracing(config);
-        result.unwrap_or_else(|e| panic!("expected Ok when tracing is disabled: {e}"));
-    }
-
-    #[test]
-    fn test_tracing_config_validation() {
-        let config = TracingConfig {
-            enabled: true,
-            service_name: "test".to_string(),
-            jaeger_endpoint: "http://localhost:14268/api/traces".to_string(),
-            sample_rate: 0.5,
-        };
-
-        assert_eq!(config.service_name, "test");
-        assert!(config.sample_rate >= 0.0 && config.sample_rate <= 1.0);
-    }
-}
