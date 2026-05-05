@@ -5,9 +5,12 @@
 
 pub mod helpers;
 
+#[cfg(test)]
+mod tests;
+
 use std::sync::Arc;
 
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::http::{HeaderMap, StatusCode};
 use fraiseql_core::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     runtime::{Executor, QueryMatch},

@@ -20,4 +20,7 @@ mod router;
 pub mod sse;
 pub mod streaming;
 
+#[cfg(test)]
+mod tests;
+
 pub use router::{rest_query_router, rest_router};
