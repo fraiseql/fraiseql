@@ -7,7 +7,7 @@
 //! For PostgreSQL, generates sub-queries with `jsonb_agg` / `jsonb_build_object`.
 //! Empty collections return `[]`, not null. Single absent objects return `null`.
 
-pub mod helpers;
+pub mod executor;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -21,7 +21,7 @@ use super::{
     handler::RestError,
     params::{EmbeddedSpec, SelectEntry},
 };
-use helpers::{count_related, embed_into_rows, embed_into_single, EmbedCtx};
+use executor::{count_related, embed_into_rows, embed_into_single, EmbedCtx};
 
 /// Parameters for embedding execution, grouping shared context.
 pub struct EmbeddingRequest<'a, A: DatabaseAdapter> {

@@ -1,6 +1,4 @@
-//! Helper functions for resource embedding.
-//!
-//! Contains internal utilities for join key extraction, relationship traversal, and data merging.
+//! Embedding executor: join key extraction, relationship traversal, and data merging.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -149,7 +147,10 @@ pub(super) async fn embed_into_single<A: DatabaseAdapter>(
 }
 
 /// Extract the join key value from a parent row.
-pub(super) fn extract_join_key(row: &serde_json::Value, rel: &Relationship) -> Option<serde_json::Value> {
+pub(super) fn extract_join_key(
+    row: &serde_json::Value,
+    rel: &Relationship,
+) -> Option<serde_json::Value> {
     // For OneToMany: use the parent's referenced key (e.g., pk_user).
     // For ManyToOne/OneToOne: use the parent's foreign key (e.g., fk_user).
     let key_field = match rel.cardinality {
@@ -161,7 +162,11 @@ pub(super) fn extract_join_key(row: &serde_json::Value, rel: &Relationship) -> O
 }
 
 /// Set the appropriate empty default for an embedding.
-pub(super) fn set_empty_embedding(row: &mut serde_json::Value, output_name: &str, cardinality: Cardinality) {
+pub(super) fn set_empty_embedding(
+    row: &mut serde_json::Value,
+    output_name: &str,
+    cardinality: Cardinality,
+) {
     if let Some(obj) = row.as_object_mut() {
         match cardinality {
             Cardinality::OneToMany => {
@@ -183,7 +188,10 @@ pub(super) fn find_list_query_for_type<'a>(
 }
 
 /// Extract data from executor query result envelope.
-pub(super) fn extract_query_data(parsed: &serde_json::Value, query_name: &str) -> Option<serde_json::Value> {
+pub(super) fn extract_query_data(
+    parsed: &serde_json::Value,
+    query_name: &str,
+) -> Option<serde_json::Value> {
     parsed.get("data").and_then(|d| d.get(query_name)).cloned()
 }
 
