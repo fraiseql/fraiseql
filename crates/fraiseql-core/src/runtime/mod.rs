@@ -366,15 +366,4 @@ impl ExecutionContext {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_default_config() {
-        let config = RuntimeConfig::default();
-        assert!(config.cache_query_plans);
-        assert_eq!(config.max_query_depth, 10);
-        assert_eq!(config.max_query_complexity, 1000);
-        assert!(!config.enable_tracing);
-    }
-}
+mod tests;

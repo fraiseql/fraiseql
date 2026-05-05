@@ -11,3 +11,6 @@ pub mod pipeline;
 pub(super) mod planning;
 pub(super) mod relay;
 pub(super) mod security;
+
+#[cfg(test)]
+mod tests;

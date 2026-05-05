@@ -279,6 +279,25 @@ impl<A: DatabaseAdapter> Executor<A> {
     ) -> Result<u64> {
         self.query_runner().count_rows(query_match, variables, security_context).await
     }
+
+    /// Execute a pre-resolved query match directly, bypassing GraphQL parsing.
+    ///
+    /// Used by the REST transport after route resolution: the `QueryMatch` is
+    /// already computed from HTTP path/query parameters, so there is no need
+    /// to re-parse a GraphQL query string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source.
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub async fn execute_query_direct(
+        &self,
+        query_match: &QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        self.query_runner().execute_query_direct(query_match, variables, security_context).await
+    }
 }
 
 impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {

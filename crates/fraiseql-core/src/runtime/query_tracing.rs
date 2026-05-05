@@ -81,10 +81,10 @@ pub struct QueryExecutionTrace {
 /// ```
 #[must_use = "call .finish() to construct the final value"]
 pub struct QueryTraceBuilder {
-    query_id: String,
-    query:    String,
-    phases:   Vec<QueryPhaseSpan>,
-    start:    Instant,
+    pub(crate) query_id: String,
+    pub(crate) query:    String,
+    pub(crate) phases:   Vec<QueryPhaseSpan>,
+    start:               Instant,
 }
 
 impl QueryTraceBuilder {
@@ -267,183 +267,10 @@ pub fn create_phase_span(phase_name: &str, query_id: &str) -> tracing::Span {
 /// Truncate query string to specified length.
 ///
 /// Useful for logging to avoid truncating long queries.
-fn truncate_query(query: &str, max_len: usize) -> String {
+pub(crate) fn truncate_query(query: &str, max_len: usize) -> String {
     if query.len() > max_len {
         format!("{}...", &query[..max_len])
     } else {
         query.to_string()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::*;
-
-    #[test]
-    fn test_trace_builder_new() {
-        let builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        assert_eq!(builder.query_id, "query_1");
-        assert_eq!(builder.query, "{ user { id } }");
-        assert!(builder.phases.is_empty());
-    }
-
-    #[test]
-    fn test_trace_builder_truncate_long_query() {
-        let long_query = "a".repeat(600);
-        let builder = QueryTraceBuilder::new("query_1", &long_query);
-        assert!(builder.query.len() < 600);
-        assert!(builder.query.ends_with("..."));
-    }
-
-    #[test]
-    fn test_record_phase_success() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-        builder.record_phase_success("validate", 50);
-
-        assert_eq!(builder.phases.len(), 2);
-        assert_eq!(builder.phases[0].phase, "parse");
-        assert_eq!(builder.phases[0].duration_us, 100);
-        assert!(builder.phases[0].success);
-    }
-
-    #[test]
-    fn test_record_phase_error() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_error("parse", 100, "Invalid syntax");
-
-        assert_eq!(builder.phases.len(), 1);
-        assert_eq!(builder.phases[0].phase, "parse");
-        assert!(!builder.phases[0].success);
-        assert_eq!(builder.phases[0].error, Some("Invalid syntax".to_string()));
-    }
-
-    #[test]
-    fn test_finish_success() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-        builder.record_phase_success("execute", 500);
-
-        let trace = builder.finish(true, None, Some(10)).unwrap();
-        assert!(trace.success);
-        assert_eq!(trace.query_id, "query_1");
-        assert_eq!(trace.phases.len(), 2);
-        assert_eq!(trace.result_count, Some(10));
-        // total_duration_us is wall-clock time, may vary depending on system speed
-    }
-
-    #[test]
-    fn test_finish_error() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-        builder.record_phase_error("execute", 50, "Database connection failed");
-
-        let trace = builder.finish(false, Some("Database connection failed"), None).unwrap();
-        assert!(!trace.success);
-        assert_eq!(trace.error, Some("Database connection failed".to_string()));
-    }
-
-    #[test]
-    fn test_average_phase_duration() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-        builder.record_phase_success("validate", 200);
-        builder.record_phase_success("execute", 300);
-
-        let trace = builder.finish(true, None, None).unwrap();
-        assert_eq!(trace.average_phase_duration_us(), 200);
-    }
-
-    #[test]
-    fn test_slowest_phase() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-        builder.record_phase_success("execute", 500);
-        builder.record_phase_success("cache_check", 50);
-
-        let trace = builder.finish(true, None, None).unwrap();
-        let slowest = trace.slowest_phase().unwrap();
-        assert_eq!(slowest.phase, "execute");
-        assert_eq!(slowest.duration_us, 500);
-    }
-
-    #[test]
-    fn test_to_log_string_success() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-        builder.record_phase_success("execute", 500);
-
-        let trace = builder.finish(true, None, Some(5)).unwrap();
-        let log_str = trace.to_log_string();
-        assert!(log_str.contains("query_id=query_1"));
-        assert!(log_str.contains("status=success"));
-        assert!(log_str.contains("parse=100us"));
-        assert!(log_str.contains("execute=500us"));
-    }
-
-    #[test]
-    fn test_to_log_string_error() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-        builder.record_phase_error("validate", 50, "Type mismatch");
-
-        let trace = builder.finish(false, Some("Type mismatch"), None).unwrap();
-        let log_str = trace.to_log_string();
-        assert!(log_str.contains("status=error"));
-        assert!(log_str.contains("error=Type mismatch"));
-    }
-
-    #[test]
-    fn test_average_phase_duration_empty() {
-        let builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        let trace = builder.finish(true, None, None).unwrap();
-        assert_eq!(trace.average_phase_duration_us(), 0);
-    }
-
-    #[test]
-    fn test_elapsed_us() {
-        let builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        let elapsed = builder.elapsed_us();
-        // Elapsed time should be non-negative (u64 is always >= 0)
-        let _ = elapsed;
-    }
-
-    #[test]
-    fn test_trace_serialization() {
-        let mut builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
-        builder.record_phase_success("parse", 100);
-
-        let trace = builder.finish(true, None, Some(5)).unwrap();
-        let json = serde_json::to_string(&trace).expect("serialize should work");
-        let restored: QueryExecutionTrace =
-            serde_json::from_str(&json).expect("deserialize should work");
-
-        assert_eq!(restored.query_id, trace.query_id);
-        assert_eq!(restored.phases.len(), trace.phases.len());
-    }
-
-    #[test]
-    fn test_query_phase_span_serialize() {
-        let span = QueryPhaseSpan {
-            phase:       "parse".to_string(),
-            duration_us: 100,
-            success:     true,
-            error:       None,
-        };
-
-        let json = serde_json::to_string(&span).expect("serialize should work");
-        let restored: QueryPhaseSpan =
-            serde_json::from_str(&json).expect("deserialize should work");
-
-        assert_eq!(restored.phase, span.phase);
-        assert_eq!(restored.duration_us, span.duration_us);
-    }
-
-    #[test]
-    fn test_truncate_query_helper() {
-        assert_eq!(truncate_query("hello", 100), "hello");
-        assert!(truncate_query(&"a".repeat(200), 50).ends_with("..."));
     }
 }

@@ -120,7 +120,7 @@ impl QueryPlanner {
     /// `snake_case` keys, which violates client expectations.
     ///
     /// `Stream` is only used as a fallback when no specific fields are requested.
-    const fn choose_jsonb_strategy(&self, projection_fields: &[String]) -> JsonbStrategy {
+    pub(crate) const fn choose_jsonb_strategy(&self, projection_fields: &[String]) -> JsonbStrategy {
         if projection_fields.is_empty() {
             self.jsonb_options.default_strategy
         } else {
@@ -156,7 +156,7 @@ impl QueryPlanner {
     }
 
     /// Generate SQL from query match.
-    fn generate_sql(&self, query_match: &QueryMatch) -> String {
+    pub(crate) fn generate_sql(&self, query_match: &QueryMatch) -> String {
         // Get SQL source from query definition
         let table = query_match.query_def.sql_source.as_ref().map_or("unknown", String::as_str);
 
@@ -168,12 +168,12 @@ impl QueryPlanner {
     }
 
     /// Extract parameters from query match.
-    fn extract_parameters(&self, query_match: &QueryMatch) -> Vec<(String, serde_json::Value)> {
+    pub(crate) fn extract_parameters(&self, query_match: &QueryMatch) -> Vec<(String, serde_json::Value)> {
         query_match.arguments.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     /// Estimate query cost (for optimization).
-    fn estimate_cost(&self, query_match: &QueryMatch) -> usize {
+    pub(crate) fn estimate_cost(&self, query_match: &QueryMatch) -> usize {
         // Simple heuristic: base cost + field cost
         let base_cost = 100;
         let field_cost = query_match.fields.len() * 10;
@@ -186,223 +186,5 @@ impl QueryPlanner {
     #[must_use]
     pub const fn cache_enabled(&self) -> bool {
         self.cache_enabled
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use std::collections::HashMap;
-
-    use indexmap::IndexMap;
-
-    use super::*;
-    use crate::{
-        graphql::{FieldSelection, ParsedQuery},
-        schema::{AutoParams, CursorType, QueryDefinition},
-    };
-
-    fn test_query_match() -> QueryMatch {
-        QueryMatch {
-            query_def:      QueryDefinition {
-                name:                "users".to_string(),
-                return_type:         "User".to_string(),
-                returns_list:        true,
-                nullable:            false,
-                arguments:           Vec::new(),
-                sql_source:          Some("v_user".to_string()),
-                description:         None,
-                auto_params:         AutoParams::default(),
-                deprecation:         None,
-                jsonb_column:        "data".to_string(),
-                relay:               false,
-                relay_cursor_column: None,
-                relay_cursor_type:   CursorType::default(),
-                inject_params:       IndexMap::default(),
-                cache_ttl_seconds:   None,
-                additional_views:    vec![],
-                requires_role:       None,
-                rest_path:           None,
-                rest_method:         None,
-                native_columns:      HashMap::new(),
-            },
-            fields:         vec!["id".to_string(), "name".to_string()],
-            selections:     vec![FieldSelection {
-                name:          "users".to_string(),
-                alias:         None,
-                arguments:     vec![],
-                nested_fields: vec![
-                    FieldSelection {
-                        name:          "id".to_string(),
-                        alias:         None,
-                        arguments:     vec![],
-                        nested_fields: vec![],
-                        directives:    vec![],
-                    },
-                    FieldSelection {
-                        name:          "name".to_string(),
-                        alias:         None,
-                        arguments:     vec![],
-                        nested_fields: vec![],
-                        directives:    vec![],
-                    },
-                ],
-                directives:    vec![],
-            }],
-            arguments:      HashMap::new(),
-            operation_name: Some("users".to_string()),
-            parsed_query:   ParsedQuery {
-                operation_type: "query".to_string(),
-                operation_name: Some("users".to_string()),
-                root_field:     "users".to_string(),
-                selections:     vec![],
-                variables:      vec![],
-                fragments:      vec![],
-                source:         "{ users { id name } }".to_string(),
-            },
-        }
-    }
-
-    #[test]
-    fn test_planner_new() {
-        let planner = QueryPlanner::new(true);
-        assert!(planner.cache_enabled());
-
-        let planner = QueryPlanner::new(false);
-        assert!(!planner.cache_enabled());
-    }
-
-    #[test]
-    fn test_generate_sql() {
-        let planner = QueryPlanner::new(true);
-        let query_match = test_query_match();
-
-        let sql = planner.generate_sql(&query_match);
-        assert_eq!(sql, "SELECT data FROM v_user");
-    }
-
-    #[test]
-    fn test_extract_parameters() {
-        let planner = QueryPlanner::new(true);
-        let mut query_match = test_query_match();
-        query_match.arguments.insert("id".to_string(), serde_json::json!("123"));
-        query_match.arguments.insert("limit".to_string(), serde_json::json!(10));
-
-        let params = planner.extract_parameters(&query_match);
-        assert_eq!(params.len(), 2);
-    }
-
-    #[test]
-    fn test_estimate_cost() {
-        let planner = QueryPlanner::new(true);
-        let query_match = test_query_match();
-
-        let cost = planner.estimate_cost(&query_match);
-        // base (100) + 2 fields (20) + 0 args (0) = 120
-        assert_eq!(cost, 120);
-    }
-
-    #[test]
-    fn test_plan() {
-        let planner = QueryPlanner::new(true);
-        let query_match = test_query_match();
-
-        let plan = planner.plan(&query_match).unwrap();
-        assert!(!plan.sql.is_empty());
-        assert_eq!(plan.projection_fields.len(), 2);
-        assert!(!plan.is_cached);
-        assert_eq!(plan.estimated_cost, 120);
-        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
-    }
-
-    // ========================================================================
-
-    // ========================================================================
-
-    #[test]
-    fn test_projection_fields_exclude_typename() {
-        let planner = QueryPlanner::new(true);
-        let mut query_match = test_query_match();
-
-        // Add __typename to the nested fields of the root selection
-        query_match.selections[0].nested_fields.push(FieldSelection {
-            name:          "__typename".to_string(),
-            alias:         None,
-            arguments:     vec![],
-            nested_fields: vec![],
-            directives:    vec![],
-        });
-
-        let plan = planner.plan(&query_match).unwrap();
-
-        // __typename must NOT appear in projection fields (it's a GraphQL meta-field)
-        assert!(!plan.projection_fields.contains(&"__typename".to_string()));
-        assert_eq!(plan.projection_fields, vec!["id".to_string(), "name".to_string()]);
-    }
-
-    #[test]
-    fn test_plan_includes_jsonb_strategy() {
-        let planner = QueryPlanner::new(true);
-        let query_match = test_query_match();
-
-        let plan = planner.plan(&query_match).unwrap();
-        // Should include strategy in execution plan
-        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
-    }
-
-    #[test]
-    fn test_planner_always_projects_when_fields_present() {
-        let custom_options = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Stream,
-            auto_threshold_percent: 50,
-        };
-        let planner = QueryPlanner::with_jsonb_options(true, custom_options);
-        let query_match = test_query_match();
-
-        let plan = planner.plan(&query_match).unwrap();
-        // Even with Stream default, must use Project when selections exist
-        // to ensure camelCase response keys
-        assert_eq!(plan.jsonb_strategy, JsonbStrategy::Project);
-    }
-
-    #[test]
-    fn test_choose_jsonb_strategy_forces_project_with_fields() {
-        let options = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Stream,
-            auto_threshold_percent: 80,
-        };
-        let planner = QueryPlanner::with_jsonb_options(true, options);
-
-        // Any non-empty selection set must use Project for camelCase keys
-        let strategy = planner.choose_jsonb_strategy(&["id".to_string(), "name".to_string()]);
-        assert_eq!(strategy, JsonbStrategy::Project);
-    }
-
-    #[test]
-    fn test_choose_jsonb_strategy_forces_project_with_many_fields() {
-        let options = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Project,
-            auto_threshold_percent: 80,
-        };
-        let planner = QueryPlanner::with_jsonb_options(true, options);
-
-        // Even with many fields (above old threshold), must use Project
-        let many_fields = (0..9).map(|i| format!("field_{}", i)).collect::<Vec<_>>();
-        let strategy = planner.choose_jsonb_strategy(&many_fields);
-        assert_eq!(strategy, JsonbStrategy::Project);
-    }
-
-    #[test]
-    fn test_choose_jsonb_strategy_empty_fields_uses_default() {
-        let options = JsonbOptimizationOptions {
-            default_strategy:       JsonbStrategy::Stream,
-            auto_threshold_percent: 80,
-        };
-        let planner = QueryPlanner::with_jsonb_options(true, options);
-
-        // Empty selection set falls back to default strategy
-        let strategy = planner.choose_jsonb_strategy(&[]);
-        assert_eq!(strategy, JsonbStrategy::Stream);
     }
 }
