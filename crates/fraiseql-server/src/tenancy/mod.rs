@@ -4,6 +4,9 @@ pub mod audit;
 pub mod pool_factory;
 pub mod schema_isolation;
 
+#[cfg(test)]
+mod tests;
+
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use fraiseql_core::runtime::Executor;

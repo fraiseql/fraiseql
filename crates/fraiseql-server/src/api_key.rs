@@ -78,7 +78,7 @@ pub struct StaticApiKeyConfig {
 
 /// Resolved static key (with parsed hash bytes).
 #[derive(Debug, Clone)]
-struct ResolvedStaticKey {
+pub(crate) struct ResolvedStaticKey {
     hash:   [u8; 32],
     scopes: Vec<String>,
     name:   String,
@@ -99,7 +99,7 @@ pub enum ApiKeyResult {
 /// API key authenticator.
 pub struct ApiKeyAuthenticator {
     header_name: HeaderName,
-    static_keys: Vec<ResolvedStaticKey>,
+    pub(crate) static_keys: Vec<ResolvedStaticKey>,
 }
 
 impl ApiKeyAuthenticator {
@@ -211,7 +211,7 @@ impl std::fmt::Debug for ApiKeyAuthenticator {
 // ───────────────────────────────────────────────────────────────
 
 /// SHA-256 hash of input bytes.
-fn sha256_hash(input: &[u8]) -> [u8; 32] {
+pub(crate) fn sha256_hash(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(input);
     let result = hasher.finalize();
@@ -246,137 +246,3 @@ pub fn api_key_authenticator_from_schema(
 }
 
 // ───────────────────────────────────────────────────────────────
-// Tests
-// ───────────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::*;
-
-    fn sha256_hex(input: &str) -> String {
-        hex::encode(sha256_hash(input.as_bytes()))
-    }
-
-    fn test_config(key: &str) -> ApiKeyConfig {
-        ApiKeyConfig {
-            enabled:        true,
-            header:         "x-api-key".into(),
-            hash_algorithm: "sha256".into(),
-            storage:        "env".into(),
-            static_keys:    vec![StaticApiKeyConfig {
-                key_hash: format!("sha256:{}", sha256_hex(key)),
-                scopes:   vec!["read:*".into()],
-                name:     "test-key".into(),
-            }],
-        }
-    }
-
-    #[tokio::test]
-    async fn valid_api_key_returns_security_context() {
-        let config = test_config("my-secret-key");
-        let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
-
-        let mut headers = HeaderMap::new();
-        headers.insert("x-api-key", "my-secret-key".parse().unwrap());
-
-        match auth.authenticate(&headers).await {
-            ApiKeyResult::Authenticated(ctx) => {
-                assert_eq!(ctx.user_id, fraiseql_core::types::UserId::new("apikey:test-key"));
-                assert_eq!(ctx.scopes, vec!["read:*".to_string()]);
-            },
-            ref other => panic!("expected Authenticated, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn invalid_api_key_returns_invalid() {
-        let config = test_config("my-secret-key");
-        let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
-
-        let mut headers = HeaderMap::new();
-        headers.insert("x-api-key", "wrong-key".parse().unwrap());
-
-        assert!(matches!(auth.authenticate(&headers).await, ApiKeyResult::Invalid));
-    }
-
-    #[tokio::test]
-    async fn missing_api_key_returns_not_present() {
-        let config = test_config("my-secret-key");
-        let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
-
-        let headers = HeaderMap::new();
-        assert!(matches!(auth.authenticate(&headers).await, ApiKeyResult::NotPresent));
-    }
-
-    #[tokio::test]
-    async fn api_key_prefix_stripped() {
-        let config = test_config("my-secret-key");
-        let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
-
-        let mut headers = HeaderMap::new();
-        headers.insert("x-api-key", "ApiKey my-secret-key".parse().unwrap());
-
-        assert!(matches!(auth.authenticate(&headers).await, ApiKeyResult::Authenticated(_)));
-    }
-
-    #[test]
-    fn disabled_config_returns_none() {
-        let mut config = test_config("key");
-        config.enabled = false;
-        assert!(ApiKeyAuthenticator::from_config(&config).is_none());
-    }
-
-    #[test]
-    fn invalid_hash_hex_is_skipped() {
-        let config = ApiKeyConfig {
-            enabled:        true,
-            header:         "x-api-key".into(),
-            hash_algorithm: "sha256".into(),
-            storage:        "env".into(),
-            static_keys:    vec![StaticApiKeyConfig {
-                key_hash: "not-valid-hex".into(),
-                scopes:   vec![],
-                name:     "bad-key".into(),
-            }],
-        };
-        let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
-        assert_eq!(auth.static_keys.len(), 0);
-    }
-
-    #[test]
-    fn hash_without_prefix_works() {
-        let hash = sha256_hex("test");
-        let config = ApiKeyConfig {
-            enabled:        true,
-            header:         "x-api-key".into(),
-            hash_algorithm: "sha256".into(),
-            storage:        "env".into(),
-            static_keys:    vec![StaticApiKeyConfig {
-                key_hash: hash, // no "sha256:" prefix
-                scopes:   vec![],
-                name:     "no-prefix".into(),
-            }],
-        };
-        let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
-        assert_eq!(auth.static_keys.len(), 1);
-    }
-
-    #[test]
-    fn sha256_hash_is_deterministic() {
-        let h1 = sha256_hash(b"hello");
-        let h2 = sha256_hash(b"hello");
-        assert_eq!(h1, h2);
-        // Different input → different hash.
-        let h3 = sha256_hash(b"world");
-        assert_ne!(h1, h3);
-    }
-
-    #[test]
-    fn unsupported_algorithm_returns_none() {
-        let mut config = test_config("key");
-        config.hash_algorithm = "bcrypt".into();
-        assert!(ApiKeyAuthenticator::from_config(&config).is_none());
-    }
-}

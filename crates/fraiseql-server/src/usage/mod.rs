@@ -27,3 +27,6 @@
 pub mod aggregator;
 pub mod events;
 pub mod layer;
+
+#[cfg(test)]
+mod tests;

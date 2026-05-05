@@ -355,3 +355,48 @@ fn test_all_list_endpoints_support_pagination() {
 fn test_create_endpoints_return_resource() {
     // POST /api/roles, /api/permissions, /api/user-roles should return full DTO
 }
+
+// ── db_backend_tests ──────────────────────────────────────────────────────────
+
+mod db_backend_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
+    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
+    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
+    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
+    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
+    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
+    #![allow(missing_docs)] // Reason: test code
+    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
+
+    use super::super::db_backend::*;
+
+    #[test]
+    fn test_parse_permission_valid() {
+        let (resource, action) = parse_permission("content:write").unwrap();
+        assert_eq!(resource, "content");
+        assert_eq!(action, "write");
+    }
+
+    #[test]
+    fn test_parse_permission_wildcard() {
+        let (resource, action) = parse_permission("*:*").unwrap();
+        assert_eq!(resource, "*");
+        assert_eq!(action, "*");
+    }
+
+    #[test]
+    fn test_parse_permission_invalid() {
+        assert!(
+            matches!(parse_permission("no_colon"), Err(RbacDbError::QueryError(_))),
+            "expected QueryError for permission without colon, got: {:?}",
+            parse_permission("no_colon")
+        );
+    }
+
+    #[test]
+    fn test_rbac_db_error_display() {
+        assert_eq!(format!("{}", RbacDbError::RoleNotFound), "Role not found");
+        assert_eq!(format!("{}", RbacDbError::RoleDuplicate), "Role already exists");
+    }
+}

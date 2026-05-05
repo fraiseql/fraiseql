@@ -38,6 +38,9 @@ pub mod database_adapter;
 #[cfg(feature = "arrow")]
 pub mod executor_wrapper;
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "arrow")]
 use std::sync::Arc;
 

@@ -170,6 +170,9 @@ pub mod usage;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "cli")]
 pub use cli::{Cli, ServerArgs};
 pub use logging::{

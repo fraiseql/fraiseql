@@ -39,6 +39,9 @@ mod initialization;
 mod lifecycle;
 mod routing;
 
+#[cfg(test)]
+mod tests;
+
 /// FraiseQL HTTP Server.
 ///
 /// `Server<A>` is generic over a `DatabaseAdapter` implementation, which allows
