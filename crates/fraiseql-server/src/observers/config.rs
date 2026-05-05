@@ -62,19 +62,3 @@ const fn default_log_retention_days() -> i64 {
 const fn default_require_auth() -> bool {
     true
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_default_config() {
-        let config = ObserverManagementConfig::default();
-        assert!(config.enabled);
-        assert_eq!(config.base_path, "/api/observers");
-        assert_eq!(config.max_page_size, 100);
-        assert!(!config.log_payloads);
-        assert_eq!(config.log_retention_days, 30);
-        assert!(config.require_auth);
-    }
-}

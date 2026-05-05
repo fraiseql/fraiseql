@@ -81,7 +81,7 @@ fn mutation_to_tool(mutation: &MutationDefinition, display_name: &str) -> Tool {
 }
 
 /// Convert argument definitions into a JSON Schema object for MCP tool input.
-fn arguments_to_json_schema(arguments: &[ArgumentDefinition]) -> JsonObject {
+pub(crate) fn arguments_to_json_schema(arguments: &[ArgumentDefinition]) -> JsonObject {
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
 
@@ -114,7 +114,7 @@ fn arguments_to_json_schema(arguments: &[ArgumentDefinition]) -> JsonObject {
 }
 
 /// Map a `FieldType` to a JSON Schema value.
-fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
+pub(crate) fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
     match field_type {
         FieldType::Int => serde_json::json!({ "type": "integer" }),
         FieldType::Float => serde_json::json!({ "type": "number" }),
@@ -140,75 +140,5 @@ fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
         | FieldType::Interface(_)
         | FieldType::Union(_)
         | _ => serde_json::json!({ "type": "string" }),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)]
-    use super::*;
-
-    fn make_config(include: Vec<String>, exclude: Vec<String>) -> McpConfig {
-        McpConfig {
-            enabled: true,
-            transport: "http".to_string(),
-            path: "/mcp".to_string(),
-            require_auth: true,
-            include,
-            exclude,
-        }
-    }
-
-    #[test]
-    fn test_should_include_all_when_empty() {
-        let config = make_config(vec![], vec![]);
-        assert!(should_include("users", &config));
-        assert!(should_include("createUser", &config));
-    }
-
-    #[test]
-    fn test_should_include_whitelist() {
-        let config = make_config(vec!["users".to_string()], vec![]);
-        assert!(should_include("users", &config));
-        assert!(!should_include("createUser", &config));
-    }
-
-    #[test]
-    fn test_should_include_blacklist() {
-        let config = make_config(vec![], vec!["createUser".to_string()]);
-        assert!(should_include("users", &config));
-        assert!(!should_include("createUser", &config));
-    }
-
-    #[test]
-    fn test_field_type_to_json_schema() {
-        let schema = field_type_to_json_schema(&FieldType::String);
-        assert_eq!(schema, serde_json::json!({ "type": "string" }));
-
-        let schema = field_type_to_json_schema(&FieldType::Int);
-        assert_eq!(schema, serde_json::json!({ "type": "integer" }));
-
-        let schema = field_type_to_json_schema(&FieldType::Boolean);
-        assert_eq!(schema, serde_json::json!({ "type": "boolean" }));
-
-        let schema = field_type_to_json_schema(&FieldType::List(Box::new(FieldType::Int)));
-        assert_eq!(schema, serde_json::json!({ "type": "array", "items": { "type": "integer" } }));
-    }
-
-    #[test]
-    fn test_arguments_to_json_schema() {
-        let args = vec![
-            ArgumentDefinition::new("id", FieldType::Id),
-            ArgumentDefinition::optional("name", FieldType::String),
-        ];
-
-        let schema = arguments_to_json_schema(&args);
-        let props = schema.get("properties").unwrap().as_object().unwrap();
-        assert!(props.contains_key("id"));
-        assert!(props.contains_key("name"));
-
-        let required = schema.get("required").unwrap().as_array().unwrap();
-        assert_eq!(required.len(), 1);
-        assert_eq!(required[0], "id");
     }
 }

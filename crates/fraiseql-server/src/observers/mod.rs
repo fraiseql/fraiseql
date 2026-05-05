@@ -31,6 +31,9 @@ pub mod repository;
 pub mod routes;
 pub mod runtime;
 
+#[cfg(test)]
+mod tests;
+
 use chrono::{DateTime, Utc};
 pub use config::ObserverManagementConfig;
 pub use handlers::{ObserverState, RuntimeHealthState};

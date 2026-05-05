@@ -15,7 +15,7 @@ use std::{
 /// Timeout for subgraph health-check HTTP requests.
 ///
 /// Kept short so a slow subgraph doesn't block the health-check loop.
-const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+pub(crate) const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -166,10 +166,10 @@ impl Default for RollingErrorWindow {
 
 /// Subgraph health checker.
 pub struct SubgraphHealthChecker {
-    subgraphs:     Vec<SubgraphConfig>,
-    http_client:   reqwest::Client,
-    error_windows: Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
-    status_cache:  Arc<Mutex<Vec<SubgraphHealthStatus>>>,
+    pub(crate) subgraphs: Vec<SubgraphConfig>,
+    http_client:          reqwest::Client,
+    error_windows:        Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
+    status_cache:         Arc<Mutex<Vec<SubgraphHealthStatus>>>,
 }
 
 /// Configuration for a single subgraph.
@@ -334,81 +334,5 @@ impl SubgraphHealthChecker {
         } else {
             "unhealthy".to_string()
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
-    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
-    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
-    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
-    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
-    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
-    #![allow(missing_docs)] // Reason: test code
-    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
-
-    use super::*;
-
-    #[test]
-    fn test_rolling_error_window_creation() {
-        let window = RollingErrorWindow::new();
-        assert_eq!(window.error_count(), 0);
-        assert!((window.error_rate_percent() - 0.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_rolling_error_window_success() {
-        let window = RollingErrorWindow::new();
-        window.record_success();
-        window.record_success();
-
-        assert_eq!(window.error_count(), 0);
-        assert!((window.error_rate_percent() - 0.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_rolling_error_window_mixed() {
-        let window = RollingErrorWindow::new();
-        window.record_success();
-        window.record_success();
-        window.record_error();
-
-        assert_eq!(window.error_count(), 1);
-        assert!((window.error_rate_percent() - 33.33).abs() < 0.1);
-    }
-
-    #[test]
-    fn test_health_status_serialization() {
-        let status = SubgraphHealthStatus {
-            name:                 "test-subgraph".to_string(),
-            available:            true,
-            latency_ms:           25.5,
-            last_check:           Utc::now().to_rfc3339(),
-            error_count_last_60s: 0,
-            error_rate_percent:   0.0,
-        };
-
-        let json = serde_json::to_string(&status).unwrap();
-        assert!(json.contains("test-subgraph"));
-        assert!(json.contains("true"));
-    }
-
-    // ── S25-H3: SubgraphHealthChecker client timeout ──────────────────────────
-
-    #[test]
-    fn health_check_timeout_is_set() {
-        let secs = HEALTH_CHECK_TIMEOUT.as_secs();
-        assert!(secs > 0 && secs <= 60, "Health-check timeout should be 1–60 s, got {secs}");
-    }
-
-    #[test]
-    fn health_checker_new_creates_instance() {
-        let checker = SubgraphHealthChecker::new(vec![SubgraphConfig {
-            name:     "test".to_string(),
-            endpoint: "https://test.example.com/graphql".to_string(),
-        }]);
-        assert_eq!(checker.subgraphs.len(), 1);
     }
 }

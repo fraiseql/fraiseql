@@ -59,22 +59,3 @@ pub struct NoopLifecycle;
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl SubscriptionLifecycle for NoopLifecycle {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn noop_lifecycle_accepts_connect() {
-        let lifecycle = NoopLifecycle;
-        let result = lifecycle.on_connect(&serde_json::json!({}), "conn-1").await;
-        assert!(result.is_ok(), "noop lifecycle should accept any connection");
-    }
-
-    #[tokio::test]
-    async fn noop_lifecycle_accepts_subscribe() {
-        let lifecycle = NoopLifecycle;
-        let result = lifecycle.on_subscribe("orderCreated", &serde_json::json!({}), "conn-1").await;
-        assert!(result.is_ok(), "noop lifecycle should accept any subscription");
-    }
-}

@@ -5,3 +5,6 @@
 pub mod auto_tuner;
 
 pub use auto_tuner::{PoolSizingAdvisor, PoolSizingRecommendation};
+
+#[cfg(test)]
+mod tests;

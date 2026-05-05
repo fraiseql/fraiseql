@@ -100,7 +100,7 @@ fn build_graphql_query(
 }
 
 /// Validate that `name` is a legal GraphQL name: `[_A-Za-z][_0-9A-Za-z]*`.
-fn is_valid_graphql_name(name: &str) -> bool {
+pub(crate) fn is_valid_graphql_name(name: &str) -> bool {
     let mut chars = name.chars();
     match chars.next() {
         Some(c) if c.is_ascii_alphabetic() || c == '_' => {
@@ -131,7 +131,7 @@ fn escape_graphql_string(s: &str) -> String {
 /// Convert a JSON value to its GraphQL literal representation.
 ///
 /// String values are escaped to prevent GraphQL injection.
-fn graphql_value(value: &serde_json::Value) -> String {
+pub(crate) fn graphql_value(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::String(s) => format!("\"{}\"", escape_graphql_string(s)),
         serde_json::Value::Number(n) => n.to_string(),
@@ -167,7 +167,7 @@ pub fn scalar_fields_for_type(type_name: &str, schema: &CompiledSchema) -> Vec<S
 }
 
 /// Check whether a field type is a scalar (not requiring sub-selection).
-fn is_scalar_field_type(field_type: &FieldType) -> bool {
+pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
     match field_type {
         FieldType::String
         | FieldType::Int
@@ -199,71 +199,5 @@ fn error_result(message: &str) -> CallToolResult {
         structured_content: None,
         is_error:           Some(true),
         meta:               None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_graphql_value_string() {
-        let v = serde_json::Value::String("hello".to_string());
-        assert_eq!(graphql_value(&v), "\"hello\"");
-    }
-
-    #[test]
-    fn test_graphql_value_string_escapes_quotes() {
-        let v = serde_json::Value::String("say \"hi\"".to_string());
-        assert_eq!(graphql_value(&v), r#""say \"hi\"""#);
-    }
-
-    #[test]
-    fn test_graphql_value_string_escapes_backslash() {
-        let v = serde_json::Value::String(r"a\b".to_string());
-        assert_eq!(graphql_value(&v), r#""a\\b""#);
-    }
-
-    #[test]
-    fn test_graphql_value_string_escapes_newline() {
-        let v = serde_json::Value::String("line1\nline2".to_string());
-        assert_eq!(graphql_value(&v), "\"line1\\nline2\"");
-    }
-
-    #[test]
-    fn test_is_valid_graphql_name() {
-        assert!(is_valid_graphql_name("limit"));
-        assert!(is_valid_graphql_name("_private"));
-        assert!(is_valid_graphql_name("field1"));
-        assert!(!is_valid_graphql_name(""));
-        assert!(!is_valid_graphql_name("1abc"));
-        assert!(!is_valid_graphql_name("has space"));
-        assert!(!is_valid_graphql_name("inject: bad"));
-    }
-
-    #[test]
-    fn test_graphql_value_number() {
-        let v = serde_json::json!(42);
-        assert_eq!(graphql_value(&v), "42");
-    }
-
-    #[test]
-    fn test_graphql_value_bool() {
-        let v = serde_json::Value::Bool(true);
-        assert_eq!(graphql_value(&v), "true");
-    }
-
-    #[test]
-    fn test_graphql_value_array() {
-        let v = serde_json::json!([1, 2, 3]);
-        assert_eq!(graphql_value(&v), "[1, 2, 3]");
-    }
-
-    #[test]
-    fn test_is_scalar_field_type() {
-        assert!(is_scalar_field_type(&FieldType::String));
-        assert!(is_scalar_field_type(&FieldType::Int));
-        assert!(is_scalar_field_type(&FieldType::List(Box::new(FieldType::Int))));
-        assert!(!is_scalar_field_type(&FieldType::Object("User".to_string())));
     }
 }

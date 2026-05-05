@@ -12,6 +12,9 @@ pub mod presence;
 pub mod protocol;
 pub mod webhook_lifecycle;
 
+#[cfg(test)]
+mod tests;
+
 pub use broadcast::{BroadcastConfig, BroadcastManager, BroadcastMessage};
 pub use event_bridge::{EntityEvent, EventBridge, EventBridgeConfig};
 pub use presence::{PresenceConfig, PresenceManager};

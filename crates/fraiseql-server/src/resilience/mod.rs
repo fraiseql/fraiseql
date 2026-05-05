@@ -15,3 +15,6 @@
 //! map via `axum::Router::layer` with a custom Tower middleware.
 
 pub mod backpressure;
+
+#[cfg(test)]
+mod tests;

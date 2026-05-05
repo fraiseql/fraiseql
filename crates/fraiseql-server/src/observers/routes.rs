@@ -85,15 +85,3 @@ pub fn observer_runtime_routes(state: RuntimeHealthState) -> Router {
         .route("/runtime/reload", post(reload_observers))
         .with_state(state)
 }
-
-#[cfg(test)]
-mod tests {
-    // Note: Integration tests would require a test database
-    // These are placeholder tests for route configuration
-
-    #[test]
-    fn test_routes_compile() {
-        // This test just ensures the routes compile correctly
-        // Actual testing requires a database connection
-    }
-}

@@ -8,5 +8,8 @@ pub mod executor;
 pub mod handler;
 pub mod tools;
 
+#[cfg(test)]
+mod tests;
+
 /// MCP configuration type re-exported from the core schema for use in this crate.
 pub use fraiseql_core::schema::McpConfig;

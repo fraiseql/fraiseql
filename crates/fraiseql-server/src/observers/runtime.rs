@@ -719,27 +719,3 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_runtime_config_defaults() {
-        // This test would require a PgPool which needs a database connection
-        // For now, just verify the struct compiles
-    }
-
-    #[test]
-    fn test_runtime_health_default() {
-        let health = RuntimeHealth {
-            running:          false,
-            observer_count:   0,
-            last_checkpoint:  None,
-            events_processed: 0,
-            errors:           0,
-        };
-        assert!(!health.running);
-        assert_eq!(health.observer_count, 0);
-    }
-}

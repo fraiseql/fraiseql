@@ -17,17 +17,17 @@ use super::lifecycle::SubscriptionLifecycle;
 /// more than sufficient for any human-readable reason string.  Capping here
 /// prevents a misbehaving or malicious webhook server from sending a multi-GB
 /// body that exhausts server memory.
-const MAX_WEBHOOK_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
+pub(crate) const MAX_WEBHOOK_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
 
 /// Subscription lifecycle hooks that call external HTTP endpoints.
 pub struct WebhookLifecycle {
-    client:             reqwest::Client,
-    on_connect_url:     Option<String>,
-    on_disconnect_url:  Option<String>,
-    on_subscribe_url:   Option<String>,
-    on_unsubscribe_url: Option<String>,
+    client:                         reqwest::Client,
+    pub(crate) on_connect_url:      Option<String>,
+    pub(crate) on_disconnect_url:   Option<String>,
+    pub(crate) on_subscribe_url:    Option<String>,
+    on_unsubscribe_url:             Option<String>,
     #[allow(dead_code)] // Reason: kept for future use in fail-closed unsubscribe logic.
-    timeout: Duration,
+    pub(crate) timeout:             Duration,
 }
 
 impl WebhookLifecycle {
@@ -251,73 +251,5 @@ impl SubscriptionLifecycle for WebhookLifecycle {
                 warn!(url = %url, error = %e, "on_unsubscribe webhook failed");
             }
         });
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(clippy::cast_precision_loss)] // Reason: test metrics reporting
-    #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
-    #![allow(clippy::cast_possible_truncation)] // Reason: test data values are bounded
-    #![allow(clippy::cast_possible_wrap)] // Reason: test data values are bounded
-    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
-    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
-    #![allow(missing_docs)] // Reason: test code
-    #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
-
-    use super::*;
-
-    #[test]
-    fn from_schema_json_no_hooks() {
-        let json = serde_json::json!({});
-        assert!(WebhookLifecycle::from_schema_json(&json).is_none());
-    }
-
-    #[test]
-    fn from_schema_json_empty_hooks() {
-        let json = serde_json::json!({"hooks": {}});
-        assert!(WebhookLifecycle::from_schema_json(&json).is_none());
-    }
-
-    #[test]
-    fn from_schema_json_with_connect_url() {
-        let json = serde_json::json!({
-            "hooks": {
-                "on_connect": "http://localhost:8001/hooks/ws-connect",
-                "timeout_ms": 300
-            }
-        });
-        let wh = WebhookLifecycle::from_schema_json(&json).unwrap();
-        assert_eq!(wh.on_connect_url, Some("http://localhost:8001/hooks/ws-connect".to_string()));
-        assert!(wh.on_disconnect_url.is_none());
-        assert!(wh.on_subscribe_url.is_none());
-        assert_eq!(wh.timeout, Duration::from_millis(300));
-    }
-
-    #[test]
-    fn from_schema_json_default_timeout() {
-        let json = serde_json::json!({
-            "hooks": {
-                "on_disconnect": "http://localhost:8001/hooks/ws-disconnect"
-            }
-        });
-        let wh = WebhookLifecycle::from_schema_json(&json).unwrap();
-        assert_eq!(wh.timeout, Duration::from_millis(500));
-    }
-
-    #[test]
-    fn webhook_response_cap_constant_is_reasonable() {
-        // 64 KiB: large enough for any human-readable error, small enough to prevent OOM.
-        assert_eq!(MAX_WEBHOOK_RESPONSE_BYTES, 64 * 1024);
-    }
-
-    #[test]
-    fn webhook_response_body_is_capped_at_limit() {
-        // Simulate what on_connect / on_subscribe do: bytes → cap → lossy UTF-8.
-        let oversized: Vec<u8> = vec![b'x'; MAX_WEBHOOK_RESPONSE_BYTES + 100];
-        let capped = &oversized[..oversized.len().min(MAX_WEBHOOK_RESPONSE_BYTES)];
-        let text = String::from_utf8_lossy(capped).into_owned();
-        assert_eq!(text.len(), MAX_WEBHOOK_RESPONSE_BYTES);
     }
 }

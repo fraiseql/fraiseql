@@ -422,7 +422,7 @@ pub async fn reload_observers(State(state): State<RuntimeHealthState>) -> impl I
 /// Returns `None` if unauthenticated or if the tenant ID is absent or non-numeric.
 #[must_use]
 fn extract_customer_org(ctx: Option<&SecurityContext>) -> Option<i64> {
-    ctx?.tenant_id.as_deref()?.parse::<i64>().ok()
+    ctx?.tenant_id.as_ref().map(|t| t.as_str())?.parse::<i64>().ok()
 }
 
 /// Extract the authenticated user ID from the security context.
