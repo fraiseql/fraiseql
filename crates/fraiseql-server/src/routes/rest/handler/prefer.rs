@@ -210,6 +210,7 @@ fn strip_prefix_ci<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code
 mod tests {
     use super::*;
 
