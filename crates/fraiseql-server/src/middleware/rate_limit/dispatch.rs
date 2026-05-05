@@ -88,7 +88,7 @@ impl RateLimiter {
         match self {
             Self::InMemory(rl) => rl.check_ip_limit(ip, tenant_id).await,
             #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(rl) => rl.check_ip_limit(ip, tenant_id).await,
+            Self::Redis(rl) => rl.check_ip_limit(ip).await,
         }
     }
 
@@ -97,7 +97,7 @@ impl RateLimiter {
         match self {
             Self::InMemory(rl) => rl.check_user_limit(user_id, tenant_id).await,
             #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(rl) => rl.check_user_limit(user_id, tenant_id).await,
+            Self::Redis(rl) => rl.check_user_limit(user_id).await,
         }
     }
 
@@ -160,39 +160,3 @@ impl RateLimiter {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn new_creates_in_memory_backend() {
-        let limiter = RateLimiter::new(RateLimitConfig::default());
-        assert!(matches!(limiter, RateLimiter::InMemory(_)));
-    }
-
-    #[test]
-    fn config_returns_reference_to_inner_config() {
-        let config = RateLimitConfig {
-            rps_per_ip: 42,
-            ..RateLimitConfig::default()
-        };
-        let limiter = RateLimiter::new(config);
-        assert_eq!(limiter.config().rps_per_ip, 42);
-    }
-
-    #[test]
-    fn path_rule_count_starts_at_zero() {
-        let limiter = RateLimiter::new(RateLimitConfig::default());
-        assert_eq!(limiter.path_rule_count(), 0);
-    }
-
-    #[test]
-    fn retry_after_secs_minimum_is_one() {
-        let config = RateLimitConfig {
-            rps_per_ip: u32::MAX,
-            ..RateLimitConfig::default()
-        };
-        let limiter = RateLimiter::new(config);
-        assert_eq!(limiter.retry_after_secs(), 1, "minimum retry_after must be 1s");
-    }
-}

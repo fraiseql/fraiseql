@@ -92,20 +92,3 @@ pub async fn hs256_auth_middleware(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-
-    use fraiseql_core::security::{AuthConfig, AuthMiddleware};
-
-    use super::*;
-
-    #[test]
-    fn hs256_auth_state_is_cloneable() {
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<Hs256AuthState>();
-
-        let mw = AuthMiddleware::from_config(AuthConfig::with_hs256("test-secret-123"));
-        let _state = Hs256AuthState::new(Arc::new(mw), "test".to_string());
-    }
-}

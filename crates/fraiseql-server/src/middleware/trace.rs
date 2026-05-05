@@ -21,13 +21,3 @@ pub fn trace_layer()
         .on_response(DefaultOnResponse::new().level(Level::INFO))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_trace_layer_creation() {
-        let _layer = trace_layer();
-        // Basic test to ensure layer can be created
-    }
-}

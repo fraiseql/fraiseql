@@ -24,3 +24,6 @@ pub use rate_limit::{
 };
 pub use tenant::{TenantContext, tenant_middleware};
 pub use trace::trace_layer;
+
+#[cfg(test)]
+mod tests;

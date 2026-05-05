@@ -45,7 +45,7 @@ pub struct AuthUser(pub AuthenticatedUser);
 /// This is used as a fallback by [`oidc_auth_middleware`] when no
 /// `Authorization: Bearer` header is present, to support browser flows where
 /// the JWT is stored in an `HttpOnly` cookie inaccessible to client-side script.
-fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
+pub(crate) fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
     headers.get(header::COOKIE).and_then(|v| v.to_str().ok()).and_then(|cookies| {
         cookies.split(';').find_map(|part| {
             let part = part.trim();
@@ -169,83 +169,3 @@ pub async fn oidc_auth_middleware(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::*;
-
-    #[test]
-    fn test_auth_user_clone() {
-        use chrono::Utc;
-
-        let user = AuthenticatedUser {
-            user_id:      fraiseql_core::types::UserId::new("user123"),
-            scopes:       vec!["read".to_string()],
-            expires_at:   Utc::now(),
-            extra_claims: std::collections::HashMap::new(),
-        };
-
-        let auth_user = AuthUser(user);
-        let cloned = auth_user.clone();
-
-        assert_eq!(auth_user.0.user_id, cloned.0.user_id);
-    }
-
-    #[test]
-    fn test_oidc_auth_state_clone() {
-        // Can't easily test without a real validator, but we can verify Clone is implemented
-        // by verifying the type compiles with Clone trait bound
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<OidcAuthState>();
-    }
-
-    #[test]
-    fn test_cookie_fallback_extracts_token() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert(
-            header::COOKIE,
-            "__Host-access_token=my.jwt.token; Path=/; SameSite=Strict".parse().unwrap(),
-        );
-
-        let token = extract_access_token_cookie(&headers);
-        assert_eq!(token.as_deref(), Some("my.jwt.token"));
-    }
-
-    #[test]
-    fn test_cookie_fallback_strips_rfc6265_quotes() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert(header::COOKIE, "__Host-access_token=\"my.jwt.token\"".parse().unwrap());
-
-        let token = extract_access_token_cookie(&headers);
-        assert_eq!(token.as_deref(), Some("my.jwt.token"));
-    }
-
-    #[test]
-    fn test_cookie_fallback_absent_returns_none() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert(header::COOKIE, "session=abc; other=xyz".parse().unwrap());
-
-        let token = extract_access_token_cookie(&headers);
-        assert!(token.is_none());
-    }
-
-    #[test]
-    fn test_cookie_fallback_no_cookie_header_returns_none() {
-        let headers = axum::http::HeaderMap::new();
-        let token = extract_access_token_cookie(&headers);
-        assert!(token.is_none());
-    }
-
-    #[test]
-    fn test_cookie_fallback_multiple_cookies_finds_correct_one() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert(
-            header::COOKIE,
-            "session=abc; __Host-access_token=correct.token; csrf=xyz".parse().unwrap(),
-        );
-
-        let token = extract_access_token_cookie(&headers);
-        assert_eq!(token.as_deref(), Some("correct.token"));
-    }
-}

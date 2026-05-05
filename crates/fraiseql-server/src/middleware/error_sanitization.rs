@@ -96,7 +96,7 @@ pub async fn error_sanitization_middleware(
 /// - **GraphQL**: `{ "errors": [{ "message": "...", "code": "...", "extensions": { "detail": "..."
 ///   } }] }`
 /// - **REST**: `{ "message": "...", "detail": "..." }`
-fn sanitize_json_error(sanitizer: &ErrorSanitizer, json: &mut serde_json::Value) {
+pub(crate) fn sanitize_json_error(sanitizer: &ErrorSanitizer, json: &mut serde_json::Value) {
     // GraphQL format: sanitize each error in the "errors" array
     if let Some(errors) = json.get_mut("errors").and_then(|e| e.as_array_mut()) {
         for error in errors {
@@ -141,92 +141,3 @@ fn sanitize_single_error(sanitizer: &ErrorSanitizer, error: &mut serde_json::Val
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-    #![allow(clippy::missing_panics_doc)] // Reason: test helpers
-    #![allow(clippy::missing_errors_doc)] // Reason: test helpers
-    #![allow(missing_docs)] // Reason: test code
-
-    use super::*;
-    use crate::config::error_sanitization::ErrorSanitizationConfig;
-
-    fn test_sanitizer() -> ErrorSanitizer {
-        ErrorSanitizer::new(ErrorSanitizationConfig {
-            enabled:                     true,
-            hide_implementation_details: true,
-            sanitize_database_errors:    true,
-            custom_error_message:        None,
-        })
-    }
-
-    #[test]
-    fn test_sanitize_graphql_db_error() {
-        let sanitizer = test_sanitizer();
-        let mut json = serde_json::json!({
-            "errors": [{
-                "message": "ERROR: relation \"tb_users\" does not exist",
-                "code": "DATABASE_ERROR",
-                "extensions": {
-                    "detail": "at line 42 in query.rs"
-                }
-            }]
-        });
-
-        sanitize_json_error(&sanitizer, &mut json);
-
-        let error = &json["errors"][0];
-        assert_eq!(error["message"], "An internal error occurred");
-        assert!(error["extensions"].get("detail").is_none());
-    }
-
-    #[test]
-    fn test_sanitize_preserves_validation_error() {
-        let sanitizer = test_sanitizer();
-        let mut json = serde_json::json!({
-            "errors": [{
-                "message": "Field 'email' is required",
-                "code": "VALIDATION_ERROR"
-            }]
-        });
-
-        sanitize_json_error(&sanitizer, &mut json);
-
-        assert_eq!(json["errors"][0]["message"], "Field 'email' is required");
-    }
-
-    #[test]
-    fn test_sanitize_rest_internal_error() {
-        let sanitizer = test_sanitizer();
-        let mut json = serde_json::json!({
-            "message": "connection refused: postgres://user:pass@host/db",
-            "code": "INTERNAL_SERVER_ERROR",
-            "extensions": {
-                "detail": "panic at src/db.rs:123"
-            }
-        });
-
-        sanitize_json_error(&sanitizer, &mut json);
-
-        assert_eq!(json["message"], "An internal error occurred");
-        assert!(json["extensions"].get("detail").is_none());
-    }
-
-    #[test]
-    fn test_disabled_sanitizer_passes_through() {
-        let sanitizer = ErrorSanitizer::disabled();
-        let mut json = serde_json::json!({
-            "errors": [{
-                "message": "ERROR: relation \"tb_users\" does not exist",
-                "code": "DATABASE_ERROR"
-            }]
-        });
-
-        sanitize_json_error(&sanitizer, &mut json);
-
-        // Disabled sanitizer doesn't change messages (only strips detail via JSON path)
-        // But since the sanitizer.sanitize() call preserves message when disabled,
-        // the message should be unchanged
-        assert_eq!(json["errors"][0]["message"], "ERROR: relation \"tb_users\" does not exist");
-    }
-}
