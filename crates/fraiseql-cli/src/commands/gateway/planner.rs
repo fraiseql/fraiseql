@@ -10,7 +10,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 /// Maximum depth of nested entity resolution to prevent unbounded recursion.
-const MAX_ENTITY_DEPTH: usize = 8;
+pub(crate) const MAX_ENTITY_DEPTH: usize = 8;
 
 /// A query plan ready for execution.
 #[derive(Debug, Clone, Serialize)]
@@ -233,108 +233,3 @@ pub fn extract_root_fields(query: &str) -> Vec<String> {
     fields
 }
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn make_ownership() -> FieldOwnership {
-        let mut fo = FieldOwnership::default();
-        fo.insert("users".to_string(), "users-svc".to_string());
-        fo.insert("user".to_string(), "users-svc".to_string());
-        fo.insert("products".to_string(), "products-svc".to_string());
-        fo.insert("orders".to_string(), "orders-svc".to_string());
-        fo
-    }
-
-    #[test]
-    fn test_plan_single_subgraph() {
-        let ownership = make_ownership();
-        let fields = vec!["users".to_string()];
-        let plan = plan_query(&fields, &ownership).unwrap();
-        assert_eq!(plan.fetches.len(), 1);
-        assert_eq!(plan.fetches[0].subgraph, "users-svc");
-        assert!(!plan.fetches[0].is_entity_fetch);
-    }
-
-    #[test]
-    fn test_plan_groups_same_subgraph() {
-        let ownership = make_ownership();
-        let fields = vec!["users".to_string(), "user".to_string()];
-        let plan = plan_query(&fields, &ownership).unwrap();
-        assert_eq!(plan.fetches.len(), 1);
-        assert_eq!(plan.fetches[0].subgraph, "users-svc");
-    }
-
-    #[test]
-    fn test_plan_multiple_subgraphs() {
-        let ownership = make_ownership();
-        let fields = vec!["users".to_string(), "products".to_string()];
-        let plan = plan_query(&fields, &ownership).unwrap();
-        assert_eq!(plan.fetches.len(), 2);
-        let subgraphs: Vec<&str> = plan.fetches.iter().map(|f| f.subgraph.as_str()).collect();
-        assert!(subgraphs.contains(&"users-svc"));
-        assert!(subgraphs.contains(&"products-svc"));
-    }
-
-    #[test]
-    fn test_plan_unknown_field() {
-        let ownership = make_ownership();
-        let fields = vec!["nonexistent".to_string()];
-        let result = plan_query(&fields, &ownership);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PlanError::UnknownField { .. }));
-    }
-
-    #[test]
-    fn test_plan_empty_query() {
-        let ownership = make_ownership();
-        let result = plan_query(&[], &ownership);
-        assert!(matches!(result.unwrap_err(), PlanError::EmptyQuery));
-    }
-
-    #[test]
-    fn test_entity_fetch_depth_exceeded() {
-        let result = plan_entity_fetch("svc", &[], "id name", MAX_ENTITY_DEPTH);
-        assert!(matches!(result.unwrap_err(), PlanError::DepthExceeded { .. }));
-    }
-
-    #[test]
-    fn test_entity_fetch_ok() {
-        let reps = vec![serde_json::json!({"__typename": "User", "id": "1"})];
-        let fetch = plan_entity_fetch("users-svc", &reps, "name email", 0).unwrap();
-        assert!(fetch.is_entity_fetch);
-        assert_eq!(fetch.subgraph, "users-svc");
-        assert!(fetch.query.contains("_entities"));
-    }
-
-    #[test]
-    fn test_extract_root_fields_simple() {
-        let fields = extract_root_fields("{ users products }");
-        assert_eq!(fields, vec!["users", "products"]);
-    }
-
-    #[test]
-    fn test_extract_root_fields_nested() {
-        let fields = extract_root_fields("{ users { id name } products }");
-        assert_eq!(fields, vec!["users", "products"]);
-    }
-
-    #[test]
-    fn test_extract_root_fields_with_args() {
-        let fields = extract_root_fields("{ user(id: 1) { name } products }");
-        assert_eq!(fields, vec!["user", "products"]);
-    }
-
-    #[test]
-    fn test_extract_root_fields_named_query() {
-        let fields = extract_root_fields("query GetStuff { users orders }");
-        assert_eq!(fields, vec!["users", "orders"]);
-    }
-
-    #[test]
-    fn test_extract_root_fields_empty() {
-        let fields = extract_root_fields("no braces here");
-        assert!(fields.is_empty());
-    }
-}

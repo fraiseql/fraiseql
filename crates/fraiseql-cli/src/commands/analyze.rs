@@ -129,13 +129,3 @@ pub fn run(schema_path: &str) -> Result<CommandResult> {
     Ok(CommandResult::success("analyze", serde_json::to_value(&analysis)?))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_analyze_nonexistent_file() {
-        let result = run("/nonexistent/schema.json");
-        assert!(result.is_err(), "expected Err for nonexistent schema file, got: {result:?}");
-    }
-}

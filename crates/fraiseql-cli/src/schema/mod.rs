@@ -28,3 +28,6 @@ pub use validator::SchemaValidator;
 /// fields typed as these names are never flagged as unknown.
 pub(crate) const BUILTIN_SCALAR_NAMES: &[&str] =
     &["Int", "Float", "String", "Boolean", "ID", "JSON"];
+
+#[cfg(test)]
+mod tests;

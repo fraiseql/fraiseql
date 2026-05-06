@@ -137,7 +137,7 @@ pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
 }
 
 /// Convert federation graph to DOT format (Graphviz)
-fn to_dot(graph: &FederationGraph) -> String {
+pub(crate) fn to_dot(graph: &FederationGraph) -> String {
     let mut dot = String::from("digraph federation {\n");
 
     // Add subgraph nodes
@@ -159,7 +159,7 @@ fn to_dot(graph: &FederationGraph) -> String {
 }
 
 /// Convert federation graph to Mermaid format
-fn to_mermaid(graph: &FederationGraph) -> String {
+pub(crate) fn to_mermaid(graph: &FederationGraph) -> String {
     let mut mermaid = String::from("graph LR\n");
 
     // Add nodes
@@ -177,63 +177,4 @@ fn to_mermaid(graph: &FederationGraph) -> String {
     }
 
     mermaid
-}
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_graph_format_from_str() {
-        assert_eq!("json".parse::<GraphFormat>().unwrap(), GraphFormat::Json);
-        assert_eq!("dot".parse::<GraphFormat>().unwrap(), GraphFormat::Dot);
-        assert_eq!("mermaid".parse::<GraphFormat>().unwrap(), GraphFormat::Mermaid);
-    }
-
-    #[test]
-    fn test_graph_format_case_insensitive() {
-        assert_eq!("JSON".parse::<GraphFormat>().unwrap(), GraphFormat::Json);
-        assert_eq!("DOT".parse::<GraphFormat>().unwrap(), GraphFormat::Dot);
-    }
-
-    #[test]
-    fn test_graph_format_invalid() {
-        assert!(
-            "invalid".parse::<GraphFormat>().is_err(),
-            "expected Err for unknown federation graph format"
-        );
-    }
-
-    #[test]
-    fn test_to_dot_format() {
-        let graph = FederationGraph {
-            subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
-                entities: vec!["A".to_string()],
-            }],
-            edges:     vec![],
-        };
-
-        let dot = to_dot(&graph);
-        assert!(dot.contains("digraph"));
-        assert!(dot.contains('a'));
-    }
-
-    #[test]
-    fn test_to_mermaid_format() {
-        let graph = FederationGraph {
-            subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
-                entities: vec!["A".to_string()],
-            }],
-            edges:     vec![],
-        };
-
-        let mermaid = to_mermaid(&graph);
-        assert!(mermaid.contains("graph"));
-        assert!(mermaid.contains('a'));
-    }
 }

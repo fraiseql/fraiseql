@@ -30,16 +30,16 @@ use super::{
 #[derive(Clone)]
 pub struct GatewayState {
     /// HTTP client for subgraph requests.
-    client: reqwest::Client,
+    pub(crate) client: reqwest::Client,
 
     /// Subgraph name → config.
-    subgraphs: HashMap<String, SubgraphConfig>,
+    pub(crate) subgraphs: HashMap<String, SubgraphConfig>,
 
     /// Root field → owning subgraph.
-    ownership: Arc<FieldOwnership>,
+    pub(crate) ownership: Arc<FieldOwnership>,
 
     /// Per-subgraph request timeout.
-    subgraph_timeout: Duration,
+    pub(crate) subgraph_timeout: Duration,
 }
 
 /// Incoming GraphQL request body.
@@ -260,108 +260,3 @@ async fn handle_ready(State(state): State<GatewayState>) -> impl IntoResponse {
     }))
 }
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use axum::body::Body;
-    use http_body_util::BodyExt;
-    use tower::ServiceExt;
-
-    use super::*;
-
-    fn test_state() -> GatewayState {
-        let mut subgraphs = HashMap::new();
-        subgraphs.insert(
-            "users".to_string(),
-            SubgraphConfig {
-                url:    "http://localhost:4001/graphql".to_string(),
-                schema: None,
-            },
-        );
-
-        let mut ownership = FieldOwnership::default();
-        ownership.insert("users".to_string(), "users".to_string());
-
-        GatewayState {
-            client: reqwest::Client::new(),
-            subgraphs,
-            ownership: Arc::new(ownership),
-            subgraph_timeout: Duration::from_secs(5),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_health_endpoint() {
-        let app = build_router(test_state());
-
-        let response = app
-            .oneshot(axum::http::Request::builder().uri("/health").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        let json: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["status"], "healthy");
-    }
-
-    #[tokio::test]
-    async fn test_ready_endpoint() {
-        let app = build_router(test_state());
-
-        let response = app
-            .oneshot(axum::http::Request::builder().uri("/ready").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        let json: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["status"], "ready");
-        assert_eq!(json["subgraphs"], 1);
-    }
-
-    #[tokio::test]
-    async fn test_graphql_empty_query() {
-        let app = build_router(test_state());
-
-        let response = app
-            .oneshot(
-                axum::http::Request::builder()
-                    .method("POST")
-                    .uri("/graphql")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"query": ""}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    }
-
-    #[tokio::test]
-    async fn test_graphql_unknown_field() {
-        let app = build_router(test_state());
-
-        let response = app
-            .oneshot(
-                axum::http::Request::builder()
-                    .method("POST")
-                    .uri("/graphql")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"query": "{ nonexistent }"}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-        let json: Value = serde_json::from_slice(&body).unwrap();
-        assert!(json["errors"][0]["message"].as_str().unwrap().contains("nonexistent"));
-    }
-}

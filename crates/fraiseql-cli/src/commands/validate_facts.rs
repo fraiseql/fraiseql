@@ -232,7 +232,7 @@ pub async fn run(
 }
 
 /// Compare declared metadata with actual database metadata
-fn compare_metadata(
+pub(crate) fn compare_metadata(
     table_name: &str,
     declared: &FactTableMetadata,
     actual: &FactTableMetadata,
@@ -313,107 +313,3 @@ fn compare_metadata(
     issues
 }
 
-#[cfg(test)]
-mod tests {
-    use fraiseql_core::compiler::fact_table::{
-        DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
-    };
-
-    use super::*;
-
-    #[test]
-    fn test_validation_issue_error() {
-        let issue = ValidationIssue::error("tf_sales".to_string(), "Table not found".to_string());
-        assert_eq!(issue.severity, IssueSeverity::Error);
-        assert_eq!(issue.table_name, "tf_sales");
-    }
-
-    #[test]
-    fn test_validation_issue_warning() {
-        let issue = ValidationIssue::warning(
-            "tf_orders".to_string(),
-            "Table exists but not declared".to_string(),
-        );
-        assert_eq!(issue.severity, IssueSeverity::Warning);
-    }
-
-    fn make_metadata(
-        measures: Vec<MeasureColumn>,
-        dim_name: &str,
-        filters: Vec<FilterColumn>,
-    ) -> FactTableMetadata {
-        FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures,
-            dimensions: DimensionColumn {
-                name:  dim_name.to_string(),
-                paths: vec![],
-            },
-            denormalized_filters: filters,
-            calendar_dimensions: vec![],
-        }
-    }
-
-    #[test]
-    fn test_compare_metadata_matching() {
-        let declared = make_metadata(
-            vec![
-                MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-                MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
-                },
-            ],
-            "data",
-            vec![FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Uuid,
-                indexed:  true,
-            }],
-        );
-        let actual = declared.clone();
-
-        let issues = compare_metadata("tf_sales", &declared, &actual);
-        let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
-        assert!(errors.is_empty(), "Unexpected errors: {errors:?}");
-    }
-
-    #[test]
-    fn test_compare_metadata_missing_measure() {
-        let declared = make_metadata(
-            vec![
-                MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-                MeasureColumn {
-                    name:     "profit".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-            ],
-            "data",
-            vec![],
-        );
-        let actual = make_metadata(
-            vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
-            }],
-            "data",
-            vec![],
-        );
-
-        let issues = compare_metadata("tf_sales", &declared, &actual);
-        let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
-        assert_eq!(errors.len(), 1);
-        assert!(errors[0].message.contains("profit"));
-    }
-}

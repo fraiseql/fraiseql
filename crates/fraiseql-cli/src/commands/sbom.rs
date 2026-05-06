@@ -42,10 +42,10 @@ impl FromStr for SbomFormat {
 
 /// Parsed Cargo.lock package entry
 #[derive(Debug, Deserialize)]
-struct CargoLockPackage {
-    name:    String,
-    version: String,
-    source:  Option<String>,
+pub(crate) struct CargoLockPackage {
+    pub(crate) name:    String,
+    pub(crate) version: String,
+    pub(crate) source:  Option<String>,
 }
 
 /// Parsed Cargo.lock file
@@ -123,12 +123,12 @@ fn parse_cargo_lock() -> Result<Vec<CargoLockPackage>> {
     parse_cargo_lock_content(&content)
 }
 
-fn parse_cargo_lock_content(content: &str) -> Result<Vec<CargoLockPackage>> {
+pub(crate) fn parse_cargo_lock_content(content: &str) -> Result<Vec<CargoLockPackage>> {
     let lock: CargoLock = toml::from_str(content).context("Failed to parse Cargo.lock")?;
     Ok(lock.package)
 }
 
-fn find_cargo_lock() -> Result<std::path::PathBuf> {
+pub(crate) fn find_cargo_lock() -> Result<std::path::PathBuf> {
     let mut dir = std::env::current_dir().context("Failed to get current directory")?;
 
     loop {
@@ -147,7 +147,7 @@ fn find_cargo_lock() -> Result<std::path::PathBuf> {
     )
 }
 
-fn generate_cyclonedx(
+pub(crate) fn generate_cyclonedx(
     project_name: &str,
     project_version: &str,
     packages: &[CargoLockPackage],
@@ -197,7 +197,7 @@ fn generate_cyclonedx(
     serde_json::to_string_pretty(&sbom).context("Failed to serialize CycloneDX SBOM")
 }
 
-fn generate_spdx(
+pub(crate) fn generate_spdx(
     project_name: &str,
     project_version: &str,
     packages: &[CargoLockPackage],
@@ -253,7 +253,7 @@ fn generate_spdx(
 }
 
 /// Get current UTC timestamp in ISO 8601 format without external chrono dependency
-fn chrono_now_utc() -> String {
+pub(crate) fn chrono_now_utc() -> String {
     // Use std::time to get a basic timestamp
     let now = std::time::SystemTime::now();
     let duration = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
@@ -273,7 +273,7 @@ fn chrono_now_utc() -> String {
 }
 
 /// Convert days since Unix epoch to (year, month, day)
-const fn days_to_date(days: u64) -> (u64, u64, u64) {
+pub(crate) const fn days_to_date(days: u64) -> (u64, u64, u64) {
     // Algorithm from http://howardhinnant.github.io/date_algorithms.html
     let z = days + 719_468;
     let era = z / 146_097;
@@ -286,110 +286,4 @@ const fn days_to_date(days: u64) -> (u64, u64, u64) {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     (y, m, d)
-}
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sbom_format_from_str() {
-        assert_eq!(SbomFormat::from_str("cyclonedx").unwrap(), SbomFormat::CycloneDx);
-        assert_eq!(SbomFormat::from_str("cdx").unwrap(), SbomFormat::CycloneDx);
-        assert_eq!(SbomFormat::from_str("spdx").unwrap(), SbomFormat::Spdx);
-        assert!(SbomFormat::from_str("csv").is_err(), "expected Err for unknown format 'csv'");
-    }
-
-    #[test]
-    fn test_generate_cyclonedx() {
-        let packages = vec![
-            CargoLockPackage {
-                name:    "serde".to_string(),
-                version: "1.0.200".to_string(),
-                source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
-            },
-            CargoLockPackage {
-                name:    "tokio".to_string(),
-                version: "1.42.0".to_string(),
-                source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
-            },
-        ];
-
-        let result = generate_cyclonedx("test-app", "1.0.0", &packages).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
-
-        assert_eq!(parsed["bomFormat"], "CycloneDX");
-        assert_eq!(parsed["specVersion"], "1.5");
-        assert_eq!(parsed["metadata"]["component"]["name"], "test-app");
-        assert_eq!(parsed["components"].as_array().unwrap().len(), 2);
-        assert_eq!(parsed["components"][0]["name"], "serde");
-        assert!(
-            parsed["components"][0]["purl"]
-                .as_str()
-                .unwrap()
-                .contains("pkg:cargo/serde@1.0.200")
-        );
-    }
-
-    #[test]
-    fn test_generate_spdx() {
-        let packages = vec![CargoLockPackage {
-            name:    "anyhow".to_string(),
-            version: "1.0.0".to_string(),
-            source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
-        }];
-
-        let result = generate_spdx("test-app", "0.1.0", &packages).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
-
-        assert_eq!(parsed["spdxVersion"], "SPDX-2.3");
-        assert_eq!(parsed["packages"].as_array().unwrap().len(), 1);
-        assert_eq!(parsed["packages"][0]["name"], "anyhow");
-    }
-
-    #[test]
-    fn test_find_cargo_lock() {
-        // Use CARGO_MANIFEST_DIR to avoid cwd race conditions under parallel test execution
-        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
-        let cargo_lock = workspace_root.join("Cargo.lock");
-        assert!(cargo_lock.exists(), "Should find Cargo.lock in workspace root");
-    }
-
-    #[test]
-    fn test_parse_cargo_lock() {
-        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
-        let cargo_lock = workspace_root.join("Cargo.lock");
-        let content = std::fs::read_to_string(&cargo_lock).unwrap();
-        let packages = parse_cargo_lock_content(&content).unwrap();
-        assert!(!packages.is_empty(), "Cargo.lock should contain packages");
-
-        // Should contain known dependencies
-        let has_serde = packages.iter().any(|p| p.name == "serde");
-        assert!(has_serde, "Should contain serde dependency");
-    }
-
-    #[test]
-    fn test_days_to_date_epoch() {
-        let (y, m, d) = days_to_date(0);
-        assert_eq!((y, m, d), (1970, 1, 1));
-    }
-
-    #[test]
-    fn test_days_to_date_known() {
-        // 2024-01-01 = 19723 days since epoch
-        let (y, m, d) = days_to_date(19_723);
-        assert_eq!((y, m, d), (2024, 1, 1));
-    }
-
-    #[test]
-    fn test_chrono_now_utc_format() {
-        let ts = chrono_now_utc();
-        // Should match ISO 8601 format
-        assert!(ts.ends_with('Z'));
-        assert!(ts.contains('T'));
-        assert_eq!(ts.len(), 20); // "YYYY-MM-DDTHH:MM:SSZ"
-    }
 }

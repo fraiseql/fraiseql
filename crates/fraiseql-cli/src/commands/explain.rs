@@ -103,37 +103,3 @@ pub fn run(query: &str) -> Result<CommandResult> {
     Ok(result)
 }
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_explain_simple_query() {
-        let query = "query { users { id } }";
-        let result = run(query);
-
-        let cmd_result = result.unwrap_or_else(|e| panic!("expected Ok for simple query: {e}"));
-        assert_eq!(cmd_result.status, "success");
-    }
-
-    #[test]
-    fn test_explain_invalid_query_fails() {
-        let query = "query { invalid {";
-        let result = run(query);
-
-        assert!(result.is_err(), "expected Err for invalid query, got: {result:?}");
-    }
-
-    #[test]
-    fn test_explain_detects_deep_nesting() {
-        let query = "query { a { b { c { d { e { f { g { h { i { j { k { l } } } } } } } } } } } }";
-        let result = run(query);
-
-        let cmd_result =
-            result.unwrap_or_else(|e| panic!("expected Ok for deep nesting query: {e}"));
-        if let Some(warnings) = cmd_result.data {
-            assert!(!warnings.to_string().is_empty());
-        }
-    }
-}

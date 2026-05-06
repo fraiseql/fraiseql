@@ -205,7 +205,7 @@ fn resolve_entity_sql_source(schema: &CompiledSchema, entity: &str) -> Result<St
 /// - `va_` - Vector Arrow view
 /// - `tv_` - Table Vector view
 /// - `ta_` - Table Arrow view
-fn validate_view_name(view_name: &str) -> Result<&'static str> {
+pub(crate) fn validate_view_name(view_name: &str) -> Result<&'static str> {
     if view_name.starts_with("va_") {
         Ok("Vector Arrow (va_)")
     } else if view_name.starts_with("tv_") {
@@ -228,7 +228,7 @@ fn validate_view_name(view_name: &str) -> Result<&'static str> {
 /// * `refresh_strategy` - How the view is kept up-to-date
 /// * `include_composition_views` - Whether to include helper views
 /// * `include_monitoring` - Whether to include monitoring functions
-fn generate_view_sql(
+pub(crate) fn generate_view_sql(
     entity: &str,
     sql_source: &str,
     view_name: &str,
@@ -352,174 +352,4 @@ fn generate_monitoring_functions(sql: &mut String, view_name: &str) {
     sql.push_str(&format!("    SELECT 'row_count'::TEXT, COUNT(*)::BIGINT FROM {view_name};\n"));
     sql.push_str("END;\n");
     sql.push_str("$$ LANGUAGE plpgsql IMMUTABLE;\n");
-}
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_refresh_strategy_from_str() {
-        assert_eq!(RefreshStrategy::parse("trigger-based").unwrap(), RefreshStrategy::TriggerBased);
-        assert_eq!(RefreshStrategy::parse("trigger").unwrap(), RefreshStrategy::TriggerBased);
-        assert_eq!(RefreshStrategy::parse("scheduled").unwrap(), RefreshStrategy::Scheduled);
-        assert!(
-            RefreshStrategy::parse("invalid").is_err(),
-            "expected Err for unknown refresh strategy"
-        );
-    }
-
-    #[test]
-    fn test_refresh_strategy_display() {
-        assert_eq!(RefreshStrategy::TriggerBased.to_string(), "trigger-based");
-        assert_eq!(RefreshStrategy::Scheduled.to_string(), "scheduled");
-    }
-
-    #[test]
-    fn test_validate_view_name_vector_arrow() {
-        assert_eq!(validate_view_name("va_user_embeddings").unwrap(), "Vector Arrow (va_)");
-    }
-
-    #[test]
-    fn test_validate_view_name_table_vector() {
-        assert_eq!(validate_view_name("tv_user_profile").unwrap(), "Table Vector (tv_)");
-    }
-
-    #[test]
-    fn test_validate_view_name_table_arrow() {
-        assert_eq!(validate_view_name("ta_orders").unwrap(), "Table Arrow (ta_)");
-    }
-
-    #[test]
-    fn test_validate_view_name_invalid() {
-        assert!(
-            validate_view_name("invalid_view").is_err(),
-            "expected Err for invalid_view prefix"
-        );
-        assert!(
-            validate_view_name("v_user").is_err(),
-            "expected Err for v_ prefix (not va_/tv_/ta_)"
-        );
-    }
-
-    #[test]
-    fn test_generate_view_sql_vector_arrow() {
-        let sql = generate_view_sql(
-            "User",
-            "v_user",
-            "va_user_embeddings",
-            "Vector Arrow (va_)",
-            RefreshStrategy::TriggerBased,
-            false,
-            false,
-        );
-
-        assert!(sql.contains("CREATE VIEW va_user_embeddings"));
-        assert!(sql.contains("Entity: User"));
-        assert!(sql.contains("Vector Arrow (va_)"));
-        assert!(sql.contains("trigger-based"));
-        assert!(
-            sql.contains("FROM v_user"),
-            "must use entity sql_source, not schema_placeholder"
-        );
-        assert!(!sql.contains("schema_placeholder"));
-    }
-
-    #[test]
-    fn test_generate_view_sql_table_vector() {
-        let sql = generate_view_sql(
-            "Order",
-            "v_order",
-            "tv_order_summary",
-            "Table Vector (tv_)",
-            RefreshStrategy::Scheduled,
-            false,
-            false,
-        );
-
-        assert!(sql.contains("CREATE MATERIALIZED VIEW tv_order_summary"));
-        assert!(sql.contains("Entity: Order"));
-        assert!(sql.contains("scheduled"));
-        assert!(
-            sql.contains("FROM v_order"),
-            "must use entity sql_source, not schema_placeholder"
-        );
-        assert!(!sql.contains("schema_placeholder"));
-    }
-
-    #[test]
-    fn test_generate_view_sql_with_composition_views() {
-        let sql = generate_view_sql(
-            "User",
-            "v_user",
-            "tv_user_profile",
-            "Table Vector (tv_)",
-            RefreshStrategy::TriggerBased,
-            true,
-            false,
-        );
-
-        assert!(sql.contains("Composition views"));
-        assert!(sql.contains("_recent"));
-        assert!(sql.contains("_count"));
-    }
-
-    #[test]
-    fn test_generate_view_sql_with_monitoring() {
-        let sql = generate_view_sql(
-            "User",
-            "v_user",
-            "tv_user_profile",
-            "Table Vector (tv_)",
-            RefreshStrategy::TriggerBased,
-            false,
-            true,
-        );
-
-        assert!(sql.contains("Monitoring functions"));
-        assert!(sql.contains("monitor_tv_user_profile"));
-        assert!(sql.contains("metric_name"));
-    }
-
-    #[test]
-    fn test_generate_view_sql_full_options() {
-        let sql = generate_view_sql(
-            "User",
-            "v_user",
-            "ta_users",
-            "Table Arrow (ta_)",
-            RefreshStrategy::TriggerBased,
-            true,
-            true,
-        );
-
-        assert!(sql.contains("Entity: User"));
-        assert!(sql.contains("View: ta_users"));
-        assert!(sql.contains("Composition views"));
-        assert!(sql.contains("Monitoring functions"));
-        assert!(!sql.contains("schema_placeholder"));
-    }
-
-    #[test]
-    fn test_generate_view_sql_uses_real_sql_source() {
-        // The generated DDL must reference the entity's real SQL source, not a
-        // placeholder. Executing a view with `schema_placeholder` would always
-        // fail at query time with a relation-not-found error.
-        let sql = generate_view_sql(
-            "Product",
-            "v_product_catalog",
-            "ta_products",
-            "Table Arrow (ta_)",
-            RefreshStrategy::TriggerBased,
-            false,
-            false,
-        );
-
-        assert!(
-            sql.contains("FROM v_product_catalog"),
-            "generated SQL must use the entity's sql_source"
-        );
-        assert!(!sql.contains("schema_placeholder"), "placeholder must not appear in output");
-    }
 }

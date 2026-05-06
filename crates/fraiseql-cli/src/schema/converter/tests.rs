@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
+
 use fraiseql_core::schema::NamingConvention;
 use indexmap::IndexMap;
 
@@ -1257,4 +1260,305 @@ fn test_convert_field_requires_scope() {
     // ssn field - requires admin scope
     assert_eq!(employee_type.fields[3].name, "ssn");
     assert_eq!(employee_type.fields[3].requires_scope, Some("admin".to_string()));
+}
+
+// ── tenancy converter tests ─────────────────────────────────────────────────
+
+mod tenancy_tests {
+    use indexmap::IndexMap;
+
+    use super::super::tenancy::{validate_tenant_annotations, AnnotatedTypeIndex};
+    use crate::schema::intermediate::{
+        IntermediateField, IntermediateMutation, IntermediateQuery, IntermediateSchema,
+        IntermediateType, fragments::IntermediateAppliedDirective,
+    };
+
+    fn make_type(name: &str, fields: Vec<IntermediateField>) -> IntermediateType {
+        IntermediateType {
+            name: name.to_string(),
+            fields,
+            description: None,
+            implements: vec![],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+        }
+    }
+
+    fn make_field(name: &str, field_type: &str) -> IntermediateField {
+        IntermediateField {
+            name:           name.to_string(),
+            field_type:     field_type.to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     None,
+            requires_scope: None,
+            on_deny:        None,
+        }
+    }
+
+    fn make_tenant_id_field(name: &str) -> IntermediateField {
+        IntermediateField {
+            name:           name.to_string(),
+            field_type:     "String".to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     Some(vec![IntermediateAppliedDirective {
+                name:      "tenant_id".to_string(),
+                arguments: None,
+            }]),
+            requires_scope: None,
+            on_deny:        None,
+        }
+    }
+
+    fn make_query(name: &str, return_type: &str) -> IntermediateQuery {
+        IntermediateQuery {
+            name:        name.to_string(),
+            return_type: return_type.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn make_mutation(name: &str, return_type: &str) -> IntermediateMutation {
+        IntermediateMutation {
+            name:        name.to_string(),
+            return_type: return_type.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn make_schema(
+        types: Vec<IntermediateType>,
+        queries: Vec<IntermediateQuery>,
+        mutations: Vec<IntermediateMutation>,
+    ) -> IntermediateSchema {
+        IntermediateSchema {
+            types,
+            queries,
+            mutations,
+            ..Default::default()
+        }
+    }
+
+    // ── AnnotatedTypeIndex ──────────────────────────────────────────────
+
+    #[test]
+    fn index_empty_when_no_annotations() {
+        let types = vec![make_type("User", vec![make_field("id", "Int")])];
+        let index = AnnotatedTypeIndex::build(&types);
+        assert!(!index.has_annotations());
+    }
+
+    #[test]
+    fn index_detects_tenant_id_field() {
+        let types = vec![make_type(
+            "User",
+            vec![make_field("id", "Int"), make_tenant_id_field("tenant_id")],
+        )];
+        let index = AnnotatedTypeIndex::build(&types);
+        assert!(index.has_annotations());
+        let fields = index.fields_for_type("User").unwrap();
+        assert!(fields.contains("tenant_id"));
+    }
+
+    #[test]
+    fn index_multiple_types_independently() {
+        let types = vec![
+            make_type("User", vec![make_tenant_id_field("tenant_id")]),
+            make_type("Post", vec![make_field("id", "Int")]),
+            make_type("Order", vec![make_tenant_id_field("org_id")]),
+        ];
+        let index = AnnotatedTypeIndex::build(&types);
+        assert!(index.fields_for_type("User").is_some());
+        assert!(index.fields_for_type("Post").is_none());
+        assert!(index.fields_for_type("Order").is_some());
+        assert!(index.fields_for_type("Order").unwrap().contains("org_id"));
+    }
+
+    // ── Auto-injection ──────────────────────────────────────────────────
+
+    #[test]
+    fn auto_injects_query_when_inject_empty() {
+        let mut schema = make_schema(
+            vec![make_type(
+                "User",
+                vec![make_field("id", "Int"), make_tenant_id_field("tenant_id")],
+            )],
+            vec![make_query("getUser", "User")],
+            vec![],
+        );
+        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        assert_eq!(
+            schema.queries[0].inject.get("tenant_id"),
+            Some(&"jwt:tenant_id".to_string())
+        );
+    }
+
+    #[test]
+    fn auto_injects_mutation_when_inject_empty() {
+        let mut schema = make_schema(
+            vec![make_type(
+                "User",
+                vec![make_field("id", "Int"), make_tenant_id_field("tenant_id")],
+            )],
+            vec![],
+            vec![make_mutation("createUser", "User")],
+        );
+        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        assert_eq!(
+            schema.mutations[0].inject.get("tenant_id"),
+            Some(&"jwt:tenant_id".to_string())
+        );
+    }
+
+    #[test]
+    fn auto_inject_uses_custom_claim() {
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
+            vec![make_query("getUser", "User")],
+            vec![],
+        );
+        validate_tenant_annotations(&mut schema, "org_id").unwrap();
+        assert_eq!(
+            schema.queries[0].inject.get("tenant_id"),
+            Some(&"jwt:org_id".to_string())
+        );
+    }
+
+    // ── Existing inject accepted ────────────────────────────────────────
+
+    #[test]
+    fn existing_inject_with_tenant_field_accepted() {
+        let mut inject = IndexMap::new();
+        inject.insert("tenant_id".to_string(), "jwt:tenant_id".to_string());
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
+            vec![IntermediateQuery {
+                name:        "getUser".to_string(),
+                return_type: "User".to_string(),
+                inject,
+                ..Default::default()
+            }],
+            vec![],
+        );
+        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+    }
+
+    // ── Error: explicit inject missing tenant ───────────────────────────
+
+    #[test]
+    fn error_when_inject_overridden_without_tenant() {
+        let mut inject = IndexMap::new();
+        inject.insert("user_id".to_string(), "jwt:sub".to_string());
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
+            vec![IntermediateQuery {
+                name:        "getUser".to_string(),
+                return_type: "User".to_string(),
+                inject,
+                ..Default::default()
+            }],
+            vec![],
+        );
+        let err = validate_tenant_annotations(&mut schema, "tenant_id").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("getUser"), "error should mention query name: {msg}");
+        assert!(msg.contains("@tenant_id"), "error should mention directive: {msg}");
+        assert!(msg.contains("tenant_id"), "error should mention field: {msg}");
+    }
+
+    #[test]
+    fn error_mutation_inject_overridden_without_tenant() {
+        let mut inject = IndexMap::new();
+        inject.insert("user_id".to_string(), "jwt:sub".to_string());
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
+            vec![],
+            vec![IntermediateMutation {
+                name:        "createUser".to_string(),
+                return_type: "User".to_string(),
+                inject,
+                ..Default::default()
+            }],
+        );
+        let err = validate_tenant_annotations(&mut schema, "tenant_id").unwrap_err();
+        assert!(err.to_string().contains("createUser"));
+    }
+
+    // ── No-op for non-annotated types ───────────────────────────────────
+
+    #[test]
+    fn query_on_non_annotated_type_unchanged() {
+        let mut schema = make_schema(
+            vec![make_type("Post", vec![make_field("id", "Int")])],
+            vec![make_query("getPosts", "Post")],
+            vec![],
+        );
+        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        assert!(schema.queries[0].inject.is_empty());
+    }
+
+    // ── Warning when no annotations ─────────────────────────────────────
+
+    #[test]
+    fn warning_when_no_tenant_id_annotations() {
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_field("id", "Int")])],
+            vec![make_query("getUser", "User")],
+            vec![],
+        );
+        validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+    }
+}
+
+// ── converter types tests ───────────────────────────────────────────────────
+
+mod types_tests {
+    use super::super::SchemaConverter;
+
+    #[test]
+    fn test_is_safe_sql_identifier_simple() {
+        assert!(SchemaConverter::is_safe_sql_identifier("v_user"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_schema_qualified() {
+        assert!(SchemaConverter::is_safe_sql_identifier("public.v_user"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_three_part() {
+        assert!(SchemaConverter::is_safe_sql_identifier("catalog.schema.table"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_empty_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier(""));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_leading_dot_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier(".foo"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_trailing_dot_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("foo."));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_double_dot_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("foo..bar"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_four_parts_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("a.b.c.d"));
+    }
+
+    #[test]
+    fn test_is_safe_sql_identifier_special_chars_rejected() {
+        assert!(!SchemaConverter::is_safe_sql_identifier("v_user; DROP TABLE"));
+    }
 }

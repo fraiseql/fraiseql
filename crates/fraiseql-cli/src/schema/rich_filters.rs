@@ -77,7 +77,7 @@ pub fn compile_rich_filters(
 }
 
 /// Get all rich scalar type names
-fn get_all_rich_types() -> Vec<String> {
+pub(crate) fn get_all_rich_types() -> Vec<String> {
     vec![
         // Contact/Communication
         "EmailAddress".to_string(),
@@ -237,24 +237,5 @@ fn operator_param_type_to_graphql_string(param_type: ParameterType) -> String {
         ParameterType::Boolean => "Boolean".to_string(),
         // Reason: non_exhaustive requires catch-all for cross-crate matches
         _ => "String".to_string(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_rich_types_list() {
-        let types = get_all_rich_types();
-        assert!(types.contains(&"EmailAddress".to_string()));
-        assert!(types.contains(&"VIN".to_string()));
-        assert!(types.contains(&"IBAN".to_string()));
-    }
-
-    #[test]
-    fn test_generate_where_input_name() {
-        let where_input_name = "EmailAddressWhereInput";
-        assert!(where_input_name.ends_with("WhereInput"));
     }
 }

@@ -218,7 +218,7 @@ pub async fn run(
 }
 
 /// Format metadata as Python decorator.
-fn format_as_python(metadata: &FactTableMetadata) -> String {
+pub(crate) fn format_as_python(metadata: &FactTableMetadata) -> String {
     let mut output = String::new();
 
     // Extract measure names
@@ -276,57 +276,3 @@ fn format_as_python(metadata: &FactTableMetadata) -> String {
     output
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_output_format_from_str() {
-        assert!(matches!(OutputFormat::parse("python"), Ok(OutputFormat::Python)));
-        assert!(matches!(OutputFormat::parse("json"), Ok(OutputFormat::Json)));
-        assert!(
-            OutputFormat::parse("invalid").is_err(),
-            "expected Err for unknown output format 'invalid'"
-        );
-    }
-
-    #[test]
-    fn test_format_as_python() {
-        use fraiseql_core::compiler::fact_table::{
-            DimensionColumn, FilterColumn, MeasureColumn, SqlType,
-        };
-
-        let metadata = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
-                MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
-                },
-                MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
-                },
-            ],
-            dimensions:           DimensionColumn {
-                name:  "data".to_string(),
-                paths: vec![],
-            },
-            denormalized_filters: vec![FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Uuid,
-                indexed:  true,
-            }],
-            calendar_dimensions:  vec![],
-        };
-
-        let output = format_as_python(&metadata);
-        assert!(output.contains("@fraiseql.fact_table"));
-        assert!(output.contains("'revenue'"));
-        assert!(output.contains("'quantity'"));
-        assert!(output.contains("'customer_id'"));
-        assert!(output.contains("class Sales:"));
-    }
-}

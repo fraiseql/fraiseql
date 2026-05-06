@@ -26,3 +26,6 @@ pub mod serve;
 pub mod validate;
 pub mod validate_documents;
 pub mod validate_facts;
+
+#[cfg(test)]
+mod tests;

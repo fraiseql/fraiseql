@@ -25,3 +25,6 @@ pub mod runner;
 pub mod schema;
 
 pub use runner::run;
+
+#[cfg(test)]
+mod tests;

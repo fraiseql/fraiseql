@@ -2,3 +2,6 @@
 
 pub mod proto_gen;
 pub mod row_views;
+
+#[cfg(test)]
+mod tests;

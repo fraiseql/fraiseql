@@ -54,7 +54,7 @@ pub fn build_lookup_data() -> Value {
 }
 
 /// Build country code lookup table with continent, region, EU, Schengen data.
-fn build_countries_lookup() -> HashMap<String, Value> {
+pub(crate) fn build_countries_lookup() -> HashMap<String, Value> {
     let mut countries = HashMap::new();
 
     // Europe
@@ -293,7 +293,7 @@ fn build_countries_lookup() -> HashMap<String, Value> {
 }
 
 /// Build currency code lookup table with symbols and decimal places.
-fn build_currencies_lookup() -> HashMap<String, Value> {
+pub(crate) fn build_currencies_lookup() -> HashMap<String, Value> {
     let mut currencies = HashMap::new();
 
     currencies.insert(
@@ -381,7 +381,7 @@ fn build_currencies_lookup() -> HashMap<String, Value> {
 }
 
 /// Build timezone lookup table with UTC offsets and DST info.
-fn build_timezones_lookup() -> HashMap<String, Value> {
+pub(crate) fn build_timezones_lookup() -> HashMap<String, Value> {
     let mut timezones = HashMap::new();
 
     // UTC
@@ -628,79 +628,3 @@ fn build_languages_lookup() -> HashMap<String, Value> {
     languages
 }
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_build_lookup_data() {
-        let data = build_lookup_data();
-
-        assert!(data.get("countries").is_some());
-        assert!(data.get("currencies").is_some());
-        assert!(data.get("timezones").is_some());
-        assert!(data.get("languages").is_some());
-    }
-
-    #[test]
-    fn test_countries_have_required_fields() {
-        let countries = build_countries_lookup();
-
-        for (code, data) in countries {
-            assert!(data.get("name").is_some(), "Country {code} missing name");
-            assert!(data.get("continent").is_some(), "Country {code} missing continent");
-            assert!(data.get("in_eu").is_some(), "Country {code} missing in_eu");
-            assert!(data.get("in_schengen").is_some(), "Country {code} missing in_schengen");
-        }
-    }
-
-    #[test]
-    fn test_currencies_have_required_fields() {
-        let currencies = build_currencies_lookup();
-
-        for (code, data) in currencies {
-            assert!(data.get("name").is_some(), "Currency {code} missing name");
-            assert!(data.get("symbol").is_some(), "Currency {code} missing symbol");
-            assert!(data.get("decimal_places").is_some(), "Currency {code} missing decimal_places");
-        }
-    }
-
-    #[test]
-    fn test_timezones_have_required_fields() {
-        let timezones = build_timezones_lookup();
-
-        for (code, data) in timezones {
-            assert!(data.get("offset_minutes").is_some(), "Timezone {code} missing offset_minutes");
-            assert!(data.get("has_dst").is_some(), "Timezone {code} missing has_dst");
-        }
-    }
-
-    #[test]
-    fn test_eu_member_states() {
-        let countries = build_countries_lookup();
-
-        // Check some known EU members
-        assert!(countries["FR"]["in_eu"].as_bool().unwrap());
-        assert!(countries["DE"]["in_eu"].as_bool().unwrap());
-        assert!(countries["IT"]["in_eu"].as_bool().unwrap());
-
-        // Check non-EU
-        assert!(!countries["US"]["in_eu"].as_bool().unwrap());
-        assert!(!countries["GB"]["in_eu"].as_bool().unwrap());
-    }
-
-    #[test]
-    fn test_schengen_members() {
-        let countries = build_countries_lookup();
-
-        // Check some known Schengen members
-        assert!(countries["FR"]["in_schengen"].as_bool().unwrap());
-        assert!(countries["DE"]["in_schengen"].as_bool().unwrap());
-        assert!(countries["CH"]["in_schengen"].as_bool().unwrap());
-
-        // Check non-Schengen
-        assert!(!countries["US"]["in_schengen"].as_bool().unwrap());
-        assert!(!countries["GB"]["in_schengen"].as_bool().unwrap());
-    }
-}

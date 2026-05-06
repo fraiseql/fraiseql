@@ -40,7 +40,7 @@ pub struct DoctorCheck {
 }
 
 impl DoctorCheck {
-    fn pass(name: &'static str, detail: impl Into<String>) -> Self {
+    pub(crate) fn pass(name: &'static str, detail: impl Into<String>) -> Self {
         Self {
             name,
             status: CheckStatus::Pass,
@@ -49,7 +49,7 @@ impl DoctorCheck {
         }
     }
 
-    fn warn(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
+    pub(crate) fn warn(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
         Self {
             name,
             status: CheckStatus::Warn,
@@ -58,7 +58,7 @@ impl DoctorCheck {
         }
     }
 
-    fn fail(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
+    pub(crate) fn fail(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
         Self {
             name,
             status: CheckStatus::Fail,
@@ -359,7 +359,7 @@ pub fn check_rls_cache_coherence(config_path: &Path) -> DoctorCheck {
 /// Extract (host, port) from a URL like `postgres://user:pass@host:5432/db`.
 ///
 /// Returns `None` if the URL cannot be parsed.
-fn parse_host_port(url: &str) -> Option<(String, u16)> {
+pub(crate) fn parse_host_port(url: &str) -> Option<(String, u16)> {
     // Strip the scheme prefix and credentials; we only need the host:port.
     let after_scheme = url.split("://").nth(1)?;
     // Drop path/query after the first `/` following host:port.
@@ -475,293 +475,4 @@ pub fn run(config: &Path, schema: &Path, db_url: Option<&str>, json: bool) -> bo
     }
 
     checks.iter().all(|c| c.status != CheckStatus::Fail)
-}
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    use tempfile::NamedTempFile;
-
-    use super::*;
-
-    // Helper: write a temp file with given content and return the path.
-    fn temp_file_with(content: &str) -> NamedTempFile {
-        let mut f = NamedTempFile::new().unwrap();
-        f.write_all(content.as_bytes()).unwrap();
-        f
-    }
-
-    // ── check_schema_exists ───────────────────────────────────────────────────
-
-    #[test]
-    fn test_schema_exists_pass() {
-        let f = temp_file_with("{}");
-        let result = check_schema_exists(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    #[test]
-    fn test_schema_exists_fail() {
-        let result = check_schema_exists(Path::new("/nonexistent/schema.compiled.json"));
-        assert_eq!(result.status, CheckStatus::Fail);
-    }
-
-    // ── check_schema_parses ───────────────────────────────────────────────────
-
-    #[test]
-    fn test_schema_parses_valid_json() {
-        let f = temp_file_with(r#"{"types":[],"queries":[],"mutations":[]}"#);
-        let result = check_schema_parses(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-        assert!(result.detail.contains("types=0"));
-    }
-
-    #[test]
-    fn test_schema_parses_invalid_json() {
-        let f = temp_file_with("not json {{{");
-        let result = check_schema_parses(f.path());
-        assert_eq!(result.status, CheckStatus::Fail);
-        assert!(result.hint.is_some());
-    }
-
-    // ── check_schema_version ─────────────────────────────────────────────────
-
-    #[test]
-    fn test_schema_version_missing() {
-        let f = temp_file_with(r#"{"types":[]}"#);
-        let result = check_schema_version(f.path());
-        assert_eq!(result.status, CheckStatus::Warn);
-    }
-
-    #[test]
-    fn test_schema_version_current() {
-        let f = temp_file_with(r#"{"version":1,"types":[]}"#);
-        let result = check_schema_version(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-        assert!(result.detail.contains("version=1"));
-    }
-
-    #[test]
-    fn test_schema_version_mismatch() {
-        let f = temp_file_with(r#"{"version":99,"types":[]}"#);
-        let result = check_schema_version(f.path());
-        assert_eq!(result.status, CheckStatus::Warn);
-    }
-
-    // ── check_toml_exists ─────────────────────────────────────────────────────
-
-    #[test]
-    fn test_toml_exists_pass() {
-        let f = temp_file_with(
-            "[schema]\nname = \"test\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n",
-        );
-        let result = check_toml_exists(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    #[test]
-    fn test_toml_exists_warn() {
-        let result = check_toml_exists(Path::new("/nonexistent/fraiseql.toml"));
-        assert_eq!(result.status, CheckStatus::Warn);
-    }
-
-    // ── check_toml_parses ─────────────────────────────────────────────────────
-
-    #[test]
-    fn test_toml_parses_valid() {
-        let toml =
-            "[schema]\nname = \"myapp\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n";
-        let f = temp_file_with(toml);
-        let result = check_toml_parses(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    #[test]
-    fn test_toml_parses_invalid_syntax() {
-        let f = temp_file_with("this is not [[[ valid toml");
-        let result = check_toml_parses(f.path());
-        assert_eq!(result.status, CheckStatus::Fail);
-        assert!(result.hint.is_some());
-    }
-
-    // ── check_database_url_set ────────────────────────────────────────────────
-
-    #[test]
-    fn test_db_url_set_via_override() {
-        let result = check_database_url_set(Some("postgres://localhost/test"));
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    #[test]
-    fn test_db_url_not_set() {
-        temp_env::with_var_unset("DATABASE_URL", || {
-            let result = check_database_url_set(None);
-            assert_eq!(result.status, CheckStatus::Fail);
-        });
-    }
-
-    #[test]
-    fn test_db_url_from_env() {
-        temp_env::with_var("DATABASE_URL", Some("postgres://localhost/test"), || {
-            let result = check_database_url_set(None);
-            assert_eq!(result.status, CheckStatus::Pass);
-        });
-    }
-
-    // ── check_db_reachable ────────────────────────────────────────────────────
-
-    #[test]
-    fn test_db_reachable_unreachable_port() {
-        // Port 1 is almost always closed / refused.
-        temp_env::with_var_unset("DATABASE_URL", || {
-            let result = check_db_reachable(Some("postgres://localhost:1/db"));
-            assert_eq!(result.status, CheckStatus::Fail);
-            let hint = result.hint.unwrap();
-            assert!(hint.contains("pg_isready"), "hint should mention pg_isready: {hint}");
-        });
-    }
-
-    #[test]
-    fn test_db_reachable_no_url() {
-        temp_env::with_var_unset("DATABASE_URL", || {
-            let result = check_db_reachable(None);
-            assert_eq!(result.status, CheckStatus::Fail);
-        });
-    }
-
-    // ── check_jwt_secret ──────────────────────────────────────────────────────
-
-    #[test]
-    fn test_jwt_secret_set() {
-        temp_env::with_var("FRAISEQL_JWT_SECRET", Some("supersecret"), || {
-            let result = check_jwt_secret();
-            assert_eq!(result.status, CheckStatus::Pass);
-        });
-    }
-
-    #[test]
-    fn test_jwt_secret_missing() {
-        temp_env::with_var_unset("FRAISEQL_JWT_SECRET", || {
-            let result = check_jwt_secret();
-            assert_eq!(result.status, CheckStatus::Warn);
-            assert!(result.hint.is_some());
-        });
-    }
-
-    // ── check_redis_reachable ─────────────────────────────────────────────────
-
-    #[test]
-    fn test_redis_not_set_is_pass() {
-        temp_env::with_var_unset("REDIS_URL", || {
-            let result = check_redis_reachable();
-            assert_eq!(result.status, CheckStatus::Pass);
-        });
-    }
-
-    #[test]
-    fn test_redis_set_but_unreachable() {
-        temp_env::with_var("REDIS_URL", Some("redis://localhost:1"), || {
-            let result = check_redis_reachable();
-            assert_eq!(result.status, CheckStatus::Fail);
-        });
-    }
-
-    // ── check_tls ─────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_tls_no_config_is_pass() {
-        let result = check_tls(Path::new("/nonexistent/fraiseql.toml"));
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    #[test]
-    fn test_tls_disabled_in_config_is_pass() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n";
-        let f = temp_file_with(toml);
-        let result = check_tls(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    // ── check_rls_cache_coherence ─────────────────────────────────────────────
-
-    #[test]
-    fn test_cache_auth_coherence_cache_disabled_is_pass() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n";
-        let f = temp_file_with(toml);
-        let result = check_rls_cache_coherence(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    #[test]
-    fn test_cache_auth_coherence_cache_enabled_no_policy_is_warn() {
-        // Override default_policy to None by clearing security section.
-        // The default TomlSchema has default_policy = Some("authenticated"), so we need
-        // to explicitly clear it and enable caching.
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security]\ndefault_policy = \"\"\n";
-        let f = temp_file_with(toml);
-        // default_policy is Some("") which is truthy — so we test via no policies + empty default
-        let result = check_rls_cache_coherence(f.path());
-        // With default_policy = "" and empty policies list, this could be either warn or pass
-        // depending on the Some("") interpretation. Just verify it runs without panic.
-        assert!(matches!(result.status, CheckStatus::Pass | CheckStatus::Warn));
-    }
-
-    #[test]
-    fn test_cache_auth_coherence_cache_enabled_with_policy_is_pass() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security]\ndefault_policy = \"authenticated\"\n";
-        let f = temp_file_with(toml);
-        let result = check_rls_cache_coherence(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-    }
-
-    // ── parse_host_port ───────────────────────────────────────────────────────
-
-    #[test]
-    fn test_parse_host_port_postgres() {
-        let (host, port) =
-            parse_host_port("postgres://user:pass@db.example.com:5432/mydb").unwrap();
-        assert_eq!(host, "db.example.com");
-        assert_eq!(port, 5432);
-    }
-
-    #[test]
-    fn test_parse_host_port_localhost() {
-        let (host, port) = parse_host_port("postgres://localhost:5432/db").unwrap();
-        assert_eq!(host, "localhost");
-        assert_eq!(port, 5432);
-    }
-
-    #[test]
-    fn test_parse_host_port_ipv6() {
-        let result = parse_host_port("postgres://[::1]:5432/db");
-        assert!(result.is_some());
-        let (host, port) = result.unwrap();
-        assert_eq!(host, "::1");
-        assert_eq!(port, 5432);
-    }
-
-    #[test]
-    fn test_parse_host_port_invalid() {
-        assert!(parse_host_port("not-a-url").is_none());
-    }
-
-    // ── JSON output ───────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_json_serialization() {
-        let checks = vec![
-            DoctorCheck::pass("Test pass", "detail"),
-            DoctorCheck::warn("Test warn", "detail", "hint text"),
-            DoctorCheck::fail("Test fail", "detail", "hint text"),
-        ];
-        let json = serde_json::to_string(&checks).unwrap();
-        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed[0]["status"], "pass");
-        assert_eq!(parsed[1]["status"], "warn");
-        assert_eq!(parsed[2]["status"], "fail");
-    }
 }

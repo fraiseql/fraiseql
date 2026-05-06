@@ -645,3 +645,262 @@ fn test_query_schema_qualified_sql_source_passes() {
     // Should only have the usual "no sql_source" warnings for other queries, not errors
     assert!(report.is_valid(), "Schema-qualified sql_source should be valid");
 }
+
+// ── schema_validator internal tests ────────────────────────────────────────
+
+mod schema_validator_tests {
+    use crate::schema::{
+        intermediate::{
+            IntermediateSchema,
+            operations::{IntermediateArgument, IntermediateMutation, IntermediateQuery},
+            types::{IntermediateField, IntermediateType},
+        },
+        validator::{ErrorSeverity, schema_validator::{extract_base_type, SchemaValidator}},
+    };
+
+    fn field(name: &str, ty: &str) -> IntermediateField {
+        IntermediateField {
+            name:           name.to_string(),
+            field_type:     ty.to_string(),
+            nullable:       false,
+            description:    None,
+            directives:     None,
+            requires_scope: None,
+            on_deny:        None,
+        }
+    }
+
+    fn arg(name: &str, ty: &str) -> IntermediateArgument {
+        IntermediateArgument {
+            name:       name.to_string(),
+            arg_type:   ty.to_string(),
+            nullable:   false,
+            default:    None,
+            deprecated: None,
+        }
+    }
+
+    fn minimal_schema() -> IntermediateSchema {
+        let mut schema = IntermediateSchema::default();
+        schema.types.push(IntermediateType {
+            name: "Item".to_string(),
+            fields: vec![field("id", "UUID")],
+            ..Default::default()
+        });
+        schema
+    }
+
+    // ── extract_base_type unit tests ────────────────────────────────
+
+    #[test]
+    fn extract_base_type_strips_non_null_suffix() {
+        assert_eq!(extract_base_type("Item!"), "Item");
+        assert_eq!(extract_base_type("String!"), "String");
+        assert_eq!(extract_base_type("Json!"), "Json");
+    }
+
+    #[test]
+    fn extract_base_type_strips_list_brackets() {
+        assert_eq!(extract_base_type("[User]"), "User");
+        assert_eq!(extract_base_type("[User!]!"), "User");
+        assert_eq!(extract_base_type("[String!]"), "String");
+    }
+
+    #[test]
+    fn extract_base_type_passthrough() {
+        assert_eq!(extract_base_type("String"), "String");
+        assert_eq!(extract_base_type("Item"), "Item");
+    }
+
+    // ── Issue #151: ! suffix accepted in queries ────────────────────
+
+    #[test]
+    fn query_with_bang_suffixed_return_type_is_valid() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "item".to_string(),
+            return_type: "Item!".to_string(),
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "Item! should resolve to Item: {errors:?}");
+    }
+
+    #[test]
+    fn query_arg_with_bang_suffix_is_valid() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "item".to_string(),
+            return_type: "Item".to_string(),
+            arguments: vec![arg("id", "String!")],
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "String! should resolve to String: {errors:?}");
+    }
+
+    #[test]
+    fn mutation_with_bang_suffixed_types_is_valid() {
+        let mut schema = minimal_schema();
+        schema.mutations.push(IntermediateMutation {
+            name: "createItem".to_string(),
+            return_type: "Item!".to_string(),
+            arguments: vec![arg("name", "String!")],
+            sql_source: Some("fn_create_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "Item! and String! should be valid: {errors:?}");
+    }
+
+    #[test]
+    fn list_type_with_bang_is_valid() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "items".to_string(),
+            return_type: "[Item!]!".to_string(),
+            returns_list: true,
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(errors.is_empty(), "[Item!]! should resolve to Item: {errors:?}");
+    }
+
+    // ── Truly unknown types are still rejected ──────────────────────
+
+    #[test]
+    fn truly_unknown_type_still_rejected() {
+        let mut schema = minimal_schema();
+        schema.queries.push(IntermediateQuery {
+            name: "item".to_string(),
+            return_type: "NonExistent!".to_string(),
+            sql_source: Some("v_item".to_string()),
+            ..Default::default()
+        });
+
+        let report = SchemaValidator::validate(&schema).unwrap();
+        let errors: Vec<_> =
+            report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
+        assert!(!errors.is_empty(), "NonExistent should still be rejected");
+        assert!(
+            errors[0].message.contains("NonExistent"),
+            "error should name the base type, not 'NonExistent!': {}",
+            errors[0].message
+        );
+        // Error message should show the base type, not the raw "NonExistent!"
+        assert!(
+            !errors[0].message.contains("NonExistent!"),
+            "error should strip ! from type name: {}",
+            errors[0].message
+        );
+    }
+}
+
+// ── sql_identifier tests ────────────────────────────────────────────────────
+
+mod sql_identifier_tests {
+    use crate::schema::validator::sql_identifier::validate_sql_identifier;
+
+    #[test]
+    fn test_valid_simple_identifier() {
+        validate_sql_identifier("v_user", "sql_source", "Query.users")
+            .unwrap_or_else(|e| panic!("expected Ok: {e:?}"));
+    }
+
+    #[test]
+    fn test_valid_schema_qualified_identifier() {
+        validate_sql_identifier("public.v_user", "sql_source", "Query.users")
+            .unwrap_or_else(|e| panic!("expected Ok: {e:?}"));
+    }
+
+    #[test]
+    fn test_empty_identifier_rejected() {
+        let err = validate_sql_identifier("", "sql_source", "Query.users").unwrap_err();
+        assert!(err.message.contains("must not be empty"));
+    }
+
+    #[test]
+    fn test_identifier_exactly_63_bytes_accepted() {
+        let ident = "a".repeat(63);
+        validate_sql_identifier(&ident, "sql_source", "Query.x")
+            .unwrap_or_else(|e| panic!("expected Ok: {e:?}"));
+    }
+
+    #[test]
+    fn test_identifier_64_bytes_rejected() {
+        let ident = "a".repeat(64);
+        let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+        assert!(err.message.contains("63 bytes"));
+    }
+
+    #[test]
+    fn test_schema_segment_64_bytes_rejected() {
+        let schema_part = "a".repeat(64);
+        let ident = format!("{schema_part}.v_user");
+        let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+    }
+
+    #[test]
+    fn test_name_segment_64_bytes_rejected() {
+        let name_part = "a".repeat(64);
+        let ident = format!("public.{name_part}");
+        let err = validate_sql_identifier(&ident, "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("exceeds the PostgreSQL maximum"));
+    }
+
+    #[test]
+    fn test_valid_three_part_identifier() {
+        assert!(
+            validate_sql_identifier("catalog.schema.table", "sql_source", "Query.x").is_ok()
+        );
+    }
+
+    #[test]
+    fn test_four_part_identifier_rejected() {
+        let err = validate_sql_identifier("a.b.c.d", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+
+    #[test]
+    fn test_leading_dot_rejected() {
+        let err = validate_sql_identifier(".foo", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+
+    #[test]
+    fn test_trailing_dot_rejected() {
+        let err = validate_sql_identifier("foo.", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+
+    #[test]
+    fn test_double_dot_rejected() {
+        let err = validate_sql_identifier("foo..bar", "sql_source", "Query.x").unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+
+    #[test]
+    fn test_injection_attempt_rejected() {
+        let err =
+            validate_sql_identifier("v_user; DROP TABLE users", "sql_source", "Query.users")
+                .unwrap_err();
+        assert!(err.message.contains("is not a valid SQL identifier"));
+    }
+}

@@ -26,7 +26,7 @@ const SUPPORTED_MANIFEST_VERSION: u32 = 1;
 ///
 /// Manifests larger than this limit are rejected before reading into memory to
 /// prevent trivial OOM attacks via a crafted large file.
-const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024;
+pub(crate) const MAX_MANIFEST_BYTES: u64 = 10 * 1024 * 1024;
 
 #[derive(Deserialize)]
 struct Manifest {
@@ -128,101 +128,3 @@ pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
-
-    use super::*;
-    use crate::output::OutputFormatter;
-
-    #[test]
-    fn test_rejects_manifest_exceeding_size_limit() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("big.json");
-
-        // Write a file of MAX_MANIFEST_BYTES + 1 bytes (just over the limit).
-        let size = usize::try_from(MAX_MANIFEST_BYTES).unwrap() + 1;
-        std::fs::write(&path, vec![b'x'; size]).unwrap();
-
-        let formatter = OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter);
-        let msg = result.expect_err("expected Err for oversized manifest").to_string();
-        assert!(msg.contains("too large"), "expected size error, got: {msg}");
-    }
-
-    #[test]
-    fn test_rejects_unknown_version() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("manifest.json");
-
-        let manifest = serde_json::json!({
-            "version": 99,
-            "documents": {}
-        });
-        std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
-
-        let formatter = OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter);
-        let msg = result.expect_err("expected Err for unknown manifest version").to_string();
-        assert!(
-            msg.contains("Unsupported manifest version"),
-            "expected version error, got: {msg}"
-        );
-    }
-
-    #[test]
-    fn valid_manifest_passes() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("manifest.json");
-
-        let query = "{ users { id } }";
-        let hash = format!("{:x}", Sha256::digest(query.as_bytes()));
-        let manifest = serde_json::json!({
-            "version": 1,
-            "documents": {
-                format!("sha256:{hash}"): query
-            }
-        });
-        std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
-
-        let formatter = OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter).unwrap();
-        assert!(result);
-    }
-
-    #[test]
-    fn mismatched_hash_fails() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("manifest.json");
-
-        let manifest = serde_json::json!({
-            "version": 1,
-            "documents": {
-                "sha256:0000000000000000000000000000000000000000000000000000000000000000": "{ users { id } }"
-            }
-        });
-        std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
-
-        let formatter = OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter).unwrap();
-        assert!(!result);
-    }
-
-    #[test]
-    fn invalid_hash_length_fails() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("manifest.json");
-
-        let manifest = serde_json::json!({
-            "version": 1,
-            "documents": {
-                "sha256:tooshort": "{ users { id } }"
-            }
-        });
-        std::fs::write(&path, serde_json::to_string(&manifest).unwrap()).unwrap();
-
-        let formatter = OutputFormatter::new(false, false);
-        let result = run(path.to_str().unwrap(), &formatter).unwrap();
-        assert!(!result);
-    }
-}
