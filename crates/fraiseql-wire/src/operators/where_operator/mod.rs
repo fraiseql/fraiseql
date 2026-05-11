@@ -1,0 +1,606 @@
+//! WHERE clause operators
+//!
+//! Type-safe operator definitions for WHERE clause generation.
+//! Supports 25+ operators across 5 categories with both JSONB and direct column sources.
+
+use super::field::{Field, Value};
+
+/// WHERE clause operators
+///
+/// Supports type-safe, audit-friendly WHERE clause construction
+/// without raw SQL strings.
+///
+/// # Categories
+///
+/// - **Comparison**: Eq, Neq, Gt, Gte, Lt, Lte
+/// - **Array**: In, Nin, Contains, `ArrayContains`, `ArrayContainedBy`, `ArrayOverlaps`
+/// - **Array Length**: `LenEq`, `LenGt`, `LenGte`, `LenLt`, `LenLte`
+/// - **String**: Icontains, Startswith, Istartswith, Endswith, Iendswith, Like, Ilike
+/// - **Null**: `IsNull`
+/// - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `L1Distance`, `HammingDistance`, `JaccardDistance`
+/// - **Full-Text Search**: Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`
+/// - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsPublic`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
+/// - **JSONB**: `StrictlyContains`
+/// - **`LTree`**: `AncestorOf`, `DescendantOf`, `MatchesLquery`, `MatchesLtxtquery`, `MatchesAnyLquery`,
+///   `DepthEq`, `DepthNeq`, `DepthGt`, `DepthGte`, `DepthLt`, `DepthLte`, Lca
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum WhereOperator {
+    // ============ Comparison Operators ============
+    /// Equal: `field = value`
+    Eq(Field, Value),
+
+    /// Not equal: `field != value` or `field <> value`
+    Neq(Field, Value),
+
+    /// Greater than: `field > value`
+    Gt(Field, Value),
+
+    /// Greater than or equal: `field >= value`
+    Gte(Field, Value),
+
+    /// Less than: `field < value`
+    Lt(Field, Value),
+
+    /// Less than or equal: `field <= value`
+    Lte(Field, Value),
+
+    // ============ Array Operators ============
+    /// Array contains value: `field IN (...)`
+    In(Field, Vec<Value>),
+
+    /// Array does not contain value: `field NOT IN (...)`
+    Nin(Field, Vec<Value>),
+
+    /// String contains substring: `field LIKE '%substring%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The substring is embedded between `%` anchors. Characters `%` (any sequence) and
+    /// `_` (any single character) in the substring itself are **also** treated as LIKE
+    /// wildcards, causing broader matches than intended. Escape user-supplied values
+    /// (replace `%` → `\%` and `_` → `\_`) before constructing this variant.
+    Contains(Field, String),
+
+    /// Array contains element: PostgreSQL array operator `@>`
+    /// Generated SQL: `field @> array[value]`
+    ArrayContains(Field, Value),
+
+    /// Array is contained by: PostgreSQL array operator `<@`
+    /// Generated SQL: `field <@ array[value]`
+    ArrayContainedBy(Field, Value),
+
+    /// Arrays overlap: PostgreSQL array operator `&&`
+    /// Generated SQL: `field && array[value]`
+    ArrayOverlaps(Field, Vec<Value>),
+
+    // ============ Array Length Operators ============
+    /// Array length equals: `array_length(field, 1) = value`
+    LenEq(Field, usize),
+
+    /// Array length greater than: `array_length(field, 1) > value`
+    LenGt(Field, usize),
+
+    /// Array length greater than or equal: `array_length(field, 1) >= value`
+    LenGte(Field, usize),
+
+    /// Array length less than: `array_length(field, 1) < value`
+    LenLt(Field, usize),
+
+    /// Array length less than or equal: `array_length(field, 1) <= value`
+    LenLte(Field, usize),
+
+    // ============ String Operators ============
+    /// Case-insensitive contains: `field ILIKE '%substring%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Contains`]. ILIKE applies the same
+    /// wildcard semantics, so `%` and `_` in the substring expand unexpectedly.
+    Icontains(Field, String),
+
+    /// Starts with: `field LIKE 'prefix%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The prefix string is passed verbatim before the trailing `%`. Characters `%` and `_`
+    /// in the prefix are treated as wildcards; escape user-supplied values before use.
+    Startswith(Field, String),
+
+    /// Starts with (case-insensitive): `field ILIKE 'prefix%'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Startswith`].
+    Istartswith(Field, String),
+
+    /// Ends with: `field LIKE '%suffix'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The suffix string is passed verbatim after the leading `%`. Characters `%` and `_`
+    /// in the suffix are treated as wildcards; escape user-supplied values before use.
+    Endswith(Field, String),
+
+    /// Ends with (case-insensitive): `field ILIKE '%suffix'`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Endswith`].
+    Iendswith(Field, String),
+
+    /// LIKE pattern matching: `field LIKE pattern`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// The pattern string is passed to the database as-is. Characters `%` (any
+    /// sequence) and `_` (any single character) are SQL LIKE wildcards. If the
+    /// pattern originates from user input, callers **must** escape these
+    /// characters (e.g. replace `%` → `\%` and `_` → `\_`) before constructing
+    /// this variant, and append the appropriate `ESCAPE '\'` clause.
+    Like(Field, String),
+
+    /// Case-insensitive LIKE: `field ILIKE pattern`
+    ///
+    /// # Warning — LIKE wildcard injection
+    ///
+    /// Same escaping requirements as [`WhereOperator::Like`]. The `%` and `_`
+    /// wildcards apply to ILIKE patterns as well.
+    Ilike(Field, String),
+
+    // ============ Null Operator ============
+    /// IS NULL: `field IS NULL` or `field IS NOT NULL`
+    ///
+    /// When the boolean is true, generates `IS NULL`
+    /// When false, generates `IS NOT NULL`
+    IsNull(Field, bool),
+
+    // ============ Vector Distance Operators (pgvector) ============
+    /// L2 (Euclidean) distance: `l2_distance(field, vector) < threshold`
+    ///
+    /// Requires pgvector extension.
+    L2Distance {
+        /// The vector field to compare against
+        field: Field,
+        /// The embedding vector for distance calculation
+        vector: Vec<f32>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    /// Cosine distance: `cosine_distance(field, vector) < threshold`
+    ///
+    /// Requires pgvector extension.
+    CosineDistance {
+        /// The vector field to compare against
+        field: Field,
+        /// The embedding vector for distance calculation
+        vector: Vec<f32>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    /// Inner product: `inner_product(field, vector) > threshold`
+    ///
+    /// Requires pgvector extension.
+    InnerProduct {
+        /// The vector field to compare against
+        field: Field,
+        /// The embedding vector for distance calculation
+        vector: Vec<f32>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    /// L1 (Manhattan) distance: `l1_distance(field, vector) < threshold`
+    ///
+    /// Requires pgvector extension.
+    L1Distance {
+        /// The vector field to compare against
+        field: Field,
+        /// The embedding vector for distance calculation
+        vector: Vec<f32>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    /// Hamming distance: `hamming_distance(field, vector) < threshold`
+    ///
+    /// Requires pgvector extension. Works with bit vectors.
+    HammingDistance {
+        /// The vector field to compare against
+        field: Field,
+        /// The embedding vector for distance calculation
+        vector: Vec<f32>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    /// Jaccard distance: `jaccard_distance(field, set) < threshold`
+    ///
+    /// Works with text arrays, measures set overlap.
+    JaccardDistance {
+        /// The field to compare against
+        field: Field,
+        /// The set of values for comparison
+        set: Vec<String>,
+        /// Distance threshold for comparison
+        threshold: f32,
+    },
+
+    // ============ Full-Text Search Operators ============
+    /// Full-text search with language: `field @@ plainto_tsquery(language, query)`
+    ///
+    /// If language is None, defaults to 'english'
+    Matches {
+        /// The text field to search
+        field: Field,
+        /// The search query
+        query: String,
+        /// Optional language for text search (default: english)
+        language: Option<String>,
+    },
+
+    /// Plain text query: `field @@ plainto_tsquery(query)`
+    ///
+    /// Uses no language specification
+    PlainQuery {
+        /// The text field to search
+        field: Field,
+        /// The search query
+        query: String,
+    },
+
+    /// Phrase query with language: `field @@ phraseto_tsquery(language, query)`
+    ///
+    /// If language is None, defaults to 'english'
+    PhraseQuery {
+        /// The text field to search
+        field: Field,
+        /// The search query
+        query: String,
+        /// Optional language for text search (default: english)
+        language: Option<String>,
+    },
+
+    /// Web search query with language: `field @@ websearch_to_tsquery(language, query)`
+    ///
+    /// If language is None, defaults to 'english'
+    WebsearchQuery {
+        /// The text field to search
+        field: Field,
+        /// The search query
+        query: String,
+        /// Optional language for text search (default: english)
+        language: Option<String>,
+    },
+
+    // ============ Network/INET Operators ============
+    /// Check if IP is `IPv4`: `family(field) = 4`
+    IsIPv4(Field),
+
+    /// Check if IP is `IPv6`: `family(field) = 6`
+    IsIPv6(Field),
+
+    /// Check if IP is private (RFC1918): matches private ranges
+    IsPrivate(Field),
+
+    /// Check if IP is public (not private): opposite of `IsPrivate`
+    IsPublic(Field),
+
+    /// Check if IP is loopback: `IPv4` 127.0.0.0/8 or `IPv6` `::1/128`
+    IsLoopback(Field),
+
+    /// IP is in subnet: `field << subnet`
+    ///
+    /// The subnet should be in CIDR notation (e.g., "192.168.0.0/24")
+    InSubnet {
+        /// The IP field to check
+        field: Field,
+        /// The CIDR subnet (e.g., "192.168.0.0/24")
+        subnet: String,
+    },
+
+    /// Network contains subnet: `field >> subnet`
+    ///
+    /// The subnet should be in CIDR notation
+    ContainsSubnet {
+        /// The network field to check
+        field: Field,
+        /// The CIDR subnet to check for containment
+        subnet: String,
+    },
+
+    /// Network/range contains IP: `field >> ip`
+    ///
+    /// The IP should be a single address (e.g., "192.168.1.1")
+    ContainsIP {
+        /// The network field to check
+        field: Field,
+        /// The IP address to check for containment
+        ip: String,
+    },
+
+    /// IP ranges overlap: `field && range`
+    ///
+    /// The range should be in CIDR notation
+    IPRangeOverlap {
+        /// The IP range field to check
+        field: Field,
+        /// The IP range to check for overlap
+        range: String,
+    },
+
+    // ============ JSONB Operators ============
+    /// JSONB strictly contains: `field @> value`
+    ///
+    /// Checks if the JSONB field strictly contains the given value
+    StrictlyContains(Field, Value),
+
+    // ============ LTree Operators (Hierarchical) ============
+    /// Ancestor of: `field @> path`
+    ///
+    /// Checks if the ltree field is an ancestor of the given path
+    AncestorOf {
+        /// The ltree field to check
+        field: Field,
+        /// The path to check ancestry against
+        path: String,
+    },
+
+    /// Descendant of: `field <@ path`
+    ///
+    /// Checks if the ltree field is a descendant of the given path
+    DescendantOf {
+        /// The ltree field to check
+        field: Field,
+        /// The path to check descendancy against
+        path: String,
+    },
+
+    /// Matches lquery: `field ~ lquery`
+    ///
+    /// Checks if the ltree field matches the given lquery pattern
+    MatchesLquery {
+        /// The ltree field to check
+        field: Field,
+        /// The lquery pattern to match against
+        pattern: String,
+    },
+
+    /// Matches ltxtquery: `field @ ltxtquery`
+    ///
+    /// Checks if the ltree field matches the given ltxtquery pattern (Boolean query syntax)
+    MatchesLtxtquery {
+        /// The ltree field to check
+        field: Field,
+        /// The ltxtquery pattern to match against (e.g., "Science & !Deprecated")
+        query: String,
+    },
+
+    /// Matches any lquery: `field ? array[lqueries]`
+    ///
+    /// Checks if the ltree field matches any of the given lquery patterns
+    MatchesAnyLquery {
+        /// The ltree field to check
+        field: Field,
+        /// Array of lquery patterns to match against
+        patterns: Vec<String>,
+    },
+
+    /// `LTree` depth equals: `nlevel(field) = depth`
+    DepthEq {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// `LTree` depth not equals: `nlevel(field) != depth`
+    DepthNeq {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// `LTree` depth greater than: `nlevel(field) > depth`
+    DepthGt {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// `LTree` depth greater than or equal: `nlevel(field) >= depth`
+    DepthGte {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// `LTree` depth less than: `nlevel(field) < depth`
+    DepthLt {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// `LTree` depth less than or equal: `nlevel(field) <= depth`
+    DepthLte {
+        /// The ltree field to check
+        field: Field,
+        /// The depth value to compare
+        depth: usize,
+    },
+
+    /// Lowest common ancestor: `lca(field, paths)`
+    ///
+    /// Checks if the ltree field equals the lowest common ancestor of the given paths
+    Lca {
+        /// The ltree field to check
+        field: Field,
+        /// The paths to find LCA of
+        paths: Vec<String>,
+    },
+}
+
+impl WhereOperator {
+    /// Get a human-readable name for this operator
+    pub const fn name(&self) -> &'static str {
+        match self {
+            WhereOperator::Eq(_, _) => "Eq",
+            WhereOperator::Neq(_, _) => "Neq",
+            WhereOperator::Gt(_, _) => "Gt",
+            WhereOperator::Gte(_, _) => "Gte",
+            WhereOperator::Lt(_, _) => "Lt",
+            WhereOperator::Lte(_, _) => "Lte",
+            WhereOperator::In(_, _) => "In",
+            WhereOperator::Nin(_, _) => "Nin",
+            WhereOperator::Contains(_, _) => "Contains",
+            WhereOperator::ArrayContains(_, _) => "ArrayContains",
+            WhereOperator::ArrayContainedBy(_, _) => "ArrayContainedBy",
+            WhereOperator::ArrayOverlaps(_, _) => "ArrayOverlaps",
+            WhereOperator::LenEq(_, _) => "LenEq",
+            WhereOperator::LenGt(_, _) => "LenGt",
+            WhereOperator::LenGte(_, _) => "LenGte",
+            WhereOperator::LenLt(_, _) => "LenLt",
+            WhereOperator::LenLte(_, _) => "LenLte",
+            WhereOperator::Icontains(_, _) => "Icontains",
+            WhereOperator::Startswith(_, _) => "Startswith",
+            WhereOperator::Istartswith(_, _) => "Istartswith",
+            WhereOperator::Endswith(_, _) => "Endswith",
+            WhereOperator::Iendswith(_, _) => "Iendswith",
+            WhereOperator::Like(_, _) => "Like",
+            WhereOperator::Ilike(_, _) => "Ilike",
+            WhereOperator::IsNull(_, _) => "IsNull",
+            WhereOperator::L2Distance { .. } => "L2Distance",
+            WhereOperator::CosineDistance { .. } => "CosineDistance",
+            WhereOperator::InnerProduct { .. } => "InnerProduct",
+            WhereOperator::L1Distance { .. } => "L1Distance",
+            WhereOperator::HammingDistance { .. } => "HammingDistance",
+            WhereOperator::JaccardDistance { .. } => "JaccardDistance",
+            WhereOperator::Matches { .. } => "Matches",
+            WhereOperator::PlainQuery { .. } => "PlainQuery",
+            WhereOperator::PhraseQuery { .. } => "PhraseQuery",
+            WhereOperator::WebsearchQuery { .. } => "WebsearchQuery",
+            WhereOperator::IsIPv4(_) => "IsIPv4",
+            WhereOperator::IsIPv6(_) => "IsIPv6",
+            WhereOperator::IsPrivate(_) => "IsPrivate",
+            WhereOperator::IsPublic(_) => "IsPublic",
+            WhereOperator::IsLoopback(_) => "IsLoopback",
+            WhereOperator::InSubnet { .. } => "InSubnet",
+            WhereOperator::ContainsSubnet { .. } => "ContainsSubnet",
+            WhereOperator::ContainsIP { .. } => "ContainsIP",
+            WhereOperator::IPRangeOverlap { .. } => "IPRangeOverlap",
+            WhereOperator::StrictlyContains(_, _) => "StrictlyContains",
+            WhereOperator::AncestorOf { .. } => "AncestorOf",
+            WhereOperator::DescendantOf { .. } => "DescendantOf",
+            WhereOperator::MatchesLquery { .. } => "MatchesLquery",
+            WhereOperator::MatchesLtxtquery { .. } => "MatchesLtxtquery",
+            WhereOperator::MatchesAnyLquery { .. } => "MatchesAnyLquery",
+            WhereOperator::DepthEq { .. } => "DepthEq",
+            WhereOperator::DepthNeq { .. } => "DepthNeq",
+            WhereOperator::DepthGt { .. } => "DepthGt",
+            WhereOperator::DepthGte { .. } => "DepthGte",
+            WhereOperator::DepthLt { .. } => "DepthLt",
+            WhereOperator::DepthLte { .. } => "DepthLte",
+            WhereOperator::Lca { .. } => "Lca",
+        }
+    }
+
+    /// Validate operator for basic correctness
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the field name is invalid or, for vector distance
+    /// operators, the threshold is not a finite number.
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            WhereOperator::Eq(f, _)
+            | WhereOperator::Neq(f, _)
+            | WhereOperator::Gt(f, _)
+            | WhereOperator::Gte(f, _)
+            | WhereOperator::Lt(f, _)
+            | WhereOperator::Lte(f, _)
+            | WhereOperator::In(f, _)
+            | WhereOperator::Nin(f, _)
+            | WhereOperator::Contains(f, _)
+            | WhereOperator::ArrayContains(f, _)
+            | WhereOperator::ArrayContainedBy(f, _)
+            | WhereOperator::ArrayOverlaps(f, _)
+            | WhereOperator::LenEq(f, _)
+            | WhereOperator::LenGt(f, _)
+            | WhereOperator::LenGte(f, _)
+            | WhereOperator::LenLt(f, _)
+            | WhereOperator::LenLte(f, _)
+            | WhereOperator::Icontains(f, _)
+            | WhereOperator::Startswith(f, _)
+            | WhereOperator::Istartswith(f, _)
+            | WhereOperator::Endswith(f, _)
+            | WhereOperator::Iendswith(f, _)
+            | WhereOperator::Like(f, _)
+            | WhereOperator::Ilike(f, _)
+            | WhereOperator::IsNull(f, _)
+            | WhereOperator::StrictlyContains(f, _) => f.validate(),
+
+            WhereOperator::L2Distance {
+                field, threshold, ..
+            }
+            | WhereOperator::CosineDistance {
+                field, threshold, ..
+            }
+            | WhereOperator::InnerProduct {
+                field, threshold, ..
+            }
+            | WhereOperator::L1Distance {
+                field, threshold, ..
+            }
+            | WhereOperator::HammingDistance {
+                field, threshold, ..
+            }
+            | WhereOperator::JaccardDistance {
+                field, threshold, ..
+            } => {
+                if !threshold.is_finite() {
+                    return Err(format!(
+                        "Vector distance threshold must be a finite number, got {}",
+                        threshold
+                    ));
+                }
+                field.validate()
+            }
+
+            WhereOperator::Matches { field, .. }
+            | WhereOperator::PlainQuery { field, .. }
+            | WhereOperator::PhraseQuery { field, .. }
+            | WhereOperator::WebsearchQuery { field, .. }
+            | WhereOperator::IsIPv4(field)
+            | WhereOperator::IsIPv6(field)
+            | WhereOperator::IsPrivate(field)
+            | WhereOperator::IsPublic(field)
+            | WhereOperator::IsLoopback(field)
+            | WhereOperator::InSubnet { field, .. }
+            | WhereOperator::ContainsSubnet { field, .. }
+            | WhereOperator::ContainsIP { field, .. }
+            | WhereOperator::IPRangeOverlap { field, .. }
+            | WhereOperator::AncestorOf { field, .. }
+            | WhereOperator::DescendantOf { field, .. }
+            | WhereOperator::MatchesLquery { field, .. }
+            | WhereOperator::MatchesLtxtquery { field, .. }
+            | WhereOperator::MatchesAnyLquery { field, .. }
+            | WhereOperator::DepthEq { field, .. }
+            | WhereOperator::DepthNeq { field, .. }
+            | WhereOperator::DepthGt { field, .. }
+            | WhereOperator::DepthGte { field, .. }
+            | WhereOperator::DepthLt { field, .. }
+            | WhereOperator::DepthLte { field, .. }
+            | WhereOperator::Lca { field, .. } => field.validate(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
