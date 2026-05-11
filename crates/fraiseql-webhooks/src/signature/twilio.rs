@@ -60,7 +60,7 @@ fn percent_decode(s: &str) -> String {
 /// body, sort parameters alphabetically by their **decoded** key (Twilio spec),
 /// and append each decoded `name + value` pair (no delimiter between pairs) to
 /// the URL. For other content types, sign the URL alone.
-fn build_signing_string(url: &str, payload: &[u8]) -> String {
+pub(crate) fn build_signing_string(url: &str, payload: &[u8]) -> String {
     // Attempt to parse body as form-urlencoded (key=value&...)
     let body_str = match std::str::from_utf8(payload) {
         Ok(s) if !s.is_empty() => s,
@@ -137,62 +137,5 @@ impl SignatureVerifier for TwilioVerifier {
     }
 }
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn make_signature(url: &str, payload: &[u8], secret: &str) -> String {
-        let signing = build_signing_string(url, payload);
-        let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes()).unwrap();
-        mac.update(signing.as_bytes());
-        general_purpose::STANDARD.encode(mac.finalize().into_bytes())
-    }
-
-    #[test]
-    fn test_valid_signature_json_payload() {
-        let verifier = TwilioVerifier;
-        let url = "https://example.com/webhook";
-        let payload = br#"{"event":"call"}"#;
-        let secret = "my_auth_token";
-        let sig = make_signature(url, payload, secret);
-
-        assert!(verifier.verify(payload, &sig, secret, None, Some(url)).unwrap());
-    }
-
-    #[test]
-    fn test_valid_signature_form_payload() {
-        let verifier = TwilioVerifier;
-        let url = "https://example.com/webhook";
-        // Form params: CallSid, From, To — should be sorted: CallSid, From, To
-        let payload = b"To=%2B15551234567&From=%2B15557654321&CallSid=CA123";
-        let secret = "my_auth_token";
-        let sig = make_signature(url, payload, secret);
-
-        assert!(verifier.verify(payload, &sig, secret, None, Some(url)).unwrap());
-    }
-
-    #[test]
-    fn test_invalid_signature() {
-        let verifier = TwilioVerifier;
-        let url = "https://example.com/webhook";
-        let payload = b"some body";
-        assert!(!verifier.verify(payload, "invalidsig==", "secret", None, Some(url)).unwrap());
-    }
-
-    #[test]
-    fn test_missing_url_returns_error() {
-        let verifier = TwilioVerifier;
-        let result = verifier.verify(b"payload", "sig", "secret", None, None);
-        assert!(matches!(result, Err(SignatureError::Crypto(_))));
-    }
-
-    #[test]
-    fn test_form_params_sorted_alphabetically() {
-        // "Zfirst=1&Asecond=2" → sorted: Asecond, Zfirst
-        let url = "https://example.com/w";
-        let payload = b"Zfirst=1&Asecond=2";
-        let signing = build_signing_string(url, payload);
-        assert_eq!(signing, "https://example.com/wAsecond2Zfirst1");
-    }
-}
+mod tests;
