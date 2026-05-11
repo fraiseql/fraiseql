@@ -276,31 +276,7 @@ fn timeout_job_execution(_executor: &Arc<ObserverExecutor>, _job: &Job) -> Resul
 }
 
 /// Determine if an error is transient (retryable)
-const fn is_transient_error(e: &crate::error::ObserverError) -> bool {
+pub(super) const fn is_transient_error(e: &crate::error::ObserverError) -> bool {
     e.is_transient()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_executor_creation() {
-        // Note: This test doesn't require actual queue/executor connections
-        // It just verifies the struct can be created with proper defaults
-        // Actual execution tests would require integration with real queue and executor
-    }
-
-    #[test]
-    fn test_is_transient_error() {
-        let transient = crate::error::ObserverError::ActionExecutionFailed {
-            reason: "timeout".to_string(),
-        };
-        assert!(is_transient_error(&transient));
-
-        let permanent = crate::error::ObserverError::ActionPermanentlyFailed {
-            reason: "invalid config".to_string(),
-        };
-        assert!(!is_transient_error(&permanent));
-    }
-}

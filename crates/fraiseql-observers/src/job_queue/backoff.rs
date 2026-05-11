@@ -50,7 +50,7 @@ pub fn calculate_backoff(
 /// - Attempt 4: 800ms
 /// - Attempt 5: 1600ms
 #[must_use]
-fn calculate_exponential(attempt: u32, initial_delay_ms: u64, max_delay_ms: u64) -> u64 {
+pub(super) fn calculate_exponential(attempt: u32, initial_delay_ms: u64, max_delay_ms: u64) -> u64 {
     let exponent = (attempt - 1).min(63); // Prevent overflow
     let delay_ms = initial_delay_ms.saturating_mul(2_u64.saturating_pow(exponent));
     delay_ms.min(max_delay_ms)
@@ -69,106 +69,8 @@ fn calculate_exponential(attempt: u32, initial_delay_ms: u64, max_delay_ms: u64)
 /// - Attempt 4: 400ms
 /// - Attempt 5: 500ms
 #[must_use]
-fn calculate_linear(attempt: u32, initial_delay_ms: u64, max_delay_ms: u64) -> u64 {
+pub(super) fn calculate_linear(attempt: u32, initial_delay_ms: u64, max_delay_ms: u64) -> u64 {
     let delay_ms = initial_delay_ms.saturating_mul(u64::from(attempt));
     delay_ms.min(max_delay_ms)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_exponential_backoff() {
-        let initial = 100;
-        let max = 30000;
-
-        assert_eq!(calculate_exponential(1, initial, max), 100);
-        assert_eq!(calculate_exponential(2, initial, max), 200);
-        assert_eq!(calculate_exponential(3, initial, max), 400);
-        assert_eq!(calculate_exponential(4, initial, max), 800);
-        assert_eq!(calculate_exponential(5, initial, max), 1600);
-    }
-
-    #[test]
-    fn test_exponential_backoff_caps_at_max() {
-        let initial = 100;
-        let max = 1000;
-
-        assert_eq!(calculate_exponential(1, initial, max), 100);
-        assert_eq!(calculate_exponential(2, initial, max), 200);
-        assert_eq!(calculate_exponential(3, initial, max), 400);
-        assert_eq!(calculate_exponential(4, initial, max), 800);
-        assert_eq!(calculate_exponential(5, initial, max), 1000); // Capped at max
-        assert_eq!(calculate_exponential(6, initial, max), 1000); // Still capped
-    }
-
-    #[test]
-    fn test_linear_backoff() {
-        let initial = 100;
-        let max = 30000;
-
-        assert_eq!(calculate_linear(1, initial, max), 100);
-        assert_eq!(calculate_linear(2, initial, max), 200);
-        assert_eq!(calculate_linear(3, initial, max), 300);
-        assert_eq!(calculate_linear(4, initial, max), 400);
-        assert_eq!(calculate_linear(5, initial, max), 500);
-    }
-
-    #[test]
-    fn test_linear_backoff_caps_at_max() {
-        let initial = 100;
-        let max = 350;
-
-        assert_eq!(calculate_linear(1, initial, max), 100);
-        assert_eq!(calculate_linear(2, initial, max), 200);
-        assert_eq!(calculate_linear(3, initial, max), 300);
-        assert_eq!(calculate_linear(4, initial, max), 350); // Capped at max
-        assert_eq!(calculate_linear(5, initial, max), 350); // Still capped
-    }
-
-    #[test]
-    fn test_calculate_backoff_exponential() {
-        let duration =
-            calculate_backoff(crate::config::BackoffStrategy::Exponential, 2, 100, 30000);
-        assert_eq!(duration.as_millis(), 200);
-    }
-
-    #[test]
-    fn test_calculate_backoff_linear() {
-        let duration = calculate_backoff(crate::config::BackoffStrategy::Linear, 3, 100, 30000);
-        assert_eq!(duration.as_millis(), 300);
-    }
-
-    #[test]
-    fn test_calculate_backoff_fixed() {
-        let duration = calculate_backoff(
-            crate::config::BackoffStrategy::Fixed,
-            5, // Attempt number is ignored for fixed
-            100,
-            30000,
-        );
-        assert_eq!(duration.as_millis(), 100);
-    }
-
-    #[test]
-    fn test_backoff_overflow_protection() {
-        // Test that exponential backoff doesn't overflow
-        let delay = calculate_exponential(100, 100, u64::MAX);
-        // Verify the function returns without panicking (overflow protection)
-        let _ = delay;
-    }
-
-    #[test]
-    fn test_zero_initial_delay() {
-        assert_eq!(calculate_exponential(1, 0, 1000), 0);
-        assert_eq!(calculate_linear(1, 0, 1000), 0);
-    }
-
-    #[test]
-    fn test_max_delay_equals_initial() {
-        let initial = 100;
-        assert_eq!(calculate_exponential(5, initial, initial), initial);
-        assert_eq!(calculate_linear(5, initial, initial), initial);
-    }
-}

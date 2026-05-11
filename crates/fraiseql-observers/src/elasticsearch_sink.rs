@@ -22,13 +22,13 @@ use std::{env, sync::Arc, time::Duration};
 use reqwest::Client;
 
 /// Timeout for all Elasticsearch HTTP requests.
-const ES_SINK_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const ES_SINK_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Maximum byte size for an Elasticsearch bulk API response.
 ///
 /// Bulk responses contain per-item status entries. 50 `MiB` is generous for
 /// large batches while blocking allocation bombs from a compromised node.
-const MAX_ES_BULK_RESPONSE_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
+pub(crate) const MAX_ES_BULK_RESPONSE_BYTES: usize = 50 * 1024 * 1024; // 50 MiB
 use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
@@ -302,7 +302,7 @@ impl ElasticsearchSink {
     }
 
     /// Attempt bulk indexing to Elasticsearch
-    async fn try_bulk_index(&self, events: &[EntityEvent]) -> Result<()> {
+    pub(crate) async fn try_bulk_index(&self, events: &[EntityEvent]) -> Result<()> {
         let mut body: Vec<Value> = Vec::new();
 
         for event in events {
@@ -392,7 +392,7 @@ impl ElasticsearchSink {
 
     /// Classify whether an error is transient (retriable) or permanent
     #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
-    fn is_transient_error(&self, error: &str) -> bool {
+    pub(crate) fn is_transient_error(&self, error: &str) -> bool {
         error.contains("Connection refused")
             || error.contains("connection reset")
             || error.contains("timeout")
@@ -400,232 +400,5 @@ impl ElasticsearchSink {
             || error.contains("502")
             || error.contains("Service Unavailable")
             || error.contains("Bad Gateway")
-    }
-}
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_config_default() {
-        let config = ElasticsearchSinkConfig::default();
-        assert_eq!(config.bulk_size, 1000);
-        assert_eq!(config.flush_interval_secs, 5);
-        assert_eq!(config.max_retries, 3);
-    }
-
-    #[test]
-    fn test_config_validate_empty_url() {
-        let config = ElasticsearchSinkConfig {
-            url: String::new(),
-            ..Default::default()
-        };
-        assert!(
-            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
-            "empty url must return InvalidConfig, got: {:?}",
-            config.validate()
-        );
-    }
-
-    #[test]
-    fn test_config_validate_empty_prefix() {
-        let config = ElasticsearchSinkConfig {
-            index_prefix: String::new(),
-            ..Default::default()
-        };
-        assert!(
-            config.validate().is_err(),
-            "empty index_prefix must return error, got: {:?}",
-            config.validate()
-        );
-    }
-
-    #[test]
-    fn test_config_validate_invalid_bulk_size() {
-        let config = ElasticsearchSinkConfig {
-            bulk_size: 0,
-            ..Default::default()
-        };
-        assert!(
-            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
-            "bulk_size=0 must return InvalidConfig, got: {:?}",
-            config.validate()
-        );
-
-        let config = ElasticsearchSinkConfig {
-            bulk_size: 200_000,
-            ..Default::default()
-        };
-        assert!(
-            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
-            "bulk_size=200_000 must return InvalidConfig, got: {:?}",
-            config.validate()
-        );
-    }
-
-    #[test]
-    fn test_config_validate_invalid_timeout() {
-        let config = ElasticsearchSinkConfig {
-            flush_interval_secs: 0,
-            ..Default::default()
-        };
-        assert!(
-            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
-            "flush_interval_secs=0 must return InvalidConfig, got: {:?}",
-            config.validate()
-        );
-    }
-
-    #[test]
-    fn test_config_validate_valid() {
-        let config = ElasticsearchSinkConfig {
-            url: "https://es.example.com:9200".to_string(),
-            ..ElasticsearchSinkConfig::default()
-        };
-        config
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok for valid config: {e}"));
-    }
-
-    #[test]
-    fn test_is_transient_error() {
-        let config = ElasticsearchSinkConfig {
-            url: "https://es.example.com:9200".to_string(),
-            ..ElasticsearchSinkConfig::default()
-        };
-        let sink = ElasticsearchSink::new(config).unwrap();
-
-        assert!(sink.is_transient_error("Connection refused"));
-        assert!(sink.is_transient_error("timeout"));
-        assert!(sink.is_transient_error("503 Service Unavailable"));
-        assert!(sink.is_transient_error("502 Bad Gateway"));
-        assert!(!sink.is_transient_error("Invalid index"));
-    }
-
-    #[test]
-    fn test_is_transient_error_connection_reset() {
-        let config = ElasticsearchSinkConfig {
-            url: "https://es.example.com:9200".to_string(),
-            ..ElasticsearchSinkConfig::default()
-        };
-        let sink = ElasticsearchSink::new(config).unwrap();
-        assert!(sink.is_transient_error("connection reset by peer"));
-        assert!(!sink.is_transient_error("404 Not Found"));
-        assert!(!sink.is_transient_error("400 Bad Request"));
-    }
-
-    #[test]
-    fn test_config_max_bulk_size_boundary() {
-        // 100_001 exceeds the upper bound
-        let config = ElasticsearchSinkConfig {
-            bulk_size: 100_001,
-            ..Default::default()
-        };
-        assert!(
-            matches!(config.validate(), Err(ObserverError::InvalidConfig { .. })),
-            "bulk_size=100_001 must return InvalidConfig, got: {:?}",
-            config.validate()
-        );
-
-        // 100_000 is the maximum valid value
-        let config = ElasticsearchSinkConfig {
-            url: "https://es.example.com:9200".to_string(),
-            bulk_size: 100_000,
-            ..Default::default()
-        };
-        config
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok for bulk_size=100_000: {e}"));
-    }
-
-    #[test]
-    fn test_with_env_overrides_returns_valid_config() {
-        // with_env_overrides() is callable and produces a consistent config.
-        // Full override behaviour is tested via env-var integration; here we
-        // verify the function compiles, returns Self, and produces a valid result.
-        let base = ElasticsearchSinkConfig {
-            url: "https://es.example.com:9200".to_string(),
-            ..ElasticsearchSinkConfig::default()
-        };
-        let after = base.with_env_overrides();
-        after
-            .validate()
-            .unwrap_or_else(|e| panic!("config after with_env_overrides must still be valid: {e}"));
-    }
-
-    #[test]
-    fn test_config_custom_values_validate() {
-        let config = ElasticsearchSinkConfig {
-            url:                 "https://es.example.com:9200".to_string(),
-            index_prefix:        "my-app-events".to_string(),
-            bulk_size:           500,
-            flush_interval_secs: 30,
-            max_retries:         5,
-        };
-        config
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok for custom valid config: {e}"));
-    }
-
-    // ── S23-H4: Elasticsearch sink timeout + bulk response cap ────────────────
-
-    #[test]
-    fn es_sink_timeout_is_set() {
-        let secs = ES_SINK_REQUEST_TIMEOUT.as_secs();
-        assert!(secs > 0 && secs <= 120, "ES sink timeout should be 1–120 s, got {secs}");
-    }
-
-    #[test]
-    fn es_sink_bulk_response_cap_is_reasonable() {
-        const { assert!(MAX_ES_BULK_RESPONSE_BYTES >= 1024 * 1024) }
-        const { assert!(MAX_ES_BULK_RESPONSE_BYTES <= 500 * 1024 * 1024) }
-    }
-
-    #[tokio::test]
-    async fn es_sink_oversized_bulk_response_is_rejected() {
-        use wiremock::{
-            Mock, MockServer, ResponseTemplate,
-            matchers::{method, path},
-        };
-
-        let mock = MockServer::start().await;
-        let oversized = vec![b'x'; MAX_ES_BULK_RESPONSE_BYTES + 1];
-        Mock::given(method("POST"))
-            .and(path("/_bulk"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
-            .mount(&mock)
-            .await;
-
-        let config = ElasticsearchSinkConfig {
-            url:                 mock.uri(),
-            index_prefix:        "test".to_string(),
-            bulk_size:           10,
-            flush_interval_secs: 5,
-            max_retries:         1,
-        };
-        let sink = ElasticsearchSink::new_unchecked(config);
-
-        // Drive the private try_bulk_index path via flush_buffer through a mock event.
-        // We create a minimal event buffer and call the internal path indirectly.
-        let event = crate::event::EntityEvent {
-            id:          uuid::Uuid::nil(),
-            event_type:  crate::event::EventKind::Created,
-            entity_type: "Order".to_string(),
-            entity_id:   uuid::Uuid::nil(),
-            timestamp:   chrono::Utc::now(),
-            data:        serde_json::json!({}),
-            changes:     None,
-            user_id:     None,
-            tenant_id:   Some("tenant-1".to_string()),
-        };
-        let result = sink.try_bulk_index(&[event]).await;
-        assert!(result.is_err(), "oversized bulk response must be rejected");
-        let reason = match result.unwrap_err() {
-            ObserverError::DatabaseError { reason } => reason,
-            e => panic!("expected DatabaseError, got {e:?}"),
-        };
-        assert!(reason.contains("too large"), "error must mention size limit: {reason}");
     }
 }

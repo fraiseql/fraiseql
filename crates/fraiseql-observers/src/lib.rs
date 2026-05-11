@@ -84,6 +84,9 @@ pub mod transport;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
+#[cfg(test)]
+mod tests;
+
 // Re-export common types at crate level
 pub use actions::{ActionExecutionResult, EmailAction, SlackAction, WebhookAction};
 pub use actions_additional::{CacheAction, PushAction, SearchAction, SmsAction};

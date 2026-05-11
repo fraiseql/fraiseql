@@ -42,7 +42,7 @@ impl RedisDeduplicationStore {
     /// # Returns
     ///
     /// Redis key with dedup prefix
-    fn dedup_key(event_key: &str) -> String {
+    pub(crate) fn dedup_key(event_key: &str) -> String {
         format!("dedup:v1:{event_key}")
     }
 }
@@ -105,22 +105,3 @@ impl DeduplicationStore for RedisDeduplicationStore {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_dedup_key_generation() {
-        let key = RedisDeduplicationStore::dedup_key("order:123:created");
-        assert_eq!(key, "dedup:v1:order:123:created");
-    }
-
-    #[test]
-    fn test_redis_dedup_store_clone() {
-        // Ensure RedisDeduplicationStore is Clone
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<RedisDeduplicationStore>();
-        // Note: This test only verifies the struct is Clone-able
-        // Actual Redis tests require a Redis server
-    }
-}

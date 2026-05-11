@@ -316,11 +316,3 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_job_worker_pool_creation() {
-        // Pool structure is tested through type system
-        // Runtime tests require full async setup
-    }
-}

@@ -146,17 +146,3 @@ impl CheckpointStore for PostgresCheckpointStore {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Note: These tests require a test database setup.
-    // See the main testing module for integration test infrastructure.
-
-    #[test]
-    fn test_checkpoint_store_clone() {
-        // Ensure CheckpointStore trait is Clone
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<PostgresCheckpointStore>();
-    }
-}

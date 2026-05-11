@@ -188,3 +188,4 @@ mod registry_tests {
         assert_eq!(metrics.job_dlq_items.get(), 15);
     }
 }
+

@@ -131,37 +131,37 @@ impl RedisJobQueue {
     }
 
     /// Pending queue key
-    const fn pending_key() -> &'static str {
+    pub(crate) const fn pending_key() -> &'static str {
         "queue:pending"
     }
 
     /// Processing sorted-set key
-    const fn processing_key() -> &'static str {
+    pub(crate) const fn processing_key() -> &'static str {
         "queue:processing"
     }
 
     /// Dead-letter queue key
-    const fn dlq_key() -> &'static str {
+    pub(crate) const fn dlq_key() -> &'static str {
         "queue:dlq"
     }
 
     /// Status hash key — maps `job_id → state_string` for O(1) lookups.
-    const fn status_key() -> &'static str {
+    pub(crate) const fn status_key() -> &'static str {
         "queue:status"
     }
 
     /// Individual job data key
-    fn job_key(job_id: Uuid) -> String {
+    pub(crate) fn job_key(job_id: Uuid) -> String {
         format!("job:{job_id}")
     }
 
     /// Processing sorted-set member value
-    fn processing_member(job_id: Uuid) -> String {
+    pub(crate) fn processing_member(job_id: Uuid) -> String {
         format!("processing:{job_id}")
     }
 
     /// DLQ list member value
-    fn dlq_member(job_id: Uuid) -> String {
+    pub(crate) fn dlq_member(job_id: Uuid) -> String {
         format!("dlq:{job_id}")
     }
 }
@@ -336,7 +336,7 @@ impl JobQueue for RedisJobQueue {
 ///
 /// The strings match the `serde(rename_all = "snake_case")` serialisation of
 /// `JobState`; keeping an explicit match here avoids a JSON round-trip.
-fn parse_job_state(s: &str) -> Option<super::JobState> {
+pub(super) fn parse_job_state(s: &str) -> Option<super::JobState> {
     match s {
         "pending" => Some(super::JobState::Pending),
         "running" => Some(super::JobState::Running),
@@ -347,55 +347,3 @@ fn parse_job_state(s: &str) -> Option<super::JobState> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::ActionConfig;
-
-    #[test]
-    fn test_key_generation() {
-        assert_eq!(RedisJobQueue::pending_key(), "queue:pending");
-        assert_eq!(RedisJobQueue::processing_key(), "queue:processing");
-        assert_eq!(RedisJobQueue::dlq_key(), "queue:dlq");
-        assert_eq!(RedisJobQueue::status_key(), "queue:status");
-
-        let job_id = Uuid::nil();
-        assert!(RedisJobQueue::job_key(job_id).starts_with("job:"));
-        assert!(RedisJobQueue::processing_member(job_id).starts_with("processing:"));
-        assert!(RedisJobQueue::dlq_member(job_id).starts_with("dlq:"));
-    }
-
-    #[test]
-    fn test_redis_job_queue_clone() {
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<RedisJobQueue>();
-    }
-
-    #[test]
-    fn test_job_serialization_for_redis() {
-        let event_id = Uuid::new_v4();
-        let action = ActionConfig::Cache {
-            key_pattern: "test:*".to_string(),
-            action:      "invalidate".to_string(),
-        };
-        let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
-
-        let json = serde_json::to_string(&job).expect("serialization failed");
-        let deserialized: Job = serde_json::from_str(&json).expect("deserialization failed");
-
-        assert_eq!(job.id, deserialized.id);
-        assert_eq!(job.event_id, deserialized.event_id);
-        assert_eq!(job.attempt, deserialized.attempt);
-    }
-
-    #[test]
-    fn test_parse_job_state_all_variants() {
-        assert_eq!(parse_job_state("pending"), Some(super::super::JobState::Pending));
-        assert_eq!(parse_job_state("running"), Some(super::super::JobState::Running));
-        assert_eq!(parse_job_state("completed"), Some(super::super::JobState::Completed));
-        assert_eq!(parse_job_state("failed"), Some(super::super::JobState::Failed));
-        assert_eq!(parse_job_state("dead_lettered"), Some(super::super::JobState::DeadLettered));
-        assert_eq!(parse_job_state("unknown"), None);
-        assert_eq!(parse_job_state(""), None);
-    }
-}

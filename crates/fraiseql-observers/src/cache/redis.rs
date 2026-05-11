@@ -31,7 +31,7 @@ impl RedisCacheBackend {
     }
 
     /// Generate cache key for consistent naming.
-    fn cache_key(key: &str) -> String {
+    pub(crate) fn cache_key(key: &str) -> String {
         format!("cache:v1:{key}")
     }
 }
@@ -149,25 +149,5 @@ impl CacheBackendDyn for RedisCacheBackend {
 
     fn ttl_seconds(&self) -> u64 {
         self.ttl_seconds
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_cache_key_generation() {
-        let key = RedisCacheBackend::cache_key("email_action:order:123");
-        assert_eq!(key, "cache:v1:email_action:order:123");
-    }
-
-    #[test]
-    fn test_redis_cache_backend_clone() {
-        // Ensure RedisCacheBackend is Clone-able
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<RedisCacheBackend>();
-        // Note: This test verifies the struct is Clone
-        // Actual Redis tests require a Redis server
     }
 }

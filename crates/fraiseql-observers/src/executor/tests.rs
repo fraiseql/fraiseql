@@ -1493,3 +1493,214 @@ async fn test_action_timeout_fires_when_dispatcher_is_slow() {
     let err = result.unwrap_err();
     assert!(err.to_string().contains("timed out"), "error must mention timeout, got: {err}");
 }
+
+mod dispatch_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code — panics are intentional
+
+    use super::dispatch::resolve_url;
+    use crate::error::ObserverError;
+
+    #[test]
+    fn test_valid_urls_pass() {
+        resolve_url(Some("https://hooks.example.com/notify"), None, "Test")
+            .unwrap_or_else(|e| panic!("https URL should be valid: {e}"));
+        resolve_url(Some("http://api.example.org/webhook"), None, "Test")
+            .unwrap_or_else(|e| panic!("http URL should be valid: {e}"));
+    }
+
+    #[test]
+    fn test_invalid_scheme_rejected() {
+        let result = resolve_url(Some("ftp://example.com/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "ftp scheme should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("file:///etc/passwd"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "file scheme should be rejected: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_localhost_rejected() {
+        let result = resolve_url(Some("http://localhost/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "localhost should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("http://localhost.localdomain/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "localhost.localdomain should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("https://subdomain.localhost/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "subdomain.localhost should be rejected: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_private_ipv4_rejected() {
+        // RFC 1918
+        let result = resolve_url(Some("http://10.0.0.1/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "10.x should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("http://172.16.0.1/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "172.16.x should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("http://172.31.255.255/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "172.31.x should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("http://192.168.1.1/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "192.168.x should be rejected: {result:?}"
+        );
+        // Loopback
+        let result = resolve_url(Some("http://127.0.0.1/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "127.x should be rejected: {result:?}"
+        );
+        // Link-local / AWS IMDS
+        let result = resolve_url(Some("http://169.254.169.254/latest/meta-data/"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "169.254.x should be rejected: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_private_ipv6_rejected() {
+        let result = resolve_url(Some("http://[::1]/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "::1 should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("http://[fc00::1]/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "fc00::1 should be rejected: {result:?}"
+        );
+        let result = resolve_url(Some("http://[fe80::1]/hook"), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "fe80::1 should be rejected: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_no_url_provided_error() {
+        let result = resolve_url(None, None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "no URL should fail: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_url_too_long_rejected() {
+        let long_url = format!("https://example.com/{}", "a".repeat(2_100));
+        let result = resolve_url(Some(&long_url), None, "Test");
+        assert!(
+            matches!(result, Err(ObserverError::InvalidActionConfig { .. })),
+            "long URL should be rejected: {result:?}"
+        );
+    }
+}
+
+mod retry_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(missing_docs)] // Reason: test helpers
+
+    use std::time::Duration;
+
+    use super::*;
+    use crate::config::{BackoffStrategy, RetryConfig};
+
+    fn make_retry_config(
+        initial_delay_ms: u64,
+        max_delay_ms: u64,
+        strategy: BackoffStrategy,
+    ) -> RetryConfig {
+        RetryConfig {
+            max_attempts: 10,
+            initial_delay_ms,
+            max_delay_ms,
+            backoff_strategy: strategy,
+        }
+    }
+
+    fn make_executor() -> ObserverExecutor {
+        use std::sync::Arc;
+
+        use crate::{EventMatcher, testing::mocks::MockDeadLetterQueue};
+        ObserverExecutor::new(EventMatcher::new(), Arc::new(MockDeadLetterQueue::new()))
+    }
+
+    fn within_jitter(actual_ms: u128, base_ms: u64) -> bool {
+        let lo = u128::from(base_ms.saturating_sub(base_ms / 4));
+        let hi = u128::from(base_ms.saturating_add(base_ms / 4));
+        actual_ms >= lo && actual_ms <= hi
+    }
+
+    #[test]
+    fn exponential_backoff_normal_case() {
+        let executor = make_executor();
+        let cfg = make_retry_config(100, 30_000, BackoffStrategy::Exponential);
+        // attempt 1 → base 100 ms ± 25% → [75, 125]
+        assert!(within_jitter(executor.calculate_backoff(1, &cfg).as_millis(), 100));
+        // attempt 2 → base 200 ms ± 25% → [150, 250]
+        assert!(within_jitter(executor.calculate_backoff(2, &cfg).as_millis(), 200));
+        // attempt 4 → base 800 ms ± 25% → [600, 1000]
+        assert!(within_jitter(executor.calculate_backoff(4, &cfg).as_millis(), 800));
+    }
+
+    #[test]
+    fn exponential_backoff_caps_at_max_delay() {
+        let executor = make_executor();
+        let cfg = make_retry_config(100, 1_000, BackoffStrategy::Exponential);
+        // attempt 5 → base capped at 1000 ms ± 25% → [750, 1250]
+        assert!(within_jitter(executor.calculate_backoff(5, &cfg).as_millis(), 1_000));
+    }
+
+    #[test]
+    fn exponential_backoff_does_not_overflow_with_large_initial_delay() {
+        let executor = make_executor();
+        // initial_delay_ms near u64::MAX / 2 and a high attempt — without saturating_mul
+        // this would overflow and produce a tiny delay instead of the intended max.
+        let cfg = make_retry_config(u64::MAX / 2, 60_000, BackoffStrategy::Exponential);
+        // Regardless of overflow, the result must be near max_delay_ms (±25%).
+        let result = executor.calculate_backoff(10, &cfg);
+        assert!(
+            within_jitter(result.as_millis(), 60_000),
+            "overflow must not produce a delay far from max_delay_ms; got {} ms",
+            result.as_millis()
+        );
+    }
+
+    #[test]
+    fn linear_backoff_normal_case() {
+        let executor = make_executor();
+        let cfg = make_retry_config(200, 30_000, BackoffStrategy::Linear);
+        assert_eq!(executor.calculate_backoff(1, &cfg), Duration::from_millis(200));
+        assert_eq!(executor.calculate_backoff(3, &cfg), Duration::from_millis(600));
+    }
+
+    #[test]
+    fn fixed_backoff_always_returns_initial_delay() {
+        let executor = make_executor();
+        let cfg = make_retry_config(500, 30_000, BackoffStrategy::Fixed);
+        for attempt in 1..=5 {
+            assert_eq!(executor.calculate_backoff(attempt, &cfg), Duration::from_millis(500));
+        }
+    }
+}

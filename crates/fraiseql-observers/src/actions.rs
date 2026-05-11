@@ -23,7 +23,7 @@ use crate::{
 /// Prevents a slow or non-responsive endpoint from blocking the executor
 /// indefinitely.  Operators can override this by constructing the client
 /// manually via [`WebhookAction::with_timeout`].
-const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
+pub(crate) const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
 
 /// Warn once when insecure mode is enabled.
 static INSECURE_WARN_ONCE: Once = Once::new();
@@ -44,7 +44,7 @@ static INSECURE_WARN_ONCE: Once = Once::new();
 ///
 /// Returns `ObserverError::ActionPermanentlyFailed` if the URL uses a
 /// non-HTTP(S) scheme or resolves to a blocked address range.
-fn validate_outbound_url(url: &str) -> Result<()> {
+pub(crate) fn validate_outbound_url(url: &str) -> Result<()> {
     // When `FRAISEQL_OBSERVERS_ALLOW_INSECURE=true` all SSRF guards are disabled.
     // Intended for local development and integration testing only.
     let allow_insecure = std::env::var("FRAISEQL_OBSERVERS_ALLOW_INSECURE")
@@ -144,7 +144,7 @@ const fn is_ula_v6_obs(addr: std::net::Ipv6Addr) -> bool {
 ///
 /// Returns `ObserverError::ActionPermanentlyFailed` if any name or value
 /// contains a disallowed byte.
-fn validate_headers(headers: &HashMap<String, String>) -> Result<()> {
+pub(crate) fn validate_headers(headers: &HashMap<String, String>) -> Result<()> {
     for (name, value) in headers {
         if name.contains('\r') || name.contains('\n') || name.contains('\0') {
             return Err(ObserverError::ActionPermanentlyFailed {
@@ -181,7 +181,7 @@ fn validate_headers(headers: &HashMap<String, String>) -> Result<()> {
 /// 429 Too Many Requests is transient because the server indicated it *can*
 /// accept the request after a retry window; routing it to DLQ immediately would
 /// discard actionable work.
-fn classify_http_status(status: reqwest::StatusCode, duration_ms: f64) -> Result<WebhookResponse> {
+pub(crate) fn classify_http_status(status: reqwest::StatusCode, duration_ms: f64) -> Result<WebhookResponse> {
     if status.is_success() {
         Ok(WebhookResponse {
             status_code: status.as_u16(),
@@ -302,7 +302,7 @@ impl WebhookAction {
     }
 
     #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
-    fn render_body_template(&self, template: &str, data: &Value) -> Result<Value> {
+    pub(crate) fn render_body_template(&self, template: &str, data: &Value) -> Result<Value> {
         let mut rendered = template.to_string();
 
         if let Value::Object(map) = data {
@@ -427,7 +427,7 @@ impl SlackAction {
     }
 
     #[allow(clippy::unused_self)] // Reason: method is part of a public API / trait consistency
-    fn render_message_template(&self, template: &str, data: &Value) -> String {
+    pub(crate) fn render_message_template(&self, template: &str, data: &Value) -> String {
         let mut rendered = template.to_string();
 
         if let Value::Object(map) = data {
@@ -526,311 +526,3 @@ pub struct ActionExecutionResult {
     pub tracking_id: Option<String>,
 }
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    use super::*;
-    use crate::event::EventKind;
-
-    #[test]
-    fn test_webhook_action_creation() {
-        let webhook = WebhookAction::new();
-        // Just verify that the webhook action was created successfully
-        let _ = webhook;
-    }
-
-    #[test]
-    fn test_slack_action_creation() {
-        let slack = SlackAction::new();
-        // Just verify that the Slack action was created successfully
-        let _ = slack;
-    }
-
-    #[test]
-    fn test_email_action_creation() {
-        let email = EmailAction::new();
-        // Basic instantiation test
-        let _result = std::mem::size_of_val(&email);
-    }
-
-    #[tokio::test]
-    async fn test_email_action_execute() {
-        let email = EmailAction::new();
-        let event = EntityEvent::new(
-            EventKind::Created,
-            "Order".to_string(),
-            uuid::Uuid::new_v4(),
-            json!({"total": 100}),
-        );
-
-        let result = email.execute("user@example.com", "Test", None, &event).await.unwrap();
-
-        assert!(result.success);
-        assert!(result.message_id.is_some());
-    }
-
-    #[test]
-    fn test_webhook_render_body_template() {
-        let webhook = WebhookAction::new();
-        let data = json!({"status": "completed", "total": 150});
-        let template = r#"{"status": "{{ status }}", "amount": {{ total }}}"#;
-
-        let result = webhook.render_body_template(template, &data).unwrap();
-
-        // Check that substitution happened
-        let rendered_str = result.to_string();
-        assert!(rendered_str.contains("completed"));
-        assert!(rendered_str.contains("150"));
-    }
-
-    #[test]
-    fn test_slack_render_message_template() {
-        let slack = SlackAction::new();
-        let data = json!({"status": "shipped", "order_id": "12345"});
-        let template = "Order {{ order_id }} has been {{ status }}";
-
-        let result = slack.render_message_template(template, &data);
-
-        assert_eq!(result, "Order 12345 has been shipped");
-    }
-
-    #[test]
-    #[allow(clippy::float_cmp)] // Reason: exact comparison is intentional in tests
-    fn test_action_execution_result() {
-        let result = ActionExecutionResult {
-            action_type: "webhook".to_string(),
-            success:     true,
-            duration_ms: 42.5,
-            tracking_id: Some("abc123".to_string()),
-        };
-
-        assert_eq!(result.action_type, "webhook");
-        assert!(result.success);
-        assert_eq!(result.duration_ms, 42.5);
-    }
-
-    // --- Header injection tests (H11) ---
-
-    #[test]
-    fn test_validate_headers_clean_passes() {
-        let mut headers = HashMap::new();
-        headers.insert("X-Custom".to_string(), "value".to_string());
-        headers.insert("Authorization".to_string(), "Bearer token".to_string());
-        validate_headers(&headers).unwrap_or_else(|e| panic!("clean headers should pass: {e}"));
-    }
-
-    #[test]
-    fn test_validate_headers_lf_in_name_rejected() {
-        let mut headers = HashMap::new();
-        headers.insert("X-Evil\nInjected".to_string(), "value".to_string());
-        let err = validate_headers(&headers).unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("header injection"), "expected injection message, got: {msg}");
-    }
-
-    #[test]
-    fn test_validate_headers_cr_in_name_rejected() {
-        let mut headers = HashMap::new();
-        headers.insert("X-Evil\rInjected".to_string(), "value".to_string());
-        let result = validate_headers(&headers);
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "CR in header name should be rejected: {result:?}"
-        );
-    }
-
-    #[test]
-    fn test_validate_headers_lf_in_value_rejected() {
-        let mut headers = HashMap::new();
-        headers.insert("X-Legit".to_string(), "value\r\nX-Injected: malicious".to_string());
-        let result = validate_headers(&headers);
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "CRLF in header value should be rejected: {result:?}"
-        );
-    }
-
-    #[test]
-    fn test_validate_headers_empty_map_passes() {
-        validate_headers(&HashMap::new())
-            .unwrap_or_else(|e| panic!("empty headers should pass: {e}"));
-    }
-
-    #[test]
-    fn test_webhook_action_with_timeout_creates_ok() {
-        let _action = WebhookAction::with_timeout(Duration::from_secs(5));
-    }
-
-    // --- Additional header injection tests (14-3) ---
-
-    #[test]
-    fn test_validate_headers_nul_in_name_rejected() {
-        let mut headers = HashMap::new();
-        headers.insert("X-Evil\0Null".to_string(), "value".to_string());
-        let err = validate_headers(&headers).unwrap_err();
-        assert!(
-            err.to_string().contains("NUL") || err.to_string().contains("injection"),
-            "expected injection message, got: {err}"
-        );
-    }
-
-    #[test]
-    fn test_validate_headers_nul_in_value_rejected() {
-        let mut headers = HashMap::new();
-        headers.insert("X-Legit".to_string(), "value\0payload".to_string());
-        let err = validate_headers(&headers).unwrap_err();
-        assert!(err.to_string().contains("injection"), "got: {err}");
-    }
-
-    #[test]
-    fn test_validate_headers_colon_in_name_rejected() {
-        let mut headers = HashMap::new();
-        // A colon in a header name is the name/value separator — disallowed.
-        headers.insert("X-Forged: X-Real-IP".to_string(), "value".to_string());
-        let err = validate_headers(&headers).unwrap_err();
-        assert!(err.to_string().contains("colon"), "expected colon message, got: {err}");
-    }
-
-    #[test]
-    fn test_validate_headers_colon_in_value_is_allowed() {
-        // Colons are valid in header *values* (e.g. "Bearer tok:en", URLs, etc.)
-        let mut headers = HashMap::new();
-        headers.insert("Authorization".to_string(), "Bearer abc:xyz".to_string());
-        validate_headers(&headers)
-            .unwrap_or_else(|e| panic!("colon in header value should be allowed: {e}"));
-    }
-
-    // --- HTTP status classification tests (14-4) ---
-
-    #[test]
-    fn test_200_ok_is_success() {
-        let result = classify_http_status(reqwest::StatusCode::OK, 10.0);
-        let response = result.unwrap_or_else(|e| panic!("200 OK should be success: {e}"));
-        assert!(response.success);
-    }
-
-    #[test]
-    fn test_404_is_permanent_failure() {
-        let result = classify_http_status(reqwest::StatusCode::NOT_FOUND, 5.0);
-        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })));
-    }
-
-    #[test]
-    fn test_400_is_permanent_failure() {
-        let result = classify_http_status(reqwest::StatusCode::BAD_REQUEST, 5.0);
-        assert!(matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })));
-    }
-
-    #[test]
-    fn test_429_is_transient_failure() {
-        // 429 must NOT be permanent — it should be eligible for retry.
-        let result = classify_http_status(reqwest::StatusCode::TOO_MANY_REQUESTS, 5.0);
-        assert!(
-            matches!(result, Err(ObserverError::ActionExecutionFailed { .. })),
-            "429 must be treated as transient (retryable), not permanent"
-        );
-    }
-
-    #[test]
-    fn test_500_is_transient_failure() {
-        let result = classify_http_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR, 5.0);
-        assert!(matches!(result, Err(ObserverError::ActionExecutionFailed { .. })));
-    }
-
-    // --- SSRF protection tests (C7) ---
-
-    #[test]
-    fn test_outbound_url_scheme_must_be_http() {
-        let result = validate_outbound_url("file:///etc/passwd");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "file scheme should be rejected: {result:?}"
-        );
-        let result = validate_outbound_url("ftp://example.com");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "ftp scheme should be rejected: {result:?}"
-        );
-        let result = validate_outbound_url("example.com/hook");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "no scheme should be rejected: {result:?}"
-        );
-    }
-
-    #[test]
-    fn test_outbound_url_blocks_loopback() {
-        let result = validate_outbound_url("http://localhost:8080");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "localhost should be blocked: {result:?}"
-        );
-        let result = validate_outbound_url("http://127.0.0.1/hook");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "127.0.0.1 should be blocked: {result:?}"
-        );
-        let result = validate_outbound_url("http://[::1]/hook");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "::1 should be blocked: {result:?}"
-        );
-    }
-
-    #[test]
-    fn test_outbound_url_blocks_private_ranges() {
-        let result = validate_outbound_url("http://10.0.0.1/hook");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "10.x should be blocked: {result:?}"
-        );
-        let result = validate_outbound_url("http://172.16.0.1/hook");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "172.16.x should be blocked: {result:?}"
-        );
-        let result = validate_outbound_url("http://192.168.1.100/hook");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "192.168.x should be blocked: {result:?}"
-        );
-        // AWS metadata endpoint
-        let result = validate_outbound_url("http://169.254.169.254/latest/meta-data/");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "169.254.x should be blocked: {result:?}"
-        );
-        // CGNAT range
-        let result = validate_outbound_url("http://100.64.0.1/hook");
-        assert!(
-            matches!(result, Err(ObserverError::ActionPermanentlyFailed { .. })),
-            "100.64.x should be blocked: {result:?}"
-        );
-    }
-
-    #[test]
-    fn test_outbound_url_allows_public_addresses() {
-        validate_outbound_url("https://hooks.slack.com/services/xxx")
-            .unwrap_or_else(|e| panic!("public slack URL should pass: {e}"));
-        validate_outbound_url("https://api.example.com/webhook")
-            .unwrap_or_else(|e| panic!("public API URL should pass: {e}"));
-        validate_outbound_url("http://203.0.113.10/hook")
-            .unwrap_or_else(|e| panic!("public IP should pass: {e}"));
-    }
-
-    // ── S24-H2: SlackAction client timeout ────────────────────────────────────
-
-    #[test]
-    fn slack_action_default_timeout_is_set() {
-        // Verify the shared timeout constant is non-zero and in a sane range.
-        const { assert!(DEFAULT_WEBHOOK_TIMEOUT_SECS > 0 && DEFAULT_WEBHOOK_TIMEOUT_SECS <= 120) }
-    }
-
-    #[test]
-    fn slack_action_new_creates_instance() {
-        // SlackAction::new() must succeed — no panics allowed from Client::builder().
-        let _slack = SlackAction::new();
-    }
-}

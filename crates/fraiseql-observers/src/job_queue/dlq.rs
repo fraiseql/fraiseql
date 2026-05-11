@@ -69,7 +69,7 @@ impl DeadLetterQueueManager {
     }
 
     /// DLQ key in Redis
-    const fn dlq_key() -> &'static str {
+    pub(crate) const fn dlq_key() -> &'static str {
         "queue:dlq"
     }
 
@@ -79,12 +79,12 @@ impl DeadLetterQueueManager {
     }
 
     /// Job storage key
-    fn job_key(job_id: Uuid) -> String {
+    pub(crate) fn job_key(job_id: Uuid) -> String {
         format!("job:{job_id}")
     }
 
     /// DLQ member key
-    fn dlq_member(job_id: Uuid) -> String {
+    pub(crate) fn dlq_member(job_id: Uuid) -> String {
         format!("dlq:{job_id}")
     }
 
@@ -275,51 +275,3 @@ impl std::fmt::Display for DlqStats {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_dlq_key_generation() {
-        assert_eq!(DeadLetterQueueManager::dlq_key(), "queue:dlq");
-
-        let job_id = Uuid::nil();
-        assert!(DeadLetterQueueManager::job_key(job_id).starts_with("job:"));
-        assert!(DeadLetterQueueManager::dlq_member(job_id).starts_with("dlq:"));
-    }
-
-    #[test]
-    fn test_dlq_manager_clone() {
-        // Ensure DeadLetterQueueManager is Clone-able
-        fn assert_clone<T: Clone>() {}
-        assert_clone::<DeadLetterQueueManager>();
-    }
-
-    #[test]
-    fn test_dlq_stats_display() {
-        let mut by_action_type = std::collections::HashMap::new();
-        by_action_type.insert("webhook".to_string(), 5);
-        by_action_type.insert("email".to_string(), 3);
-
-        let stats = DlqStats {
-            total_jobs: 8,
-            by_action_type,
-        };
-
-        let display_str = format!("{stats}");
-        assert!(display_str.contains("8 total jobs"));
-        assert!(display_str.contains("webhook"));
-        assert!(display_str.contains("email"));
-    }
-
-    #[test]
-    fn test_dlq_stats_empty() {
-        let stats = DlqStats {
-            total_jobs:     0,
-            by_action_type: std::collections::HashMap::new(),
-        };
-
-        let display_str = format!("{stats}");
-        assert_eq!(display_str, "DLQ Stats: 0 total jobs");
-    }
-}
