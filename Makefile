@@ -381,22 +381,21 @@ lint-gate-errors-doc-server:
 	  (echo "ERROR: fraiseql-server # Errors regressed ($$count < $(FRAISEQL_SERVER_ERRORS_DOC_MIN))"; exit 1); \
 	echo "OK fraiseql-server: $$count (≥$(FRAISEQL_SERVER_ERRORS_DOC_MIN))"
 
-# Gate: ensure no inline #[cfg(test)] blocks return to routes/rest/ source files.
+# Gate: ensure no inline #[cfg(test)] blocks in any source file (workspace-wide).
 # The correct pattern is a sibling tests.rs file declared via `#[cfg(test)] mod tests;`.
 # Inline blocks (those with an opening `{`) are prohibited; declarations (`;`) are fine.
-# Scoped to routes/rest/ — the only area where this layout has been fully enforced.
 .PHONY: lint-tests-layout
 lint-tests-layout:
-	@echo "=== Checking for inline test blocks in routes/rest/ ==="
+	@echo "=== Checking for inline test blocks in src/ (workspace-wide) ==="
 	@violations=$$(grep -rn "^mod tests {" \
-		crates/fraiseql-server/src/routes/rest/ --include="*.rs" \
+		crates/*/src/ --include="*.rs" \
 		| grep -v "/tests\.rs:" || true); \
 	if [ -n "$$violations" ]; then \
-		echo "ERROR: inline test blocks found in routes/rest/ — extract to tests.rs:"; \
+		echo "ERROR: inline test blocks found — extract to tests.rs:"; \
 		echo "$$violations"; \
 		exit 1; \
 	fi; \
-	echo "OK: no inline test blocks in routes/rest/"
+	echo "OK: no inline test blocks in workspace src/"
 
 # Format code (nightly rustfmt for advanced formatting options)
 fmt:

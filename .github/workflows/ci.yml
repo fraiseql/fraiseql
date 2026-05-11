@@ -67,9 +67,9 @@ jobs:
         with:
           components: clippy
 
-      - name: Enforce tests.rs layout in routes/rest/
+      - name: Enforce tests.rs layout (workspace-wide)
         run: make lint-tests-layout
-        # Prevents inline #[cfg(test)] blocks from returning to routes/rest/ source files.
+        # Prevents inline #[cfg(test)] blocks from returning to any source file.
         # Correct pattern: sibling tests.rs declared via `#[cfg(test)] mod tests;`.
 
       - name: Run Clippy
