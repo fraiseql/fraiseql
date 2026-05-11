@@ -187,10 +187,4 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
 }
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn test_mutation_executor_creation() {
-        // Test that executor can be created (mock adapter would be used)
-        // Actual mutation tests are in integration tests
-    }
-}
+mod tests;
