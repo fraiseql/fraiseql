@@ -181,7 +181,7 @@ async fn test_with_pool_size_malformed_url_returns_connection_pool_error() {
 }
 
 #[cfg(feature = "test-mysql")]
-mod tests {
+mod integration_tests {
     use super::*;
 
     // Note: These tests require a running MySQL instance with test data.
