@@ -1,0 +1,429 @@
+#![allow(clippy::unwrap_used)] // Reason: test code extensively uses unwrap for test fixture setup
+
+use arrow::datatypes::Field;
+use serde_json::json;
+
+use super::*;
+
+#[test]
+fn test_convert_simple_rows() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, true),
+    ]));
+
+    let mut row1 = HashMap::new();
+    row1.insert("id".to_string(), json!(1));
+    row1.insert("name".to_string(), json!("Alice"));
+
+    let mut row2 = HashMap::new();
+    row2.insert("id".to_string(), json!(2));
+    row2.insert("name".to_string(), json!("Bob"));
+
+    let rows = vec![row1, row2];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+
+    assert_eq!(arrow_rows.len(), 2);
+    assert_eq!(arrow_rows[0].len(), 2);
+
+    // Check first row
+    match &arrow_rows[0][0] {
+        Some(Value::Int(i)) => assert_eq!(*i, 1),
+        _ => panic!("Expected Int"),
+    }
+    match &arrow_rows[0][1] {
+        Some(Value::String(s)) => assert_eq!(s, "Alice"),
+        _ => panic!("Expected String"),
+    }
+}
+
+#[test]
+fn test_null_handling() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, true),
+    ]));
+
+    let mut row = HashMap::new();
+    row.insert("id".to_string(), json!(1));
+    row.insert("name".to_string(), json!(null));
+
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+
+    assert_eq!(arrow_rows[0][1], None); // name is NULL
+}
+
+#[test]
+fn test_missing_column() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Int64, false),
+        Field::new("name", DataType::Utf8, true),
+    ]));
+
+    let mut row = HashMap::new();
+    row.insert("id".to_string(), json!(1));
+    // name column missing
+
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+
+    assert_eq!(arrow_rows[0][1], None); // missing treated as NULL
+}
+
+#[test]
+fn test_type_conversions() {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("int_field", DataType::Int64, false),
+        Field::new("float_field", DataType::Float64, false),
+        Field::new("bool_field", DataType::Boolean, false),
+        Field::new("string_field", DataType::Utf8, false),
+    ]));
+
+    let mut row = HashMap::new();
+    row.insert("int_field".to_string(), json!(42));
+    row.insert("float_field".to_string(), json!(2.5));
+    row.insert("bool_field".to_string(), json!(true));
+    row.insert("string_field".to_string(), json!("test"));
+
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+
+    match &arrow_rows[0][0] {
+        Some(Value::Int(i)) => assert_eq!(*i, 42),
+        _ => panic!("Expected Int"),
+    }
+    match &arrow_rows[0][1] {
+        Some(Value::Float(f)) => assert!((f - 2.5).abs() < 0.001),
+        _ => panic!("Expected Float"),
+    }
+    match &arrow_rows[0][2] {
+        Some(Value::Bool(b)) => assert!(b),
+        _ => panic!("Expected Bool"),
+    }
+    match &arrow_rows[0][3] {
+        Some(Value::String(s)) => assert_eq!(s, "test"),
+        _ => panic!("Expected String"),
+    }
+}
+
+// --- Int32 conversion ---
+
+#[test]
+fn test_int32_conversion_from_json_number() {
+    let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
+    let mut row = HashMap::new();
+    row.insert("val".to_string(), json!(100));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::Int(i)) => assert_eq!(*i, 100),
+        other => panic!("Expected Int, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_int32_overflow_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
+    let mut row = HashMap::new();
+    // i64::MAX cannot fit in i32
+    row.insert("val".to_string(), json!(i64::MAX));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for Int32 overflow, got: {result:?}"
+    );
+}
+
+#[test]
+fn test_int32_from_non_number_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int32, false)]));
+    let mut row = HashMap::new();
+    row.insert("val".to_string(), json!("not-a-number"));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for non-number Int32, got: {result:?}"
+    );
+}
+
+// --- Int64 conversion ---
+
+#[test]
+fn test_int64_from_non_number_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Int64, false)]));
+    let mut row = HashMap::new();
+    row.insert("val".to_string(), json!(true));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for non-number Int64, got: {result:?}"
+    );
+}
+
+// --- Float64 conversion ---
+
+#[test]
+fn test_float64_from_non_number_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::Float64, false)]));
+    let mut row = HashMap::new();
+    row.insert("val".to_string(), json!("three-point-one-four"));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for non-number Float64, got: {result:?}"
+    );
+}
+
+// --- Boolean conversion ---
+
+#[test]
+fn test_boolean_false_is_preserved() {
+    let schema = Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+    let mut row = HashMap::new();
+    row.insert("flag".to_string(), json!(false));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::Bool(b)) => assert!(!b),
+        other => panic!("Expected Bool(false), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_boolean_from_string_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+    let mut row = HashMap::new();
+    row.insert("flag".to_string(), json!("true"));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for string in Boolean column, got: {result:?}"
+    );
+}
+
+#[test]
+fn test_boolean_from_number_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("flag", DataType::Boolean, false)]));
+    let mut row = HashMap::new();
+    row.insert("flag".to_string(), json!(1));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for number in Boolean column, got: {result:?}"
+    );
+}
+
+// --- Utf8 coercions ---
+
+#[test]
+fn test_utf8_from_number_is_coerced_to_string() {
+    let schema = Arc::new(Schema::new(vec![Field::new("label", DataType::Utf8, false)]));
+    let mut row = HashMap::new();
+    row.insert("label".to_string(), json!(42));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::String(s)) => assert_eq!(s, "42"),
+        other => panic!("Expected String(\"42\"), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_utf8_from_bool_is_coerced_to_string() {
+    let schema = Arc::new(Schema::new(vec![Field::new("label", DataType::Utf8, false)]));
+    let mut row = HashMap::new();
+    row.insert("label".to_string(), json!(true));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::String(s)) => assert_eq!(s, "true"),
+        other => panic!("Expected String(\"true\"), got {:?}", other),
+    }
+}
+
+// --- Timestamp (microsecond) conversion ---
+
+#[test]
+fn test_timestamp_microsecond_from_rfc3339_string() {
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        "ts",
+        DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
+        false,
+    )]));
+    let mut row = HashMap::new();
+    row.insert("ts".to_string(), json!("2026-01-01T00:00:00Z"));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::Timestamp(micros)) => assert!(*micros > 0),
+        other => panic!("Expected Timestamp, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_timestamp_microsecond_from_naive_datetime_string() {
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        "ts",
+        DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
+        false,
+    )]));
+    let mut row = HashMap::new();
+    row.insert("ts".to_string(), json!("2026-03-06T12:00:00"));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::Timestamp(_)) => {},
+        other => panic!("Expected Timestamp, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_timestamp_microsecond_from_integer() {
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        "ts",
+        DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
+        false,
+    )]));
+    let ts_micros = 1_700_000_000_000_000i64;
+    let mut row = HashMap::new();
+    row.insert("ts".to_string(), json!(ts_micros));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::Timestamp(v)) => assert_eq!(*v, ts_micros),
+        other => panic!("Expected Timestamp({ts_micros}), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_timestamp_microsecond_from_invalid_string_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        "ts",
+        DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
+        false,
+    )]));
+    let mut row = HashMap::new();
+    row.insert("ts".to_string(), json!("not-a-timestamp"));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for invalid timestamp string, got: {result:?}"
+    );
+}
+
+#[test]
+fn test_timestamp_microsecond_from_boolean_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        "ts",
+        DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None),
+        false,
+    )]));
+    let mut row = HashMap::new();
+    row.insert("ts".to_string(), json!(true));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for boolean in Timestamp column, got: {result:?}"
+    );
+}
+
+// --- Date32 conversion ---
+
+#[test]
+fn test_date32_from_iso_string() {
+    let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+    let mut row = HashMap::new();
+    row.insert("d".to_string(), json!("1970-01-01"));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        // 1970-01-01 is day 0 since Unix epoch
+        Some(Value::Date(days)) => assert_eq!(*days, 0),
+        other => panic!("Expected Date(0), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_date32_from_integer() {
+    let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+    let mut row = HashMap::new();
+    row.insert("d".to_string(), json!(18500i32));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    match &arrow_rows[0][0] {
+        Some(Value::Date(days)) => assert_eq!(*days, 18500),
+        other => panic!("Expected Date(18500), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_date32_from_invalid_string_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+    let mut row = HashMap::new();
+    row.insert("d".to_string(), json!("not-a-date"));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for invalid date string, got: {result:?}"
+    );
+}
+
+#[test]
+fn test_date32_from_boolean_returns_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("d", DataType::Date32, false)]));
+    let mut row = HashMap::new();
+    row.insert("d".to_string(), json!(true));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for boolean in Date32 column, got: {result:?}"
+    );
+}
+
+// --- Unsupported types ---
+
+#[test]
+fn test_unsupported_data_type_returns_invalid_ticket_error() {
+    let schema = Arc::new(Schema::new(vec![Field::new("val", DataType::LargeUtf8, false)]));
+    let mut row = HashMap::new();
+    row.insert("val".to_string(), json!("hello"));
+    let rows = vec![row];
+    let result = convert_db_rows_to_arrow(&rows, &schema);
+    assert!(
+        matches!(result, Err(ArrowFlightError::InvalidTicket(_))),
+        "expected InvalidTicket error for unsupported data type, got: {result:?}"
+    );
+}
+
+// --- Empty rows ---
+
+#[test]
+fn test_empty_rows_returns_empty_arrow_rows() {
+    let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+    let rows: Vec<HashMap<String, serde_json::Value>> = vec![];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    assert!(arrow_rows.is_empty());
+}
+
+// --- null JSON values vs missing keys ---
+
+#[test]
+fn test_json_null_treated_as_none() {
+    let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
+    let mut row = HashMap::new();
+    row.insert("id".to_string(), json!(null));
+    let rows = vec![row];
+    let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
+    assert_eq!(arrow_rows[0][0], None);
+}
