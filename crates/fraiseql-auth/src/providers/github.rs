@@ -337,4 +337,3 @@ impl OAuthProvider for GitHubOAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

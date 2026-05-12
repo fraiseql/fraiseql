@@ -50,4 +50,3 @@ pub async fn require_json_content_type(
 
     Ok(next.run(req).await)
 }
-

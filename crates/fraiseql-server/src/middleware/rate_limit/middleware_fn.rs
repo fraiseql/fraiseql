@@ -222,4 +222,3 @@ pub async fn rate_limit_middleware(
 
     Ok(response)
 }
-

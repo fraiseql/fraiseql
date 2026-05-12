@@ -167,4 +167,3 @@ impl FlightTicket {
 
 #[cfg(test)]
 mod tests;
-

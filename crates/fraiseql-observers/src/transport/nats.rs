@@ -451,4 +451,3 @@ impl EventTransport for NatsTransport {
         }
     }
 }
-

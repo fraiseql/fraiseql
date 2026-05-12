@@ -388,4 +388,3 @@ pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
 
     Json(response)
 }
-

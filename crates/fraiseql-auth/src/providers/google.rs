@@ -195,4 +195,3 @@ impl OAuthProvider for GoogleOAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

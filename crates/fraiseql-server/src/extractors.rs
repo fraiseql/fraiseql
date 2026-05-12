@@ -127,4 +127,3 @@ pub(crate) const fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Optio
     // should come from the authenticated tenant_middleware or JWT claims.
     None
 }
-

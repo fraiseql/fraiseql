@@ -94,4 +94,3 @@ where
 {
     Json(serde_json::json!({ "cdc_lag_ms": null }))
 }
-

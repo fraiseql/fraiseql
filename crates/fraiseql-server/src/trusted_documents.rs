@@ -231,4 +231,3 @@ pub fn misses_total() -> u64 {
 pub fn rejected_total() -> u64 {
     TRUSTED_DOC_REJECTED.load(Ordering::Relaxed)
 }
-

@@ -28,4 +28,3 @@ fn check_field_design_patterns(schema: &Value, _audit: &mut DesignAudit) {
         // Placeholder for future field design checks
     }
 }
-

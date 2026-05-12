@@ -54,10 +54,12 @@ that `HttpEntityResolver` uses it when `mtls` config is provided.
 ## Note
 
 Full end-to-end mTLS testing (actual TLS handshake with a server) requires either:
+
 - A test server with `rustls` accepting client certs (complex setup)
 - An `#[ignore]` test that targets a real mTLS endpoint
 
 For this phase, focus on unit-level correctness. Full handshake testing is a follow-up.
 
 ## Status
+
 [x] Complete

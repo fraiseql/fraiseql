@@ -91,4 +91,3 @@ impl ProviderFailoverManager {
         Ok(())
     }
 }
-

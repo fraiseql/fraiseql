@@ -711,4 +711,3 @@ impl From<&MetricsCollector> for PrometheusMetrics {
         }
     }
 }
-

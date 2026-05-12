@@ -189,4 +189,3 @@ pub fn verify_chain(
 
     Ok(count)
 }
-

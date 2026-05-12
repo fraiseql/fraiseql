@@ -399,4 +399,3 @@ fn error_schema() -> Value {
         }
     })
 }
-

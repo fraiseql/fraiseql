@@ -535,4 +535,3 @@ async fn test_render_cache_with_preset_lookup() {
     assert_eq!(result.height, 120);
     assert_eq!(result.content_type, "image/webp");
 }
-

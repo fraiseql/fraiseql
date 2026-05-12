@@ -534,4 +534,3 @@ pub async fn list_domains_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
         count,
     }))
 }
-

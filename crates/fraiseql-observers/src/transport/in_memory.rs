@@ -120,4 +120,3 @@ impl EventTransport for InMemoryTransport {
         })
     }
 }
-

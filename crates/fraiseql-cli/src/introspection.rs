@@ -141,4 +141,3 @@ fn extract_examples(cmd: &Command) -> Vec<String> {
     }
     Vec::new()
 }
-

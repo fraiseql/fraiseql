@@ -392,4 +392,3 @@ pub(crate) fn determine_status(
         "healthy"
     }
 }
-

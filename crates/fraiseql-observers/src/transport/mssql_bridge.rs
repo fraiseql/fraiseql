@@ -696,4 +696,3 @@ pub async fn create_mssql_pool(connection_string: &str) -> Result<MSSQLPool> {
         }
     })
 }
-

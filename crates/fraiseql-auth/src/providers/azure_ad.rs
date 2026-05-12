@@ -222,4 +222,3 @@ impl OAuthProvider for AzureADOAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

@@ -386,4 +386,3 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
         executor.adapter().health_check().await
     }
 }
-

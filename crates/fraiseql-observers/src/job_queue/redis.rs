@@ -346,4 +346,3 @@ pub(super) fn parse_job_state(s: &str) -> Option<super::JobState> {
         _ => None,
     }
 }
-

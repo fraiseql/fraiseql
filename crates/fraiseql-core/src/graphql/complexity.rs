@@ -502,5 +502,3 @@ fn count_aliases_in_selection_set(selection_set: &SelectionSet<String>) -> usize
         })
         .sum()
 }
-
-

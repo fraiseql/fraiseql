@@ -119,4 +119,3 @@ pub fn extract_bearer_token(header_value: &str) -> Option<&str> {
 pub(crate) fn constant_time_compare(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
-

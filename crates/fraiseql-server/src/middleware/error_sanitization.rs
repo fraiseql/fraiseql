@@ -140,4 +140,3 @@ fn sanitize_single_error(sanitizer: &ErrorSanitizer, error: &mut serde_json::Val
         }
     }
 }
-

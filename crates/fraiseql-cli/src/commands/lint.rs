@@ -304,4 +304,3 @@ pub fn run(schema_path: &str, opts: LintOptions) -> Result<CommandResult> {
 
     Ok(CommandResult::success("lint", serde_json::to_value(&response)?))
 }
-

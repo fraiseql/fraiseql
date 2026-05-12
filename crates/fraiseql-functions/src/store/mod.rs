@@ -115,4 +115,3 @@ pub trait FunctionStore: Send + Sync {
     /// Returns `Err` if the write fails.
     async fn delete_function(&self, name: &str) -> Result<bool>;
 }
-

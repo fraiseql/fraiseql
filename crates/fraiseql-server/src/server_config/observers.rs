@@ -153,4 +153,3 @@ pub(crate) const fn default_admission_max_concurrent() -> usize {
 pub(crate) const fn default_admission_max_queue_depth() -> u64 {
     1000
 }
-

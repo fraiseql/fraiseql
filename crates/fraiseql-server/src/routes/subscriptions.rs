@@ -746,4 +746,3 @@ pub(crate) fn extract_subscription_name(query: &str) -> Option<String> {
 
     Some(after_brace[..name_end].to_string())
 }
-

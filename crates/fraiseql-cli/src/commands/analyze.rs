@@ -128,4 +128,3 @@ pub fn run(schema_path: &str) -> Result<CommandResult> {
 
     Ok(CommandResult::success("analyze", serde_json::to_value(&analysis)?))
 }
-

@@ -662,4 +662,3 @@ impl SchemaMerger {
         Ok(schema)
     }
 }
-

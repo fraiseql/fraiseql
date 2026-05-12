@@ -396,4 +396,3 @@ impl<T, E: std::fmt::Display> AuditExt<T, E> for Result<T, E> {
         self
     }
 }
-

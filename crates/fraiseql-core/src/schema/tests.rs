@@ -1673,4 +1673,3 @@ fn test_naming_convention_serde_roundtrip() {
     let restored: NamingConvention = serde_json::from_str(&json).unwrap();
     assert_eq!(restored, NamingConvention::Preserve);
 }
-

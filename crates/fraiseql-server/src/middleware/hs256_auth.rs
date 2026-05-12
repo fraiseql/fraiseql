@@ -91,4 +91,3 @@ pub async fn hs256_auth_middleware(
         },
     }
 }
-

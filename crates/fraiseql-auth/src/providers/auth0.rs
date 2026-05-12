@@ -204,4 +204,3 @@ impl OAuthProvider for Auth0OAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

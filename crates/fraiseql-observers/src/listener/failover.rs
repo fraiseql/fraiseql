@@ -202,4 +202,3 @@ impl FailoverManager {
         self.failover_threshold_ms
     }
 }
-

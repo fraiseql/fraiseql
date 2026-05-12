@@ -617,7 +617,7 @@ mod session_variables {
 mod pg_type_cast_tests {
     use super::super::*;
 
-    
+
     use crate::graphql::FieldSelection;
 
     // -------------------------------------------------------------------------

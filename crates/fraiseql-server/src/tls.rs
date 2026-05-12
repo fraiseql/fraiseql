@@ -315,4 +315,3 @@ impl TlsSetup {
         Ok(Arc::new(server_config))
     }
 }
-

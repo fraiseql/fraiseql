@@ -144,4 +144,3 @@ pub fn flatten_field_metadata(schema: &CompiledSchema) -> BTreeMap<String, Field
 
     map
 }
-

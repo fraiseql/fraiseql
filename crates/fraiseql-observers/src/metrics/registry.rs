@@ -418,4 +418,3 @@ impl Default for MetricsRegistry {
         Self::global().expect("Failed to initialize metrics registry")
     }
 }
-

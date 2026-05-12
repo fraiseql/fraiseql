@@ -54,6 +54,7 @@ Observer-level caching.
 ## Steps
 
 For each group, apply the standard pattern:
+
 1. Create `tests.rs` with merged content.
 2. Add `#[cfg(test)] mod tests;` in module root.
 3. Remove inline blocks.

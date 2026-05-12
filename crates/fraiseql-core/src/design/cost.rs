@@ -207,5 +207,3 @@ fn check_field_multipliers(schema: &Value, audit: &mut DesignAudit) {
         }
     }
 }
-
-

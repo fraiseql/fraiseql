@@ -70,4 +70,3 @@ pub fn validate_auth_time_claim(
         Ok(())
     }
 }
-

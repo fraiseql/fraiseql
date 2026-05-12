@@ -275,4 +275,3 @@ pub(crate) fn format_as_python(metadata: &FactTableMetadata) -> String {
 
     output
 }
-

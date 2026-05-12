@@ -14,6 +14,7 @@ Extract inline tests from all 20 files in `fraiseql-secrets`.
 ### encryption/ (15 files)
 
 The largest subsystem in the crate. Likely includes:
+
 - Key derivation, symmetric encryption, asymmetric encryption
 - Key wrapping, envelope encryption
 - Rotation, versioning

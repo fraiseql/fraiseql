@@ -1083,4 +1083,3 @@ fn schema_integrity_verification() {
     let restored = CompiledSchema::from_json(&body, false).unwrap();
     assert_eq!(restored.types.len(), schema.types.len());
 }
-

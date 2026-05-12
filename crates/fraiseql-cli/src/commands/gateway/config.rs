@@ -279,4 +279,3 @@ pub fn validate_config(config: &GatewayConfig, base_dir: &Path) -> Result<(), Ve
         Err(errors)
     }
 }
-

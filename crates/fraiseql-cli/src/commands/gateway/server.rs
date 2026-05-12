@@ -259,4 +259,3 @@ async fn handle_ready(State(state): State<GatewayState>) -> impl IntoResponse {
         "subgraphs": subgraph_count,
     }))
 }
-

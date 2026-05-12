@@ -390,4 +390,3 @@ impl From<GraphQLError> for ErrorResponse {
         Self::from_error(error)
     }
 }
-

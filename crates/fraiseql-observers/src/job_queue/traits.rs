@@ -237,4 +237,3 @@ impl JobQueue for MockJobQueue {
         Ok(self.dlq.len())
     }
 }
-

@@ -416,4 +416,3 @@ fn add_import_for_type(proto_type: &str, imports: &mut BTreeSet<String>) {
         _ => {},
     }
 }
-

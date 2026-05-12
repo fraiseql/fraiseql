@@ -127,4 +127,3 @@ impl<S: Subscriber> Layer<S> for MutationAuditLayer {
         self.aggregator.record(&audit_event);
     }
 }
-

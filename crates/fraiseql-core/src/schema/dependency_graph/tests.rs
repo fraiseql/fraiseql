@@ -567,4 +567,3 @@
         assert_eq!(cycle.path_string(), "");
         assert!(cycle.is_empty());
     }
-

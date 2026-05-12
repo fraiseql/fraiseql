@@ -242,4 +242,3 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
 
     Ok(count)
 }
-

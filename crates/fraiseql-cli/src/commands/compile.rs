@@ -842,4 +842,3 @@ pub(crate) fn infer_native_columns_from_arg_types(schema: &mut CompiledSchema) {
         }
     }
 }
-

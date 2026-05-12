@@ -27,4 +27,3 @@ pub fn extract_trace_context(headers: &HeaderMap) -> Option<FederationTraceConte
         .and_then(|h| h.to_str().ok())
         .and_then(FederationTraceContext::from_traceparent)
 }
-

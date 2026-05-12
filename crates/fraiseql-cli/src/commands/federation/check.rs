@@ -459,4 +459,3 @@ fn validate_against_supergraph(
 
     Ok(warnings)
 }
-

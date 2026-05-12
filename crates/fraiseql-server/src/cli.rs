@@ -270,4 +270,3 @@ impl ServerArgs {
         self.log_format.as_deref().is_some_and(|v| v.eq_ignore_ascii_case("json"))
     }
 }
-

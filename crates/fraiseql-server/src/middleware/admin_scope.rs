@@ -50,4 +50,3 @@ pub fn require_admin_scope(scope_claim: &str) -> fraiseql_error::Result<()> {
         )))
     }
 }
-

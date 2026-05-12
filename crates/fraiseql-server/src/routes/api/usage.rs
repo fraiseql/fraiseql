@@ -101,4 +101,3 @@ pub async fn usage_handler<A: DatabaseAdapter>(
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
-

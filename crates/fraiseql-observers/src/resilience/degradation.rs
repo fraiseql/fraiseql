@@ -100,4 +100,3 @@ impl GracefulDegradation {
         self.enabled.load(Ordering::Relaxed)
     }
 }
-

@@ -126,4 +126,3 @@ pub(crate) fn apollo_sandbox_html(endpoint: &str) -> String {
 </html>"#
     )
 }
-

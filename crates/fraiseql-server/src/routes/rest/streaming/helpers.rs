@@ -133,4 +133,3 @@ pub(super) fn extract_rows(
         other => Ok(vec![other.clone()]),
     }
 }
-

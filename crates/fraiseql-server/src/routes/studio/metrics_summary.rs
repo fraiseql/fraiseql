@@ -188,4 +188,3 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
         subscriptions,
     }
 }
-

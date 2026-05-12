@@ -515,4 +515,3 @@ impl UsageBackend for PostgresBackend {
         Ok(result)
     }
 }
-

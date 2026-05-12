@@ -140,4 +140,3 @@ pub fn validate_tenant_annotations(
 
     Ok(())
 }
-

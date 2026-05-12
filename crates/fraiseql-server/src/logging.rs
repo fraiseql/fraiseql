@@ -460,4 +460,3 @@ impl RequestLogger {
             .with_request_context((*self.context).clone())
     }
 }
-

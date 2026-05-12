@@ -128,4 +128,3 @@ pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
         mutations,
     })
 }
-

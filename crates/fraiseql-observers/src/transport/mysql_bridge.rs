@@ -561,4 +561,3 @@ impl MySQLNatsBridge {
         }
     }
 }
-

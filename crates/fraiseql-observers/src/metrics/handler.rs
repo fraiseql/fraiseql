@@ -33,4 +33,3 @@ pub async fn metrics_handler() -> ([(String, String); 1], String) {
         ),
     }
 }
-
