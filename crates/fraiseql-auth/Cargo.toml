@@ -11,7 +11,7 @@ hex = "0.4"
 hmac = {version = "0.12", features = ["std"]}
 http = "1"
 jsonwebtoken = {version = "10", features = ["rust_crypto"]}
-rand = "0.8"
+rand = "0.9"
 # Redis for distributed rate limiting (optional)
 redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
 reqwest = {workspace = true}

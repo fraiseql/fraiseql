@@ -1357,9 +1357,9 @@ mod token_revocation_tests {
 
     #[test]
     fn hmac_fallback_tokens_differ_between_calls_even_for_same_user() {
-        use rand::{Rng, rngs::OsRng};
-        let key1: [u8; 32] = OsRng.gen();
-        let key2: [u8; 32] = OsRng.gen();
+        use rand::Rng;
+        let key1: [u8; 32] = rand::rng().random();
+        let key2: [u8; 32] = rand::rng().random();
         assert_ne!(key1, key2, "two OsRng-generated 256-bit keys must differ");
     }
 }

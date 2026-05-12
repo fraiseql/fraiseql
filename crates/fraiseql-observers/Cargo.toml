@@ -15,7 +15,7 @@ fraiseql-arrow = {workspace = true, optional = true}
 futures = "0.3"
 http = "1.1"
 prometheus = {version = "0.14", optional = true}
-rand = "0.8"
+rand = "0.9"
 redis = {version = "1", features = ["aio", "connection-manager", "tokio-comp"], optional = true}
 reqwest = {workspace = true}
 serde = {version = "1.0", features = ["derive"]}

@@ -861,7 +861,6 @@ mod factory_tests {
     use crate::factory::*;
     use crate::{
         config::{PerformanceConfig, TransportConfig, TransportKind},
-        error::ObserverError,
         matcher::EventMatcher,
         testing::mocks::MockDeadLetterQueue,
         ObserverRuntimeConfig,

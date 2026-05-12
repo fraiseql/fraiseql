@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use rand::{Rng, rngs::OsRng};
+use rand::Rng;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
@@ -99,7 +99,7 @@ impl ObserverExecutor {
                 // jitter: ±25% of base_delay
                 let jitter_range = base_delay / 4;
                 if jitter_range > 0 {
-                    let jitter = OsRng.gen_range(0..=jitter_range.saturating_mul(2));
+                    let jitter = rand::rng().random_range(0..=jitter_range.saturating_mul(2));
                     base_delay.saturating_add(jitter).saturating_sub(jitter_range)
                 } else {
                     base_delay

@@ -117,9 +117,9 @@ pub fn verify_totp(secret: &[u8], code: &str, time: u64) -> bool {
 
 /// Generate a cryptographically random TOTP secret.
 pub fn generate_totp_secret() -> Vec<u8> {
-    use rand::{Rng, rngs::OsRng};
+    use rand::Rng;
     let mut secret = vec![0u8; TOTP_SECRET_BYTES];
-    OsRng.fill(&mut secret[..]);
+    rand::rng().fill(&mut secret[..]);
     secret
 }
 
@@ -135,13 +135,14 @@ pub fn totp_uri(secret: &[u8], email: &str, issuer: &str) -> String {
 
 /// Generate recovery codes (8 alphanumeric, 8 characters each).
 pub fn generate_recovery_codes() -> Vec<String> {
-    use rand::{Rng, rngs::OsRng};
+    use rand::Rng;
 
     const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No 0/O/1/I
+    let mut rng = rand::rng();
     (0..RECOVERY_CODE_COUNT)
         .map(|_| {
             (0..8)
-                .map(|_| CHARSET[OsRng.gen_range(0..CHARSET.len())] as char)
+                .map(|_| CHARSET[rng.random_range(0..CHARSET.len())] as char)
                 .collect()
         })
         .collect()

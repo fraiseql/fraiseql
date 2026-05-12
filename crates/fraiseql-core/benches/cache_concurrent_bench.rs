@@ -28,7 +28,7 @@ use std::{sync::Arc, thread};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use fraiseql_core::cache::{CacheConfig, QueryResultCache};
 use fraiseql_db::JsonbValue;
-use rand::Rng;
+use rand::Rng as _;
 
 /// Number of distinct keys to use in the benchmark.
 const KEY_COUNT: usize = 1_000;
@@ -189,16 +189,16 @@ fn bench_cache_latency(c: &mut Criterion) {
     let mut group = c.benchmark_group("cache_get_latency_steady_state");
     // Measure per-operation latency (not throughput)
     group.bench_function("single_get", |b| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         b.iter(|| {
-            let _ = cache.get(rng.gen_range(0..KEY_COUNT) as u64);
+            let _ = cache.get(rng.random_range(0..KEY_COUNT) as u64);
         });
     });
     group.bench_function("single_put", |b| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         b.iter(|| {
             let _ = cache.put(
-                rng.gen_range(0..KEY_COUNT) as u64,
+                rng.random_range(0..KEY_COUNT) as u64,
                 make_result(),
                 vec!["users".to_string()],
                 None,

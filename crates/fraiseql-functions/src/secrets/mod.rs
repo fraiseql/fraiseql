@@ -74,7 +74,7 @@ mod crypto {
         aead::{Aead, KeyInit},
     };
     use fraiseql_error::{FraiseQLError, Result};
-    use rand::RngCore;
+    use rand::RngCore as _;
 
     /// Size of the AES-256-GCM nonce in bytes.
     const NONCE_BYTES: usize = 12;
@@ -93,7 +93,7 @@ mod crypto {
         })?;
 
         let mut nonce_bytes = [0u8; NONCE_BYTES];
-        rand::thread_rng().fill_bytes(&mut nonce_bytes);
+        rand::rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         let ciphertext = cipher.encrypt(nonce, plaintext).map_err(|e| FraiseQLError::Validation {
@@ -187,10 +187,10 @@ impl InMemorySecretsStore {
     #[must_use]
     #[cfg(feature = "function-secrets")]
     pub fn new() -> Self {
-        use rand::RngCore;
+        use rand::RngCore as _;
 
         let mut key = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut key);
+        rand::rng().fill_bytes(&mut key);
         Self {
             store: Arc::new(Mutex::new(HashMap::new())),
             encryption_key: Arc::new(key),

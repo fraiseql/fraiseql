@@ -24,7 +24,7 @@ use std::{sync::Arc, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use dashmap::DashMap;
-use rand::{RngCore, rngs::OsRng};
+use rand::RngCore as _;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -160,12 +160,12 @@ impl InMemoryPkceStateStore {
 
         // code_verifier — RFC 7636 §4.1: 43–128 chars, [A-Za-z0-9\-._~]
         let mut verifier_bytes = [0u8; 32];
-        OsRng.fill_bytes(&mut verifier_bytes);
+        rand::rng().fill_bytes(&mut verifier_bytes);
         let verifier = URL_SAFE_NO_PAD.encode(verifier_bytes);
 
         // internal_key — separate from verifier so outbound token cannot reveal it
         let mut key_bytes = [0u8; 32];
-        OsRng.fill_bytes(&mut key_bytes);
+        rand::rng().fill_bytes(&mut key_bytes);
         let internal_key = URL_SAFE_NO_PAD.encode(key_bytes);
 
         self.entries.insert(
@@ -281,12 +281,12 @@ impl RedisPkceStateStore {
     ) -> Result<(String, String), anyhow::Error> {
         // code_verifier (RFC 7636 §4.1)
         let mut verifier_bytes = [0u8; 32];
-        OsRng.fill_bytes(&mut verifier_bytes);
+        rand::rng().fill_bytes(&mut verifier_bytes);
         let verifier = URL_SAFE_NO_PAD.encode(verifier_bytes);
 
         // Opaque internal key — separate from verifier
         let mut key_bytes = [0u8; 32];
-        OsRng.fill_bytes(&mut key_bytes);
+        rand::rng().fill_bytes(&mut key_bytes);
         let internal_key = URL_SAFE_NO_PAD.encode(key_bytes);
 
         // Serialize state to JSON and store with TTL

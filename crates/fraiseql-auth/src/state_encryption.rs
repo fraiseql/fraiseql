@@ -18,7 +18,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
     aead::{Aead, AeadCore, KeyInit, OsRng, Payload},
 };
-use rand::RngCore;
+use rand::RngCore as _;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -115,7 +115,7 @@ impl StateEncryption {
     pub fn encrypt(&self, state: &str) -> Result<EncryptedState> {
         // Generate random 96-bit nonce
         let mut nonce_bytes = [0u8; 12];
-        rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+        rand::rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from(nonce_bytes);
 
         // Encrypt with AEAD (includes authentication tag)
@@ -184,7 +184,7 @@ impl StateEncryption {
 /// Generate a cryptographically random encryption key
 pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
     let mut key = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut key);
+    rand::rng().fill_bytes(&mut key);
     Zeroizing::new(key)
 }
 

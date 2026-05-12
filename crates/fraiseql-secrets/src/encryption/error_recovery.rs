@@ -215,9 +215,9 @@ impl RetryConfig {
         let base_delay = self.backoff_delay_ms(attempt);
         // Add ±10% jitter
         let jitter_percent = base_delay / 10;
-        let mut rng = rand::rngs::OsRng;
-        let jitter = rng.gen_range(0..=jitter_percent);
-        let use_add = rng.gen_bool(0.5);
+        let mut rng = rand::rng();
+        let jitter = rng.random_range(0..=jitter_percent);
+        let use_add = rng.random_bool(0.5);
         if use_add {
             base_delay + jitter
         } else {

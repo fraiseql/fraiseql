@@ -182,13 +182,13 @@ pub fn hash_token(token: &str) -> String {
 
 /// Generate a cryptographically secure refresh token.
 ///
-/// Returns 32 random bytes from [`rand::rngs::OsRng`] encoded as standard Base64.
+/// Returns 32 random bytes from [`rand::rng`] encoded as standard Base64.
 /// The resulting token is 44 characters long and has approximately 256 bits of entropy.
 pub fn generate_refresh_token() -> String {
     use base64::Engine;
-    use rand::{Rng, rngs::OsRng};
-    // SECURITY: OsRng ensures OS-level entropy for refresh tokens.
-    let random_bytes: Vec<u8> = (0..32).map(|_| OsRng.gen()).collect();
+    use rand::Rng;
+    // SECURITY: rand::rng() is backed by OS-level entropy for refresh tokens.
+    let random_bytes: Vec<u8> = (0..32).map(|_| rand::rng().random()).collect();
     base64::engine::general_purpose::STANDARD.encode(&random_bytes)
 }
 

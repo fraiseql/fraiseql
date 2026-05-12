@@ -26,7 +26,7 @@ hmac = "0.12"  # HMAC-SHA256
 # Metrics for observability
 metrics = "0.22"  # Metrics collection framework
 pbkdf2 = "0.12"  # Key derivation for SCRAM
-rand = "0.8"  # Random nonce generation
+rand = "0.9"  # Random nonce generation
 # TLS support
 rustls = {version = "0.23", features = ["ring"]}
 rustls-native-certs = "0.8.3"

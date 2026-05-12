@@ -419,11 +419,11 @@ pub async fn auth_logout(
 /// Generate a cryptographically random state for CSRF protection
 /// Uses OsRng for cryptographically secure randomness
 pub fn generate_secure_state() -> String {
-    use rand::RngCore;
+    use rand::RngCore as _;
 
     // Generate 32 random bytes for 256 bits of entropy
     let mut bytes = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
 
     // Encode as hex string for safe transmission in URLs/headers
     hex::encode(bytes)

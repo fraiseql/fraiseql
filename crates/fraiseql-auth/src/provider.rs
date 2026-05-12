@@ -142,7 +142,7 @@ impl PkceChallenge {
 ///
 /// # SECURITY
 ///
-/// This uses `rand::thread_rng()` which is cryptographically secure on all major platforms.
+/// This uses `rand::rng()` which is cryptographically secure on all major platforms.
 /// It generates a 128-character random string using only unreserved characters as per RFC 7636.
 ///
 /// The generated verifier meets these requirements:
@@ -164,18 +164,17 @@ impl PkceChallenge {
 /// 2. Consistency: predictable length for tests and monitoring
 /// 3. Compatibility: all OAuth providers support 128-char verifiers
 fn generate_pkce_verifier() -> Result<String> {
-    use rand::{Rng, rngs::OsRng};
+    use rand::Rng;
 
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
     const VERIFIER_LENGTH: usize = 128; // Maximum allowed by RFC 7636
     const MIN_VERIFIER_LENGTH: usize = 43; // Minimum allowed by RFC 7636
 
-    // SECURITY: OsRng is used instead of thread_rng() to guarantee OS-level
-    // entropy for PKCE verifiers, regardless of process startup state.
-    let mut rng = OsRng;
+    // SECURITY: rand::rng() is backed by OS-level entropy for PKCE verifiers.
+    let mut rng = rand::rng();
     let verifier: String = (0..VERIFIER_LENGTH)
         .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
+            let idx = rng.random_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect();

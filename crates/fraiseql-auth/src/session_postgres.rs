@@ -102,8 +102,8 @@ impl PostgresSessionStore {
             // SECURITY: Generate a 256-bit random HMAC key per token so the secret
             // has full entropy regardless of user_id length or content.
             // Using OsRng (backed by the OS CSPRNG) ensures cryptographic quality.
-            use rand::{Rng, rngs::OsRng};
-            let key_bytes: [u8; 32] = OsRng.gen();
+            use rand::Rng;
+            let key_bytes: [u8; 32] = rand::rng().random();
             crate::jwt::generate_hs256_token(&claims, &key_bytes)
         }
     }

@@ -236,8 +236,8 @@ impl EmailSender for InMemoryEmailSender {
 
 /// Generate a cryptographically random 6-digit OTP code.
 pub fn generate_otp_code() -> String {
-    use rand::{Rng, rngs::OsRng};
-    let code: u32 = OsRng.gen_range(0..1_000_000);
+    use rand::Rng;
+    let code: u32 = rand::rng().random_range(0..1_000_000);
     format!("{code:0>6}")
 }
 

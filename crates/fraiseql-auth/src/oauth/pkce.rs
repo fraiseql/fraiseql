@@ -2,7 +2,7 @@
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Duration, Utc};
-use rand::{RngCore, rngs::OsRng};
+use rand::RngCore as _;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq as _;
 
@@ -14,7 +14,7 @@ use subtle::ConstantTimeEq as _;
 /// `code_verifier`, CSRF state parameter, or nonce.
 pub(super) fn gen_random_token() -> String {
     let mut bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
