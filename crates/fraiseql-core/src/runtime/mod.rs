@@ -57,6 +57,7 @@ pub mod jsonb_strategy;
 mod matcher;
 pub mod mutation_result;
 pub(crate) mod native_columns;
+pub mod partial_period;
 mod planner;
 mod projection;
 pub mod query_tracing;
