@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use super::super::context::ExecutorContext;
 use crate::{
-    db::traits::DatabaseAdapter,
+    db::{WhereClause, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     runtime::suggest_similar,
+    security::{RlsWhereClause, SecurityContext},
 };
 
 /// Runner for aggregate and window analytics queries.
@@ -30,6 +31,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         &self,
         query_name: &str,
         variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         // Extract table name from query name (e.g., "sales_aggregate" -> "tf_sales")
         let table_name =
@@ -60,7 +62,8 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute aggregate query
-        self.execute_aggregate_query(query_json, query_name, metadata).await
+        self.execute_aggregate_query(query_json, query_name, metadata, security_context)
+            .await
     }
 
     /// Execute a window query dispatch.
@@ -74,6 +77,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         &self,
         query_name: &str,
         variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         // Extract table name from query name (e.g., "sales_window" -> "tf_sales")
         let table_name =
@@ -104,7 +108,8 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let query_json = variables.unwrap_or(&empty_json);
 
         // Execute window query
-        self.execute_window_query(query_json, query_name, metadata).await
+        self.execute_window_query(query_json, query_name, metadata, security_context)
+            .await
     }
 
     /// Execute an aggregate query.
@@ -119,9 +124,14 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
     ///
     /// GraphQL response as JSON string
     ///
+    /// When `security_context` is `Some`, evaluates the configured RLS policy and
+    /// AND-composes the resulting WHERE clause with the user-supplied WHERE before
+    /// planning. RLS conditions are always placed first so they cannot be bypassed.
+    ///
     /// # Errors
     ///
     /// Returns error if:
+    /// - RLS policy evaluation fails
     /// - Query parsing fails
     /// - Execution plan generation fails
     /// - SQL generation fails
@@ -146,15 +156,33 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         query_json: &serde_json::Value,
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
+        security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        // 1. Parse JSON query into AggregationRequest Build native_columns from
+        // 1. Parse JSON query into AggregationRequest. Build native_columns from
         //    denormalized_filters so the parser can emit direct column references instead of JSONB
         //    extraction for native columns.
         let native_columns = crate::runtime::native_columns::filter_columns_to_native_map(
             &metadata.denormalized_filters,
         );
-        let request =
+        let mut request =
             crate::runtime::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
+
+        // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
+        //     RLS WHERE is always AND-composed first so it cannot be bypassed.
+        if let Some(ctx) = security_context {
+            let rls_where: Option<RlsWhereClause> =
+                if let Some(ref policy) = self.ctx.config.rls_policy {
+                    policy.evaluate(ctx, &request.table_name)?
+                } else {
+                    None
+                };
+            request.where_clause =
+                match (rls_where.map(RlsWhereClause::into_where_clause), request.where_clause.take()) {
+                    (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
+                    (Some(rls), None) => Some(rls),
+                    (None, user) => user,
+                };
+        }
 
         // 2. Generate execution plan
         let plan =
@@ -194,9 +222,14 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
     ///
     /// GraphQL response as JSON string
     ///
+    /// When `security_context` is `Some`, evaluates the configured RLS policy and
+    /// AND-composes the resulting WHERE clause with the user-supplied WHERE before
+    /// planning. RLS conditions are always placed first so they cannot be bypassed.
+    ///
     /// # Errors
     ///
     /// Returns error if:
+    /// - RLS policy evaluation fails
     /// - Query parsing fails
     /// - Execution plan generation fails
     /// - SQL generation fails
@@ -226,9 +259,27 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         query_json: &serde_json::Value,
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
+        security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         // 1. Parse JSON query into WindowRequest
-        let request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
+        let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
+
+        // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
+        //     RLS WHERE is always AND-composed first so it cannot be bypassed.
+        if let Some(ctx) = security_context {
+            let rls_where: Option<RlsWhereClause> =
+                if let Some(ref policy) = self.ctx.config.rls_policy {
+                    policy.evaluate(ctx, &request.table_name)?
+                } else {
+                    None
+                };
+            request.where_clause =
+                match (rls_where.map(RlsWhereClause::into_where_clause), request.where_clause.take()) {
+                    (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
+                    (Some(rls), None) => Some(rls),
+                    (None, user) => user,
+                };
+        }
 
         // 2. Generate execution plan (validates semantic names against metadata)
         let plan = crate::compiler::window_functions::WindowPlanner::plan(request, metadata)?;
@@ -255,3 +306,7 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         Ok(response)
     }
 }
+
+#[cfg(test)]
+#[path = "aggregate_tests.rs"]
+mod aggregate_rls_tests;

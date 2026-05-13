@@ -244,7 +244,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
     ) -> Result<serde_json::Value> {
-        self.aggregate_runner().execute_aggregate_query(query_json, query_name, metadata).await
+        self.aggregate_runner()
+            .execute_aggregate_query(query_json, query_name, metadata, None)
+            .await
     }
 
     /// Execute a window query directly.
@@ -259,7 +261,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_name: &str,
         metadata: &crate::compiler::fact_table::FactTableMetadata,
     ) -> Result<serde_json::Value> {
-        self.aggregate_runner().execute_window_query(query_json, query_name, metadata).await
+        self.aggregate_runner()
+            .execute_window_query(query_json, query_name, metadata, None)
+            .await
     }
 
     /// Count rows matching a query's filters.

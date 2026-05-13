@@ -28,19 +28,23 @@ use crate::{
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
 pub struct CapturingMockAdapter {
-    pub mock_results:    Vec<JsonbValue>,
-    pub captured_where:  std::sync::Mutex<Option<WhereClause>>,
-    pub captured_limit:  std::sync::Mutex<Option<u32>>,
-    pub captured_offset: std::sync::Mutex<Option<u32>>,
+    pub mock_results:              Vec<JsonbValue>,
+    pub captured_where:            std::sync::Mutex<Option<WhereClause>>,
+    pub captured_limit:            std::sync::Mutex<Option<u32>>,
+    pub captured_offset:           std::sync::Mutex<Option<u32>>,
+    pub captured_aggregate_sql:    std::sync::Mutex<Option<String>>,
+    pub captured_aggregate_params: std::sync::Mutex<Option<Vec<serde_json::Value>>>,
 }
 
 impl CapturingMockAdapter {
     pub fn new(mock_results: Vec<JsonbValue>) -> Self {
         Self {
             mock_results,
-            captured_where: std::sync::Mutex::new(None),
-            captured_limit: std::sync::Mutex::new(None),
-            captured_offset: std::sync::Mutex::new(None),
+            captured_where:            std::sync::Mutex::new(None),
+            captured_limit:            std::sync::Mutex::new(None),
+            captured_offset:           std::sync::Mutex::new(None),
+            captured_aggregate_sql:    std::sync::Mutex::new(None),
+            captured_aggregate_params: std::sync::Mutex::new(None),
         }
     }
 
@@ -54,6 +58,15 @@ impl CapturingMockAdapter {
 
     pub fn captured_offset(&self) -> Option<u32> {
         *self.captured_offset.lock().unwrap()
+    }
+
+    pub fn captured_aggregate_sql(&self) -> Option<String> {
+        self.captured_aggregate_sql.lock().unwrap().clone()
+    }
+
+    #[allow(dead_code)] // Reason: available for future aggregate RLS param verification tests
+    pub fn captured_aggregate_params(&self) -> Option<Vec<serde_json::Value>> {
+        self.captured_aggregate_params.lock().unwrap().clone()
     }
 }
 
@@ -113,9 +126,11 @@ impl DatabaseAdapter for CapturingMockAdapter {
 
     async fn execute_parameterized_aggregate(
         &self,
-        _sql: &str,
-        _params: &[serde_json::Value],
+        sql: &str,
+        params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        *self.captured_aggregate_sql.lock().unwrap() = Some(sql.to_string());
+        *self.captured_aggregate_params.lock().unwrap() = Some(params.to_vec());
         Ok(vec![])
     }
 

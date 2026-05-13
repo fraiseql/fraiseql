@@ -221,13 +221,15 @@ impl<A: DatabaseAdapter> Executor<A> {
                 self.query_runner().execute_regular_query_with_security(query, variables, security_context)
                     .await
             },
-            // Other query types don't support RLS yet (relay is handled inside
-            // execute_regular_query_with_security)
             QueryType::Aggregate(query_name) => {
-                self.aggregate_runner().execute_aggregate_dispatch(&query_name, variables).await
+                self.aggregate_runner()
+                    .execute_aggregate_dispatch(&query_name, variables, Some(security_context))
+                    .await
             },
             QueryType::Window(query_name) => {
-                self.aggregate_runner().execute_window_dispatch(&query_name, variables).await
+                self.aggregate_runner()
+                    .execute_window_dispatch(&query_name, variables, Some(security_context))
+                    .await
             },
             #[cfg(feature = "federation")]
             QueryType::Federation(query_name) => {
