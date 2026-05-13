@@ -258,6 +258,18 @@ impl TemporalGrain {
             Self::Year => "year",
         }
     }
+
+    /// Converts to the corresponding [`TemporalBucket`] for use with SQL generators.
+    #[must_use]
+    pub const fn to_temporal_bucket(self) -> super::aggregate_types::TemporalBucket {
+        match self {
+            Self::Day => super::aggregate_types::TemporalBucket::Day,
+            Self::Week => super::aggregate_types::TemporalBucket::Week,
+            Self::Month => super::aggregate_types::TemporalBucket::Month,
+            Self::Quarter => super::aggregate_types::TemporalBucket::Quarter,
+            Self::Year => super::aggregate_types::TemporalBucket::Year,
+        }
+    }
 }
 
 /// Aggregation strategy for fact tables

@@ -1110,3 +1110,367 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     assert_eq!(result.params[1], serde_json::json!("b"));
     assert_eq!(result.params[2], serde_json::json!("c"));
 }
+
+// =============================================================================
+// Partial-period UNION ALL builder
+// =============================================================================
+
+mod partial_period_builder_tests {
+    use chrono::NaiveDate;
+    use serde_json::json;
+
+    use super::*;
+    use crate::{
+        compiler::{
+            aggregate_types::AggregateFunction,
+            aggregation::{AggregateSelection, AggregationRequest, GroupBySelection},
+            fact_table::{
+                DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn,
+                PartialPeriodConfig, SqlType, TemporalGrain,
+            },
+        },
+        runtime::partial_period::BranchPlan,
+    };
+
+    fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, d).unwrap()
+    }
+
+    fn test_metadata() -> FactTableMetadata {
+        FactTableMetadata {
+            table_name:           "v_events_month".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "volume".to_string(),
+                sql_type: SqlType::BigInt,
+                nullable: false,
+            }],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![
+                FilterColumn {
+                    name:     "tenant_id".to_string(),
+                    sql_type: SqlType::BigInt,
+                    indexed:  true,
+                },
+                FilterColumn {
+                    name:     "period_start".to_string(),
+                    sql_type: SqlType::Date,
+                    indexed:  true,
+                },
+            ],
+            calendar_dimensions:  vec![],
+            partial_period:       Some(PartialPeriodConfig {
+                fine_grain_view:   "v_events_day".to_string(),
+                time_grain_column: "period_start".to_string(),
+                time_grain_trunc:  TemporalGrain::Month,
+            }),
+        }
+    }
+
+    fn test_config() -> PartialPeriodConfig {
+        PartialPeriodConfig {
+            fine_grain_view:   "v_events_day".to_string(),
+            time_grain_column: "period_start".to_string(),
+            time_grain_trunc:  TemporalGrain::Month,
+        }
+    }
+
+    fn test_plan() -> AggregationPlan {
+        let metadata = test_metadata();
+        let request = AggregationRequest {
+            table_name:   "v_events_month".to_string(),
+            where_clause: None,
+            group_by:     vec![
+                GroupBySelection::Dimension {
+                    path:  "category".to_string(),
+                    alias: "category".to_string(),
+                },
+                GroupBySelection::TemporalBucket {
+                    column: "period_start".to_string(),
+                    bucket: TemporalBucket::Month,
+                    alias:  "period_start".to_string(),
+                },
+            ],
+            aggregates:   vec![
+                AggregateSelection::Count {
+                    alias: "count".to_string(),
+                },
+                AggregateSelection::MeasureAggregate {
+                    measure:  "volume".to_string(),
+                    function: AggregateFunction::Sum,
+                    alias:    "volume_sum".to_string(),
+                },
+            ],
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
+        };
+
+        crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
+    }
+
+    #[test]
+    fn test_fine_grain_branch_uses_date_trunc() {
+        let plan = test_plan();
+        let config = test_config();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let branch_plan = BranchPlan {
+            partial_leading: None,
+            complete_middle: None,
+            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+        };
+
+        let result = gen
+            .generate_partial_period(&plan, &config, &branch_plan, None)
+            .unwrap();
+
+        // Fine-grain branch uses fine-grain view
+        assert!(
+            result.sql.contains("FROM v_events_day"),
+            "expected fine-grain view: {}",
+            result.sql
+        );
+        // Fine-grain branch applies DATE_TRUNC for re-aggregation
+        assert!(
+            result.sql.contains("DATE_TRUNC('month', period_start)"),
+            "expected DATE_TRUNC: {}",
+            result.sql
+        );
+        // Date range parameterized
+        assert!(
+            result.sql.contains("\"period_start\" >= $1"),
+            "expected parameterized gte: {}",
+            result.sql
+        );
+        assert!(
+            result.sql.contains("\"period_start\" < $2"),
+            "expected parameterized lt: {}",
+            result.sql
+        );
+        assert_eq!(result.params.len(), 2);
+        assert_eq!(result.params[0], json!("2024-03-01"));
+        assert_eq!(result.params[1], json!("2024-03-21"));
+    }
+
+    #[test]
+    fn test_coarse_branch_no_date_trunc() {
+        let plan = test_plan();
+        let config = test_config();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let branch_plan = BranchPlan {
+            partial_leading: None,
+            complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
+            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+        };
+
+        let result = gen
+            .generate_partial_period(&plan, &config, &branch_plan, None)
+            .unwrap();
+
+        // UNION ALL present
+        assert!(
+            result.sql.contains("UNION ALL"),
+            "expected UNION ALL: {}",
+            result.sql
+        );
+        // Coarse branch uses original view
+        assert!(
+            result.sql.contains("FROM v_events_month"),
+            "expected coarse view: {}",
+            result.sql
+        );
+        // Coarse branch does NOT apply DATE_TRUNC — uses the column directly
+        // (the coarse branch should have "period_start" in GROUP BY, not DATE_TRUNC)
+        let branches: Vec<&str> = result.sql.split("UNION ALL").collect();
+        assert_eq!(branches.len(), 2, "expected 2 branches");
+        let coarse_branch = branches[0];
+        assert!(
+            !coarse_branch.contains("DATE_TRUNC"),
+            "coarse branch should NOT have DATE_TRUNC: {}",
+            coarse_branch
+        );
+    }
+
+    #[test]
+    fn test_three_branch_parameter_numbering() {
+        let plan = test_plan();
+        let config = test_config();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let branch_plan = BranchPlan {
+            partial_leading: Some((date(2024, 1, 15), date(2024, 2, 1))),
+            complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
+            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+        };
+
+        let result = gen
+            .generate_partial_period(&plan, &config, &branch_plan, None)
+            .unwrap();
+
+        // 3 branches × 2 date params each = 6 params
+        assert_eq!(
+            result.params.len(),
+            6,
+            "expected 6 params, got {}",
+            result.params.len()
+        );
+
+        // Branch 1: $1, $2
+        assert!(result.sql.contains("$1"), "missing $1: {}", result.sql);
+        assert!(result.sql.contains("$2"), "missing $2: {}", result.sql);
+        // Branch 2: $3, $4
+        assert!(result.sql.contains("$3"), "missing $3: {}", result.sql);
+        assert!(result.sql.contains("$4"), "missing $4: {}", result.sql);
+        // Branch 3: $5, $6
+        assert!(result.sql.contains("$5"), "missing $5: {}", result.sql);
+        assert!(result.sql.contains("$6"), "missing $6: {}", result.sql);
+
+        // Param values in order
+        assert_eq!(result.params[0], json!("2024-01-15"));
+        assert_eq!(result.params[1], json!("2024-02-01"));
+        assert_eq!(result.params[2], json!("2024-02-01"));
+        assert_eq!(result.params[3], json!("2024-03-01"));
+        assert_eq!(result.params[4], json!("2024-03-01"));
+        assert_eq!(result.params[5], json!("2024-03-21"));
+    }
+
+    #[test]
+    fn test_extra_where_passed_to_all_branches() {
+        let plan = test_plan();
+        let config = test_config();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let branch_plan = BranchPlan {
+            partial_leading: Some((date(2024, 1, 15), date(2024, 2, 1))),
+            complete_middle: None,
+            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+        };
+
+        let extra = WhereClause::NativeField {
+            column:   "tenant_id".into(),
+            pg_cast:  "int8".into(),
+            operator: WhereOperator::Eq,
+            value:    json!(42),
+        };
+
+        let result = gen
+            .generate_partial_period(&plan, &config, &branch_plan, Some(&extra))
+            .unwrap();
+
+        // Two branches, each should have the tenant_id condition
+        let branches: Vec<&str> = result.sql.split("UNION ALL").collect();
+        assert_eq!(branches.len(), 2);
+        for (i, branch) in branches.iter().enumerate() {
+            assert!(
+                branch.contains("\"tenant_id\""),
+                "branch {} missing tenant_id filter: {}",
+                i + 1,
+                branch
+            );
+        }
+
+        // 2 branches × (2 date params + 1 tenant_id param) = 6 total
+        assert_eq!(
+            result.params.len(),
+            6,
+            "expected 6 params: {:?}",
+            result.params
+        );
+    }
+
+    #[test]
+    fn test_two_branch_aligned_lower_bound() {
+        let plan = test_plan();
+        let config = test_config();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        // Aligned lower bound: no B1
+        let branch_plan = BranchPlan {
+            partial_leading: None,
+            complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
+            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+        };
+
+        let result = gen
+            .generate_partial_period(&plan, &config, &branch_plan, None)
+            .unwrap();
+
+        assert_eq!(
+            result.sql.split("UNION ALL").count(),
+            2,
+            "expected 2 branches for aligned lower bound"
+        );
+        assert_eq!(result.params.len(), 4);
+    }
+
+    #[test]
+    fn test_single_branch_current_only() {
+        let plan = test_plan();
+        let config = test_config();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        // Single branch: only current period
+        let branch_plan = BranchPlan {
+            partial_leading: None,
+            complete_middle: None,
+            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+        };
+
+        let result = gen
+            .generate_partial_period(&plan, &config, &branch_plan, None)
+            .unwrap();
+
+        assert!(
+            !result.sql.contains("UNION ALL"),
+            "single branch should not have UNION ALL: {}",
+            result.sql
+        );
+        assert_eq!(result.params.len(), 2);
+    }
+
+    #[test]
+    fn test_aggregate_expressions_in_all_branches() {
+        let plan = test_plan();
+        let config = test_config();
+        let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+        let branch_plan = BranchPlan {
+            partial_leading: Some((date(2024, 1, 15), date(2024, 2, 1))),
+            complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
+            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+        };
+
+        let result = gen
+            .generate_partial_period(&plan, &config, &branch_plan, None)
+            .unwrap();
+
+        let branches: Vec<&str> = result.sql.split("UNION ALL").collect();
+        assert_eq!(branches.len(), 3);
+
+        for (i, branch) in branches.iter().enumerate() {
+            assert!(
+                branch.contains("COUNT(*)"),
+                "branch {} missing COUNT(*): {}",
+                i + 1,
+                branch
+            );
+            assert!(
+                branch.contains("SUM(volume)"),
+                "branch {} missing SUM(volume): {}",
+                i + 1,
+                branch
+            );
+            assert!(
+                branch.contains("GROUP BY"),
+                "branch {} missing GROUP BY: {}",
+                i + 1,
+                branch
+            );
+        }
+    }
+}
