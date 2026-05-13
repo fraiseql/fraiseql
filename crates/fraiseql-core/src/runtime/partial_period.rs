@@ -11,6 +11,7 @@
 //! All period arithmetic functions are pure (no database calls, no side effects).
 
 use chrono::{Datelike, NaiveDate, TimeDelta};
+use fraiseql_db::{WhereClause, WhereOperator};
 
 use crate::compiler::fact_table::TemporalGrain;
 
@@ -228,6 +229,190 @@ pub fn determine_branches(
             None
         },
         current_period:  (current_ps, today_exclusive),
+    }
+}
+
+/// Result of splitting a WHERE clause into its date lower-bound condition and
+/// the remaining (non-date) conditions.
+///
+/// Produced by [`split_where_clause`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct SplitWhereResult {
+    /// The inclusive lower-bound date extracted from the WHERE clause.
+    pub lower_bound: NaiveDate,
+    /// Everything except the matched date condition. `None` when the entire
+    /// WHERE clause was just the date condition (nothing left).
+    pub remaining:   Option<WhereClause>,
+}
+
+/// Extracts an inclusive lower-bound date from a WHERE clause on the given column.
+///
+/// Scans the clause for a `Gte` or `Gt` condition on `column_name`. For `Gt`,
+/// the value is converted to the next day to produce an inclusive bound
+/// (`date > '2024-01-14'` → `date >= '2024-01-15'`).
+///
+/// Only AND-chained conditions are traversed. OR and NOT wrappers cause a safe
+/// fallback (`None`), since extracting a single branch from an OR is not
+/// semantically valid.
+///
+/// Returns `None` if no lower-bound condition is found on the target column.
+///
+/// # Arguments
+///
+/// * `where_clause` — the WHERE clause to inspect
+/// * `column_name` — the time-grain column to look for (e.g. `"period_start"`)
+#[must_use]
+pub fn extract_lower_date_bound(
+    where_clause: &WhereClause,
+    column_name: &str,
+) -> Option<NaiveDate> {
+    match where_clause {
+        WhereClause::Field {
+            path,
+            operator,
+            value,
+        } => extract_from_field(path, operator, value, column_name),
+
+        WhereClause::NativeField {
+            column,
+            operator,
+            value,
+            ..
+        } => {
+            if column == column_name {
+                extract_date_from_operator(operator, value)
+            } else {
+                None
+            }
+        }
+
+        WhereClause::And(children) => {
+            for child in children {
+                if let Some(d) = extract_lower_date_bound(child, column_name) {
+                    return Some(d);
+                }
+            }
+            None
+        }
+
+        // OR/NOT/unknown: cannot safely extract a lower bound — fall back to standard path.
+        _ => None,
+    }
+}
+
+/// Splits a WHERE clause into the extracted lower-bound date and remaining conditions.
+///
+/// Returns `None` if no lower-bound date condition is found on `column_name`.
+/// When found, the matched condition is removed from the clause:
+/// - If the clause was a single condition, `remaining` is `None`.
+/// - If the clause was an AND chain, the matched child is removed. If only one
+///   child remains, the AND wrapper is unwrapped.
+///
+/// # Arguments
+///
+/// * `where_clause` — the WHERE clause to split
+/// * `column_name` — the time-grain column to look for
+#[must_use]
+pub fn split_where_clause(
+    where_clause: &WhereClause,
+    column_name: &str,
+) -> Option<SplitWhereResult> {
+    match where_clause {
+        WhereClause::Field {
+            path,
+            operator,
+            value,
+        } => {
+            let date = extract_from_field(path, operator, value, column_name)?;
+            Some(SplitWhereResult {
+                lower_bound: date,
+                remaining:   None,
+            })
+        }
+
+        WhereClause::NativeField {
+            column,
+            operator,
+            value,
+            ..
+        } => {
+            if column != column_name {
+                return None;
+            }
+            let date = extract_date_from_operator(operator, value)?;
+            Some(SplitWhereResult {
+                lower_bound: date,
+                remaining:   None,
+            })
+        }
+
+        WhereClause::And(children) => {
+            // Find the first child that matches the date column.
+            let mut match_idx = None;
+            let mut matched_date = None;
+            for (i, child) in children.iter().enumerate() {
+                if let Some(d) = extract_lower_date_bound(child, column_name) {
+                    match_idx = Some(i);
+                    matched_date = Some(d);
+                    break;
+                }
+            }
+            let idx = match_idx?;
+            let date = matched_date?;
+
+            // Build remaining by filtering out the matched child.
+            let remaining: Vec<WhereClause> = children
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != idx)
+                .map(|(_, c)| c.clone())
+                .collect();
+
+            let remaining = match remaining.len() {
+                0 => None,
+                1 => remaining.into_iter().next(),
+                _ => Some(WhereClause::And(remaining)),
+            };
+
+            Some(SplitWhereResult {
+                lower_bound: date,
+                remaining,
+            })
+        }
+
+        // OR/NOT/unknown: cannot safely split.
+        _ => None,
+    }
+}
+
+/// Checks if a `Field` path matches the column name and extracts a date.
+fn extract_from_field(
+    path: &[String],
+    operator: &WhereOperator,
+    value: &serde_json::Value,
+    column_name: &str,
+) -> Option<NaiveDate> {
+    if path.len() == 1 && path[0] == column_name {
+        extract_date_from_operator(operator, value)
+    } else {
+        None
+    }
+}
+
+/// Converts a `Gte`/`Gt` operator + value into an inclusive `NaiveDate`.
+///
+/// `Gt` adds one day: `date > '2024-01-14'` → `date >= '2024-01-15'`.
+fn extract_date_from_operator(
+    operator: &WhereOperator,
+    value: &serde_json::Value,
+) -> Option<NaiveDate> {
+    let date_str = value.as_str()?;
+    let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok()?;
+
+    match operator {
+        WhereOperator::Gte => Some(date),
+        WhereOperator::Gt => Some(date + TimeDelta::days(1)),
+        _ => None,
     }
 }
 
