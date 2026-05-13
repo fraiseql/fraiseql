@@ -10,6 +10,45 @@ use crate::{Result, WireError};
 use std::path::{Component, Path, PathBuf};
 use zeroize::Zeroizing;
 
+/// Split a `host_port` string into `(host, port)`, handling RFC 3986 §3.2.2
+/// bracket notation for IPv6 literals (`[::1]:5432`).
+///
+/// Accepted formats:
+/// - `[host]:port`  — IPv6 literal with explicit port
+/// - `[host]`       — IPv6 literal, default port 5432
+/// - `host:port`    — hostname or IPv4 with explicit port
+/// - `host`         — hostname or IPv4, default port 5432
+///
+/// # Errors
+///
+/// Returns `WireError::Config` if a port string is present but not a valid `u16`.
+fn split_host_port(host_port: &str) -> Result<(String, u16)> {
+    if host_port.starts_with('[') {
+        // IPv6 bracket notation
+        let close = host_port
+            .find(']')
+            .ok_or_else(|| WireError::Config("unclosed '[' in IPv6 address".into()))?;
+        let host = host_port[1..close].to_string();
+        let rest = &host_port[close + 1..];
+        let port = if let Some(port_str) = rest.strip_prefix(':') {
+            port_str
+                .parse()
+                .map_err(|_| WireError::Config("invalid port in IPv6 address".into()))?
+        } else {
+            5432
+        };
+        Ok((host, port))
+    } else if let Some(pos) = host_port.find(':') {
+        let (host, port_str) = host_port.split_at(pos);
+        let port = port_str[1..]
+            .parse()
+            .map_err(|_| WireError::Config("invalid port".into()))?;
+        Ok((host.to_string(), port))
+    } else {
+        Ok((host_port.to_string(), 5432))
+    }
+}
+
 /// Maximum byte length for a Unix socket directory path.
 ///
 /// Linux's `sun_path` field is 108 bytes; 4096 is the broader POSIX PATH_MAX.
@@ -222,15 +261,7 @@ impl ConnectionInfo {
             (rest, whoami::username())
         };
 
-        let (host, port) = if let Some(pos) = host_port.find(':') {
-            let (host, port) = host_port.split_at(pos);
-            let port = port[1..]
-                .parse()
-                .map_err(|_| WireError::Config("invalid port".into()))?;
-            (host.to_string(), port)
-        } else {
-            (host_port.to_string(), 5432)
-        };
+        let (host, port) = split_host_port(host_port)?;
 
         Ok(Self {
             transport: TransportType::Tcp,

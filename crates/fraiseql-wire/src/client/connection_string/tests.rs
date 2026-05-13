@@ -149,3 +149,36 @@ fn test_connection_string_rejects_relative_host_param() {
     let result = ConnectionInfo::parse("postgres:///mydb?host=relative/path");
     assert!(result.is_err(), "relative host param must be rejected");
 }
+
+// ── IPv6 literal tests (RFC 3986 §3.2.2) ──────────────────────────────────
+
+#[test]
+fn test_parse_ipv6_with_port() {
+    let info = ConnectionInfo::parse("postgres://user@[::1]:5432/db").unwrap();
+    assert_eq!(info.host, Some("::1".to_string()));
+    assert_eq!(info.port, Some(5432));
+    assert_eq!(info.database, "db");
+    assert_eq!(info.user, "user");
+}
+
+#[test]
+fn test_parse_ipv6_default_port() {
+    let info = ConnectionInfo::parse("postgres://user@[::1]/db").unwrap();
+    assert_eq!(info.host, Some("::1".to_string()));
+    assert_eq!(info.port, Some(5432));
+}
+
+#[test]
+fn test_parse_ipv6_non_default_port() {
+    let info = ConnectionInfo::parse("postgres://user@[::1]:5433/db").unwrap();
+    assert_eq!(info.host, Some("::1".to_string()));
+    assert_eq!(info.port, Some(5433));
+}
+
+#[test]
+fn test_parse_ipv6_zone_id() {
+    // Zone ID encoded as %25 per RFC 6874
+    let info = ConnectionInfo::parse("postgres://user@[fe80::1%25eth0]:5432/db").unwrap();
+    assert_eq!(info.host, Some("fe80::1%25eth0".to_string()));
+    assert_eq!(info.port, Some(5432));
+}
