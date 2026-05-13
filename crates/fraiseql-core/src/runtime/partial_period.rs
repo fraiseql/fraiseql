@@ -232,6 +232,36 @@ pub fn determine_branches(
     }
 }
 
+/// Checks whether partial-period UNION ALL dispatch should be used for this query.
+///
+/// Returns the extracted lower-bound date and partial-period config when all
+/// conditions are met:
+/// 1. The fact table has `partial_period` configuration
+/// 2. The WHERE clause contains a lower-bound date filter on the time-grain column
+/// 3. The resulting branch plan would produce more than one branch (otherwise
+///    UNION ALL of a single branch is overhead for no benefit)
+///
+/// Returns `None` when the standard aggregation path should be used instead.
+#[must_use]
+pub fn should_use_partial_period<'a>(
+    metadata: &'a crate::compiler::fact_table::FactTableMetadata,
+    where_clause: Option<&WhereClause>,
+    today: NaiveDate,
+) -> Option<(NaiveDate, &'a crate::compiler::fact_table::PartialPeriodConfig)> {
+    let config = metadata.partial_period.as_ref()?;
+    let wc = where_clause?;
+    let lower_bound = extract_lower_date_bound(wc, &config.time_grain_column)?;
+
+    // Short-circuit: if determine_branches produces only one branch (current_period
+    // with no partial_leading and no complete_middle), the standard path is equivalent.
+    let plan = determine_branches(lower_bound, config.time_grain_trunc, today);
+    if plan.partial_leading.is_none() && plan.complete_middle.is_none() {
+        return None;
+    }
+
+    Some((lower_bound, config))
+}
+
 /// Result of splitting a WHERE clause into its date lower-bound condition and
 /// the remaining (non-date) conditions.
 ///

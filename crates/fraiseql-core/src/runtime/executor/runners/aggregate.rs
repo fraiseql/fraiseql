@@ -184,29 +184,101 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
                 };
         }
 
-        // 2. Generate execution plan
+        // 2. Check partial-period dispatch — if conditions are met, generate UNION ALL SQL
+        //    instead of a single SELECT.
+        let today = chrono::Utc::now().date_naive();
+        if let Some((lower_bound, pp_config)) = crate::runtime::partial_period::should_use_partial_period(
+            metadata,
+            request.where_clause.as_ref(),
+            today,
+        ) {
+            return self
+                .execute_partial_period_aggregate(&request, metadata, pp_config, lower_bound, today, query_name)
+                .await;
+        }
+
+        // 3. Standard path: generate execution plan
         let plan =
             crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
 
-        // 3. Generate parameterized SQL
+        // 4. Generate parameterized SQL
         let sql_generator =
             crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
         let parameterized = sql_generator.generate_parameterized(&plan)?;
 
-        // 4. Execute with bind parameters (eliminates escape-based injection risk)
+        // 5. Execute with bind parameters (eliminates escape-based injection risk)
         let rows = self
             .ctx.adapter
             .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params)
             .await?;
 
-        // 5. Project results
+        // 6. Project results
         let projected = crate::runtime::AggregationProjector::project(rows, &plan)?;
 
-        // 6. Wrap in GraphQL data envelope
+        // 7. Wrap in GraphQL data envelope
         let response =
             crate::runtime::AggregationProjector::wrap_in_data_envelope(projected, query_name);
 
-        // 7. Serialize to JSON string
+        // 8. Serialize to JSON string
+        Ok(response)
+    }
+
+    /// Execute an aggregate query via partial-period UNION ALL.
+    ///
+    /// Generates a UNION ALL query combining fine-grain and coarse-grain branches,
+    /// then executes and projects the result identically to the standard path.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if plan generation, SQL generation, or database execution fails.
+    #[allow(clippy::too_many_arguments)] // Reason: all arguments are semantically required
+    async fn execute_partial_period_aggregate(
+        &self,
+        request: &crate::compiler::aggregation::AggregationRequest,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+        config: &crate::compiler::fact_table::PartialPeriodConfig,
+        lower_bound: chrono::NaiveDate,
+        today: chrono::NaiveDate,
+        query_name: &str,
+    ) -> Result<serde_json::Value> {
+        let branch_plan =
+            crate::runtime::partial_period::determine_branches(lower_bound, config.time_grain_trunc, today);
+
+        // Split the WHERE clause to separate the date condition from the rest
+        let extra_where = request
+            .where_clause
+            .as_ref()
+            .and_then(|wc| crate::runtime::partial_period::split_where_clause(wc, &config.time_grain_column))
+            .and_then(|split| split.remaining);
+
+        // Generate execution plan (for GROUP BY / aggregate expression resolution)
+        let plan = crate::compiler::aggregation::AggregationPlanner::plan(
+            request.clone(),
+            metadata.clone(),
+        )?;
+
+        // Generate UNION ALL SQL
+        let sql_generator =
+            crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
+        let union_sql = sql_generator.generate_partial_period(
+            &plan,
+            config,
+            &branch_plan,
+            extra_where.as_ref(),
+        )?;
+
+        // Execute
+        let rows = self
+            .ctx
+            .adapter
+            .execute_parameterized_aggregate(&union_sql.sql, &union_sql.params)
+            .await?;
+
+        // Project and wrap (same as standard path)
+        let projected = crate::runtime::AggregationProjector::project(rows, &plan)?;
+        let response =
+            crate::runtime::AggregationProjector::wrap_in_data_envelope(projected, query_name);
+
         Ok(response)
     }
 

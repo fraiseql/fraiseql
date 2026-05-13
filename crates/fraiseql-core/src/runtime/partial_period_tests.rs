@@ -508,3 +508,114 @@ fn test_split_gt_conversion() {
         })
     );
 }
+
+// =============================================================================
+// should_use_partial_period
+// =============================================================================
+
+mod should_use_tests {
+    use super::*;
+    use crate::compiler::fact_table::{
+        DimensionColumn, FactTableMetadata, MeasureColumn, PartialPeriodConfig, SqlType,
+        TemporalGrain,
+    };
+
+    fn metadata_with_pp() -> FactTableMetadata {
+        FactTableMetadata {
+            table_name:           "v_events_month".into(),
+            measures:             vec![MeasureColumn {
+                name:     "volume".into(),
+                sql_type: SqlType::BigInt,
+                nullable: false,
+            }],
+            dimensions:           DimensionColumn {
+                name:  "data".into(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+            partial_period:       Some(PartialPeriodConfig {
+                fine_grain_view:   "v_events_day".into(),
+                time_grain_column: "period_start".into(),
+                time_grain_trunc:  TemporalGrain::Month,
+            }),
+        }
+    }
+
+    fn metadata_without_pp() -> FactTableMetadata {
+        let mut m = metadata_with_pp();
+        m.partial_period = None;
+        m
+    }
+
+    #[test]
+    fn test_triggers_when_conditions_met() {
+        let m = metadata_with_pp();
+        let wc = WhereClause::Field {
+            path:     vec!["period_start".into()],
+            operator: WhereOperator::Gte,
+            value:    json!("2024-01-15"),
+        };
+        let today = date(2024, 3, 20);
+        let result = should_use_partial_period(&m, Some(&wc), today);
+        assert!(result.is_some());
+        let (lower, config) = result.unwrap();
+        assert_eq!(lower, date(2024, 1, 15));
+        assert_eq!(config.fine_grain_view, "v_events_day");
+    }
+
+    #[test]
+    fn test_none_without_partial_period_config() {
+        let m = metadata_without_pp();
+        let wc = WhereClause::Field {
+            path:     vec!["period_start".into()],
+            operator: WhereOperator::Gte,
+            value:    json!("2024-01-15"),
+        };
+        assert!(should_use_partial_period(&m, Some(&wc), date(2024, 3, 20)).is_none());
+    }
+
+    #[test]
+    fn test_none_without_where_clause() {
+        let m = metadata_with_pp();
+        assert!(should_use_partial_period(&m, None, date(2024, 3, 20)).is_none());
+    }
+
+    #[test]
+    fn test_none_when_no_date_condition() {
+        let m = metadata_with_pp();
+        let wc = WhereClause::Field {
+            path:     vec!["status".into()],
+            operator: WhereOperator::Eq,
+            value:    json!("active"),
+        };
+        assert!(should_use_partial_period(&m, Some(&wc), date(2024, 3, 20)).is_none());
+    }
+
+    #[test]
+    fn test_none_when_single_branch_shortcircuit() {
+        // Period-aligned lower bound in current period → single branch → standard path
+        let m = metadata_with_pp();
+        let wc = WhereClause::Field {
+            path:     vec!["period_start".into()],
+            operator: WhereOperator::Gte,
+            value:    json!("2024-03-01"),
+        };
+        // today = Mar 20, lower bound = Mar 1 (aligned, same period) → only B3
+        assert!(should_use_partial_period(&m, Some(&wc), date(2024, 3, 20)).is_none());
+    }
+
+    #[test]
+    fn test_triggers_with_aligned_but_multiple_branches() {
+        // Aligned lower bound but in a previous period → B2 + B3
+        let m = metadata_with_pp();
+        let wc = WhereClause::Field {
+            path:     vec!["period_start".into()],
+            operator: WhereOperator::Gte,
+            value:    json!("2024-02-01"),
+        };
+        // today = Mar 20, lower bound = Feb 1 (aligned, but different period) → B2 + B3
+        let result = should_use_partial_period(&m, Some(&wc), date(2024, 3, 20));
+        assert!(result.is_some());
+    }
+}
