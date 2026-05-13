@@ -402,6 +402,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             pkce_store,
             #[cfg(feature = "auth")]
             oidc_server_client,
+            #[cfg(feature = "auth")]
+            social_login: None,
+            #[cfg(feature = "auth")]
+            mfa_state: None,
+            #[cfg(feature = "auth")]
+            anon_signup_state: None,
             api_key_authenticator,
             revocation_manager,
             apq_store: None,
@@ -419,6 +425,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             broadcast_manager: None,
             presence_manager: None,
             storage_backend: None,
+            storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             #[cfg(feature = "functions")]
             function_store: None,
             #[cfg(feature = "functions")]
@@ -475,13 +482,77 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         Ok(self)
     }
 
+    /// Attach a unified social-login provider registry.
+    ///
+    /// When set, the server mounts `GET /auth/v1/authorize` which redirects
+    /// users to the specified `OAuth` provider's authorization URL with a `CSRF`
+    /// state token.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use fraiseql_auth::social::{SocialLoginState, SocialProviderRegistry};
+    /// let state = Arc::new(SocialLoginState { ... });
+    /// let server = server.with_social_login(state);
+    /// ```
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_social_login(
+        mut self,
+        social_login: Arc<crate::auth::social::SocialLoginState>,
+    ) -> Self {
+        self.social_login = Some(social_login);
+        self
+    }
+
+    /// Attach anonymous signup state to mount `POST /auth/v1/signup`.
+    ///
+    /// When set, any client can obtain a guest session without credentials.
+    /// The returned `user_id` carries an `anon_` prefix and the session lasts
+    /// 7 days.  Signups are rate-limited per client IP.
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_anon_signup(mut self, state: Arc<crate::auth::AnonSignupState>) -> Self {
+        self.anon_signup_state = Some(state);
+        self
+    }
+
+    /// Attach `TOTP` `MFA` state to mount the `/auth/v1/mfa/` endpoints.
+    ///
+    /// Mounts four routes:
+    /// - `POST /auth/v1/mfa/enroll` — begin enrollment, returns `otpauth://` `URI`
+    /// - `POST /auth/v1/mfa/confirm` — confirm enrollment with a live `TOTP` code
+    /// - `POST /auth/v1/mfa/challenge` — issue a short-lived challenge token
+    /// - `POST /auth/v1/mfa/verify` — verify code and issue session
+    /// - `POST /auth/v1/mfa/unenroll` — remove `MFA` from an account
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_mfa(mut self, mfa_state: Arc<crate::auth::MfaRouteState>) -> Self {
+        self.mfa_state = Some(mfa_state);
+        self
+    }
+
     /// Attach an object storage backend and mount `/storage/v1/` routes.
     ///
     /// When set, the server mounts `GET`, `POST`, `DELETE /storage/v1/object/*key`
     /// and `GET /storage/v1/object/sign/*key` endpoints backed by the given backend.
+    ///
+    /// Use [`StorageConfig`](crate::config::StorageConfig) and
+    /// [`create_backend`](crate::storage::create_backend) to construct the backend
+    /// from a TOML configuration block.
     #[must_use]
     pub fn with_storage(mut self, backend: Arc<dyn crate::storage::StorageBackend>) -> Self {
         self.storage_backend = Some(backend);
+        self
+    }
+
+    /// Override the maximum allowed upload size for storage endpoints.
+    ///
+    /// Defaults to 100 `MiB`. Uploads exceeding this size are rejected with HTTP 413
+    /// before the body is forwarded to the storage backend.
+    #[must_use]
+    pub const fn with_storage_max_upload_bytes(mut self, bytes: usize) -> Self {
+        self.storage_max_upload_bytes = bytes;
         self
     }
 

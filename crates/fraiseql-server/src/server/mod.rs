@@ -87,6 +87,24 @@ pub struct Server<A: DatabaseAdapter> {
     pub(super) pkce_store: Option<Arc<crate::auth::PkceStateStore>>,
     #[cfg(feature = "auth")]
     pub(super) oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
+    /// Unified social login provider registry.
+    ///
+    /// When `Some`, the server mounts `GET /auth/v1/authorize` and uses the
+    /// registry to look up `OAuth` providers by name.  Set via
+    /// [`Server::with_social_login`].
+    #[cfg(feature = "auth")]
+    pub(super) social_login: Option<Arc<crate::auth::social::SocialLoginState>>,
+    /// Anonymous session signup state.
+    ///
+    /// When `Some`, mounts `POST /auth/v1/signup`.  Set via [`Server::with_anon_signup`].
+    #[cfg(feature = "auth")]
+    pub(super) anon_signup_state: Option<Arc<crate::auth::AnonSignupState>>,
+    /// `TOTP` `MFA` route state.
+    ///
+    /// When `Some`, the server mounts the four `MFA` endpoints under
+    /// `/auth/v1/mfa/`.  Set via [`Server::with_mfa`].
+    #[cfg(feature = "auth")]
+    pub(super) mfa_state: Option<Arc<crate::auth::MfaRouteState>>,
     pub(super) api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     // Reason: only read inside #[cfg(feature = "auth")] blocks in routing.rs
     #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
@@ -125,6 +143,10 @@ pub struct Server<A: DatabaseAdapter> {
     ///
     /// Set via [`Server::with_storage`]. When `None`, storage routes are not mounted.
     pub(super) storage_backend: Option<Arc<dyn crate::storage::StorageBackend>>,
+    /// Maximum allowed upload size for the storage backend (bytes).
+    ///
+    /// Defaults to 100 `MiB`. Applied as a per-request body limit on upload routes.
+    pub(super) storage_max_upload_bytes: usize,
 
     /// Function deployment store for the `/functions/v1/` routes.
     ///

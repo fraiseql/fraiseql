@@ -22,6 +22,12 @@ use super::{
 };
 #[cfg(feature = "auth")]
 use super::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
+#[cfg(feature = "auth")]
+use crate::auth::social::social_authorize;
+#[cfg(feature = "auth")]
+use crate::auth::{mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify};
+#[cfg(feature = "auth")]
+use crate::auth::anon_signup;
 use crate::middleware::{Hs256AuthState, hs256_auth_middleware};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -308,7 +314,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         presign_handler,
                     },
                 };
-                let auth = BearerAuthState::new(token.clone());
+                let auth = BearerAuthState::with_max_failures(token.clone(), self.config.admin_auth_max_failures);
                 let studio_admin_router = Router::new()
                     // Schema + health
                     .route("/admin/v1/schema", get(studio_schema_handler::<A>))
@@ -652,7 +658,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "Metrics endpoints enabled (bearer token required)"
                 );
 
-                let auth_state = BearerAuthState::new(token.clone());
+                let auth_state =
+                    BearerAuthState::with_max_failures(token.clone(), self.config.admin_auth_max_failures);
 
                 // Create a separate metrics router with auth middleware applied
                 // The routes need relative paths since we use merge (not nest)
@@ -682,7 +689,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if self.config.admin_api_enabled {
             if let Some(ref write_token) = self.config.admin_token {
                 // Destructive-operation router — always uses admin_token.
-                let write_auth = BearerAuthState::new(write_token.clone());
+                let write_auth = BearerAuthState::with_max_failures(
+                    write_token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
                 let admin_write_router = Router::new()
                     .route(
                         "/api/v1/admin/reload-schema",
@@ -734,7 +744,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     );
                 }
 
-                let read_auth = BearerAuthState::new(read_token.clone());
+                let read_auth = BearerAuthState::with_max_failures(
+                    read_token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
                 let admin_read_router = Router::new()
                     .route("/api/v1/admin/cache/stats", get(api::admin::cache_stats_handler::<A>))
                     .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
@@ -850,6 +863,56 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .with_state(auth_state);
             app = app.merge(auth_router);
             info!("PKCE auth routes mounted: GET /auth/start, GET /auth/callback");
+        }
+
+        // Unified social login entry point — mounted when social_login is configured.
+        //
+        // `GET /auth/v1/authorize?provider=<name>` looks up the named provider in the
+        // registry and redirects the user to that provider's authorization URL with a
+        // CSRF state token.
+        #[cfg(feature = "auth")]
+        if let Some(ref social) = self.social_login {
+            let social_router = Router::new()
+                .route("/auth/v1/authorize", get(social_authorize))
+                .with_state(Arc::clone(social));
+            app = app.merge(social_router);
+            info!(
+                providers = ?social.registry.names(),
+                "Social login route mounted: GET /auth/v1/authorize"
+            );
+        }
+
+        // Anonymous session signup — mounted when anon_signup_state is configured.
+        //
+        // POST /auth/v1/signup — issue a guest session (anon_ user_id, 7-day TTL)
+        // Rate-limited per client IP; requires the server to be started with
+        // into_make_service_with_connect_info (which the lifecycle module does).
+        #[cfg(feature = "auth")]
+        if let Some(ref anon) = self.anon_signup_state {
+            let anon_router = Router::new()
+                .route("/auth/v1/signup", post(anon_signup))
+                .with_state(Arc::clone(anon));
+            app = app.merge(anon_router);
+            info!("Anonymous signup route mounted: POST /auth/v1/signup");
+        }
+
+        // TOTP MFA endpoints — mounted when mfa_state is configured.
+        //
+        // POST /auth/v1/mfa/enroll    — begin enrollment
+        // POST /auth/v1/mfa/confirm   — confirm with first live TOTP code
+        // POST /auth/v1/mfa/challenge — issue short-lived challenge token
+        // POST /auth/v1/mfa/verify    — verify code and issue session
+        // POST /auth/v1/mfa/unenroll  — remove MFA from an account
+        #[cfg(feature = "auth")]
+        if let Some(ref mfa) = self.mfa_state {
+            let mfa_router = Router::new()
+                .route("/auth/v1/mfa/enroll", post(mfa_enroll))
+                .route("/auth/v1/mfa/challenge", post(mfa_challenge))
+                .route("/auth/v1/mfa/verify", post(mfa_verify))
+                .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
+                .with_state(Arc::clone(mfa));
+            app = app.merge(mfa_router);
+            info!("TOTP MFA routes mounted: POST /auth/v1/mfa/{{enroll,challenge,verify,unenroll}}");
         }
 
         // /auth/me session-identity endpoint — mounted when:
@@ -976,7 +1039,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 // Schema is initialized by serve_with_shutdown() before this
                 // function is called; build_router() is sync so no await here.
                 let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
-                let auth_state = BearerAuthState::new(token.clone());
+                let auth_state = BearerAuthState::with_max_failures(
+                    token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
                 let rbac_router = crate::api::rbac_management_router(rbac_state).route_layer(
                     middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
                 );
@@ -1000,13 +1066,36 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             app = self.add_observer_routes(app);
         }
 
-        // Storage routes (/storage/v1/) — mounted when a backend is configured.
+        // Object storage routes — mounted when a backend has been attached via
+        // `Server::with_storage`. Provides upload, download, delete, and presigned
+        // URL endpoints at `/storage/v1/object/{*key}`.
         if let Some(ref backend) = self.storage_backend {
             use crate::routes::storage::{StorageRouteState, storage_router};
+            let storage_state = StorageRouteState::new(backend.clone())
+                .with_max_upload_bytes(self.storage_max_upload_bytes);
+            let base_router = storage_router(storage_state);
 
-            let storage_state = StorageRouteState::new(backend.clone());
-            app = app.merge(storage_router(storage_state));
-            info!("Storage endpoints enabled: /storage/v1/object/{{*key}}");
+            // When `storage_token` is set, protect all storage routes with bearer auth.
+            let storage_app = if let Some(ref token) = self.config.storage_token {
+                info!(
+                    max_upload_mib = self.storage_max_upload_bytes / (1024 * 1024),
+                    "Storage API mounted at /storage/v1/ (bearer token required)"
+                );
+                let auth_state = BearerAuthState::with_max_failures(
+                    token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
+                base_router
+                    .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
+            } else {
+                warn!(
+                    max_upload_mib = self.storage_max_upload_bytes / (1024 * 1024),
+                    "Storage API mounted at /storage/v1/ (no authentication — \
+                     set storage_token in config for production)"
+                );
+                base_router
+            };
+            app = app.merge(storage_app);
         }
 
         // Edge-function routes (/functions/v1/) — mounted when store + runtime are configured.

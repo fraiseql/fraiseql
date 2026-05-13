@@ -206,6 +206,120 @@ mod auth_tests {
         assert!(!constant_time_compare("", "a"));
         assert!(!constant_time_compare("a", ""));
     }
+
+    // ── S48 brute-force rate limiter tests ──────────────────────────────────
+
+    #[test]
+    fn test_failure_limiter_not_blocked_initially() {
+        let limiter = super::super::auth::FailureLimiter::new(3);
+        assert!(!limiter.is_blocked("1.2.3.4"));
+    }
+
+    #[test]
+    fn test_failure_limiter_blocks_after_max_failures() {
+        let limiter = super::super::auth::FailureLimiter::new(3);
+        assert!(!limiter.record_failure("1.2.3.4")); // 1st → not blocked
+        assert!(!limiter.record_failure("1.2.3.4")); // 2nd → not blocked
+        assert!(limiter.record_failure("1.2.3.4")); // 3rd → now blocked
+        assert!(limiter.is_blocked("1.2.3.4"));
+    }
+
+    #[test]
+    fn test_failure_limiter_success_resets_counter() {
+        let limiter = super::super::auth::FailureLimiter::new(3);
+        limiter.record_failure("1.2.3.4");
+        limiter.record_failure("1.2.3.4");
+        assert_eq!(limiter.failure_count("1.2.3.4"), 2);
+        limiter.record_success("1.2.3.4");
+        assert_eq!(limiter.failure_count("1.2.3.4"), 0);
+        assert!(!limiter.is_blocked("1.2.3.4"));
+    }
+
+    #[test]
+    fn test_failure_limiter_independent_per_ip() {
+        let limiter = super::super::auth::FailureLimiter::new(2);
+        limiter.record_failure("10.0.0.1");
+        limiter.record_failure("10.0.0.1");
+        assert!(limiter.is_blocked("10.0.0.1"));
+        // Different IP should not be blocked.
+        assert!(!limiter.is_blocked("10.0.0.2"));
+    }
+
+    #[tokio::test]
+    async fn test_middleware_returns_429_after_max_failures() {
+        // Use max_failures = 2 so the test does not send too many requests.
+        let auth_state = BearerAuthState::with_max_failures("correct-token".to_string(), 2);
+        let app = Router::new()
+            .route("/protected", get(protected_handler))
+            .layer(middleware::from_fn_with_state(
+                auth_state,
+                bearer_auth_middleware,
+            ));
+
+        // Two bad attempts (from unknown peer since ConnectInfo not wired in tests).
+        for _ in 0..2 {
+            let req = Request::builder()
+                .uri("/protected")
+                .header("Authorization", "Bearer wrong-token")
+                .body(Body::empty())
+                .unwrap();
+            let _ = app.clone().oneshot(req).await.unwrap();
+        }
+
+        // Third attempt should be 429 (already blocked after 2 failures).
+        let req = Request::builder()
+            .uri("/protected")
+            .header("Authorization", "Bearer wrong-token")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn test_middleware_resets_counter_on_success() {
+        let auth_state = BearerAuthState::with_max_failures("good-token".to_string(), 2);
+        let app = Router::new()
+            .route("/protected", get(protected_handler))
+            .layer(middleware::from_fn_with_state(
+                auth_state,
+                bearer_auth_middleware,
+            ));
+
+        // One bad attempt, then a successful one.
+        let bad_req = Request::builder()
+            .uri("/protected")
+            .header("Authorization", "Bearer bad-token")
+            .body(Body::empty())
+            .unwrap();
+        let r = app.clone().oneshot(bad_req).await.unwrap();
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+
+        let good_req = Request::builder()
+            .uri("/protected")
+            .header("Authorization", "Bearer good-token")
+            .body(Body::empty())
+            .unwrap();
+        let r = app.clone().oneshot(good_req).await.unwrap();
+        assert_eq!(r.status(), StatusCode::OK);
+
+        // After success the counter should have been reset; one more bad attempt
+        // should be 403, not 429.
+        let bad_req2 = Request::builder()
+            .uri("/protected")
+            .header("Authorization", "Bearer bad-token")
+            .body(Body::empty())
+            .unwrap();
+        let r = app.oneshot(bad_req2).await.unwrap();
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn test_admin_auth_max_failures_default_is_ten() {
+        use crate::server_config::ServerConfig;
+        let cfg = ServerConfig::default();
+        assert_eq!(cfg.admin_auth_max_failures, 10);
+    }
 }
 
 mod content_type_tests {

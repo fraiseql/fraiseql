@@ -117,13 +117,14 @@ async fn local_nested_directory_creation() {
 async fn create_backend_local() {
     let dir = tempfile::tempdir().unwrap();
     let config = crate::config::StorageConfig {
-        backend:      "local".to_string(),
-        bucket:       None,
-        path:         Some(dir.path().to_str().unwrap().to_string()),
-        region:       None,
-        endpoint:     None,
-        project_id:   None,
-        account_name: None,
+        backend:          "local".to_string(),
+        bucket:           None,
+        path:             Some(dir.path().to_str().unwrap().to_string()),
+        region:           None,
+        endpoint:         None,
+        project_id:       None,
+        account_name:     None,
+        max_upload_bytes: 100 * 1024 * 1024,
     };
 
     let backend = create_backend(&config).await.unwrap();
@@ -135,13 +136,14 @@ async fn create_backend_local() {
 #[tokio::test]
 async fn create_backend_local_missing_path() {
     let config = crate::config::StorageConfig {
-        backend:      "local".to_string(),
-        bucket:       None,
-        path:         None,
-        region:       None,
-        endpoint:     None,
-        project_id:   None,
-        account_name: None,
+        backend:          "local".to_string(),
+        bucket:           None,
+        path:             None,
+        region:           None,
+        endpoint:         None,
+        project_id:       None,
+        account_name:     None,
+        max_upload_bytes: 100 * 1024 * 1024,
     };
 
     let result = create_backend(&config).await;
@@ -151,13 +153,14 @@ async fn create_backend_local_missing_path() {
 #[tokio::test]
 async fn create_backend_unknown() {
     let config = crate::config::StorageConfig {
-        backend:      "ftp".to_string(),
-        bucket:       None,
-        path:         None,
-        region:       None,
-        endpoint:     None,
-        project_id:   None,
-        account_name: None,
+        backend:          "ftp".to_string(),
+        bucket:           None,
+        path:             None,
+        region:           None,
+        endpoint:         None,
+        project_id:       None,
+        account_name:     None,
+        max_upload_bytes: 100 * 1024 * 1024,
     };
 
     let result = create_backend(&config).await;
@@ -177,13 +180,14 @@ async fn create_backend_s3_feature_not_enabled() {
         "backblaze",
     ] {
         let config = crate::config::StorageConfig {
-            backend:      (*name).to_string(),
-            bucket:       Some("bucket".to_string()),
-            path:         None,
-            region:       None,
-            endpoint:     None,
-            project_id:   None,
-            account_name: None,
+            backend:          (*name).to_string(),
+            bucket:           Some("bucket".to_string()),
+            path:             None,
+            region:           None,
+            endpoint:         None,
+            project_id:       None,
+            account_name:     None,
+            max_upload_bytes: 100 * 1024 * 1024,
         };
 
         let result = create_backend(&config).await;
@@ -250,13 +254,14 @@ fn default_endpoint_r2_is_none() {
 #[tokio::test]
 async fn create_backend_gcs_feature_not_enabled() {
     let config = crate::config::StorageConfig {
-        backend:      "gcs".to_string(),
-        bucket:       Some("bucket".to_string()),
-        path:         None,
-        region:       None,
-        endpoint:     None,
-        project_id:   None,
-        account_name: None,
+        backend:          "gcs".to_string(),
+        bucket:           Some("bucket".to_string()),
+        path:             None,
+        region:           None,
+        endpoint:         None,
+        project_id:       None,
+        account_name:     None,
+        max_upload_bytes: 100 * 1024 * 1024,
     };
 
     let result = create_backend(&config).await;
@@ -267,13 +272,14 @@ async fn create_backend_gcs_feature_not_enabled() {
 #[tokio::test]
 async fn create_backend_azure_feature_not_enabled() {
     let config = crate::config::StorageConfig {
-        backend:      "azure".to_string(),
-        bucket:       Some("container".to_string()),
-        path:         None,
-        region:       None,
-        endpoint:     None,
-        project_id:   None,
-        account_name: Some("myaccount".to_string()),
+        backend:          "azure".to_string(),
+        bucket:           Some("container".to_string()),
+        path:             None,
+        region:           None,
+        endpoint:         None,
+        project_id:       None,
+        account_name:     Some("myaccount".to_string()),
+        max_upload_bytes: 100 * 1024 * 1024,
     };
 
     let result = create_backend(&config).await;

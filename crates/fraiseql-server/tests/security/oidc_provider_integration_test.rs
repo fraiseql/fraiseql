@@ -13,6 +13,7 @@
 //! **Parallelism:** safe
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::future_not_send)] // Reason: wiremock futures are not Send; tests run single-threaded
 
 use fraiseql_server::auth::{OAuthProvider, oidc_provider::OidcProvider};
 use serde_json::json;
@@ -20,6 +21,22 @@ use wiremock::{
     Mock, MockServer, ResponseTemplate,
     matchers::{method, path},
 };
+
+/// Wrapper that sets `FRAISEQL_OIDC_ALLOW_INSECURE=1` so wiremock's `http://`
+/// server passes the SSRF scheme check (which otherwise requires `https://`).
+async fn new_provider_insecure(
+    name: &str,
+    issuer_url: &str,
+    client_id: &str,
+    client_secret: &str,
+    redirect_uri: &str,
+) -> Result<OidcProvider, fraiseql_server::auth::AuthError> {
+    temp_env::async_with_vars(
+        [("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1"))],
+        OidcProvider::new(name, issuer_url, client_id, client_secret, redirect_uri),
+    )
+    .await
+}
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -128,7 +145,7 @@ async fn test_oidc_provider_discovery() {
         .await;
 
     // Create provider by fetching discovery
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "test-provider",
         &server.uri(),
         "test-client-id",
@@ -154,7 +171,7 @@ async fn test_oidc_discovery_document_structure() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "test",
         &server.uri(),
         "client-id",
@@ -194,7 +211,7 @@ async fn test_oidc_discovery_missing_required_field() {
         .await;
 
     // Provider creation should handle missing fields gracefully
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "test",
         &server.uri(),
         "client-id",
@@ -218,7 +235,7 @@ async fn test_oidc_discovery_endpoint_404() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "test",
         &server.uri(),
         "client-id",
@@ -241,7 +258,7 @@ async fn test_oidc_discovery_invalid_json() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "test",
         &server.uri(),
         "client-id",
@@ -292,7 +309,7 @@ async fn test_jwks_retrieval() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "test",
         &server.uri(),
         "client-id",
@@ -369,7 +386,7 @@ async fn test_auth0_provider_discovery() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "auth0",
         &server.uri(),
         "auth0-client-id",
@@ -404,7 +421,7 @@ async fn test_google_provider_discovery() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "google",
         &server.uri(),
         "google-client-id",
@@ -439,7 +456,7 @@ async fn test_microsoft_provider_discovery() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "microsoft",
         &server.uri(),
         "microsoft-client-id",
@@ -473,7 +490,7 @@ async fn test_okta_provider_discovery() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "okta",
         &server.uri(),
         "okta-client-id",
@@ -508,7 +525,7 @@ async fn test_provider_name_preserved() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "my-custom-provider",
         &server.uri(),
         "id",
@@ -532,7 +549,7 @@ async fn test_authorization_url_generation() {
         .mount(&server)
         .await;
 
-    let provider = OidcProvider::new(
+    let provider = new_provider_insecure(
         "test",
         &server.uri(),
         "test-client-id",
@@ -565,7 +582,7 @@ async fn test_multiple_provider_instances() {
         .await;
 
     // Create multiple provider instances with different names
-    let provider1 = OidcProvider::new(
+    let provider1 = new_provider_insecure(
         "provider-1",
         &server.uri(),
         "id1",
@@ -574,7 +591,7 @@ async fn test_multiple_provider_instances() {
     )
     .await;
 
-    let provider2 = OidcProvider::new(
+    let provider2 = new_provider_insecure(
         "provider-2",
         &server.uri(),
         "id2",
@@ -601,7 +618,7 @@ async fn test_discovery_timeout_handling() {
     let invalid_url = "http://localhost:1/invalid";
 
     let provider =
-        OidcProvider::new("test", invalid_url, "id", "secret", "http://localhost:8000/callback")
+        new_provider_insecure("test", invalid_url, "id", "secret", "http://localhost:8000/callback")
             .await;
 
     assert!(provider.is_err(), "Provider should fail on invalid URL");

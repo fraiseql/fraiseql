@@ -20,9 +20,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use crate::{
-    account_linking::UserStore,
-    otp::{OtpStore, generate_otp_code},
-    provider::UserInfo,
+    account_linking::AccountStore,
+    otp::OtpStore,
     session::SessionStore,
 };
 
@@ -205,8 +204,8 @@ pub struct SmsOtpAuthState {
     pub sms_sender: Arc<dyn SmsSender>,
     /// Session store for creating sessions after verification.
     pub session_store: Arc<dyn SessionStore>,
-    /// Optional user store for account linking.
-    pub user_store: Option<Arc<dyn UserStore>>,
+    /// Optional account store for account linking.
+    pub user_store: Option<Arc<dyn AccountStore>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -249,13 +248,28 @@ pub async fn send_sms_otp(
         return json_error(StatusCode::BAD_REQUEST, "phone number too short");
     }
 
-    let code = generate_otp_code();
-    let expires_at = unix_now() + OTP_TTL_SECS;
     let key = phone_otp_key(&e164);
 
-    if let Err(e) = state.otp_store.store_otp(&key, &code, expires_at).await {
-        tracing::error!(error = %e, "OTP store failed for SMS");
-    }
+    let code = match state.otp_store.create_otp(&key).await {
+        Ok(c) => c,
+        Err(crate::error::AuthError::RateLimited { .. }) => {
+            // Anti-enumeration: always return success even when rate-limited.
+            return Json(SmsOtpResponse {
+                status: "otp_sent".to_string(),
+                expires_in: OTP_TTL_SECS,
+            })
+            .into_response();
+        },
+        Err(e) => {
+            tracing::error!(error = %e, "OTP store failed for SMS");
+            // Anti-enumeration: still return success.
+            return Json(SmsOtpResponse {
+                status: "otp_sent".to_string(),
+                expires_in: OTP_TTL_SECS,
+            })
+            .into_response();
+        },
+    };
 
     if let Err(e) = state.sms_sender.send_sms_otp(&e164, &code).await {
         tracing::error!(error = %e, "SMS delivery failed");
@@ -297,10 +311,7 @@ pub async fn verify_sms_otp(
     let key = phone_otp_key(&e164);
 
     match state.otp_store.verify_otp(&key, &req.code).await {
-        Ok(true) => {},
-        Ok(false) => {
-            return json_error(StatusCode::BAD_REQUEST, "invalid or expired OTP code");
-        },
+        Ok(()) => {},
         Err(crate::error::AuthError::RateLimited { retry_after_secs }) => {
             return (
                 StatusCode::TOO_MANY_REQUESTS,
@@ -311,25 +322,22 @@ pub async fn verify_sms_otp(
             )
                 .into_response();
         },
+        Err(crate::error::AuthError::InvalidToken { .. }) => {
+            return json_error(StatusCode::BAD_REQUEST, "invalid or expired OTP code");
+        },
         Err(e) => {
             tracing::error!(error = %e, "SMS OTP verification error");
             return json_error(StatusCode::INTERNAL_SERVER_ERROR, "verification failed");
         },
     }
 
-    // Resolve user ID
-    let user_id = if let Some(user_store) = &state.user_store {
-        let user_info = UserInfo {
-            id:         e164.clone(),
-            email:      format!("{e164}@phone.local"),
-            name:       None,
-            picture:    None,
-            raw_claims: serde_json::json!({ "phone": e164 }),
-        };
-        match user_store.find_or_create_user("phone", &user_info).await {
-            Ok(user) => user.id,
+    // Resolve user ID — use account linking when available.
+    let user_id = if let Some(account_store) = &state.user_store {
+        let email = format!("{e164}@phone.local");
+        match account_store.link_or_create_user(&email, "phone", &e164).await {
+            Ok(result) => result.user_id,
             Err(e) => {
-                tracing::error!(error = %e, "user store lookup failed");
+                tracing::error!(error = %e, "account store lookup failed");
                 return json_error(StatusCode::INTERNAL_SERVER_ERROR, "user resolution failed");
             },
         }

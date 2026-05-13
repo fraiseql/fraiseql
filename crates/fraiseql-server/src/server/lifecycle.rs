@@ -1,5 +1,7 @@
 //! Server lifecycle: serve, `serve_with_shutdown`, and `shutdown_signal`.
 
+use std::net::SocketAddr;
+
 use axum::serve::ListenerExt;
 use tokio::net::TcpListener;
 use tracing::{error, info, warn};
@@ -304,7 +306,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             };
 
             // Run HTTP server with graceful shutdown
-            axum::serve(listener, app)
+            axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
                 .with_graceful_shutdown(shutdown_with_cleanup)
                 .await
                 .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
@@ -316,7 +318,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // HTTP-only server (when arrow feature not enabled)
         #[cfg(not(feature = "arrow"))]
         {
-            axum::serve(listener, app)
+            axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
                 .with_graceful_shutdown(shutdown)
                 .await
                 .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;
@@ -366,7 +368,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         F: std::future::Future<Output = ()> + Send + 'static,
     {
         let (app, _app_state) = self.build_router();
-        axum::serve(listener, app)
+        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
             .with_graceful_shutdown(shutdown)
             .await
             .map_err(|e| ServerError::IoError(std::io::Error::other(e)))?;

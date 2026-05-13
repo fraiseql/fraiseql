@@ -137,7 +137,7 @@ temp-env = {workspace = true}
 tempfile = "3.13"
 # Container-based integration tests
 testcontainers = {version = "0.27", features = ["watchdog"]}
-testcontainers-modules = {version = "0.15", features = ["postgres"]}
+testcontainers-modules = {version = "0.15", features = ["postgres", "minio"]}
 tokio-postgres = {workspace = true}
 # Testing
 tokio-test = "0.4"

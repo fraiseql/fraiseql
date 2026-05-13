@@ -15,7 +15,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_linking::UserStore,
+    account_linking::AccountStore,
     handlers::generate_secure_state,
     provider::OAuthProvider,
     session::SessionStore,
@@ -38,7 +38,7 @@ pub struct MultiProviderAuthState {
     /// Session backend for creating sessions after successful auth.
     session_store: Arc<dyn SessionStore>,
     /// Optional user store for account linking (same email → same user).
-    user_store:    Option<Arc<dyn UserStore>>,
+    user_store:    Option<Arc<dyn AccountStore>>,
 }
 
 impl MultiProviderAuthState {
@@ -57,10 +57,10 @@ impl MultiProviderAuthState {
 
     /// Set the user store for account linking.
     ///
-    /// When set, the callback handler uses [`UserStore::find_or_create_user`] to
+    /// When set, the callback handler uses [`AccountStore::link_or_create_user`] to
     /// resolve provider identities to local users, enabling automatic account
     /// linking when the same email appears across different providers.
-    pub fn with_user_store(mut self, user_store: Arc<dyn UserStore>) -> Self {
+    pub fn with_user_store(mut self, user_store: Arc<dyn AccountStore>) -> Self {
         self.user_store = Some(user_store);
         self
     }
@@ -399,13 +399,13 @@ pub async fn callback(
         },
     };
 
-    // Resolve local user ID — use UserStore for account linking when available,
+    // Resolve local user ID — use AccountStore for account linking when available,
     // otherwise fall back to raw provider user ID.
-    let local_user_id = if let Some(user_store) = &state.user_store {
-        match user_store.find_or_create_user(&provider_name, &user_info).await {
-            Ok(local_user) => local_user.id,
+    let local_user_id = if let Some(account_store) = &state.user_store {
+        match account_store.link_or_create_user(&user_info.email, &provider_name, &user_info.id).await {
+            Ok(result) => result.user_id,
             Err(e) => {
-                tracing::error!(error = %e, "user store lookup failed");
+                tracing::error!(error = %e, "account store lookup failed");
                 return json_error(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "user resolution failed",

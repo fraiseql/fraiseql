@@ -507,6 +507,38 @@ pub struct ServerConfig {
     #[serde(default)]
     pub validation: Option<fraiseql_core::schema::ValidationConfig>,
 
+    /// Maximum failed admin bearer auth attempts per IP within a 60-second
+    /// window before the IP is blocked with 429 Too Many Requests (default: 10).
+    ///
+    /// Set to `0` to disable brute-force protection entirely (not recommended).
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// admin_auth_max_failures = 5
+    /// ```
+    #[serde(default = "defaults::default_admin_auth_max_failures")]
+    pub admin_auth_max_failures: u32,
+
+    /// Bearer token protecting the storage REST API (`/storage/v1/`).
+    ///
+    /// When set, all requests to storage endpoints must include an
+    /// `Authorization: Bearer <token>` header that matches this value.  Requests
+    /// without a valid token receive **401 Unauthorized**.
+    ///
+    /// **Security**: This token protects *all* storage operations (upload, download,
+    /// delete, presigned URL).  Use a strong random string (minimum 32 characters).
+    /// Omit the field (or set `None`) to leave storage endpoints open — appropriate
+    /// only in development or when the storage API is behind a trusted network boundary.
+    ///
+    /// # Example (TOML)
+    ///
+    /// ```toml
+    /// storage_token = "your-strong-random-token-here"
+    /// ```
+    #[serde(default)]
+    pub storage_token: Option<String>,
+
     /// Graceful shutdown drain timeout in seconds (default: 30).
     ///
     /// After a SIGTERM or Ctrl+C signal, the server stops accepting new connections and
@@ -598,6 +630,8 @@ impl Default for ServerConfig {
             shutdown_timeout_secs: default_shutdown_timeout_secs(),
             request_timeout_secs: None,
             max_get_query_bytes: defaults::default_max_get_query_bytes(),
+            admin_auth_max_failures: defaults::default_admin_auth_max_failures(),
+            storage_token: None,
             usage: None, // Usage persistence disabled by default
         }
     }

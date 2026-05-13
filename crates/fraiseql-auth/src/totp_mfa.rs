@@ -1,15 +1,25 @@
-//! TOTP Multi-Factor Authentication (RFC 6238).
+//! `TOTP` `MFA` (RFC 6238) — enroll, challenge, verify, unenroll.
 //!
-//! Endpoints:
-//! - `POST /auth/v1/mfa/enroll` — generate TOTP secret, return QR code URI
-//! - `POST /auth/v1/mfa/challenge` — initiate MFA challenge after first-factor auth
-//! - `POST /auth/v1/mfa/verify` — verify TOTP code, issue full session
-//! - `POST /auth/v1/mfa/unenroll` — remove MFA (requires re-authentication)
+//! Provides a full `TOTP`-based multi-factor authentication flow:
 //!
-//! TOTP: RFC 6238, 30-second window, 1-step tolerance, HMAC-SHA1.
-//! Recovery codes: 8 single-use codes generated at enrollment.
+//! 1. **Enroll** (`POST /auth/v1/mfa/enroll`) — generates a `TOTP` secret and
+//!    8 single-use recovery codes. Returns an `otpauth://` `URI` for the authenticator app.
+//! 2. **Challenge** (`POST /auth/v1/mfa/challenge`) — creates a short-lived challenge
+//!    token after the first authentication factor is verified.
+//! 3. **Verify** (`POST /auth/v1/mfa/verify`) — verifies a `TOTP` code or recovery code
+//!    and issues a full session token pair.
+//! 4. **Unenroll** (`POST /auth/v1/mfa/unenroll`) — removes `MFA` from an account
+//!    (requires the current `TOTP` code or a recovery code for re-authentication).
+//!
+//! # Security
+//!
+//! - `TOTP` uses `SHA-1`, 6-digit codes, and a 30-second window with `±1` step tolerance
+//!   (RFC 6238 §5.2).
+//! - Recovery codes are 16 random hex characters (64 bits of entropy) and are
+//!   `bcrypt`-hashed at rest.
+//! - Challenge tokens are 32-byte random values with a 5-minute `TTL`.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::{
@@ -18,199 +28,161 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use hmac::{Hmac, Mac};
+use dashmap::DashMap;
+use rand::RngCore as _;
 use serde::{Deserialize, Serialize};
-use sha1::Sha1;
-use tokio::sync::RwLock;
+use totp_rs::{Algorithm, Secret, TOTP};
 
-/// TOTP time step in seconds (RFC 6238 default).
-pub(crate) const TOTP_TIME_STEP: u64 = 30;
+use crate::{
+    audit::logger::{AuditEventType, SecretType, get_audit_logger},
+    error::{AuthError, Result},
+    session::{SessionStore, unix_now},
+};
 
-/// Number of time steps to tolerate in each direction.
-const TOTP_SKEW_STEPS: u64 = 1;
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 /// Number of recovery codes generated at enrollment.
-pub(crate) const RECOVERY_CODE_COUNT: usize = 8;
+const RECOVERY_CODE_COUNT: usize = 8;
 
-/// TOTP secret length in bytes (160 bits, per RFC 4226 recommendation).
-const TOTP_SECRET_BYTES: usize = 20;
+/// Length of each recovery code (16 hex chars = 64-bit entropy).
+const RECOVERY_CODE_HEX_LEN: usize = 16;
 
-/// Maximum TOTP code length for input validation.
-const MAX_TOTP_CODE_BYTES: usize = 10;
+/// Challenge token `TTL` in seconds (5 minutes).
+const CHALLENGE_TTL_SECS: u64 = 300;
 
-type HmacSha1 = Hmac<Sha1>;
+/// `TOTP` tolerance: ±1 step around the current 30-second window (RFC 6238 §5.2).
+const TOTP_STEP_TOLERANCE: u8 = 1;
 
-// ---------------------------------------------------------------------------
-// Base32 encoding (minimal, RFC 4648)
-// ---------------------------------------------------------------------------
+/// `bcrypt` cost factor.
+///
+/// 12 is the recommended production minimum; lowered to 4 in tests to keep the
+/// suite fast.  This is the only deviation from the prod constant.
+#[cfg(not(test))]
+const BCRYPT_COST: u32 = 12;
+#[cfg(test)]
+const BCRYPT_COST: u32 = 4;
 
-/// Encode bytes as base32 (RFC 4648, no padding).
-pub(crate) fn base32_encode(input: &[u8]) -> String {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    let mut result = String::new();
-    let mut buffer: u64 = 0;
-    let mut bits_in_buffer = 0;
+// ─── Domain types ─────────────────────────────────────────────────────────────
 
-    for &byte in input {
-        buffer = (buffer << 8) | u64::from(byte);
-        bits_in_buffer += 8;
-        while bits_in_buffer >= 5 {
-            bits_in_buffer -= 5;
-            let idx = ((buffer >> bits_in_buffer) & 0x1F) as usize;
-            result.push(ALPHABET[idx] as char);
-        }
-    }
-    if bits_in_buffer > 0 {
-        let idx = ((buffer << (5 - bits_in_buffer)) & 0x1F) as usize;
-        result.push(ALPHABET[idx] as char);
-    }
-    result
-}
-
-// ---------------------------------------------------------------------------
-// Core TOTP algorithm
-// ---------------------------------------------------------------------------
-
-/// Compute the TOTP code for a given secret and counter.
-fn totp_code(secret: &[u8], counter: u64) -> u32 {
-    let counter_bytes = counter.to_be_bytes();
-
-    let mut mac =
-        HmacSha1::new_from_slice(secret).expect("HMAC-SHA1 accepts any key length");
-    mac.update(&counter_bytes);
-    let result = mac.finalize().into_bytes();
-    let hmac_result: &[u8] = result.as_slice();
-
-    // Dynamic truncation (RFC 4226 §5.4)
-    let offset = (hmac_result[19] & 0x0F) as usize;
-    let binary = u32::from(hmac_result[offset] & 0x7F) << 24
-        | u32::from(hmac_result[offset + 1]) << 16
-        | u32::from(hmac_result[offset + 2]) << 8
-        | u32::from(hmac_result[offset + 3]);
-
-    binary % 1_000_000
-}
-
-/// Generate the current TOTP code as a zero-padded 6-digit string.
-pub fn generate_totp(secret: &[u8], time: u64) -> String {
-    let counter = time / TOTP_TIME_STEP;
-    format!("{:06}", totp_code(secret, counter))
-}
-
-/// Verify a TOTP code with ±1 step tolerance.
-pub fn verify_totp(secret: &[u8], code: &str, time: u64) -> bool {
-    let counter = time / TOTP_TIME_STEP;
-    let Ok(code_num) = code.parse::<u32>() else {
-        return false;
-    };
-
-    for offset in 0..=TOTP_SKEW_STEPS {
-        if totp_code(secret, counter + offset) == code_num {
-            return true;
-        }
-        if offset > 0 && counter >= offset && totp_code(secret, counter - offset) == code_num {
-            return true;
-        }
-    }
-    false
-}
-
-/// Generate a cryptographically random TOTP secret.
-pub fn generate_totp_secret() -> Vec<u8> {
-    use rand::Rng;
-    let mut secret = vec![0u8; TOTP_SECRET_BYTES];
-    rand::rng().fill(&mut secret[..]);
-    secret
-}
-
-/// Generate the `otpauth://` URI for QR code scanning.
-pub fn totp_uri(secret: &[u8], email: &str, issuer: &str) -> String {
-    let encoded_secret = base32_encode(secret);
-    let encoded_email = urlencoding::encode(email);
-    let encoded_issuer = urlencoding::encode(issuer);
-    format!(
-        "otpauth://totp/{encoded_issuer}:{encoded_email}?secret={encoded_secret}&issuer={encoded_issuer}&algorithm=SHA1&digits=6&period=30"
-    )
-}
-
-/// Generate recovery codes (8 alphanumeric, 8 characters each).
-pub fn generate_recovery_codes() -> Vec<String> {
-    use rand::Rng;
-
-    const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No 0/O/1/I
-    let mut rng = rand::rng();
-    (0..RECOVERY_CODE_COUNT)
-        .map(|_| {
-            (0..8)
-                .map(|_| CHARSET[rng.random_range(0..CHARSET.len())] as char)
-                .collect()
-        })
-        .collect()
-}
-
-// ---------------------------------------------------------------------------
-// MFA enrollment record
-// ---------------------------------------------------------------------------
-
-/// MFA enrollment state for a user.
+/// `TOTP` enrollment record for a single user.
 #[derive(Debug, Clone)]
-pub struct MfaEnrollment {
-    /// TOTP secret (raw bytes).
-    pub secret:         Vec<u8>,
-    /// Recovery codes (hashed for storage; plaintext only returned at enrollment).
-    pub recovery_codes: Vec<String>,
-    /// Whether MFA is fully verified (user confirmed with a valid TOTP code).
-    pub verified:       bool,
+pub struct TotpEnrollment {
+    /// Base32-encoded `TOTP` secret.
+    pub secret_base32:          String,
+    /// `bcrypt` hashes of the 8 recovery codes.
+    pub recovery_code_hashes:   Vec<String>,
+    /// Whether enrollment has been confirmed (first `TOTP` code verified).
+    pub confirmed:              bool,
 }
 
-/// MFA store trait — stores per-user MFA enrollment.
+/// Pending `MFA` challenge record.
+#[derive(Debug, Clone)]
+struct ChallengeRecord {
+    /// Which user the challenge was issued for.
+    user_id: String,
+    /// Unix timestamp when the challenge expires.
+    expires: u64,
+}
+
+// ─── MfaStore trait ───────────────────────────────────────────────────────────
+
+/// Storage backend for `TOTP` `MFA` state.
 // Reason: used as dyn Trait (Arc<dyn MfaStore>); async_trait ensures Send bounds and
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait MfaStore: Send + Sync {
-    /// Store or update MFA enrollment for a user.
+    /// Begin enrollment: generate and store a `TOTP` secret + recovery codes.
+    ///
+    /// Returns `(secret_base32, otpauth_uri, recovery_codes_plaintext)`.
+    /// The plaintext recovery codes are returned **once** and never stored; only
+    /// their `bcrypt` hashes are persisted.
     ///
     /// # Errors
     ///
-    /// Returns `AuthError::Internal` on store failure.
-    async fn set_enrollment(&self, user_id: &str, enrollment: MfaEnrollment) -> crate::error::Result<()>;
+    /// Returns [`AuthError::DatabaseError`] if the store fails.
+    async fn begin_enrollment(
+        &self,
+        user_id: &str,
+        issuer: &str,
+        account_name: &str,
+    ) -> Result<EnrollmentResponse>;
 
-    /// Get MFA enrollment for a user.
+    /// Complete enrollment by verifying the first `TOTP` code.
     ///
     /// # Errors
     ///
-    /// Returns `AuthError::Internal` on store failure.
-    async fn get_enrollment(&self, user_id: &str) -> crate::error::Result<Option<MfaEnrollment>>;
+    /// Returns [`AuthError::InvalidToken`] if no pending enrollment exists or
+    /// if the code is wrong.
+    async fn confirm_enrollment(&self, user_id: &str, totp_code: &str) -> Result<()>;
 
-    /// Remove MFA enrollment for a user.
+    /// Issue a `MFA` challenge token for the given user after first-factor auth.
     ///
     /// # Errors
     ///
-    /// Returns `AuthError::Internal` on store failure.
-    async fn remove_enrollment(&self, user_id: &str) -> crate::error::Result<bool>;
+    /// Returns [`AuthError::DatabaseError`] if the store fails.
+    async fn create_challenge(&self, user_id: &str) -> Result<String>;
 
-    /// Consume a recovery code (single-use).
+    /// Verify a challenge token + `TOTP`/recovery code and consume the challenge.
     ///
-    /// Returns `true` if the code was valid and consumed.
+    /// Returns the `user_id` on success.
     ///
     /// # Errors
     ///
-    /// Returns `AuthError::Internal` on store failure.
-    async fn consume_recovery_code(&self, user_id: &str, code: &str) -> crate::error::Result<bool>;
+    /// Returns [`AuthError::InvalidToken`] if the challenge or code is wrong/expired.
+    async fn verify_challenge(
+        &self,
+        challenge_token: &str,
+        code: &str,
+    ) -> Result<String>;
+
+    /// Remove `MFA` enrollment for a user (requires valid `TOTP` or recovery code).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::InvalidToken`] if the code is wrong or `MFA` is not enrolled.
+    async fn unenroll(&self, user_id: &str, code: &str) -> Result<()>;
+
+    /// Return `true` if the user has an active (confirmed) `MFA` enrollment.
+    async fn is_enrolled(&self, user_id: &str) -> bool;
 }
 
-/// In-memory MFA store for testing.
+/// Response from [`MfaStore::begin_enrollment`].
 #[derive(Debug)]
+pub struct EnrollmentResponse {
+    /// Base32-encoded `TOTP` secret (to display in QR code).
+    pub secret_base32:      String,
+    /// `otpauth://` `URI` for authenticator apps.
+    pub otpauth_uri:        String,
+    /// Plaintext recovery codes — show to the user **once**, never stored.
+    pub recovery_codes:     Vec<String>,
+}
+
+// ─── In-memory MFA store ──────────────────────────────────────────────────────
+
+/// Thread-safe in-memory `MFA` store.
 pub struct InMemoryMfaStore {
-    enrollments: RwLock<HashMap<String, MfaEnrollment>>,
+    /// user_id → TotpEnrollment
+    enrollments: DashMap<String, TotpEnrollment>,
+    /// challenge_token → ChallengeRecord
+    challenges:  DashMap<String, ChallengeRecord>,
 }
 
 impl InMemoryMfaStore {
-    /// Create a new in-memory MFA store.
+    /// Create a new empty `MFA` store.
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            enrollments: RwLock::new(HashMap::new()),
+            enrollments: DashMap::new(),
+            challenges:  DashMap::new(),
         }
+    }
+
+    /// Return whether the user has a pending (unconfirmed) enrollment.
+    #[must_use]
+    pub fn has_pending_enrollment(&self, user_id: &str) -> bool {
+        self.enrollments
+            .get(user_id)
+            .is_some_and(|e| !e.confirmed)
     }
 }
 
@@ -220,278 +192,690 @@ impl Default for InMemoryMfaStore {
     }
 }
 
-// Reason: MfaStore is defined with #[async_trait]; all implementations must match
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+// ─── TOTP helpers ─────────────────────────────────────────────────────────────
+
+/// Build a [`TOTP`] instance from a base32 secret string.
+///
+/// Uses `SHA-1`, 6 digits, 30-second step (RFC 6238 defaults).
+/// `issuer` and `account_name` are embedded in the `otpauth://` URI; for
+/// verification-only callers pass `None` and `""`.
+fn build_totp(secret_base32: &str, issuer: Option<&str>, account_name: &str) -> Result<TOTP> {
+    let secret_bytes = Secret::Encoded(secret_base32.to_string())
+        .to_bytes()
+        .map_err(|e| AuthError::Internal { message: format!("bad TOTP secret: {e}") })?;
+    TOTP::new(
+        Algorithm::SHA1,
+        6,   // digits
+        TOTP_STEP_TOLERANCE,
+        30,  // period (seconds)
+        secret_bytes,
+        issuer.map(str::to_string),
+        account_name.to_string(),
+    )
+    .map_err(|e| AuthError::Internal { message: format!("TOTP init error: {e}") })
+}
+
+/// Verify a `TOTP` code with `±1` step tolerance.
+fn verify_totp_code(secret_base32: &str, code: &str) -> Result<bool> {
+    let totp = build_totp(secret_base32, None, "")?;
+    Ok(totp.check_current(code).unwrap_or(false))
+}
+
+/// Generate a random recovery code (`RECOVERY_CODE_HEX_LEN` lowercase hex chars).
+fn generate_recovery_code() -> String {
+    // SECURITY: rand::rng() uses OS-level entropy for recovery codes.
+    // Each byte encodes as 2 hex chars, so RECOVERY_CODE_HEX_LEN / 2 bytes.
+    let byte_count = RECOVERY_CODE_HEX_LEN / 2;
+    let mut bytes = vec![0u8; byte_count];
+    rand::rng().fill_bytes(&mut bytes);
+    bytes.iter().fold(String::new(), |mut s, b| { use std::fmt::Write as _; let _ = write!(s, "{b:02x}"); s })
+}
+
+/// Generate a 32-byte random challenge token (URL-safe base64).
+fn generate_challenge_token() -> String {
+    use base64::Engine as _;
+    // SECURITY: rand::rng() uses OS-level entropy for MFA challenge tokens.
+    let mut bytes = [0u8; 32];
+    rand::rng().fill_bytes(&mut bytes);
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+}
+
+/// Check a candidate code against a list of `bcrypt` hashes.
+///
+/// Returns the index of the matching hash if found.
+fn check_recovery_code(candidate: &str, hashes: &[String]) -> Option<usize> {
+    for (i, hash) in hashes.iter().enumerate() {
+        if bcrypt::verify(candidate, hash).unwrap_or(false) {
+            return Some(i);
+        }
+    }
+    None
+}
+
+// Reason: async_trait required for dyn-compatibility; remove when RTN + Send is stable
 #[async_trait]
 impl MfaStore for InMemoryMfaStore {
-    async fn set_enrollment(&self, user_id: &str, enrollment: MfaEnrollment) -> crate::error::Result<()> {
-        let mut enrollments = self.enrollments.write().await;
-        enrollments.insert(user_id.to_string(), enrollment);
+    async fn begin_enrollment(
+        &self,
+        user_id: &str,
+        issuer: &str,
+        account_name: &str,
+    ) -> Result<EnrollmentResponse> {
+        // Generate a new TOTP secret.
+        let secret = Secret::generate_secret();
+        let secret_base32 = secret.to_encoded().to_string();
+
+        // Build the otpauth:// URI (issuer + account_name are embedded in the URI).
+        let totp = build_totp(&secret_base32, Some(issuer), account_name)?;
+        let otpauth_uri = totp.get_url();
+
+        // Generate 8 recovery codes and bcrypt-hash them.
+        let mut recovery_codes_plain = Vec::with_capacity(RECOVERY_CODE_COUNT);
+        let mut recovery_code_hashes = Vec::with_capacity(RECOVERY_CODE_COUNT);
+        for _ in 0..RECOVERY_CODE_COUNT {
+            let code = generate_recovery_code();
+            let hash = bcrypt::hash(&code, BCRYPT_COST)
+                .map_err(|e| AuthError::Internal { message: format!("bcrypt error: {e}") })?;
+            recovery_codes_plain.push(code);
+            recovery_code_hashes.push(hash);
+        }
+
+        self.enrollments.insert(user_id.to_string(), TotpEnrollment {
+            secret_base32: secret_base32.clone(),
+            recovery_code_hashes,
+            confirmed: false,
+        });
+
+        Ok(EnrollmentResponse {
+            secret_base32,
+            otpauth_uri,
+            recovery_codes: recovery_codes_plain,
+        })
+    }
+
+    async fn confirm_enrollment(&self, user_id: &str, totp_code: &str) -> Result<()> {
+        let mut record = self.enrollments.get_mut(user_id).ok_or_else(|| {
+            AuthError::InvalidToken { reason: "no pending MFA enrollment for user".into() }
+        })?;
+
+        if !verify_totp_code(&record.secret_base32, totp_code)? {
+            return Err(AuthError::InvalidToken { reason: "invalid TOTP code".into() });
+        }
+        record.confirmed = true;
         Ok(())
     }
 
-    async fn get_enrollment(&self, user_id: &str) -> crate::error::Result<Option<MfaEnrollment>> {
-        let enrollments = self.enrollments.read().await;
-        Ok(enrollments.get(user_id).cloned())
+    async fn create_challenge(&self, user_id: &str) -> Result<String> {
+        let expires = unix_now()? + CHALLENGE_TTL_SECS;
+        let token = generate_challenge_token();
+        self.challenges
+            .insert(token.clone(), ChallengeRecord { user_id: user_id.to_string(), expires });
+        Ok(token)
     }
 
-    async fn remove_enrollment(&self, user_id: &str) -> crate::error::Result<bool> {
-        let mut enrollments = self.enrollments.write().await;
-        Ok(enrollments.remove(user_id).is_some())
-    }
+    async fn verify_challenge(
+        &self,
+        challenge_token: &str,
+        code: &str,
+    ) -> Result<String> {
+        let now = unix_now()?;
 
-    async fn consume_recovery_code(&self, user_id: &str, code: &str) -> crate::error::Result<bool> {
-        let mut enrollments = self.enrollments.write().await;
-        let Some(enrollment) = enrollments.get_mut(user_id) else {
-            return Ok(false);
-        };
-        let code_upper = code.to_uppercase();
-        if let Some(pos) = enrollment.recovery_codes.iter().position(|c| c == &code_upper) {
-            enrollment.recovery_codes.remove(pos);
-            Ok(true)
-        } else {
-            Ok(false)
+        let record = self
+            .challenges
+            .get(challenge_token)
+            .ok_or_else(|| AuthError::InvalidToken { reason: "unknown challenge token".into() })?;
+
+        if now >= record.expires {
+            drop(record);
+            self.challenges.remove(challenge_token);
+            return Err(AuthError::InvalidToken { reason: "challenge token expired".into() });
         }
+
+        let user_id = record.user_id.clone();
+        drop(record);
+
+        // Look up the user's TOTP enrollment.
+        let mut enrollment = self.enrollments.get_mut(&user_id).ok_or_else(|| {
+            AuthError::InvalidToken { reason: "user has no MFA enrollment".into() }
+        })?;
+
+        if !enrollment.confirmed {
+            return Err(AuthError::InvalidToken { reason: "MFA enrollment not confirmed".into() });
+        }
+
+        // Try TOTP first, then recovery codes.
+        if verify_totp_code(&enrollment.secret_base32, code)? {
+            drop(enrollment);
+            self.challenges.remove(challenge_token);
+            return Ok(user_id);
+        }
+
+        // Try recovery codes (bcrypt, slow — intentional).
+        let idx = check_recovery_code(code, &enrollment.recovery_code_hashes);
+        if let Some(i) = idx {
+            // Consume (remove) the used recovery code.
+            enrollment.recovery_code_hashes.remove(i);
+            drop(enrollment);
+            self.challenges.remove(challenge_token);
+            return Ok(user_id);
+        }
+
+        Err(AuthError::InvalidToken { reason: "invalid TOTP or recovery code".into() })
+    }
+
+    async fn unenroll(&self, user_id: &str, code: &str) -> Result<()> {
+        let enrollment = self.enrollments.get(user_id).ok_or_else(|| {
+            AuthError::InvalidToken { reason: "user has no MFA enrollment".into() }
+        })?;
+
+        if !enrollment.confirmed {
+            return Err(AuthError::InvalidToken { reason: "MFA enrollment not confirmed".into() });
+        }
+
+        // Re-authenticate: accept TOTP or a recovery code.
+        let totp_ok = verify_totp_code(&enrollment.secret_base32, code)?;
+        let recovery_ok =
+            !totp_ok && check_recovery_code(code, &enrollment.recovery_code_hashes).is_some();
+
+        if !totp_ok && !recovery_ok {
+            return Err(AuthError::InvalidToken {
+                reason: "re-authentication failed — invalid TOTP or recovery code".into(),
+            });
+        }
+
+        drop(enrollment);
+        self.enrollments.remove(user_id);
+        Ok(())
+    }
+
+    async fn is_enrolled(&self, user_id: &str) -> bool {
+        self.enrollments.get(user_id).map_or(false, |e| e.confirmed)
     }
 }
 
-// ---------------------------------------------------------------------------
-// Request / response types
-// ---------------------------------------------------------------------------
+// ─── Route state ─────────────────────────────────────────────────────────────
 
-/// Request body for `POST /auth/v1/mfa/enroll`.
+/// Axum route state for `MFA` endpoints.
+#[derive(Clone)]
+pub struct MfaRouteState {
+    /// `MFA` storage backend.
+    pub mfa_store:     Arc<dyn MfaStore>,
+    /// Session store (to issue full sessions after `MFA` verification).
+    pub session_store: Arc<dyn SessionStore>,
+    /// Service / issuer name shown in authenticator apps.
+    pub issuer:        String,
+}
+
+// ─── Request / Response types ─────────────────────────────────────────────────
+
+/// Request for `POST /auth/v1/mfa/enroll`.
 #[derive(Debug, Deserialize)]
 pub struct MfaEnrollRequest {
-    /// User ID (from first-factor auth).
-    pub user_id: String,
+    /// Authenticated user identifier.
+    pub user_id:      String,
+    /// Display name shown in the authenticator app.
+    pub account_name: String,
 }
 
-/// Response body for `POST /auth/v1/mfa/enroll`.
+/// Response for `POST /auth/v1/mfa/enroll`.
 #[derive(Debug, Serialize)]
 pub struct MfaEnrollResponse {
-    /// `otpauth://` URI for QR code scanning.
-    pub totp_uri:       String,
-    /// Base32-encoded TOTP secret for manual entry.
-    pub secret:         String,
-    /// 8 single-use recovery codes.
+    /// `otpauth://` `URI` — encode as a `QR` code for the authenticator app.
+    pub otpauth_uri:    String,
+    /// 8 single-use recovery codes (shown **once**, store securely).
     pub recovery_codes: Vec<String>,
 }
 
-/// Request body for `POST /auth/v1/mfa/verify`.
+/// Request for `POST /auth/v1/mfa/challenge`.
+#[derive(Debug, Deserialize)]
+pub struct MfaChallengeRequest {
+    /// User whose `MFA` challenge to initiate.
+    pub user_id: String,
+}
+
+/// Response for `POST /auth/v1/mfa/challenge`.
+#[derive(Debug, Serialize)]
+pub struct MfaChallengeResponse {
+    /// Short-lived challenge token (5 minutes).
+    pub challenge_token: String,
+}
+
+/// Request for `POST /auth/v1/mfa/verify`.
 #[derive(Debug, Deserialize)]
 pub struct MfaVerifyRequest {
-    /// User ID.
-    pub user_id: String,
-    /// 6-digit TOTP code or recovery code.
-    pub code:    String,
+    /// Challenge token from the `/challenge` step.
+    pub challenge_token: String,
+    /// 6-digit `TOTP` code or one of the 8-digit recovery codes.
+    pub code:            String,
 }
 
-/// Response body for `POST /auth/v1/mfa/verify`.
-#[derive(Debug, Serialize)]
-pub struct MfaVerifyResponse {
-    /// Whether MFA verification was successful.
-    pub verified: bool,
-}
-
-/// Request body for `POST /auth/v1/mfa/unenroll`.
+/// Request for `POST /auth/v1/mfa/unenroll`.
 #[derive(Debug, Deserialize)]
 pub struct MfaUnenrollRequest {
-    /// User ID.
+    /// User to unenroll.
     pub user_id: String,
-    /// Current TOTP code (required for re-authentication).
+    /// Current `TOTP` code or a recovery code (re-authentication).
     pub code:    String,
 }
 
-/// Shared state for MFA endpoints.
-#[derive(Clone)]
-pub struct MfaAuthState {
-    /// MFA store backend.
-    pub mfa_store: Arc<dyn MfaStore>,
-    /// Issuer name for the `otpauth://` URI (e.g., "FraiseQL").
-    pub issuer:    String,
-}
+// ─── Handlers ─────────────────────────────────────────────────────────────────
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn json_error(status: StatusCode, message: &str) -> Response {
-    (status, Json(serde_json::json!({ "error": message }))).into_response()
-}
-
-pub(crate) fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
-// ---------------------------------------------------------------------------
-// POST /auth/v1/mfa/enroll
-// ---------------------------------------------------------------------------
-
-/// Enroll a user in TOTP MFA.
+/// `POST /auth/v1/mfa/enroll`
 ///
-/// Generates a TOTP secret, returns the `otpauth://` URI for QR scanning
-/// and 8 single-use recovery codes. The enrollment is not verified until
-/// the user confirms with a valid TOTP code via `/auth/v1/mfa/verify`.
+/// Generates a `TOTP` secret and recovery codes for the given user.
 ///
 /// # Errors
 ///
-/// Returns `400` if user_id is empty. Returns `409` if MFA is already enrolled.
+/// Returns 500 if the `MFA` store fails.
 pub async fn mfa_enroll(
-    State(state): State<Arc<MfaAuthState>>,
+    State(state): State<Arc<MfaRouteState>>,
     Json(req): Json<MfaEnrollRequest>,
 ) -> Response {
-    if req.user_id.is_empty() {
-        return json_error(StatusCode::BAD_REQUEST, "user_id is required");
-    }
-
-    // Check for existing enrollment
-    match state.mfa_store.get_enrollment(&req.user_id).await {
-        Ok(Some(existing)) if existing.verified => {
-            return json_error(StatusCode::CONFLICT, "MFA is already enrolled");
-        },
-        Ok(_) => {},
+    match state
+        .mfa_store
+        .begin_enrollment(&req.user_id, &state.issuer, &req.account_name)
+        .await
+    {
+        Ok(resp) => (
+            StatusCode::OK,
+            Json(MfaEnrollResponse {
+                otpauth_uri:    resp.otpauth_uri,
+                recovery_codes: resp.recovery_codes,
+            }),
+        )
+            .into_response(),
         Err(e) => {
-            tracing::error!(error = %e, "MFA store lookup failed");
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "MFA enrollment failed");
+            tracing::error!(error = %e, "MFA enroll error");
+            (StatusCode::INTERNAL_SERVER_ERROR, "enrollment failed").into_response()
         },
     }
-
-    let secret = generate_totp_secret();
-    let recovery_codes = generate_recovery_codes();
-    let uri = totp_uri(&secret, &req.user_id, &state.issuer);
-    let encoded_secret = base32_encode(&secret);
-
-    let enrollment = MfaEnrollment {
-        secret,
-        recovery_codes: recovery_codes.clone(),
-        verified: false,
-    };
-
-    if let Err(e) = state.mfa_store.set_enrollment(&req.user_id, enrollment).await {
-        tracing::error!(error = %e, "MFA store write failed");
-        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "MFA enrollment failed");
-    }
-
-    Json(MfaEnrollResponse {
-        totp_uri:       uri,
-        secret:         encoded_secret,
-        recovery_codes,
-    })
-    .into_response()
 }
 
-// ---------------------------------------------------------------------------
-// POST /auth/v1/mfa/verify
-// ---------------------------------------------------------------------------
-
-/// Verify a TOTP code or recovery code for MFA.
+/// `POST /auth/v1/mfa/challenge`
 ///
-/// On first verification after enrollment, this confirms the enrollment.
-/// Subsequent verifications are used as the MFA challenge step.
+/// Initiates a `MFA` challenge for the given user (called after first-factor auth).
 ///
 /// # Errors
 ///
-/// Returns `400` if inputs are invalid. Returns `401` if the code is wrong.
-/// Returns `404` if no MFA enrollment exists for the user.
+/// Returns 404 if the user has no confirmed `MFA` enrollment.
+pub async fn mfa_challenge(
+    State(state): State<Arc<MfaRouteState>>,
+    Json(req): Json<MfaChallengeRequest>,
+) -> Response {
+    if !state.mfa_store.is_enrolled(&req.user_id).await {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": "not_enrolled",
+                "message": "user has no active MFA enrollment"
+            })),
+        )
+            .into_response();
+    }
+
+    match state.mfa_store.create_challenge(&req.user_id).await {
+        Ok(token) => (StatusCode::OK, Json(MfaChallengeResponse { challenge_token: token }))
+            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "MFA challenge error");
+            (StatusCode::INTERNAL_SERVER_ERROR, "challenge creation failed").into_response()
+        },
+    }
+}
+
+/// `POST /auth/v1/mfa/verify`
+///
+/// Verifies the `TOTP` code or recovery code and issues a full session token pair.
+///
+/// # Errors
+///
+/// Returns 422 if the code is wrong or the challenge is expired.
 pub async fn mfa_verify(
-    State(state): State<Arc<MfaAuthState>>,
+    State(state): State<Arc<MfaRouteState>>,
     Json(req): Json<MfaVerifyRequest>,
 ) -> Response {
-    if req.user_id.is_empty() {
-        return json_error(StatusCode::BAD_REQUEST, "user_id is required");
-    }
-    if req.code.is_empty() || req.code.len() > MAX_TOTP_CODE_BYTES {
-        return json_error(StatusCode::BAD_REQUEST, "invalid code format");
-    }
+    let logger = get_audit_logger();
 
-    let enrollment = match state.mfa_store.get_enrollment(&req.user_id).await {
-        Ok(Some(e)) => e,
-        Ok(None) => {
-            return json_error(StatusCode::NOT_FOUND, "no MFA enrollment found");
-        },
+    let user_id = match state
+        .mfa_store
+        .verify_challenge(&req.challenge_token, &req.code)
+        .await
+    {
+        Ok(uid) => uid,
         Err(e) => {
-            tracing::error!(error = %e, "MFA store lookup failed");
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "MFA verification failed");
+            logger.log_failure(
+                AuditEventType::AuthFailure,
+                SecretType::SessionToken,
+                None,
+                "mfa_verify",
+                &e.to_string(),
+            );
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({
+                    "error":   "invalid_mfa",
+                    "message": "invalid or expired MFA code"
+                })),
+            )
+                .into_response();
         },
     };
 
-    // Try TOTP code first
-    if req.code.len() == 6
-        && req.code.chars().all(|c| c.is_ascii_digit())
-        && verify_totp(&enrollment.secret, &req.code, unix_now())
-    {
-        // If not yet verified, mark as verified
-        if !enrollment.verified {
-            let mut updated = enrollment;
-            updated.verified = true;
-            if let Err(e) = state.mfa_store.set_enrollment(&req.user_id, updated).await {
-                tracing::error!(error = %e, "MFA store update failed");
-            }
-        }
-        return Json(MfaVerifyResponse { verified: true }).into_response();
-    }
+    let expires_at = match unix_now() {
+        Ok(now) => now + 3_600, // 1-hour session
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response(),
+    };
 
-    // Try recovery code
-    match state.mfa_store.consume_recovery_code(&req.user_id, &req.code).await {
-        Ok(true) => {
-            return Json(MfaVerifyResponse { verified: true }).into_response();
-        },
-        Ok(false) => {},
+    let tokens = match state.session_store.create_session(&user_id, expires_at).await {
+        Ok(t) => t,
         Err(e) => {
-            tracing::error!(error = %e, "recovery code check failed");
+            tracing::error!(error = %e, "Session creation failed after MFA verify");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "session creation failed").into_response();
         },
-    }
+    };
 
-    json_error(StatusCode::UNAUTHORIZED, "invalid MFA code")
+    logger.log_success(
+        AuditEventType::AuthSuccess,
+        SecretType::SessionToken,
+        Some(user_id),
+        "mfa_verify",
+    );
+
+    (StatusCode::OK, Json(tokens)).into_response()
 }
 
-// ---------------------------------------------------------------------------
-// POST /auth/v1/mfa/unenroll
-// ---------------------------------------------------------------------------
-
-/// Remove MFA enrollment. Requires a valid TOTP code for re-authentication.
+/// `POST /auth/v1/mfa/unenroll`
+///
+/// Removes `MFA` from the account after re-authentication.
 ///
 /// # Errors
 ///
-/// Returns `400` if inputs are invalid. Returns `401` if the code is wrong.
-/// Returns `404` if no MFA enrollment exists.
+/// Returns 422 if re-authentication fails.
 pub async fn mfa_unenroll(
-    State(state): State<Arc<MfaAuthState>>,
+    State(state): State<Arc<MfaRouteState>>,
     Json(req): Json<MfaUnenrollRequest>,
 ) -> Response {
-    if req.user_id.is_empty() {
-        return json_error(StatusCode::BAD_REQUEST, "user_id is required");
-    }
+    let logger = get_audit_logger();
 
-    let enrollment = match state.mfa_store.get_enrollment(&req.user_id).await {
-        Ok(Some(e)) => e,
-        Ok(None) => {
-            return json_error(StatusCode::NOT_FOUND, "no MFA enrollment found");
+    match state.mfa_store.unenroll(&req.user_id, &req.code).await {
+        Ok(()) => {
+            logger.log_success(
+                AuditEventType::SessionTokenRevoked,
+                SecretType::SessionToken,
+                Some(req.user_id),
+                "mfa_unenroll",
+            );
+            StatusCode::OK.into_response()
         },
         Err(e) => {
-            tracing::error!(error = %e, "MFA store lookup failed");
-            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "MFA unenrollment failed");
-        },
-    };
-
-    // Verify the TOTP code for re-authentication
-    if !verify_totp(&enrollment.secret, &req.code, unix_now()) {
-        return json_error(StatusCode::UNAUTHORIZED, "invalid TOTP code");
-    }
-
-    match state.mfa_store.remove_enrollment(&req.user_id).await {
-        Ok(true) => Json(serde_json::json!({ "unenrolled": true })).into_response(),
-        Ok(false) => json_error(StatusCode::NOT_FOUND, "no MFA enrollment found"),
-        Err(e) => {
-            tracing::error!(error = %e, "MFA store removal failed");
-            json_error(StatusCode::INTERNAL_SERVER_ERROR, "MFA unenrollment failed")
+            logger.log_failure(
+                AuditEventType::AuthFailure,
+                SecretType::SessionToken,
+                Some(req.user_id.clone()),
+                "mfa_unenroll",
+                &e.to_string(),
+            );
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({
+                    "error":   "invalid_code",
+                    "message": "re-authentication failed"
+                })),
+            )
+                .into_response()
         },
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode, header},
+        routing::post,
+    };
+    use tower::ServiceExt as _;
+
+    use super::*;
+    use crate::session::InMemorySessionStore;
+
+    /// Build a store, enroll a user, confirm enrollment, and return (store, user_id, recovery_codes).
+    async fn setup_enrolled_user() -> (Arc<InMemoryMfaStore>, String, Vec<String>) {
+        let store = Arc::new(InMemoryMfaStore::new());
+        let user_id = "user_test_mfa_001";
+
+        let resp = store
+            .begin_enrollment(user_id, "FraiseQL", "alice@example.com")
+            .await
+            .unwrap();
+
+        // Generate a valid TOTP code to confirm enrollment.
+        let totp = build_totp(&resp.secret_base32, None, "").unwrap();
+        let code = totp.generate_current().unwrap();
+        store.confirm_enrollment(user_id, &code).await.unwrap();
+
+        (store, user_id.to_string(), resp.recovery_codes)
+    }
+
+    fn build_app(session_store: Arc<InMemorySessionStore>) -> Router {
+        let mfa_store = Arc::new(InMemoryMfaStore::new());
+        let state = Arc::new(MfaRouteState {
+            mfa_store:     mfa_store as Arc<dyn MfaStore>,
+            session_store: session_store as Arc<dyn SessionStore>,
+            issuer:        "FraiseQL".to_string(),
+        });
+        Router::new()
+            .route("/auth/v1/mfa/enroll", post(mfa_enroll))
+            .route("/auth/v1/mfa/challenge", post(mfa_challenge))
+            .route("/auth/v1/mfa/verify", post(mfa_verify))
+            .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
+            .with_state(state)
+    }
+
+    fn json_body(body: serde_json::Value) -> Body {
+        Body::from(serde_json::to_vec(&body).unwrap())
+    }
+
+    // ── Cycle 4 tests — TOTP MFA ───────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_enroll_returns_otpauth_uri_and_recovery_codes() {
+        let store = InMemoryMfaStore::new();
+        let resp = store
+            .begin_enrollment("user_001", "FraiseQL", "alice@example.com")
+            .await
+            .unwrap();
+
+        assert!(
+            resp.otpauth_uri.starts_with("otpauth://"),
+            "should return an otpauth:// URI, got: {}",
+            resp.otpauth_uri
+        );
+        assert_eq!(
+            resp.recovery_codes.len(),
+            RECOVERY_CODE_COUNT,
+            "should return {RECOVERY_CODE_COUNT} recovery codes"
+        );
+        // Recovery codes must be hex strings of the right length.
+        for code in &resp.recovery_codes {
+            assert_eq!(
+                code.len(),
+                RECOVERY_CODE_HEX_LEN,
+                "recovery code length wrong: {code}"
+            );
+        }
+        // Enrollment is pending (not confirmed) until a TOTP code is verified.
+        assert!(!store.is_enrolled("user_001").await);
+    }
+
+    #[tokio::test]
+    async fn test_confirm_enrollment_with_valid_totp() {
+        let store = InMemoryMfaStore::new();
+        let resp = store
+            .begin_enrollment("user_001", "FraiseQL", "alice@example.com")
+            .await
+            .unwrap();
+
+        let totp = build_totp(&resp.secret_base32, None, "").unwrap();
+        let code = totp.generate_current().unwrap();
+
+        store.confirm_enrollment("user_001", &code).await.unwrap();
+        assert!(store.is_enrolled("user_001").await, "should be enrolled after confirmation");
+    }
+
+    #[tokio::test]
+    async fn test_confirm_enrollment_wrong_code_fails() {
+        let store = InMemoryMfaStore::new();
+        store.begin_enrollment("user_001", "FraiseQL", "alice@example.com").await.unwrap();
+
+        let err = store.confirm_enrollment("user_001", "000000").await.unwrap_err();
+        assert!(
+            matches!(err, AuthError::InvalidToken { .. }),
+            "wrong TOTP code should fail, got: {err:?}"
+        );
+        assert!(!store.is_enrolled("user_001").await);
+    }
+
+    #[tokio::test]
+    async fn test_challenge_verify_with_valid_totp() {
+        let (store, user_id, _) = setup_enrolled_user().await;
+
+        // Create a challenge.
+        let challenge_token = store.create_challenge(&user_id).await.unwrap();
+
+        // Generate a valid TOTP code.
+        let enrollment = store.enrollments.get(&user_id).unwrap();
+        let totp = build_totp(&enrollment.secret_base32, None, "").unwrap();
+        let code = totp.generate_current().unwrap();
+        drop(enrollment);
+
+        let verified_user_id = store.verify_challenge(&challenge_token, &code).await.unwrap();
+        assert_eq!(verified_user_id, user_id);
+    }
+
+    #[tokio::test]
+    async fn test_challenge_verify_with_recovery_code() {
+        let (store, user_id, recovery_codes) = setup_enrolled_user().await;
+
+        let challenge_token = store.create_challenge(&user_id).await.unwrap();
+        let verified_user_id = store
+            .verify_challenge(&challenge_token, &recovery_codes[0])
+            .await
+            .unwrap();
+
+        assert_eq!(verified_user_id, user_id, "recovery code should yield correct user_id");
+
+        // The used recovery code must be consumed (cannot be reused).
+        let challenge_token2 = store.create_challenge(&user_id).await.unwrap();
+        let result = store.verify_challenge(&challenge_token2, &recovery_codes[0]).await;
+        assert!(result.is_err(), "recovery code should be single-use");
+    }
+
+    #[tokio::test]
+    async fn test_challenge_verify_invalid_code_fails() {
+        let (store, user_id, _) = setup_enrolled_user().await;
+        let challenge_token = store.create_challenge(&user_id).await.unwrap();
+
+        let result = store.verify_challenge(&challenge_token, "000000").await;
+        assert!(
+            matches!(result, Err(AuthError::InvalidToken { .. })),
+            "invalid code should fail, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unenroll_with_valid_totp() {
+        let (store, user_id, _) = setup_enrolled_user().await;
+
+        let enrollment = store.enrollments.get(&user_id).unwrap();
+        let totp = build_totp(&enrollment.secret_base32, None, "").unwrap();
+        let code = totp.generate_current().unwrap();
+        drop(enrollment);
+
+        store.unenroll(&user_id, &code).await.unwrap();
+        assert!(!store.is_enrolled(&user_id).await, "should not be enrolled after unenroll");
+    }
+
+    #[tokio::test]
+    async fn test_unenroll_with_recovery_code() {
+        let (store, user_id, recovery_codes) = setup_enrolled_user().await;
+        store.unenroll(&user_id, &recovery_codes[0]).await.unwrap();
+        assert!(!store.is_enrolled(&user_id).await);
+    }
+
+    #[tokio::test]
+    async fn test_unenroll_wrong_code_fails() {
+        let (store, user_id, _) = setup_enrolled_user().await;
+        let result = store.unenroll(&user_id, "wrong").await;
+        assert!(result.is_err());
+        // Should still be enrolled.
+        assert!(store.is_enrolled(&user_id).await);
+    }
+
+    #[tokio::test]
+    async fn test_recovery_codes_are_unique() {
+        let store = InMemoryMfaStore::new();
+        let resp = store
+            .begin_enrollment("user_001", "FraiseQL", "alice@example.com")
+            .await
+            .unwrap();
+
+        let unique: std::collections::HashSet<&String> = resp.recovery_codes.iter().collect();
+        assert_eq!(
+            unique.len(),
+            RECOVERY_CODE_COUNT,
+            "all recovery codes should be unique"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mfa_enroll_http_returns_200() {
+        let app = build_app(Arc::new(InMemorySessionStore::new()));
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/v1/mfa/enroll")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(json_body(serde_json::json!({
+                        "user_id":      "user_001",
+                        "account_name": "alice@example.com"
+                    })))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["otpauth_uri"].as_str().is_some());
+        assert_eq!(json["recovery_codes"].as_array().unwrap().len(), 8);
+    }
+
+    #[tokio::test]
+    async fn test_mfa_challenge_not_enrolled_returns_404() {
+        let app = build_app(Arc::new(InMemorySessionStore::new()));
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/v1/mfa/challenge")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(json_body(serde_json::json!({"user_id": "user_not_enrolled"})))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+}

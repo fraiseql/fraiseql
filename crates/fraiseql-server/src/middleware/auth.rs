@@ -2,7 +2,10 @@
 //!
 //! Provides bearer token authentication for protected endpoints.
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use axum::{
     body::Body,
@@ -11,24 +14,115 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use dashmap::DashMap;
 use subtle::ConstantTimeEq as _;
+
+/// Window length (in seconds) for the admin brute-force rate limiter.
+const ADMIN_AUTH_WINDOW_SECS: u64 = 60;
+
+/// Per-IP failure record for the admin brute-force guard.
+#[derive(Clone)]
+struct FailureRecord {
+    count:        u32,
+    window_start: u64,
+}
+
+/// Per-IP sliding-window counter for failed bearer token attempts.
+///
+/// Shared inside `BearerAuthState` via an `Arc`-wrapped `DashMap` so that
+/// the state can be `Clone`d cheaply across requests.
+#[derive(Clone)]
+pub(crate) struct FailureLimiter {
+    records:     Arc<DashMap<String, FailureRecord>>,
+    max_failures: u32,
+}
+
+impl FailureLimiter {
+    pub(crate) fn new(max_failures: u32) -> Self {
+        Self {
+            records: Arc::new(DashMap::new()),
+            max_failures,
+        }
+    }
+
+    fn now_secs() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    }
+
+    /// Record a failed attempt and return `true` if the IP is now rate-limited.
+    pub(crate) fn record_failure(&self, ip: &str) -> bool {
+        let now = Self::now_secs();
+        let mut entry = self
+            .records
+            .entry(ip.to_string())
+            .or_insert_with(|| FailureRecord { count: 0, window_start: now });
+
+        if now >= entry.window_start + ADMIN_AUTH_WINDOW_SECS {
+            // Window expired — start fresh
+            entry.count = 1;
+            entry.window_start = now;
+            false
+        } else {
+            entry.count = entry.count.saturating_add(1);
+            entry.count >= self.max_failures
+        }
+    }
+
+    /// Return `true` if the IP is already rate-limited (without recording a new failure).
+    pub(crate) fn is_blocked(&self, ip: &str) -> bool {
+        let now = Self::now_secs();
+        if let Some(entry) = self.records.get(ip) {
+            if now < entry.window_start + ADMIN_AUTH_WINDOW_SECS {
+                return entry.count >= self.max_failures;
+            }
+        }
+        false
+    }
+
+    /// Reset the failure counter for an IP after a successful authentication.
+    pub(crate) fn record_success(&self, ip: &str) {
+        self.records.remove(ip);
+    }
+
+    /// Return the current failure count for an IP (used in tests).
+    #[cfg(test)]
+    pub(crate) fn failure_count(&self, ip: &str) -> u32 {
+        self.records.get(ip).map_or(0, |e| e.count)
+    }
+}
 
 /// Shared state for bearer token authentication.
 #[derive(Clone)]
 pub struct BearerAuthState {
     /// Expected bearer token.
     pub token: Arc<String>,
+    /// Per-IP brute-force guard.
+    failure_limiter: FailureLimiter,
 }
 
 impl BearerAuthState {
-    /// Create new bearer auth state.
+    /// Create new bearer auth state with the default max-failures limit (10).
     #[must_use]
     pub fn new(token: String) -> Self {
+        Self::with_max_failures(token, 10)
+    }
+
+    /// Create new bearer auth state with a custom max-failures limit.
+    ///
+    /// After `max_failures` failed attempts from the same IP within a 60-second
+    /// window, further requests receive **429 Too Many Requests**.
+    #[must_use]
+    pub fn with_max_failures(token: String, max_failures: u32) -> Self {
         Self {
-            token: Arc::new(token),
+            token:           Arc::new(token),
+            failure_limiter: FailureLimiter::new(max_failures),
         }
     }
 }
+
 
 /// Bearer token authentication middleware.
 ///
@@ -57,6 +151,30 @@ pub async fn bearer_auth_middleware(
     request: Request<Body>,
     next: Next,
 ) -> Response {
+    // Derive a best-effort peer key for rate limiting.
+    // ConnectInfo is only available when the server was started with
+    // `into_make_service_with_connect_info`; fall back to a header-based key.
+    use std::net::SocketAddr;
+
+    use axum::extract::ConnectInfo;
+    let peer_key = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ci| ci.0.ip().to_string())
+        .or_else(|| {
+            request
+                .headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .map(|v| v.split(',').next().unwrap_or(v).trim().to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Reject immediately if already rate-limited (avoids any header work).
+    if auth_state.failure_limiter.is_blocked(&peer_key) {
+        return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+    }
+
     // Extract Authorization header
     let auth_header = request
         .headers()
@@ -88,8 +206,19 @@ pub async fn bearer_auth_middleware(
 
             // Constant-time comparison to prevent timing attacks
             if !constant_time_compare(token, &auth_state.token) {
+                // Record failure; return 429 once the limit is crossed.
+                if auth_state.failure_limiter.record_failure(&peer_key) {
+                    return (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "Too many failed auth attempts",
+                    )
+                        .into_response();
+                }
                 return (StatusCode::FORBIDDEN, "Invalid token").into_response();
             }
+
+            // Successful auth — reset the failure counter.
+            auth_state.failure_limiter.record_success(&peer_key);
         },
     }
 
@@ -119,4 +248,3 @@ pub fn extract_bearer_token(header_value: &str) -> Option<&str> {
 pub(crate) fn constant_time_compare(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
-

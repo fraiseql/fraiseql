@@ -1,230 +1,402 @@
-//! Account linking — same email across providers maps to the same local user.
+//! Account linking — merge provider identities sharing the same verified email.
 //!
-//! When a user signs in with GitHub (email: `alice@example.com`) then later
-//! signs in with Google (same email), both provider identities are linked to
-//! the same local `user_id`. This module provides the [`UserStore`] trait and
-//! an in-memory implementation for testing.
-
-use std::{collections::HashMap, sync::Arc};
+//! When a user authenticates with two different `OAuth` providers (e.g. GitHub then Google)
+//! using the same email address, this module ensures they receive the **same `user_id`**
+//! rather than two separate user records.
+//!
+//! # How it works
+//!
+//! 1. After a successful `OAuth` token exchange, call [`AccountStore::link_or_create_user`]
+//!    with the verified email, provider name, and provider-specific user ID.
+//! 2. The store checks whether an account with that email already exists.
+//!    - **Existing account**: the new provider credential is linked to the existing
+//!      account and the existing `user_id` is returned.
+//!    - **New account**: a fresh `user_id` is generated, the account is stored, and
+//!      the new `user_id` is returned.
+//! 3. The caller creates or refreshes a session keyed by the returned `user_id`.
 
 use async_trait::async_trait;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use uuid::Uuid;
 
-use crate::{error::Result, provider::UserInfo};
+use crate::{
+    audit::logger::{AuditEventType, SecretType, get_audit_logger},
+    error::{AuthError, Result},
+};
 
-/// A linked provider identity for a local user.
+// ─── Domain types ─────────────────────────────────────────────────────────────
+
+/// A single provider credential linked to an account.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct LinkedIdentity {
-    /// OAuth provider name (e.g., "github", "google").
-    pub provider:         String,
-    /// The user's unique ID within the provider (e.g., GitHub user ID).
-    pub provider_user_id: String,
-    /// Email associated with this identity at link time.
-    pub email:            String,
+pub struct ProviderLink {
+    /// Provider name (e.g. `"github"`, `"google"`).
+    pub provider:    String,
+    /// Provider-specific user identifier (opaque string from the provider).
+    pub provider_id: String,
 }
 
-/// A local user record with one or more linked provider identities.
+/// A FraiseQL user account, potentially linked to multiple `OAuth` providers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocalUser {
-    /// Unique local user ID (UUID).
-    pub id:         String,
-    /// Primary email address.
-    pub email:      String,
-    /// Display name (from the first provider that supplied one).
-    pub name:       Option<String>,
-    /// Profile picture URL.
-    pub picture:    Option<String>,
-    /// Linked provider identities.
-    pub identities: Vec<LinkedIdentity>,
-    /// Unix timestamp when the user was created.
-    pub created_at: u64,
+pub struct AccountRecord {
+    /// Internal FraiseQL user identifier (stable across providers).
+    pub user_id:   String,
+    /// Verified email address shared across all linked providers.
+    pub email:     String,
+    /// All provider credentials linked to this account.
+    pub providers: Vec<ProviderLink>,
 }
 
-/// User store trait — resolves provider identities to local users.
+// ─── Trait ────────────────────────────────────────────────────────────────────
+
+/// Storage backend for account linking.
 ///
-/// Implementations handle the core account-linking logic:
-/// 1. If the provider+provider_user_id is already linked → return existing user.
-/// 2. If the email matches an existing user → link this identity and return user.
-/// 3. Otherwise → create a new local user with this identity.
-// Reason: used as dyn Trait (Arc<dyn UserStore>); async_trait ensures Send bounds and
+/// Implementations must be `Send + Sync` and handle concurrent access safely.
+///
+/// # Implementations
+///
+/// - [`InMemoryAccountStore`] — for single-node deployments and testing.
+// Reason: used as dyn Trait (Arc<dyn AccountStore>); async_trait ensures Send bounds and
 // dyn-compatibility async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
-pub trait UserStore: Send + Sync {
-    /// Resolve a provider identity to a local user.
+pub trait AccountStore: Send + Sync {
+    /// Return the `user_id` for the given email+provider pair, creating or linking as needed.
     ///
-    /// This is the main entry point for the callback flow. It handles:
-    /// - Existing identity lookup (provider + provider_user_id)
-    /// - Email-based account linking (same email → same user)
-    /// - New user creation
+    /// # Semantics
     ///
-    /// Returns the local user ID.
+    /// - If no account exists for `email`: creates a new account, stores the `provider` /
+    ///   `provider_id` link, and returns the new `user_id`.
+    /// - If an account already exists for `email`:
+    ///   - If the `provider` / `provider_id` pair is new, adds it as a linked credential.
+    ///   - Returns the **existing** `user_id` (same as on first sign-in).
     ///
     /// # Errors
     ///
-    /// Returns `AuthError::Internal` if the store encounters an internal error.
-    async fn find_or_create_user(
+    /// Returns [`AuthError::DatabaseError`] if the backing store fails.
+    async fn link_or_create_user(
         &self,
+        email: &str,
         provider: &str,
-        user_info: &UserInfo,
-    ) -> Result<LocalUser>;
+        provider_id: &str,
+    ) -> Result<AccountLinkResult>;
 
-    /// Get a user by their local ID.
+    /// Look up the full account record for a `user_id`.
     ///
     /// # Errors
     ///
-    /// Returns `AuthError::Internal` if the store encounters an internal error.
-    async fn get_user(&self, user_id: &str) -> Result<Option<LocalUser>>;
-
-    /// List all identities linked to a local user.
-    ///
-    /// # Errors
-    ///
-    /// Returns `AuthError::Internal` if the store encounters an internal error.
-    async fn list_identities(&self, user_id: &str) -> Result<Vec<LinkedIdentity>>;
+    /// Returns [`AuthError::TokenNotFound`] if no account exists for `user_id`.
+    async fn get_account(&self, user_id: &str) -> Result<AccountRecord>;
 }
 
-/// In-memory user store for testing.
+/// Result from [`AccountStore::link_or_create_user`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccountLinkResult {
+    /// Stable internal user identifier.
+    pub user_id:   String,
+    /// Whether a new account was created (`true`) or an existing one was linked (`false`).
+    pub is_new:    bool,
+    /// Whether a new provider link was added to an existing account.
+    pub linked:    bool,
+}
+
+// ─── In-memory backend ────────────────────────────────────────────────────────
+
+/// Thread-safe in-memory account store.
 ///
-/// Thread-safe via `tokio::sync::RwLock`. Not suitable for production.
-#[derive(Debug)]
-pub struct InMemoryUserStore {
-    /// Users keyed by local user ID.
-    users: Arc<RwLock<HashMap<String, LocalUser>>>,
-    /// Index: (provider, provider_user_id) → local user ID.
-    identity_index: Arc<RwLock<HashMap<(String, String), String>>>,
-    /// Index: email → local user ID (for account linking).
-    email_index: Arc<RwLock<HashMap<String, String>>>,
+/// **Warning**: data is lost on process restart. For production use a persistent
+/// backend (PostgreSQL, etc.). Suitable for single-node deployments and tests.
+///
+/// # Thread Safety
+///
+/// Uses `DashMap` for lock-free concurrent reads and fine-grained write locking.
+pub struct InMemoryAccountStore {
+    /// email → user_id (fast lookup by email)
+    by_email:   DashMap<String, String>,
+    /// user_id → AccountRecord
+    by_user_id: DashMap<String, AccountRecord>,
 }
 
-impl InMemoryUserStore {
-    /// Create a new empty in-memory user store.
+impl InMemoryAccountStore {
+    /// Create a new empty account store.
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            users:          Arc::new(RwLock::new(HashMap::new())),
-            identity_index: Arc::new(RwLock::new(HashMap::new())),
-            email_index:    Arc::new(RwLock::new(HashMap::new())),
+            by_email:   DashMap::new(),
+            by_user_id: DashMap::new(),
         }
     }
 
-    /// Return the number of local users.
-    pub async fn user_count(&self) -> usize {
-        self.users.read().await.len()
+    /// Return the number of accounts in the store (useful for tests).
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.by_user_id.len()
+    }
+
+    /// Return `true` if no accounts are stored.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.by_user_id.is_empty()
     }
 }
 
-impl Default for InMemoryUserStore {
+impl Default for InMemoryAccountStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-pub(crate) fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+// Reason: async_trait required for dyn-compatibility; remove when RTN + Send is stable
+#[async_trait]
+impl AccountStore for InMemoryAccountStore {
+    async fn link_or_create_user(
+        &self,
+        email: &str,
+        provider: &str,
+        provider_id: &str,
+    ) -> Result<AccountLinkResult> {
+        let logger = get_audit_logger();
+        let email_normalized = normalize_email(email);
+        let new_link = ProviderLink {
+            provider:    provider.to_string(),
+            provider_id: provider_id.to_string(),
+        };
+
+        // Check whether an account already exists for this email.
+        if let Some(existing_user_id) = self.by_email.get(&email_normalized).map(|r| r.clone()) {
+            let mut record = self.by_user_id.get_mut(&existing_user_id).ok_or_else(|| {
+                AuthError::DatabaseError {
+                    message: format!(
+                        "account store inconsistency: email '{}' maps to missing user_id '{}'",
+                        email, existing_user_id
+                    ),
+                }
+            })?;
+
+            // Link the new provider if it isn't already present.
+            let already_linked = record.providers.contains(&new_link);
+            if !already_linked {
+                record.providers.push(new_link);
+                logger.log_success(
+                    AuditEventType::AuthSuccess,
+                    SecretType::SessionToken,
+                    Some(existing_user_id.clone()),
+                    &format!("account_linked:{provider}"),
+                );
+            }
+
+            return Ok(AccountLinkResult {
+                user_id: existing_user_id.clone(),
+                is_new:  false,
+                linked:  !already_linked,
+            });
+        }
+
+        // No existing account — create a new one.
+        let user_id = format!("user_{}", Uuid::new_v4().as_simple());
+        let record = AccountRecord {
+            user_id:   user_id.clone(),
+            email:     email_normalized.clone(),
+            providers: vec![new_link],
+        };
+        self.by_email.insert(email_normalized, user_id.clone());
+        self.by_user_id.insert(user_id.clone(), record);
+
+        logger.log_success(
+            AuditEventType::SessionTokenCreated,
+            SecretType::SessionToken,
+            Some(user_id.clone()),
+            &format!("account_created:{provider}"),
+        );
+
+        Ok(AccountLinkResult { user_id, is_new: true, linked: false })
+    }
+
+    async fn get_account(&self, user_id: &str) -> Result<AccountRecord> {
+        self.by_user_id
+            .get(user_id)
+            .map(|r| r.clone())
+            .ok_or(AuthError::TokenNotFound)
+    }
 }
 
-// Reason: UserStore is defined with #[async_trait]; all implementations must match
-// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
-#[async_trait]
-impl UserStore for InMemoryUserStore {
-    async fn find_or_create_user(
-        &self,
-        provider: &str,
-        user_info: &UserInfo,
-    ) -> Result<LocalUser> {
-        let identity_key = (provider.to_string(), user_info.id.clone());
+// ─── Helper ───────────────────────────────────────────────────────────────────
 
-        // 1. Check if this exact provider identity is already linked
-        {
-            let identity_index = self.identity_index.read().await;
-            if let Some(user_id) = identity_index.get(&identity_key) {
-                let users = self.users.read().await;
-                if let Some(user) = users.get(user_id) {
-                    return Ok(user.clone());
-                }
-            }
-        }
+/// Normalize an email address for storage and lookup.
+///
+/// Converts to lowercase and trims whitespace so that `Alice@Example.com` and
+/// `alice@example.com` resolve to the same account.
+#[must_use]
+pub fn normalize_email(email: &str) -> String {
+    email.trim().to_lowercase()
+}
 
-        // 2. Check if the email matches an existing user (account linking)
-        let email_lower = user_info.email.to_lowercase();
-        {
-            let email_index = self.email_index.read().await;
-            if let Some(user_id) = email_index.get(&email_lower) {
-                // Link this new identity to the existing user
-                let mut users = self.users.write().await;
-                if let Some(user) = users.get_mut(user_id) {
-                    let new_identity = LinkedIdentity {
-                        provider:         provider.to_string(),
-                        provider_user_id: user_info.id.clone(),
-                        email:            user_info.email.clone(),
-                    };
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
-                    // Avoid duplicate identities
-                    if !user.identities.iter().any(|i| {
-                        i.provider == provider && i.provider_user_id == user_info.id
-                    }) {
-                        user.identities.push(new_identity);
-                    }
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
 
-                    let linked_user = user.clone();
+    use super::*;
 
-                    // Update identity index
-                    drop(users);
-                    let mut identity_index = self.identity_index.write().await;
-                    identity_index.insert(identity_key, linked_user.id.clone());
+    // ── Cycle 2 tests — account linking ───────────────────────────────────
 
-                    return Ok(linked_user);
-                }
-            }
-        }
+    #[tokio::test]
+    async fn test_first_sign_in_creates_new_account() {
+        let store = InMemoryAccountStore::new();
+        let result = store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
 
-        // 3. Create a new local user
-        let user_id = uuid::Uuid::new_v4().to_string();
-        let identity = LinkedIdentity {
-            provider:         provider.to_string(),
-            provider_user_id: user_info.id.clone(),
-            email:            user_info.email.clone(),
-        };
-
-        let user = LocalUser {
-            id:         user_id.clone(),
-            email:      user_info.email.clone(),
-            name:       user_info.name.clone(),
-            picture:    user_info.picture.clone(),
-            identities: vec![identity],
-            created_at: unix_now(),
-        };
-
-        // Insert into all indices
-        {
-            let mut users = self.users.write().await;
-            users.insert(user_id.clone(), user.clone());
-        }
-        {
-            let mut identity_index = self.identity_index.write().await;
-            identity_index.insert(identity_key, user_id.clone());
-        }
-        {
-            let mut email_index = self.email_index.write().await;
-            email_index.insert(email_lower, user_id);
-        }
-
-        Ok(user)
+        assert!(result.is_new, "first sign-in should create a new account");
+        assert!(!result.linked, "no linking on brand-new account");
+        assert!(result.user_id.starts_with("user_"), "user_id should have 'user_' prefix");
+        assert_eq!(store.len(), 1);
     }
 
-    async fn get_user(&self, user_id: &str) -> Result<Option<LocalUser>> {
-        let users = self.users.read().await;
-        Ok(users.get(user_id).cloned())
+    #[tokio::test]
+    async fn test_github_then_google_same_email_returns_same_user_id() {
+        // This is the primary Cycle 2 acceptance test.
+        let store = InMemoryAccountStore::new();
+
+        // Step 1: user signs in with GitHub
+        let github_result = store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
+        assert!(github_result.is_new);
+        let user_id = github_result.user_id.clone();
+
+        // Step 2: same user signs in with Google (same email)
+        let google_result = store
+            .link_or_create_user("alice@example.com", "google", "google_456")
+            .await
+            .unwrap();
+        assert!(!google_result.is_new, "second sign-in should not create a new account");
+        assert!(google_result.linked, "Google should be linked to existing account");
+        assert_eq!(
+            google_result.user_id, user_id,
+            "GitHub and Google sign-ins with same email must yield same user_id"
+        );
+
+        // Verify only one account record was created
+        assert_eq!(store.len(), 1);
     }
 
-    async fn list_identities(&self, user_id: &str) -> Result<Vec<LinkedIdentity>> {
-        let users = self.users.read().await;
-        Ok(users
-            .get(user_id)
-            .map(|u| u.identities.clone())
-            .unwrap_or_default())
+    #[tokio::test]
+    async fn test_different_emails_create_different_accounts() {
+        let store = InMemoryAccountStore::new();
+
+        let alice = store
+            .link_or_create_user("alice@example.com", "github", "github_alice")
+            .await
+            .unwrap();
+        let bob = store
+            .link_or_create_user("bob@example.com", "github", "github_bob")
+            .await
+            .unwrap();
+
+        assert_ne!(alice.user_id, bob.user_id, "different emails must produce different user_ids");
+        assert_eq!(store.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_same_provider_twice_does_not_duplicate_link() {
+        let store = InMemoryAccountStore::new();
+
+        // First sign-in
+        store.link_or_create_user("alice@example.com", "github", "github_123").await.unwrap();
+
+        // Same provider + same provider_id — should NOT add a duplicate link
+        let second = store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
+        assert!(!second.is_new, "should not create a new account on second sign-in");
+        assert!(!second.linked, "same provider/id should not count as newly linked");
+
+        let record = store.get_account(&second.user_id).await.unwrap();
+        assert_eq!(record.providers.len(), 1, "should still have only one provider link");
+    }
+
+    #[tokio::test]
+    async fn test_multiple_providers_linked_to_single_account() {
+        let store = InMemoryAccountStore::new();
+
+        store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
+        store
+            .link_or_create_user("alice@example.com", "google", "google_456")
+            .await
+            .unwrap();
+        store
+            .link_or_create_user("alice@example.com", "okta", "okta_789")
+            .await
+            .unwrap();
+
+        let result = store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
+        let record = store.get_account(&result.user_id).await.unwrap();
+
+        assert_eq!(record.providers.len(), 3, "all three providers should be linked");
+        let providers: Vec<&str> = record.providers.iter().map(|p| p.provider.as_str()).collect();
+        assert!(providers.contains(&"github"));
+        assert!(providers.contains(&"google"));
+        assert!(providers.contains(&"okta"));
+    }
+
+    #[tokio::test]
+    async fn test_get_account_returns_correct_record() {
+        let store = InMemoryAccountStore::new();
+        let result = store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
+
+        let record = store.get_account(&result.user_id).await.unwrap();
+        assert_eq!(record.email, "alice@example.com");
+        assert_eq!(record.providers.len(), 1);
+        assert_eq!(record.providers[0].provider, "github");
+    }
+
+    #[tokio::test]
+    async fn test_get_account_unknown_user_id_returns_error() {
+        let store = InMemoryAccountStore::new();
+        let err = store.get_account("user_nonexistent").await.unwrap_err();
+        assert!(
+            matches!(err, AuthError::TokenNotFound),
+            "unknown user_id should return TokenNotFound, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_normalize_email_lowercases() {
+        assert_eq!(normalize_email("Alice@Example.COM"), "alice@example.com");
+    }
+
+    #[test]
+    fn test_normalize_email_trims_whitespace() {
+        assert_eq!(normalize_email("  alice@example.com  "), "alice@example.com");
+    }
+
+    #[test]
+    fn test_normalize_email_idempotent() {
+        let email = "alice@example.com";
+        assert_eq!(normalize_email(email), normalize_email(&normalize_email(email)));
+    }
+
+    #[tokio::test]
+    async fn test_account_store_as_trait_object() {
+        let store: Arc<dyn AccountStore> = Arc::new(InMemoryAccountStore::new());
+        let result = store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
+        assert!(result.is_new);
     }
 }

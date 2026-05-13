@@ -415,6 +415,16 @@ pub struct StorageConfig {
     /// Azure storage account name (used by the `"azure"` backend).
     #[serde(default)]
     pub account_name: Option<String>,
+    /// Maximum upload size in bytes for this storage backend.
+    ///
+    /// Defaults to `104_857_600` (100 `MiB`). Uploads exceeding this size are
+    /// rejected with HTTP 413 before touching the backend.
+    #[serde(default = "default_max_upload_bytes")]
+    pub max_upload_bytes: usize,
+}
+
+const fn default_max_upload_bytes() -> usize {
+    100 * 1024 * 1024 // 100 MiB
 }
 
 /// Reserved: placeholder for future full-text search indexing configuration.

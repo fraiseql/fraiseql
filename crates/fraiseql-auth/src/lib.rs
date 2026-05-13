@@ -19,8 +19,8 @@ pub mod middleware;
 pub mod monitoring;
 pub mod multi_provider;
 pub mod oauth;
-pub mod oidc_provider;
 pub mod otp;
+pub mod oidc_provider;
 pub mod oidc_server_client;
 pub mod phone_otp;
 pub mod operation_rbac;
@@ -34,6 +34,7 @@ pub mod security_init;
 pub mod session;
 pub mod session_postgres;
 pub mod state_encryption;
+pub mod social;
 pub mod state_store;
 pub mod totp_mfa;
 
@@ -65,8 +66,11 @@ pub use audit::logger::{
     AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
     get_audit_logger, init_audit_logger,
 };
-pub use account_linking::{InMemoryUserStore, LinkedIdentity, LocalUser, UserStore};
-pub use anonymous::{AnonAuthState, SignupRequest, SignupResponse, signup_anonymous};
+pub use account_linking::{
+    AccountLinkResult, AccountRecord, AccountStore, InMemoryAccountStore, ProviderLink,
+    normalize_email,
+};
+pub use anonymous::{AnonSignupResponse, AnonSignupState, anon_signup, upgrade_anonymous_session};
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 pub use error_sanitizer::{
@@ -94,8 +98,11 @@ pub use oidc_provider::OidcProvider;
 pub use oidc_server_client::{OidcEndpoints, OidcServerClient, OidcTokenResponse};
 pub use operation_rbac::{OperationPermission, RBACPolicy, Role};
 pub use otp::{
-    EmailSender, InMemoryEmailSender, InMemoryOtpStore, OtpAuthState, OtpRequest, OtpResponse,
-    OtpStore, VerifyRequest, VerifyResponse, generate_otp_code, send_otp, verify_otp,
+    EmailDelivery, InMemoryOtpStore, NoopEmailDelivery, OtpRequest, OtpResponse, OtpRouteState,
+    OtpStore, VerifyRequest, otp_send, otp_verify,
+};
+pub use social::{
+    SocialAuthorizeParams, SocialLoginState, SocialProviderRegistry, social_authorize,
 };
 pub use phone_otp::{
     InMemorySmsSender, SmsOtpAuthState, SmsOtpRequest, SmsOtpResponse, SmsSender,
@@ -116,6 +123,10 @@ pub use security_init::{
 };
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
 pub use session_postgres::PostgresSessionStore;
+pub use totp_mfa::{
+    EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore, TotpEnrollment,
+    mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify,
+};
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
     StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,

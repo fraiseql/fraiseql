@@ -1,6 +1,7 @@
 [dependencies]
 aes-gcm = "0.10"
 anyhow = "1.0"
+bcrypt = "0.15"
 async-trait = "0.1"
 axum = {workspace = true, features = ["macros"]}
 base64 = "0.22"
@@ -21,6 +22,7 @@ sha1 = "0.10"
 sha2 = "0.10"
 sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
 subtle = "2.5"
+totp-rs = {version = "5", features = ["gen_secret", "otpauth"]}
 thiserror = "2.0"
 tokio = {workspace = true}
 tower = {version = "0.5"}

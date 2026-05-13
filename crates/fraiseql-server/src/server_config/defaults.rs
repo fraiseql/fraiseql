@@ -135,3 +135,9 @@ pub const fn default_otlp_timeout_secs() -> u64 {
 pub fn default_service_name() -> String {
     "fraiseql".to_string()
 }
+
+/// Default maximum failed bearer auth attempts per IP within the 60-second
+/// window before the IP receives 429 Too Many Requests (10).
+pub const fn default_admin_auth_max_failures() -> u32 {
+    10
+}
