@@ -370,4 +370,14 @@ mod logger_tests {
             json_size
         );
     }
+
+    #[test]
+    fn test_authorization_denied_variant_exists_and_has_stable_string() {
+        let event_type = AuditEventType::AuthorizationDenied;
+        assert_eq!(
+            event_type.as_str(),
+            "authorization_denied",
+            "AuthorizationDenied must serialize to 'authorization_denied' for compliance audit trails"
+        );
+    }
 }

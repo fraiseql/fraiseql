@@ -100,6 +100,13 @@ pub enum AuditEventType {
     AuthSuccess,
     /// An authentication attempt failed.
     AuthFailure,
+    /// An authorization check denied access (RLS block, RBAC field denial, scope mismatch).
+    ///
+    /// Authentication succeeded, but the authenticated principal lacks the
+    /// required permissions for the requested resource.  This event is emitted
+    /// for compliance (SOC 2) audit trails and is distinct from `AuthFailure`,
+    /// which covers failed authentication.
+    AuthorizationDenied,
 }
 
 impl AuditEventType {
@@ -122,6 +129,7 @@ impl AuditEventType {
             AuditEventType::OauthCallback => "oauth_callback",
             AuditEventType::AuthSuccess => "auth_success",
             AuditEventType::AuthFailure => "auth_failure",
+            AuditEventType::AuthorizationDenied => "authorization_denied",
         }
     }
 }

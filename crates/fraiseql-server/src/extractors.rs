@@ -2,15 +2,44 @@
 //!
 //! Provides extractors for `SecurityContext` and other request-level data.
 
-use std::future::Future;
+use std::{convert::Infallible, future::Future, net::SocketAddr};
 
 use axum::{
-    extract::{FromRequestParts, rejection::ExtensionRejection},
+    extract::{ConnectInfo, FromRequestParts, rejection::ExtensionRejection},
     http::request::Parts,
 };
 use fraiseql_core::security::SecurityContext;
 
 use crate::middleware::AuthUser;
+
+/// Extractor for the TCP peer IP address.
+///
+/// Reads the peer address from `ConnectInfo<SocketAddr>` in request extensions.
+/// Returns only the IP part (no port), so connections from the same client share
+/// the same rate-limit key regardless of ephemeral port churn.
+///
+/// Falls back to `"unknown"` when:
+/// - The server was not started with `into_make_service_with_connect_info`
+/// - Running in test mode (direct `oneshot` without `ConnectInfo`)
+pub struct PeerIp(pub String);
+
+impl<S> FromRequestParts<S> for PeerIp
+where
+    S: Send + Sync,
+{
+    type Rejection = Infallible;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let ip = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map_or_else(|| "unknown".to_string(), |ci| ci.0.ip().to_string());
+        async move { Ok(PeerIp(ip)) }
+    }
+}
 
 /// Extractor for optional `SecurityContext` from authenticated user and headers.
 ///
