@@ -27,6 +27,7 @@ fn test_validate_valid_fact_table() {
         },
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
 
     FactTableDetector::validate(&metadata)
@@ -44,6 +45,7 @@ fn test_validate_missing_measures() {
         },
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
 
     let result = FactTableDetector::validate(&metadata);
@@ -66,6 +68,7 @@ fn test_validate_non_numeric_measure() {
         },
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
 
     let result = FactTableDetector::validate(&metadata);
@@ -513,6 +516,86 @@ fn test_extract_paths_non_object() {
     let paths =
         FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
     assert!(paths.is_empty());
+}
+
+// ==================== Partial-Period Config Tests ====================
+
+#[test]
+fn test_partial_period_config_deserialization() {
+    let json_str = r#"{
+        "table_name": "tf_events_monthly",
+        "measures": [{"name": "volume", "sql_type": "Decimal", "nullable": false}],
+        "dimensions": {"name": "data", "paths": []},
+        "denormalized_filters": [],
+        "calendar_dimensions": [],
+        "partial_period": {
+            "fine_grain_view": "v_events_day",
+            "time_grain_column": "date",
+            "time_grain_trunc": "month"
+        }
+    }"#;
+
+    let metadata: FactTableMetadata = serde_json::from_str(json_str).unwrap();
+    let pp = metadata.partial_period.expect("partial_period should be Some");
+    assert_eq!(pp.fine_grain_view, "v_events_day");
+    assert_eq!(pp.time_grain_column, "date");
+    assert_eq!(pp.time_grain_trunc, TemporalGrain::Month);
+}
+
+#[test]
+fn test_temporal_grain_all_variants() {
+    for (s, expected) in [
+        ("day", TemporalGrain::Day),
+        ("week", TemporalGrain::Week),
+        ("month", TemporalGrain::Month),
+        ("quarter", TemporalGrain::Quarter),
+        ("year", TemporalGrain::Year),
+    ] {
+        let grain: TemporalGrain = serde_json::from_value(serde_json::json!(s)).unwrap();
+        assert_eq!(grain, expected);
+    }
+}
+
+#[test]
+fn test_temporal_grain_invalid_rejected() {
+    let result: Result<TemporalGrain, _> = serde_json::from_value(serde_json::json!("hour"));
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_partial_period_backward_compat_absent() {
+    let json_str = r#"{
+        "table_name": "tf_sales",
+        "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+        "dimensions": {"name": "data", "paths": []},
+        "denormalized_filters": [],
+        "calendar_dimensions": []
+    }"#;
+
+    let metadata: FactTableMetadata = serde_json::from_str(json_str).unwrap();
+    assert!(metadata.partial_period.is_none());
+}
+
+#[test]
+fn test_partial_period_config_roundtrip() {
+    let config = PartialPeriodConfig {
+        fine_grain_view:   "v_events_day".to_string(),
+        time_grain_column: "date".to_string(),
+        time_grain_trunc:  TemporalGrain::Quarter,
+    };
+
+    let json = serde_json::to_string(&config).unwrap();
+    let deserialized: PartialPeriodConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(config, deserialized);
+}
+
+#[test]
+fn test_temporal_grain_postgres_trunc_arg() {
+    assert_eq!(TemporalGrain::Day.postgres_trunc_arg(), "day");
+    assert_eq!(TemporalGrain::Week.postgres_trunc_arg(), "week");
+    assert_eq!(TemporalGrain::Month.postgres_trunc_arg(), "month");
+    assert_eq!(TemporalGrain::Quarter.postgres_trunc_arg(), "quarter");
+    assert_eq!(TemporalGrain::Year.postgres_trunc_arg(), "year");
 }
 
 // ==================== Explicit Fact Table Declaration Tests ====================

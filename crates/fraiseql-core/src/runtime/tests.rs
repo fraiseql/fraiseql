@@ -57,6 +57,7 @@ mod aggregate_parser_tests {
                 indexed:  true,
             }],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         }
     }
 
@@ -427,6 +428,7 @@ mod aggregate_projector_tests {
                 indexed:  true,
             }],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         };
 
         let request = AggregationRequest {
@@ -4012,6 +4014,7 @@ mod window_parser_tests {
                 },
             ],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         }
     }
 

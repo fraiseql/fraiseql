@@ -526,6 +526,7 @@ fn fact_table_add_and_get() {
         },
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
     schema.add_fact_table("tf_sales".to_string(), meta);
 
@@ -547,6 +548,7 @@ fn list_fact_tables_returns_all_names() {
         },
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
 
     let mut schema = CompiledSchema::new();

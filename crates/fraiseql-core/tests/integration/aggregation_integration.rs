@@ -83,6 +83,7 @@ fn create_test_metadata() -> FactTableMetadata {
                 ],
             }],
         }],
+        partial_period:       None,
     }
 }
 

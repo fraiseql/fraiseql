@@ -76,6 +76,7 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
                 },
             ],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         },
     );
     schema

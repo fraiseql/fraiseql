@@ -147,6 +147,7 @@ fn test_schema_with_fact_tables_validation() {
             },
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         },
     );
 
@@ -177,6 +178,7 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
             },
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         },
     ); // Missing tf_ prefix
 
@@ -209,6 +211,7 @@ fn test_validator_rejects_fact_table_without_measures() {
             },
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         },
     );
 
@@ -360,6 +363,7 @@ async fn test_executor_classifies_aggregate_query() {
             },
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         },
     );
 
@@ -490,6 +494,7 @@ fn create_test_fact_table_metadata() -> FactTableMetadata {
             },
         ],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     }
 }
 

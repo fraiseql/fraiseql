@@ -27,6 +27,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
             indexed:  true,
         }],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     }
 }
 
@@ -48,6 +49,7 @@ fn create_test_plan() -> AggregationPlan {
             indexed:  true,
         }],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
 
     let request = AggregationRequest {
@@ -882,6 +884,7 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
             indexed:  true,
         }],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
 
     let request = AggregationRequest {
@@ -988,6 +991,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
             },
         ],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
 
     let request = AggregationRequest {
@@ -1074,6 +1078,7 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
             indexed:  true,
         }],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     };
     let request = AggregationRequest {
         table_name:   "tf_sales".to_string(),

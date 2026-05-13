@@ -38,6 +38,7 @@ fn create_test_metadata() -> FactTableMetadata {
             },
         ],
         calendar_dimensions:  vec![],
+        partial_period:       None,
     }
 }
 

@@ -1615,6 +1615,7 @@ mod introspect_facts_tests {
                 indexed:  true,
             }],
             calendar_dimensions:  vec![],
+            partial_period:       None,
         };
 
         let output = format_as_python(&metadata);
@@ -2737,6 +2738,7 @@ mod validate_facts_tests {
             },
             denormalized_filters: filters,
             calendar_dimensions: vec![],
+            partial_period:       None,
         }
     }
 
