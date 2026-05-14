@@ -699,6 +699,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         post(api::admin::reload_schema_handler::<A>),
                     )
                     .route("/api/v1/admin/cache/clear", post(api::admin::cache_clear_handler::<A>))
+                    .route(
+                        "/api/v1/admin/query-stats/reset",
+                        post(api::query_stats::query_stats_reset_handler::<A>),
+                    )
                     // Tenant management write endpoints (multi-tenant mode)
                     .route(
                         "/api/v1/admin/tenants/{key}",
@@ -784,6 +788,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     .route(
                         "/api/v1/admin/usage",
                         get(api::usage::usage_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/query-stats",
+                        get(api::query_stats::query_stats_handler::<A>),
+                    )
+                    .route(
+                        "/api/v1/admin/query-stats/{queryid}",
+                        get(api::query_stats::query_stats_detail_handler::<A>),
                     )
                     .route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))
                     .with_state(state.clone());

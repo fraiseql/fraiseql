@@ -15,6 +15,7 @@ pub mod federation;
 pub mod metadata;
 pub mod openapi;
 pub mod query;
+pub mod query_stats;
 pub mod schema;
 pub mod tenant_admin;
 pub mod types;

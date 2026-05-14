@@ -75,6 +75,7 @@ impl IntoResponse for ApiError {
             "FORBIDDEN" => StatusCode::FORBIDDEN,
             "NOT_FOUND" => StatusCode::NOT_FOUND,
             "VALIDATION_ERROR" | "PARSE_ERROR" => StatusCode::BAD_REQUEST,
+            "UNSUPPORTED_OPERATION" => StatusCode::NOT_IMPLEMENTED,
             "SERVICE_UNAVAILABLE" => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
