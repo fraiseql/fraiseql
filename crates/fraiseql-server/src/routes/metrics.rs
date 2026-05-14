@@ -242,6 +242,73 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         );
     }
 
+    // Database query performance stats (top 5 from pg_stat_statements / equivalent)
+    if let Ok(stats) = state.executor().adapter().query_stats(5).await {
+        if !stats.is_empty() {
+            output.push_str(concat!(
+                "\n# HELP fraiseql_db_query_exec_seconds ",
+                "Cumulative execution time per query (from DB stats extension)\n",
+                "# TYPE fraiseql_db_query_exec_seconds gauge\n",
+            ));
+            for entry in &stats {
+                let query_short = truncate_label(&entry.query_text, 80);
+                let _ = writeln!(
+                    output,
+                    "fraiseql_db_query_exec_seconds{{queryid=\"{}\",query=\"{}\"}} {:.6}",
+                    entry.query_id,
+                    query_short,
+                    entry.total_exec_time_ms / 1000.0
+                );
+            }
+
+            output.push_str(concat!(
+                "\n# HELP fraiseql_db_query_calls ",
+                "Total call count per query (from DB stats extension)\n",
+                "# TYPE fraiseql_db_query_calls gauge\n",
+            ));
+            for entry in &stats {
+                let query_short = truncate_label(&entry.query_text, 80);
+                let _ = writeln!(
+                    output,
+                    "fraiseql_db_query_calls{{queryid=\"{}\",query=\"{}\"}} {}",
+                    entry.query_id, query_short, entry.calls
+                );
+            }
+
+            output.push_str(concat!(
+                "\n# HELP fraiseql_db_query_mean_exec_seconds ",
+                "Mean execution time per query (from DB stats extension)\n",
+                "# TYPE fraiseql_db_query_mean_exec_seconds gauge\n",
+            ));
+            for entry in &stats {
+                let query_short = truncate_label(&entry.query_text, 80);
+                let _ = writeln!(
+                    output,
+                    "fraiseql_db_query_mean_exec_seconds{{queryid=\"{}\",query=\"{}\"}} {:.6}",
+                    entry.query_id,
+                    query_short,
+                    entry.mean_exec_time_ms / 1000.0
+                );
+            }
+
+            output.push_str(concat!(
+                "\n# HELP fraiseql_db_cache_hit_ratio ",
+                "Buffer cache hit ratio per query (0-1, from DB stats extension)\n",
+                "# TYPE fraiseql_db_cache_hit_ratio gauge\n",
+            ));
+            for entry in &stats {
+                if let Some(ratio) = entry.cache_hit_ratio {
+                    let query_short = truncate_label(&entry.query_text, 80);
+                    let _ = writeln!(
+                        output,
+                        "fraiseql_db_cache_hit_ratio{{queryid=\"{}\",query=\"{}\"}} {:.4}",
+                        entry.query_id, query_short, ratio
+                    );
+                }
+            }
+        }
+    }
+
     // Pool auto-tuner metrics (when enabled)
     if let Some(ref tuner) = state.pool_tuner {
         let adjustments = tuner.adjustments_total();
@@ -360,6 +427,18 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
         [("Content-Type", "text/plain; version=0.0.4")],
         output,
     )
+}
+
+/// Truncate a string for use as a Prometheus label value.
+///
+/// Escapes backslashes, double-quotes, and newlines per the Prometheus
+/// exposition format, then truncates to `max_chars`.
+fn truncate_label(s: &str, max_chars: usize) -> String {
+    let truncated = if s.len() > max_chars { &s[..max_chars] } else { s };
+    truncated
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
 }
 
 /// JSON metrics handler - returns metrics in JSON format.

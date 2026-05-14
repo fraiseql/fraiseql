@@ -308,6 +308,55 @@
           }
         }
       }
+    },
+    {
+      "title": "Database Query Stats (Top 5)",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "topk(5, fraiseql_db_query_exec_seconds{instance=~\"$instance\"})",
+          "legendFormat": "{{query}}",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "topk(5, fraiseql_db_query_calls{instance=~\"$instance\"})",
+          "legendFormat": "{{query}}",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "topk(5, fraiseql_db_cache_hit_ratio{instance=~\"$instance\"})",
+          "legendFormat": "{{query}}",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value #A" },
+            "properties": [{ "id": "displayName", "value": "Exec Time (s)" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value #B" },
+            "properties": [{ "id": "displayName", "value": "Calls" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value #C" },
+            "properties": [{ "id": "displayName", "value": "Cache Hit Ratio" }]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ]
     }
   ]
 }
