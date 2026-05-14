@@ -90,6 +90,7 @@ pub fn run(format: SbomFormat, output: Option<&str>) -> Result<()> {
 }
 
 fn load_project_metadata() -> (String, String) {
+    // Try fraiseql.toml [project] first
     let toml_path = Path::new("fraiseql.toml");
     if toml_path.exists() {
         if let Ok(content) = fs::read_to_string(toml_path) {
@@ -97,19 +98,66 @@ fn load_project_metadata() -> (String, String) {
                 let name = parsed
                     .get("project")
                     .and_then(|p| p.get("name"))
-                    .and_then(toml::Value::as_str)
-                    .unwrap_or("unknown")
-                    .to_string();
+                    .and_then(toml::Value::as_str);
                 let version = parsed
                     .get("project")
                     .and_then(|p| p.get("version"))
+                    .and_then(toml::Value::as_str);
+                if name.is_some() || version.is_some() {
+                    return (
+                        name.unwrap_or("unknown").to_string(),
+                        version.unwrap_or("0.0.0").to_string(),
+                    );
+                }
+            }
+        }
+    }
+
+    // Fall back to workspace Cargo.toml
+    if let Ok(lock_path) = find_cargo_lock() {
+        let cargo_toml_path = lock_path.with_file_name("Cargo.toml");
+        if let Ok(content) = fs::read_to_string(&cargo_toml_path) {
+            if let Ok(parsed) = toml::from_str::<toml::Value>(&content) {
+                let name = parsed
+                    .get("package")
+                    .and_then(|p| p.get("name"))
                     .and_then(toml::Value::as_str)
+                    .or_else(|| {
+                        parsed
+                            .get("workspace")
+                            .and_then(|w| w.get("package"))
+                            .and_then(|p| p.get("name"))
+                            .and_then(toml::Value::as_str)
+                    })
+                    .map_or_else(
+                        || {
+                            cargo_toml_path
+                                .parent()
+                                .and_then(|p| p.file_name())
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("unknown")
+                                .to_string()
+                        },
+                        String::from,
+                    );
+                let version = parsed
+                    .get("package")
+                    .and_then(|p| p.get("version"))
+                    .and_then(toml::Value::as_str)
+                    .or_else(|| {
+                        parsed
+                            .get("workspace")
+                            .and_then(|w| w.get("package"))
+                            .and_then(|p| p.get("version"))
+                            .and_then(toml::Value::as_str)
+                    })
                     .unwrap_or("0.0.0")
                     .to_string();
                 return (name, version);
             }
         }
     }
+
     ("unknown".to_string(), "0.0.0".to_string())
 }
 
