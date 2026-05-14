@@ -5,73 +5,82 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] - 2026-05-03
-
-### Fixed
-
-- **Hot-reload cache rebind** — query cache is now cleared on schema reload, resolving a stale-cache
-  bug where post-reload queries could return results compiled against the old schema. The `TODO #184`
-  marker tracking this issue has been resolved. Implemented via `DatabaseAdapter::on_schema_reload()`
-  trait method, called by the hot-reload path in all adapter implementations.
-
-- **fraiseql-storage compile errors** — corrected multiple compile-time failures in the storage
-  crate introduced during the v2.2.0 federation work; clippy warnings also cleaned up.
-
-- **`platform_e2e_test` repaired** — 9 platform end-to-end tests now pass reliably after fixing
-  a test-setup race condition that caused intermittent failures.
-
-- **`expect()` messages strengthened** — production `expect()` calls in
-  `routes/rest/router.rs` and `fraiseql-db/sqlserver/adapter.rs` now explain
-  concretely *why* the operation is infallible.
+## [2.3.0] - 2026-05-13
 
 ### Added
 
-- **Studio metrics endpoint** — `GET /admin/v1/metrics/summary` is now wired to the live
-  `MetricsCollector`, returning real-time latency percentiles (p50/p95/p99), per-operation error
-  rates, and cache hit rate. Previously returned a stub response.
+- **Partial-period aggregates** — UNION ALL dispatch for aggregate queries spanning period
+  boundaries, with `TemporalGrain` and `PartialPeriodConfig` schema model additions and
+  lower-bound date extraction from WHERE clauses.
 
-- **`DatabaseAdapter::on_schema_reload()` trait method** — adapters can now react to schema
-  hot-reload events (e.g. clear caches, reset prepared statement pools). Default no-op provided
-  for backwards compatibility.
+- **Storage API** (`fraiseql-storage` crate) — S3/local/Azure/GCS storage backends with
+  RLS-enforced tenant isolation, file transforms (resize, watermark, format conversion),
+  and access control routes mounted on the server.
 
-- **12 new integration tests**:
-  - 6 subscription forwarder tests covering SSRF protection, reconnect logic, and protocol
-    negotiation edge cases
-  - 6 `GET /auth/me` tests covering cookie fallback, claim filtering, and expiry handling
+- **Functions trigger system** (`fraiseql-functions`) — `after:mutation`, `before:mutation`,
+  `after:storage`, cron, and HTTP trigger types with a `TriggerRegistry` for dispatch.
+  WASM host bindings for function execution.
 
-- **PostgreSQL usage persistence backend** — `UsageAggregator` now ships with a
-  `PostgresBackend` that stores mutation counters in a `fraiseql_usage_counters`
-  table. Counters survive server restarts; the schema is created automatically on
-  first use (idempotent `CREATE TABLE IF NOT EXISTS`).
+- **Realtime subsystem** — WebSocket server with subscription protocol, event delivery
+  with RLS, broadcast observer, and `CronScheduler` for periodic tasks.
 
-- **Automatic background flush lifecycle** — when `[usage]` is configured in
-  `fraiseql.toml`, the server spawns a background task that flushes counters to
-  PostgreSQL on a configurable interval (`flush_interval_secs`, default 60s) and
-  restores persisted state from the database at startup.
+- **Subsystems builder** — `ServerSubsystems` builder pattern with `ExtendedCompiledSchema`
+  loader and config validation for composing server capabilities.
 
-- **`UsageAggregator::set_backend()`** — new method allows swapping the persistence
-  backend at runtime. Used internally to upgrade from `NoopBackend` to
-  `PostgresBackend` after the database pool is available.
+- **Auth extensions** (Phase 13) — social login (Google, GitHub, Apple, Microsoft),
+  account linking, magic links / email OTP, TOTP MFA, and anonymous sessions.
 
-- **`[usage]` TOML configuration section** — `ServerConfig` gains an optional
-  `usage: Option<UsagePersistenceConfig>` field. Example:
-  ```toml
-  [usage]
-  flush_interval_secs = 60
-  ```
+- **CLI `setup` command** — generates mutation helper functions (mutation_response type,
+  `fn_mutation_success`/`fn_mutation_error` SQL functions).
+
+- **Observer management** — changelog handlers, DLQ handlers, and shared DLQ state
+  across hot-reload cycles.
+
+- **Studio metrics endpoint** — `GET /admin/v1/metrics/summary` wired to live
+  `MetricsCollector` with real-time latency percentiles and cache hit rate.
+
+- **`DatabaseAdapter::on_schema_reload()`** — adapters react to schema hot-reload
+  events (e.g. clear caches). Default no-op for backwards compatibility.
+
+- **PostgreSQL usage persistence backend** — `UsageAggregator` stores mutation counters
+  in `fraiseql_usage_counters` table with automatic background flush lifecycle.
+
+- **`[usage]` TOML configuration section** — `ServerConfig.usage: Option<UsagePersistenceConfig>`.
+
+### Security
+
+- **S43**: IPv6 literal parsing in wire connection strings (RFC 3986 bracket notation)
+- **S44**: Federation saga table double-prefix fix (`tb_tb_` → `tb_`) + `cleanup_all` visibility restriction
+- **S45**: Real peer IP forwarding via `PeerIp` extractor for GraphQL rate limiting
+- **S46**: `AuthorizationDenied` audit event for SOC 2 compliance logging
+- **S47**: Vault backend rotation atomicity with per-secret `DashMap` locks
+- **S48**: Admin bearer token brute-force protection
+
+### Fixed
+
+- **Hot-reload cache rebind** — query cache cleared on schema reload, resolving stale-cache bug.
+
+- **fraiseql-storage compile errors** — corrected compile-time failures from v2.2.0 federation work.
+
+- **`platform_e2e_test` repaired** — 9 platform E2E tests pass reliably after race condition fix.
+
+- **OIDC enrichment compatibility** — works without observers feature enabled.
 
 ### Changed
 
-- **`UsageAggregator.backend`** upgraded from `Arc<dyn UsageBackend>` to
-  `RwLock<Arc<dyn UsageBackend>>` to allow runtime backend swapping. Public API
-  is unchanged; `flush_to_backend()` and `load_from_backend()` continue to work
-  identically.
+- **Cargo production dependencies** — 12 non-breaking bumps (batch update).
+- **GitHub Actions** — checkout v4→v6, setup-java v4→v5, setup-go v5→v6,
+  upload-artifact v6→v7, setup-uv v5→v7 across 35 workflow files.
+- **Pre-commit hooks** — markdownlint-cli v0.48.0, actionlint v1.7.12,
+  `stages: [push]` → `stages: [pre-push]` for pre-commit v4.
+- **`UsageAggregator.backend`** upgraded to `RwLock<Arc<dyn UsageBackend>>`
+  for runtime backend swapping.
 
 ### Known Limitations Update
 
 - **Pool Pressure Monitor** — confirmed that neither `deadpool-postgres` nor
   `bb8-postgres` (as of 2026-05) support runtime pool resizing. The `PoolPressureMonitor`
-  remains in recommendation-only mode. Roadmap updated accordingly.
+  remains in recommendation-only mode.
 
 ## [2.2.0] - 2026-05-02
 
