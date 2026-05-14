@@ -248,11 +248,6 @@ version = "=0.7.15"
 
 
 [[bans.skip]]
-name = "base64"
-reason = "transitive via older dependency chains (deno_core, aws, etc.)"
-version = "=0.21.7"
-
-[[bans.skip]]
 name = "base64-simd"
 reason = "transitive via older dependency chain"
 version = "=0.7.0"
@@ -278,16 +273,6 @@ reason = "transitive; ecosystem migrating to newer version"
 version = "=0.2.0"
 
 [[bans.skip]]
-name = "fraiseql-error"
-reason = "local workspace crate appears in registry when all-features=true graph resolution pulls in workspace-published version"
-version = "=2.2.1"
-
-[[bans.skip]]
-name = "hashbrown"
-reason = "transitive via wasmtime 0.13 dependency chain"
-version = "=0.13.2"
-
-[[bans.skip]]
 name = "hashbrown"
 reason = "transitive; ecosystem migrating to 0.16"
 version = "=0.16.1"
@@ -296,11 +281,6 @@ version = "=0.16.1"
 name = "heck"
 reason = "transitive; ecosystem split between heck 0.4 and 0.5"
 version = "=0.4.1"
-
-[[bans.skip]]
-name = "itertools"
-reason = "transitive via older dependency (deno_core, etc.) pinned to 0.10"
-version = "=0.10.5"
 
 [[bans.skip]]
 name = "linux-raw-sys"
@@ -373,19 +353,14 @@ reason = "v8/deno_core pins 0.7.4; backtrace/dhat uses 0.8.9; both are optional 
 version = "=0.7.4"
 
 [[bans.skip]]
-name = "toml"
-reason = "transitive via older dependency pinned to toml 0.5"
-version = "=0.5.11"
+name = "tungstenite"
+reason = "transitive; ecosystem migrating from 0.28 to 0.29"
+version = "=0.28.0"
 
 [[bans.skip]]
-name = "zstd"
-reason = "transitive via older dependency chain (wasmtime, zstd 0.11)"
-version = "=0.11.2+zstd.1.5.2"
-
-[[bans.skip]]
-name = "zstd-safe"
-reason = "transitive via older dependency chain (wasmtime, zstd-safe 5.0)"
-version = "=5.0.2+zstd.1.5.2"
+name = "tokio-tungstenite"
+reason = "transitive; ecosystem migrating from 0.28 to 0.29"
+version = "=0.28.0"
 
 [[bans.skip-tree]]
 name = "hyper"
@@ -404,8 +379,8 @@ version = "=0.11.1"
 
 [[bans.skip-tree]]
 name = "wasmtime"
-reason = "wasmtime v18 pulls in older debug utilities (addr2line, gimli, object, etc.); upgrade tracked for 2026-12-01"
-version = "=18.0.4"
+reason = "wasmtime v44 pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat; upgrade tracked for 2026-12-01"
+version = "=44.0.1"
 
 # Non-wasmtime duplicates from ecosystem migrations
 [graph]
