@@ -642,6 +642,22 @@ impl SchemaMerger {
                 serde_json::to_value(&toml_schema.mcp).context("Failed to serialize MCP config")?;
         }
 
+        // Embed REST config when enabled (with path validation)
+        if toml_schema.rest.enabled {
+            let path = &toml_schema.rest.path;
+            if !path.starts_with('/') {
+                anyhow::bail!(
+                    "REST config: `path` must start with '/' (got {path:?})"
+                );
+            }
+
+            let rest_config: fraiseql_core::schema::RestConfig =
+                toml_schema.rest.clone().into();
+
+            merged["rest_config"] = serde_json::to_value(&rest_config)
+                .context("Failed to serialize REST config")?;
+        }
+
         // Embed naming convention
         merged["naming_convention"] = serde_json::to_value(toml_schema.naming_convention)
             .context("Failed to serialize naming_convention")?;

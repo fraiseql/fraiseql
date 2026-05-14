@@ -117,6 +117,7 @@ impl From<RestTomlConfig> for RestConfig {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod tests {
     use super::*;
 
@@ -136,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_rest_toml_deserialize_minimal() {
-        let toml_str = r#"enabled = true"#;
+        let toml_str = r"enabled = true";
         let config: RestTomlConfig = toml::from_str(toml_str).unwrap();
         assert!(config.enabled);
         assert_eq!(config.path, "/rest/v1"); // default preserved
