@@ -62,7 +62,7 @@ repos:
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: v0.48.0
     hooks:
       - id: markdownlint
         args: [--fix]
@@ -88,11 +88,11 @@ repos:
         entry: cargo audit
         language: system
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
 
   # GitHub Actions workflow validation
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.11
+    rev: v1.7.12
     hooks:
       - id: actionlint
         name: actionlint
@@ -113,7 +113,7 @@ repos:
         language: system
         files: ^fraiseql-python/
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
 
       - id: cargo-package-check
         name: cargo package check
@@ -122,4 +122,4 @@ repos:
         language: system
         files: ^(Cargo.toml|crates/.*/Cargo.toml)
         pass_filenames: false
-        stages: [push]
+        stages: [pre-push]
