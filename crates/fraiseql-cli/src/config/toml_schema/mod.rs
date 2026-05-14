@@ -9,6 +9,7 @@ pub mod federation;
 pub mod observability;
 pub mod observers;
 pub mod operations;
+pub mod rest;
 pub mod security;
 pub mod server_settings;
 pub mod subscriptions;
@@ -43,6 +44,7 @@ pub use security::{
     StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode,
     TrustedDocumentsConfig,
 };
+use rest::RestTomlConfig;
 use serde::{Deserialize, Serialize};
 pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
@@ -149,6 +151,10 @@ pub struct TomlSchema {
     /// MCP (Model Context Protocol) server configuration.
     #[serde(default)]
     pub mcp: McpConfig,
+
+    /// REST transport configuration.
+    #[serde(default)]
+    pub rest: RestTomlConfig,
 
     /// Naming convention for GraphQL operation names.
     ///

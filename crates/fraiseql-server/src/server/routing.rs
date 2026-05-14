@@ -1115,6 +1115,20 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             }
         }
 
+        // REST transport (read-only GET + SSE routes).
+        //
+        // Uses `rest_query_router` which does not require `SupportsMutations`,
+        // keeping the server generic over all `DatabaseAdapter` implementations.
+        // Full CRUD REST (POST/PUT/PATCH/DELETE) requires `SupportsMutations`
+        // and is available via `rest_router` for adapters that support mutations.
+        #[cfg(feature = "rest")]
+        {
+            use crate::routes::rest::rest_query_router;
+            if let Some(rest_app) = rest_query_router(&state, self.config.compression_enabled) {
+                app = app.merge(rest_app);
+            }
+        }
+
         // Add middleware
         if self.config.tracing_enabled {
             app = app.layer(trace_layer());

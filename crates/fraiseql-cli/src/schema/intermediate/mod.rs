@@ -22,8 +22,8 @@ pub use fragments::{
     IntermediateFragmentField, IntermediateFragmentFieldDef,
 };
 use fraiseql_core::schema::{
-    DebugConfig, McpConfig, NamingConvention, SessionVariablesConfig, SubscriptionsConfig,
-    ValidationConfig,
+    DebugConfig, McpConfig, NamingConvention, RestConfig, SessionVariablesConfig,
+    SubscriptionsConfig, ValidationConfig,
 };
 pub use operations::{
     IntermediateArgument, IntermediateAutoParams, IntermediateMutation, IntermediateQuery,
@@ -153,6 +153,13 @@ pub struct IntermediateSchema {
     /// schema for server-side consumption.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_config: Option<McpConfig>,
+
+    /// REST transport configuration.
+    ///
+    /// Compiled from `[rest]` in `fraiseql.toml`. Embedded into the compiled
+    /// schema for server-side consumption.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_config: Option<RestConfig>,
 
     /// Global auto-param defaults for list queries (injected from TOML by the merger).
     ///
