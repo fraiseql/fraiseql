@@ -265,14 +265,22 @@ impl AggregateQueryParser {
                     } else if let Some(bucket_sel) = Self::parse_temporal_bucket(key, metadata)? {
                         // Priority 2: Fall back to DATE_TRUNC if no calendar dimension
                         selections.push(bucket_sel);
+                    } else if let Some(mapped_col) =
+                        metadata.native_dimension_mapping.get(key.as_str())
+                    {
+                        // Priority 3: Deep JSONB path mapped to a native column
+                        selections.push(GroupBySelection::NativeDimension {
+                            column:  mapped_col.clone(),
+                            pg_cast: String::new(),
+                        });
                     } else if let Some(pg_cast) = native_columns.get(key.as_str()) {
-                        // Priority 3: Native SQL column — direct reference, not JSONB
+                        // Priority 4: Native SQL column (filter-derived) — direct reference
                         selections.push(GroupBySelection::NativeDimension {
                             column:  key.clone(),
                             pg_cast: pg_cast.clone(),
                         });
                     } else {
-                        // Priority 4: Regular JSONB dimension
+                        // Priority 5: Regular JSONB dimension
                         selections.push(GroupBySelection::Dimension {
                             path:  key.clone(),
                             alias: key.clone(),

@@ -149,6 +149,7 @@ fn test_schema_with_fact_tables_validation() {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
 
@@ -181,6 +182,7 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         },
     ); // Missing tf_ prefix
 
@@ -215,6 +217,7 @@ fn test_validator_rejects_fact_table_without_measures() {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
 
@@ -368,6 +371,7 @@ async fn test_executor_classifies_aggregate_query() {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
 
@@ -500,6 +504,7 @@ fn create_test_fact_table_metadata() -> FactTableMetadata {
         calendar_dimensions:  vec![],
         partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
 

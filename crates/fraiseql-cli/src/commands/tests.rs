@@ -1617,6 +1617,7 @@ mod introspect_facts_tests {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         };
 
         let output = format_as_python(&metadata);
@@ -2741,6 +2742,7 @@ mod validate_facts_tests {
             calendar_dimensions: vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
 

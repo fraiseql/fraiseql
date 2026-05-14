@@ -31,6 +31,7 @@ fn test_validate_valid_fact_table() {
         calendar_dimensions:  vec![],
         partial_period:       None,
         native_measures:      HashMap::new(),
+        native_dimension_mapping: HashMap::new(),
     };
 
     FactTableDetector::validate(&metadata)
@@ -50,6 +51,7 @@ fn test_validate_missing_measures() {
         calendar_dimensions:  vec![],
         partial_period:       None,
         native_measures:      HashMap::new(),
+        native_dimension_mapping: HashMap::new(),
     };
 
     let result = FactTableDetector::validate(&metadata);
@@ -74,6 +76,7 @@ fn test_validate_non_numeric_measure() {
         calendar_dimensions:  vec![],
         partial_period:       None,
         native_measures:      HashMap::new(),
+        native_dimension_mapping: HashMap::new(),
     };
 
     let result = FactTableDetector::validate(&metadata);
@@ -873,6 +876,72 @@ fn test_native_measures_roundtrip() {
         partial_period:       None,
         native_measures:      HashMap::from([
             ("measures.volume".to_string(), "volume".to_string()),
+        ]),
+        native_dimension_mapping: HashMap::new(),
+    };
+
+    let json = serde_json::to_string(&ft).unwrap();
+    let deserialized: FactTableMetadata = serde_json::from_str(&json).unwrap();
+    assert_eq!(ft, deserialized);
+}
+
+// ==================== Native Dimension Mapping Tests ====================
+
+#[test]
+fn test_fact_table_with_native_dimension_mapping() {
+    let json_str = r#"{
+        "table_name": "mv_daily_sales",
+        "measures": [],
+        "dimensions": {"name": "data", "paths": []},
+        "denormalized_filters": [],
+        "calendar_dimensions": [],
+        "native_dimension_mapping": {
+            "dimensions.category.id": "category_id",
+            "dimensions.region.code": "region_code"
+        }
+    }"#;
+
+    let ft: FactTableMetadata = serde_json::from_str(json_str).unwrap();
+    assert_eq!(
+        ft.native_dimension_mapping.get("dimensions.category.id"),
+        Some(&"category_id".to_string())
+    );
+    assert_eq!(
+        ft.native_dimension_mapping.get("dimensions.region.code"),
+        Some(&"region_code".to_string())
+    );
+    assert_eq!(ft.native_dimension_mapping.len(), 2);
+}
+
+#[test]
+fn test_native_dimension_mapping_backward_compat_absent() {
+    let json_str = r#"{
+        "table_name": "tf_sales",
+        "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+        "dimensions": {"name": "data", "paths": []},
+        "denormalized_filters": [],
+        "calendar_dimensions": []
+    }"#;
+
+    let ft: FactTableMetadata = serde_json::from_str(json_str).unwrap();
+    assert!(ft.native_dimension_mapping.is_empty());
+}
+
+#[test]
+fn test_native_dimension_mapping_roundtrip() {
+    let ft = FactTableMetadata {
+        table_name:           "mv_daily_sales".to_string(),
+        measures:             vec![],
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+        partial_period:       None,
+        native_measures:      HashMap::new(),
+        native_dimension_mapping: HashMap::from([
+            ("dimensions.category.id".to_string(), "category_id".to_string()),
         ]),
     };
 

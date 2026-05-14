@@ -81,6 +81,7 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
     schema
@@ -281,6 +282,7 @@ fn schema_with_partial_period() -> crate::schema::CompiledSchema {
                 time_grain_trunc:  TemporalGrain::Month,
             }),
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
     schema

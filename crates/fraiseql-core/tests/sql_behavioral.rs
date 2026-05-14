@@ -308,6 +308,7 @@ fn aggregate_sum_produces_correct_sql() {
         calendar_dimensions:  vec![],
         partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
@@ -378,6 +379,7 @@ fn aggregate_group_by_produces_correct_sql() {
         calendar_dimensions:  vec![],
         partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {

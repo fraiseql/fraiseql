@@ -77,6 +77,14 @@ pub struct FactTableMetadata {
     /// use `SUM("volume")` instead of `SUM((data->'measures'->>'volume')::numeric)`.
     #[serde(default)]
     pub native_measures:      HashMap<String, String>,
+    /// Maps deep JSONB dimension paths to flat SQL column names.
+    ///
+    /// When a materialized view denormalizes dimension values into flat columns
+    /// (e.g. `category_id INT` instead of `data->'dimensions'->'category'->>'id'`),
+    /// this mapping tells the GROUP BY generator to use `GROUP BY "category_id"`
+    /// instead of JSONB extraction. Enables btree index usage.
+    #[serde(default)]
+    pub native_dimension_mapping: HashMap<String, String>,
 }
 
 /// A measure column (aggregatable numeric type)

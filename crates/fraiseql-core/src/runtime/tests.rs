@@ -59,6 +59,7 @@ mod aggregate_parser_tests {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
 
@@ -403,6 +404,7 @@ mod aggregate_parser_tests {
             native_measures:      std::collections::HashMap::from([
                 ("measures.volume".to_string(), "volume".to_string()),
             ]),
+            native_dimension_mapping: std::collections::HashMap::new(),
         };
 
         let query = json!({
@@ -428,6 +430,81 @@ mod aggregate_parser_tests {
             },
             other => panic!("Expected MeasureAggregate, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_group_by_uses_dimension_mapping() {
+        let metadata = FactTableMetadata {
+            table_name:           "mv_daily_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+            partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::from([
+                ("dimensions.category.id".to_string(), "category_id".to_string()),
+            ]),
+        };
+
+        let query = json!({
+            "table": "mv_daily_sales",
+            "groupBy": {"dimensions.category.id": true},
+            "aggregates": [{"count": {}}]
+        });
+
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
+
+        assert_eq!(request.group_by.len(), 1);
+        match &request.group_by[0] {
+            crate::compiler::aggregation::GroupBySelection::NativeDimension {
+                column, ..
+            } => {
+                assert_eq!(column, "category_id");
+            },
+            other => panic!("Expected NativeDimension, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mapped_dimension_not_in_group_by_unless_selected() {
+        let metadata = FactTableMetadata {
+            table_name:           "mv_daily_sales".to_string(),
+            measures:             vec![MeasureColumn {
+                name:     "volume".to_string(),
+                sql_type: SqlType::BigInt,
+                nullable: false,
+            }],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+            partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::from([
+                ("dimensions.category.id".to_string(), "category_id".to_string()),
+            ]),
+        };
+
+        // Query selects only an aggregate, NOT the mapped dimension
+        let query = json!({
+            "table": "mv_daily_sales",
+            "aggregates": [{"volume_sum": {}}]
+        });
+
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
+
+        // No GROUP BY at all — the mapped dimension should NOT appear
+        assert!(request.group_by.is_empty());
     }
 }
 
@@ -473,6 +550,7 @@ mod aggregate_projector_tests {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         };
 
         let request = AggregationRequest {
@@ -4061,6 +4139,7 @@ mod window_parser_tests {
             calendar_dimensions:  vec![],
             partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
 

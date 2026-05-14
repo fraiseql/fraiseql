@@ -528,6 +528,7 @@ fn fact_table_add_and_get() {
         calendar_dimensions:  vec![],
         partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
     };
     schema.add_fact_table("tf_sales".to_string(), meta);
 
@@ -551,6 +552,7 @@ fn list_fact_tables_returns_all_names() {
         calendar_dimensions:  vec![],
         partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let mut schema = CompiledSchema::new();

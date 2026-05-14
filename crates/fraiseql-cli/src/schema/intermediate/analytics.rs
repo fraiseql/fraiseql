@@ -24,6 +24,9 @@ pub struct IntermediateFactTable {
     /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views
     #[serde(default)]
     pub native_measures:      HashMap<String, String>,
+    /// Maps deep JSONB dimension paths to flat SQL column names for GROUP BY
+    #[serde(default)]
+    pub native_dimension_mapping: HashMap<String, String>,
 }
 
 /// Measure column definition

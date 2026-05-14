@@ -208,5 +208,6 @@ pub fn create_sales_metadata() -> FactTableMetadata {
         calendar_dimensions:  vec![],
         partial_period:       None,
             native_measures:      std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
