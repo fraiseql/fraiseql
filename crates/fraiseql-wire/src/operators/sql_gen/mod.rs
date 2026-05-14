@@ -96,6 +96,17 @@ const MULTICAST_RANGES: &[&str] = &["224.0.0.0/4", "ff00::/8"];
 /// CIDR ranges for link-local addresses (RFC 3927, RFC 4291).
 const LINK_LOCAL_RANGES: &[&str] = &["169.254.0.0/16", "fe80::/10"];
 
+/// CIDR ranges for documentation addresses (RFC 5737, RFC 3849).
+const DOCUMENTATION_RANGES: &[&str] = &[
+    "192.0.2.0/24",
+    "198.51.100.0/24",
+    "203.0.113.0/24",
+    "2001:db8::/32",
+];
+
+/// CIDR ranges for carrier-grade NAT (RFC 6598, IPv4 only).
+const CARRIER_GRADE_RANGES: &[&str] = &["100.64.0.0/10"];
+
 /// Generates SQL from a WHERE operator with parameter binding support
 ///
 /// # Parameters
@@ -594,6 +605,24 @@ pub fn generate_where_operator_sql(
         WhereOperator::IsLinkLocal { field, value } => {
             let field_sql = field.to_sql();
             Ok(cidr_containment_check(&field_sql, LINK_LOCAL_RANGES, !value))
+        }
+
+        WhereOperator::IsDocumentation { field, value } => {
+            let field_sql = field.to_sql();
+            Ok(cidr_containment_check(
+                &field_sql,
+                DOCUMENTATION_RANGES,
+                !value,
+            ))
+        }
+
+        WhereOperator::IsCarrierGrade { field, value } => {
+            let field_sql = field.to_sql();
+            Ok(cidr_containment_check(
+                &field_sql,
+                CARRIER_GRADE_RANGES,
+                !value,
+            ))
         }
 
         WhereOperator::InSubnet { field, subnet } => {

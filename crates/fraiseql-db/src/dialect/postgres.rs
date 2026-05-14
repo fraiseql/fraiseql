@@ -167,6 +167,18 @@ impl SqlDialect for PostgresDialect {
             "IsNotLinkLocal" => Ok(format!(
                 "NOT ({lhs}::inet << '169.254.0.0/16'::inet OR {lhs}::inet << 'fe80::/10'::inet)"
             )),
+            "IsDocumentation" => Ok(format!(
+                "({lhs}::inet << '192.0.2.0/24'::inet OR {lhs}::inet << '198.51.100.0/24'::inet OR {lhs}::inet << '203.0.113.0/24'::inet OR {lhs}::inet << '2001:db8::/32'::inet)"
+            )),
+            "IsNotDocumentation" => Ok(format!(
+                "NOT ({lhs}::inet << '192.0.2.0/24'::inet OR {lhs}::inet << '198.51.100.0/24'::inet OR {lhs}::inet << '203.0.113.0/24'::inet OR {lhs}::inet << '2001:db8::/32'::inet)"
+            )),
+            "IsCarrierGrade" => Ok(format!(
+                "({lhs}::inet << '100.64.0.0/10'::inet)"
+            )),
+            "IsNotCarrierGrade" => Ok(format!(
+                "NOT ({lhs}::inet << '100.64.0.0/10'::inet)"
+            )),
             _ => Err(UnsupportedOperator {
                 dialect:  self.name(),
                 operator: "InetCheck",

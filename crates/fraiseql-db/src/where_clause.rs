@@ -373,6 +373,10 @@ pub enum WhereOperator {
     IsMulticast,
     /// Is link-local (169.254.0.0/16 or fe80::/10). Value controls negation.
     IsLinkLocal,
+    /// Is documentation range (RFC 5737/3849). Value controls negation.
+    IsDocumentation,
+    /// Is carrier-grade NAT (100.64.0.0/10, RFC 6598). Value controls negation.
+    IsCarrierGrade,
     /// In subnet (<<) - IP is contained within subnet.
     InSubnet,
     /// Contains subnet (>>) - subnet contains another subnet.
@@ -483,6 +487,8 @@ impl WhereOperator {
             "is_loopback" => Ok(Self::IsLoopback),
             "is_multicast" => Ok(Self::IsMulticast),
             "is_link_local" => Ok(Self::IsLinkLocal),
+            "is_documentation" => Ok(Self::IsDocumentation),
+            "is_carrier_grade" => Ok(Self::IsCarrierGrade),
             "in_subnet" | "inrange" => Ok(Self::InSubnet),
             "contains_subnet" => Ok(Self::ContainsSubnet),
             "contains_ip" => Ok(Self::ContainsIP),

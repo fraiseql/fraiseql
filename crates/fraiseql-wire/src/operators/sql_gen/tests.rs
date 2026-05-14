@@ -357,6 +357,63 @@ fn test_is_loopback_false() {
     assert!(sql.contains("127.0.0.0/8"));
 }
 
+// ============ isDocumentation / isCarrierGrade Operator Tests ============
+
+#[test]
+fn test_is_documentation_true() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsDocumentation {
+        field: Field::DirectColumn("ip".to_string()),
+        value: true,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.contains("192.0.2.0/24"), "must check TEST-NET-1");
+    assert!(sql.contains("198.51.100.0/24"), "must check TEST-NET-2");
+    assert!(sql.contains("203.0.113.0/24"), "must check TEST-NET-3");
+    assert!(sql.contains("2001:db8::/32"), "must check IPv6 doc range");
+    assert!(!sql.starts_with("NOT "));
+}
+
+#[test]
+fn test_is_documentation_false() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsDocumentation {
+        field: Field::DirectColumn("ip".to_string()),
+        value: false,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.starts_with("NOT ("), "value=false must negate");
+    assert!(sql.contains("192.0.2.0/24"));
+}
+
+#[test]
+fn test_is_carrier_grade_true() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsCarrierGrade {
+        field: Field::DirectColumn("ip".to_string()),
+        value: true,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.contains("100.64.0.0/10"), "must check CGN range");
+    assert!(!sql.starts_with("NOT "));
+}
+
+#[test]
+fn test_is_carrier_grade_false() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsCarrierGrade {
+        field: Field::DirectColumn("ip".to_string()),
+        value: false,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.starts_with("NOT ("), "value=false must negate");
+    assert!(sql.contains("100.64.0.0/10"));
+}
+
 // ============ isMulticast / isLinkLocal Operator Tests ============
 
 #[test]

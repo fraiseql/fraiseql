@@ -604,6 +604,28 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     );
 
     m.insert(
+        "isDocumentation",
+        OperatorInfo {
+            name:           "isDocumentation",
+            sql_op:         "CIDR_RANGE_CHECK",
+            category:       OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        },
+    );
+
+    m.insert(
+        "isCarrierGrade",
+        OperatorInfo {
+            name:           "isCarrierGrade",
+            sql_op:         "CIDR_RANGE_CHECK",
+            category:       OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        },
+    );
+
+    m.insert(
         "inSubnet",
         OperatorInfo {
             name:           "inSubnet",

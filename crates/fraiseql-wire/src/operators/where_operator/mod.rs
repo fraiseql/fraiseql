@@ -323,6 +323,27 @@ pub enum WhereOperator {
         value: bool,
     },
 
+    /// Check if IP is in a documentation range (RFC 5737, RFC 3849):
+    /// `IPv4` 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24; `IPv6` 2001:db8::/32.
+    ///
+    /// When `value` is `false`, generates the negated check.
+    IsDocumentation {
+        /// The IP field to check
+        field: Field,
+        /// `true` = is documentation, `false` = is NOT documentation
+        value: bool,
+    },
+
+    /// Check if IP is in carrier-grade NAT range (RFC 6598): 100.64.0.0/10 (IPv4 only).
+    ///
+    /// When `value` is `false`, generates the negated check.
+    IsCarrierGrade {
+        /// The IP field to check
+        field: Field,
+        /// `true` = is carrier-grade, `false` = is NOT carrier-grade
+        value: bool,
+    },
+
     /// IP is in subnet: `field << subnet`
     ///
     /// The subnet should be in CIDR notation (e.g., "192.168.0.0/24")
@@ -524,6 +545,8 @@ impl WhereOperator {
             WhereOperator::IsLoopback { .. } => "IsLoopback",
             WhereOperator::IsMulticast { .. } => "IsMulticast",
             WhereOperator::IsLinkLocal { .. } => "IsLinkLocal",
+            WhereOperator::IsDocumentation { .. } => "IsDocumentation",
+            WhereOperator::IsCarrierGrade { .. } => "IsCarrierGrade",
             WhereOperator::InSubnet { .. } => "InSubnet",
             WhereOperator::ContainsSubnet { .. } => "ContainsSubnet",
             WhereOperator::ContainsIP { .. } => "ContainsIP",
@@ -616,6 +639,8 @@ impl WhereOperator {
             | WhereOperator::IsLoopback { field, .. }
             | WhereOperator::IsMulticast { field, .. }
             | WhereOperator::IsLinkLocal { field, .. }
+            | WhereOperator::IsDocumentation { field, .. }
+            | WhereOperator::IsCarrierGrade { field, .. }
             | WhereOperator::InSubnet { field, .. }
             | WhereOperator::ContainsSubnet { field, .. }
             | WhereOperator::ContainsIP { field, .. }
