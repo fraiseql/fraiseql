@@ -610,6 +610,154 @@ impl DatabaseAdapter for SqlServerAdapter {
 
         Ok(results)
     }
+
+    async fn query_stats(&self, limit: u32) -> Result<Vec<crate::types::QueryStatEntry>> {
+        let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        let sql = format!(
+            "SELECT TOP ({limit}) \
+                 CONVERT(VARCHAR(20), qs.query_hash, 1) AS query_id, \
+                 SUBSTRING(st.text, 1, 4000) AS query_text, \
+                 qs.execution_count AS calls, \
+                 qs.total_elapsed_time / 1000.0 AS total_exec_time_ms, \
+                 CASE WHEN qs.execution_count > 0 \
+                      THEN (qs.total_elapsed_time / qs.execution_count) / 1000.0 \
+                      ELSE 0 END AS mean_exec_time_ms, \
+                 qs.min_elapsed_time / 1000.0 AS min_exec_time_ms, \
+                 qs.max_elapsed_time / 1000.0 AS max_exec_time_ms, \
+                 qs.total_rows AS rows_returned, \
+                 qs.total_logical_reads, \
+                 qs.total_physical_reads \
+             FROM sys.dm_exec_query_stats qs \
+             CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) st \
+             ORDER BY qs.total_elapsed_time DESC"
+        );
+
+        let result = match conn.simple_query(&sql).await {
+            Ok(r) => r,
+            Err(_) => return Ok(vec![]),
+        };
+
+        let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to get DMV result set: {e}"),
+            sql_state: e.code().and_then(map_mssql_error_code),
+        })?;
+
+        Ok(rows
+            .iter()
+            .map(|row| Self::map_sqlserver_stat_row(row))
+            .collect())
+    }
+
+    async fn query_stats_by_id(&self, id: &str) -> Result<Option<crate::types::QueryStatEntry>> {
+        let mut conn = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        // Sanitize id: only allow hex characters and 0x prefix
+        if !id.chars().all(|c| c.is_ascii_hexdigit() || c == 'x' || c == 'X') {
+            return Ok(None);
+        }
+
+        let sql = format!(
+            "SELECT TOP 1 \
+                 CONVERT(VARCHAR(20), qs.query_hash, 1) AS query_id, \
+                 SUBSTRING(st.text, 1, 4000) AS query_text, \
+                 qs.execution_count AS calls, \
+                 qs.total_elapsed_time / 1000.0 AS total_exec_time_ms, \
+                 CASE WHEN qs.execution_count > 0 \
+                      THEN (qs.total_elapsed_time / qs.execution_count) / 1000.0 \
+                      ELSE 0 END AS mean_exec_time_ms, \
+                 qs.min_elapsed_time / 1000.0 AS min_exec_time_ms, \
+                 qs.max_elapsed_time / 1000.0 AS max_exec_time_ms, \
+                 qs.total_rows AS rows_returned, \
+                 qs.total_logical_reads, \
+                 qs.total_physical_reads \
+             FROM sys.dm_exec_query_stats qs \
+             CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) st \
+             WHERE CONVERT(VARCHAR(20), qs.query_hash, 1) = '{id}'"
+        );
+
+        let result = match conn.simple_query(&sql).await {
+            Ok(r) => r,
+            Err(_) => return Ok(None),
+        };
+
+        let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to get DMV result set: {e}"),
+            sql_state: e.code().and_then(map_mssql_error_code),
+        })?;
+
+        Ok(rows.first().map(|row| Self::map_sqlserver_stat_row(row)))
+    }
+}
+
+impl SqlServerAdapter {
+    /// Map a tiberius row from DMV query to `QueryStatEntry`.
+    fn map_sqlserver_stat_row(row: &tiberius::Row) -> crate::types::QueryStatEntry {
+        let logical_reads: i64 = row.try_get::<i64, _>("total_logical_reads")
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+        let physical_reads: i64 = row.try_get::<i64, _>("total_physical_reads")
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+
+        #[allow(clippy::cast_precision_loss)]
+        // Reason: read counts are always small enough that f64 is lossless
+        let cache_hit_ratio = if logical_reads + physical_reads > 0 {
+            Some(logical_reads as f64 / (logical_reads + physical_reads) as f64)
+        } else {
+            None
+        };
+
+        crate::types::QueryStatEntry {
+            query_id: row.try_get::<&str, _>("query_id")
+                .ok()
+                .flatten()
+                .unwrap_or("")
+                .to_string(),
+            query_text: row.try_get::<&str, _>("query_text")
+                .ok()
+                .flatten()
+                .unwrap_or("")
+                .to_string(),
+            calls: row.try_get::<i64, _>("calls")
+                .ok()
+                .flatten()
+                .unwrap_or(0)
+                .unsigned_abs(),
+            total_exec_time_ms: row.try_get::<f64, _>("total_exec_time_ms")
+                .ok()
+                .flatten()
+                .unwrap_or(0.0),
+            mean_exec_time_ms: row.try_get::<f64, _>("mean_exec_time_ms")
+                .ok()
+                .flatten()
+                .unwrap_or(0.0),
+            min_exec_time_ms: row.try_get::<f64, _>("min_exec_time_ms")
+                .ok()
+                .flatten()
+                .unwrap_or(0.0),
+            max_exec_time_ms: row.try_get::<f64, _>("max_exec_time_ms")
+                .ok()
+                .flatten()
+                .unwrap_or(0.0),
+            rows_returned: row.try_get::<i64, _>("rows_returned")
+                .ok()
+                .flatten()
+                .unwrap_or(0)
+                .unsigned_abs(),
+            cache_hit_ratio,
+            database_specific: serde_json::json!({
+                "total_logical_reads": logical_reads,
+                "total_physical_reads": physical_reads,
+            }),
+        }
+    }
 }
 
 // ============================================================================

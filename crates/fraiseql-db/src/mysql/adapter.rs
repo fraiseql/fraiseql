@@ -632,6 +632,79 @@ impl DatabaseAdapter for MySqlAdapter {
             sql_state: None,
         })
     }
+
+    async fn query_stats(&self, limit: u32) -> Result<Vec<crate::types::QueryStatEntry>> {
+        // Check if performance_schema is available
+        let probe: std::result::Result<MySqlRow, _> = sqlx::query(
+            "SELECT 1 FROM performance_schema.events_statements_summary_by_digest LIMIT 0",
+        )
+        .fetch_one(&self.pool)
+        .await;
+        if probe.is_err() {
+            return Ok(vec![]);
+        }
+
+        let rows: Vec<MySqlRow> = sqlx::query(
+            "SELECT \
+                 DIGEST AS query_id, \
+                 DIGEST_TEXT AS query_text, \
+                 COUNT_STAR AS calls, \
+                 SUM_TIMER_WAIT / 1000000000 AS total_exec_time_ms, \
+                 AVG_TIMER_WAIT / 1000000000 AS mean_exec_time_ms, \
+                 MIN_TIMER_WAIT / 1000000000 AS min_exec_time_ms, \
+                 MAX_TIMER_WAIT / 1000000000 AS max_exec_time_ms, \
+                 SUM_ROWS_SENT AS rows_returned, \
+                 SUM_ROWS_EXAMINED, \
+                 SUM_NO_INDEX_USED, \
+                 SUM_NO_GOOD_INDEX_USED \
+             FROM performance_schema.events_statements_summary_by_digest \
+             WHERE DIGEST IS NOT NULL \
+             ORDER BY SUM_TIMER_WAIT DESC \
+             LIMIT ?",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to query performance_schema: {e}"),
+            sql_state: None,
+        })?;
+
+        rows.iter()
+            .map(|row| {
+                let rows_examined: i64 = row.try_get("SUM_ROWS_EXAMINED").unwrap_or(0);
+                let no_index: i64 = row.try_get("SUM_NO_INDEX_USED").unwrap_or(0);
+                let no_good_index: i64 = row.try_get("SUM_NO_GOOD_INDEX_USED").unwrap_or(0);
+
+                Ok(crate::types::QueryStatEntry {
+                    query_id: row
+                        .try_get::<String, _>("query_id")
+                        .unwrap_or_default(),
+                    query_text: row
+                        .try_get::<String, _>("query_text")
+                        .unwrap_or_default(),
+                    calls: row
+                        .try_get::<i64, _>("calls")
+                        .unwrap_or(0)
+                        .unsigned_abs(),
+                    total_exec_time_ms: row.try_get("total_exec_time_ms").unwrap_or(0.0),
+                    mean_exec_time_ms: row.try_get("mean_exec_time_ms").unwrap_or(0.0),
+                    min_exec_time_ms: row.try_get("min_exec_time_ms").unwrap_or(0.0),
+                    max_exec_time_ms: row.try_get("max_exec_time_ms").unwrap_or(0.0),
+                    rows_returned: row
+                        .try_get::<i64, _>("rows_returned")
+                        .unwrap_or(0)
+                        .unsigned_abs(),
+                    cache_hit_ratio: None,
+                    database_specific: serde_json::json!({
+                        "sum_rows_examined": rows_examined,
+                        "sum_no_index_used": no_index,
+                        "sum_no_good_index_used": no_good_index,
+                    }),
+                })
+            })
+            .collect()
+    }
 }
 
 /// Map MySQL error numbers to SQLSTATE strings for uniform error reporting.
