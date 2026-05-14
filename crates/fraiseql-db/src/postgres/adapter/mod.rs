@@ -485,11 +485,11 @@ impl PostgresAdapter {
     /// use fraiseql_db::DatabaseType;
     ///
     /// # async fn example(adapter: &PostgresAdapter) -> Result<(), Box<dyn std::error::Error>> {
-    /// let projection = SqlProjectionHint {
-    ///     database: DatabaseType::PostgreSQL,
-    ///     projection_template: "jsonb_build_object('id', data->>'id')".to_string(),
-    ///     estimated_reduction_percent: 75,
-    /// };
+    /// let projection = SqlProjectionHint::new(
+    ///     DatabaseType::PostgreSQL,
+    ///     "jsonb_build_object('id', data->>'id')".to_string(),
+    ///     75,
+    /// );
     ///
     /// let results = adapter
     ///     .execute_with_projection("v_user", Some(&projection), None, Some(10), None)

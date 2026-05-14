@@ -246,7 +246,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # async fn example(adapter: impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
     /// // Simple query without WHERE clause
     /// let all_users = adapter
-    ///     .execute_where_query("v_user", None, Some(10), Some(0), None, None)
+    ///     .execute_where_query("v_user", None, Some(10), Some(0), None)
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -334,15 +334,15 @@ pub trait DatabaseAdapter: Send + Sync {
     /// use fraiseql_db::DatabaseType;
     ///
     /// # async fn example(adapter: &impl DatabaseAdapter) -> Result<(), Box<dyn std::error::Error>> {
-    /// let projection = SqlProjectionHint {
-    ///     database: DatabaseType::PostgreSQL,
-    ///     projection_template: "jsonb_build_object(\
+    /// let projection = SqlProjectionHint::new(
+    ///     DatabaseType::PostgreSQL,
+    ///     "jsonb_build_object(\
     ///         'id', data->>'id', \
     ///         'name', data->>'name', \
     ///         'email', data->>'email'\
     ///     )".to_string(),
-    ///     estimated_reduction_percent: 75,
-    /// };
+    ///     75,
+    /// );
     ///
     /// let results = adapter
     ///     .execute_with_projection("v_user", Some(&projection), None, Some(100), None, None)
