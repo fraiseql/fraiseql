@@ -66,6 +66,26 @@ fn test_rest_config_absent_when_disabled() {
 }
 
 #[test]
+fn test_rest_config_absent_when_explicitly_disabled() {
+    let f = toml_file(
+        r#"
+        [schema]
+        name = "test"
+
+        [rest]
+        enabled = false
+        path = "/api/v1"
+        max_page_size = 500
+    "#,
+    );
+    let intermediate =
+        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+
+    // Explicit [rest] section with enabled=false should NOT embed rest_config
+    assert!(intermediate.rest_config.is_none());
+}
+
+#[test]
 fn test_rest_config_rejects_invalid_path() {
     let f = toml_file(
         r#"
@@ -75,6 +95,70 @@ fn test_rest_config_rejects_invalid_path() {
         [rest]
         enabled = true
         path = "no-leading-slash"
+    "#,
+    );
+    let result = SchemaMerger::merge_toml_only(f.path().to_str().unwrap());
+    assert!(result.is_err());
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("must start with '/'")
+    );
+}
+
+#[test]
+fn test_rest_config_accepts_root_path() {
+    let f = toml_file(
+        r#"
+        [schema]
+        name = "test"
+
+        [rest]
+        enabled = true
+        path = "/"
+    "#,
+    );
+    let intermediate =
+        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+
+    let rest = intermediate
+        .rest_config
+        .expect("rest_config should be Some");
+    assert_eq!(rest.path, "/");
+}
+
+#[test]
+fn test_rest_config_accepts_trailing_slash() {
+    let f = toml_file(
+        r#"
+        [schema]
+        name = "test"
+
+        [rest]
+        enabled = true
+        path = "/api/v1/"
+    "#,
+    );
+    let intermediate =
+        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+
+    let rest = intermediate
+        .rest_config
+        .expect("rest_config should be Some");
+    assert_eq!(rest.path, "/api/v1/");
+}
+
+#[test]
+fn test_rest_config_rejects_empty_path() {
+    let f = toml_file(
+        r#"
+        [schema]
+        name = "test"
+
+        [rest]
+        enabled = true
+        path = ""
     "#,
     );
     let result = SchemaMerger::merge_toml_only(f.path().to_str().unwrap());
