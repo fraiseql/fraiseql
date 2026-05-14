@@ -60,7 +60,7 @@ pub struct QueryStatsResetResponse {
 ///
 /// # Errors
 ///
-/// Returns `ApiError` with INTERNAL_ERROR if the database query fails.
+/// Returns `ApiError` with `INTERNAL_ERROR` if the database query fails.
 pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
     State(state): State<AppState<A>>,
     Query(params): Query<QueryStatsParams>,
@@ -105,8 +105,8 @@ pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
 ///
 /// # Errors
 ///
-/// Returns `ApiError` with NOT_FOUND if the query ID is not found.
-/// Returns `ApiError` with INTERNAL_ERROR if the database query fails.
+/// Returns `ApiError` with `NOT_FOUND` if the query ID is not found.
+/// Returns `ApiError` with `INTERNAL_ERROR` if the database query fails.
 pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
     State(state): State<AppState<A>>,
     Path(queryid): Path<String>,
@@ -141,7 +141,7 @@ pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
 /// # Errors
 ///
 /// Returns 501 if the backend does not support reset.
-/// Returns `ApiError` with INTERNAL_ERROR on other failures.
+/// Returns `ApiError` with `INTERNAL_ERROR` on other failures.
 pub async fn query_stats_reset_handler<A: DatabaseAdapter + 'static>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<QueryStatsResetResponse>>, ApiError> {
@@ -165,6 +165,7 @@ pub async fn query_stats_reset_handler<A: DatabaseAdapter + 'static>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: test assertions — panics are the intended failure mode
 mod tests {
     use super::*;
 
