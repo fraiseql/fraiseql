@@ -393,7 +393,7 @@ mod aggregate_projector_tests {
     use crate::runtime::aggregate_projector::*;
     use std::collections::HashMap;
     use serde_json::{Value, json};
-    
+
     use crate::compiler::{
             aggregation::AggregationPlan,
             aggregate_types::AggregateFunction,
@@ -1399,7 +1399,7 @@ mod input_validator_tests {
 
 mod jsonb_strategy_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    
+
     use crate::runtime::jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 
     // ========================================================================
@@ -1902,7 +1902,7 @@ mod matcher_tests {
 mod runtime_mod_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use crate::runtime::*;
-    
+
 
     #[test]
     fn test_default_config() {
@@ -2377,7 +2377,7 @@ mod planner_tests {
 mod projection_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use crate::runtime::projection::*;
-    
+
     use serde_json::json;
     use crate::{
         db::types::JsonbValue,
@@ -3042,8 +3042,8 @@ mod projection_tests {
 mod query_tracing_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use crate::runtime::query_tracing::*;
-    
-    
+
+
 
     #[test]
     fn test_trace_builder_new() {
@@ -3622,7 +3622,7 @@ mod tenant_enforcer_tests {
 mod window_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use crate::runtime::window::*;
-    
+
     use crate::{
         compiler::{
             aggregation::OrderDirection,

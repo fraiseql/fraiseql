@@ -312,4 +312,3 @@ pub(crate) fn compare_metadata(
 
     issues
 }
-

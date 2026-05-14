@@ -66,4 +66,3 @@ pub(super) fn set_rows_affected(headers: &mut HeaderMap, count: u64) {
         headers.insert("x-rows-affected", val);
     }
 }
-

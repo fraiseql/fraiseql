@@ -27,6 +27,7 @@ Files in `oauth/` that still have inline blocks despite `tests.rs` existing.
 Merge their inline blocks into the existing `oauth/tests.rs`.
 
 Files expected in `oauth/` with residual blocks:
+
 - `oauth/mod.rs` — check for residual blocks
 - `oauth/pkce.rs`, `oauth/state.rs`, `oauth/token.rs`, etc.
 

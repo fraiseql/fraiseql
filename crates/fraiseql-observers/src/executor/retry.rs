@@ -376,4 +376,3 @@ impl ObserverExecutor {
         tokio::spawn(async move { self.run_listener_loop(&mut listener, None).await })
     }
 }
-

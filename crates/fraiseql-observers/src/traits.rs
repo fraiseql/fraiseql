@@ -155,4 +155,3 @@ pub trait TemplateRenderer: Send + Sync {
     /// Returns `ObserverError` if the template syntax is invalid or rendering fails.
     fn render(&self, template: &str, data: &serde_json::Value) -> Result<String>;
 }
-

@@ -279,4 +279,3 @@ fn timeout_job_execution(_executor: &Arc<ObserverExecutor>, _job: &Job) -> Resul
 pub(super) const fn is_transient_error(e: &crate::error::ObserverError) -> bool {
     e.is_transient()
 }
-

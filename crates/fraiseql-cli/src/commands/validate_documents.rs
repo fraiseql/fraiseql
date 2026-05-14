@@ -127,4 +127,3 @@ pub fn run(manifest_path: &str, formatter: &OutputFormatter) -> Result<bool> {
         Ok(true)
     }
 }
-

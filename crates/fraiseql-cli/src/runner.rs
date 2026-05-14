@@ -543,4 +543,3 @@ fn handle_introspection_flags() -> Option<i32> {
     println!("{}", pretty_or_exit(&result, "command result"));
     Some(1)
 }
-

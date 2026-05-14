@@ -632,4 +632,3 @@ impl OIDCClient {
             .map_err(|e| format!("Failed to parse userinfo response: {e}"))
     }
 }
-

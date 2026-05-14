@@ -762,4 +762,3 @@ fn permission_dto_from_row(row: &PgRow) -> PermissionDto {
         created_at:  created_at.to_rfc3339(),
     }
 }
-

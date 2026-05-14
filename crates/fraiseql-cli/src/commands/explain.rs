@@ -102,4 +102,3 @@ pub fn run(query: &str) -> Result<CommandResult> {
 
     Ok(result)
 }
-

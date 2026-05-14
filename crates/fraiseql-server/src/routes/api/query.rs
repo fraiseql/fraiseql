@@ -307,4 +307,3 @@ pub(crate) const fn estimate_cost(complexity: &ComplexityInfo) -> usize {
 pub(crate) fn is_db_explain_enabled(debug_config: Option<&fraiseql_core::schema::DebugConfig>) -> bool {
     debug_config.is_some_and(|c| c.enabled && c.database_explain)
 }
-

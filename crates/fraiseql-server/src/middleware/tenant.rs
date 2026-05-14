@@ -76,4 +76,3 @@ impl TenantContext {
             .ok_or_else(|| "Request must be tenant-scoped (missing org_id)".to_string())
     }
 }
-

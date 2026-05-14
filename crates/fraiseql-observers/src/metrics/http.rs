@@ -64,4 +64,3 @@ pub fn format_metrics(metrics: &ObserverMetrics) -> Result<String, prometheus::E
 pub fn metrics_response(metrics: &ObserverMetrics) -> String {
     format_metrics(metrics).unwrap_or_else(|_| "# Failed to encode metrics\n".to_string())
 }
-

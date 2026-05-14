@@ -230,4 +230,3 @@ impl OAuthProvider for LogtoOAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

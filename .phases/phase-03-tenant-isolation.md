@@ -55,4 +55,5 @@ Verify that tenant context flows correctly through three paths: cross-validation
 - Phase 2 (cache isolation depends on tenant_id being correctly resolved)
 
 ## Status
+
 [x] Complete

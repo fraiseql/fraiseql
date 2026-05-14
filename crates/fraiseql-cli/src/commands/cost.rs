@@ -47,4 +47,3 @@ pub fn run(query: &str) -> Result<CommandResult> {
 
     Ok(CommandResult::success("cost", serde_json::to_value(&response)?))
 }
-

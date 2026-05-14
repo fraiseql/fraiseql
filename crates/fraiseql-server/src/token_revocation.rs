@@ -435,4 +435,3 @@ pub fn revocation_manager_from_schema(
         config.fail_open,
     )))
 }
-

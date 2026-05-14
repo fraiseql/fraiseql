@@ -117,4 +117,3 @@ impl fmt::Display for GraphQLValue {
         write!(f, "{}", self.to_json())
     }
 }
-

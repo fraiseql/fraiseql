@@ -106,5 +106,3 @@ fn check_missing_cache_directives(schema: &Value, audit: &mut DesignAudit) {
         }
     }
 }
-
-

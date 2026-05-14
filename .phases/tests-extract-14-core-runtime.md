@@ -34,6 +34,7 @@ Extract inline tests from the `runtime/` subsystem of `fraiseql-core`.
 
 Files under `runtime/executor/runners/` and `runtime/executor/support/` are
 leaf files. Their tests consolidate into:
+
 - `runtime/executor/runners/tests.rs`
 - `runtime/executor/support/tests.rs`
 - `runtime/tests.rs` for top-level runtime leaf files

@@ -246,4 +246,3 @@ impl OAuthProvider for OktaOAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

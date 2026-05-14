@@ -90,4 +90,3 @@ pub fn validate_sql_identifier(
     }
     Ok(())
 }
-

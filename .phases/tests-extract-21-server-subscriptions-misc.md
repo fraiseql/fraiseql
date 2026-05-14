@@ -72,6 +72,7 @@ Extract inline tests from four subsystems of `fraiseql-server`.
 ## Steps
 
 For each group above:
+
 1. Create the `tests.rs` with `use super::*` or explicit imports.
 2. Add `#[cfg(test)] mod tests;` declaration in the module root.
 3. Remove inline blocks from source files.

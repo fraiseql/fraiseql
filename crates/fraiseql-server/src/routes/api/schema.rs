@@ -75,4 +75,3 @@ pub async fn export_json_handler<A: DatabaseAdapter>(
         data:   response,
     }))
 }
-

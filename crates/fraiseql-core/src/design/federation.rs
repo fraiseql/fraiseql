@@ -210,4 +210,3 @@ fn check_missing_compilation_metadata(schema: &Value, _audit: &mut DesignAudit) 
         }
     }
 }
-

@@ -53,4 +53,3 @@ impl TokenBucket {
         (self.tokens + refilled).min(self.capacity)
     }
 }
-

@@ -253,4 +253,3 @@ impl SecurityConfig {
         self.find_role(role_name).is_some_and(|role| role.has_scope(scope))
     }
 }
-

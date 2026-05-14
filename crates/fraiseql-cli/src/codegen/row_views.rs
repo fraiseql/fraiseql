@@ -80,4 +80,3 @@ pub fn generate_all_row_views(
 
     ddl_parts.join("\n\n")
 }
-

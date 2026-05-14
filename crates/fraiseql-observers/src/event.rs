@@ -150,4 +150,3 @@ impl EntityEvent {
         self.event_type == EventKind::Deleted
     }
 }
-

@@ -263,4 +263,3 @@ pub struct CacheResponse {
     /// Number of cache keys affected.
     pub keys_affected: usize,
 }
-

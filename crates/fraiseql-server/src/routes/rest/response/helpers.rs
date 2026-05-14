@@ -244,4 +244,3 @@ pub(super) fn header_value(s: &str) -> HeaderValue {
     // `W/"<16 hex chars>"` — guaranteed valid ASCII for HeaderValue.
     HeaderValue::from_str(s).expect("ETag string must be valid ASCII")
 }
-

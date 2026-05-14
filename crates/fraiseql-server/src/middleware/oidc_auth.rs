@@ -168,4 +168,3 @@ pub async fn oidc_auth_middleware(
         },
     }
 }
-

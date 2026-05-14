@@ -151,4 +151,3 @@ impl EventTransport for PostgresNotifyTransport {
         })
     }
 }
-

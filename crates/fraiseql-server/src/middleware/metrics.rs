@@ -65,4 +65,3 @@ pub async fn metrics_middleware(
 
     response
 }
-

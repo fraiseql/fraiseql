@@ -569,4 +569,3 @@ impl<A: DatabaseAdapter> AppState<A> {
         self.error_sanitizer.sanitize_all(errors)
     }
 }
-

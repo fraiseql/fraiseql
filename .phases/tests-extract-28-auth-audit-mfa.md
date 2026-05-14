@@ -35,6 +35,7 @@ Extract inline tests from the security and session subsystems of `fraiseql-auth`
 
 These are all top-level leaf files. Consolidate into `src/tests.rs` or group
 logically:
+
 - Session-related (`session.rs`, `session_postgres.rs`, `state_store.rs`,
   `state_encryption.rs`) → one section in `tests.rs`
 - Auth flow (`pkce.rs`, `totp_mfa.rs`) → another section

@@ -120,4 +120,3 @@ pub const RICH_SCALARS: &[&str] = &[
 pub fn is_known_scalar(name: &str) -> bool {
     BUILTIN_SCALARS.contains(&name) || RICH_SCALARS.contains(&name)
 }
-

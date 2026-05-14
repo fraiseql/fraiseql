@@ -334,4 +334,3 @@ impl ObserverError {
 
 /// Result type alias for observer operations
 pub type Result<T> = std::result::Result<T, ObserverError>;
-

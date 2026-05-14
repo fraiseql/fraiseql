@@ -679,4 +679,3 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
         anyhow::bail!("Unrecognized database URL scheme: {db_url}")
     }
 }
-

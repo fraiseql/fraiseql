@@ -91,4 +91,3 @@ pub(super) fn error_response(status: StatusCode, code: &str, message: &str) -> R
         .body(axum::body::Body::from(body.to_string()))
         .expect("Unable to construct error response")
 }
-

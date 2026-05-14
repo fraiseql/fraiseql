@@ -294,4 +294,3 @@ pub(crate) fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::
 
     mermaid
 }
-

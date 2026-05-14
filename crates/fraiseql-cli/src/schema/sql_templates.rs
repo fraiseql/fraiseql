@@ -618,4 +618,3 @@ pub fn build_sql_templates_metadata(operator_names: &[&str]) -> serde_json::Valu
         "operators": operators
     })
 }
-

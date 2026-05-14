@@ -320,4 +320,3 @@ pub struct ProjectionHint {
     /// Estimated payload reduction percentage (0-100)
     pub estimated_reduction_percent: u32,
 }
-

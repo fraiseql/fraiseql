@@ -73,4 +73,3 @@ pub(super) fn calculate_linear(attempt: u32, initial_delay_ms: u64, max_delay_ms
     let delay_ms = initial_delay_ms.saturating_mul(u64::from(attempt));
     delay_ms.min(max_delay_ms)
 }
-

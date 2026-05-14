@@ -202,5 +202,3 @@ fn check_missing_cardinality_hints(schema: &Value, audit: &mut DesignAudit) {
         }
     }
 }
-
-

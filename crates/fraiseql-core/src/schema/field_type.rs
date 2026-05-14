@@ -910,4 +910,3 @@ impl FieldType {
         }
     }
 }
-

@@ -165,4 +165,3 @@ impl Default for EventMatcher {
         Self::new()
     }
 }
-

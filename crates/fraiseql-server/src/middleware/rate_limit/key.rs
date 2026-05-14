@@ -51,4 +51,3 @@ pub(super) struct PathRateLimit {
     /// Maximum burst (= `max_requests`).
     pub(super) burst:          f64,
 }
-

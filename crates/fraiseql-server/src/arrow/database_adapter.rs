@@ -142,4 +142,3 @@ impl ArrowDatabaseAdapter for FlightDatabaseAdapter {
             .map_err(|e: fraiseql_core::error::FraiseQLError| DatabaseError::new(e.to_string()))
     }
 }
-

@@ -239,4 +239,3 @@ pub mod postgres {
         }
     }
 }
-

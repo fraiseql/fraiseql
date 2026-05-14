@@ -232,4 +232,3 @@ pub fn extract_root_fields(query: &str) -> Vec<String> {
 
     fields
 }
-

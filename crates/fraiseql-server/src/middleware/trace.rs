@@ -20,4 +20,3 @@ pub fn trace_layer()
         .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
         .on_response(DefaultOnResponse::new().level(Level::INFO))
 }
-

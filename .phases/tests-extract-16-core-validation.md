@@ -21,6 +21,7 @@ All files are in `validation/` or its subdirectories:
 | `validation/custom_type_registry/` | 1+ | Already has tests.rs ✅ |
 
 Common validators likely include:
+
 - `query_validator.rs`, `mutation_validator.rs`
 - `type_validator.rs`, `field_validator.rs`
 - `argument_validator.rs`, `directive_validator.rs`

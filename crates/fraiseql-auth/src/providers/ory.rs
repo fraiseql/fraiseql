@@ -195,4 +195,3 @@ impl OAuthProvider for OryOAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

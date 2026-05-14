@@ -182,4 +182,3 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
         Ok(CommandResult::success("validate", data))
     }
 }
-

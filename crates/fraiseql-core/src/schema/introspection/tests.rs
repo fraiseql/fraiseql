@@ -1018,4 +1018,3 @@ fn test_filter_inaccessible_no_federation_returns_all_fields() {
         .unwrap();
     assert_eq!(fields.len(), 3, "All fields should be returned");
 }
-

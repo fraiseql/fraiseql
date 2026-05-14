@@ -80,4 +80,3 @@ impl PerEndpointCircuitBreaker {
         self.breakers.len()
     }
 }
-

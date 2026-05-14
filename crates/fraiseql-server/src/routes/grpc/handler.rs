@@ -716,4 +716,3 @@ pub(crate) fn grpc_method_to_mutation_name(method: &str) -> String {
         None => String::new(),
     }
 }
-

@@ -213,4 +213,3 @@ impl OAuthProvider for KeycloakOAuth {
         self.oidc.revoke_token(token).await
     }
 }
-

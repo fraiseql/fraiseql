@@ -146,4 +146,3 @@ pub async fn security_headers_middleware(
 
     response
 }
-

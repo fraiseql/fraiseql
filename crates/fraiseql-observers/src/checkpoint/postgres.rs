@@ -145,4 +145,3 @@ impl CheckpointStore for PostgresCheckpointStore {
         Ok(())
     }
 }
-

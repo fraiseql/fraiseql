@@ -30,26 +30,26 @@ Replace the scoped check in `lint-tests-layout` with a workspace-wide check:
 **Before:**
 ```makefile
 lint-tests-layout:
-	@echo "=== Checking for inline test blocks in routes/rest/ ==="
-	@violations=$$(grep -rn "^mod tests {" \
-		crates/fraiseql-server/src/routes/rest/ --include="*.rs" \
-		| grep -v "/tests\.rs:" || true); \
-	...
+ @echo "=== Checking for inline test blocks in routes/rest/ ==="
+ @violations=$$(grep -rn "^mod tests {" \
+  crates/fraiseql-server/src/routes/rest/ --include="*.rs" \
+  | grep -v "/tests\.rs:" || true); \
+ ...
 ```
 
 **After:**
 ```makefile
 lint-tests-layout:
-	@echo "=== Checking for inline test blocks in src/ (workspace-wide) ==="
-	@violations=$$(grep -rn "^mod tests {" \
-		crates/*/src/ --include="*.rs" \
-		| grep -v "/tests\.rs:" || true); \
-	if [ -n "$$violations" ]; then \
-		echo "ERROR: inline test blocks found — extract to tests.rs:"; \
-		echo "$$violations"; \
-		exit 1; \
-	fi; \
-	echo "OK: no inline test blocks in workspace src/"
+ @echo "=== Checking for inline test blocks in src/ (workspace-wide) ==="
+ @violations=$$(grep -rn "^mod tests {" \
+  crates/*/src/ --include="*.rs" \
+  | grep -v "/tests\.rs:" || true); \
+ if [ -n "$$violations" ]; then \
+  echo "ERROR: inline test blocks found — extract to tests.rs:"; \
+  echo "$$violations"; \
+  exit 1; \
+ fi; \
+ echo "OK: no inline test blocks in workspace src/"
 ```
 
 ### ci.yml

@@ -691,4 +691,3 @@ pub fn get_openapi_spec() -> String {
         }
     }).to_string()
 }
-

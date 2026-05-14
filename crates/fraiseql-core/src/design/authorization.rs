@@ -131,5 +131,3 @@ fn check_missing_auth_directives(schema: &Value, audit: &mut DesignAudit) {
         }
     }
 }
-
-

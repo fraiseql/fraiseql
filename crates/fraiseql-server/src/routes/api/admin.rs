@@ -603,4 +603,3 @@ pub async fn explain_handler<A: DatabaseAdapter + 'static>(
             other => ApiError::internal_error(other.to_string()),
         })
 }
-

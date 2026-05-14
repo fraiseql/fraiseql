@@ -220,4 +220,3 @@ where
     // For now, always allow; the guard will check `studio.read_only` from config.
     Json(serde_json::json!({"success": true})).into_response()
 }
-
