@@ -136,7 +136,7 @@ async fn test_function_observer_unknown_runtime_returns_error() {
     );
 }
 
-// ── dispatch_entity_event tests ──────────────────────────────────────────────
+// ── Cycle 5: dispatch_entity_event tests ─────────────────────────────────────
 
 #[test]
 fn test_dispatch_entity_event_no_triggers_returns_empty() {

@@ -17,10 +17,6 @@ fraiseql-observers.workspace = true
 fraiseql-core = {workspace = true, optional = true}
 fraiseql-db = {workspace = true, optional = true}
 fraiseql-storage = {workspace = true, optional = true}
-aes-gcm = {workspace = true, optional = true}
-base64 = {workspace = true, optional = true}
-lru = {workspace = true, optional = true}
-async-trait.workspace = true
 bytes.workspace = true
 serde = {workspace = true, features = ["derive"]}
 serde_json.workspace = true
@@ -28,7 +24,6 @@ tracing.workspace = true
 tokio.workspace = true
 trait-variant = "0.1"
 chrono = {workspace = true, features = ["serde"]}
-rand = {workspace = true, optional = true}
 sha2.workspace = true
 sqlparser = {version = "0.46", optional = true}
 reqwest = {version = "0.12", optional = true}
@@ -47,12 +42,10 @@ name = "functions_bench"
 harness = false
 
 [features]
-runtime-wasm = ["wasmtime", "dep:lru"]
+runtime-wasm = ["wasmtime"]
 runtime-deno = ["deno_core"]
 host-live = ["fraiseql-core", "fraiseql-db", "sqlparser", "reqwest"]
 host-storage = ["fraiseql-storage"]
-# Function secrets: AES-256-GCM encrypted secrets store for functions
-function-secrets = ["dep:aes-gcm", "dep:rand", "dep:base64"]
 
 [dependencies.wasmtime]
 version = "44"

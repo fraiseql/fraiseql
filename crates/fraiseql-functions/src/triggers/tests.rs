@@ -296,7 +296,7 @@ fn test_trigger_dispatch_multiple_mutations() {
 }
 
 // ============================================================================
-// before:mutation Trigger Tests
+// Cycle 2: before:mutation Trigger Tests (RED Phase)
 // ============================================================================
 
 use crate::triggers::mutation::BeforeMutationResult;
@@ -537,7 +537,7 @@ fn test_before_mutation_chain_abort_simulation() {
 }
 
 // ============================================================================
-// after:storage Trigger Tests
+// Cycle 3: after:storage Trigger Tests (RED Phase)
 // ============================================================================
 
 use crate::triggers::storage::{StorageTrigger, StorageOperation, StorageEventPayload};
@@ -746,7 +746,7 @@ fn test_after_storage_payload_includes_metadata() {
 }
 
 // ============================================================================
-// cron Trigger Tests
+// Cycle 4: cron Trigger Tests (RED Phase)
 // ============================================================================
 
 use crate::triggers::cron::{CronTrigger, CronSchedule, CronExecutionState};
@@ -1580,7 +1580,7 @@ fn test_cron_with_storage_cascade() {
 }
 
 // ============================================================================
-// CronScheduler and TriggerRegistry cron support
+// Cycle 5: CronScheduler and TriggerRegistry cron support (GREEN — infrastructure)
 // ============================================================================
 
 /// Test: `TriggerRegistry` loads cron trigger definitions

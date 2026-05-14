@@ -6,7 +6,6 @@
 
 use super::*;
 use std::sync::Arc;
-use fraiseql_core::types::{TenantId, UserId};
 
 /// Mock query executor for testing.
 struct MockQueryExecutor {
@@ -169,75 +168,6 @@ async fn test_host_query_without_executor_returns_unsupported() {
 }
 
 // SQL Query Tests
-
-/// Mock SQL executor for testing — returns a fixed set of rows.
-struct MockSqlExecutor {
-    rows: Vec<serde_json::Value>,
-}
-
-impl MockSqlExecutor {
-    fn new(rows: Vec<serde_json::Value>) -> Arc<Self> {
-        Arc::new(Self { rows })
-    }
-}
-
-impl super::SqlExecutor for MockSqlExecutor {
-    fn execute_sql(
-        &self,
-        _sql: &str,
-        _params: &[serde_json::Value],
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<serde_json::Value>>> + Send + '_>> {
-        let rows = self.rows.clone();
-        Box::pin(async move { Ok(rows) })
-    }
-}
-
-#[tokio::test]
-async fn test_host_sql_query_with_executor_returns_rows() {
-    let payload = EventPayload {
-        trigger_type: "test".to_string(),
-        entity: "User".to_string(),
-        event_kind: "read".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
-    };
-
-    let expected = vec![
-        serde_json::json!({"id": 1, "name": "Alice"}),
-        serde_json::json!({"id": 2, "name": "Bob"}),
-    ];
-    let executor = MockSqlExecutor::new(expected.clone());
-
-    let ctx = LiveHostContext::with_sql_executor(payload, HostContextConfig::default(), executor);
-
-    let result = ctx
-        .sql_query("SELECT id, name FROM users", &[])
-        .await;
-
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap(), expected);
-}
-
-#[tokio::test]
-async fn test_host_sql_query_without_executor_returns_empty() {
-    let payload = EventPayload {
-        trigger_type: "test".to_string(),
-        entity: "User".to_string(),
-        event_kind: "read".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
-    };
-
-    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
-
-    let result = ctx
-        .sql_query("SELECT id FROM users WHERE active = $1", &[serde_json::json!(true)])
-        .await;
-
-    // No executor → safe fallback: empty rows (no error)
-    assert!(result.is_ok());
-    assert!(result.unwrap().is_empty());
-}
 
 #[tokio::test]
 async fn test_host_sql_query_returns_rows() {
@@ -841,10 +771,10 @@ async fn test_host_auth_context_returns_claims() {
 
     let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
     ctx.security_context = SecurityContext {
-        user_id: UserId("user123".to_string()),
+        user_id: "user123".to_string(),
         roles: vec!["admin".to_string(), "user".to_string()],
         scopes: vec!["read:users".to_string(), "write:users".to_string()],
-        tenant_id: Some(TenantId("tenant456".to_string())),
+        tenant_id: Some("tenant456".to_string()),
         expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
         authenticated_at: chrono::Utc::now(),
         request_id: "req-123".to_string(),
@@ -879,10 +809,10 @@ async fn test_host_auth_context_redacts_sensitive() {
 
     let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
     ctx.security_context = SecurityContext {
-        user_id: UserId("user123".to_string()),
+        user_id: "user123".to_string(),
         roles: vec!["admin".to_string()],
         scopes: vec!["read:users".to_string()],
-        tenant_id: Some(TenantId("tenant456".to_string())),
+        tenant_id: Some("tenant456".to_string()),
         expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
         authenticated_at: chrono::Utc::now(),
         request_id: "req-123".to_string(),
@@ -1005,72 +935,4 @@ async fn test_host_event_payload_returns_trigger_data() {
     assert_eq!(returned_payload.entity, "User");
     assert_eq!(returned_payload.event_kind, "created");
     assert_eq!(returned_payload.data, event_data);
-}
-
-#[tokio::test]
-async fn test_get_secret_returns_stored_value() {
-    use crate::secrets::InMemorySecretsStore;
-    use crate::HostContext as _;
-
-    let payload = EventPayload {
-        trigger_type: "test".to_string(),
-        entity: "Fn".to_string(),
-        event_kind: "invoked".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
-    };
-
-    let store: Arc<dyn crate::secrets::FunctionSecretsStore> =
-        Arc::new(InMemorySecretsStore::new());
-    store.set_secret("my_fn", "API_KEY", "secret-value").await.unwrap();
-
-    let ctx = LiveHostContext::new(payload, HostContextConfig::default())
-        .with_secrets(Arc::clone(&store), "my_fn");
-
-    let val = ctx.get_secret("API_KEY").await.unwrap();
-    assert_eq!(val, Some("secret-value".to_string()));
-}
-
-#[tokio::test]
-async fn test_get_secret_returns_none_without_store() {
-    use crate::HostContext as _;
-
-    let payload = EventPayload {
-        trigger_type: "test".to_string(),
-        entity: "Fn".to_string(),
-        event_kind: "invoked".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
-    };
-
-    let ctx = LiveHostContext::new(payload, HostContextConfig::default());
-    let val = ctx.get_secret("MISSING").await.unwrap();
-    assert!(val.is_none());
-}
-
-#[tokio::test]
-async fn test_get_secret_scoped_to_function_name() {
-    use crate::secrets::InMemorySecretsStore;
-    use crate::HostContext as _;
-
-    let store: Arc<dyn crate::secrets::FunctionSecretsStore> =
-        Arc::new(InMemorySecretsStore::new());
-    store.set_secret("fn_a", "KEY", "value_a").await.unwrap();
-    store.set_secret("fn_b", "KEY", "value_b").await.unwrap();
-
-    let mk_payload = || EventPayload {
-        trigger_type: "test".to_string(),
-        entity: "Fn".to_string(),
-        event_kind: "invoked".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
-    };
-
-    let ctx_a = LiveHostContext::new(mk_payload(), HostContextConfig::default())
-        .with_secrets(Arc::clone(&store), "fn_a");
-    let ctx_b = LiveHostContext::new(mk_payload(), HostContextConfig::default())
-        .with_secrets(Arc::clone(&store), "fn_b");
-
-    assert_eq!(ctx_a.get_secret("KEY").await.unwrap(), Some("value_a".to_string()));
-    assert_eq!(ctx_b.get_secret("KEY").await.unwrap(), Some("value_b".to_string()));
 }

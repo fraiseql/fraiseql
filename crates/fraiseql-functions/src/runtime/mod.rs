@@ -6,8 +6,6 @@ pub mod wasm;
 #[cfg(feature = "runtime-deno")]
 pub mod deno;
 
-pub mod sandbox;
-
 use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
 use crate::HostContext;
 use fraiseql_error::Result;
@@ -55,21 +53,6 @@ pub type BoxedFunctionRuntime = Box<dyn FunctionRuntime + Send + Sync>;
 /// This trait has the same semantic methods but without generic parameters,
 /// making it suitable for `Box<dyn SendFunctionRuntime>`.
 pub trait SendFunctionRuntime: Send + Sync {
-    /// Execute a function module with raw event data, using a noop host context.
-    ///
-    /// Unlike [`FunctionRuntime::invoke`], this method is object-safe and can be
-    /// called on a `Box<dyn SendFunctionRuntime>`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` if the function fails to execute or a resource limit is exceeded.
-    fn invoke_raw(
-        &self,
-        module: &FunctionModule,
-        event: EventPayload,
-        limits: ResourceLimits,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<FunctionResult>> + Send + '_>>;
-
     /// Get the list of file extensions this runtime supports.
     fn supported_extensions(&self) -> &[&str];
 

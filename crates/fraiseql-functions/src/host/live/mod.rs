@@ -17,12 +17,10 @@ pub mod storage;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::secrets::FunctionSecretsStore;
 use crate::types::{EventPayload, LogEntry, LogLevel};
 use crate::HostContext;
 use fraiseql_error::Result;
 use fraiseql_core::security::SecurityContext;
-use fraiseql_core::types::UserId;
 
 /// Configuration for host context operations.
 #[derive(Debug, Clone)]
@@ -49,7 +47,7 @@ pub struct HostContextConfig {
 impl Default for HostContextConfig {
     fn default() -> Self {
         Self {
-            allowed_domains: vec![], // secure by default: deny all
+            allowed_domains: vec!["*".to_string()], // Allow all by default (should be restricted)
             allowed_env_vars: HashSet::new(),
             max_http_response_bytes: 10 * 1024 * 1024, // 10 MB
             http_connect_timeout_ms: 5000,
@@ -70,23 +68,6 @@ pub trait QueryExecutor: Send + Sync {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value>> + Send + '_>>;
 }
 
-/// A trait for executing raw SQL queries (read-only, after classifier approval).
-///
-/// When no executor is configured, `sql_query` returns `Ok(vec![])`.
-/// Inject a concrete implementation to enable actual database reads from functions.
-pub trait SqlExecutor: Send + Sync {
-    /// Execute a classified-safe (read-only) SQL statement and return rows as JSON.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` if the query fails to execute.
-    fn execute_sql(
-        &self,
-        sql: &str,
-        params: &[serde_json::Value],
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<serde_json::Value>>> + Send + '_>>;
-}
-
 /// Live host context implementation with real backends.
 pub struct LiveHostContext {
     /// Event payload that triggered this function.
@@ -101,9 +82,6 @@ pub struct LiveHostContext {
     /// Query executor for GraphQL execution.
     query_executor: Option<Arc<dyn QueryExecutor>>,
 
-    /// SQL executor for raw SQL reads (after classifier approval).
-    sql_executor: Option<Arc<dyn SqlExecutor>>,
-
     /// HTTP client for outbound requests.
     http_client: Option<Arc<reqwest::Client>>,
 
@@ -112,12 +90,6 @@ pub struct LiveHostContext {
 
     /// Security context for the authenticated user.
     pub security_context: SecurityContext,
-
-    /// Secrets store for per-function secrets (checked before `std::env` in `env_var`).
-    secrets_store: Option<Arc<dyn FunctionSecretsStore>>,
-
-    /// Name of the currently executing function (used for secrets lookup).
-    function_name: Option<String>,
 }
 
 impl LiveHostContext {
@@ -128,16 +100,13 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: None,
-            sql_executor: None,
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
-            secrets_store: None,
-            function_name: None,
         }
     }
 
-    /// Create a new live host context with a GraphQL query executor.
+    /// Create a new live host context with a query executor.
     pub fn with_executor(
         event_payload: EventPayload,
         config: HostContextConfig,
@@ -148,32 +117,9 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: Some(executor),
-            sql_executor: None,
             http_client: None,
             storage_backend: None,
             security_context: Self::default_security_context(),
-            secrets_store: None,
-            function_name: None,
-        }
-    }
-
-    /// Create a new live host context with a raw SQL executor.
-    pub fn with_sql_executor(
-        event_payload: EventPayload,
-        config: HostContextConfig,
-        sql_executor: Arc<dyn SqlExecutor>,
-    ) -> Self {
-        Self {
-            event_payload,
-            config,
-            logs: Arc::new(std::sync::Mutex::new(Vec::new())),
-            query_executor: None,
-            sql_executor: Some(sql_executor),
-            http_client: None,
-            storage_backend: None,
-            security_context: Self::default_security_context(),
-            secrets_store: None,
-            function_name: None,
         }
     }
 
@@ -188,27 +134,10 @@ impl LiveHostContext {
             config,
             logs: Arc::new(std::sync::Mutex::new(Vec::new())),
             query_executor: None,
-            sql_executor: None,
             http_client: Some(http_client),
             storage_backend: None,
             security_context: Self::default_security_context(),
-            secrets_store: None,
-            function_name: None,
         }
-    }
-
-    /// Attach a secrets store and function name for `env_var` secret lookups.
-    ///
-    /// When set, `env_var` checks function secrets before falling back to `std::env`.
-    #[must_use]
-    pub fn with_secrets(
-        mut self,
-        store: Arc<dyn FunctionSecretsStore>,
-        function_name: impl Into<String>,
-    ) -> Self {
-        self.secrets_store = Some(store);
-        self.function_name = Some(function_name.into());
-        self
     }
 
     /// Create a default security context for testing.
@@ -221,7 +150,7 @@ impl LiveHostContext {
             .as_nanos();
 
         SecurityContext {
-            user_id: UserId("anonymous".to_string()),
+            user_id: "anonymous".to_string(),
             roles: vec![],
             tenant_id: None,
             scopes: vec![],
@@ -270,23 +199,19 @@ impl HostContext for LiveHostContext {
     async fn sql_query(
         &self,
         sql: &str,
-        params: &[serde_json::Value],
+        _params: &[serde_json::Value],
     ) -> Result<Vec<serde_json::Value>> {
-        // Reject any non-read-only SQL before touching the database.
+        // Classify the SQL statement first
         let classification = sql_classifier::classify_sql(sql)?;
         match classification {
             sql_classifier::SqlClassification::ReadOnly => {
-                // Delegate to an injected executor when available, otherwise return
-                // an empty result set (safe fallback — no data, no error).
-                if let Some(executor) = &self.sql_executor {
-                    executor.execute_sql(sql, params).await
-                } else {
-                    Ok(vec![])
-                }
+                // Would execute query here (not yet implemented)
+                // For now, return a placeholder
+                Ok(vec![])
             }
             sql_classifier::SqlClassification::Rejected(reason) => {
                 Err(fraiseql_error::FraiseQLError::Authorization {
-                    message: format!("SQL query not allowed: {reason}"),
+                    message: format!("SQL query not allowed: {}", reason),
                     action: Some("execute_sql_query".to_string()),
                     resource: None,
                 })
@@ -465,13 +390,6 @@ impl HostContext for LiveHostContext {
         } else {
             Ok(None)
         }
-    }
-
-    async fn get_secret(&self, key: &str) -> Result<Option<String>> {
-        let (Some(store), Some(fn_name)) = (&self.secrets_store, &self.function_name) else {
-            return Ok(None);
-        };
-        store.get_secret(fn_name, key).await
     }
 
     fn event_payload(&self) -> &EventPayload {
