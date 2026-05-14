@@ -322,3 +322,120 @@ fn test_new_operators_are_string_operators() {
     assert!(WhereOperator::Nregex.is_string_operator());
     assert!(WhereOperator::Niregex.is_string_operator());
 }
+
+// ── Cycle 1: to_snake_case works for operator names ─────────────────────
+
+#[test]
+fn test_to_snake_case_for_operator_names() {
+    use crate::utils::to_snake_case;
+
+    assert_eq!(to_snake_case("descendantOfId"), "descendant_of_id");
+    assert_eq!(to_snake_case("ancestorOfId"), "ancestor_of_id");
+    assert_eq!(to_snake_case("isPrivate"), "is_private");
+    assert_eq!(to_snake_case("inSubnet"), "in_subnet");
+    assert_eq!(to_snake_case("already_snake"), "already_snake");
+    assert_eq!(to_snake_case("simple"), "simple");
+}
+
+// ── Cycle 2: Smart normalization in from_str ────────────────────────────
+
+#[test]
+fn test_operator_normalization_camel_to_registered_snake() {
+    // descendantOf → descendant_of (registered)
+    let op = WhereOperator::from_str("descendantOf");
+    assert!(op.is_ok(), "descendantOf should normalize to descendant_of");
+    assert_eq!(op.unwrap(), WhereOperator::DescendantOf);
+}
+
+#[test]
+fn test_operator_normalization_ancestor_of() {
+    let op = WhereOperator::from_str("ancestorOf");
+    assert!(op.is_ok(), "ancestorOf should normalize to ancestor_of");
+    assert_eq!(op.unwrap(), WhereOperator::AncestorOf);
+}
+
+#[test]
+fn test_operator_normalization_preserves_registered_camel() {
+    // inSubnet is registered as "in_subnet" | "inrange", not as "inSubnet"
+    // But we don't have a camelCase-registered operator currently.
+    // The key behavior: if the camelCase form is not registered, convert to
+    // snake_case and try again.
+    let op = WhereOperator::from_str("inSubnet");
+    assert!(op.is_ok(), "inSubnet should normalize to in_subnet");
+    assert_eq!(op.unwrap(), WhereOperator::InSubnet);
+}
+
+#[test]
+fn test_operator_normalization_rejects_unknown() {
+    let op = WhereOperator::from_str("totallyBogusOp");
+    assert!(op.is_err(), "unknown camelCase operator should be rejected");
+}
+
+#[test]
+fn test_operator_normalization_passthrough_snake_case() {
+    // Already snake_case, no conversion attempted
+    let op = WhereOperator::from_str("descendant_of");
+    assert!(op.is_ok());
+    assert_eq!(op.unwrap(), WhereOperator::DescendantOf);
+}
+
+#[test]
+fn test_operator_normalization_hierarchy_operators() {
+    // All hierarchy operators should resolve from camelCase
+    assert_eq!(WhereOperator::from_str("matchesLquery").unwrap(), WhereOperator::MatchesLquery);
+    assert_eq!(
+        WhereOperator::from_str("matchesLtxtquery").unwrap(),
+        WhereOperator::MatchesLtxtquery
+    );
+    assert_eq!(
+        WhereOperator::from_str("matchesAnyLquery").unwrap(),
+        WhereOperator::MatchesAnyLquery
+    );
+}
+
+#[test]
+fn test_operator_normalization_network_operators() {
+    assert_eq!(WhereOperator::from_str("isPrivate").unwrap(), WhereOperator::IsPrivate);
+    assert_eq!(WhereOperator::from_str("isLoopback").unwrap(), WhereOperator::IsLoopback);
+    assert_eq!(WhereOperator::from_str("isMulticast").unwrap(), WhereOperator::IsMulticast);
+    assert_eq!(WhereOperator::from_str("isLinkLocal").unwrap(), WhereOperator::IsLinkLocal);
+    assert_eq!(WhereOperator::from_str("isDocumentation").unwrap(), WhereOperator::IsDocumentation);
+    assert_eq!(WhereOperator::from_str("isCarrierGrade").unwrap(), WhereOperator::IsCarrierGrade);
+    assert_eq!(WhereOperator::from_str("containsSubnet").unwrap(), WhereOperator::ContainsSubnet);
+    assert_eq!(WhereOperator::from_str("containsIp").unwrap(), WhereOperator::ContainsIP);
+    assert_eq!(WhereOperator::from_str("strictlyContains").unwrap(), WhereOperator::StrictlyContains);
+}
+
+// ── Cycle 3: Integration with WHERE clause parsing ──────────────────────
+
+#[test]
+fn test_where_clause_with_camel_case_operator() {
+    let json = json!({
+        "ip_address": { "descendantOf": 42 }
+    });
+    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    assert_eq!(
+        clause,
+        WhereClause::Field {
+            path:     vec!["ip_address".to_string()],
+            operator: WhereOperator::DescendantOf,
+            value:    json!(42),
+        }
+    );
+}
+
+#[test]
+fn test_where_clause_with_camel_case_network_operator() {
+    let json = json!({
+        "ip_address": { "isPrivate": true }
+    });
+    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    assert_eq!(
+        clause,
+        WhereClause::Field {
+            path:     vec!["ip_address".to_string()],
+            operator: WhereOperator::IsPrivate,
+            value:    json!(true),
+        }
+    );
+}
