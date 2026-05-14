@@ -340,8 +340,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             pool_tuning_config: None,
             #[cfg(feature = "observers")]
             observer_runtime,
+            #[cfg(feature = "auth")]
+            enrichment_pool: db_pool.clone(),
             #[cfg(feature = "observers")]
             db_pool,
+            storage_state: None,
+            realtime_state: None,
             flight_service,
             adapter_cache_enabled: false,
             broadcast_manager: None,

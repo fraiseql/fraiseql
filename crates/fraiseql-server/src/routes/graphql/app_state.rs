@@ -116,6 +116,21 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Always present (never `Option`): when audit logging is disabled the
     /// aggregator simply receives no events and every query returns empty counts.
     pub usage:                   Arc<UsageAggregator>,
+    /// Before-mutation hooks from the functions subsystem (optional).
+    ///
+    /// When `Some`, every GraphQL mutation is checked against the trigger registry
+    /// before execution. The check is a single `HashMap::get` returning `None`
+    /// when no hooks are registered — zero overhead for mutations without hooks.
+    pub before_mutation_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
+
+    /// Realtime broadcast observer (optional, requires realtime subsystem).
+    ///
+    /// When `Some`, mutation completions are forwarded to the realtime delivery
+    /// pipeline. The observer uses a bounded mpsc channel — events are dropped
+    /// (not buffered) when the delivery pipeline is under backpressure, so
+    /// mutation response latency is never affected.
+    pub realtime_observer:
+        Option<Arc<crate::realtime::observer::RealtimeBroadcastObserver>>,
 }
 
 impl<A: DatabaseAdapter> AppState<A> {
@@ -166,6 +181,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             domain_registry: Arc::new(DomainRegistry::new()),
             tenant_audit_log: None,
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
+            before_mutation_hooks: None,
+            realtime_observer: None,
         }
     }
 
@@ -267,6 +284,30 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub const fn tenant_audit_log(&self) -> Option<&crate::tenancy::audit::AuditLogHandle> {
         self.tenant_audit_log.as_ref()
+    }
+
+    /// Attach before-mutation hooks from the functions subsystem.
+    ///
+    /// When set, every incoming GraphQL mutation is checked against the trigger
+    /// registry before execution. The check is a single `HashMap::get` returning
+    /// `None` when no hooks exist — zero overhead for mutations without hooks.
+    #[must_use]
+    pub fn with_functions(mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) -> Self {
+        self.before_mutation_hooks = Some(hooks);
+        self
+    }
+
+    /// Attach a realtime broadcast observer for mutation event forwarding.
+    ///
+    /// When set, mutation completions are forwarded to the realtime delivery
+    /// pipeline via a bounded mpsc channel.
+    #[must_use]
+    pub fn with_realtime_observer(
+        mut self,
+        observer: Arc<crate::realtime::observer::RealtimeBroadcastObserver>,
+    ) -> Self {
+        self.realtime_observer = Some(observer);
+        self
     }
 
     /// Configure reload support with a schema file path and database adapter.

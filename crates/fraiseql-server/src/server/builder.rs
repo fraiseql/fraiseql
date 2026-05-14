@@ -287,11 +287,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
         revocation_manager: Option<Arc<crate::token_revocation::TokenRevocationManager>>,
         trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
-        // `db_pool` is forwarded to the observer runtime; unused when the `observers` feature is
-        // off.
-        #[cfg_attr(not(feature = "observers"), allow(unused_variables))] db_pool: Option<
-            sqlx::PgPool,
-        >,
+        // `db_pool` is forwarded to the observer runtime and/or auth enrichment.
+        #[cfg_attr(
+            not(any(feature = "observers", feature = "auth")),
+            allow(unused_variables)
+        )]
+        db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
@@ -414,8 +415,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             trusted_docs,
             #[cfg(feature = "observers")]
             observer_runtime,
+            #[cfg(feature = "auth")]
+            enrichment_pool: db_pool.clone(),
             #[cfg(feature = "observers")]
             db_pool,
+            storage_state: None,
+            realtime_state: None,
             #[cfg(feature = "arrow")]
             flight_service,
             #[cfg(feature = "mcp")]
@@ -448,6 +453,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub const fn with_max_subscriptions_per_connection(mut self, max: u32) -> Self {
         self.max_subscriptions_per_connection = Some(max);
+        self
+    }
+
+    /// Attach a pre-built realtime `WebSocket` state to the server.
+    ///
+    /// When set, `build_base_router` will merge `realtime_router(state)` at
+    /// `/realtime/v1`.  Call this after constructing the server but before
+    /// calling `serve` or `serve_with_shutdown`.
+    #[must_use]
+    pub fn with_realtime(mut self, state: crate::realtime::server::RealtimeState) -> Self {
+        self.realtime_state = Some(state);
         self
     }
 

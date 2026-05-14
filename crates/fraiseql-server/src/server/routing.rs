@@ -1189,6 +1189,75 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .layer(Extension(limiter.clone()));
         }
 
+        // Mount realtime WebSocket routes when a RealtimeState was configured.
+        //
+        // The realtime endpoint is unauthenticated at the HTTP layer — the
+        // WebSocket handler validates the `?token=` query parameter internally
+        // before upgrading. No middleware layer is needed here.
+        if let Some(rt_state) = &self.realtime_state {
+            use crate::realtime::routes::realtime_router;
+            app = app.merge(realtime_router(rt_state.clone()));
+            info!("Realtime WebSocket routes mounted: GET /realtime/v1");
+        }
+
+        // Mount storage routes when StorageState was pre-built during server construction.
+        // Auth is OPTIONAL for storage: public buckets allow anonymous access, so we never
+        // reject requests for missing tokens. If a token is present (Bearer header or
+        // __Host-access_token cookie), we validate it and map to StorageUser; if absent,
+        // the request continues unauthenticated and handlers rely on RLS to enforce access.
+        if let Some(ref storage_state) = self.storage_state {
+            let storage = fraiseql_storage::storage_router(storage_state.clone());
+            let storage = if let Some(ref validator) = self.oidc_validator {
+                let validator = validator.clone();
+                storage.layer(middleware::from_fn(
+                    move |mut request: axum::extract::Request, next: axum::middleware::Next| {
+                        let validator = validator.clone();
+                        async move {
+                            use axum::http::header;
+                            use axum::response::IntoResponse;
+                            use crate::middleware::oidc_auth::extract_access_token_cookie;
+
+                            // Extract token: Bearer header takes precedence over cookie.
+                            let token = request
+                                .headers()
+                                .get(header::AUTHORIZATION)
+                                .and_then(|v| v.to_str().ok())
+                                .and_then(|v| v.strip_prefix("Bearer "))
+                                .map(str::to_owned)
+                                .or_else(|| extract_access_token_cookie(request.headers()));
+
+                            if let Some(token) = token {
+                                match validator.validate_token(&token).await {
+                                    Ok(user) => {
+                                        let storage_user = fraiseql_storage::StorageUser {
+                                            user_id: Some(user.user_id.to_string()),
+                                            roles: user.scopes,
+                                        };
+                                        request.extensions_mut().insert(storage_user);
+                                    }
+                                    Err(e) => {
+                                        tracing::debug!(error = %e, "Storage auth: token validation failed");
+                                        return (
+                                            axum::http::StatusCode::UNAUTHORIZED,
+                                            "Invalid or expired token",
+                                        )
+                                            .into_response();
+                                    }
+                                }
+                            }
+                            // No token → continue without StorageUser (anonymous access).
+                            // Handlers check RLS and return 401 for private buckets.
+                            next.run(request).await
+                        }
+                    },
+                ))
+            } else {
+                storage
+            };
+            app = app.merge(storage);
+            info!("Storage API routes mounted");
+        }
+
         // Wire admission controller into the router via Extension so that handlers
         // can extract `Extension<Arc<AdmissionController>>` when needed.
         // Full Tower middleware wiring (returning 503 before the handler runs) is
