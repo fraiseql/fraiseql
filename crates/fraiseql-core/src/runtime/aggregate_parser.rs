@@ -555,6 +555,34 @@ impl AggregateQueryParser {
             }
         }
 
+        // Handle native measure aggregates: measures.volume_sum, measures.cost_avg, etc.
+        // These are JSONB measure paths mapped to flat SQL columns via native_measures.
+        for jsonb_path in metadata.native_measures.keys() {
+            for func in &[
+                ("_sum", AggregateFunction::Sum),
+                ("_avg", AggregateFunction::Avg),
+                ("_min", AggregateFunction::Min),
+                ("_max", AggregateFunction::Max),
+                ("_stddev", AggregateFunction::Stddev),
+                ("_variance", AggregateFunction::Variance),
+                ("_array_agg", AggregateFunction::ArrayAgg),
+                ("_json_agg", AggregateFunction::JsonAgg),
+                ("_jsonb_agg", AggregateFunction::JsonbAgg),
+                ("_string_agg", AggregateFunction::StringAgg),
+            ] {
+                let expected_name = format!("{}{}", jsonb_path, func.0);
+                if agg_name == expected_name {
+                    // Store the JSONB path as the measure name; the planner resolves
+                    // it to the native column via FactTableMetadata.native_measures.
+                    return Ok(AggregateSelection::MeasureAggregate {
+                        measure:  jsonb_path.clone(),
+                        function: func.1,
+                        alias:    agg_name.to_string(),
+                    });
+                }
+            }
+        }
+
         // Check for dimension-level advanced aggregates
         // e.g., "product_id_array_agg", "product_name_string_agg"
         for dimension_path in Self::extract_dimension_paths(metadata) {

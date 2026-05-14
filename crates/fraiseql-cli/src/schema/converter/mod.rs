@@ -388,6 +388,7 @@ impl SchemaConverter {
                 .collect(),
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      ft.native_measures,
         }
     }
 

@@ -84,6 +84,7 @@ fn create_test_metadata() -> FactTableMetadata {
             }],
         }],
         partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
     }
 }
 

@@ -8,7 +8,7 @@ mod aggregate_parser_tests {
     use serde_json::json;
     use crate::{
         compiler::{
-            aggregate_types::{HavingOperator, TemporalBucket},
+            aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
             aggregation::{
                 AggregateSelection, GroupBySelection, OrderDirection,
             },
@@ -58,6 +58,7 @@ mod aggregate_parser_tests {
             }],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -386,6 +387,48 @@ mod aggregate_parser_tests {
         assert_eq!(request.aggregates[2].alias(), "product_count_distinct");
         assert_eq!(request.aggregates[3].alias(), "revenue_sum");
     }
+
+    #[test]
+    fn test_parser_resolves_native_measure_aggregate() {
+        let metadata = FactTableMetadata {
+            table_name:           "mv_daily_sales".to_string(),
+            measures:             vec![],
+            dimensions:           DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters: vec![],
+            calendar_dimensions:  vec![],
+            partial_period:       None,
+            native_measures:      std::collections::HashMap::from([
+                ("measures.volume".to_string(), "volume".to_string()),
+            ]),
+        };
+
+        let query = json!({
+            "table": "mv_daily_sales",
+            "aggregates": [
+                {"measures.volume_sum": {}}
+            ]
+        });
+
+        let request =
+            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                .unwrap();
+
+        assert_eq!(request.aggregates.len(), 1);
+        assert_eq!(request.aggregates[0].alias(), "measures.volume_sum");
+        // The measure field should be the JSONB path, resolved by planner later
+        match &request.aggregates[0] {
+            crate::compiler::aggregation::AggregateSelection::MeasureAggregate {
+                measure, function, ..
+            } => {
+                assert_eq!(measure, "measures.volume");
+                assert_eq!(*function, AggregateFunction::Sum);
+            },
+            other => panic!("Expected MeasureAggregate, got: {other:?}"),
+        }
+    }
 }
 
 mod aggregate_projector_tests {
@@ -429,6 +472,7 @@ mod aggregate_projector_tests {
             }],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         };
 
         let request = AggregationRequest {
@@ -470,6 +514,7 @@ mod aggregate_projector_tests {
                     column:   "revenue".to_string(),
                     function: AggregateFunction::Sum,
                     alias:    "revenue_sum".to_string(),
+                    native:   false,
                 },
             ],
             having_conditions: vec![],
@@ -4015,6 +4060,7 @@ mod window_parser_tests {
             ],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 

@@ -187,6 +187,7 @@ impl FactTableDetector {
             denormalized_filters: filters,
             calendar_dimensions,
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         };
 
         Self::validate(&metadata)?;
@@ -625,6 +626,7 @@ impl FactTableDetector {
             denormalized_filters: filters,
             calendar_dimensions: Vec::new(), // No calendar detection in test helper
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         };
 
         Self::validate(&metadata)?;

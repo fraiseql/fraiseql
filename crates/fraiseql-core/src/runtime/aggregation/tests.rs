@@ -28,6 +28,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
         }],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      std::collections::HashMap::new(),
     }
 }
 
@@ -50,6 +51,7 @@ fn create_test_plan() -> AggregationPlan {
         }],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
@@ -143,6 +145,7 @@ fn test_having_clause() {
             column:   "revenue".to_string(),
             function: AggregateFunction::Sum,
             alias:    "revenue_sum".to_string(),
+            native:   false,
         },
         operator:  HavingOperator::Gt,
         value:     serde_json::json!(1000),
@@ -702,6 +705,7 @@ fn test_having_string_value_is_bound_not_escaped() {
             column:   "label".to_string(),
             function: AggregateFunction::Max,
             alias:    "label_max".to_string(),
+            native:   false,
         },
         operator:  HavingOperator::Eq,
         value:     serde_json::json!("O'Reilly"),
@@ -885,6 +889,7 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
         }],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
@@ -938,6 +943,7 @@ fn test_generate_parameterized_having_string_becomes_placeholder() {
             column:   "revenue".to_string(),
             function: AggregateFunction::Sum,
             alias:    "revenue_sum".to_string(),
+            native:   false,
         },
         operator:  HavingOperator::Eq,
         value:     serde_json::json!(injection),
@@ -992,6 +998,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
         ],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
@@ -1025,6 +1032,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
             column:   "revenue".to_string(),
             function: AggregateFunction::Sum,
             alias:    "total".to_string(),
+            native:   false,
         },
         operator:  HavingOperator::Gt,
         value:     serde_json::json!("threshold"),
@@ -1079,6 +1087,7 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
         }],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      std::collections::HashMap::new(),
     };
     let request = AggregationRequest {
         table_name:   "tf_sales".to_string(),
@@ -1166,6 +1175,7 @@ mod partial_period_builder_tests {
                 time_grain_column: "period_start".to_string(),
                 time_grain_trunc:  TemporalGrain::Month,
             }),
+        native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -1473,4 +1483,163 @@ mod partial_period_builder_tests {
             );
         }
     }
+}
+
+// ==================== Native Measures Tests ====================
+
+#[test]
+fn test_aggregation_plan_uses_native_measure() {
+    use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
+
+    let metadata = FactTableMetadata {
+        table_name:           "mv_daily_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "volume".to_string(),
+            sql_type: SqlType::BigInt,
+            nullable: false,
+        }],
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+        partial_period:       None,
+        native_measures:      std::collections::HashMap::from([
+            ("measures.volume".to_string(), "volume".to_string()),
+        ]),
+    };
+
+    let request = AggregationRequest {
+        table_name:   "mv_daily_sales".to_string(),
+        where_clause: None,
+        group_by:     vec![],
+        aggregates:   vec![AggregateSelection::MeasureAggregate {
+            measure:  "measures.volume".to_string(),
+            function: crate::compiler::aggregate_types::AggregateFunction::Sum,
+            alias:    "volume_sum".to_string(),
+        }],
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+
+    let plan = AggregationPlanner::plan(request, metadata).unwrap();
+    match &plan.aggregate_expressions[0] {
+        AggregateExpression::MeasureAggregate {
+            column, native, ..
+        } => {
+            assert_eq!(column, "volume");
+            assert!(native, "native flag should be true for native measures");
+        },
+        other => panic!("Expected MeasureAggregate, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_native_measure_sql_uses_quoted_identifier() {
+    use crate::compiler::aggregation::AggregationPlanner;
+
+    let metadata = FactTableMetadata {
+        table_name:           "mv_daily_sales".to_string(),
+        measures:             vec![],
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+        partial_period:       None,
+        native_measures:      std::collections::HashMap::from([
+            ("measures.volume".to_string(), "volume".to_string()),
+        ]),
+    };
+
+    let request = AggregationRequest {
+        table_name:   "mv_daily_sales".to_string(),
+        where_clause: None,
+        group_by:     vec![],
+        aggregates:   vec![AggregateSelection::MeasureAggregate {
+            measure:  "measures.volume".to_string(),
+            function: crate::compiler::aggregate_types::AggregateFunction::Sum,
+            alias:    "volume_sum".to_string(),
+        }],
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+
+    let plan = AggregationPlanner::plan(request, metadata).unwrap();
+    let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+    let sql = generator.generate_parameterized(&plan).unwrap();
+
+    // Native measure: SUM("volume") — quoted identifier, no ::numeric cast
+    assert!(
+        sql.sql.contains(r#"SUM("volume")"#),
+        "expected SUM(\"volume\"), got: {}",
+        sql.sql
+    );
+    assert!(
+        !sql.sql.contains("::numeric"),
+        "native measure should not have ::numeric cast: {}",
+        sql.sql
+    );
+}
+
+#[test]
+fn test_non_native_measure_unchanged() {
+    use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
+
+    let metadata = FactTableMetadata {
+        table_name:           "tf_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "revenue".to_string(),
+            sql_type: SqlType::Decimal,
+            nullable: false,
+        }],
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+        partial_period:       None,
+        native_measures:      std::collections::HashMap::new(),
+    };
+
+    let request = AggregationRequest {
+        table_name:   "tf_sales".to_string(),
+        where_clause: None,
+        group_by:     vec![],
+        aggregates:   vec![AggregateSelection::MeasureAggregate {
+            measure:  "revenue".to_string(),
+            function: crate::compiler::aggregate_types::AggregateFunction::Sum,
+            alias:    "revenue_sum".to_string(),
+        }],
+        having:       vec![],
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+
+    let plan = AggregationPlanner::plan(request, metadata).unwrap();
+    match &plan.aggregate_expressions[0] {
+        AggregateExpression::MeasureAggregate {
+            column, native, ..
+        } => {
+            assert_eq!(column, "revenue");
+            assert!(!native, "native flag should be false for regular measures");
+        },
+        other => panic!("Expected MeasureAggregate, got: {other:?}"),
+    }
+
+    let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+    let sql = generator.generate_parameterized(&plan).unwrap();
+    assert!(
+        sql.sql.contains("SUM(revenue)"),
+        "regular measure should not be quoted: {}",
+        sql.sql
+    );
 }

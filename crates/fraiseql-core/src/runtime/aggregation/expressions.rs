@@ -149,16 +149,25 @@ impl AggregationSqlGenerator {
                 Ok(format!("COUNT(DISTINCT {})", column))
             },
             AggregateExpression::MeasureAggregate {
-                column, function, ..
+                column,
+                function,
+                native,
+                ..
             } => {
-                // Handle statistical functions with database-specific SQL
                 #[allow(clippy::enum_glob_use)]
                 // Reason: glob import reduces noise in exhaustive match arms
                 use AggregateFunction::*;
+                // Native measure columns use quoted identifiers (no ::numeric cast needed)
+                let col_ref = if *native {
+                    self.quote_identifier(column)
+                } else {
+                    column.clone()
+                };
+                // Handle statistical functions with database-specific SQL
                 match function {
-                    Stddev => Ok(self.generate_stddev_sql(column)),
-                    Variance => Ok(self.generate_variance_sql(column)),
-                    _ => Ok(format!("{}({})", function.sql_name(), column)),
+                    Stddev => Ok(self.generate_stddev_sql(&col_ref)),
+                    Variance => Ok(self.generate_variance_sql(&col_ref)),
+                    _ => Ok(format!("{}({})", function.sql_name(), col_ref)),
                 }
             },
             AggregateExpression::AdvancedAggregate {

@@ -35,6 +35,8 @@
 //! );
 //! ```
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 mod detector;
@@ -68,6 +70,13 @@ pub struct FactTableMetadata {
     /// for complete intermediate periods.
     #[serde(default)]
     pub partial_period:       Option<PartialPeriodConfig>,
+    /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views.
+    ///
+    /// When a materialized view stores measures as native columns (e.g. `volume BIGINT`)
+    /// instead of inside a JSONB `data` column, this mapping tells the SQL generator to
+    /// use `SUM("volume")` instead of `SUM((data->'measures'->>'volume')::numeric)`.
+    #[serde(default)]
+    pub native_measures:      HashMap<String, String>,
 }
 
 /// A measure column (aggregatable numeric type)

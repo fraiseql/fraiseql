@@ -2,6 +2,8 @@
 //! `IntermediateDimensions`, `IntermediateDimensionPath`, `IntermediateFilter`,
 //! `IntermediateAggregateQuery`.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
@@ -19,6 +21,9 @@ pub struct IntermediateFactTable {
     pub dimensions:           IntermediateDimensions,
     /// Denormalized filter columns
     pub denormalized_filters: Vec<IntermediateFilter>,
+    /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views
+    #[serde(default)]
+    pub native_measures:      HashMap<String, String>,
 }
 
 /// Measure column definition

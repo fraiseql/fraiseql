@@ -1,4 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+use std::collections::HashMap;
+
 use super::*;
 
 #[test]
@@ -28,6 +30,7 @@ fn test_validate_valid_fact_table() {
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      HashMap::new(),
     };
 
     FactTableDetector::validate(&metadata)
@@ -46,6 +49,7 @@ fn test_validate_missing_measures() {
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      HashMap::new(),
     };
 
     let result = FactTableDetector::validate(&metadata);
@@ -69,6 +73,7 @@ fn test_validate_non_numeric_measure() {
         denormalized_filters: vec![],
         calendar_dimensions:  vec![],
         partial_period:       None,
+        native_measures:      HashMap::new(),
     };
 
     let result = FactTableDetector::validate(&metadata);
@@ -815,4 +820,63 @@ fn test_fact_table_declaration_large_grain() {
     let meta = decl.metadata.unwrap();
     assert_eq!(meta.grain.len(), 4);
     assert_eq!(decl.dimensions.len(), 4);
+}
+
+// ==================== Native Measures Tests ====================
+
+#[test]
+fn test_fact_table_with_native_measures() {
+    let json_str = r#"{
+        "table_name": "mv_daily_sales",
+        "measures": [{"name": "volume", "sql_type": "BigInt", "nullable": false}],
+        "dimensions": {"name": "data", "paths": []},
+        "denormalized_filters": [],
+        "calendar_dimensions": [],
+        "native_measures": {"measures.volume": "volume", "measures.cost": "cost"}
+    }"#;
+
+    let ft: FactTableMetadata = serde_json::from_str(json_str).unwrap();
+    assert_eq!(ft.native_measures.get("measures.volume"), Some(&"volume".to_string()));
+    assert_eq!(ft.native_measures.get("measures.cost"), Some(&"cost".to_string()));
+    assert_eq!(ft.native_measures.len(), 2);
+}
+
+#[test]
+fn test_native_measures_backward_compat_absent() {
+    let json_str = r#"{
+        "table_name": "tf_sales",
+        "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+        "dimensions": {"name": "data", "paths": []},
+        "denormalized_filters": [],
+        "calendar_dimensions": []
+    }"#;
+
+    let ft: FactTableMetadata = serde_json::from_str(json_str).unwrap();
+    assert!(ft.native_measures.is_empty());
+}
+
+#[test]
+fn test_native_measures_roundtrip() {
+    let ft = FactTableMetadata {
+        table_name:           "mv_daily_sales".to_string(),
+        measures:             vec![MeasureColumn {
+            name:     "volume".to_string(),
+            sql_type: SqlType::BigInt,
+            nullable: false,
+        }],
+        dimensions:           DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![],
+        },
+        denormalized_filters: vec![],
+        calendar_dimensions:  vec![],
+        partial_period:       None,
+        native_measures:      HashMap::from([
+            ("measures.volume".to_string(), "volume".to_string()),
+        ]),
+    };
+
+    let json = serde_json::to_string(&ft).unwrap();
+    let deserialized: FactTableMetadata = serde_json::from_str(&json).unwrap();
+    assert_eq!(ft, deserialized);
 }

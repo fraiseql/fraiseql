@@ -27,6 +27,7 @@ mod compiler_tests {
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         };
 
         schema.add_fact_table("tf_sales".to_string(), metadata.clone());
@@ -829,6 +830,7 @@ mod validator_tests {
             denormalized_filters: vec![],
             calendar_dimensions: vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -1784,6 +1786,7 @@ mod aggregate_types_tests {
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -1904,6 +1907,7 @@ mod aggregate_types_tests {
             denormalized_filters: vec![],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -1988,6 +1992,7 @@ mod aggregate_types_tests {
                 }],
             }],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -2052,6 +2057,7 @@ mod aggregate_types_tests {
             }],
             calendar_dimensions:  vec![], // No calendar dimensions
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -2151,6 +2157,7 @@ mod aggregate_types_tests {
                 }],
             }],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -2211,6 +2218,7 @@ mod window_allowlist_tests {
             }],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 
@@ -2336,6 +2344,7 @@ mod aggregation_tests {
             ],
             calendar_dimensions:  vec![],
             partial_period:       None,
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 

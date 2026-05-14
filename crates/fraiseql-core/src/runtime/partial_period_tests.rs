@@ -539,6 +539,7 @@ mod should_use_tests {
                 time_grain_column: "period_start".into(),
                 time_grain_trunc:  TemporalGrain::Month,
             }),
+            native_measures:      std::collections::HashMap::new(),
         }
     }
 

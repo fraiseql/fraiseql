@@ -284,6 +284,12 @@ pub enum AggregateExpression {
         function: AggregateFunction,
         /// Result alias
         alias:    String,
+        /// Whether the column is a native SQL column (not JSONB-extracted).
+        ///
+        /// When `true`, the SQL generator quotes the column identifier and skips
+        /// any `::numeric` cast that would otherwise be needed for JSONB text values.
+        #[serde(default)]
+        native:   bool,
     },
     /// Advanced aggregate with optional parameters
     AdvancedAggregate {
@@ -501,13 +507,14 @@ impl AggregationPlanner {
                     function,
                     alias,
                 } => {
-                    // Validate measure exists (or is a dimension path for advanced aggregates)
+                    // Validate measure exists (or is a dimension path, filter, or native measure)
                     let measure_exists = metadata.measures.iter().any(|m| m.name == *measure);
                     let is_dimension = metadata.dimensions.paths.iter().any(|p| p.name == *measure);
                     let is_filter =
                         metadata.denormalized_filters.iter().any(|f| f.name == *measure);
+                    let is_native_measure = metadata.native_measures.contains_key(measure.as_str());
 
-                    if !measure_exists && !is_dimension && !is_filter {
+                    if !measure_exists && !is_dimension && !is_filter && !is_native_measure {
                         return Err(FraiseQLError::Validation {
                             message: format!(
                                 "Measure or field '{}' not found in fact table '{}'",
@@ -537,10 +544,19 @@ impl AggregationPlanner {
                             order_by:  None,
                         });
                     } else {
+                        // Check if the measure references a native measure mapping
+                        let (resolved_column, is_native) =
+                            if let Some(native_col) = metadata.native_measures.get(measure.as_str())
+                            {
+                                (native_col.clone(), true)
+                            } else {
+                                (measure.clone(), false)
+                            };
                         expressions.push(AggregateExpression::MeasureAggregate {
-                            column:   measure.clone(),
+                            column:   resolved_column,
                             function: *function,
                             alias:    alias.clone(),
+                            native:   is_native,
                         });
                     }
                 },
@@ -623,6 +639,7 @@ impl AggregationPlanner {
                             column:   measure.clone(),
                             function: *function,
                             alias:    alias.clone(),
+                            native:   false,
                         }
                     }
                 },
