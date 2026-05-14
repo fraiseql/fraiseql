@@ -37,6 +37,8 @@ criterion = {version = "0.5", features = ["html_reports"]}
 insta = {workspace = true}
 proptest = {workspace = true}
 serde_json = {workspace = true}
+testcontainers = {version = "0.27", features = ["watchdog"]}
+testcontainers-modules = {version = "0.15", features = ["postgres"]}
 
 [features]
 default = ["postgres"]

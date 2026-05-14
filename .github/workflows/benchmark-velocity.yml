@@ -1,0 +1,186 @@
+name: Velocitybench Regression Gate
+
+# Runs the fraiseql-tv scenario from velocitybench to catch performance regressions
+# before merging to dev. Blocks merge if RPS drops >5% or p95 increases >10%.
+#
+# How it works:
+#   1. Build fraiseql-server release binary from the current PR
+#   2. Inject it into velocitybench/frameworks/fraiseql/fraiseql-server
+#   3. Start postgres via velocitybench's docker compose
+#   4. Run bench_sequential.py --frameworks fraiseql-tv (it manages the container lifecycle)
+#   5. Compare the JSON output against benchmarks/baseline.json
+#   6. Post a before/after table as a PR comment; fail the job on regression
+#
+# Triggered:
+#   - Push to dev (establishes new baseline artifact)
+#   - PRs labeled "perf" (compares against dev baseline)
+#
+# To update the stored baseline after an intentional perf change:
+#   make bench-update-baseline
+#   git add benchmarks/baseline.json && git commit
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    branches: [dev]
+    types: [labeled]  # Add "perf" label to a PR to trigger this workflow
+
+env:
+  CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+  BENCH_FRAMEWORK: fraiseql-tv
+  BENCH_DURATION: "30"
+  BENCH_CONCURRENCY: "40"
+  # bench_sequential.py writes foo.md; JSON lands at foo.json (same stem)
+  BENCH_OUTPUT_MD: /tmp/bench-results.md
+  BENCH_OUTPUT_JSON: /tmp/bench-results.json
+  BENCH_REPORT_FILE: /tmp/regression-report.md
+
+jobs:
+  velocity-regression:
+    name: Velocitybench (${{ env.BENCH_FRAMEWORK }}, ${{ env.BENCH_DURATION }}s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: >
+      github.event_name == 'push' ||
+      contains(github.event.pull_request.labels.*.name, 'perf')
+
+    steps:
+      - name: Checkout fraiseql
+        uses: actions/checkout@v4
+
+      - name: Checkout velocitybench
+        uses: actions/checkout@v4
+        with:
+          repository: evoludigit/velocitybench
+          path: velocitybench
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+
+      - name: Build fraiseql-server (release)
+        run: cargo build -p fraiseql-server --release
+
+      - name: Inject fraiseql binary into velocitybench
+        # bench_sequential.py uses the pre-built binary at frameworks/fraiseql/fraiseql-server
+        run: |
+          cp target/release/fraiseql-server velocitybench/frameworks/fraiseql/fraiseql-server
+          chmod +x velocitybench/frameworks/fraiseql/fraiseql-server
+          echo "Binary injected: $(file velocitybench/frameworks/fraiseql/fraiseql-server)"
+
+      - name: Start postgres via velocitybench docker compose
+        working-directory: velocitybench
+        run: |
+          docker compose up -d postgres
+          # Wait for postgres to be ready
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U fraiseql 2>/dev/null; then
+              echo "Postgres ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Seed database (medium dataset)
+        working-directory: velocitybench
+        run: |
+          # Apply schema and seed data using velocitybench SQL files
+          for sql in database/01-extensions.sql database/02-schema.sql database/05-medium-seed.sql; do
+            if [ -f "$sql" ]; then
+              echo "Applying $sql..."
+              docker compose exec -T postgres psql -U fraiseql -d velocitybench -f "/velocitybench_src/$sql" 2>/dev/null || \
+              docker compose exec -T -e PGPASSWORD=fraiseql postgres psql -U fraiseql -d velocitybench \
+                < "$sql" 2>/dev/null || \
+              cat "$sql" | docker compose exec -T postgres psql -U fraiseql velocitybench || true
+            fi
+          done
+          echo "Database seeding complete"
+
+      - name: Run velocitybench (fraiseql-tv, ${{ env.BENCH_DURATION }}s)
+        working-directory: velocitybench
+        run: |
+          python tests/benchmark/bench_sequential.py \
+            --frameworks "${{ env.BENCH_FRAMEWORK }}" \
+            --duration "${{ env.BENCH_DURATION }}" \
+            --concurrency "${{ env.BENCH_CONCURRENCY }}" \
+            --output "${{ env.BENCH_OUTPUT_MD }}"
+          # bench_sequential.py writes JSON to same stem (.md → .json)
+          echo "Results written to ${{ env.BENCH_OUTPUT_JSON }}"
+          [ -f "${{ env.BENCH_OUTPUT_JSON }}" ] || {
+            echo "::error::JSON output not found at ${{ env.BENCH_OUTPUT_JSON }}"
+            exit 1
+          }
+
+      - name: Detect regressions vs baseline
+        id: regression
+        run: |
+          set +e
+          python benchmarks/detect_regression.py \
+            --results "${{ env.BENCH_OUTPUT_JSON }}" \
+            --baseline benchmarks/baseline.json \
+            --framework "${{ env.BENCH_FRAMEWORK }}" \
+            --output "${{ env.BENCH_REPORT_FILE }}"
+          REGRESSION_EXIT=$?
+          set -e
+
+          {
+            echo "report<<REPORT_EOF"
+            cat "${{ env.BENCH_REPORT_FILE }}"
+            echo "REPORT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "regression_detected=${REGRESSION_EXIT}" >> "$GITHUB_OUTPUT"
+
+      - name: Post benchmark results as PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: velocitybench-results
+          message: ${{ steps.regression.outputs.report }}
+
+      - name: Add benchmark summary to job
+        if: always()
+        run: |
+          echo "## Velocitybench Results" >> "$GITHUB_STEP_SUMMARY"
+          cat "${{ env.BENCH_REPORT_FILE }}" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || \
+            echo "No report generated." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: velocitybench-results-${{ github.sha }}
+          path: |
+            ${{ env.BENCH_OUTPUT_JSON }}
+            ${{ env.BENCH_OUTPUT_MD }}
+            ${{ env.BENCH_REPORT_FILE }}
+          retention-days: 30
+
+      - name: Save baseline artifact (on push to dev)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: actions/upload-artifact@v4
+        with:
+          name: velocitybench-baseline-dev
+          path: ${{ env.BENCH_OUTPUT_JSON }}
+          retention-days: 14
+          overwrite: true
+
+      - name: Stop velocitybench docker compose
+        if: always()
+        working-directory: velocitybench
+        run: docker compose down --volumes 2>/dev/null || true
+
+      - name: Fail if regression detected
+        if: steps.regression.outputs.regression_detected != '0'
+        run: |
+          echo "::error::Performance regression detected. See report above."
+          echo "To update the baseline after an intentional change:"
+          echo "  make bench-update-baseline"
+          echo "  git add benchmarks/baseline.json && git commit"
+          exit 1
