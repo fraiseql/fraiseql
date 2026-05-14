@@ -47,6 +47,49 @@ const fn infer_type_cast(value: &Value) -> &'static str {
     }
 }
 
+/// Generates a CIDR containment check for network classification operators.
+///
+/// Produces SQL that tests whether a field (cast to `inet`) is strictly contained
+/// within one or more CIDR ranges using the `<<` operator.
+///
+/// When `negate` is true, the entire expression is wrapped in `NOT (...)`.
+///
+/// # Examples
+///
+/// ```text
+/// // negate=false, single range:
+/// (field::inet << '100.64.0.0/10'::inet)
+///
+/// // negate=false, multiple ranges:
+/// (field::inet << '224.0.0.0/4'::inet OR field::inet << 'ff00::/8'::inet)
+///
+/// // negate=true:
+/// NOT (field::inet << '224.0.0.0/4'::inet OR field::inet << 'ff00::/8'::inet)
+/// ```
+pub(crate) fn cidr_containment_check(field_sql: &str, ranges: &[&str], negate: bool) -> String {
+    let conditions: Vec<String> = ranges
+        .iter()
+        .map(|r| format!("{field_sql}::inet << '{r}'::inet"))
+        .collect();
+    let inner = format!("({})", conditions.join(" OR "));
+    if negate {
+        format!("NOT {inner}")
+    } else {
+        inner
+    }
+}
+
+/// CIDR ranges for RFC1918 private addresses plus IPv6 unique-local.
+const PRIVATE_RANGES: &[&str] = &[
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "fc00::/7",
+];
+
+/// CIDR ranges for loopback addresses.
+const LOOPBACK_RANGES: &[&str] = &["127.0.0.0/8", "::1/128"];
+
 /// Generates SQL from a WHERE operator with parameter binding support
 ///
 /// # Parameters
@@ -527,30 +570,14 @@ pub fn generate_where_operator_sql(
             Ok(format!("family({}::inet) = 6", field_sql))
         }
 
-        WhereOperator::IsPrivate(field) => {
+        WhereOperator::IsPrivate { field, value } => {
             let field_sql = field.to_sql();
-            // RFC1918 private ranges + link-local
-            Ok(format!(
-                "({}::inet << '10.0.0.0/8'::inet OR {}::inet << '172.16.0.0/12'::inet OR {}::inet << '192.168.0.0/16'::inet OR {}::inet << '169.254.0.0/16'::inet)",
-                field_sql, field_sql, field_sql, field_sql
-            ))
+            Ok(cidr_containment_check(&field_sql, PRIVATE_RANGES, !value))
         }
 
-        WhereOperator::IsPublic(field) => {
+        WhereOperator::IsLoopback { field, value } => {
             let field_sql = field.to_sql();
-            // NOT private (opposite of IsPrivate)
-            Ok(format!(
-                "NOT ({}::inet << '10.0.0.0/8'::inet OR {}::inet << '172.16.0.0/12'::inet OR {}::inet << '192.168.0.0/16'::inet OR {}::inet << '169.254.0.0/16'::inet)",
-                field_sql, field_sql, field_sql, field_sql
-            ))
-        }
-
-        WhereOperator::IsLoopback(field) => {
-            let field_sql = field.to_sql();
-            Ok(format!(
-                "(family({}::inet) = 4 AND {}::inet << '127.0.0.0/8'::inet) OR (family({}::inet) = 6 AND {}::inet << '::1/128'::inet)",
-                field_sql, field_sql, field_sql, field_sql
-            ))
+            Ok(cidr_containment_check(&field_sql, LOOPBACK_RANGES, !value))
         }
 
         WhereOperator::InSubnet { field, subnet } => {

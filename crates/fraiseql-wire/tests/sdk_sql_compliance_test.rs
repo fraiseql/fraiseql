@@ -6,7 +6,7 @@
 //! categories not addressed by existing unit tests:
 //!
 //! - Full-text search operators (Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`)
-//! - Network / INET operators (`IsIPv6`, `IsPrivate`, `IsPublic`, `InSubnet`, etc.)
+//! - Network / INET operators (`IsIPv6`, `IsPrivate`, `IsLoopback`, `InSubnet`, etc.)
 //! - String pattern operators (Startswith, Endswith, Icontains, etc.)
 //! - Multi-operator parameter chaining (sequential `$N` numbering)
 //! - Null equality equivalences
@@ -222,7 +222,10 @@ fn is_ipv6_generates_family_check() {
 /// `IsLoopback` checks both `IPv4` and `IPv6` loopback ranges.
 #[test]
 fn is_loopback_generates_dual_stack_check() {
-    let op = WhereOperator::IsLoopback(dc("ip"));
+    let op = WhereOperator::IsLoopback {
+        field: dc("ip"),
+        value: true,
+    };
     let (sql, idx, _) = gen(&op);
     assert!(
         sql.contains("127.0.0.0/8"),
@@ -238,7 +241,10 @@ fn is_loopback_generates_dual_stack_check() {
 /// `IsPrivate` generates `RFC1918` range checks.
 #[test]
 fn is_private_generates_rfc1918_ranges() {
-    let op = WhereOperator::IsPrivate(dc("src_ip"));
+    let op = WhereOperator::IsPrivate {
+        field: dc("src_ip"),
+        value: true,
+    };
     let (sql, idx, _) = gen(&op);
     assert!(sql.contains("10.0.0.0/8"), "10/8 must be checked");
     assert!(sql.contains("172.16.0.0/12"), "172.16/12 must be checked");
@@ -246,12 +252,18 @@ fn is_private_generates_rfc1918_ranges() {
     assert_eq!(idx, 0);
 }
 
-/// `IsPublic` negates the private check with `NOT`.
+/// `IsPrivate { value: false }` negates the private check with `NOT`.
 #[test]
-fn is_public_negates_private_ranges() {
-    let op = WhereOperator::IsPublic(dc("src_ip"));
+fn is_private_false_negates_private_ranges() {
+    let op = WhereOperator::IsPrivate {
+        field: dc("src_ip"),
+        value: false,
+    };
     let (sql, idx, _) = gen(&op);
-    assert!(sql.starts_with("NOT ("), "IsPublic must start with NOT (");
+    assert!(
+        sql.starts_with("NOT ("),
+        "IsPrivate(false) must start with NOT ("
+    );
     assert_eq!(idx, 0);
 }
 

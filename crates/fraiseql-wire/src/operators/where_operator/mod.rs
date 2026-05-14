@@ -19,7 +19,7 @@ use super::field::{Field, Value};
 /// - **Null**: `IsNull`
 /// - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `L1Distance`, `HammingDistance`, `JaccardDistance`
 /// - **Full-Text Search**: Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`
-/// - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsPublic`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
+/// - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
 /// - **JSONB**: `StrictlyContains`
 /// - **`LTree`**: `AncestorOf`, `DescendantOf`, `MatchesLquery`, `MatchesLtxtquery`, `MatchesAnyLquery`,
 ///   `DepthEq`, `DepthNeq`, `DepthGt`, `DepthGte`, `DepthLt`, `DepthLte`, Lca
@@ -282,14 +282,26 @@ pub enum WhereOperator {
     /// Check if IP is `IPv6`: `family(field) = 6`
     IsIPv6(Field),
 
-    /// Check if IP is private (RFC1918): matches private ranges
-    IsPrivate(Field),
+    /// Check if IP is private (RFC1918/ULA): matches private ranges.
+    ///
+    /// When `value` is `true`, generates a positive containment check.
+    /// When `value` is `false`, generates the negated check (equivalent to "is public").
+    IsPrivate {
+        /// The IP field to check
+        field: Field,
+        /// `true` = is private, `false` = is public (NOT private)
+        value: bool,
+    },
 
-    /// Check if IP is public (not private): opposite of `IsPrivate`
-    IsPublic(Field),
-
-    /// Check if IP is loopback: `IPv4` 127.0.0.0/8 or `IPv6` `::1/128`
-    IsLoopback(Field),
+    /// Check if IP is loopback: `IPv4` 127.0.0.0/8 or `IPv6` `::1/128`.
+    ///
+    /// When `value` is `false`, generates the negated check.
+    IsLoopback {
+        /// The IP field to check
+        field: Field,
+        /// `true` = is loopback, `false` = is NOT loopback
+        value: bool,
+    },
 
     /// IP is in subnet: `field << subnet`
     ///
@@ -488,9 +500,8 @@ impl WhereOperator {
             WhereOperator::WebsearchQuery { .. } => "WebsearchQuery",
             WhereOperator::IsIPv4(_) => "IsIPv4",
             WhereOperator::IsIPv6(_) => "IsIPv6",
-            WhereOperator::IsPrivate(_) => "IsPrivate",
-            WhereOperator::IsPublic(_) => "IsPublic",
-            WhereOperator::IsLoopback(_) => "IsLoopback",
+            WhereOperator::IsPrivate { .. } => "IsPrivate",
+            WhereOperator::IsLoopback { .. } => "IsLoopback",
             WhereOperator::InSubnet { .. } => "InSubnet",
             WhereOperator::ContainsSubnet { .. } => "ContainsSubnet",
             WhereOperator::ContainsIP { .. } => "ContainsIP",
@@ -579,9 +590,8 @@ impl WhereOperator {
             | WhereOperator::WebsearchQuery { field, .. }
             | WhereOperator::IsIPv4(field)
             | WhereOperator::IsIPv6(field)
-            | WhereOperator::IsPrivate(field)
-            | WhereOperator::IsPublic(field)
-            | WhereOperator::IsLoopback(field)
+            | WhereOperator::IsPrivate { field, .. }
+            | WhereOperator::IsLoopback { field, .. }
             | WhereOperator::InSubnet { field, .. }
             | WhereOperator::ContainsSubnet { field, .. }
             | WhereOperator::ContainsIP { field, .. }

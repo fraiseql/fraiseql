@@ -571,10 +571,10 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     );
 
     m.insert(
-        "isPublic",
+        "isLoopback",
         OperatorInfo {
-            name:           "isPublic",
-            sql_op:         "NOT_CIDR_RANGE_CHECK",
+            name:           "isLoopback",
+            sql_op:         "CIDR_RANGE_CHECK",
             category:       OperatorCategory::Network,
             requires_array: false,
             jsonb_operator: false,

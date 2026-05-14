@@ -35,7 +35,7 @@
 //! - **Null**: `IsNull`
 //! - **Vector Distance**: `L2Distance`, `CosineDistance`, `InnerProduct`, `JaccardDistance`
 //! - **Full-Text Search**: Matches, `PlainQuery`, `PhraseQuery`, `WebsearchQuery`
-//! - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsLoopback`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
+//! - **Network**: `IsIPv4`, `IsIPv6`, `IsPrivate`, `IsLoopback`, `IsMulticast`, `IsLinkLocal`, `IsDocumentation`, `IsCarrierGrade`, `InSubnet`, `ContainsSubnet`, `ContainsIP`, `IPRangeOverlap`
 
 pub mod field;
 pub mod order_by;

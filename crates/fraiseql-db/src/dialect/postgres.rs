@@ -144,13 +144,16 @@ impl SqlDialect for PostgresDialect {
             "IsIPv4" => Ok(format!("family({lhs}::inet) = 4")),
             "IsIPv6" => Ok(format!("family({lhs}::inet) = 6")),
             "IsPrivate" => Ok(format!(
-                "({lhs}::inet << '10.0.0.0/8'::inet OR {lhs}::inet << '172.16.0.0/12'::inet OR {lhs}::inet << '192.168.0.0/16'::inet OR {lhs}::inet << '169.254.0.0/16'::inet)"
+                "({lhs}::inet << '10.0.0.0/8'::inet OR {lhs}::inet << '172.16.0.0/12'::inet OR {lhs}::inet << '192.168.0.0/16'::inet OR {lhs}::inet << 'fc00::/7'::inet)"
             )),
             "IsPublic" => Ok(format!(
-                "NOT ({lhs}::inet << '10.0.0.0/8'::inet OR {lhs}::inet << '172.16.0.0/12'::inet OR {lhs}::inet << '192.168.0.0/16'::inet OR {lhs}::inet << '169.254.0.0/16'::inet)"
+                "NOT ({lhs}::inet << '10.0.0.0/8'::inet OR {lhs}::inet << '172.16.0.0/12'::inet OR {lhs}::inet << '192.168.0.0/16'::inet OR {lhs}::inet << 'fc00::/7'::inet)"
             )),
             "IsLoopback" => Ok(format!(
-                "(family({lhs}::inet) = 4 AND {lhs}::inet << '127.0.0.0/8'::inet) OR (family({lhs}::inet) = 6 AND {lhs}::inet << '::1/128'::inet)"
+                "({lhs}::inet << '127.0.0.0/8'::inet OR {lhs}::inet << '::1/128'::inet)"
+            )),
+            "IsNotLoopback" => Ok(format!(
+                "NOT ({lhs}::inet << '127.0.0.0/8'::inet OR {lhs}::inet << '::1/128'::inet)"
             )),
             _ => Err(UnsupportedOperator {
                 dialect:  self.name(),

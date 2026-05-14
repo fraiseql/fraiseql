@@ -575,18 +575,20 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 .dialect
                 .inet_check_sql(&field_expr, "IsIPv6")
                 .map_err(|e| FraiseQLError::validation(e.to_string())),
-            WhereOperator::IsPrivate => self
-                .dialect
-                .inet_check_sql(&field_expr, "IsPrivate")
-                .map_err(|e| FraiseQLError::validation(e.to_string())),
-            WhereOperator::IsPublic => self
-                .dialect
-                .inet_check_sql(&field_expr, "IsPublic")
-                .map_err(|e| FraiseQLError::validation(e.to_string())),
-            WhereOperator::IsLoopback => self
-                .dialect
-                .inet_check_sql(&field_expr, "IsLoopback")
-                .map_err(|e| FraiseQLError::validation(e.to_string())),
+            WhereOperator::IsPrivate => {
+                let negate = value.as_bool().is_some_and(|v| !v);
+                let check_name = if negate { "IsPublic" } else { "IsPrivate" };
+                self.dialect
+                    .inet_check_sql(&field_expr, check_name)
+                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            },
+            WhereOperator::IsLoopback => {
+                let negate = value.as_bool().is_some_and(|v| !v);
+                let check_name = if negate { "IsNotLoopback" } else { "IsLoopback" };
+                self.dialect
+                    .inet_check_sql(&field_expr, check_name)
+                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            },
             WhereOperator::InSubnet => {
                 let p = self.push_param(params, value.clone());
                 self.dialect

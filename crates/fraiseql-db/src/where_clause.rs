@@ -365,11 +365,9 @@ pub enum WhereOperator {
     IsIPv4,
     /// Is IPv6.
     IsIPv6,
-    /// Is private IP (RFC1918 ranges).
+    /// Is private IP (RFC1918 ranges). Value controls negation (false = public).
     IsPrivate,
-    /// Is public IP (not private).
-    IsPublic,
-    /// Is loopback address (127.0.0.0/8 or ::1).
+    /// Is loopback address (127.0.0.0/8 or ::1). Value controls negation.
     IsLoopback,
     /// In subnet (<<) - IP is contained within subnet.
     InSubnet,
@@ -478,7 +476,6 @@ impl WhereOperator {
             "is_ipv4" => Ok(Self::IsIPv4),
             "is_ipv6" => Ok(Self::IsIPv6),
             "is_private" => Ok(Self::IsPrivate),
-            "is_public" => Ok(Self::IsPublic),
             "is_loopback" => Ok(Self::IsLoopback),
             "in_subnet" | "inrange" => Ok(Self::InSubnet),
             "contains_subnet" => Ok(Self::ContainsSubnet),

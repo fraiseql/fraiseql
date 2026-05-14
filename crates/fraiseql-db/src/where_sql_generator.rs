@@ -230,7 +230,6 @@ impl WhereSqlGenerator {
             WhereOperator::IsIPv4
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
-            | WhereOperator::IsPublic
             | WhereOperator::IsLoopback
             | WhereOperator::InSubnet
             | WhereOperator::ContainsSubnet

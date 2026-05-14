@@ -268,6 +268,95 @@ fn test_ltree_depth_lte() {
     assert_eq!(param_index, 0);
 }
 
+// ============ CIDR Containment Check Helper Tests ============
+
+#[test]
+fn test_cidr_containment_check_single_range() {
+    let sql = cidr_containment_check("ip_addr", &["100.64.0.0/10"], false);
+    assert_eq!(sql, "(ip_addr::inet << '100.64.0.0/10'::inet)");
+}
+
+#[test]
+fn test_cidr_containment_check_multiple_ranges() {
+    let sql = cidr_containment_check("ip_addr", &["224.0.0.0/4", "ff00::/8"], false);
+    assert_eq!(
+        sql,
+        "(ip_addr::inet << '224.0.0.0/4'::inet OR ip_addr::inet << 'ff00::/8'::inet)"
+    );
+}
+
+#[test]
+fn test_cidr_containment_check_negated() {
+    let sql = cidr_containment_check("ip_addr", &["224.0.0.0/4", "ff00::/8"], true);
+    assert_eq!(
+        sql,
+        "NOT (ip_addr::inet << '224.0.0.0/4'::inet OR ip_addr::inet << 'ff00::/8'::inet)"
+    );
+}
+
+#[test]
+fn test_cidr_containment_check_single_range_negated() {
+    let sql = cidr_containment_check("ip_addr", &["100.64.0.0/10"], true);
+    assert_eq!(sql, "NOT (ip_addr::inet << '100.64.0.0/10'::inet)");
+}
+
+// ============ Network Operator Tests (boolean value pattern) ============
+
+#[test]
+fn test_is_private_true() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsPrivate {
+        field: Field::DirectColumn("src_ip".to_string()),
+        value: true,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.contains("10.0.0.0/8"), "must check 10/8");
+    assert!(sql.contains("172.16.0.0/12"), "must check 172.16/12");
+    assert!(sql.contains("192.168.0.0/16"), "must check 192.168/16");
+    assert!(!sql.starts_with("NOT "), "value=true must not negate");
+}
+
+#[test]
+fn test_is_private_false_replaces_is_public() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsPrivate {
+        field: Field::DirectColumn("src_ip".to_string()),
+        value: false,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.starts_with("NOT ("), "value=false must negate with NOT (");
+    assert!(sql.contains("10.0.0.0/8"));
+}
+
+#[test]
+fn test_is_loopback_true() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsLoopback {
+        field: Field::DirectColumn("ip".to_string()),
+        value: true,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.contains("127.0.0.0/8"));
+    assert!(sql.contains("::1/128"));
+    assert!(!sql.starts_with("NOT "));
+}
+
+#[test]
+fn test_is_loopback_false() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsLoopback {
+        field: Field::DirectColumn("ip".to_string()),
+        value: false,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.starts_with("NOT ("), "value=false must negate");
+    assert!(sql.contains("127.0.0.0/8"));
+}
+
 #[test]
 fn test_ltree_lca() {
     let mut param_index = 0;
