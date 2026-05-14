@@ -5,7 +5,7 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] - 2026-05-13
+## [2.3.0] - 2026-05-14
 
 ### Added
 
@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in `fraiseql_usage_counters` table with automatic background flush lifecycle.
 
 - **`[usage]` TOML configuration section** — `ServerConfig.usage: Option<UsagePersistenceConfig>`.
+
+- **REST transport wiring** — `[rest]` TOML section now parsed and compiled
+  through the full pipeline (merger → intermediate → compiled schema). Server
+  mounts read-only REST query router behind `rest` feature flag. Based on
+  PR #229 by @magick93.
 
 ### Security
 
