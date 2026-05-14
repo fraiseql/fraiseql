@@ -157,6 +157,9 @@ pub mod realtime;
 // Object storage backends (local, S3, GCS, Azure Blob)
 pub mod storage;
 
+// Server subsystem assembly and lifecycle management
+pub mod subsystems;
+
 // Trusted documents (query allowlist)
 pub mod trusted_documents;
 
