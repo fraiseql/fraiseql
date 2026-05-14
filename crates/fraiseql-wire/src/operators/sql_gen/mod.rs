@@ -90,6 +90,12 @@ const PRIVATE_RANGES: &[&str] = &[
 /// CIDR ranges for loopback addresses.
 const LOOPBACK_RANGES: &[&str] = &["127.0.0.0/8", "::1/128"];
 
+/// CIDR ranges for multicast addresses (RFC 3171, RFC 4291).
+const MULTICAST_RANGES: &[&str] = &["224.0.0.0/4", "ff00::/8"];
+
+/// CIDR ranges for link-local addresses (RFC 3927, RFC 4291).
+const LINK_LOCAL_RANGES: &[&str] = &["169.254.0.0/16", "fe80::/10"];
+
 /// Generates SQL from a WHERE operator with parameter binding support
 ///
 /// # Parameters
@@ -578,6 +584,16 @@ pub fn generate_where_operator_sql(
         WhereOperator::IsLoopback { field, value } => {
             let field_sql = field.to_sql();
             Ok(cidr_containment_check(&field_sql, LOOPBACK_RANGES, !value))
+        }
+
+        WhereOperator::IsMulticast { field, value } => {
+            let field_sql = field.to_sql();
+            Ok(cidr_containment_check(&field_sql, MULTICAST_RANGES, !value))
+        }
+
+        WhereOperator::IsLinkLocal { field, value } => {
+            let field_sql = field.to_sql();
+            Ok(cidr_containment_check(&field_sql, LINK_LOCAL_RANGES, !value))
         }
 
         WhereOperator::InSubnet { field, subnet } => {

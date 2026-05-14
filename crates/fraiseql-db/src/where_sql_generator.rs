@@ -231,6 +231,8 @@ impl WhereSqlGenerator {
             | WhereOperator::IsIPv6
             | WhereOperator::IsPrivate
             | WhereOperator::IsLoopback
+            | WhereOperator::IsMulticast
+            | WhereOperator::IsLinkLocal
             | WhereOperator::InSubnet
             | WhereOperator::ContainsSubnet
             | WhereOperator::ContainsIP

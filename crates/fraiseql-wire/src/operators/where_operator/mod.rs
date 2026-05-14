@@ -303,6 +303,26 @@ pub enum WhereOperator {
         value: bool,
     },
 
+    /// Check if IP is multicast: `IPv4` 224.0.0.0/4 or `IPv6` ff00::/8 (RFC 3171, RFC 4291).
+    ///
+    /// When `value` is `false`, generates the negated check.
+    IsMulticast {
+        /// The IP field to check
+        field: Field,
+        /// `true` = is multicast, `false` = is NOT multicast
+        value: bool,
+    },
+
+    /// Check if IP is link-local: `IPv4` 169.254.0.0/16 or `IPv6` fe80::/10 (RFC 3927, RFC 4291).
+    ///
+    /// When `value` is `false`, generates the negated check.
+    IsLinkLocal {
+        /// The IP field to check
+        field: Field,
+        /// `true` = is link-local, `false` = is NOT link-local
+        value: bool,
+    },
+
     /// IP is in subnet: `field << subnet`
     ///
     /// The subnet should be in CIDR notation (e.g., "192.168.0.0/24")
@@ -502,6 +522,8 @@ impl WhereOperator {
             WhereOperator::IsIPv6(_) => "IsIPv6",
             WhereOperator::IsPrivate { .. } => "IsPrivate",
             WhereOperator::IsLoopback { .. } => "IsLoopback",
+            WhereOperator::IsMulticast { .. } => "IsMulticast",
+            WhereOperator::IsLinkLocal { .. } => "IsLinkLocal",
             WhereOperator::InSubnet { .. } => "InSubnet",
             WhereOperator::ContainsSubnet { .. } => "ContainsSubnet",
             WhereOperator::ContainsIP { .. } => "ContainsIP",
@@ -592,6 +614,8 @@ impl WhereOperator {
             | WhereOperator::IsIPv6(field)
             | WhereOperator::IsPrivate { field, .. }
             | WhereOperator::IsLoopback { field, .. }
+            | WhereOperator::IsMulticast { field, .. }
+            | WhereOperator::IsLinkLocal { field, .. }
             | WhereOperator::InSubnet { field, .. }
             | WhereOperator::ContainsSubnet { field, .. }
             | WhereOperator::ContainsIP { field, .. }

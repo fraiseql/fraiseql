@@ -582,6 +582,28 @@ pub static OPERATOR_REGISTRY: LazyLock<HashMap<&'static str, OperatorInfo>> = La
     );
 
     m.insert(
+        "isMulticast",
+        OperatorInfo {
+            name:           "isMulticast",
+            sql_op:         "CIDR_RANGE_CHECK",
+            category:       OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        },
+    );
+
+    m.insert(
+        "isLinkLocal",
+        OperatorInfo {
+            name:           "isLinkLocal",
+            sql_op:         "CIDR_RANGE_CHECK",
+            category:       OperatorCategory::Network,
+            requires_array: false,
+            jsonb_operator: false,
+        },
+    );
+
+    m.insert(
         "inSubnet",
         OperatorInfo {
             name:           "inSubnet",

@@ -357,6 +357,62 @@ fn test_is_loopback_false() {
     assert!(sql.contains("127.0.0.0/8"));
 }
 
+// ============ isMulticast / isLinkLocal Operator Tests ============
+
+#[test]
+fn test_is_multicast_true() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsMulticast {
+        field: Field::DirectColumn("ip".to_string()),
+        value: true,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.contains("224.0.0.0/4"), "must check IPv4 multicast");
+    assert!(sql.contains("ff00::/8"), "must check IPv6 multicast");
+    assert!(!sql.starts_with("NOT "));
+}
+
+#[test]
+fn test_is_multicast_false() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsMulticast {
+        field: Field::DirectColumn("ip".to_string()),
+        value: false,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.starts_with("NOT ("), "value=false must negate");
+    assert!(sql.contains("224.0.0.0/4"));
+}
+
+#[test]
+fn test_is_link_local_true() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsLinkLocal {
+        field: Field::DirectColumn("ip".to_string()),
+        value: true,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.contains("169.254.0.0/16"), "must check IPv4 link-local");
+    assert!(sql.contains("fe80::/10"), "must check IPv6 link-local");
+    assert!(!sql.starts_with("NOT "));
+}
+
+#[test]
+fn test_is_link_local_false() {
+    let mut param_index = 0;
+    let mut params = HashMap::new();
+    let op = WhereOperator::IsLinkLocal {
+        field: Field::DirectColumn("ip".to_string()),
+        value: false,
+    };
+    let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
+    assert!(sql.starts_with("NOT ("), "value=false must negate");
+    assert!(sql.contains("169.254.0.0/16"));
+}
+
 #[test]
 fn test_ltree_lca() {
     let mut param_index = 0;

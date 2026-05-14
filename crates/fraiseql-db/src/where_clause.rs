@@ -369,6 +369,10 @@ pub enum WhereOperator {
     IsPrivate,
     /// Is loopback address (127.0.0.0/8 or ::1). Value controls negation.
     IsLoopback,
+    /// Is multicast (224.0.0.0/4 or ff00::/8). Value controls negation.
+    IsMulticast,
+    /// Is link-local (169.254.0.0/16 or fe80::/10). Value controls negation.
+    IsLinkLocal,
     /// In subnet (<<) - IP is contained within subnet.
     InSubnet,
     /// Contains subnet (>>) - subnet contains another subnet.
@@ -477,6 +481,8 @@ impl WhereOperator {
             "is_ipv6" => Ok(Self::IsIPv6),
             "is_private" => Ok(Self::IsPrivate),
             "is_loopback" => Ok(Self::IsLoopback),
+            "is_multicast" => Ok(Self::IsMulticast),
+            "is_link_local" => Ok(Self::IsLinkLocal),
             "in_subnet" | "inrange" => Ok(Self::InSubnet),
             "contains_subnet" => Ok(Self::ContainsSubnet),
             "contains_ip" => Ok(Self::ContainsIP),

@@ -155,6 +155,18 @@ impl SqlDialect for PostgresDialect {
             "IsNotLoopback" => Ok(format!(
                 "NOT ({lhs}::inet << '127.0.0.0/8'::inet OR {lhs}::inet << '::1/128'::inet)"
             )),
+            "IsMulticast" => Ok(format!(
+                "({lhs}::inet << '224.0.0.0/4'::inet OR {lhs}::inet << 'ff00::/8'::inet)"
+            )),
+            "IsNotMulticast" => Ok(format!(
+                "NOT ({lhs}::inet << '224.0.0.0/4'::inet OR {lhs}::inet << 'ff00::/8'::inet)"
+            )),
+            "IsLinkLocal" => Ok(format!(
+                "({lhs}::inet << '169.254.0.0/16'::inet OR {lhs}::inet << 'fe80::/10'::inet)"
+            )),
+            "IsNotLinkLocal" => Ok(format!(
+                "NOT ({lhs}::inet << '169.254.0.0/16'::inet OR {lhs}::inet << 'fe80::/10'::inet)"
+            )),
             _ => Err(UnsupportedOperator {
                 dialect:  self.name(),
                 operator: "InetCheck",

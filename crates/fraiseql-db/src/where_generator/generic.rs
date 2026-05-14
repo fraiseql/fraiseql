@@ -589,6 +589,20 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     .inet_check_sql(&field_expr, check_name)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
+            WhereOperator::IsMulticast => {
+                let negate = value.as_bool().is_some_and(|v| !v);
+                let check_name = if negate { "IsNotMulticast" } else { "IsMulticast" };
+                self.dialect
+                    .inet_check_sql(&field_expr, check_name)
+                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            },
+            WhereOperator::IsLinkLocal => {
+                let negate = value.as_bool().is_some_and(|v| !v);
+                let check_name = if negate { "IsNotLinkLocal" } else { "IsLinkLocal" };
+                self.dialect
+                    .inet_check_sql(&field_expr, check_name)
+                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            },
             WhereOperator::InSubnet => {
                 let p = self.push_param(params, value.clone());
                 self.dialect
