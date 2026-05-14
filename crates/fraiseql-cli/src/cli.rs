@@ -523,6 +523,27 @@ EXAMPLES:
         port: u16,
     },
 
+    /// Install FraiseQL mutation helper functions
+    ///
+    /// Installs SQL helper functions (fraiseql.mutation_ok, fraiseql.mutation_err, etc.)
+    /// to reduce boilerplate when writing mutation functions under the v2.2.0 protocol.
+    /// The helpers are installed in the `fraiseql` schema, which is owned by FraiseQL's
+    /// database role.
+    #[command(after_help = "\
+EXAMPLES:
+    fraiseql setup --database postgres://localhost/mydb
+    fraiseql setup --dry-run
+    fraiseql setup  # Uses DATABASE_URL or [database].url from fraiseql.toml")]
+    Setup {
+        /// Database connection URL (or use DATABASE_URL env var, or [database].url in fraiseql.toml)
+        #[arg(long, value_name = "DATABASE_URL")]
+        database: Option<String>,
+
+        /// Print SQL without applying changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Inspect schema metadata from a running FraiseQL server
     ///
     /// Fetches field-level security metadata (encryption, scope requirements, deny actions)
