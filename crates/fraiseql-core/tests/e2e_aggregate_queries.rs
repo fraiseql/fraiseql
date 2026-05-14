@@ -985,3 +985,141 @@ fn test_statistical_functions_sqlite_unsupported() {
     assert!(sqlite_sql.sql.contains("NULL /* STDDEV not supported"));
     assert!(sqlite_sql.sql.contains("NULL /* VARIANCE not supported"));
 }
+
+// =============================================================================
+// Cross-Feature Integration Tests
+// =============================================================================
+
+/// Create metadata with `native_measures` and `native_dimension_mapping` for cross-feature tests
+fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMetadata {
+    use fraiseql_core::compiler::fact_table::*;
+
+    FactTableMetadata {
+        table_name:               "tf_metrics".to_string(),
+        measures:                 vec![MeasureColumn {
+            name:     "raw_value".to_string(),
+            sql_type: SqlType::Decimal,
+            nullable: false,
+        }],
+        dimensions:               DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![DimensionPath {
+                name:      "source".to_string(),
+                json_path: "data->>'source'".to_string(),
+                data_type: "text".to_string(),
+            }],
+        },
+        denormalized_filters:     vec![FilterColumn {
+            name:     "device_id".to_string(),
+            sql_type: SqlType::Text,
+            indexed:  true,
+        }],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::from([
+            ("measures.volume".to_string(), "volume".to_string()),
+            ("measures.latency".to_string(), "latency_ms".to_string()),
+        ]),
+        native_dimension_mapping: std::collections::HashMap::from([
+            ("dimensions.category.id".to_string(), "category_id".to_string()),
+            ("dimensions.region.code".to_string(), "region_code".to_string()),
+        ]),
+    }
+}
+
+#[test]
+fn test_native_measures_and_dimension_mapping_combined() {
+    // Exercises both native_measures (Phase 3) and native_dimension_mapping (Phase 4) together
+    let metadata = create_native_metadata();
+    let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+    let query = json!({
+        "table": "tf_metrics",
+        "aggregates": [
+            {"measures.volume_sum": {}},
+            {"measures.latency_avg": {}}
+        ],
+        "groupBy": {"dimensions.category.id": true}
+    });
+
+    let parsed = AggregateQueryParser::parse(
+        &query,
+        &metadata,
+        &std::collections::HashMap::new(),
+    )
+    .unwrap();
+    let plan = fraiseql_core::compiler::aggregation::AggregationPlanner::plan(
+        parsed,
+        metadata,
+    )
+    .unwrap();
+    let result = generator.generate_parameterized(&plan).unwrap();
+
+    // Native measures should produce quoted identifiers, not JSONB extraction
+    assert_sql_contains(&result.sql, &["SUM(\"volume\")", "AVG(\"latency_ms\")"]);
+    // Native dimension mapping should produce quoted GROUP BY column
+    assert_sql_contains(&result.sql, &["GROUP BY", "\"category_id\""]);
+    // Should NOT contain JSONB extraction for the native columns
+    assert!(!result.sql.contains("data->>"), "Native columns should not use JSONB extraction: {}", result.sql);
+}
+
+#[test]
+fn test_native_and_jsonb_dimensions_coexist() {
+    // A query that groups by both a native-mapped dimension and a regular JSONB dimension
+    let metadata = create_native_metadata();
+    let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+    let query = json!({
+        "table": "tf_metrics",
+        "aggregates": [{"measures.volume_sum": {}}],
+        "groupBy": {"dimensions.category.id": true, "source": true}
+    });
+
+    let parsed = AggregateQueryParser::parse(
+        &query,
+        &metadata,
+        &std::collections::HashMap::new(),
+    )
+    .unwrap();
+    let plan = fraiseql_core::compiler::aggregation::AggregationPlanner::plan(
+        parsed,
+        metadata,
+    )
+    .unwrap();
+    let result = generator.generate_parameterized(&plan).unwrap();
+
+    // Native dimension → quoted identifier
+    assert_sql_contains(&result.sql, &["\"category_id\""]);
+    // JSONB dimension → extraction expression
+    assert_sql_contains(&result.sql, &["data->>'source'"]);
+}
+
+#[test]
+fn test_native_measures_with_where_filter() {
+    // Native measures combined with WHERE clause on denormalized filter
+    let metadata = create_native_metadata();
+    let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+
+    let query = json!({
+        "table": "tf_metrics",
+        "where": { "device_id_eq": "sensor-42" },
+        "aggregates": [{"measures.volume_sum": {}}],
+        "groupBy": {"dimensions.region.code": true}
+    });
+
+    let parsed = AggregateQueryParser::parse(
+        &query,
+        &metadata,
+        &std::collections::HashMap::new(),
+    )
+    .unwrap();
+    let plan = fraiseql_core::compiler::aggregation::AggregationPlanner::plan(
+        parsed,
+        metadata,
+    )
+    .unwrap();
+    let result = generator.generate_parameterized(&plan).unwrap();
+
+    assert_sql_contains(&result.sql, &["SUM(\"volume\")", "WHERE", "device_id", "GROUP BY", "\"region_code\""]);
+    assert!(result.params.contains(&json!("sensor-42")));
+}

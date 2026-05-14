@@ -380,7 +380,7 @@ fn test_apply_preset_format_conversion() {
 }
 
 // ============================================================================
-// Phase 2, Cycle 4: Transform Caching & HTTP Route Tests
+// Transform Caching & HTTP Route Tests
 // ============================================================================
 
 #[tokio::test]
