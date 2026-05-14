@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -48,7 +48,7 @@ jobs:
             --file src/security/query_validator.rs \
             --timeout 60 \
             --output mutants-report-core/
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutants-report-core
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -74,7 +74,7 @@ jobs:
             --file src/jwks.rs \
             --timeout 60 \
             --output mutants-report-auth/
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutants-report-auth
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -99,7 +99,7 @@ jobs:
             --file src/where_sql_generator.rs \
             --timeout 60 \
             --output mutants-report-db/
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutants-report-db
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -124,7 +124,7 @@ jobs:
             --file src/http_resolver.rs \
             --timeout 60 \
             --output mutants-report-federation/
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutants-report-federation

@@ -21,7 +21,7 @@ jobs:
     # CodeQL for Rust requires a full workspace build; may exceed time on slow runners
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust

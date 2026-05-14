@@ -24,10 +24,10 @@ jobs:
         java-version: ['21']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up JDK ${{ matrix.java-version }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: temurin
@@ -49,10 +49,10 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/java-sdk/v')
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: temurin

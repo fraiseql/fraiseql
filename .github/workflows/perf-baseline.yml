@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -180,7 +180,7 @@ jobs:
 
       - name: Save baseline artifact
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: perf-baseline-${{ github.ref_name }}
           path: |
@@ -190,7 +190,7 @@ jobs:
 
       - name: Archive load test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: perf-results-${{ github.sha }}
           path: |

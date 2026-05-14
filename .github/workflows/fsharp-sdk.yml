@@ -18,7 +18,7 @@ jobs:
       run:
         working-directory: sdks/official/fraiseql-fsharp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
@@ -29,7 +29,7 @@ jobs:
       - name: Test
         run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" --verbosity normal
       - name: Upload coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-fsharp-sdk
@@ -45,7 +45,7 @@ jobs:
       run:
         working-directory: sdks/official/fraiseql-fsharp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'

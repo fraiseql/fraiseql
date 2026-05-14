@@ -33,7 +33,7 @@ jobs:
     # Push events to main can have BASE=HEAD which causes TruffleHog to error
     if: github.event_name == 'pull_request'
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -74,7 +74,7 @@ jobs:
            # See security-assessment-2025-12-09-distroless.md for details
            # Will re-enable when gcr.io/distroless/python3.13 becomes available
      steps:
-     - uses: actions/checkout@v4
+     - uses: actions/checkout@v6
 
      - name: Build ${{ matrix.dockerfile.label }} container
        run: |
@@ -164,7 +164,7 @@ jobs:
          cat security-report.md
 
      - name: Upload detailed scan results
-       uses: actions/upload-artifact@v6
+       uses: actions/upload-artifact@v7
        if: always()
        with:
          name: trivy-${{ matrix.dockerfile.label }}-detailed
@@ -181,7 +181,7 @@ jobs:
          output: 'sbom-${{ matrix.dockerfile.label }}.json'
 
      - name: Upload SBOM
-       uses: actions/upload-artifact@v6
+       uses: actions/upload-artifact@v7
        if: always()
        with:
          name: sbom-${{ matrix.dockerfile.label }}
@@ -192,7 +192,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -206,7 +206,7 @@ jobs:
         echo "✅ Rust dependency audit complete"
 
     - name: Upload audit results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: dependency-audit-results
@@ -217,7 +217,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Check security policy exists
       run: |

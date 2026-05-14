@@ -20,7 +20,7 @@ jobs:
         working-directory: sdks/official/fraiseql-dart
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Dart
         uses: dart-lang/setup-dart@v1
@@ -49,7 +49,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Dart
         uses: dart-lang/setup-dart@v1

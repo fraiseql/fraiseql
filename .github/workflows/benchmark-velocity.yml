@@ -53,10 +53,10 @@ jobs:
 
     steps:
       - name: Checkout fraiseql
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout velocitybench
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: evoludigit/velocitybench
           path: velocitybench

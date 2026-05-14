@@ -32,7 +32,7 @@ jobs:
     env:
       RUSTC_WRAPPER: ""
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust nightly (for rustfmt)
         uses: dtolnay/rust-toolchain@nightly
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check test imports
         run: bash tools/check-test-imports.sh
@@ -60,7 +60,7 @@ jobs:
     # Full workspace compilation + linting
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -109,7 +109,7 @@ jobs:
     needs: [fmt]
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -135,7 +135,7 @@ jobs:
         os: [ubuntu-latest]
         rust: [stable, "1.92"]  # MSRV
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -228,7 +228,7 @@ jobs:
           - 5433:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -302,7 +302,7 @@ jobs:
           - 3307:3306
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -328,7 +328,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -364,7 +364,7 @@ jobs:
           - 1434:1433
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -396,7 +396,7 @@ jobs:
     env:
       RUSTC_WRAPPER: ""
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -414,7 +414,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -449,7 +449,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -498,7 +498,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -550,7 +550,7 @@ jobs:
           - 5433:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -576,7 +576,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -635,7 +635,7 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -692,7 +692,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -754,7 +754,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -815,7 +815,7 @@ jobs:
           - 5433:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -851,7 +851,7 @@ jobs:
           - 5433:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -937,7 +937,7 @@ jobs:
         ports:
           - 6379:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -1021,7 +1021,7 @@ jobs:
           - 5433:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -1035,7 +1035,7 @@ jobs:
           DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 
       - name: Store benchmark results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: target/criterion
@@ -1047,7 +1047,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -1073,14 +1073,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: "sdks/official/fraiseql-python/uv.lock"
@@ -1096,11 +1096,11 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('sdks/official/fraiseql-typescript/bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.22"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           java-version: "21"
           distribution: temurin
@@ -1139,7 +1139,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust

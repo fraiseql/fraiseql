@@ -25,7 +25,7 @@ jobs:
           - toml_config
           - query_variables
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -43,7 +43,7 @@ jobs:
                -rss_limit_mb=2048
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crash-core-${{ matrix.target }}
           path: crates/fraiseql-core/fuzz/artifacts/${{ matrix.target }}/
@@ -59,7 +59,7 @@ jobs:
           - protocol_decode
           - scram_parse
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
@@ -77,7 +77,7 @@ jobs:
                -rss_limit_mb=2048
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crash-wire-${{ matrix.target }}
           path: crates/fraiseql-wire/fuzz/artifacts/${{ matrix.target }}/

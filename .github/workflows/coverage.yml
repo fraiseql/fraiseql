@@ -39,7 +39,7 @@ jobs:
           - 5433:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -130,7 +130,7 @@ jobs:
 
       - name: Archive coverage data
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ github.sha }}
           path: |

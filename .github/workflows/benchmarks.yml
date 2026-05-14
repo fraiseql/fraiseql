@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -34,7 +34,7 @@ jobs:
 
       - name: Upload baseline artifacts
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: criterion-baseline-dev
           path: target/criterion/

@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Pull latest base images
         run: |
@@ -135,7 +135,7 @@ jobs:
             });
 
       - name: Upload scan results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: base-image-security-scans
           path: /tmp/*-scan.json
@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check CVE-2025-14104 (util-linux)
         id: cve-14104
@@ -282,7 +282,7 @@ jobs:
             });
 
       - name: Upload CVE monitoring report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: cve-monitoring-report
           path: /tmp/cve-monitoring-report.md
@@ -294,7 +294,7 @@ jobs:
     needs: [scan-base-images, monitor-active-cves]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Generate compliance summary
         run: |
@@ -337,7 +337,7 @@ jobs:
           cat compliance-summary.md
 
       - name: Upload compliance summary
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: weekly-compliance-summary
           path: compliance-summary.md
