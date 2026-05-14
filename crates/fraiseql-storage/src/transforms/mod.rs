@@ -8,7 +8,6 @@ pub mod cache;
 #[cfg(feature = "transforms")]
 pub mod transformer;
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;
 

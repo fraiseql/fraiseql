@@ -47,7 +47,7 @@ impl LocalBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "`not_found`" if the key does not exist,
+    /// Returns `FraiseQLError::Storage` with code "not_found" if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         let path = self.key_path(key)?;
@@ -179,10 +179,12 @@ impl LocalBackend {
                 .and_then(|t| {
                     let duration = t.duration_since(std::time::UNIX_EPOCH).ok()?;
                     chrono::DateTime::from_timestamp(
-                        duration.as_secs().cast_signed(),
+                        duration.as_secs() as i64,
                         duration.subsec_nanos(),
                     )
-                }).map_or_else(|| chrono::Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
+                })
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
             // Generate simple etag from size and mtime
             let etag = format!("{:x}", fnv1a_hash(&format!("{}-{}", size, last_modified)));
@@ -204,7 +206,7 @@ impl LocalBackend {
 
         // Apply cursor pagination
         let start_idx = if let Some(c) = cursor {
-            objects.iter().position(|(k, _)| k == c).map_or(0, |i| i + 1)
+            objects.iter().position(|(k, _)| k == c).map(|i| i + 1).unwrap_or(0)
         } else {
             0
         };
@@ -230,12 +232,12 @@ impl LocalBackend {
 
 /// Simple FNV-1a hash function
 fn fnv1a_hash(data: &str) -> u64 {
-    const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-    const FNV_PRIME: u64 = 0x0100_0000_01b3;
+    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
 
     let mut hash = FNV_OFFSET_BASIS;
     for byte in data.bytes() {
-        hash ^= u64::from(byte);
+        hash ^= byte as u64;
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     hash

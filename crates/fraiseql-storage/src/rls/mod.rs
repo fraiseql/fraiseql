@@ -3,7 +3,6 @@
 //! Evaluates access control policies against bucket configuration and
 //! object ownership. Follows the "RLS always wins" principle — deny-by-default.
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;
 
@@ -25,7 +24,7 @@ pub struct StorageRlsEvaluator;
 
 impl StorageRlsEvaluator {
     /// Create a new evaluator.
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self
     }
 
@@ -52,7 +51,7 @@ impl StorageRlsEvaluator {
     /// Check if the user can write (upload) to the bucket.
     ///
     /// Rules:
-    /// - Must be authenticated (`user_id` present)
+    /// - Must be authenticated (user_id present)
     /// - Admin role always allowed
     pub fn can_write(
         &self,

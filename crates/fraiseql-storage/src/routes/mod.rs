@@ -8,7 +8,6 @@
 //! - `POST /storage/v1/presign/{bucket}/{*key}` — presigned URL
 //! - `GET /storage/v1/render/{bucket}/{*key}` — image transform
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;
 
@@ -33,7 +32,7 @@ use crate::rls::StorageRlsEvaluator;
 use fraiseql_error::FraiseQLError;
 
 #[cfg(feature = "aws-s3")]
-use crate::PresignedUrl;
+use crate::{PresignCapable, PresignedUrl};
 
 // ---------------------------------------------------------------------------
 // State
@@ -69,7 +68,7 @@ pub struct PresignRequest {
     pub expires_in_secs: u64,
 }
 
-const fn default_expiry_secs() -> u64 {
+fn default_expiry_secs() -> u64 {
     3600
 }
 
@@ -208,7 +207,7 @@ async fn put_handler(
     // Upload to backend
     let etag = match state.backend.upload(&key, &body, content_type).await {
         Ok(etag) => etag,
-        Err(e) => return storage_error_response(&e),
+        Err(e) => return storage_error_response(e),
     };
 
     // Record metadata
@@ -216,12 +215,12 @@ async fn put_handler(
         bucket: bucket_name,
         key,
         content_type: content_type.to_string(),
-        size_bytes: i64::try_from(body.len()).unwrap_or(i64::MAX),
+        size_bytes: body.len() as i64,
         etag: Some(etag.clone()),
         owner_id: user.user_id,
     };
     if let Err(e) = state.metadata.upsert(&new_obj).await {
-        return storage_error_response(&e);
+        return storage_error_response(e);
     }
 
     let mut headers = HeaderMap::new();
@@ -248,7 +247,7 @@ async fn get_handler(
         Ok(None) => {
             return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found")
         }
-        Err(e) => return storage_error_response(&e),
+        Err(e) => return storage_error_response(e),
     };
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
@@ -276,13 +275,11 @@ async fn get_handler(
             }
             headers.insert(
                 header::CACHE_CONTROL,
-                "public, max-age=3600"
-                    .parse()
-                    .expect("static cache-control header value is valid"),
+                "public, max-age=3600".parse().unwrap(),
             );
             (StatusCode::OK, headers, Body::from(data)).into_response()
         }
-        Err(e) => storage_error_response(&e),
+        Err(e) => storage_error_response(e),
     }
 }
 
@@ -303,7 +300,7 @@ async fn delete_handler(
         Ok(None) => {
             return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found")
         }
-        Err(e) => return storage_error_response(&e),
+        Err(e) => return storage_error_response(e),
     };
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
@@ -319,12 +316,12 @@ async fn delete_handler(
 
     // Delete from backend
     if let Err(e) = state.backend.delete(&key).await {
-        return storage_error_response(&e);
+        return storage_error_response(e);
     }
 
     // Remove metadata
     if let Err(e) = state.metadata.delete(&bucket_name, &key).await {
-        return storage_error_response(&e);
+        return storage_error_response(e);
     }
 
     StatusCode::NO_CONTENT.into_response()
@@ -364,7 +361,7 @@ async fn list_handler(
         .await
     {
         Ok(rows) => rows,
-        Err(e) => return storage_error_response(&e),
+        Err(e) => return storage_error_response(e),
     };
 
     // Apply RLS filtering
@@ -411,12 +408,15 @@ async fn presign_handler(
         let expires_in = Duration::from_secs(request.expires_in_secs);
 
         let result = if operation == "upload" {
-            let Some(content_type) = request.content_type else {
-                return error_response(
-                    StatusCode::BAD_REQUEST,
-                    "missing_content_type",
-                    "content_type required for upload",
-                );
+            let content_type = match request.content_type {
+                Some(ct) => ct,
+                None => {
+                    return error_response(
+                        StatusCode::BAD_REQUEST,
+                        "missing_content_type",
+                        "content_type required for upload",
+                    );
+                }
             };
             state.backend.presign_put(&key, &content_type, expires_in).await
         } else {
@@ -425,7 +425,7 @@ async fn presign_handler(
 
         match result {
             Ok(url) => axum::Json(PresignResponse::from(url)).into_response(),
-            Err(e) => storage_error_response(&e),
+            Err(e) => storage_error_response(e),
         }
     }
 
@@ -480,28 +480,31 @@ fn error_response(status: StatusCode, code: &str, message: &str) -> Response {
 }
 
 /// Convert a `FraiseQLError` to an appropriate HTTP response.
-fn storage_error_response(err: &FraiseQLError) -> Response {
-    if let FraiseQLError::Storage { code, message } = err {
-        let status = match code.as_deref() {
-            Some("not_found") => StatusCode::NOT_FOUND,
-            Some("permission_denied") => StatusCode::FORBIDDEN,
-            _ => {
-                tracing::error!(
-                    error_code = ?code,
-                    error_message = %message,
-                    "Storage backend error"
-                );
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        };
-        error_response(status, code.as_deref().unwrap_or("storage_error"), message)
-    } else {
-        tracing::error!(error = %err, "Unexpected storage error");
-        error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            &err.to_string(),
-        )
+fn storage_error_response(err: FraiseQLError) -> Response {
+    match &err {
+        FraiseQLError::Storage { code, message } => {
+            let status = match code.as_deref() {
+                Some("not_found") => StatusCode::NOT_FOUND,
+                Some("permission_denied") => StatusCode::FORBIDDEN,
+                _ => {
+                    tracing::error!(
+                        error_code = ?code,
+                        error_message = %message,
+                        "Storage backend error"
+                    );
+                    StatusCode::INTERNAL_SERVER_ERROR
+                }
+            };
+            error_response(status, code.as_deref().unwrap_or("storage_error"), message)
+        }
+        _ => {
+            tracing::error!(error = %err, "Unexpected storage error");
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &err.to_string(),
+            )
+        }
     }
 }
 

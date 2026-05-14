@@ -3,7 +3,6 @@
 //! Exposes DDL that `fraiseql-cli migrate up` can execute to create the
 //! `_fraiseql_storage_objects` table and its indexes.
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;
 
@@ -32,7 +31,7 @@ mod tests;
 /// let sql = fraiseql_storage::migrations::storage_migration_sql();
 /// assert!(sql.contains("_fraiseql_storage_objects"));
 /// ```
-pub const fn storage_migration_sql() -> &'static str {
+pub fn storage_migration_sql() -> &'static str {
     "\
 CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (
     pk_storage_object BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

@@ -8,8 +8,6 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use fraiseql_error::Result;
-#[cfg(feature = "aws-s3")]
-use fraiseql_error::FraiseQLError;
 use serde::{Deserialize, Serialize};
 
 pub mod local;
@@ -102,7 +100,6 @@ pub mod gcs;
 #[cfg(feature = "azure-blob")]
 pub mod azure;
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;
 
@@ -181,7 +178,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "`not_found`" if the key does not exist,
+    /// Returns `FraiseQLError::Storage` with code "not_found" if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         match self {

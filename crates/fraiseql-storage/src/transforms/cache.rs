@@ -36,7 +36,7 @@ impl TransformCache {
     /// # Arguments
     ///
     /// * `backend` - Storage backend for persisting cached transforms
-    pub const fn new(backend: Arc<LocalBackend>) -> Self {
+    pub fn new(backend: Arc<LocalBackend>) -> Self {
         Self { backend }
     }
 
@@ -53,13 +53,14 @@ impl TransformCache {
     ///
     /// A predictable cache key string.
     pub fn build_cache_key(key: &str, params: &TransformParams) -> String {
-        let width = params.width.map_or_else(|| "auto".to_string(), |w| w.to_string());
-        let height = params.height.map_or_else(|| "auto".to_string(), |h| h.to_string());
+        let width = params.width.map(|w| w.to_string()).unwrap_or_else(|| "auto".to_string());
+        let height = params.height.map(|h| h.to_string()).unwrap_or_else(|| "auto".to_string());
         let format = params
             .format
             .as_ref()
-            .map_or_else(|| "original".to_string(), |f| format!("{:?}", f).to_lowercase());
-        let quality = params.quality.map_or_else(|| "default".to_string(), |q| q.to_string());
+            .map(|f| format!("{:?}", f).to_lowercase())
+            .unwrap_or_else(|| "original".to_string());
+        let quality = params.quality.map(|q| q.to_string()).unwrap_or_else(|| "default".to_string());
 
         format!(
             "_transforms/{}/{}_{}_{}_{}",

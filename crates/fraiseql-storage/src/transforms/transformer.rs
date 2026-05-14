@@ -9,7 +9,7 @@ use std::io::Cursor;
 /// Output format for transformed images
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OutputFormat {
-    /// `WebP` format (modern, efficient)
+    /// WebP format (modern, efficient)
     Webp,
     /// JPEG format (lossy, widely supported)
     Jpeg,
@@ -23,7 +23,7 @@ pub enum OutputFormat {
 
 impl OutputFormat {
     /// Get the MIME type for this format
-    pub const fn mime_type(&self) -> &'static str {
+    pub fn mime_type(&self) -> &'static str {
         match self {
             OutputFormat::Webp => "image/webp",
             OutputFormat::Jpeg => "image/jpeg",
@@ -34,7 +34,7 @@ impl OutputFormat {
     }
 
     /// Get the image format for encoding
-    const fn as_image_format(self) -> Option<image::ImageFormat> {
+    fn as_image_format(&self) -> Option<image::ImageFormat> {
         match self {
             OutputFormat::Webp => Some(image::ImageFormat::WebP),
             OutputFormat::Jpeg => Some(image::ImageFormat::Jpeg),
@@ -69,7 +69,7 @@ pub struct TransformOutput {
     pub width: u32,
     /// Actual output height in pixels
     pub height: u32,
-    /// `ETag` for cache validation (SHA256 hash of transformed bytes)
+    /// ETag for cache validation (SHA256 hash of transformed bytes)
     #[serde(default)]
     pub etag: Option<String>,
     /// Cache control header value for HTTP response
@@ -242,9 +242,6 @@ impl ImageTransformer {
     }
 
     /// Calculate output dimensions preserving aspect ratio
-    #[allow(clippy::cast_precision_loss)] // Reason: image dimensions are always small enough
-    #[allow(clippy::cast_possible_truncation)] // Reason: image dimensions are always small enough
-    #[allow(clippy::cast_sign_loss)] // Reason: dimension ratios are always positive
     fn calculate_dimensions(
         orig_width: u32,
         orig_height: u32,
@@ -292,7 +289,7 @@ impl ImageTransformer {
     }
 
     /// Infer output format from the decoded image format
-    const fn infer_format_from_image_format(format: Option<image::ImageFormat>) -> Option<OutputFormat> {
+    fn infer_format_from_image_format(format: Option<image::ImageFormat>) -> Option<OutputFormat> {
         match format {
             Some(image::ImageFormat::WebP) => Some(OutputFormat::Webp),
             Some(image::ImageFormat::Jpeg) => Some(OutputFormat::Jpeg),
@@ -310,14 +307,14 @@ impl std::fmt::Display for OutputFormat {
 }
 
 impl ImageTransformer {
-    /// Apply a transform preset to get a `TransformParams`
+    /// Apply a transform preset to get a TransformParams
     ///
     /// Presets are named sets of transform parameters that can be defined in bucket configuration.
-    /// This helper converts a preset into `TransformParams` for use with the transform method.
+    /// This helper converts a preset into TransformParams for use with the transform method.
     ///
     /// # Arguments
     /// - `preset_name` - Name of the preset to look up
-    /// - `presets` - Available presets (typically from `BucketConfig.transform_presets`)
+    /// - `presets` - Available presets (typically from BucketConfig.transform_presets)
     ///
     /// # Returns
     /// - `Some(TransformParams)` if preset is found

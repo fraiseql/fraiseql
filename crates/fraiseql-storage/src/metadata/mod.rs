@@ -3,7 +3,6 @@
 //! Tracks uploaded objects in a PostgreSQL table (`_fraiseql_storage_objects`)
 //! for RLS enforcement, listing, and lifecycle management.
 
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;
 
@@ -60,7 +59,7 @@ pub struct StorageMetadataRepo {
 
 impl StorageMetadataRepo {
     /// Create a new repository wrapping the given connection pool.
-    pub const fn new(pool: PgPool) -> Self {
+    pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
@@ -280,7 +279,7 @@ impl From<&StorageMetadataRow> for ObjectInfo {
     fn from(row: &StorageMetadataRow) -> Self {
         Self {
             key: row.key.clone(),
-            size: row.size_bytes.max(0).cast_unsigned(),
+            size: row.size_bytes.max(0) as u64,
             content_type: row.content_type.clone(),
             etag: row.etag.clone().unwrap_or_default(),
             last_modified: row.updated_at.to_rfc3339(),

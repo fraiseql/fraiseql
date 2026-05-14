@@ -30,12 +30,7 @@ fn bench_local_upload(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("storage_local_upload");
     for (label, size) in sizes {
-        let data: Vec<u8> = (0..(*size)).map(|i| {
-                // Reason: i % 256 is always in 0..=255, truncation cannot occur
-                #[allow(clippy::cast_possible_truncation)]
-                let byte = (i % 256) as u8;
-                byte
-            }).collect();
+        let data: Vec<u8> = (0..(*size)).map(|i| (i % 256) as u8).collect();
         group.bench_with_input(BenchmarkId::from_parameter(label), label, |b, _| {
             b.iter(|| {
                 rt.block_on(backend.upload(&format!("bench/{label}.bin"), &data, "application/octet-stream"))
@@ -59,12 +54,7 @@ fn bench_local_download(c: &mut Criterion) {
 
     // Pre-seed the files
     for (label, size) in sizes {
-        let data: Vec<u8> = (0..(*size)).map(|i| {
-                // Reason: i % 256 is always in 0..=255, truncation cannot occur
-                #[allow(clippy::cast_possible_truncation)]
-                let byte = (i % 256) as u8;
-                byte
-            }).collect();
+        let data: Vec<u8> = (0..(*size)).map(|i| (i % 256) as u8).collect();
         rt.block_on(backend.upload(&format!("bench/{label}.bin"), &data, "application/octet-stream"))
             .unwrap();
     }

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 /// Result of a successful PUT operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PutResult {
-    /// Entity tag (`ETag`) for integrity verification.
+    /// Entity tag (ETag) for integrity verification.
     pub etag: String,
     /// Size of the uploaded object in bytes.
     pub size: u64,
