@@ -127,6 +127,8 @@ pub struct ObserverRuntime {
     matcher:           Arc<RwLock<Option<EventMatcher>>>,
     executor:          Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
     entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
+    /// In-memory DLQ shared across reloads and exposed to HTTP handlers.
+    dlq:               Arc<InMemoryDlq>,
     /// Optional sender to forward CDC events to `EventBridge` for GraphQL subscriptions
     event_bridge_sender: Option<mpsc::Sender<BridgeEntityEvent>>,
 }
@@ -149,6 +151,7 @@ impl ObserverRuntime {
             matcher: Arc::new(RwLock::new(None)),
             executor: Arc::new(RwLock::new(None)),
             entity_type_index: Arc::new(RwLock::new(HashMap::new())),
+            dlq: Arc::new(InMemoryDlq::new()),
             event_bridge_sender: None,
         }
     }
@@ -268,9 +271,8 @@ impl ObserverRuntime {
         // Clone matcher for logging (we need it to find matching observers)
         let matcher_for_logging = matcher.clone();
 
-        // Create executor with in-memory DLQ for now
-        let dlq = Arc::new(InMemoryDlq::new());
-        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), dlq));
+        // Create executor with the shared in-memory DLQ
+        let executor = Arc::new(ObserverExecutor::new(matcher.clone(), self.dlq.clone()));
 
         // Store in shared references for hot reload
         {
@@ -600,6 +602,18 @@ impl ObserverRuntime {
         self.running.load(Ordering::SeqCst)
     }
 
+    /// Get a reference to the in-memory DLQ for use by HTTP handlers.
+    #[must_use]
+    pub(crate) const fn dlq(&self) -> &Arc<InMemoryDlq> {
+        &self.dlq
+    }
+
+    /// Get a reference to the executor `RwLock` for use by DLQ retry handlers.
+    #[must_use]
+    pub(crate) const fn executor_ref(&self) -> &Arc<RwLock<Option<Arc<ObserverExecutor>>>> {
+        &self.executor
+    }
+
     /// Get runtime health status
     #[must_use]
     pub fn health(&self) -> RuntimeHealth {
@@ -628,9 +642,8 @@ impl ObserverRuntime {
         let new_matcher = EventMatcher::build(observers)
             .map_err(|e| ServerError::ConfigError(format!("Failed to build matcher: {}", e)))?;
 
-        // Build new executor
-        let dlq = Arc::new(InMemoryDlq::new());
-        let new_executor = Arc::new(ObserverExecutor::new(new_matcher.clone(), dlq));
+        // Build new executor sharing the existing DLQ
+        let new_executor = Arc::new(ObserverExecutor::new(new_matcher.clone(), self.dlq.clone()));
 
         // Atomic swap - write locks block readers briefly
         debug!("Swapping matcher, executor, and entity_type_index atomically");

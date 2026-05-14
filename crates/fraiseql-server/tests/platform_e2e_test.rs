@@ -1,4 +1,4 @@
-//! Platform E2E Integration Tests
+//! Platform E2E Integration Tests — Phase 8 Cycle 7
 //!
 //! End-to-end tests that verify the complete platform integration:
 //! storage, functions (before/after mutation, cron), and realtime.
@@ -48,40 +48,71 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use fraiseql_functions::{
-    FunctionDefinition, FunctionObserver,
+    FunctionDefinition, FunctionModule, FunctionObserver,
     RuntimeType, TriggerRegistry,
 };
+use fraiseql_server::subsystems::{BeforeMutationHooks, FunctionsSubsystem, ServerSubsystems};
 
-/// Verify that a `TriggerRegistry` can be constructed and queried for before-mutation chains.
+/// Verify that `ServerSubsystems::none()` compiles and all subsystems are absent.
 #[test]
-fn test_platform_e2e_trigger_registry_before_chain() {
+fn test_platform_e2e_server_subsystems_none_is_all_absent() {
+    let subsystems = ServerSubsystems::none();
+    assert!(!subsystems.is_storage_enabled());
+    assert!(!subsystems.is_functions_enabled());
+    assert!(!subsystems.is_realtime_enabled());
+}
+
+/// Verify that `BeforeMutationHooks` can be constructed from a trigger registry.
+#[test]
+fn test_platform_e2e_before_mutation_hooks_construction() {
     let defs = vec![
         FunctionDefinition::new("validate", "before:mutation:createUser", RuntimeType::Deno),
     ];
     let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
+    let observer = Arc::new(FunctionObserver::new());
+    let module_registry: HashMap<String, FunctionModule> = HashMap::new();
+
+    let hooks = BeforeMutationHooks {
+        trigger_registry: registry,
+        module_registry,
+        observer,
+    };
 
     assert!(
-        registry.before_chain("createUser").is_some(),
+        hooks.trigger_registry.before_chain("createUser").is_some(),
         "should find before:mutation chain for createUser"
     );
     assert!(
-        registry.before_chain("deleteUser").is_none(),
+        hooks.trigger_registry.before_chain("deleteUser").is_none(),
         "should return None for unregistered mutation"
     );
 }
 
-/// Verify that a `TriggerRegistry` correctly counts triggers by type.
+/// Verify that `FunctionsSubsystem` can be constructed with all fields.
 #[test]
-fn test_platform_e2e_trigger_registry_counts() {
+fn test_platform_e2e_functions_subsystem_full_construction() {
     let defs = vec![
         FunctionDefinition::new("validate", "before:mutation:createUser", RuntimeType::Deno),
         FunctionDefinition::new("onCreated", "after:mutation:User:insert", RuntimeType::Deno),
         FunctionDefinition::new("dailyJob", "cron:0 2 * * *", RuntimeType::Deno),
     ];
-    let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
+    let trigger_registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
+    let observer = Arc::new(FunctionObserver::new());
+    let module_registry: HashMap<String, FunctionModule> = HashMap::new();
+    let config = fraiseql_server::schema::loader::FunctionsConfig {
+        definitions: defs,
+        module_dir: std::path::PathBuf::from("/tmp/functions"),
+    };
 
-    assert_eq!(registry.before_mutation_count(), 1);
-    assert_eq!(registry.cron_trigger_count(), 1);
+    let subsystem = FunctionsSubsystem {
+        observer,
+        trigger_registry,
+        module_registry,
+        config,
+    };
+
+    assert_eq!(subsystem.trigger_registry.before_mutation_count(), 1);
+    assert_eq!(subsystem.trigger_registry.cron_trigger_count(), 1);
 }
 
 /// Verify that the registry → `CronScheduler` pipeline works end-to-end.
@@ -116,7 +147,7 @@ fn test_platform_e2e_registry_no_cron_returns_none() {
     );
 }
 
-/// Verify that `TriggerRegistry` correctly exposes the before-mutation chain
+/// Verify that `BeforeMutationHooks` correctly exposes the before:mutation chain
 /// for finding triggers associated with specific mutations.
 #[test]
 fn test_platform_e2e_before_mutation_chain_finds_correct_triggers() {
@@ -126,19 +157,26 @@ fn test_platform_e2e_before_mutation_chain_finds_correct_triggers() {
         FunctionDefinition::new("auditDelete", "before:mutation:deleteUser", RuntimeType::Deno),
     ];
     let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
+    let observer = Arc::new(FunctionObserver::new());
+
+    let hooks = BeforeMutationHooks {
+        trigger_registry: registry,
+        module_registry: HashMap::new(),
+        observer,
+    };
 
     // createUser has 2 triggers
-    let chain = registry.before_chain("createUser");
+    let chain = hooks.trigger_registry.before_chain("createUser");
     assert!(chain.is_some());
     assert_eq!(chain.unwrap().triggers.len(), 2);
 
     // deleteUser has 1 trigger
-    let chain = registry.before_chain("deleteUser");
+    let chain = hooks.trigger_registry.before_chain("deleteUser");
     assert!(chain.is_some());
     assert_eq!(chain.unwrap().triggers.len(), 1);
 
     // updateUser has no triggers — fast path, no allocation
-    assert!(registry.before_chain("updateUser").is_none());
+    assert!(hooks.trigger_registry.before_chain("updateUser").is_none());
 }
 
 /// Verify that multiple trigger types coexist in the registry without interference.
@@ -345,7 +383,7 @@ async fn test_e2e_cron_fires_and_persists_state() {
     // Implementation: start scheduler with every-minute trigger, wait for tick,
     // query _fraiseql_cron_state, assert last_fire was updated.
     // Tracked for implementation when the migrations and full cron state persistence
-    // (testcontainers pattern) are available.
+    // (Phase 8 Cycle 6 testcontainers pattern) are available.
     todo!("requires running PostgreSQL with _fraiseql_cron_state table")
 }
 

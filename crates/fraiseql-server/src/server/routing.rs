@@ -1297,7 +1297,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[cfg(feature = "observers")]
     pub(super) fn add_observer_routes(&self, app: Router) -> Router {
         use crate::observers::{
-            ObserverRepository, ObserverState, RuntimeHealthState, observer_routes,
+            ChangelogState, DlqState, ObserverRepository, ObserverState, RuntimeHealthState,
+            observer_changelog_routes, observer_dlq_routes, observer_routes,
             observer_runtime_routes,
         };
 
@@ -1316,23 +1317,33 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Management API (always available with feature)
         let observer_state = ObserverState {
-            repository: ObserverRepository::new(db_pool),
+            repository: ObserverRepository::new(db_pool.clone()),
         };
 
-        let app = app.nest("/api/observers", observer_routes(observer_state));
+        // Changelog + checkpoint API (always available with a pool)
+        let changelog_state = ChangelogState { pool: db_pool };
 
-        // Runtime health API (only if runtime present)
+        let app = app
+            .nest("/api/observers", observer_routes(observer_state))
+            .nest("/api/observers", observer_changelog_routes(changelog_state));
+
+        // Runtime health API and DLQ delivery status (only if runtime present)
         if let Some(ref runtime) = self.observer_runtime {
             info!(
                 path = "/api/observers",
-                "Observer management and runtime health endpoints enabled"
+                "Observer management, runtime health, and DLQ delivery status endpoints enabled"
             );
 
             let runtime_state = RuntimeHealthState {
                 runtime: runtime.clone(),
             };
 
+            let dlq_state = DlqState {
+                runtime: runtime.clone(),
+            };
+
             app.merge(observer_runtime_routes(runtime_state))
+                .nest("/api/observers", observer_dlq_routes(dlq_state))
         } else {
             app
         }
