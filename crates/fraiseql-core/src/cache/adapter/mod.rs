@@ -723,6 +723,18 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.bump_fact_table_versions_impl(tables).await
     }
 
+    async fn query_stats(&self, limit: u32) -> Result<Vec<fraiseql_db::QueryStatEntry>> {
+        self.adapter.query_stats(limit).await
+    }
+
+    async fn query_stats_by_id(&self, id: &str) -> Result<Option<fraiseql_db::QueryStatEntry>> {
+        self.adapter.query_stats_by_id(id).await
+    }
+
+    async fn reset_query_stats(&self) -> Result<()> {
+        self.adapter.reset_query_stats().await
+    }
+
     fn on_schema_reload(&self) {
         // Clear all cached entries — they reference the old schema's content hash
         // and per-view TTL configuration.

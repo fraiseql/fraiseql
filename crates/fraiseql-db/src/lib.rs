@@ -110,7 +110,7 @@ pub use traits::{
     RelayPageResult, SupportsMutations,
 };
 pub use types::{
-    DatabaseType, JsonbValue, PoolMetrics,
+    DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
     sql_hints::{OrderByClause, OrderByFieldType, OrderDirection, SqlProjectionHint},
 };
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};

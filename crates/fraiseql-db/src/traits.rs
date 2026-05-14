@@ -846,6 +846,59 @@ pub trait DatabaseAdapter: Send + Sync {
         })
     }
 
+    /// Retrieve query performance statistics from the database.
+    ///
+    /// Returns the top-N queries ordered by total execution time (descending).
+    /// The exact data source depends on the backend:
+    /// - PostgreSQL: `pg_stat_statements` (requires extension)
+    /// - MySQL: `performance_schema.events_statements_summary_by_digest`
+    /// - SQL Server: `sys.dm_exec_query_stats`
+    /// - SQLite / Wire: empty (no stats available)
+    ///
+    /// # Arguments
+    ///
+    /// * `limit` - Maximum number of entries to return.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the stats query fails.
+    async fn query_stats(&self, _limit: u32) -> Result<Vec<crate::types::QueryStatEntry>> {
+        Ok(vec![])
+    }
+
+    /// Retrieve statistics for a single query by its ID.
+    ///
+    /// The default implementation fetches up to 1000 entries via
+    /// [`query_stats`](Self::query_stats) and filters client-side.
+    /// Backends with efficient single-query lookup (PostgreSQL, SQL Server)
+    /// should override with a `WHERE` clause.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the underlying query fails.
+    async fn query_stats_by_id(
+        &self,
+        id: &str,
+    ) -> Result<Option<crate::types::QueryStatEntry>> {
+        let stats = self.query_stats(1000).await?;
+        Ok(stats.into_iter().find(|e| e.query_id == id))
+    }
+
+    /// Reset query performance statistics.
+    ///
+    /// Only PostgreSQL supports this (via `pg_stat_statements_reset()`).
+    /// All other adapters return `Unsupported`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` for adapters that cannot reset stats.
+    /// Returns `FraiseQLError::Database` if the reset command fails.
+    async fn reset_query_stats(&self) -> Result<()> {
+        Err(FraiseQLError::Unsupported {
+            message: "Query stats reset is not supported by this database adapter".to_string(),
+        })
+    }
+
     /// Notify the adapter that the schema has changed.
     ///
     /// Called during hot-reload after the new schema has been validated.
