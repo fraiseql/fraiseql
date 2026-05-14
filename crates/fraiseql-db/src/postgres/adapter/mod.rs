@@ -1,6 +1,7 @@
 //! PostgreSQL database adapter implementation.
 
 mod database;
+mod query_stats;
 mod relay;
 
 #[cfg(test)]

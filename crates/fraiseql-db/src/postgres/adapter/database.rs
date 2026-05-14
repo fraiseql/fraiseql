@@ -459,6 +459,18 @@ impl DatabaseAdapter for PostgresAdapter {
             Ok(serde_json::Value::Null)
         }
     }
+
+    async fn query_stats(&self, limit: u32) -> Result<Vec<crate::types::QueryStatEntry>> {
+        self.pg_query_stats(limit).await
+    }
+
+    async fn query_stats_by_id(&self, id: &str) -> Result<Option<crate::types::QueryStatEntry>> {
+        self.pg_query_stats_by_id(id).await
+    }
+
+    async fn reset_query_stats(&self) -> Result<()> {
+        self.pg_reset_query_stats().await
+    }
 }
 
 impl SupportsMutations for PostgresAdapter {}
