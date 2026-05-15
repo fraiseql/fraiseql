@@ -721,6 +721,8 @@ mod oidc_auth_tests {
             user_id:      fraiseql_core::types::UserId::new("user123"),
             scopes:       vec!["read".to_string()],
             expires_at:   Utc::now(),
+            email:        None,
+            display_name: None,
             extra_claims: std::collections::HashMap::new(),
         };
 

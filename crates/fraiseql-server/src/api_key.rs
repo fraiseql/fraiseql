@@ -226,6 +226,8 @@ fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext 
         user_id:      fraiseql_core::types::UserId::new(format!("apikey:{key_name}")),
         scopes:       scopes.to_vec(),
         expires_at:   Utc::now() + chrono::Duration::hours(24),
+        email:        None,
+        display_name: None,
         extra_claims: std::collections::HashMap::new(),
     };
     SecurityContext::from_user(&user, format!("apikey-{}", uuid::Uuid::new_v4()))

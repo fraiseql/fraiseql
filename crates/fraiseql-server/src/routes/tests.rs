@@ -25,6 +25,8 @@ mod auth_tests {
             user_id:      fraiseql_core::types::UserId::new(user_id),
             scopes:       vec![],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
             extra_claims: extra,
         })
     }

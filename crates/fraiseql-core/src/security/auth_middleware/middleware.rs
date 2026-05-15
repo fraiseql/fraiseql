@@ -8,7 +8,10 @@ use jsonwebtoken::{Validation, decode};
 use super::{
     config::AuthConfig,
     signing_key::SigningKey,
-    types::{AuthRequest, AuthenticatedUser, JwtClaims, TokenClaims},
+    types::{
+        AuthRequest, AuthenticatedUser, JwtClaims, TokenClaims, extract_claim_string,
+        extract_name_string,
+    },
 };
 use crate::security::errors::{Result, SecurityError};
 
@@ -184,10 +187,15 @@ impl AuthMiddleware {
         let expires_at =
             DateTime::<Utc>::from_timestamp(exp, 0).ok_or(SecurityError::InvalidToken)?;
 
+        let email = claims.extra.get("email").and_then(extract_claim_string);
+        let display_name = claims.extra.get("name").and_then(extract_name_string);
+
         Ok(AuthenticatedUser {
             user_id,
             scopes,
             expires_at,
+            email,
+            display_name,
             extra_claims: claims.extra,
         })
     }
@@ -260,6 +268,8 @@ impl AuthMiddleware {
             user_id,
             scopes,
             expires_at,
+            email: None,
+            display_name: None,
             extra_claims: HashMap::new(),
         })
     }

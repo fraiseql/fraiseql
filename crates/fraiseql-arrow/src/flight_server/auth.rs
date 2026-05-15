@@ -106,6 +106,8 @@ pub fn validate_session_token(
         user_id: fraiseql_core::types::UserId::new(claims.sub),
         scopes: claims.scopes,
         expires_at,
+        email: None,
+        display_name: None,
         extra_claims: std::collections::HashMap::new(),
     })
 }

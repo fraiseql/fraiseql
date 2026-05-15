@@ -23,6 +23,20 @@ pub struct AuthenticatedUser {
     /// When the token expires
     pub expires_at: DateTime<Utc>,
 
+    /// Normalised email address extracted from the JWT `email` claim.
+    ///
+    /// Handles flat strings and nested objects (`{"value": "..."}`,
+    /// `{"email": "..."}`).  `None` when the claim is absent or cannot
+    /// be normalised to a non-empty string.
+    pub email: Option<String>,
+
+    /// Normalised display name extracted from the JWT `name` claim.
+    ///
+    /// Handles flat strings, nested objects with `formatted` key, and
+    /// `given`+`family` concatenation.  `None` when the claim is absent
+    /// or cannot be normalised.
+    pub display_name: Option<String>,
+
     /// Arbitrary extra claims from the JWT, forwarded by the OIDC validator.
     ///
     /// Populated from the `#[serde(flatten)] extra` field on `JwtClaims` when
@@ -175,4 +189,79 @@ pub(super) struct JwtClaims {
     /// claims are available to handlers such as `GET /auth/me`.
     #[serde(flatten)]
     pub(super) extra: HashMap<String, serde_json::Value>,
+}
+
+// ---------------------------------------------------------------------------
+// Nested claim extraction helpers
+// ---------------------------------------------------------------------------
+
+/// Trim a string and return `None` if the result is empty.
+fn trim_or_none(s: &str) -> Option<String> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() { None } else { Some(trimmed.to_owned()) }
+}
+
+/// Extract a flat string from a potentially nested JWT claim value.
+///
+/// Handles: plain strings, objects with `value`/`formatted`/`email` keys
+/// (falls back to first string value), and arrays (first string element).
+/// Returns `None` for null/number/bool/empty values.
+pub(crate) fn extract_claim_string(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(s) => trim_or_none(s),
+        serde_json::Value::Object(map) => {
+            for key in &["value", "formatted", "email"] {
+                if let Some(serde_json::Value::String(s)) = map.get(*key) {
+                    if let Some(v) = trim_or_none(s) {
+                        return Some(v);
+                    }
+                }
+            }
+            map.values().find_map(|v| {
+                if let serde_json::Value::String(s) = v {
+                    trim_or_none(s)
+                } else {
+                    None
+                }
+            })
+        },
+        serde_json::Value::Array(arr) => arr.iter().find_map(|v| {
+            if let serde_json::Value::String(s) = v {
+                trim_or_none(s)
+            } else {
+                None
+            }
+        }),
+        _ => None,
+    }
+}
+
+/// Extract a display name from a potentially nested JWT `name` claim.
+///
+/// Tries [`extract_claim_string`] first for strings/arrays, then handles
+/// objects with `value`/`formatted` keys and `given`+`family` concatenation.
+pub(crate) fn extract_name_string(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(_) | serde_json::Value::Array(_) => {
+            extract_claim_string(value)
+        },
+        serde_json::Value::Object(map) => {
+            for key in &["value", "formatted", "email"] {
+                if let Some(serde_json::Value::String(s)) = map.get(*key) {
+                    if let Some(v) = trim_or_none(s) {
+                        return Some(v);
+                    }
+                }
+            }
+            let given = map.get("given").and_then(|v| v.as_str()).and_then(trim_or_none);
+            let family = map.get("family").and_then(|v| v.as_str()).and_then(trim_or_none);
+            match (given, family) {
+                (Some(g), Some(f)) => Some(format!("{g} {f}")),
+                (Some(g), None) => Some(g),
+                (None, Some(f)) => Some(f),
+                (None, None) => None,
+            }
+        },
+        _ => None,
+    }
 }

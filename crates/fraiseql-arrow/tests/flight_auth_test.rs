@@ -18,6 +18,8 @@ fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new(user_id),
         scopes:       scopes.into_iter().map(|s| s.to_string()).collect(),
         expires_at:   Utc::now() + chrono::Duration::hours(1),
+        email:        None,
+        display_name: None,
         extra_claims: std::collections::HashMap::new(),
     }
 }

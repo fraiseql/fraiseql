@@ -52,6 +52,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mounts read-only REST query router behind `rest` feature flag. Based on
   PR #229 by @magick93.
 
+- **Admin query-stats endpoints** (issue #268) — cross-database query performance
+  observability via `GET /api/v1/admin/query-stats`, `GET .../query-stats/{queryid}`,
+  and `POST .../query-stats/reset`. Backed by `pg_stat_statements` (PostgreSQL),
+  `performance_schema` (MySQL), and `sys.dm_exec_query_stats` (SQL Server). Graceful
+  no-op on SQLite. Prometheus gauges: `fraiseql_db_query_exec_seconds`,
+  `fraiseql_db_query_calls`, `fraiseql_db_query_mean_exec_seconds`,
+  `fraiseql_db_cache_hit_ratio`. Grafana dashboard panel added.
+
+- **Native aggregation column support** — `native_measures` for flat column
+  aggregation without JSONB extraction, and `native_dimension_mapping` for
+  GROUP BY column resolution on views with native SQL columns.
+
+- **Wire protocol network operators** — `isMulticast`, `isLinkLocal`,
+  `isDocumentation`, `isCarrierGrade` network filter operators; `isPrivate`/`isPublic`
+  consolidated into boolean-value pattern.
+
+- **camelCase operator normalization** — WHERE clause operator names now accept
+  camelCase form (e.g. `startsWith`) and normalize to snake_case internally.
+
 ### Security
 
 - **S43**: IPv6 literal parsing in wire connection strings (RFC 3986 bracket notation)
@@ -71,6 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OIDC enrichment compatibility** — works without observers feature enabled.
 
+- **CLI SBOM metadata** — falls back to workspace `Cargo.toml` when crate-level
+  metadata is unavailable.
+
+- **3 broken doctests in `traits.rs` and `PostgresAdapter`** — repaired.
+
 ### Changed
 
 - **Cargo production dependencies** — 12 non-breaking bumps (batch update).
@@ -80,6 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `stages: [push]` → `stages: [pre-push]` for pre-commit v4.
 - **`UsageAggregator.backend`** upgraded to `RwLock<Arc<dyn UsageBackend>>`
   for runtime backend swapping.
+- **`UNSUPPORTED_OPERATION` API error code** now maps to HTTP 501 (Not Implemented)
+  instead of 500.
 
 ### Known Limitations Update
 

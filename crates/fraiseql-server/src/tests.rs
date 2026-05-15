@@ -687,6 +687,8 @@ mod extractors_tests {
             user_id:      fraiseql_core::types::UserId::new("user123"),
             scopes:       vec!["read:user".to_string(), "write:post".to_string()],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
             extra_claims: std::collections::HashMap::new(),
         });
 

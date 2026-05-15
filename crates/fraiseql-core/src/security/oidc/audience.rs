@@ -44,14 +44,14 @@ pub struct JwtClaims {
     /// Permissions (array, common in Auth0)
     pub permissions: Option<Vec<String>>,
 
-    /// Email claim
-    pub email: Option<String>,
+    /// Email claim (may be a flat string or a nested object).
+    pub email: Option<serde_json::Value>,
 
     /// Email verified
     pub email_verified: Option<bool>,
 
-    /// Name claim
-    pub name: Option<String>,
+    /// Name claim (may be a flat string or a nested object).
+    pub name: Option<serde_json::Value>,
 
     /// Arbitrary extra claims not captured by named fields above.
     ///

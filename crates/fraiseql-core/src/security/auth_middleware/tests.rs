@@ -339,6 +339,8 @@ mod middleware_tests {
             user_id:      "user123".into(),
             scopes:       vec!["read".to_string(), "write".to_string()],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
             extra_claims: HashMap::new(),
         };
 
@@ -353,6 +355,8 @@ mod middleware_tests {
             user_id:      "user123".into(),
             scopes:       vec![],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
             extra_claims: HashMap::new(),
         };
 
@@ -365,6 +369,8 @@ mod middleware_tests {
             user_id:      "user123".into(),
             scopes:       vec![],
             expires_at:   Utc::now() - chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
             extra_claims: HashMap::new(),
         };
 
@@ -379,6 +385,8 @@ mod middleware_tests {
             user_id: "user123".into(),
             scopes: vec![],
             expires_at,
+            email: None,
+            display_name: None,
             extra_claims: HashMap::new(),
         };
 
@@ -393,6 +401,8 @@ mod middleware_tests {
             user_id:      "user123".into(),
             scopes:       vec![],
             expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
             extra_claims: HashMap::new(),
         };
 

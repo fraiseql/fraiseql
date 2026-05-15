@@ -697,7 +697,7 @@ mod audience_tests {
         }"#;
 
         let claims: JwtClaims = serde_json::from_str(claims_json).unwrap();
-        assert_eq!(claims.email, Some("user@example.com".to_string()));
+        assert_eq!(claims.email, Some(serde_json::json!("user@example.com")));
         assert!(!claims.extra.contains_key("email"), "named claim must not appear in extra");
         assert!(!claims.extra.contains_key("name"), "named claim must not appear in extra");
     }

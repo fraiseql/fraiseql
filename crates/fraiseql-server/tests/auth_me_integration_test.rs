@@ -49,6 +49,8 @@ fn make_auth_user(
         user_id: fraiseql_core::types::UserId::new(user_id),
         scopes: vec!["read".to_owned()],
         expires_at: Utc::now() + Duration::hours(1),
+        email: None,
+        display_name: None,
         extra_claims,
     })
 }

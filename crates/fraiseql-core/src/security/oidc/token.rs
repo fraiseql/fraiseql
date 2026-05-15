@@ -16,7 +16,10 @@ use jsonwebtoken::{Algorithm, Validation, decode, decode_header};
 use parking_lot::RwLock;
 
 use crate::security::{
-    auth_middleware::AuthenticatedUser,
+    auth_middleware::{
+        AuthenticatedUser,
+        types::{extract_claim_string, extract_name_string},
+    },
     errors::{Result, SecurityError},
     oidc::{
         audience::JwtClaims,
@@ -324,10 +327,26 @@ impl OidcValidator {
             "Token validated successfully"
         );
 
+        // Extract email and display name from dedicated fields or extra claims.
+        // Dedicated fields take priority; fall back to extra for providers that
+        // use non-standard claim names.
+        let email = claims
+            .email
+            .as_ref()
+            .and_then(extract_claim_string)
+            .or_else(|| claims.extra.get("email").and_then(extract_claim_string));
+        let display_name = claims
+            .name
+            .as_ref()
+            .and_then(extract_name_string)
+            .or_else(|| claims.extra.get("name").and_then(extract_name_string));
+
         Ok(AuthenticatedUser {
             user_id,
             scopes,
             expires_at,
+            email,
+            display_name,
             extra_claims: claims.extra,
         })
     }
