@@ -92,7 +92,7 @@ mod tests {
 
     fn test_security_context() -> SecurityContext {
         SecurityContext {
-            user_id: "user123".to_string(),
+            user_id: fraiseql_core::types::UserId("user123".to_string()),
             roles: vec!["user".to_string()],
             scopes: vec!["read".to_string()],
             tenant_id: None,
@@ -145,11 +145,11 @@ mod tests {
     fn test_factory_creates_isolated_contexts() {
         let factory = LiveHostContextFactory::new();
         let security_ctx1 = SecurityContext {
-            user_id: "user1".to_string(),
+            user_id: fraiseql_core::types::UserId("user1".to_string()),
             ..test_security_context()
         };
         let security_ctx2 = SecurityContext {
-            user_id: "user2".to_string(),
+            user_id: fraiseql_core::types::UserId("user2".to_string()),
             ..test_security_context()
         };
 

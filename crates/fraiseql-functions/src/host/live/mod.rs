@@ -150,7 +150,7 @@ impl LiveHostContext {
             .as_nanos();
 
         SecurityContext {
-            user_id: "anonymous".to_string(),
+            user_id: fraiseql_core::types::UserId("anonymous".to_string()),
             roles: vec![],
             tenant_id: None,
             scopes: vec![],
