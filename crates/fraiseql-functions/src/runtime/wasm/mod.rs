@@ -102,8 +102,103 @@ impl WasmRuntime {
     }
 }
 
+impl WasmRuntime {
+    /// Execute a WASM component with a pre-built `Arc<dyn DynHostContext>`.
+    ///
+    /// This is the core invocation path. The generic `FunctionRuntime::invoke` wraps
+    /// the host into a `HostContextSnapshot`, which only supports sync ops. Use this
+    /// method directly when async IO ops (HTTP, query, storage) need to reach the
+    /// real host context.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if component loading, instantiation, or guest execution fails.
+    pub async fn invoke_with_context(
+        &self,
+        module: &FunctionModule,
+        event: EventPayload,
+        host_context: Arc<dyn DynHostContext>,
+        limits: ResourceLimits,
+    ) -> Result<FunctionResult> {
+        let start = std::time::Instant::now();
+        let timeout = limits.max_duration;
+
+        // Load the component from bytecode
+        let component =
+            wasmtime::component::Component::new(&self.engine, &module.bytecode).map_err(|e| {
+                fraiseql_error::FraiseQLError::Validation {
+                    message: format!("Failed to load WASM component: {e}"),
+                    path: None,
+                }
+            })?;
+
+        // Create store with host context
+        let mut store_data = StoreData::new(event, limits);
+        store_data.set_host_context(host_context);
+
+        let mut store = wasmtime::Store::new(&self.engine, store_data);
+
+        // Set up resource limiter (StoreData implements ResourceLimiter directly)
+        store.limiter(|data| data);
+
+        // Create linker and add host imports
+        let mut linker = wasmtime::component::Linker::new(&self.engine);
+        bindings::FraiseqlFunction::add_to_linker::<
+            StoreData,
+            wasmtime::component::HasSelf<StoreData>,
+        >(&mut linker, |data| data)
+        .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+            message: format!("Failed to link host imports: {e}"),
+            path: None,
+        })?;
+
+        // Instantiate the component
+        let instance =
+            bindings::FraiseqlFunction::instantiate_async(&mut store, &component, &linker)
+                .await
+                .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+                    message: format!("Failed to instantiate WASM component: {e}"),
+                    path: None,
+                })?;
+
+        // Serialize event to JSON for the guest
+        let event_json = serde_json::to_string(store.data().event_payload_ref())
+            .unwrap_or_else(|_| "{}".to_string());
+
+        // Call the guest's handle export
+        let call_result = instance.call_handle(&mut store, &event_json);
+
+        let duration = start.elapsed();
+        let collected_logs = store.data().logs.clone();
+        let peak_memory = store.data().memory_peak_bytes;
+
+        // Check timeout after execution
+        let result_value = if duration > timeout {
+            Some(serde_json::json!({ "error": "function execution timed out" }))
+        } else {
+            match call_result {
+                Ok(Ok(result_json)) => serde_json::from_str(&result_json).ok(),
+                Ok(Err(error_msg)) => Some(serde_json::json!({ "error": error_msg })),
+                Err(trap) => {
+                    Some(serde_json::json!({ "error": format!("WASM trap: {trap}") }))
+                }
+            }
+        };
+
+        Ok(FunctionResult {
+            value: result_value,
+            logs: collected_logs,
+            duration,
+            memory_peak_bytes: peak_memory,
+        })
+    }
+}
+
 impl FunctionRuntime for WasmRuntime {
     /// Execute a WASM component module with the given event and host context.
+    ///
+    /// For async IO operations, use `invoke_with_context()` directly with an
+    /// `Arc<dyn DynHostContext>` that delegates to the real backends.
     ///
     /// # Errors
     ///
@@ -119,101 +214,13 @@ impl FunctionRuntime for WasmRuntime {
     where
         H: HostContext + ?Sized,
     {
-        let module_bytecode = module.bytecode.clone();
-        let engine = self.engine.clone();
-        let timeout = limits.max_duration;
-
-        // Wrap host as Arc<dyn DynHostContext> for storage in StoreData
-        // SAFETY: we need 'static to store in Arc, but host outlives the future.
-        // We use a wrapper that copies the needed data.
+        // Snapshot captures sync state (auth_context, env_var, event_payload).
+        // Async IO ops will return Unsupported — use invoke_with_context for full IO.
         let host_context: Arc<dyn DynHostContext> = Arc::from(HostContextSnapshot::capture(host));
+        let runtime = self.clone();
+        let module = module.clone();
 
-        async move {
-            let start = std::time::Instant::now();
-
-            // Load the component from bytecode
-            let component =
-                wasmtime::component::Component::new(&engine, &module_bytecode).map_err(|e| {
-                    fraiseql_error::FraiseQLError::Validation {
-                        message: format!("Failed to load WASM component: {e}"),
-                        path: None,
-                    }
-                })?;
-
-            // Create store with host context
-            let mut store_data = StoreData::new(event, limits);
-            store_data.set_host_context(host_context);
-
-            let mut store = wasmtime::Store::new(&engine, store_data);
-
-            // Set up resource limiter (StoreData implements ResourceLimiter directly)
-            store.limiter(|data| data);
-
-            // Create linker and add host imports
-            let mut linker = wasmtime::component::Linker::new(&engine);
-            bindings::FraiseqlFunction::add_to_linker::<
-                StoreData,
-                wasmtime::component::HasSelf<StoreData>,
-            >(&mut linker, |data| data)
-            .map_err(
-                |e| fraiseql_error::FraiseQLError::Validation {
-                    message: format!("Failed to link host imports: {e}"),
-                    path: None,
-                },
-            )?;
-
-            // Instantiate the component
-            let instance = bindings::FraiseqlFunction::instantiate_async(
-                &mut store,
-                &component,
-                &linker,
-            )
-            .await
-            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
-                message: format!("Failed to instantiate WASM component: {e}"),
-                path: None,
-            })?;
-
-            // Serialize event to JSON for the guest
-            let event_json = serde_json::to_string(store.data().event_payload_ref())
-                .unwrap_or_else(|_| "{}".to_string());
-
-            // Call the guest's handle export
-            // Note: call_handle is sync in wasmtime v44 component model.
-            // Timeout is enforced via fuel or epoch interruption (future improvement).
-            let call_result = instance.call_handle(&mut store, &event_json);
-
-            let duration = start.elapsed();
-            let collected_logs = store.data().logs.clone();
-            let peak_memory = store.data().memory_peak_bytes;
-
-            // Check timeout after execution
-            let result_value = if duration > timeout {
-                Some(serde_json::json!({ "error": "function execution timed out" }))
-            } else {
-                match call_result {
-                    Ok(Ok(result_json)) => {
-                        // Guest returned Ok(json_string)
-                        serde_json::from_str(&result_json).ok()
-                    }
-                    Ok(Err(error_msg)) => {
-                        // Guest returned Err(error_string)
-                        Some(serde_json::json!({ "error": error_msg }))
-                    }
-                    Err(trap) => {
-                        // Wasmtime trap (resource limit, etc.)
-                        Some(serde_json::json!({ "error": format!("WASM trap: {trap}") }))
-                    }
-                }
-            };
-
-            Ok(FunctionResult {
-                value: result_value,
-                logs: collected_logs,
-                duration,
-                memory_peak_bytes: peak_memory,
-            })
-        }
+        async move { runtime.invoke_with_context(&module, event, host_context, limits).await }
     }
 
     fn supported_extensions(&self) -> &[&str] {
