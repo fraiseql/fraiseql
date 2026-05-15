@@ -117,6 +117,7 @@ pub(super) fn extract_csharp_record_fields(body: &str) -> Vec<IntermediateField>
             directives: None,
             requires_scope: None,
             on_deny: None,
+            hierarchy: None,
         });
     }
     fields

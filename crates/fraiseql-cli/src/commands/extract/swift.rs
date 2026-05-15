@@ -53,6 +53,7 @@ impl SchemaExtractor for SwiftExtractor {
                         directives: None,
                         requires_scope: None,
                         on_deny: None,
+                        hierarchy: None,
                     });
                 }
             }

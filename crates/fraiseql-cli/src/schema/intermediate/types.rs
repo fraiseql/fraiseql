@@ -85,6 +85,11 @@ pub struct IntermediateField {
     /// Policy when the user lacks `requires_scope`: `"reject"` (default) or `"mask"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_deny: Option<String>,
+
+    /// Named hierarchy reference for ID-based ltree operators.
+    /// References a key in the `hierarchies` config map.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hierarchy: Option<String>,
 }
 
 // =============================================================================

@@ -56,6 +56,7 @@ fn base_schema_with_query(
         query_defaults,
         naming_convention: NamingConvention::default(),
         session_variables: None,
+        hierarchies_config: None,
     }
 }
 

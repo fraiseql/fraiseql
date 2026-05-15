@@ -147,6 +147,7 @@ fn sample_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    hierarchy:        None,
                 },
                 IntermediateField {
                     name:           "id".to_string(),
@@ -156,6 +157,7 @@ fn sample_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    hierarchy:        None,
                 },
                 IntermediateField {
                     name:           "name".to_string(),
@@ -165,6 +167,7 @@ fn sample_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    hierarchy:        None,
                 },
                 IntermediateField {
                     name:           "bio".to_string(),
@@ -174,6 +177,7 @@ fn sample_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    hierarchy:        None,
                 },
             ],
             description:   None,

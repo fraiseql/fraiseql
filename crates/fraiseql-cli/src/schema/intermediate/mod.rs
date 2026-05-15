@@ -183,6 +183,13 @@ pub struct IntermediateSchema {
     /// Embedded verbatim from the `session_variables` key in `schema.json`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_variables: Option<SessionVariablesConfig>,
+
+    /// Hierarchy definitions for ID-based ltree operators.
+    ///
+    /// Compiled from the `[hierarchies]` TOML section. Maps hierarchy names
+    /// to table/path_column pairs for subquery generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hierarchies_config: Option<serde_json::Value>,
 }
 
 fn default_version() -> String {

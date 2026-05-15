@@ -104,6 +104,7 @@ pub(super) fn extract_go_struct_fields(lines: &[&str], start: usize) -> Vec<Inte
                 directives: None,
                 requires_scope: None,
                 on_deny: None,
+                hierarchy: None,
             });
         }
     }

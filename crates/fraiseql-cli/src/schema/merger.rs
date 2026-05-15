@@ -451,12 +451,18 @@ impl SchemaMerger {
                     "name": type_name,
                     "sql_source": toml_type.sql_source,
                     "description": toml_type.description,
-                    "fields": toml_type.fields.iter().map(|(fname, fdef)| json!({
-                        "name": fname,
-                        "type": fdef.field_type,
-                        "nullable": fdef.nullable,
-                        "description": fdef.description,
-                    })).collect::<Vec<_>>(),
+                    "fields": toml_type.fields.iter().map(|(fname, fdef)| {
+                        let mut field = json!({
+                            "name": fname,
+                            "type": fdef.field_type,
+                            "nullable": fdef.nullable,
+                            "description": fdef.description,
+                        });
+                        if let Some(ref h) = fdef.hierarchy {
+                            field["hierarchy"] = json!(h);
+                        }
+                        field
+                    }).collect::<Vec<_>>(),
                 }));
             }
         }
@@ -661,6 +667,12 @@ impl SchemaMerger {
         // Embed naming convention
         merged["naming_convention"] = serde_json::to_value(toml_schema.naming_convention)
             .context("Failed to serialize naming_convention")?;
+
+        // Embed hierarchy definitions for ID-based ltree operators
+        if let Some(ref hierarchies) = toml_schema.hierarchies {
+            merged["hierarchies_config"] = serde_json::to_value(hierarchies)
+                .context("Failed to serialize hierarchies config")?;
+        }
 
         // Convert to IntermediateSchema
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)

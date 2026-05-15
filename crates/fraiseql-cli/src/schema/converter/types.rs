@@ -188,7 +188,7 @@ impl SchemaConverter {
                 }
             }),
             encryption: None,
-            hierarchy: None,
+            hierarchy: intermediate.hierarchy,
         })
     }
 

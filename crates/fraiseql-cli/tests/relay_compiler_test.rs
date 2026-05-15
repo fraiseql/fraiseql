@@ -34,6 +34,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    hierarchy:        None,
                 },
                 IntermediateField {
                     name:           "name".to_string(),
@@ -43,6 +44,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
+                    hierarchy:        None,
                 },
             ],
             description:   None,
@@ -92,6 +94,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        hierarchies_config:    None,
     }
 }
 

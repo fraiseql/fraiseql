@@ -170,6 +170,14 @@ pub struct CompiledSchema {
     #[serde(default)]
     pub session_variables: SessionVariablesConfig,
 
+    /// Hierarchy definitions for ID-based ltree operators.
+    ///
+    /// Maps hierarchy names to `table`/`path_column` pairs. Compiled from the
+    /// `[hierarchies]` TOML section. Used at runtime to resolve `HierarchyContext`
+    /// for `descendantOfId` / `ancestorOfId` WHERE clause generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hierarchies_config: Option<serde_json::Value>,
+
     /// Naming convention for GraphQL operation names.
     ///
     /// When set to `CamelCase`, operation names are converted from `snake_case`
