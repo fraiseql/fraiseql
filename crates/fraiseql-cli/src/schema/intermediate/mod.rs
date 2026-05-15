@@ -189,7 +189,7 @@ pub struct IntermediateSchema {
     /// Compiled from the `[hierarchies]` TOML section. Maps hierarchy names
     /// to table/path_column pairs for subquery generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hierarchies_config: Option<serde_json::Value>,
+    pub hierarchies_config: Option<fraiseql_core::schema::HierarchiesConfig>,
 }
 
 fn default_version() -> String {

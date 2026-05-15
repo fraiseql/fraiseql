@@ -33,6 +33,7 @@ use crate::{
             EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
             UnionDefinition,
         },
+        hierarchy::HierarchiesConfig,
         observer_types::ObserverDefinition,
         security_config::{RoleDefinition, SecurityConfig},
         subscription_types::SubscriptionDefinition,
@@ -176,7 +177,7 @@ pub struct CompiledSchema {
     /// `[hierarchies]` TOML section. Used at runtime to resolve `HierarchyContext`
     /// for `descendantOfId` / `ancestorOfId` WHERE clause generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hierarchies_config: Option<serde_json::Value>,
+    pub hierarchies_config: Option<HierarchiesConfig>,
 
     /// Naming convention for GraphQL operation names.
     ///

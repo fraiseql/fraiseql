@@ -49,6 +49,7 @@ pub mod domain_types;
 mod field_type;
 mod graphql_type_defs;
 pub mod graphql_value;
+mod hierarchy;
 mod introspection;
 pub mod introspection_types;
 mod observer_types;
@@ -70,6 +71,7 @@ pub use config_types::{
     SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
+pub use hierarchy::{HierarchiesConfig, HierarchyDefinition};
 pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig,
     FieldType, VectorConfig, VectorIndexType,
