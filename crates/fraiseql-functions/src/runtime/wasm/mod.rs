@@ -920,6 +920,64 @@ mod tests {
         }
     }
 
+    // ========== Phase 4 Cycle 4: Performance Baseline ==========
+
+    #[tokio::test]
+    async fn test_wasm_performance_baseline() {
+        use crate::host::NoopHostContext;
+
+        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
+            .expect("create wasm runtime");
+
+        let bytecode = bytes::Bytes::from(load_wasm_fixture("guest-identity.wasm"));
+        let module = FunctionModule::from_bytecode("perf_test".to_string(), bytecode);
+        let limits = crate::types::ResourceLimits::default();
+
+        // Cold start: first invocation (includes component compilation)
+        let event = EventPayload {
+            trigger_type: "test".to_string(),
+            entity: "Perf".to_string(),
+            event_kind: "created".to_string(),
+            data: serde_json::json!({"id": 1}),
+            timestamp: chrono::Utc::now(),
+        };
+        let host = NoopHostContext::new(event.clone());
+
+        let cold_start = std::time::Instant::now();
+        let result = runtime.invoke(&module, event.clone(), &host, limits.clone()).await;
+        let cold_duration = cold_start.elapsed();
+        assert!(result.is_ok(), "cold start should succeed");
+
+        // Warm starts: subsequent invocations (engine caches compilation)
+        let mut warm_durations = Vec::new();
+        for _ in 0..10 {
+            let host = NoopHostContext::new(event.clone());
+            let warm_start = std::time::Instant::now();
+            let result = runtime.invoke(&module, event.clone(), &host, limits.clone()).await;
+            warm_durations.push(warm_start.elapsed());
+            assert!(result.is_ok(), "warm start should succeed");
+        }
+
+        let avg_warm = warm_durations.iter().sum::<std::time::Duration>() / 10;
+
+        // Log performance numbers for baseline tracking
+        eprintln!("=== WASM Performance Baseline ===");
+        eprintln!("  Cold start:     {:?}", cold_duration);
+        eprintln!("  Avg warm start: {:?} (10 iterations)", avg_warm);
+
+        // Relaxed assertions — these are guardrails, not benchmarks.
+        // Cold start includes WASM compilation, should be under 500ms on CI.
+        assert!(
+            cold_duration.as_millis() < 500,
+            "cold start too slow: {cold_duration:?}"
+        );
+        // Warm start should be significantly faster.
+        assert!(
+            avg_warm.as_millis() < 100,
+            "warm start too slow: {avg_warm:?}"
+        );
+    }
+
     #[cfg(feature = "runtime-wasm")]
     #[tokio::test]
     async fn test_after_mutation_trigger_fires_without_blocking() {
