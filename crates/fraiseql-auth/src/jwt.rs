@@ -705,4 +705,52 @@ mod tests {
         assert_eq!(claims.email(), Some("user@corp.com".to_owned()));
         assert_eq!(claims.name(), Some("Flat Name".to_owned()));
     }
+
+    // -----------------------------------------------------------------------
+    // Format-specific integration fixtures (#246)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn format_nested_value_key() {
+        let claims = make_claims(serde_json::json!({
+            "email": {"value": "user@corp.com", "verified": true}
+        }));
+        assert_eq!(claims.email(), Some("user@corp.com".to_owned()));
+    }
+
+    #[test]
+    fn format_nested_name_object() {
+        let claims = make_claims(serde_json::json!({
+            "name": {"given": "John", "family": "Doe"}
+        }));
+        assert_eq!(claims.name(), Some("John Doe".to_owned()));
+    }
+
+    #[test]
+    fn format_flat_strings() {
+        let claims = make_claims(serde_json::json!({
+            "email": "user@example.com",
+            "name": "John Doe"
+        }));
+        assert_eq!(claims.email(), Some("user@example.com".to_owned()));
+        assert_eq!(claims.name(), Some("John Doe".to_owned()));
+    }
+
+    #[test]
+    fn format_array_form() {
+        let claims = make_claims(serde_json::json!({
+            "email": ["primary@x.com", "secondary@x.com"]
+        }));
+        assert_eq!(claims.email(), Some("primary@x.com".to_owned()));
+    }
+
+    #[test]
+    fn format_mixed_nesting() {
+        let claims = make_claims(serde_json::json!({
+            "email": {"value": "user@corp.com"},
+            "name": "Flat Name"
+        }));
+        assert_eq!(claims.email(), Some("user@corp.com".to_owned()));
+        assert_eq!(claims.name(), Some("Flat Name".to_owned()));
+    }
 }
