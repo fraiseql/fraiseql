@@ -5,9 +5,15 @@ All notable changes to FraiseQL are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] - 2026-05-14
+## [2.3.0] - 2026-05-15
 
 ### Added
+
+- **JWT nested claims extraction** (#246) — `Claims::email()` and `Claims::name()` accessor
+  methods that normalize nested JWT claim formats (Azure AD `{"value": "..."}`, OIDC
+  `{"given": "...", "family": "..."}`, arrays) into flat strings. `GET /auth/me` now
+  returns top-level `email` and `display_name` fields, and RLS session variables support
+  `jwt:email` and `jwt:name`/`jwt:display_name` mappings.
 
 - **Partial-period aggregates** — UNION ALL dispatch for aggregate queries spanning period
   boundaries, with `TemporalGrain` and `PartialPeriodConfig` schema model additions and
