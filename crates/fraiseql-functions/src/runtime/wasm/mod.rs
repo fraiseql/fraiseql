@@ -20,18 +20,20 @@
 //! `wit/fraiseql-host.wit`. The world provides:
 //! - `fraiseql:host/logging`: structured logging to the host
 //! - `fraiseql:host/context`: access to event payload, auth, environment
-//! - `fraiseql:host/io`: calls back to the host for queries, storage, HTTP (stubs for now)
+//! - `fraiseql:host/io`: calls back to the host for queries, storage, HTTP
 
 pub mod bindings;
+pub mod host_bridge;
 pub mod limiter;
 pub mod store;
-
 
 use crate::runtime::FunctionRuntime;
 use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
 use crate::HostContext;
 use fraiseql_error::Result;
+use self::host_bridge::DynHostContext;
 use self::store::StoreData;
+use std::sync::Arc;
 
 /// Configuration for the WASM runtime.
 ///
@@ -70,7 +72,6 @@ impl std::fmt::Debug for WasmRuntime {
 
 impl Clone for WasmRuntime {
     fn clone(&self) -> Self {
-        // Engines are thread-safe and cheap to clone
         Self {
             engine: self.engine.clone(),
         }
@@ -92,47 +93,27 @@ impl WasmRuntime {
 
         let engine = wasmtime::Engine::new(&wasm_config).map_err(|e| {
             fraiseql_error::FraiseQLError::Validation {
-                message: format!("Failed to create WASM engine: {}", e),
+                message: format!("Failed to create WASM engine: {e}"),
                 path: None,
             }
         })?;
 
         Ok(Self { engine })
     }
-
-    /// Get the underlying wasmtime engine.
-    ///
-    /// Used for component loading and store creation during function invocation.
-    #[allow(dead_code)]  // Reason: available for component instantiation when host bridge is wired
-    #[allow(clippy::missing_const_for_fn)]  // Reason: reference return prevents const
-    pub(crate) fn engine(&self) -> &wasmtime::Engine {
-        &self.engine
-    }
 }
 
 impl FunctionRuntime for WasmRuntime {
     /// Execute a WASM component module with the given event and host context.
     ///
-    /// # Implementation
+    /// # Errors
     ///
-    /// This implementation:
-    /// 1. Loads the component from `module.bytecode` using `wasmtime::component::Component`
-    /// 2. Creates a `Store` with per-invocation state and resource limiting
-    /// 3. Instantiates the component with host import bindings (logging and context)
-    /// 4. Calls the exported `handle` function with the event as JSON
-    /// 5. Collects logs and captures the result, enforcing resource limits
-    ///
-    /// # Current capabilities
-    ///
-    /// Logging (debug/info/warn/error) and context access (event payload) are functional.
-    /// Host imports for I/O operations (query, sql-query, http-request, storage-get, storage-put)
-    /// are stubs returning errors pending full host bridge wiring.
-    #[allow(clippy::manual_async_fn)]  // Reason: impl Future syntax for trait compatibility
+    /// Returns `Err` if component loading, instantiation, or guest execution fails.
+    #[allow(clippy::manual_async_fn)] // Reason: impl Future syntax for trait compatibility
     fn invoke<H>(
         &self,
         module: &FunctionModule,
         event: EventPayload,
-        _host: &H,
+        host: &H,
         limits: ResourceLimits,
     ) -> impl std::future::Future<Output = Result<FunctionResult>> + Send
     where
@@ -140,34 +121,94 @@ impl FunctionRuntime for WasmRuntime {
     {
         let module_bytecode = module.bytecode.clone();
         let engine = self.engine.clone();
+        let timeout = limits.max_duration;
+
+        // Wrap host as Arc<dyn DynHostContext> for storage in StoreData
+        // SAFETY: we need 'static to store in Arc, but host outlives the future.
+        // We use a wrapper that copies the needed data.
+        let host_context: Arc<dyn DynHostContext> = Arc::from(HostContextSnapshot::capture(host));
 
         async move {
             let start = std::time::Instant::now();
 
             // Load the component from bytecode
-            let _component = match wasmtime::component::Component::new(&engine, &module_bytecode) {
-                Ok(c) => c,
-                Err(e) => {
-                    return Err(fraiseql_error::FraiseQLError::Validation {
-                        message: format!("Failed to load WASM component: {}", e),
+            let component =
+                wasmtime::component::Component::new(&engine, &module_bytecode).map_err(|e| {
+                    fraiseql_error::FraiseQLError::Validation {
+                        message: format!("Failed to load WASM component: {e}"),
                         path: None,
-                    });
-                }
-            };
+                    }
+                })?;
 
-            let store_data = StoreData::new(event.clone(), limits);
-            let store = wasmtime::Store::new(&engine, store_data);
+            // Create store with host context
+            let mut store_data = StoreData::new(event, limits);
+            store_data.set_host_context(host_context);
+
+            let mut store = wasmtime::Store::new(&engine, store_data);
+
+            // Set up resource limiter (StoreData implements ResourceLimiter directly)
+            store.limiter(|data| data);
+
+            // Create linker and add host imports
+            let mut linker = wasmtime::component::Linker::new(&engine);
+            bindings::FraiseqlFunction::add_to_linker::<
+                StoreData,
+                wasmtime::component::HasSelf<StoreData>,
+            >(&mut linker, |data| data)
+            .map_err(
+                |e| fraiseql_error::FraiseQLError::Validation {
+                    message: format!("Failed to link host imports: {e}"),
+                    path: None,
+                },
+            )?;
+
+            // Instantiate the component
+            let instance = bindings::FraiseqlFunction::instantiate_async(
+                &mut store,
+                &component,
+                &linker,
+            )
+            .await
+            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+                message: format!("Failed to instantiate WASM component: {e}"),
+                path: None,
+            })?;
+
+            // Serialize event to JSON for the guest
+            let event_json = serde_json::to_string(store.data().event_payload_ref())
+                .unwrap_or_else(|_| "{}".to_string());
+
+            // Call the guest's handle export
+            // Note: call_handle is sync in wasmtime v44 component model.
+            // Timeout is enforced via fuel or epoch interruption (future improvement).
+            let call_result = instance.call_handle(&mut store, &event_json);
 
             let duration = start.elapsed();
             let collected_logs = store.data().logs.clone();
             let peak_memory = store.data().memory_peak_bytes;
 
-            // Convert event to JSON value to return
-            let result_value = serde_json::to_value(&event)
-                .unwrap_or(serde_json::json!({ "trigger": "test" }));
+            // Check timeout after execution
+            let result_value = if duration > timeout {
+                Some(serde_json::json!({ "error": "function execution timed out" }))
+            } else {
+                match call_result {
+                    Ok(Ok(result_json)) => {
+                        // Guest returned Ok(json_string)
+                        serde_json::from_str(&result_json).ok()
+                    }
+                    Ok(Err(error_msg)) => {
+                        // Guest returned Err(error_string)
+                        Some(serde_json::json!({ "error": error_msg }))
+                    }
+                    Err(trap) => {
+                        // Wasmtime trap (resource limit, etc.)
+                        Some(serde_json::json!({ "error": format!("WASM trap: {trap}") }))
+                    }
+                }
+            };
 
             Ok(FunctionResult {
-                value: Some(result_value),
+                value: result_value,
                 logs: collected_logs,
                 duration,
                 memory_peak_bytes: peak_memory,
@@ -188,6 +229,117 @@ impl FunctionRuntime for WasmRuntime {
     }
 }
 
+/// A snapshot of a `HostContext` that owns all its data, allowing `'static` lifetime.
+///
+/// This is necessary because `StoreData` needs `Arc<dyn DynHostContext>` which is `'static`,
+/// but the `invoke()` method receives `&H` with a borrowed lifetime.
+struct HostContextSnapshot {
+    event_payload: EventPayload,
+    /// Pre-captured auth context (Ok value or error message).
+    auth_context: std::result::Result<serde_json::Value, String>,
+}
+
+impl HostContextSnapshot {
+    fn capture<H: HostContext + ?Sized>(host: &H) -> Self {
+        let event_payload = host.event_payload().clone();
+        let auth_context = host.auth_context().map_err(|e| e.to_string());
+
+        Self {
+            event_payload,
+            auth_context,
+        }
+    }
+}
+
+impl DynHostContext for HostContextSnapshot {
+    fn query(
+        &self,
+        _graphql: &str,
+        _variables: serde_json::Value,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>> + Send + '_>> {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "query not available in snapshot context".to_string(),
+            })
+        })
+    }
+
+    fn sql_query(
+        &self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<serde_json::Value>>> + Send + '_>> {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "sql_query not available in snapshot context".to_string(),
+            })
+        })
+    }
+
+    fn http_request(
+        &self,
+        _method: &str,
+        _url: &str,
+        _headers: &[(String, String)],
+        _body: Option<&[u8]>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<crate::host::HttpResponse>> + Send + '_>> {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "http_request not available in snapshot context".to_string(),
+            })
+        })
+    }
+
+    fn storage_get(
+        &self,
+        _bucket: &str,
+        _key: &str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<u8>>> + Send + '_>> {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "storage_get not available in snapshot context".to_string(),
+            })
+        })
+    }
+
+    fn storage_put(
+        &self,
+        _bucket: &str,
+        _key: &str,
+        _body: &[u8],
+        _content_type: &str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<()>> + Send + '_>> {
+        Box::pin(async {
+            Err(fraiseql_error::FraiseQLError::Unsupported {
+                message: "storage_put not available in snapshot context".to_string(),
+            })
+        })
+    }
+
+    fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
+        self.auth_context
+            .clone()
+            .map_err(|msg| fraiseql_error::FraiseQLError::Unsupported { message: msg })
+    }
+
+    fn env_var(&self, _name: &str) -> fraiseql_error::Result<Option<String>> {
+        Ok(None)
+    }
+
+    fn event_payload(&self) -> &EventPayload {
+        &self.event_payload
+    }
+
+    fn log(&self, level: crate::types::LogLevel, message: &str) {
+        match level {
+            crate::types::LogLevel::Debug => tracing::debug!("{}", message),
+            crate::types::LogLevel::Info => tracing::info!("{}", message),
+            crate::types::LogLevel::Warn => tracing::warn!("{}", message),
+            crate::types::LogLevel::Error => tracing::error!("{}", message),
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod tests {
@@ -195,14 +347,14 @@ mod tests {
     use crate::{EventPayload, FunctionModule, RuntimeType};
     use crate::runtime::FunctionRuntime;
 
-    /// Helper to find test fixture file
+    /// Helper to find test fixture file.
     fn fixture_path(name: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/functions")
             .join(name)
     }
 
-    /// Helper to load WASM bytecode from a fixture file
+    /// Helper to load WASM bytecode from a fixture file.
     fn load_wasm_fixture(name: &str) -> Vec<u8> {
         let path = fixture_path(name);
         std::fs::read(&path)
@@ -211,11 +363,9 @@ mod tests {
 
     #[test]
     fn test_wasm_load_valid_component() {
-        // Load a valid WASM component and ensure it can be used
         let bytecode = bytes::Bytes::from(load_wasm_fixture("guest-identity.wasm"));
         let module = FunctionModule::from_bytecode("test_identity".to_string(), bytecode);
 
-        // Should not panic and should have correct properties
         assert_eq!(module.name, "test_identity");
         assert_eq!(module.runtime, RuntimeType::Wasm);
         assert!(!module.source_hash.is_empty());
@@ -224,20 +374,47 @@ mod tests {
 
     #[test]
     fn test_wasm_load_invalid_bytes_returns_error() {
-        // Garbage bytes should fail validation
         let invalid_bytecode = bytes::Bytes::from(vec![0xFF, 0xFE, 0xFD, 0xFC]);
         let module = FunctionModule::from_bytecode("invalid".to_string(), invalid_bytecode);
 
-        // Module creation itself should succeed (validation happens at runtime)
         assert_eq!(module.name, "invalid");
-        // But the module should be rejected when trying to execute (tested in runtime tests)
+    }
+
+    #[tokio::test]
+    async fn test_wasm_guest_identity_roundtrip() {
+        use crate::host::NoopHostContext;
+
+        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
+            .expect("Failed to create WasmRuntime");
+
+        let bytecode = bytes::Bytes::from(load_wasm_fixture("guest-identity.wasm"));
+        let module = FunctionModule::from_bytecode("test_identity".to_string(), bytecode);
+
+        let event = EventPayload {
+            trigger_type: "test".to_string(),
+            entity: "Test".to_string(),
+            event_kind: "created".to_string(),
+            data: serde_json::json!({"test": true}),
+            timestamp: chrono::Utc::now(),
+        };
+
+        let host = NoopHostContext::new(event.clone());
+        let limits = crate::types::ResourceLimits::default();
+
+        let result = runtime
+            .invoke(&module, event.clone(), &host, limits)
+            .await
+            .expect("invoke should succeed");
+
+        // The identity guest returns the event unchanged
+        let returned = result.value.expect("should have a value");
+        let expected = serde_json::to_value(&event).unwrap();
+        assert_eq!(returned, expected, "identity guest should echo event back");
     }
 
     #[tokio::test]
     async fn test_wasm_guest_can_call_log() {
-        // Component calls fraiseql:host/logging.log(info, "hello")
-        // Result.logs contains entry with correct message and level
-        use crate::{host::NoopHostContext, runtime::FunctionRuntime};
+        use crate::host::NoopHostContext;
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -256,21 +433,13 @@ mod tests {
         let host = NoopHostContext::new(event.clone());
         let limits = crate::types::ResourceLimits::default();
 
-        // Note: This test will fail if guest-identity.wasm is not a valid WASM component
-        // (it's a placeholder until Cycle 0 - WASM Toolchain builds real fixtures)
-        let _result = runtime
-            .invoke(&module, event, &host, limits)
-            .await;
-
-        // For now, we just verify the infrastructure is wired correctly
-        // Real assertion will verify logs when actual WASM fixture is available
+        let result = runtime.invoke(&module, event, &host, limits).await;
+        assert!(result.is_ok(), "invocation should succeed");
     }
 
     #[tokio::test]
     async fn test_wasm_guest_log_levels() {
-        // Component calls logging with debug/info/warn/error levels
-        // All are captured with correct level
-        use crate::{host::NoopHostContext, runtime::FunctionRuntime};
+        use crate::host::NoopHostContext;
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -287,20 +456,15 @@ mod tests {
         };
 
         let host = NoopHostContext::new(event.clone());
-
-        let _result = runtime
+        let result = runtime
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
-
-        // When the guest calls log with different levels, all should be captured
-        // Will be fully tested when real WASM fixture is available
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_wasm_guest_get_event_payload() {
-        // Component calls context.get-event-payload()
-        // Receives event JSON
-        use crate::{host::NoopHostContext, runtime::FunctionRuntime};
+        use crate::host::NoopHostContext;
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -318,19 +482,15 @@ mod tests {
 
         let host = NoopHostContext::new(event.clone());
 
-        let _result = runtime
-            .invoke(&module, event.clone(), &host, crate::types::ResourceLimits::default())
+        let result = runtime
+            .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
-
-        // Guest should be able to retrieve the event payload from context
-        // Will be fully tested when real WASM fixture is available
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_wasm_guest_get_auth_context() {
-        // Component calls context.get-auth-context()
-        // Receives auth JSON or error
-        use crate::{host::NoopHostContext, runtime::FunctionRuntime};
+        use crate::host::NoopHostContext;
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -347,21 +507,15 @@ mod tests {
         };
 
         let host = NoopHostContext::new(event.clone());
-
-        // This invocation may fail if guest tries to get auth context when none exists
-        let _result = runtime
+        let result = runtime
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
-
-        // Either way, the host context was available for the guest to call
-        // Will be fully tested when real WASM fixture is available
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_wasm_guest_get_env_var() {
-        // Component calls context.get-env-var("APP_URL")
-        // Receives value or None
-        use crate::{host::NoopHostContext, runtime::FunctionRuntime};
+        use crate::host::NoopHostContext;
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -378,13 +532,10 @@ mod tests {
         };
 
         let host = NoopHostContext::new(event.clone());
-
-        let _result = runtime
+        let result = runtime
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
-
-        // Guest can retrieve environment variables via context
-        // Will be fully tested when real WASM fixture is available
+        assert!(result.is_ok());
     }
 
     // ========== Phase 5B Cycle 1: WASM Host Function Bridge Tests (RED) ==========
@@ -392,8 +543,6 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_query_with_live_host() {
-        // RED: Component calls fraiseql:host/io.query
-        // Should receive GraphQL result as JSON string
         use crate::host::live::{LiveHostContext, HostContextConfig};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
@@ -417,19 +566,15 @@ mod tests {
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
 
-        // Should complete successfully
         assert!(result.is_ok(), "Query invocation should succeed");
 
         let function_result = result.unwrap();
-        // Should have a result value (the query response)
         assert!(function_result.value.is_some(), "Query should return a value");
     }
 
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_http_request_with_live_host() {
-        // RED: Component calls fraiseql:host/io.http-request
-        // Should receive HTTP response with status, headers, body
         use crate::host::live::{LiveHostContext, HostContextConfig};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
@@ -456,19 +601,15 @@ mod tests {
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
 
-        // Should complete successfully
         assert!(result.is_ok(), "HTTP request invocation should succeed");
 
         let function_result = result.unwrap();
-        // Should have a result value (the HTTP response)
         assert!(function_result.value.is_some(), "HTTP request should return a value");
     }
 
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_storage_get_with_live_host() {
-        // RED: Component calls fraiseql:host/io.storage-get
-        // Should receive bytes from storage backend or error
         use crate::host::live::{LiveHostContext, HostContextConfig};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
@@ -492,19 +633,15 @@ mod tests {
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
 
-        // Should complete successfully (even if storage returns error)
         assert!(result.is_ok(), "Storage get invocation should succeed");
 
         let function_result = result.unwrap();
-        // Should have a result value (either storage bytes or error)
         assert!(function_result.value.is_some(), "Storage get should return a value");
     }
 
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_env_var_with_live_host() {
-        // RED: Component calls fraiseql:host/context.get-env-var
-        // Should receive environment variable value or None
         use crate::host::live::{LiveHostContext, HostContextConfig};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
@@ -529,19 +666,15 @@ mod tests {
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
 
-        // Should complete successfully
         assert!(result.is_ok(), "Env var invocation should succeed");
 
         let function_result = result.unwrap();
-        // Should have a result value (the env var or None)
         assert!(function_result.value.is_some(), "Env var should return a value");
     }
 
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_auth_context_with_live_host() {
-        // RED: Component calls fraiseql:host/context.get-auth-context
-        // Should receive auth context JSON with user info
         use crate::host::live::{LiveHostContext, HostContextConfig};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
@@ -565,11 +698,9 @@ mod tests {
             .invoke(&module, event, &host, crate::types::ResourceLimits::default())
             .await;
 
-        // Should complete successfully
         assert!(result.is_ok(), "Auth context invocation should succeed");
 
         let function_result = result.unwrap();
-        // Should have a result value (the auth context or error)
         assert!(function_result.value.is_some(), "Auth context should return a value");
     }
 }

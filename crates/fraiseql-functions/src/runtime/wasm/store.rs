@@ -5,6 +5,10 @@
 //! into the host for logging, context, and I/O operations.
 
 use crate::types::{EventPayload, LogEntry, LogLevel, ResourceLimits};
+use super::host_bridge::DynHostContext;
+use std::sync::Arc;
+
+use super::bindings::fraiseql::host::{context, io, logging};
 
 /// Per-invocation state for WASM component execution.
 ///
@@ -15,7 +19,7 @@ pub struct StoreData {
     pub event_payload: EventPayload,
 
     /// Reference to the host context for I/O and auth operations.
-    pub host_context: Option<std::sync::Arc<dyn std::any::Any + Send + Sync>>,
+    pub host_context: Option<Arc<dyn DynHostContext>>,
 
     /// Logs captured during execution.
     pub logs: Vec<LogEntry>,
@@ -32,10 +36,7 @@ pub struct StoreData {
 
 impl StoreData {
     /// Create a new store data for an invocation.
-    pub fn new(
-        event_payload: EventPayload,
-        limits: ResourceLimits,
-    ) -> Self {
+    pub fn new(event_payload: EventPayload, limits: ResourceLimits) -> Self {
         Self {
             event_payload,
             host_context: None,
@@ -47,17 +48,21 @@ impl StoreData {
     }
 
     /// Set the host context reference for this store.
-    pub fn set_host_context<C>(&mut self, context: std::sync::Arc<C>)
-    where
-        C: std::any::Any + Send + Sync + 'static,
-    {
+    pub fn set_host_context(&mut self, context: Arc<dyn DynHostContext>) {
         self.host_context = Some(context);
+    }
+
+    /// Get a reference to the host context, or return an error string.
+    fn require_host_context(&self) -> Result<&dyn DynHostContext, String> {
+        self.host_context
+            .as_deref()
+            .ok_or_else(|| "host context not available".to_string())
     }
 
     /// Log a message at the specified level.
     ///
     /// Respects the `max_log_entries` limit and silently drops excess logs.
-    pub fn log(&mut self, level: LogLevel, message: &str) {
+    pub fn log_message(&mut self, level: LogLevel, message: &str) {
         if self.logs.len() < self.limits.max_log_entries {
             let entry = LogEntry {
                 level,
@@ -66,7 +71,6 @@ impl StoreData {
             };
             self.logs.push(entry);
 
-            // Emit tracing event at the appropriate level
             match level {
                 LogLevel::Debug => tracing::debug!("{}", message),
                 LogLevel::Info => tracing::info!("{}", message),
@@ -74,6 +78,12 @@ impl StoreData {
                 LogLevel::Error => tracing::error!("{}", message),
             }
         }
+    }
+
+    /// Get a reference to the event payload.
+    #[must_use]
+    pub const fn event_payload_ref(&self) -> &EventPayload {
+        &self.event_payload
     }
 
     /// Get the event payload as a JSON string.
@@ -85,38 +95,149 @@ impl StoreData {
         serde_json::to_string(&self.event_payload)
             .map_err(|e| wasmtime::Error::msg(e.to_string()))
     }
+}
 
-    /// Get the auth context (if available) as JSON or an error string.
-    ///
-    /// # Implementation Note
-    ///
-    /// Stub implementation. Auth context extraction requires the `LiveHostContext` bridge
-    /// to be wired. Always returns an error until then.
-    ///
-    /// # Errors
-    ///
-    /// Always returns an error since auth context is not yet available.
-    pub fn get_auth_context_json(&self) -> wasmtime::Result<String> {
-        Err(wasmtime::Error::msg("auth context not available"))
+/// Map WIT log-level to internal `LogLevel`.
+const fn map_log_level(level: logging::LogLevel) -> LogLevel {
+    match level {
+        logging::LogLevel::Debug => LogLevel::Debug,
+        logging::LogLevel::Info => LogLevel::Info,
+        logging::LogLevel::Warn => LogLevel::Warn,
+        logging::LogLevel::Error => LogLevel::Error,
+    }
+}
+
+impl logging::Host for StoreData {
+    async fn log(&mut self, level: logging::LogLevel, message: String) {
+        self.log_message(map_log_level(level), &message);
+    }
+}
+
+impl context::Host for StoreData {
+    async fn get_event_payload(&mut self) -> String {
+        self.get_event_payload_json()
+            .unwrap_or_else(|e| format!("{{\"error\": \"{e}\"}}", ))
     }
 
-    /// Get an environment variable value.
-    ///
-    /// # Implementation Note
-    ///
-    /// Stub implementation. Environment variable access requires the `LiveHostContext`
-    /// bridge to be wired. Always returns `None` until then.
-    ///
-    /// # Errors
-    ///
-    /// Never returns an error.
-    #[allow(clippy::missing_const_for_fn)]  // Reason: returns Result with generic type
-    pub fn get_env_var_value(&self, _name: &str) -> wasmtime::Result<Option<String>> {
-        Ok(None)
+    async fn get_auth_context(&mut self) -> Result<String, String> {
+        let host = self.require_host_context()?;
+        let value = host.auth_context().map_err(|e| e.to_string())?;
+        serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
+
+    async fn get_env_var(&mut self, name: String) -> Option<String> {
+        let Ok(host) = self.require_host_context() else {
+            return None;
+        };
+        host.env_var(&name).ok().flatten()
+    }
+}
+
+impl io::Host for StoreData {
+    async fn query(
+        &mut self,
+        graphql: String,
+        variables: String,
+    ) -> Result<String, String> {
+        let host = self.require_host_context()?;
+        let vars: serde_json::Value =
+            serde_json::from_str(&variables).map_err(|e| e.to_string())?;
+        let result = host.query(&graphql, vars).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&result).map_err(|e| e.to_string())
+    }
+
+    async fn sql_query(
+        &mut self,
+        sql: String,
+        params: String,
+    ) -> Result<String, String> {
+        let host = self.require_host_context()?;
+        let params_vec: Vec<serde_json::Value> =
+            serde_json::from_str(&params).map_err(|e| e.to_string())?;
+        let result = host
+            .sql_query(&sql, &params_vec)
+            .await
+            .map_err(|e| e.to_string())?;
+        serde_json::to_string(&result).map_err(|e| e.to_string())
+    }
+
+    async fn http_request(
+        &mut self,
+        method: String,
+        url: String,
+        headers: Vec<(String, String)>,
+        body: Option<Vec<u8>>,
+    ) -> Result<io::HttpResponse, String> {
+        let host = self.require_host_context()?;
+        let response = host
+            .http_request(&method, &url, &headers, body.as_deref())
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(io::HttpResponse {
+            status: response.status,
+            headers: response.headers,
+            body: response.body,
+        })
+    }
+
+    async fn storage_get(
+        &mut self,
+        bucket: String,
+        key: String,
+    ) -> Result<Vec<u8>, String> {
+        let host = self.require_host_context()?;
+        host.storage_get(&bucket, &key)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn storage_put(
+        &mut self,
+        bucket: String,
+        key: String,
+        body: Vec<u8>,
+        content_type: String,
+    ) -> Result<(), String> {
+        let host = self.require_host_context()?;
+        host.storage_put(&bucket, &key, &body, &content_type)
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
+impl wasmtime::ResourceLimiter for StoreData {
+    fn memory_growing(
+        &mut self,
+        _current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        self.memory_current_bytes = desired as u64;
+        if self.memory_current_bytes > self.memory_peak_bytes {
+            self.memory_peak_bytes = self.memory_current_bytes;
+        }
+        let max = self.limits.max_memory_bytes;
+        if self.memory_current_bytes > max {
+            return Err(wasmtime::Error::msg(format!(
+                "Memory limit exceeded: {} > {max}",
+                self.memory_current_bytes
+            )));
+        }
+        Ok(true)
+    }
+
+    fn table_growing(
+        &mut self,
+        _current: usize,
+        _desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        Ok(true)
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod tests {
     use super::*;
 
@@ -150,19 +271,17 @@ mod tests {
         let limits = ResourceLimits {
             max_memory_bytes: 128 * 1024 * 1024,
             max_duration: std::time::Duration::from_secs(5),
-            max_log_entries: 3, // Only allow 3 logs
+            max_log_entries: 3,
         };
 
         let mut store = StoreData::new(event, limits);
 
-        // Log more than the limit
-        store.log(LogLevel::Info, "log 1");
-        store.log(LogLevel::Info, "log 2");
-        store.log(LogLevel::Info, "log 3");
-        store.log(LogLevel::Info, "log 4 (should be dropped)");
-        store.log(LogLevel::Info, "log 5 (should be dropped)");
+        store.log_message(LogLevel::Info, "log 1");
+        store.log_message(LogLevel::Info, "log 2");
+        store.log_message(LogLevel::Info, "log 3");
+        store.log_message(LogLevel::Info, "log 4 (should be dropped)");
+        store.log_message(LogLevel::Info, "log 5 (should be dropped)");
 
-        // Only 3 logs should be stored
         assert_eq!(store.logs.len(), 3);
         assert_eq!(store.logs[0].message, "log 1");
         assert_eq!(store.logs[1].message, "log 2");
@@ -187,5 +306,28 @@ mod tests {
         assert_eq!(parsed["entity"], "User");
         assert_eq!(parsed["event_kind"], "created");
         assert_eq!(parsed["data"]["id"], 42);
+    }
+
+    #[test]
+    fn test_store_data_host_context_typed() {
+        let event = EventPayload {
+            trigger_type: "test".to_string(),
+            entity: "Test".to_string(),
+            event_kind: "created".to_string(),
+            data: serde_json::json!({}),
+            timestamp: chrono::Utc::now(),
+        };
+        let mut store = StoreData::new(event.clone(), ResourceLimits::default());
+
+        // Verify host_context starts as None
+        assert!(store.host_context.is_none());
+
+        // Set host context using NoopHostContext
+        let noop = Arc::new(crate::host::NoopHostContext::new(event));
+        store.set_host_context(noop);
+
+        // Verify it's set and callable without downcasting
+        let host = store.require_host_context().expect("host context set");
+        assert_eq!(host.event_payload().trigger_type, "test");
     }
 }

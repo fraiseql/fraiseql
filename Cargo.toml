@@ -201,7 +201,9 @@ use_self = "allow"
 [workspace.lints.rust]
 dead_code = "deny"
 missing_docs = "deny"
-unsafe_code = "forbid"
+# Reason: `deny` (not `forbid`) so wasmtime::component::bindgen! can `#[allow(unsafe_code)]`
+# in generated component-model glue. No hand-written unsafe exists in the workspace.
+unsafe_code = "deny"
 unused_imports = "warn"
 unused_variables = "warn"
 
