@@ -564,8 +564,6 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // ========== Phase 5B Cycle 1: WASM Host Function Bridge Tests (RED) ==========
-
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_query_with_live_host() {
@@ -730,8 +728,6 @@ mod tests {
         assert!(function_result.value.is_some(), "Auth context should return a value");
     }
 
-    // ========== Phase 4 Cycle 2: Guest Full Bridge Integration Test ==========
-
     /// Mock host context that responds to all operations for integration testing.
     struct MockFullBridgeHost {
         event: EventPayload,
@@ -865,8 +861,6 @@ mod tests {
         assert_eq!(value["storage_get"]["ok"], true, "storage get should succeed");
     }
 
-    // ========== Phase 4 Cycle 3: Mutation Trigger Integration ==========
-
     #[cfg(feature = "runtime-wasm")]
     #[tokio::test]
     async fn test_before_mutation_chain_with_wasm_function_proceeds() {
@@ -919,8 +913,6 @@ mod tests {
             }
         }
     }
-
-    // ========== Phase 4 Cycle 4: Performance Baseline ==========
 
     #[tokio::test]
     async fn test_wasm_performance_baseline() {
