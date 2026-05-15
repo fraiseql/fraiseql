@@ -24,7 +24,6 @@
 
 pub mod bindings;
 pub mod host_bridge;
-pub mod limiter;
 pub mod store;
 
 use crate::runtime::FunctionRuntime;
@@ -62,6 +61,54 @@ impl Default for WasmConfig {
 /// WASM runtime using wasmtime and the Component Model.
 pub struct WasmRuntime {
     engine: wasmtime::Engine,
+    /// Handle to the background epoch ticker thread.
+    /// Kept alive for the runtime's lifetime; dropped on `Drop`.
+    epoch_ticker: Arc<EpochTicker>,
+}
+
+/// Background thread that increments the engine epoch at a fixed interval.
+///
+/// When combined with `store.set_epoch_deadline()`, this preemptively interrupts
+/// runaway guests rather than relying on post-hoc duration checks.
+struct EpochTicker {
+    shutdown: std::sync::atomic::AtomicBool,
+    handle: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
+}
+
+impl EpochTicker {
+    /// Tick interval — each tick increments the epoch by 1.
+    const TICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
+    fn start(engine: wasmtime::Engine) -> Arc<Self> {
+        let ticker = Arc::new(Self {
+            shutdown: std::sync::atomic::AtomicBool::new(false),
+            handle: std::sync::Mutex::new(None),
+        });
+
+        let ticker_clone = Arc::clone(&ticker);
+        let handle = std::thread::Builder::new()
+            .name("wasm-epoch-ticker".to_string())
+            .spawn(move || {
+                while !ticker_clone.shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+                    std::thread::sleep(Self::TICK_INTERVAL);
+                    engine.increment_epoch();
+                }
+            })
+            .expect("failed to spawn epoch ticker thread");
+
+        *ticker.handle.lock().expect("lock") = Some(handle);
+        ticker
+    }
+}
+
+impl Drop for EpochTicker {
+    fn drop(&mut self) {
+        self.shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+        let handle = self.handle.lock().expect("lock").take();
+        if let Some(handle) = handle {
+            let _ = handle.join();
+        }
+    }
 }
 
 impl std::fmt::Debug for WasmRuntime {
@@ -74,6 +121,7 @@ impl Clone for WasmRuntime {
     fn clone(&self) -> Self {
         Self {
             engine: self.engine.clone(),
+            epoch_ticker: Arc::clone(&self.epoch_ticker),
         }
     }
 }
@@ -86,6 +134,7 @@ impl WasmRuntime {
     /// Returns `Err` if engine initialization fails.
     pub fn new(config: &WasmConfig) -> Result<Self> {
         let mut wasm_config = wasmtime::Config::new();
+        wasm_config.epoch_interruption(true);
         wasm_config.wasm_simd(config.enable_simd);
         wasm_config.wasm_relaxed_simd(false);
         wasm_config.wasm_bulk_memory(true);
@@ -98,7 +147,12 @@ impl WasmRuntime {
             }
         })?;
 
-        Ok(Self { engine })
+        let ticker = EpochTicker::start(engine.clone());
+
+        Ok(Self {
+            engine,
+            epoch_ticker: ticker,
+        })
     }
 }
 
@@ -141,6 +195,12 @@ impl WasmRuntime {
         // Set up resource limiter (StoreData implements ResourceLimiter directly)
         store.limiter(|data| data);
 
+        // Set epoch deadline for preemptive timeout.
+        // Each epoch tick is 100ms, so deadline = timeout_ms / 100.
+        let deadline_ticks = (timeout.as_millis() / EpochTicker::TICK_INTERVAL.as_millis()).max(1);
+        #[allow(clippy::cast_possible_truncation)] // Reason: deadline clamped by max_duration which fits in u64
+        store.set_epoch_deadline(deadline_ticks as u64);
+
         // Create linker and add host imports
         let mut linker = wasmtime::component::Linker::new(&self.engine);
 
@@ -166,9 +226,9 @@ impl WasmRuntime {
         let instance = linker
             .instantiate_async(&mut store, &component)
             .await
-            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("Failed to instantiate WASM component: {e}"),
-                path: None,
+                source: None,
             })?;
 
         // Serialize event to JSON for the guest
@@ -178,9 +238,9 @@ impl WasmRuntime {
         // Get the handle export as a typed async-callable function.
         let handle_func = instance
             .get_typed_func::<(&str,), (std::result::Result<String, String>,)>(&mut store, "handle")
-            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("Failed to get handle export: {e}"),
-                path: None,
+                source: None,
             })?;
 
         let call_result = handle_func
@@ -191,15 +251,19 @@ impl WasmRuntime {
         let collected_logs = store.data().logs.clone();
         let peak_memory = store.data().memory_peak_bytes;
 
-        // Check timeout after execution
-        let result_value = if duration > timeout {
-            Some(serde_json::json!({ "error": "function execution timed out" }))
-        } else {
-            match call_result {
-                Ok((Ok(result_json),)) => serde_json::from_str(&result_json).ok(),
-                Ok((Err(error_msg),)) => Some(serde_json::json!({ "error": error_msg })),
-                Err(trap) => {
-                    Some(serde_json::json!({ "error": format!("WASM trap: {trap}") }))
+        let result_value = match call_result {
+            Ok((Ok(result_json),)) => Some(
+                serde_json::from_str(&result_json).unwrap_or_else(|e| {
+                    serde_json::json!({ "error": format!("invalid JSON from guest: {e}") })
+                }),
+            ),
+            Ok((Err(error_msg),)) => Some(serde_json::json!({ "error": error_msg })),
+            Err(trap) => {
+                let msg = trap.to_string();
+                if msg.contains("epoch deadline") || duration > timeout {
+                    Some(serde_json::json!({ "error": "function execution timed out" }))
+                } else {
+                    Some(serde_json::json!({ "error": format!("WASM trap: {msg}") }))
                 }
             }
         };
@@ -259,6 +323,15 @@ impl FunctionRuntime for WasmRuntime {
 ///
 /// This is necessary because `StoreData` needs `Arc<dyn DynHostContext>` which is `'static`,
 /// but the `invoke()` method receives `&H` with a borrowed lifetime.
+///
+/// # Limitations
+///
+/// - **Env vars**: Always returns `Ok(None)`. The `HostContext::env_var` method reads
+///   from the process environment filtered by an allowlist at call time, and we cannot
+///   capture that behavior without knowing which names the guest will request.
+///   Use `invoke_with_context()` for full env var support.
+/// - **Async IO**: `query`, `sql_query`, `http_request`, `storage_get`, `storage_put`
+///   return `Unsupported`. Use `invoke_with_context()` for full IO support.
 struct HostContextSnapshot {
     event_payload: EventPayload,
     /// Pre-captured auth context (Ok value or error message).
@@ -348,7 +421,11 @@ impl DynHostContext for HostContextSnapshot {
             .map_err(|msg| fraiseql_error::FraiseQLError::Unsupported { message: msg })
     }
 
-    fn env_var(&self, _name: &str) -> fraiseql_error::Result<Option<String>> {
+    fn env_var(&self, name: &str) -> fraiseql_error::Result<Option<String>> {
+        tracing::debug!(
+            var = name,
+            "env_var called on HostContextSnapshot — returning None; use invoke_with_context for env var support"
+        );
         Ok(None)
     }
 
