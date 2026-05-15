@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **LTree ID-based operators** (#250) — `descendantOfId` and `ancestorOfId` WHERE operators
+  that resolve an entity's ltree path from its UUID before performing hierarchical comparisons.
+  Supports self-referencing hierarchies (`path <@ (SELECT path FROM t WHERE id = $1)`) and
+  cross-table hierarchies via FK semi-joins. Configured via `[hierarchies]` in `fraiseql.toml`
+  with `table` and `path_column` settings. Includes field-level `hierarchy` annotation and
+  compile-time validation. PostgreSQL-only (MySQL/SQLite/SQL Server return `Unsupported`).
+
 - **JWT nested claims extraction** (#246) — `Claims::email()` and `Claims::name()` accessor
   methods that normalize nested JWT claim formats (Azure AD `{"value": "..."}`, OIDC
   `{"given": "...", "family": "..."}`, arrays) into flat strings. `GET /auth/me` now
