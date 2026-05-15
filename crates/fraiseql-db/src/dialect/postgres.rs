@@ -252,7 +252,7 @@ impl SqlDialect for PostgresDialect {
             ))
         } else {
             // Self-referencing: field_expr <op> (SELECT path FROM t WHERE id = $N)
-            Ok(format!("{field_expr} {pg_op} ({path_subquery})"))
+            Ok(format!("{field_expr}::ltree {pg_op} ({path_subquery})"))
         }
     }
 

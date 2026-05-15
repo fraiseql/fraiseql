@@ -329,7 +329,7 @@ fn descendant_of_id_self_referencing() {
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
         sql,
-        "data->>'category_path' <@ (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+        "data->>'category_path'::ltree <@ (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
     );
     assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
 }
@@ -346,7 +346,7 @@ fn ancestor_of_id_self_referencing() {
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
         sql,
-        "data->>'category_path' @> (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+        "data->>'category_path'::ltree @> (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
     );
     assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
 }
