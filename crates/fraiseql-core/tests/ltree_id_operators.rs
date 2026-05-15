@@ -252,3 +252,38 @@ fn id_operators_preserve_param_ordering() {
     assert_eq!(params[0], json!("active"));
     assert_eq!(params[1], json!("parent-uuid"));
 }
+
+#[test]
+fn hierarchy_context_propagates_through_nested_or_and() {
+    use fraiseql_core::db::dialect::PostgresDialect;
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column:   None,
+    };
+    // Or(And(Eq, DescendantOfId), AncestorOfId)
+    let clause = WhereClause::Or(vec![
+        WhereClause::And(vec![
+            WhereClause::Field {
+                path:     vec!["status".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("active"),
+            },
+            WhereClause::Field {
+                path:     vec!["category_path".to_string()],
+                operator: WhereOperator::DescendantOfId,
+                value:    json!("uuid-parent"),
+            },
+        ]),
+        WhereClause::Field {
+            path:     vec!["category_path".to_string()],
+            operator: WhereOperator::AncestorOfId,
+            value:    json!("uuid-child"),
+        },
+    ]);
+    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    assert!(sql.contains("<@"), "Expected <@ for DescendantOfId, got: {sql}");
+    assert!(sql.contains("@>"), "Expected @> for AncestorOfId, got: {sql}");
+    assert_eq!(params.len(), 3, "Expected 3 params (Eq + 2 IDs), got: {}", params.len());
+}
