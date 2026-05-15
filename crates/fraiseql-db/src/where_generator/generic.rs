@@ -191,7 +191,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 path,
                 operator,
                 value,
-            } => self.visit_field(path, operator, value, params),
+            } => self.visit_field(path, operator, value, params, None),
             WhereClause::NativeField {
                 column,
                 pg_cast,
@@ -285,6 +285,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         operator: &WhereOperator,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
+        _hierarchy_ctx: Option<&super::HierarchyContext>,
     ) -> Result<String> {
         let field_expr = self.resolve_field_expr(path);
 

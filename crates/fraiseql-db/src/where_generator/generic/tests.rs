@@ -6,6 +6,7 @@ use super::GenericWhereGenerator;
 use crate::{
     dialect::PostgresDialect,
     where_clause::{WhereClause, WhereOperator},
+    where_generator::HierarchyContext,
 };
 
 fn field(path: &str, op: WhereOperator, val: serde_json::Value) -> WhereClause {
@@ -280,4 +281,36 @@ fn iregex_also_validates_pattern() {
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let clause = field("name", WhereOperator::Iregex, json!("(a+)+"));
     assert!(gen.generate(&clause).is_err());
+}
+
+// --- Issue #250: HierarchyContext ---
+
+#[test]
+fn hierarchy_context_none_is_backward_compatible() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = field("email", WhereOperator::Eq, json!("test@example.com"));
+    let (sql, _) = gen.generate(&clause).unwrap();
+    assert!(sql.contains("= $1"));
+}
+
+#[test]
+fn hierarchy_context_can_be_constructed() {
+    let ctx = HierarchyContext {
+        table: "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column: None,
+    };
+    assert_eq!(ctx.table, "tb_category");
+    assert_eq!(ctx.path_column, "category_path");
+    assert!(ctx.fk_column.is_none());
+}
+
+#[test]
+fn hierarchy_context_cross_table() {
+    let ctx = HierarchyContext {
+        table: "tb_location".to_string(),
+        path_column: "location_path".to_string(),
+        fk_column: Some("fk_location".to_string()),
+    };
+    assert_eq!(ctx.fk_column, Some("fk_location".to_string()));
 }
