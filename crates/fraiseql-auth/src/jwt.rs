@@ -66,6 +66,28 @@ impl Claims {
         self.extra.get(key)
     }
 
+    /// Extract the `email` claim as a flat string.
+    ///
+    /// Handles plain strings, nested objects (`{"value": "..."}`,
+    /// `{"email": "..."}`), and arrays (first string element).
+    /// Returns `None` when the claim is absent, null, or cannot be
+    /// normalised to a non-empty string.
+    #[must_use]
+    pub fn email(&self) -> Option<String> {
+        self.extra.get("email").and_then(extract_claim_string)
+    }
+
+    /// Extract the `name` claim as a flat display-name string.
+    ///
+    /// In addition to the shapes handled by [`extract_claim_string`],
+    /// this also concatenates `given` + `family` keys when the claim is
+    /// an object without a `formatted` or `value` key.
+    /// Returns `None` when the claim is absent or cannot be normalised.
+    #[must_use]
+    pub fn name(&self) -> Option<String> {
+        self.extra.get("name").and_then(extract_name_string)
+    }
+
     /// Check if token is expired
     ///
     /// SECURITY: If system time cannot be determined, returns true (treats token as expired)
@@ -359,4 +381,328 @@ pub fn generate_hs256_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 #[cfg(test)]
 pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
     generate_hs256_token(claims, secret)
+}
+
+// ---------------------------------------------------------------------------
+// Nested claim extraction
+// ---------------------------------------------------------------------------
+
+/// Trim a string and return `None` if the result is empty.
+fn trim_or_none(s: &str) -> Option<String> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() { None } else { Some(trimmed.to_owned()) }
+}
+
+/// Extract a flat string from a potentially nested JWT claim value.
+///
+/// Many identity providers (Azure AD, some OIDC providers) return structured
+/// objects for standard claims like `email` and `name` instead of flat strings.
+/// This function normalises those shapes into a single `Option<String>`.
+///
+/// Supported shapes:
+/// - **String**: returned as-is (after trim; empty/whitespace → `None`).
+/// - **Object**: tries keys `value`, `formatted`, `email` in order; falls back
+///   to the first string value in the object.
+/// - **Array**: returns the first element that is a string.
+/// - **Null / number / bool**: returns `None`.
+pub fn extract_claim_string(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(s) => trim_or_none(s),
+
+        serde_json::Value::Object(map) => {
+            // Priority order for well-known keys
+            for key in &["value", "formatted", "email"] {
+                if let Some(serde_json::Value::String(s)) = map.get(*key) {
+                    if let Some(v) = trim_or_none(s) {
+                        return Some(v);
+                    }
+                }
+            }
+            // Fallback: first string value in the object
+            for v in map.values() {
+                if let serde_json::Value::String(s) = v {
+                    if let Some(v) = trim_or_none(s) {
+                        return Some(v);
+                    }
+                }
+            }
+            None
+        },
+
+        serde_json::Value::Array(arr) => {
+            arr.iter().find_map(|v| {
+                if let serde_json::Value::String(s) = v {
+                    trim_or_none(s)
+                } else {
+                    None
+                }
+            })
+        },
+
+        _ => None,
+    }
+}
+
+/// Extract a display name from a potentially nested JWT `name` claim.
+///
+/// Tries [`extract_claim_string`] first.  If that returns `None` and the value
+/// is an object with `given` and/or `family` keys, concatenates them in Western
+/// order (`"{given} {family}"`).  Empty/whitespace-only parts are dropped; if
+/// both are empty the function returns `None`.
+pub fn extract_name_string(value: &serde_json::Value) -> Option<String> {
+    match value {
+        // Strings and arrays: delegate to generic extraction.
+        serde_json::Value::String(_) | serde_json::Value::Array(_) => {
+            extract_claim_string(value)
+        },
+
+        // Objects: try well-known keys first, then given+family concatenation.
+        serde_json::Value::Object(map) => {
+            // Priority keys (same as extract_claim_string)
+            for key in &["value", "formatted", "email"] {
+                if let Some(serde_json::Value::String(s)) = map.get(*key) {
+                    if let Some(v) = trim_or_none(s) {
+                        return Some(v);
+                    }
+                }
+            }
+
+            // Name-specific: given + family concatenation.
+            let given = map
+                .get("given")
+                .and_then(|v| v.as_str())
+                .and_then(trim_or_none);
+            let family = map
+                .get("family")
+                .and_then(|v| v.as_str())
+                .and_then(trim_or_none);
+
+            match (given, family) {
+                (Some(g), Some(f)) => Some(format!("{g} {f}")),
+                (Some(g), None) => Some(g),
+                (None, Some(f)) => Some(f),
+                (None, None) => None,
+            }
+        },
+
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // extract_claim_string
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn extract_plain_string() {
+        let v = serde_json::json!("user@example.com");
+        assert_eq!(extract_claim_string(&v), Some("user@example.com".to_owned()));
+    }
+
+    #[test]
+    fn extract_nested_value() {
+        let v = serde_json::json!({"value": "user@corp.com", "verified": true});
+        assert_eq!(extract_claim_string(&v), Some("user@corp.com".to_owned()));
+    }
+
+    #[test]
+    fn extract_nested_formatted() {
+        let v = serde_json::json!({"formatted": "John Doe", "given": "John", "family": "Doe"});
+        assert_eq!(extract_claim_string(&v), Some("John Doe".to_owned()));
+    }
+
+    #[test]
+    fn extract_nested_email_key() {
+        let v = serde_json::json!({"email": "az@example.com", "type": "work"});
+        assert_eq!(extract_claim_string(&v), Some("az@example.com".to_owned()));
+    }
+
+    #[test]
+    fn extract_fallback_first_string() {
+        let v = serde_json::json!({"custom_key": "fallback@example.com"});
+        assert_eq!(extract_claim_string(&v), Some("fallback@example.com".to_owned()));
+    }
+
+    #[test]
+    fn extract_array_first_element() {
+        let v = serde_json::json!(["a@b.com", "c@d.com"]);
+        assert_eq!(extract_claim_string(&v), Some("a@b.com".to_owned()));
+    }
+
+    #[test]
+    fn extract_null_returns_none() {
+        assert_eq!(extract_claim_string(&serde_json::Value::Null), None);
+    }
+
+    #[test]
+    fn extract_number_returns_none() {
+        let v = serde_json::json!(42);
+        assert_eq!(extract_claim_string(&v), None);
+    }
+
+    #[test]
+    fn extract_bool_returns_none() {
+        let v = serde_json::json!(true);
+        assert_eq!(extract_claim_string(&v), None);
+    }
+
+    #[test]
+    fn extract_nested_value_null() {
+        let v = serde_json::json!({"value": null});
+        assert_eq!(extract_claim_string(&v), None);
+    }
+
+    #[test]
+    fn extract_nested_value_empty_string() {
+        let v = serde_json::json!({"value": ""});
+        assert_eq!(extract_claim_string(&v), None);
+    }
+
+    #[test]
+    fn extract_whitespace_only_string() {
+        let v = serde_json::json!("  ");
+        assert_eq!(extract_claim_string(&v), None);
+    }
+
+    #[test]
+    fn extract_string_with_surrounding_whitespace() {
+        let v = serde_json::json!("  user@example.com  ");
+        assert_eq!(extract_claim_string(&v), Some("user@example.com".to_owned()));
+    }
+
+    #[test]
+    fn extract_empty_object() {
+        let v = serde_json::json!({});
+        assert_eq!(extract_claim_string(&v), None);
+    }
+
+    #[test]
+    fn extract_empty_array() {
+        let v = serde_json::json!([]);
+        assert_eq!(extract_claim_string(&v), None);
+    }
+
+    #[test]
+    fn extract_array_skips_non_strings() {
+        let v = serde_json::json!([42, null, "real@example.com"]);
+        assert_eq!(extract_claim_string(&v), Some("real@example.com".to_owned()));
+    }
+
+    // -----------------------------------------------------------------------
+    // extract_name_string
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn name_plain_string() {
+        let v = serde_json::json!("John Doe");
+        assert_eq!(extract_name_string(&v), Some("John Doe".to_owned()));
+    }
+
+    #[test]
+    fn name_with_formatted() {
+        let v = serde_json::json!({"given": "John", "family": "Doe", "formatted": "John Doe"});
+        assert_eq!(extract_name_string(&v), Some("John Doe".to_owned()));
+    }
+
+    #[test]
+    fn name_given_family_concatenation() {
+        let v = serde_json::json!({"given": "John", "family": "Doe"});
+        assert_eq!(extract_name_string(&v), Some("John Doe".to_owned()));
+    }
+
+    #[test]
+    fn name_given_only() {
+        let v = serde_json::json!({"given": "John", "family": "  "});
+        assert_eq!(extract_name_string(&v), Some("John".to_owned()));
+    }
+
+    #[test]
+    fn name_family_only() {
+        let v = serde_json::json!({"given": "", "family": "Doe"});
+        assert_eq!(extract_name_string(&v), Some("Doe".to_owned()));
+    }
+
+    #[test]
+    fn name_both_empty() {
+        let v = serde_json::json!({"given": "", "family": ""});
+        assert_eq!(extract_name_string(&v), None);
+    }
+
+    #[test]
+    fn name_both_whitespace() {
+        let v = serde_json::json!({"given": "  ", "family": "  "});
+        assert_eq!(extract_name_string(&v), None);
+    }
+
+    // -----------------------------------------------------------------------
+    // Claims::email() and Claims::name() accessors
+    // -----------------------------------------------------------------------
+
+    fn make_claims(extra: serde_json::Value) -> Claims {
+        let mut extra_map = HashMap::new();
+        if let serde_json::Value::Object(map) = extra {
+            for (k, v) in map {
+                extra_map.insert(k, v);
+            }
+        }
+        Claims {
+            sub: "user-1".to_owned(),
+            iat: 1_000_000,
+            exp: 2_000_000,
+            nbf: None,
+            iss: "test-issuer".to_owned(),
+            aud: vec!["test-aud".to_owned()],
+            extra: extra_map,
+        }
+    }
+
+    #[test]
+    fn claims_email_flat_string() {
+        let claims = make_claims(serde_json::json!({"email": "user@example.com"}));
+        assert_eq!(claims.email(), Some("user@example.com".to_owned()));
+    }
+
+    #[test]
+    fn claims_email_nested() {
+        let claims = make_claims(serde_json::json!({"email": {"value": "nested@example.com", "verified": true}}));
+        assert_eq!(claims.email(), Some("nested@example.com".to_owned()));
+    }
+
+    #[test]
+    fn claims_email_missing() {
+        let claims = make_claims(serde_json::json!({"other": "value"}));
+        assert_eq!(claims.email(), None);
+    }
+
+    #[test]
+    fn claims_name_flat_string() {
+        let claims = make_claims(serde_json::json!({"name": "Jane Doe"}));
+        assert_eq!(claims.name(), Some("Jane Doe".to_owned()));
+    }
+
+    #[test]
+    fn claims_name_nested_given_family() {
+        let claims = make_claims(serde_json::json!({"name": {"given": "Jane", "family": "Doe"}}));
+        assert_eq!(claims.name(), Some("Jane Doe".to_owned()));
+    }
+
+    #[test]
+    fn claims_name_missing() {
+        let claims = make_claims(serde_json::json!({"other": "value"}));
+        assert_eq!(claims.name(), None);
+    }
+
+    #[test]
+    fn claims_mixed_nesting() {
+        let claims = make_claims(serde_json::json!({
+            "email": {"value": "user@corp.com"},
+            "name": "Flat Name"
+        }));
+        assert_eq!(claims.email(), Some("user@corp.com".to_owned()));
+        assert_eq!(claims.name(), Some("Flat Name".to_owned()));
+    }
 }
