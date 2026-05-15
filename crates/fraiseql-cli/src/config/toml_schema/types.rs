@@ -38,6 +38,10 @@ pub struct FieldDefinition {
     pub nullable:    bool,
     /// Field description
     pub description: Option<String>,
+    /// Named hierarchy reference for ID-based ltree operators.
+    /// References a key in `[hierarchies.<name>]` config.
+    #[serde(default)]
+    pub hierarchy:   Option<String>,
 }
 
 /// Argument definition

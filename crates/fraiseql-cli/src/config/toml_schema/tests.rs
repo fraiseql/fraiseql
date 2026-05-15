@@ -415,6 +415,68 @@ path_column = "some_path"
     }
 
     #[test]
+    fn test_hierarchy_field_reference_validated() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[hierarchies.category]
+table = "tb_category"
+path_column = "category_path"
+
+[types.Category]
+sql_source = "v_category"
+
+[types.Category.fields.id]
+type = "ID"
+
+[types.Category.fields.category_path]
+type = "String"
+hierarchy = "category"
+
+[queries.categories]
+return_type = "Category"
+return_array = true
+sql_source = "v_category"
+"#;
+        let schema = TomlSchema::parse_toml(toml).unwrap();
+        schema.validate().unwrap();
+    }
+
+    #[test]
+    fn test_hierarchy_field_reference_rejects_invalid_name() {
+        let toml = r#"
+[schema]
+name = "myapp"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Category]
+sql_source = "v_category"
+
+[types.Category.fields.id]
+type = "ID"
+
+[types.Category.fields.category_path]
+type = "String"
+hierarchy = "nonexistent"
+
+[queries.categories]
+return_type = "Category"
+return_array = true
+sql_source = "v_category"
+"#;
+        let schema = TomlSchema::parse_toml(toml).unwrap();
+        let err = schema.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("nonexistent"),
+            "Error should mention the invalid hierarchy name: {err}"
+        );
+    }
+
+    #[test]
     fn test_hierarchy_config_rejects_empty_path_column() {
         let toml = r#"
 [hierarchies.bad]

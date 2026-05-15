@@ -299,6 +299,38 @@ impl TomlSchema {
             }
         }
 
+        // Validate field hierarchy references exist in hierarchies config
+        let hierarchy_names: std::collections::HashSet<&str> = self
+            .hierarchies
+            .as_ref()
+            .map(|h| h.keys().map(String::as_str).collect())
+            .unwrap_or_default();
+        for (type_name, type_def) in &self.types {
+            for (field_name, field_def) in &type_def.fields {
+                if let Some(ref h_name) = field_def.hierarchy {
+                    if !hierarchy_names.contains(h_name.as_str()) {
+                        let hint = format_suggestions(suggest_similar(
+                            h_name,
+                            &hierarchy_names.iter().copied().collect::<Vec<_>>(),
+                        ));
+                        anyhow::bail!(
+                            "Field '{type_name}.{field_name}' references undefined hierarchy \
+                             '{h_name}'{hint}"
+                        );
+                    }
+                }
+            }
+        }
+
+        // Validate hierarchy configs have non-empty values
+        if let Some(ref hierarchies) = self.hierarchies {
+            for (name, config) in hierarchies {
+                config.validate().map_err(|e| {
+                    anyhow::anyhow!("Invalid hierarchy config '{name}': {e}")
+                })?;
+            }
+        }
+
         // Validate federation entities reference existing types
         for entity in &self.federation.entities {
             if !self.types.contains_key(&entity.name) {
