@@ -782,6 +782,8 @@ async fn test_host_auth_context_returns_claims() {
         attributes: std::collections::HashMap::new(),
         issuer: None,
         audience: None,
+        email: None,
+        display_name: None,
     };
 
     let result = ctx.auth_context();
@@ -820,6 +822,8 @@ async fn test_host_auth_context_redacts_sensitive() {
         attributes: std::collections::HashMap::new(),
         issuer: None,
         audience: None,
+        email: None,
+        display_name: None,
     };
 
     let result = ctx.auth_context();

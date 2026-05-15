@@ -802,6 +802,8 @@ mod tenant_key_tests {
             expires_at:       Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 

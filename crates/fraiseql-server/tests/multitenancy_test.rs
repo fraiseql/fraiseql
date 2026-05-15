@@ -420,6 +420,8 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
         expires_at:       Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     let mut headers = HeaderMap::new();

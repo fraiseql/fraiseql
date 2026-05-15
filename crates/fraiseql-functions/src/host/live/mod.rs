@@ -161,6 +161,8 @@ impl LiveHostContext {
             expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
             issuer: None,
             audience: None,
+            email: None,
+            display_name: None,
         }
     }
 

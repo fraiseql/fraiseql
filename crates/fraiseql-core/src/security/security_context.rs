@@ -112,6 +112,16 @@ pub struct SecurityContext {
 
     /// Token audience (for audience validation)
     pub audience: Option<String>,
+
+    /// Normalised email address from the JWT `email` claim.
+    ///
+    /// Available as `jwt:email` in session variable mappings for RLS policies.
+    pub email: Option<String>,
+
+    /// Normalised display name from the JWT `name` claim.
+    ///
+    /// Available as `jwt:name` or `jwt:display_name` in session variable mappings.
+    pub display_name: Option<String>,
 }
 
 impl SecurityContext {
@@ -145,6 +155,8 @@ impl SecurityContext {
             expires_at: user.expires_at,
             issuer: None,
             audience: None,
+            email: user.email.clone(),
+            display_name: user.display_name.clone(),
         }
     }
 

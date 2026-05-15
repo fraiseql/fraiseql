@@ -138,6 +138,8 @@ fn create_security_context(roles: Vec<String>) -> fraiseql_core::security::Secur
         expires_at: Utc::now() + chrono::Duration::hours(1),
         issuer: None,
         audience: None,
+        email: None,
+        display_name: None,
     }
 }
 

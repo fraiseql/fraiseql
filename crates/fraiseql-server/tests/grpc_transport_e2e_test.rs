@@ -1074,6 +1074,8 @@ async fn query_with_security_context_applies_rls_where_clause() {
         expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     // Build the request message (empty GetUserRequest).

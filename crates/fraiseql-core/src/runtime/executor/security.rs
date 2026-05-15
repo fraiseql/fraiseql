@@ -350,6 +350,8 @@ mod session_variable_tests {
             expires_at: Utc::now(),
             issuer: None,
             audience: None,
+            email: None,
+            display_name: None,
         }
     }
 
@@ -457,5 +459,67 @@ mod session_variable_tests {
         assert_eq!(vars.len(), 1);
         assert_eq!(vars[0].0, "app.tenant");
         assert_eq!(vars[0].1, "header-tenant");
+    }
+
+    #[test]
+    fn resolve_session_variables_jwt_email() {
+        let mut ctx = make_context();
+        ctx.email = Some("user@corp.com".to_string());
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.email".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "email".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars[0].0, "app.email");
+        assert_eq!(vars[0].1, "user@corp.com");
+    }
+
+    #[test]
+    fn resolve_session_variables_jwt_display_name() {
+        let mut ctx = make_context();
+        ctx.display_name = Some("Jane Doe".to_string());
+        let config = SessionVariablesConfig {
+            variables:         vec![
+                SessionVariableMapping {
+                    name:   "app.name".to_string(),
+                    source: SessionVariableSource::Jwt {
+                        claim: "name".to_string(),
+                    },
+                },
+                SessionVariableMapping {
+                    name:   "app.display_name".to_string(),
+                    source: SessionVariableSource::Jwt {
+                        claim: "display_name".to_string(),
+                    },
+                },
+            ],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        assert_eq!(vars.len(), 2);
+        assert_eq!(vars[0].1, "Jane Doe");
+        assert_eq!(vars[1].1, "Jane Doe");
+    }
+
+    #[test]
+    fn resolve_session_variables_missing_email_skipped() {
+        let ctx = make_context(); // email is None
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.email".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "email".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx);
+        assert!(vars.is_empty(), "missing email should be silently skipped");
     }
 }

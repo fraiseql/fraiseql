@@ -203,6 +203,8 @@ fn create_user_context(role: &str) -> SecurityContext {
         expires_at:       Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     }
 }
 

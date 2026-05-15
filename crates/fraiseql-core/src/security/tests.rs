@@ -2644,6 +2644,8 @@ mod rls_policy_tests {
             expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -2951,6 +2953,8 @@ mod rls_policy_tests {
             expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         };
         assert_eq!(
             extract_user_value("department", &ctx),
@@ -3018,6 +3022,8 @@ mod security_context_tests {
             expires_at:       Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         };
 
         assert!(context.has_role("admin"));
@@ -3039,6 +3045,8 @@ mod security_context_tests {
             expires_at:       Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         };
 
         assert!(context.has_scope("read:user"));
@@ -3060,6 +3068,8 @@ mod security_context_tests {
             expires_at:       Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         };
 
         assert!(context.has_scope("admin:read"));
@@ -3083,6 +3093,8 @@ mod security_context_tests {
             expires_at:       now + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
         .with_role("admin".to_string())
         .with_scopes(vec!["read:user".to_string()])

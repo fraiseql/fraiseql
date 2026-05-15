@@ -248,6 +248,8 @@ mod rls_composition {
             authenticated_at: Utc::now(),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -561,6 +563,8 @@ mod session_variables {
             authenticated_at: Utc::now(),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 

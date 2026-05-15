@@ -30,6 +30,8 @@ fn tenant_security_context(tenant_id: &str) -> SecurityContext {
         authenticated_at: Utc::now(),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     }
 }
 
@@ -46,6 +48,8 @@ fn admin_security_context() -> SecurityContext {
         authenticated_at: Utc::now(),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     }
 }
 

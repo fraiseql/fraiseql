@@ -103,6 +103,8 @@ mod tests {
             attributes: std::collections::HashMap::new(),
             issuer: None,
             audience: None,
+            email: None,
+            display_name: None,
         }
     }
 

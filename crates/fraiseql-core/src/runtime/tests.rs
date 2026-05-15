@@ -962,6 +962,8 @@ mod field_filter_tests {
             expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 

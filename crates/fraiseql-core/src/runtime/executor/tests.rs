@@ -490,6 +490,8 @@ mod inject {
             expires_at:       now + chrono::Duration::hours(1),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -843,6 +845,8 @@ mod field_rbac {
             authenticated_at: Utc::now(),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -859,6 +863,8 @@ mod field_rbac {
             authenticated_at: Utc::now(),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -1023,6 +1029,8 @@ mod executor_paths {
             authenticated_at: Utc::now(),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         };
         let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
         assert!(result.is_err());
@@ -1053,6 +1061,8 @@ mod executor_paths {
             authenticated_at: Utc::now(),
             issuer:           None,
             audience:         None,
+            email:            None,
+            display_name:     None,
         };
         let result = executor.execute_with_security("{ users { id } }", None, &ctx).await;
         assert!(result.is_ok(), "correct role should succeed: {:?}", result.err());

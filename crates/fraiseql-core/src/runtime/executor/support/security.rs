@@ -56,6 +56,10 @@ pub(in super::super) fn resolve_session_variables(
                     Some(security_context.user_id.0.clone())
                 } else if claim == "tenant_id" {
                     security_context.tenant_id.as_ref().map(|t| t.0.clone())
+                } else if claim == "email" {
+                    security_context.email.clone()
+                } else if claim == "name" || claim == "display_name" {
+                    security_context.display_name.clone()
                 } else {
                     None
                 }

@@ -34,6 +34,8 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
         expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     let admin_result = policy.evaluate(&admin_context, "Post").unwrap();
@@ -52,6 +54,8 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
         expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     let user_result = policy.evaluate(&user_context, "Post").unwrap();
@@ -94,6 +98,8 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
         expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     let result = policy.evaluate(&tenant1_context, "Post").unwrap();
@@ -128,6 +134,8 @@ fn test_rls_allows_access_when_no_policy_matches() {
         expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     // Any type should get a filter (not None)
@@ -182,6 +190,8 @@ fn test_security_context_carries_all_metadata() {
         expires_at:       expires,
         issuer:           Some("https://auth.example.com".to_string()),
         audience:         Some("api.example.com".to_string()),
+        email:            None,
+        display_name:     None,
     };
 
     assert_eq!(context.user_id.as_str(), "user123");
@@ -231,6 +241,8 @@ fn test_rls_policy_produces_correct_where_clauses() {
         expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     let result = policy.evaluate(&user_context, "Post").unwrap();
@@ -271,6 +283,8 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
         expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
         issuer:           None,
         audience:         None,
+        email:            None,
+        display_name:     None,
     };
 
     let result = policy.evaluate(&user_context, "Post").unwrap();
