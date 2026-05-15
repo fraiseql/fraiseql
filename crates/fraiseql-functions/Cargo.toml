@@ -42,7 +42,7 @@ name = "functions_bench"
 harness = false
 
 [features]
-runtime-wasm = ["wasmtime"]
+runtime-wasm = ["wasmtime", "wasmtime-wasi"]
 runtime-deno = ["deno_core"]
 host-live = ["fraiseql-core", "fraiseql-db", "sqlparser", "reqwest"]
 host-storage = ["fraiseql-storage"]
@@ -51,6 +51,10 @@ host-storage = ["fraiseql-storage"]
 version = "44"
 optional = true
 features = ["component-model"]
+
+[dependencies.wasmtime-wasi]
+version = "44"
+optional = true
 
 [dependencies.deno_core]
 version = "0.290"

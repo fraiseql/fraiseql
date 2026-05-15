@@ -143,6 +143,14 @@ impl WasmRuntime {
 
         // Create linker and add host imports
         let mut linker = wasmtime::component::Linker::new(&self.engine);
+
+        // Add WASI imports — guests compiled for wasm32-wasip2 need these
+        wasmtime_wasi::p2::add_to_linker_async(&mut linker)
+            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+                message: format!("Failed to link WASI imports: {e}"),
+                path: None,
+            })?;
+
         bindings::FraiseqlFunction::add_to_linker::<
             StoreData,
             wasmtime::component::HasSelf<StoreData>,
@@ -152,21 +160,32 @@ impl WasmRuntime {
             path: None,
         })?;
 
-        // Instantiate the component
-        let instance =
-            bindings::FraiseqlFunction::instantiate_async(&mut store, &component, &linker)
-                .await
-                .map_err(|e| fraiseql_error::FraiseQLError::Validation {
-                    message: format!("Failed to instantiate WASM component: {e}"),
-                    path: None,
-                })?;
+        // Instantiate the component using the low-level API so we can call
+        // the export asynchronously (the generated `call_handle` is sync-only,
+        // but async host imports require async dispatch).
+        let instance = linker
+            .instantiate_async(&mut store, &component)
+            .await
+            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+                message: format!("Failed to instantiate WASM component: {e}"),
+                path: None,
+            })?;
 
         // Serialize event to JSON for the guest
         let event_json = serde_json::to_string(store.data().event_payload_ref())
             .unwrap_or_else(|_| "{}".to_string());
 
-        // Call the guest's handle export
-        let call_result = instance.call_handle(&mut store, &event_json);
+        // Get the handle export as a typed async-callable function.
+        let handle_func = instance
+            .get_typed_func::<(&str,), (std::result::Result<String, String>,)>(&mut store, "handle")
+            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+                message: format!("Failed to get handle export: {e}"),
+                path: None,
+            })?;
+
+        let call_result = handle_func
+            .call_async(&mut store, (&event_json,))
+            .await;
 
         let duration = start.elapsed();
         let collected_logs = store.data().logs.clone();
@@ -177,8 +196,8 @@ impl WasmRuntime {
             Some(serde_json::json!({ "error": "function execution timed out" }))
         } else {
             match call_result {
-                Ok(Ok(result_json)) => serde_json::from_str(&result_json).ok(),
-                Ok(Err(error_msg)) => Some(serde_json::json!({ "error": error_msg })),
+                Ok((Ok(result_json),)) => serde_json::from_str(&result_json).ok(),
+                Ok((Err(error_msg),)) => Some(serde_json::json!({ "error": error_msg })),
                 Err(trap) => {
                     Some(serde_json::json!({ "error": format!("WASM trap: {trap}") }))
                 }
@@ -709,5 +728,140 @@ mod tests {
 
         let function_result = result.unwrap();
         assert!(function_result.value.is_some(), "Auth context should return a value");
+    }
+
+    // ========== Phase 4 Cycle 2: Guest Full Bridge Integration Test ==========
+
+    /// Mock host context that responds to all operations for integration testing.
+    struct MockFullBridgeHost {
+        event: EventPayload,
+        storage: std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>,
+    }
+
+    impl MockFullBridgeHost {
+        fn new(event: EventPayload) -> Self {
+            Self {
+                event,
+                storage: std::sync::Mutex::new(std::collections::HashMap::new()),
+            }
+        }
+    }
+
+    impl super::host_bridge::DynHostContext for MockFullBridgeHost {
+        fn query(
+            &self,
+            _graphql: &str,
+            _variables: serde_json::Value,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>> + Send + '_>> {
+            Box::pin(async {
+                Ok(serde_json::json!({"data": {"users": [{"id": 1}]}}))
+            })
+        }
+
+        fn sql_query(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<serde_json::Value>>> + Send + '_>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+
+        fn http_request(
+            &self,
+            _method: &str,
+            _url: &str,
+            _headers: &[(String, String)],
+            _body: Option<&[u8]>,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<crate::host::HttpResponse>> + Send + '_>> {
+            Box::pin(async {
+                Ok(crate::host::HttpResponse {
+                    status: 200,
+                    headers: vec![("content-type".to_string(), "application/json".to_string())],
+                    body: b"{}".to_vec(),
+                })
+            })
+        }
+
+        fn storage_get(
+            &self,
+            _bucket: &str,
+            key: &str,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<u8>>> + Send + '_>> {
+            let data = self.storage.lock().expect("lock")
+                .get(key).cloned()
+                .unwrap_or_default();
+            Box::pin(async move { Ok(data) })
+        }
+
+        fn storage_put(
+            &self,
+            _bucket: &str,
+            key: &str,
+            body: &[u8],
+            _content_type: &str,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<()>> + Send + '_>> {
+            self.storage.lock().expect("lock")
+                .insert(key.to_string(), body.to_vec());
+            Box::pin(async { Ok(()) })
+        }
+
+        fn auth_context(&self) -> fraiseql_error::Result<serde_json::Value> {
+            Ok(serde_json::json!({
+                "sub": "test-user",
+                "roles": ["admin"],
+            }))
+        }
+
+        fn env_var(&self, name: &str) -> fraiseql_error::Result<Option<String>> {
+            if name == "FRAISEQL_TEST_VAR" {
+                Ok(Some("test_value".to_string()))
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn event_payload(&self) -> &EventPayload {
+            &self.event
+        }
+
+        fn log(&self, _level: crate::types::LogLevel, _message: &str) {}
+    }
+
+    #[tokio::test]
+    async fn test_wasm_guest_full_bridge_exercises_all_ops() {
+        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
+            .expect("Failed to create WasmRuntime");
+
+        let bytecode = bytes::Bytes::from(load_wasm_fixture("guest-full-bridge.wasm"));
+        let module = FunctionModule::from_bytecode("full_bridge".to_string(), bytecode);
+
+        let event = EventPayload {
+            trigger_type: "test".to_string(),
+            entity: "FullBridge".to_string(),
+            event_kind: "created".to_string(),
+            data: serde_json::json!({"id": 1}),
+            timestamp: chrono::Utc::now(),
+        };
+
+        let host = std::sync::Arc::new(MockFullBridgeHost::new(event.clone()));
+
+        let result = runtime
+            .invoke_with_context(&module, event, host, crate::types::ResourceLimits::default())
+            .await
+            .expect("full bridge invocation should succeed");
+
+        let value = result.value.expect("should have result value");
+
+        // Verify all operations reported success
+        assert_eq!(value["logging"], "ok", "logging ops should succeed");
+        assert_eq!(value["event_payload"], true, "event payload should be non-empty");
+        assert_eq!(value["auth_context"]["ok"], true, "auth context should succeed");
+        assert_eq!(value["env_var"]["found"], true, "env var should be found");
+        assert_eq!(value["env_var"]["value"], "test_value", "env var should have correct value");
+        assert_eq!(value["http_request"]["ok"], true, "http request should succeed");
+        assert_eq!(value["http_request"]["status"], 200, "http status should be 200");
+        assert_eq!(value["query"]["ok"], true, "GraphQL query should succeed");
+        assert_eq!(value["storage_put"]["ok"], true, "storage put should succeed");
+        assert_eq!(value["storage_get"]["ok"], true, "storage get should succeed");
     }
 }

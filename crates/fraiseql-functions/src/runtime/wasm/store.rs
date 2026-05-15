@@ -32,6 +32,12 @@ pub struct StoreData {
 
     /// Current memory usage (for tracking).
     pub memory_current_bytes: u64,
+
+    /// WASI context for guests compiled with wasm32-wasip2.
+    wasi_ctx: wasmtime_wasi::WasiCtx,
+
+    /// WASI resource table for file/stream handles.
+    wasi_table: wasmtime::component::ResourceTable,
 }
 
 impl StoreData {
@@ -44,6 +50,8 @@ impl StoreData {
             limits,
             memory_peak_bytes: 0,
             memory_current_bytes: 0,
+            wasi_ctx: wasmtime_wasi::WasiCtxBuilder::new().build(),
+            wasi_table: wasmtime::component::ResourceTable::new(),
         }
     }
 
@@ -94,6 +102,15 @@ impl StoreData {
     pub fn get_event_payload_json(&self) -> wasmtime::Result<String> {
         serde_json::to_string(&self.event_payload)
             .map_err(|e| wasmtime::Error::msg(e.to_string()))
+    }
+}
+
+impl wasmtime_wasi::WasiView for StoreData {
+    fn ctx(&mut self) -> wasmtime_wasi::WasiCtxView<'_> {
+        wasmtime_wasi::WasiCtxView {
+            ctx: &mut self.wasi_ctx,
+            table: &mut self.wasi_table,
+        }
     }
 }
 
