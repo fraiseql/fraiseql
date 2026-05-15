@@ -864,4 +864,105 @@ mod tests {
         assert_eq!(value["storage_put"]["ok"], true, "storage put should succeed");
         assert_eq!(value["storage_get"]["ok"], true, "storage get should succeed");
     }
+
+    // ========== Phase 4 Cycle 3: Mutation Trigger Integration ==========
+
+    #[cfg(feature = "runtime-wasm")]
+    #[tokio::test]
+    async fn test_before_mutation_chain_with_wasm_function_proceeds() {
+        use crate::observer::FunctionObserver;
+        use crate::triggers::mutation::{BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger};
+        use crate::host::NoopHostContext;
+        use std::collections::HashMap;
+
+        // Set up observer with WASM runtime
+        let mut observer = FunctionObserver::new();
+        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
+            .expect("create wasm runtime");
+        observer.register_runtime(RuntimeType::Wasm, runtime);
+
+        // Load the identity guest (returns event unchanged → Proceed with unchanged input)
+        let bytecode = bytes::Bytes::from(load_wasm_fixture("guest-identity.wasm"));
+        let module = FunctionModule::from_bytecode("validateInput".to_string(), bytecode);
+
+        let mut modules = HashMap::new();
+        modules.insert("validateInput".to_string(), module);
+
+        let chain = BeforeMutationChain {
+            triggers: vec![BeforeMutationTrigger {
+                function_name: "validateInput".to_string(),
+                mutation_name: "createUser".to_string(),
+            }],
+        };
+
+        let input = serde_json::json!({"name": "Alice", "email": "alice@example.com"});
+        let event = EventPayload {
+            trigger_type: "test".to_string(),
+            entity: "User".to_string(),
+            event_kind: "created".to_string(),
+            data: input.clone(),
+            timestamp: chrono::Utc::now(),
+        };
+
+        let host = NoopHostContext::new(event);
+        let limits = crate::types::ResourceLimits::default();
+
+        let result = chain.execute(input.clone(), &modules, &observer, &host, limits).await;
+
+        match result.expect("chain should succeed") {
+            BeforeMutationResult::Proceed(output) => {
+                // Identity guest echoes event → no "input" key → chain proceeds with original input
+                assert_eq!(output, input, "should proceed with unchanged input");
+            }
+            BeforeMutationResult::Abort(msg) => {
+                panic!("Expected Proceed, got Abort: {msg}");
+            }
+        }
+    }
+
+    #[cfg(feature = "runtime-wasm")]
+    #[tokio::test]
+    async fn test_after_mutation_trigger_fires_without_blocking() {
+        use crate::observer::FunctionObserver;
+        use crate::triggers::mutation::{AfterMutationTrigger, EntityEvent, EventKind};
+        use crate::host::NoopHostContext;
+
+        // Set up observer with WASM runtime
+        let mut observer = FunctionObserver::new();
+        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
+            .expect("create wasm runtime");
+        observer.register_runtime(RuntimeType::Wasm, runtime);
+
+        // Load the identity guest
+        let bytecode = bytes::Bytes::from(load_wasm_fixture("guest-identity.wasm"));
+        let module = FunctionModule::from_bytecode("onUserCreated".to_string(), bytecode);
+
+        let trigger = AfterMutationTrigger {
+            function_name: "onUserCreated".to_string(),
+            entity_type: "User".to_string(),
+            event_filter: Some(EventKind::Insert),
+        };
+
+        let entity_event = EntityEvent {
+            entity: "User".to_string(),
+            event_kind: EventKind::Insert,
+            old: None,
+            new: Some(serde_json::json!({"id": 1, "name": "Alice"})),
+            timestamp: chrono::Utc::now(),
+        };
+
+        // Build payload and invoke — fire-and-forget semantics mean we just
+        // verify the invocation completes without error.
+        let payload = trigger.build_payload(&entity_event);
+        let host = NoopHostContext::new(payload.clone());
+        let limits = crate::types::ResourceLimits::default();
+
+        let start = std::time::Instant::now();
+        let result = observer.invoke(&module, payload, &host, limits).await;
+        let elapsed = start.elapsed();
+
+        assert!(result.is_ok(), "after:mutation trigger should complete without error");
+        // Verify it completed quickly (identity guest is fast)
+        assert!(elapsed.as_millis() < 1000, "should complete quickly: {elapsed:?}");
+    }
 }
