@@ -439,3 +439,53 @@ fn test_where_clause_with_camel_case_network_operator() {
         }
     );
 }
+
+// --- Issue #250: ID-based ltree operators ---
+
+#[test]
+fn test_descendant_of_id_from_str() {
+    assert_eq!(
+        WhereOperator::from_str("descendant_of_id").unwrap(),
+        WhereOperator::DescendantOfId
+    );
+}
+
+#[test]
+fn test_ancestor_of_id_from_str() {
+    assert_eq!(
+        WhereOperator::from_str("ancestor_of_id").unwrap(),
+        WhereOperator::AncestorOfId
+    );
+}
+
+#[test]
+fn test_descendant_of_id_camel_case() {
+    assert_eq!(
+        WhereOperator::from_str("descendantOfId").unwrap(),
+        WhereOperator::DescendantOfId
+    );
+}
+
+#[test]
+fn test_ancestor_of_id_camel_case() {
+    assert_eq!(
+        WhereOperator::from_str("ancestorOfId").unwrap(),
+        WhereOperator::AncestorOfId
+    );
+}
+
+#[test]
+fn test_descendant_of_id_graphql_json() {
+    let json = json!({
+        "category_path": { "descendantOfId": "abc-123" }
+    });
+    let clause = WhereClause::from_graphql_json(&json).unwrap();
+    assert_eq!(
+        clause,
+        WhereClause::Field {
+            path:     vec!["category_path".to_string()],
+            operator: WhereOperator::DescendantOfId,
+            value:    json!("abc-123"),
+        }
+    );
+}

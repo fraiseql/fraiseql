@@ -252,6 +252,8 @@ impl WhereSqlGenerator {
             | WhereOperator::DepthLt
             | WhereOperator::DepthLte
             | WhereOperator::Lca
+            | WhereOperator::DescendantOfId
+            | WhereOperator::AncestorOfId
             | WhereOperator::Extended(_) => {
                 return Err(FraiseQLError::Internal {
                     message: format!(

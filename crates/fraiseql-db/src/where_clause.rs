@@ -421,6 +421,14 @@ pub enum WhereOperator {
     Lca,
 
     // ========================================================================
+    // LTree ID-Based Operators (resolve path from entity UUID)
+    // ========================================================================
+    /// Descendant of entity by ID: `path <@ (SELECT path FROM t WHERE id = $1)`.
+    DescendantOfId,
+    /// Ancestor of entity by ID: `path @> (SELECT path FROM t WHERE id = $1)`.
+    AncestorOfId,
+
+    // ========================================================================
     // Extended Operators (Rich Type Filters)
     // ========================================================================
     /// Extended operator for rich scalar types (Email, VIN, CountryCode, etc.)
@@ -525,6 +533,8 @@ impl WhereOperator {
             "depth_lt" => Some(Self::DepthLt),
             "depth_lte" => Some(Self::DepthLte),
             "lca" => Some(Self::Lca),
+            "descendant_of_id" => Some(Self::DescendantOfId),
+            "ancestor_of_id" => Some(Self::AncestorOfId),
             _ => None,
         }
     }

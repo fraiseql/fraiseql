@@ -498,6 +498,29 @@ pub enum WhereOperator {
         /// The paths to find LCA of
         paths: Vec<String>,
     },
+
+    // ============ LTree ID-Based Operators ============
+    /// Descendant of entity by ID: `path <@ (SELECT path FROM t WHERE id = $1)`
+    ///
+    /// Resolves the ltree path from the entity's UUID before performing the
+    /// descendant comparison. The UUID value is the entity ID to resolve.
+    DescendantOfId {
+        /// The ltree field (or relationship field) to filter
+        field: Field,
+        /// The UUID of the entity whose path to resolve
+        id: String,
+    },
+
+    /// Ancestor of entity by ID: `path @> (SELECT path FROM t WHERE id = $1)`
+    ///
+    /// Resolves the ltree path from the entity's UUID before performing the
+    /// ancestor comparison. The UUID value is the entity ID to resolve.
+    AncestorOfId {
+        /// The ltree field (or relationship field) to filter
+        field: Field,
+        /// The UUID of the entity whose path to resolve
+        id: String,
+    },
 }
 
 impl WhereOperator {
@@ -564,6 +587,8 @@ impl WhereOperator {
             WhereOperator::DepthLt { .. } => "DepthLt",
             WhereOperator::DepthLte { .. } => "DepthLte",
             WhereOperator::Lca { .. } => "Lca",
+            WhereOperator::DescendantOfId { .. } => "DescendantOfId",
+            WhereOperator::AncestorOfId { .. } => "AncestorOfId",
         }
     }
 
@@ -656,7 +681,9 @@ impl WhereOperator {
             | WhereOperator::DepthGte { field, .. }
             | WhereOperator::DepthLt { field, .. }
             | WhereOperator::DepthLte { field, .. }
-            | WhereOperator::Lca { field, .. } => field.validate(),
+            | WhereOperator::Lca { field, .. }
+            | WhereOperator::DescendantOfId { field, .. }
+            | WhereOperator::AncestorOfId { field, .. } => field.validate(),
         }
     }
 }

@@ -766,6 +766,17 @@ pub fn generate_where_operator_sql(
                 placeholders.join(", ")
             ))
         }
+
+        // ============ LTree ID-Based Operators ============
+        // SQL generation requires HierarchyContext (table, path_column).
+        // These operators are handled by the GenericWhereGenerator in fraiseql-db,
+        // not the wire-level SQL generator. Return an error if reached here.
+        WhereOperator::DescendantOfId { .. } | WhereOperator::AncestorOfId { .. } => {
+            Err(crate::WireError::InvalidSchema(
+                "ID-based ltree operators require HierarchyContext; use GenericWhereGenerator"
+                    .to_string(),
+            ))
+        }
     }
 }
 
