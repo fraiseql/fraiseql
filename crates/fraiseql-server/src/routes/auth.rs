@@ -442,6 +442,14 @@ pub async fn auth_me(
     map.insert("user_id".to_owned(), serde_json::Value::String(user.user_id.0.clone()));
     map.insert("expires_at".to_owned(), serde_json::Value::String(user.expires_at.to_rfc3339()));
 
+    // Always include normalised email/display_name when available (not gated by expose_claims).
+    if let Some(ref email) = user.email {
+        map.insert("email".to_owned(), serde_json::Value::String(email.clone()));
+    }
+    if let Some(ref name) = user.display_name {
+        map.insert("display_name".to_owned(), serde_json::Value::String(name.clone()));
+    }
+
     for claim_name in &state.expose_claims {
         if let Some(value) = user.extra_claims.get(claim_name) {
             map.insert(claim_name.clone(), value.clone());

@@ -31,6 +31,22 @@ mod auth_tests {
         })
     }
 
+    fn make_auth_user_with_identity(
+        user_id: &str,
+        email: Option<&str>,
+        display_name: Option<&str>,
+        extra: std::collections::HashMap<String, serde_json::Value>,
+    ) -> AuthUser {
+        AuthUser(fraiseql_core::security::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new(user_id),
+            scopes:       vec![],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        email.map(str::to_owned),
+            display_name: display_name.map(str::to_owned),
+            extra_claims: extra,
+        })
+    }
+
     fn make_me_state(expose_claims: Vec<&str>) -> Arc<AuthMeState> {
         Arc::new(AuthMeState {
             expose_claims: expose_claims.into_iter().map(str::to_owned).collect(),
@@ -131,6 +147,48 @@ mod auth_tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(json["https://myapp.com/role"], "editor");
+    }
+
+    #[tokio::test]
+    async fn test_auth_me_returns_email_and_display_name() {
+        let app = Router::new()
+            .route("/auth/me", get(auth_me))
+            .layer(Extension(make_auth_user_with_identity(
+                "user-z",
+                Some("user@corp.com"),
+                Some("Jane Doe"),
+                std::collections::HashMap::new(),
+            )))
+            .with_state(make_me_state(vec![]));
+
+        let req = Request::builder().uri("/auth/me").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(json["email"], "user@corp.com", "email must be a flat string");
+        assert_eq!(json["display_name"], "Jane Doe", "display_name must be a flat string");
+    }
+
+    #[tokio::test]
+    async fn test_auth_me_omits_null_email_and_display_name() {
+        let app = Router::new()
+            .route("/auth/me", get(auth_me))
+            .layer(Extension(make_auth_user_with_identity(
+                "user-w",
+                None,
+                None,
+                std::collections::HashMap::new(),
+            )))
+            .with_state(make_me_state(vec![]));
+
+        let req = Request::builder().uri("/auth/me").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert!(json.get("email").is_none(), "absent email must not be null-padded");
+        assert!(json.get("display_name").is_none(), "absent display_name must not be null-padded");
     }
 
     #[tokio::test]
