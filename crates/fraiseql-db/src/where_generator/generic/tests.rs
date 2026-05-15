@@ -314,3 +314,82 @@ fn hierarchy_context_cross_table() {
     };
     assert_eq!(ctx.fk_column, Some("fk_location".to_string()));
 }
+
+// --- Issue #250: descendantOfId / ancestorOfId SQL generation ---
+
+#[test]
+fn descendant_of_id_self_referencing() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column:   None,
+    };
+    let clause = field("category_path", WhereOperator::DescendantOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    assert_eq!(
+        sql,
+        "data->>'category_path' <@ (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+    );
+    assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
+}
+
+#[test]
+fn ancestor_of_id_self_referencing() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column:   None,
+    };
+    let clause = field("category_path", WhereOperator::AncestorOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    assert_eq!(
+        sql,
+        "data->>'category_path' @> (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+    );
+    assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
+}
+
+#[test]
+fn descendant_of_id_cross_table() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_location".to_string(),
+        path_column: "location_path".to_string(),
+        fk_column:   Some("fk_location".to_string()),
+    };
+    let clause = field("location", WhereOperator::DescendantOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    assert_eq!(
+        sql,
+        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" <@ (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1))"
+    );
+    assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
+}
+
+#[test]
+fn ancestor_of_id_cross_table() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_location".to_string(),
+        path_column: "location_path".to_string(),
+        fk_column:   Some("fk_location".to_string()),
+    };
+    let clause = field("location", WhereOperator::AncestorOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    assert_eq!(
+        sql,
+        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" @> (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1))"
+    );
+    assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
+}
+
+#[test]
+fn descendant_of_id_without_hierarchy_ctx_errors() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
+    // Without hierarchy context, should fail
+    let result = gen.generate(&clause);
+    assert!(result.is_err());
+}

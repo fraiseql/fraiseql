@@ -454,6 +454,33 @@ pub trait SqlDialect: Send + Sync + 'static {
         })
     }
 
+    /// Generate SQL for ID-based ltree operators (`descendantOfId`, `ancestorOfId`).
+    ///
+    /// Generates a subquery that resolves the ltree path from an entity UUID:
+    /// - Self-referencing: `field_expr <@ (SELECT path FROM t WHERE id = $1)`
+    /// - Cross-table: `fk IN (SELECT id FROM t WHERE path <@ (SELECT path FROM t WHERE id = $1))`
+    ///
+    /// `pg_op` is `"<@"` for `descendantOfId` or `"@>"` for `ancestorOfId`.
+    /// `field_expr` is the resolved LHS expression (e.g., `data->>'category_path'`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UnsupportedOperator`] if this dialect does not support LTree operations.
+    fn ltree_id_subquery_sql(
+        &self,
+        _pg_op: &str,
+        _field_expr: &str,
+        _table: &str,
+        _path_column: &str,
+        _fk_column: Option<&str>,
+        _param: &str,
+    ) -> Result<String, UnsupportedOperator> {
+        Err(UnsupportedOperator {
+            dialect:  self.name(),
+            operator: "LTreeIdSubquery",
+        })
+    }
+
     /// Generate SQL for `ltree = lca(ARRAY[...])` (Lca operator).
     ///
     /// `placeholders` contains pre-formatted placeholder strings

@@ -160,6 +160,27 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         self.generate_with_param_offset(clause, 0)
     }
 
+    /// Generate SQL WHERE clause with hierarchy context for ID-based ltree operators.
+    ///
+    /// The `hierarchy_ctx` provides metadata (`table`, `path_column`, `fk_column`)
+    /// needed by `DescendantOfId` / `AncestorOfId` operators to generate the
+    /// correct subquery SQL.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the clause uses an unsupported
+    /// operator or the hierarchy context is missing for an ID-based operator.
+    pub fn generate_with_hierarchy(
+        &self,
+        clause: &WhereClause,
+        hierarchy_ctx: &super::HierarchyContext,
+    ) -> Result<(String, Vec<serde_json::Value>)> {
+        self.counter.reset_to(0);
+        let mut params = Vec::new();
+        let sql = self.visit_impl(clause, &mut params, Some(hierarchy_ctx))?;
+        Ok((sql, params))
+    }
+
     /// Generate SQL WHERE clause with parameter numbering starting after `offset`.
     ///
     /// Use when the WHERE clause is appended to a query that already has bound
@@ -183,15 +204,44 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     // ── Visitor ───────────────────────────────────────────────────────────────
 
     fn visit(&self, clause: &WhereClause, params: &mut Vec<serde_json::Value>) -> Result<String> {
+        self.visit_impl(clause, params, None)
+    }
+
+    fn visit_impl(
+        &self,
+        clause: &WhereClause,
+        params: &mut Vec<serde_json::Value>,
+        hierarchy_ctx: Option<&super::HierarchyContext>,
+    ) -> Result<String> {
         match clause {
-            WhereClause::And(clauses) => self.visit_and(clauses, params),
-            WhereClause::Or(clauses) => self.visit_or(clauses, params),
-            WhereClause::Not(inner) => Ok(format!("NOT ({})", self.visit(inner, params)?)),
+            WhereClause::And(clauses) => {
+                if clauses.is_empty() {
+                    return Ok(self.dialect.always_true().to_string());
+                }
+                let parts: Result<Vec<_>> = clauses
+                    .iter()
+                    .map(|c| self.visit_impl(c, params, hierarchy_ctx))
+                    .collect();
+                Ok(format!("({})", parts?.join(" AND ")))
+            },
+            WhereClause::Or(clauses) => {
+                if clauses.is_empty() {
+                    return Ok(self.dialect.always_false().to_string());
+                }
+                let parts: Result<Vec<_>> = clauses
+                    .iter()
+                    .map(|c| self.visit_impl(c, params, hierarchy_ctx))
+                    .collect();
+                Ok(format!("({})", parts?.join(" OR ")))
+            },
+            WhereClause::Not(inner) => {
+                Ok(format!("NOT ({})", self.visit_impl(inner, params, hierarchy_ctx)?))
+            },
             WhereClause::Field {
                 path,
                 operator,
                 value,
-            } => self.visit_field(path, operator, value, params, None),
+            } => self.visit_field(path, operator, value, params, hierarchy_ctx),
             WhereClause::NativeField {
                 column,
                 pg_cast,
@@ -233,30 +283,6 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         }
     }
 
-    fn visit_and(
-        &self,
-        clauses: &[WhereClause],
-        params: &mut Vec<serde_json::Value>,
-    ) -> Result<String> {
-        if clauses.is_empty() {
-            return Ok(self.dialect.always_true().to_string());
-        }
-        let parts: Result<Vec<_>> = clauses.iter().map(|c| self.visit(c, params)).collect();
-        Ok(format!("({})", parts?.join(" AND ")))
-    }
-
-    fn visit_or(
-        &self,
-        clauses: &[WhereClause],
-        params: &mut Vec<serde_json::Value>,
-    ) -> Result<String> {
-        if clauses.is_empty() {
-            return Ok(self.dialect.always_false().to_string());
-        }
-        let parts: Result<Vec<_>> = clauses.iter().map(|c| self.visit(c, params)).collect();
-        Ok(format!("({})", parts?.join(" OR ")))
-    }
-
     // ── Field expression resolution ───────────────────────────────────────────
 
     fn resolve_field_expr(&self, path: &[String]) -> String {
@@ -285,7 +311,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         operator: &WhereOperator,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
-        _hierarchy_ctx: Option<&super::HierarchyContext>,
+        hierarchy_ctx: Option<&super::HierarchyContext>,
     ) -> Result<String> {
         let field_expr = self.resolve_field_expr(path);
 
@@ -732,6 +758,33 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     .collect();
                 self.dialect
                     .ltree_lca_sql(&field_expr, &placeholders)
+                    .map_err(|e| FraiseQLError::validation(e.to_string()))
+            },
+
+            // ── LTree ID-based operators ──────────────────────────────────────
+            WhereOperator::DescendantOfId | WhereOperator::AncestorOfId => {
+                let ctx = hierarchy_ctx.ok_or_else(|| {
+                    FraiseQLError::validation(
+                        "descendantOfId/ancestorOfId requires HierarchyContext — \
+                         configure [hierarchies] in fraiseql.toml"
+                            .to_string(),
+                    )
+                })?;
+                let pg_op = if matches!(operator, WhereOperator::DescendantOfId) {
+                    "<@"
+                } else {
+                    "@>"
+                };
+                let p = self.push_param(params, value.clone());
+                self.dialect
+                    .ltree_id_subquery_sql(
+                        pg_op,
+                        &field_expr,
+                        &ctx.table,
+                        &ctx.path_column,
+                        ctx.fk_column.as_deref(),
+                        &p,
+                    )
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 

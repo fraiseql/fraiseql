@@ -230,6 +230,32 @@ impl SqlDialect for PostgresDialect {
         Ok(format!("{lhs}::ltree = lca(ARRAY[{}])", placeholders.join(", ")))
     }
 
+    fn ltree_id_subquery_sql(
+        &self,
+        pg_op: &str,
+        field_expr: &str,
+        table: &str,
+        path_column: &str,
+        fk_column: Option<&str>,
+        param: &str,
+    ) -> Result<String, UnsupportedOperator> {
+        let qt = self.quote_identifier(table);
+        let qp = self.quote_identifier(path_column);
+        let qi = self.quote_identifier("id");
+        let path_subquery = format!("SELECT {qp} FROM {qt} WHERE {qi} = {param}");
+
+        if let Some(fk) = fk_column {
+            // Cross-table: fk IN (SELECT id FROM t WHERE path <op> (subquery))
+            let qfk = self.quote_identifier(fk);
+            Ok(format!(
+                "{qfk} IN (SELECT {qi} FROM {qt} WHERE {qp} {pg_op} ({path_subquery}))"
+            ))
+        } else {
+            // Self-referencing: field_expr <op> (SELECT path FROM t WHERE id = $N)
+            Ok(format!("{field_expr} {pg_op} ({path_subquery})"))
+        }
+    }
+
     fn row_view_column_expr(
         &self,
         json_column: &str,
