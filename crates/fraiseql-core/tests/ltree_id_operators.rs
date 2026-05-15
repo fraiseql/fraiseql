@@ -287,3 +287,22 @@ fn hierarchy_context_propagates_through_nested_or_and() {
     assert!(sql.contains("@>"), "Expected @> for AncestorOfId, got: {sql}");
     assert_eq!(params.len(), 3, "Expected 3 params (Eq + 2 IDs), got: {}", params.len());
 }
+
+#[test]
+fn descendant_of_id_empty_uuid_generates_valid_sql() {
+    use fraiseql_core::db::dialect::PostgresDialect;
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column:   None,
+    };
+    let clause = WhereClause::Field {
+        path:     vec!["category_path".to_string()],
+        operator: WhereOperator::DescendantOfId,
+        value:    json!(""),
+    };
+    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    assert!(sql.contains("$1"), "Expected $1 placeholder, got: {sql}");
+    assert_eq!(params[0], json!(""));
+}
