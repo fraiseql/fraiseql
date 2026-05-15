@@ -393,3 +393,48 @@ fn descendant_of_id_without_hierarchy_ctx_errors() {
     let result = gen.generate(&clause);
     assert!(result.is_err());
 }
+
+#[test]
+fn descendant_of_id_mysql_unsupported() {
+    use crate::dialect::MySqlDialect;
+    let gen = GenericWhereGenerator::new(MySqlDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column:   None,
+    };
+    let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
+    let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("not supported") || msg.contains("LTreeIdSubquery"), "Got: {msg}");
+}
+
+#[test]
+fn ancestor_of_id_sqlite_unsupported() {
+    use crate::dialect::SqliteDialect;
+    let gen = GenericWhereGenerator::new(SqliteDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column:   None,
+    };
+    let clause = field("category_path", WhereOperator::AncestorOfId, json!("some-id"));
+    let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("not supported") || msg.contains("LTreeIdSubquery"), "Got: {msg}");
+}
+
+#[test]
+fn descendant_of_id_sqlserver_unsupported() {
+    use crate::dialect::SqlServerDialect;
+    let gen = GenericWhereGenerator::new(SqlServerDialect);
+    let ctx = HierarchyContext {
+        table:       "tb_category".to_string(),
+        path_column: "category_path".to_string(),
+        fk_column:   None,
+    };
+    let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
+    let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("not supported") || msg.contains("LTreeIdSubquery"), "Got: {msg}");
+}
