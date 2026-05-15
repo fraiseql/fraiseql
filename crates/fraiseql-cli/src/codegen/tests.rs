@@ -22,6 +22,7 @@ mod proto_gen_tests {
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
+            hierarchy: None,
         }
     }
 
@@ -489,6 +490,7 @@ mod row_views_tests {
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
+            hierarchy: None,
         }
     }
 

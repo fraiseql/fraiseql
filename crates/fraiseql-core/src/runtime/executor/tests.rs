@@ -764,6 +764,7 @@ mod field_rbac {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::Reject,
                 encryption:     None,
+                hierarchy:     None,
             },
             FieldDefinition {
                 name:           "name".into(),
@@ -777,6 +778,7 @@ mod field_rbac {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::Reject,
                 encryption:     None,
+                hierarchy:     None,
             },
             // Protected field: reject when unauthorized
             FieldDefinition {
@@ -791,6 +793,7 @@ mod field_rbac {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::Reject,
                 encryption:     None,
+                hierarchy:     None,
             },
             // Protected field: mask when unauthorized
             FieldDefinition {
@@ -805,6 +808,7 @@ mod field_rbac {
                 requires_scope: Some("read:User.email".to_string()),
                 on_deny:        FieldDenyPolicy::Mask,
                 encryption:     None,
+                hierarchy:     None,
             },
         ];
 

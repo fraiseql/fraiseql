@@ -1582,6 +1582,7 @@ mod optimizer_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        hierarchy:     None,
                     })
                     .collect(),
                 description:         None,
@@ -1639,6 +1640,7 @@ mod optimizer_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        hierarchy:     None,
                     })
                     .collect(),
                 description:         None,
@@ -1706,6 +1708,7 @@ mod optimizer_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        hierarchy:     None,
                     })
                     .collect(),
                 description:         None,

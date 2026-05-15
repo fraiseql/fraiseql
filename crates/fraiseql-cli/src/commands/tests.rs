@@ -182,6 +182,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        hierarchy:     None,
                     },
                     FieldDefinition {
                         name:           "name".into(),
@@ -195,6 +196,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        hierarchy:     None,
                     },
                 ],
                 description:         Some("User type".to_string()),
@@ -536,6 +538,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        hierarchy:     None,
                     },
                     FieldDefinition {
                         name:           "email".into(),
@@ -549,6 +552,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
+                        hierarchy:     None,
                     },
                 ],
                 description:         Some("Test type".to_string()),
@@ -1183,6 +1187,7 @@ mod generate_proto_tests {
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
+            hierarchy: None,
         }
     }
 

@@ -188,6 +188,7 @@ impl SchemaConverter {
                 }
             }),
             encryption: None,
+            hierarchy: None,
         })
     }
 

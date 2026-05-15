@@ -215,6 +215,7 @@ fn test_deprecated_field_introspection() {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
+                hierarchy:     None,
             },
             FieldDefinition::new("sku", FieldType::String),
         ],

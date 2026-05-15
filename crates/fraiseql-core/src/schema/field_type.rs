@@ -248,6 +248,7 @@ pub enum FieldDenyPolicy {
 ///     requires_scope: None,
 ///     on_deny: FieldDenyPolicy::default(),
 ///     encryption: None,
+///     hierarchy: None,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -308,6 +309,7 @@ pub struct FieldDefinition {
     ///     requires_scope: Some("read:Employee.salary".to_string()),
     ///     on_deny: FieldDenyPolicy::Reject,
     ///     encryption: None,
+    ///     hierarchy: None,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -328,6 +330,14 @@ pub struct FieldDefinition {
     /// manager) with the specified algorithm.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub encryption: Option<FieldEncryptionConfig>,
+
+    /// Named hierarchy reference for ID-based ltree operators.
+    ///
+    /// When set, this field can use `descendantOfId` / `ancestorOfId` filter
+    /// operators. The value references a key in the `hierarchies` config map,
+    /// which provides the table and ltree path column for subquery generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hierarchy: Option<String>,
 }
 
 /// Encryption configuration for a field in the compiled schema.
@@ -396,6 +406,7 @@ impl FieldDefinition {
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
+            hierarchy: None,
         }
     }
 
@@ -414,6 +425,7 @@ impl FieldDefinition {
             requires_scope: None,
             on_deny: FieldDenyPolicy::default(),
             encryption: None,
+            hierarchy: None,
         }
     }
 
@@ -440,6 +452,7 @@ impl FieldDefinition {
             requires_scope: None,
             on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
+            hierarchy:      None,
         }
     }
 

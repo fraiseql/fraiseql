@@ -946,6 +946,7 @@ mod field_filter_tests {
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
+            hierarchy:     None,
         }
     }
 
@@ -1070,6 +1071,7 @@ mod field_filter_tests {
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny,
             encryption: None,
+            hierarchy: None,
         }
     }
 

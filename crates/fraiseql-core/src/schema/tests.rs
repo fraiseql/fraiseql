@@ -1673,3 +1673,31 @@ fn test_naming_convention_serde_roundtrip() {
     let restored: NamingConvention = serde_json::from_str(&json).unwrap();
     assert_eq!(restored, NamingConvention::Preserve);
 }
+
+// --- Issue #250: FieldDefinition.hierarchy ---
+
+#[test]
+fn test_field_definition_hierarchy_serde_roundtrip() {
+    let mut field = FieldDefinition::new("category_path", FieldType::String);
+    field.hierarchy = Some("category".to_string());
+
+    let json = serde_json::to_string(&field).unwrap();
+    assert!(json.contains(r#""hierarchy":"category""#));
+
+    let restored: FieldDefinition = serde_json::from_str(&json).unwrap();
+    assert_eq!(restored.hierarchy, Some("category".to_string()));
+}
+
+#[test]
+fn test_field_definition_hierarchy_absent_defaults_to_none() {
+    let json = r#"{"name":"id","field_type":"ID","nullable":false}"#;
+    let field: FieldDefinition = serde_json::from_str(json).unwrap();
+    assert!(field.hierarchy.is_none());
+}
+
+#[test]
+fn test_field_definition_hierarchy_skipped_when_none() {
+    let field = FieldDefinition::new("id", FieldType::Id);
+    let json = serde_json::to_string(&field).unwrap();
+    assert!(!json.contains("hierarchy"));
+}
