@@ -177,6 +177,51 @@ pub struct TomlSchema {
     /// ```
     #[serde(default)]
     pub crud: Option<CrudNamingConfig>,
+
+    /// Hierarchy definitions for ID-based ltree operators (`descendantOfId`, `ancestorOfId`).
+    ///
+    /// Maps a hierarchy name to its table and ltree path column. Used by the compiler
+    /// to generate subquery-based ltree WHERE clauses that resolve an entity's ltree
+    /// path from its UUID.
+    ///
+    /// Example:
+    /// ```toml
+    /// [hierarchies.category]
+    /// table = "tb_category"
+    /// path_column = "category_path"
+    /// ```
+    #[serde(default)]
+    pub hierarchies: Option<std::collections::HashMap<String, HierarchyConfig>>,
+}
+
+/// Configuration for a single hierarchy used by ID-based ltree operators.
+///
+/// Defines the database table and ltree path column for a named hierarchy.
+/// The `id` column is always `id` (UUID) per the trinity pattern — not configurable.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HierarchyConfig {
+    /// Database table containing the ltree column (e.g., `"tb_category"`).
+    pub table: String,
+
+    /// Name of the ltree column in the table (e.g., `"category_path"`).
+    pub path_column: String,
+}
+
+impl HierarchyConfig {
+    /// Validate that required fields are non-empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `table` or `path_column` is empty.
+    pub fn validate(&self) -> Result<()> {
+        if self.table.is_empty() {
+            anyhow::bail!("hierarchy table must not be empty");
+        }
+        if self.path_column.is_empty() {
+            anyhow::bail!("hierarchy path_column must not be empty");
+        }
+        Ok(())
+    }
 }
 
 impl TomlSchema {

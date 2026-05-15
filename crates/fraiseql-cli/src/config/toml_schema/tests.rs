@@ -367,4 +367,63 @@ max_query_depth = 3
         assert_eq!(schema.validation.max_query_depth, Some(3));
         assert_eq!(schema.validation.max_query_complexity, None);
     }
+
+    // --- Issue #250: hierarchy config ---
+
+    #[test]
+    fn test_hierarchy_config_deserializes_from_toml() {
+        let toml = r#"
+[hierarchies.category]
+table = "tb_category"
+path_column = "category_path"
+
+[hierarchies.location]
+table = "tb_location"
+path_column = "location_path"
+"#;
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        let hierarchies = schema.hierarchies.as_ref().expect("hierarchies should be Some");
+        assert_eq!(hierarchies.len(), 2);
+
+        let cat = &hierarchies["category"];
+        assert_eq!(cat.table, "tb_category");
+        assert_eq!(cat.path_column, "category_path");
+
+        let loc = &hierarchies["location"];
+        assert_eq!(loc.table, "tb_location");
+        assert_eq!(loc.path_column, "location_path");
+    }
+
+    #[test]
+    fn test_hierarchy_config_absent_defaults_to_none() {
+        let toml = "";
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        assert!(schema.hierarchies.is_none());
+    }
+
+    #[test]
+    fn test_hierarchy_config_rejects_empty_table() {
+        let toml = r#"
+[hierarchies.bad]
+table = ""
+path_column = "some_path"
+"#;
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        let hierarchies = schema.hierarchies.as_ref().unwrap();
+        let bad = &hierarchies["bad"];
+        assert!(bad.validate().is_err());
+    }
+
+    #[test]
+    fn test_hierarchy_config_rejects_empty_path_column() {
+        let toml = r#"
+[hierarchies.bad]
+table = "tb_something"
+path_column = ""
+"#;
+        let schema: TomlSchema = toml::from_str(toml).unwrap();
+        let hierarchies = schema.hierarchies.as_ref().unwrap();
+        let bad = &hierarchies["bad"];
+        assert!(bad.validate().is_err());
+    }
 }
