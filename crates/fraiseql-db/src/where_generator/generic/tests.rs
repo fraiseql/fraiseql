@@ -438,3 +438,23 @@ fn descendant_of_id_sqlserver_unsupported() {
     let msg = err.to_string();
     assert!(msg.contains("not supported") || msg.contains("LTreeIdSubquery"), "Got: {msg}");
 }
+
+#[test]
+fn ltree_id_subquery_escapes_adversarial_identifiers() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let ctx = HierarchyContext {
+        table:       r#"evil"table"#.to_string(),
+        path_column: r#"evil"col"#.to_string(),
+        fk_column:   None,
+    };
+    let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
+    let (sql, _) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    assert!(
+        sql.contains(r#""evil""table""#),
+        "Table name should have doubled quotes, got: {sql}"
+    );
+    assert!(
+        sql.contains(r#""evil""col""#),
+        "Column name should have doubled quotes, got: {sql}"
+    );
+}
