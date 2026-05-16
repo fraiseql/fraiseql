@@ -3017,9 +3017,17 @@ mod result_tests {
     /// Regression guard for #185: LRU+Mutex serialized all hot-key reads through
     /// one shard's mutex. With moka, reads are lock-free and should scale near-
     /// linearly with thread count.
+    ///
+    /// Requires `FRAISEQL_SCALING_TEST=1` — skipped on CI runners where low core
+    /// counts make the timing assertion meaningless (40 threads on 2 cores).
     #[test]
-    #[ignore = "wall-clock dependent — run manually to confirm lock-free read scaling"]
+    #[ignore = "wall-clock dependent — set FRAISEQL_SCALING_TEST=1 with ≥8 cores"]
     fn test_concurrent_reads_do_not_serialize() {
+        if std::env::var("FRAISEQL_SCALING_TEST").is_err() {
+            eprintln!("skipped: set FRAISEQL_SCALING_TEST=1 to run (needs ≥8 cores)");
+            return;
+        }
+
         const ITERS: usize = 10_000;
         let config = CacheConfig::enabled();
         let cache = Arc::new(QueryResultCache::new(config));
@@ -3050,13 +3058,11 @@ mod result_tests {
         }
         let multi_elapsed = start.elapsed();
 
-        // 40× the work should complete in well under 40× the time.
+        // 40× the work in ≤4× the time → near-linear scaling.
         // Under old LRU+Mutex, 40-thread took ~20-40× single-thread time.
-        // We use a 10× ceiling to tolerate CI runners with limited cores (2-4)
-        // where context-switching overhead is significant.
         assert!(
-            multi_elapsed <= single_elapsed * 10,
-            "40-thread ({multi_elapsed:?}) was more than 10× single-thread ({single_elapsed:?}) — suggests serialization",
+            multi_elapsed <= single_elapsed * 4,
+            "40-thread ({multi_elapsed:?}) was more than 4× single-thread ({single_elapsed:?}) — suggests serialization",
         );
     }
 }
