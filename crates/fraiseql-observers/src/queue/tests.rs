@@ -3,9 +3,7 @@
 
 #[cfg(test)]
 mod queue_tests {
-    use crate::config::ActionConfig;
-    use crate::event::EntityEvent;
-    use crate::queue::*;
+    use crate::{config::ActionConfig, event::EntityEvent, queue::*};
 
     #[test]
     fn test_job_creation() {
@@ -164,9 +162,10 @@ mod queue_tests {
 mod redis_tests {
     use redis::Client;
 
-    use crate::queue::redis::*;
-    use crate::queue::{Job, JobQueue, JobResult};
-    use crate::{ActionConfig, ActionResult, EntityEvent, JobStatus};
+    use crate::{
+        ActionConfig, ActionResult, EntityEvent, JobStatus,
+        queue::{Job, JobQueue, JobResult, redis::*},
+    };
 
     async fn setup_test_queue() -> RedisJobQueue {
         let client = Client::open("redis://localhost:6379").expect("Failed to create client");

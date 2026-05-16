@@ -12,8 +12,8 @@ pub mod metrics;
 pub mod playground;
 pub mod realtime;
 pub mod storage;
-pub mod subscriptions;
 pub mod studio;
+pub mod subscriptions;
 pub mod well_known;
 
 #[cfg(feature = "grpc")]
@@ -37,4 +37,5 @@ pub use realtime::{BroadcastState, broadcast_handler};
 pub use subscriptions::{SubscriptionState, subscription_handler, subscription_metrics};
 pub use well_known::security_txt_handler;
 
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;

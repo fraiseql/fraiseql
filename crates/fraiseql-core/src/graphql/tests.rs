@@ -2,16 +2,18 @@
 //! Re-export items not in `crate::graphql::*` so submodules can reach them via `use super::*`.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
 
+pub use std::collections::{HashMap, HashSet};
+
 pub use graphql_parser::query;
 pub use serde_json::json;
-pub use std::collections::{HashMap, HashSet};
 
 mod fragment_resolver_tests {
 
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     fn make_field(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
         FieldSelection {
@@ -262,7 +264,8 @@ mod fragments_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_no_cycles() {
@@ -345,7 +348,8 @@ mod parser_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
     use crate::graphql::parser::{MAX_SERIALIZE_DEPTH, serialize_value};
 
     #[test]
@@ -580,7 +584,8 @@ mod parser_tests {
 mod require_permission_directive_tests {
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_permission_matches_exact() {
@@ -608,7 +613,8 @@ mod require_permission_directive_tests {
 mod types_tests {
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_parsed_query_signature() {
@@ -731,7 +737,8 @@ mod types_tests {
 mod complexity_tests {
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     // ── Regression tests: operation names and arguments must NOT be counted ──
 

@@ -18,7 +18,14 @@ fn test_studio_shell_has_all_tab_items() {
     use fraiseql_server::routes::studio::studio_shell_html;
     let html = studio_shell_html();
     // Each tab item must reference one of the six sections
-    for section in ["data", "auth", "storage", "functions", "realtime", "metrics"] {
+    for section in [
+        "data",
+        "auth",
+        "storage",
+        "functions",
+        "realtime",
+        "metrics",
+    ] {
         assert!(
             html.contains(&format!("value=\"{section}\"")),
             "Shell must have a tab item for '{section}'"
@@ -41,10 +48,7 @@ fn test_studio_shell_has_login_dialog() {
 fn test_studio_shell_loads_js_as_module() {
     use fraiseql_server::routes::studio::studio_shell_html;
     let html = studio_shell_html();
-    assert!(
-        html.contains("type=\"module\""),
-        "app.js must be loaded as an ES module"
-    );
+    assert!(html.contains("type=\"module\""), "app.js must be loaded as an ES module");
 }
 
 /// Verify the CSS asset is referenced from the shell.
@@ -79,10 +83,24 @@ fn test_all_admin_types_importable() {
         cache_hit_rate: None,
         cache_entries:  None,
     };
-    let _ = AdminSchemaResponse { schema: serde_json::Value::Null };
-    let _ = UserListResponse { users: vec![], total: 0, page: 1, page_size: 50 };
-    let _ = UserInviteRequest { email: String::new() };
-    let _ = DataQueryResponse { rows: vec![], total: 0, page: 1, page_size: 50 };
+    let _ = AdminSchemaResponse {
+        schema: serde_json::Value::Null,
+    };
+    let _ = UserListResponse {
+        users:     vec![],
+        total:     0,
+        page:      1,
+        page_size: 50,
+    };
+    let _ = UserInviteRequest {
+        email: String::new(),
+    };
+    let _ = DataQueryResponse {
+        rows:      vec![],
+        total:     0,
+        page:      1,
+        page_size: 50,
+    };
     let _ = DataBrowserQuery {
         page:      1,
         page_size: 50,
@@ -90,7 +108,9 @@ fn test_all_admin_types_importable() {
         sort:      vec![],
     };
     let _ = FunctionListResponse { functions: vec![] };
-    let _ = SecretSetRequest { value: String::new() };
+    let _ = SecretSetRequest {
+        value: String::new(),
+    };
     let _ = MetricsSummary::zero();
     let _ = RealtimeStatsResponse {
         connections:    0,
@@ -98,8 +118,17 @@ fn test_all_admin_types_importable() {
         presence_rooms: vec![],
         cdc_lag_ms:     None,
     };
-    let _ = ObjectListResponse { objects: vec![], total: 0, page: 1, page_size: 50 };
-    let _ = PresignRequest { bucket: String::new(), key: String::new(), expires_in_secs: 0 };
+    let _ = ObjectListResponse {
+        objects:   vec![],
+        total:     0,
+        page:      1,
+        page_size: 50,
+    };
+    let _ = PresignRequest {
+        bucket:          String::new(),
+        key:             String::new(),
+        expires_in_secs: 0,
+    };
 }
 
 /// Verify `GET /studio` path is distinct from `GET /studio/assets/{file}`.

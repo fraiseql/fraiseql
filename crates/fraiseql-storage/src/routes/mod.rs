@@ -11,8 +11,7 @@
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     Extension, Router,
@@ -23,16 +22,17 @@ use axum::{
     routing::{get, post, put},
 };
 use bytes::Bytes;
-use serde::{Deserialize, Serialize};
-
-use crate::backend::StorageBackend;
-use crate::config::BucketConfig;
-use crate::metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
-use crate::rls::StorageRlsEvaluator;
 use fraiseql_error::FraiseQLError;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "aws-s3")]
 use crate::{PresignCapable, PresignedUrl};
+use crate::{
+    backend::StorageBackend,
+    config::BucketConfig,
+    metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow},
+    rls::StorageRlsEvaluator,
+};
 
 // ---------------------------------------------------------------------------
 // State
@@ -42,13 +42,13 @@ use crate::{PresignCapable, PresignedUrl};
 #[derive(Clone)]
 pub struct StorageState {
     /// Storage backend (shared across all buckets).
-    pub backend: Arc<StorageBackend>,
+    pub backend:  Arc<StorageBackend>,
     /// Metadata repository for object tracking.
     pub metadata: Arc<StorageMetadataRepo>,
     /// RLS evaluator for access control.
-    pub rls: StorageRlsEvaluator,
+    pub rls:      StorageRlsEvaluator,
     /// Bucket configurations keyed by bucket name.
-    pub buckets: Arc<HashMap<String, BucketConfig>>,
+    pub buckets:  Arc<HashMap<String, BucketConfig>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -59,10 +59,10 @@ pub struct StorageState {
 #[derive(Debug, Deserialize)]
 pub struct PresignRequest {
     /// Operation: "upload" (PUT) or "download" (GET).
-    pub operation: String,
+    pub operation:       String,
     /// MIME type (required for uploads, optional for downloads).
     #[serde(default)]
-    pub content_type: Option<String>,
+    pub content_type:    Option<String>,
     /// URL validity duration in seconds (default: 3600, max: 86400).
     #[serde(default = "default_expiry_secs")]
     pub expires_in_secs: u64,
@@ -76,20 +76,20 @@ fn default_expiry_secs() -> u64 {
 #[derive(Debug, Serialize)]
 pub struct PresignResponse {
     /// The presigned URL.
-    pub url: String,
+    pub url:        String,
     /// When the URL expires (RFC3339 format).
     pub expires_at: String,
     /// HTTP method this URL is valid for.
-    pub method: String,
+    pub method:     String,
 }
 
 #[cfg(feature = "aws-s3")]
 impl From<PresignedUrl> for PresignResponse {
     fn from(url: PresignedUrl) -> Self {
         Self {
-            url: url.url,
+            url:        url.url,
             expires_at: url.expires_at.to_rfc3339(),
-            method: url.method,
+            method:     url.method,
         }
     }
 }
@@ -100,7 +100,7 @@ pub struct ListQuery {
     /// Filter by key prefix.
     pub prefix: Option<String>,
     /// Maximum results (default: 100, max: 1000).
-    pub limit: Option<u32>,
+    pub limit:  Option<u32>,
     /// Offset for pagination.
     pub offset: Option<u32>,
 }
@@ -111,7 +111,7 @@ pub struct StorageUser {
     /// User identifier (sub claim from JWT).
     pub user_id: Option<String>,
     /// User roles.
-    pub roles: Vec<String>,
+    pub roles:   Vec<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -244,9 +244,7 @@ async fn get_handler(
     // Look up metadata for RLS check
     let row = match state.metadata.get(&bucket_name, &key).await {
         Ok(Some(row)) => row,
-        Ok(None) => {
-            return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found")
-        }
+        Ok(None) => return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found"),
         Err(e) => return storage_error_response(e),
     };
 
@@ -273,12 +271,9 @@ async fn get_handler(
                     headers.insert(header::ETAG, val);
                 }
             }
-            headers.insert(
-                header::CACHE_CONTROL,
-                "public, max-age=3600".parse().unwrap(),
-            );
+            headers.insert(header::CACHE_CONTROL, "public, max-age=3600".parse().unwrap());
             (StatusCode::OK, headers, Body::from(data)).into_response()
-        }
+        },
         Err(e) => storage_error_response(e),
     }
 }
@@ -297,9 +292,7 @@ async fn delete_handler(
     // Look up metadata for RLS check
     let row = match state.metadata.get(&bucket_name, &key).await {
         Ok(Some(row)) => row,
-        Ok(None) => {
-            return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found")
-        }
+        Ok(None) => return error_response(StatusCode::NOT_FOUND, "not_found", "Object not found"),
         Err(e) => return storage_error_response(e),
     };
 
@@ -355,19 +348,14 @@ async fn list_handler(
     let limit = query.limit.unwrap_or(100).min(1000);
     let offset = query.offset.unwrap_or(0);
 
-    let rows = match state
-        .metadata
-        .list(&bucket_name, query.prefix.as_deref(), limit, offset)
-        .await
+    let rows = match state.metadata.list(&bucket_name, query.prefix.as_deref(), limit, offset).await
     {
         Ok(rows) => rows,
         Err(e) => return storage_error_response(e),
     };
 
     // Apply RLS filtering
-    let visible = state
-        .rls
-        .filter_visible(user.user_id.as_deref(), &user.roles, bucket, rows);
+    let visible = state.rls.filter_visible(user.user_id.as_deref(), &user.roles, bucket, rows);
 
     let items: Vec<ListItem> = visible.iter().map(ListItem::from).collect();
     axum::Json(items).into_response()
@@ -416,7 +404,7 @@ async fn presign_handler(
                         "missing_content_type",
                         "content_type required for upload",
                     );
-                }
+                },
             };
             state.backend.presign_put(&key, &content_type, expires_in).await
         } else {
@@ -447,23 +435,23 @@ async fn presign_handler(
 /// List item returned in JSON array from list endpoint.
 #[derive(Debug, Serialize)]
 struct ListItem {
-    key: String,
-    size: i64,
+    key:          String,
+    size:         i64,
     content_type: String,
-    etag: Option<String>,
-    created_at: String,
-    updated_at: String,
+    etag:         Option<String>,
+    created_at:   String,
+    updated_at:   String,
 }
 
 impl From<&StorageMetadataRow> for ListItem {
     fn from(row: &StorageMetadataRow) -> Self {
         Self {
-            key: row.key.clone(),
-            size: row.size_bytes,
+            key:          row.key.clone(),
+            size:         row.size_bytes,
             content_type: row.content_type.clone(),
-            etag: row.etag.clone(),
-            created_at: row.created_at.to_rfc3339(),
-            updated_at: row.updated_at.to_rfc3339(),
+            etag:         row.etag.clone(),
+            created_at:   row.created_at.to_rfc3339(),
+            updated_at:   row.updated_at.to_rfc3339(),
         }
     }
 }
@@ -493,18 +481,14 @@ fn storage_error_response(err: FraiseQLError) -> Response {
                         "Storage backend error"
                     );
                     StatusCode::INTERNAL_SERVER_ERROR
-                }
+                },
             };
             error_response(status, code.as_deref().unwrap_or("storage_error"), message)
-        }
+        },
         _ => {
             tracing::error!(error = %err, "Unexpected storage error");
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "internal_error",
-                &err.to_string(),
-            )
-        }
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &err.to_string())
+        },
     }
 }
 

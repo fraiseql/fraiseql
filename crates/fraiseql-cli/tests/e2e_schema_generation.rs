@@ -47,7 +47,7 @@ fn test_e2e_complete_compilation_pipeline() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -104,7 +104,7 @@ fn test_e2e_sql_templates_all_databases() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -167,7 +167,7 @@ fn test_e2e_lookup_data_comprehensive() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -227,7 +227,7 @@ fn test_e2e_all_operators_generated() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -295,7 +295,7 @@ fn test_e2e_compilation_deterministic() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled1 =
@@ -357,7 +357,7 @@ fn test_e2e_all_49_types_valid() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -416,7 +416,7 @@ fn test_e2e_full_field_assertion() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
                 IntermediateField {
                     name:           "email".to_string(),
@@ -426,7 +426,7 @@ fn test_e2e_full_field_assertion() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
             ],
             description:   None,
@@ -488,7 +488,7 @@ fn test_e2e_full_field_assertion() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let schema = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

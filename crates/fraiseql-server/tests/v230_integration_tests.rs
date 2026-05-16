@@ -27,14 +27,10 @@ use axum::{Router, body::Body, routing::get};
 use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
 use fraiseql_server::{
     routes::{
-        api::{
-            metadata::metadata_handler,
-            usage::usage_handler,
-        },
+        api::{metadata::metadata_handler, usage::usage_handler},
         graphql::AppState,
     },
-    usage::aggregator::UsageAggregator,
-    usage::events::MutationAuditEvent,
+    usage::{aggregator::UsageAggregator, events::MutationAuditEvent},
 };
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
@@ -60,8 +56,7 @@ async fn get_json(router: &Router, uri: &str) -> (StatusCode, serde_json::Value)
         .unwrap();
     let status = response.status();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let json: serde_json::Value =
-        serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -118,10 +113,7 @@ async fn test_metadata_endpoint_accessible_without_auth_by_default() {
 
 fn make_usage_router(usage: Arc<UsageAggregator>) -> Router {
     Router::new()
-        .route(
-            "/api/v1/admin/usage",
-            get(usage_handler::<FailingAdapter>),
-        )
+        .route("/api/v1/admin/usage", get(usage_handler::<FailingAdapter>))
         .with_state(make_state_with_usage(usage))
 }
 
@@ -130,7 +122,8 @@ fn make_usage_router(usage: Arc<UsageAggregator>) -> Router {
 async fn test_usage_endpoint_empty_aggregator_returns_empty_mutations() {
     let router = make_usage_router(Arc::new(UsageAggregator::new()));
 
-    let (status, body) = get_json(&router, "/api/v1/admin/usage?tenant_id=acme&period=2026-05").await;
+    let (status, body) =
+        get_json(&router, "/api/v1/admin/usage?tenant_id=acme&period=2026-05").await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["tenant_id"], "acme");
@@ -147,21 +140,35 @@ async fn test_usage_endpoint_reflects_recorded_events() {
 
     // Record 5 User and 3 Order mutations for tenant_a in 2026-05
     for _ in 0..5 {
-        usage.record(&MutationAuditEvent::new("create_user", "User", "create", "tenant_a", "2026-05"));
+        usage.record(&MutationAuditEvent::new(
+            "create_user",
+            "User",
+            "create",
+            "tenant_a",
+            "2026-05",
+        ));
     }
     for _ in 0..3 {
-        usage.record(&MutationAuditEvent::new("create_order", "Order", "create", "tenant_a", "2026-05"));
+        usage.record(&MutationAuditEvent::new(
+            "create_order",
+            "Order",
+            "create",
+            "tenant_a",
+            "2026-05",
+        ));
     }
 
     let router = make_usage_router(Arc::clone(&usage));
-    let (status, body) = get_json(&router, "/api/v1/admin/usage?tenant_id=tenant_a&period=2026-05").await;
+    let (status, body) =
+        get_json(&router, "/api/v1/admin/usage?tenant_id=tenant_a&period=2026-05").await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["usage"]["mutations"]["User"], 5);
     assert_eq!(body["usage"]["mutations"]["Order"], 3);
 }
 
-/// Integration: usage endpoint enforces tenant isolation (`tenant_b` cannot see `tenant_a`'s counters).
+/// Integration: usage endpoint enforces tenant isolation (`tenant_b` cannot see `tenant_a`'s
+/// counters).
 #[tokio::test]
 async fn test_usage_endpoint_tenant_isolation() {
     let usage = Arc::new(UsageAggregator::new());
@@ -171,7 +178,8 @@ async fn test_usage_endpoint_tenant_isolation() {
     let router = make_usage_router(Arc::clone(&usage));
 
     // tenant_b should see empty results even though tenant_a has data
-    let (status, body) = get_json(&router, "/api/v1/admin/usage?tenant_id=tenant_b&period=2026-05").await;
+    let (status, body) =
+        get_json(&router, "/api/v1/admin/usage?tenant_id=tenant_b&period=2026-05").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["usage"]["mutations"].as_object().unwrap().len(), 0);
 }
@@ -181,7 +189,8 @@ async fn test_usage_endpoint_tenant_isolation() {
 async fn test_usage_endpoint_rejects_invalid_period() {
     let router = make_usage_router(Arc::new(UsageAggregator::new()));
 
-    let (status, body) = get_json(&router, "/api/v1/admin/usage?tenant_id=acme&period=invalid").await;
+    let (status, body) =
+        get_json(&router, "/api/v1/admin/usage?tenant_id=acme&period=invalid").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(body["error"].is_string(), "error response must have an 'error' field");
 }
@@ -191,7 +200,8 @@ async fn test_usage_endpoint_rejects_invalid_period() {
 /// Integration: `MutationAuditLayer` records events when tracing events are emitted.
 ///
 /// This test wires up the full pipeline:
-///   `tracing::info!(target: "fraiseql::mutation_audit", ...)` → `MutationAuditLayer` → `UsageAggregator`
+///   `tracing::info!(target: "fraiseql::mutation_audit", ...)` → `MutationAuditLayer` →
+/// `UsageAggregator`
 #[tokio::test]
 async fn test_audit_layer_records_tracing_events() {
     use fraiseql_server::usage::{aggregator::UsageAggregator, layer::MutationAuditLayer};
@@ -279,7 +289,8 @@ async fn test_audit_pipeline_emit_then_query_via_http() {
 
     // Query via the HTTP endpoint
     let router = make_usage_router(Arc::clone(&aggregator));
-    let (status, body) = get_json(&router, "/api/v1/admin/usage?tenant_id=shop&period=2026-05").await;
+    let (status, body) =
+        get_json(&router, "/api/v1/admin/usage?tenant_id=shop&period=2026-05").await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["usage"]["mutations"]["Product"], 2);
@@ -289,17 +300,15 @@ async fn test_audit_pipeline_emit_then_query_via_http() {
 
 #[cfg(feature = "federation")]
 mod federation_plan_tests {
-    use super::*;
     use fraiseql_server::routes::api::federation::plan_handler;
+
+    use super::*;
 
     /// Integration: federation plan endpoint returns 200 with plan structure for a basic query.
     #[tokio::test]
     async fn test_federation_plan_endpoint_returns_200() {
         let router = Router::new()
-            .route(
-                "/admin/v1/federation/plan",
-                get(plan_handler::<FailingAdapter>),
-            )
+            .route("/admin/v1/federation/plan", get(plan_handler::<FailingAdapter>))
             .with_state(make_state());
 
         let query = urlencoding::encode("{ __typename }");
@@ -315,10 +324,7 @@ mod federation_plan_tests {
     #[tokio::test]
     async fn test_federation_plan_endpoint_missing_query_returns_400() {
         let router = Router::new()
-            .route(
-                "/admin/v1/federation/plan",
-                get(plan_handler::<FailingAdapter>),
-            )
+            .route("/admin/v1/federation/plan", get(plan_handler::<FailingAdapter>))
             .with_state(make_state());
 
         let (status, _body) = get_json(&router, "/admin/v1/federation/plan").await;

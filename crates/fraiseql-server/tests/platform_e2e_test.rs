@@ -44,12 +44,10 @@
 
 // ── Tier 1: Structural Tests ──────────────────────────────────────────────────
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_functions::{
-    FunctionDefinition, FunctionModule, FunctionObserver,
-    RuntimeType, TriggerRegistry,
+    FunctionDefinition, FunctionModule, FunctionObserver, RuntimeType, TriggerRegistry,
 };
 use fraiseql_server::subsystems::{BeforeMutationHooks, FunctionsSubsystem, ServerSubsystems};
 
@@ -65,9 +63,11 @@ fn test_platform_e2e_server_subsystems_none_is_all_absent() {
 /// Verify that `BeforeMutationHooks` can be constructed from a trigger registry.
 #[test]
 fn test_platform_e2e_before_mutation_hooks_construction() {
-    let defs = vec![
-        FunctionDefinition::new("validate", "before:mutation:createUser", RuntimeType::Deno),
-    ];
+    let defs = vec![FunctionDefinition::new(
+        "validate",
+        "before:mutation:createUser",
+        RuntimeType::Deno,
+    )];
     let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
     let observer = Arc::new(FunctionObserver::new());
     let module_registry: HashMap<String, FunctionModule> = HashMap::new();
@@ -101,7 +101,7 @@ fn test_platform_e2e_functions_subsystem_full_construction() {
     let module_registry: HashMap<String, FunctionModule> = HashMap::new();
     let config = fraiseql_server::schema::loader::FunctionsConfig {
         definitions: defs,
-        module_dir: std::path::PathBuf::from("/tmp/functions"),
+        module_dir:  std::path::PathBuf::from("/tmp/functions"),
     };
 
     let subsystem = FunctionsSubsystem {
@@ -136,9 +136,11 @@ fn test_platform_e2e_registry_to_cron_scheduler_pipeline() {
 /// Verify that a registry with no cron triggers returns None from `cron_scheduler()`.
 #[test]
 fn test_platform_e2e_registry_no_cron_returns_none() {
-    let defs = vec![
-        FunctionDefinition::new("validate", "before:mutation:createUser", RuntimeType::Deno),
-    ];
+    let defs = vec![FunctionDefinition::new(
+        "validate",
+        "before:mutation:createUser",
+        RuntimeType::Deno,
+    )];
     let registry = TriggerRegistry::load_from_definitions(&defs).unwrap();
 
     assert!(
@@ -246,11 +248,11 @@ fn test_platform_e2e_realtime_observer_hook_is_accessible() {
     // Simulate a mutation completing: non-blocking, returns immediately
     use fraiseql_server::realtime::delivery::{EntityEvent, EventKindSerde};
     let event = EntityEvent {
-        entity: "User".to_string(),
+        entity:     "User".to_string(),
         event_kind: EventKindSerde::Insert,
-        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        old: None,
-        timestamp: chrono::Utc::now().to_rfc3339(),
+        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        old:        None,
+        timestamp:  chrono::Utc::now().to_rfc3339(),
     };
     observer.on_mutation_complete(event);
 
@@ -264,18 +266,20 @@ fn test_platform_e2e_realtime_observer_hook_is_accessible() {
 /// protect mutation response latency.
 #[test]
 fn test_platform_e2e_realtime_observer_drops_events_on_backpressure() {
-    use fraiseql_server::realtime::delivery::{EntityEvent, EventKindSerde};
-    use fraiseql_server::realtime::observer::RealtimeBroadcastObserver;
+    use fraiseql_server::realtime::{
+        delivery::{EntityEvent, EventKindSerde},
+        observer::RealtimeBroadcastObserver,
+    };
 
     // Capacity = 1 → second event should be dropped when channel is full
     let (observer, _rx) = RealtimeBroadcastObserver::new(1);
 
     let make_event = || EntityEvent {
-        entity: "Post".to_string(),
+        entity:     "Post".to_string(),
         event_kind: EventKindSerde::Insert,
-        new: Some(serde_json::json!({ "id": 1 })),
-        old: None,
-        timestamp: chrono::Utc::now().to_rfc3339(),
+        new:        Some(serde_json::json!({ "id": 1 })),
+        old:        None,
+        timestamp:  chrono::Utc::now().to_rfc3339(),
     };
 
     // First event fills the channel
@@ -313,8 +317,8 @@ async fn test_e2e_before_mutation_validates_input() {
         return;
     }
 
-    let base_url = std::env::var("FRAISEQL_TEST_URL")
-        .unwrap_or_else(|_| "http://localhost:8000".to_string());
+    let base_url =
+        std::env::var("FRAISEQL_TEST_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let client = reqwest::Client::new();
 
     // Mutation with empty name — the before:mutation hook should reject this
@@ -403,8 +407,8 @@ async fn test_e2e_http_trigger_calls_graphql() {
         return;
     }
 
-    let base_url = std::env::var("FRAISEQL_TEST_URL")
-        .unwrap_or_else(|_| "http://localhost:8000".to_string());
+    let base_url =
+        std::env::var("FRAISEQL_TEST_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let client = reqwest::Client::new();
 
     let response = client
@@ -413,10 +417,7 @@ async fn test_e2e_http_trigger_calls_graphql() {
         .await
         .expect("request failed");
 
-    assert!(
-        response.status().is_success(),
-        "HTTP trigger should return 2xx"
-    );
+    assert!(response.status().is_success(), "HTTP trigger should return 2xx");
 }
 
 /// E2E: `after:mutation` function receives entity event after DB insert.

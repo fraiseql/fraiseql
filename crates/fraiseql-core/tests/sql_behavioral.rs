@@ -294,21 +294,21 @@ fn aggregate_sum_produces_correct_sql() {
     };
 
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "amount".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
@@ -361,13 +361,13 @@ fn aggregate_group_by_produces_correct_sql() {
     };
 
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "amount".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![DimensionPath {
                 name:      "category".to_string(),
@@ -375,11 +375,11 @@ fn aggregate_group_by_produces_correct_sql() {
                 data_type: "text".to_string(),
             }],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {

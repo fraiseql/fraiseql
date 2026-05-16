@@ -603,10 +603,10 @@ impl Default for ServerConfig {
             admin_readonly_token: None,
             introspection_enabled: false, // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
-            metadata_require_auth: None,        // Falls back to introspection_require_auth
-            schema_export_require_auth: None,   // Falls back to introspection_require_auth
-            playground_require_auth: None,      // Falls back to introspection_require_auth
-            subscription_require_auth: None,    // Falls back to introspection_require_auth
+            metadata_require_auth: None,  // Falls back to introspection_require_auth
+            schema_export_require_auth: None, // Falls back to introspection_require_auth
+            playground_require_auth: None, // Falls back to introspection_require_auth
+            subscription_require_auth: None, // Falls back to introspection_require_auth
             design_api_require_auth: true, // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),
             pool_max_size: default_pool_max_size(),

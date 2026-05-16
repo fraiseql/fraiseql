@@ -1,13 +1,13 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::*;
-
 use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
 
 use chrono::Utc;
+
+use super::*;
 
 // ---------------------------------------------------------------------------
 // Mock SecretsBackend for LeaseRenewalTask tests

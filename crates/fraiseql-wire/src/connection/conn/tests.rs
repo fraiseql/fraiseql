@@ -108,8 +108,7 @@ const _SEND_SAFETY_CHECK: fn() = || {
     // Reason: closure body is intentionally unreachable; exists only for compile-time type checking
     let _ = || {
         // These would be checked at compile time if instantiated
-        require_send::<
-            std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()> + Send>>,
-        >();
+        require_send::<std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()> + Send>>>(
+        );
     };
 };

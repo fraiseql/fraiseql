@@ -5,8 +5,7 @@ use std::collections::HashMap;
 use chrono::Utc;
 use indexmap::IndexMap;
 
-use super::*;
-use super::test_support::*;
+use super::{test_support::*, *};
 use crate::{
     db::types::JsonbValue,
     runtime::{JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig},
@@ -764,7 +763,7 @@ mod field_rbac {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::Reject,
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             FieldDefinition {
                 name:           "name".into(),
@@ -778,7 +777,7 @@ mod field_rbac {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::Reject,
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             // Protected field: reject when unauthorized
             FieldDefinition {
@@ -793,7 +792,7 @@ mod field_rbac {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::Reject,
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             // Protected field: mask when unauthorized
             FieldDefinition {
@@ -808,7 +807,7 @@ mod field_rbac {
                 requires_scope: Some("read:User.email".to_string()),
                 on_deny:        FieldDenyPolicy::Mask,
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
         ];
 

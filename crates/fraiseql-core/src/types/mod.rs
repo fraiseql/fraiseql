@@ -5,6 +5,7 @@
 
 mod ids;
 
-pub use self::ids::{ConnectionId, OrgId, SubscriptionId, TenantId, UserId};
 // sql_hints types are in fraiseql-db; re-export for backward compat
 pub use fraiseql_db::types::{OrderByClause, OrderDirection, SqlProjectionHint};
+
+pub use self::ids::{ConnectionId, OrgId, SubscriptionId, TenantId, UserId};

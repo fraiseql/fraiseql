@@ -11,37 +11,37 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct RestTomlConfig {
     /// Whether the REST transport is enabled.
-    pub enabled: bool,
+    pub enabled:                 bool,
     /// Base URL path for REST endpoints.
-    pub path: String,
+    pub path:                    String,
     /// Maximum rows per page (clamps `?limit=`).
-    pub max_page_size: u64,
+    pub max_page_size:           u64,
     /// Default page size when no `?limit=` is specified.
-    pub default_page_size: u64,
+    pub default_page_size:       u64,
     /// Batch size for NDJSON streaming responses.
-    pub ndjson_batch_size: u64,
+    pub ndjson_batch_size:       u64,
     /// Maximum affected rows for bulk PATCH/DELETE.
-    pub max_bulk_affected: u64,
+    pub max_bulk_affected:       u64,
     /// Maximum byte length for `?filter=` JSON values.
-    pub max_filter_bytes: u64,
+    pub max_filter_bytes:        u64,
     /// How DELETE endpoints report success: `"no_content"` (default) or `"entity"`.
-    pub delete_response: DeleteResponseToml,
+    pub delete_response:         DeleteResponseToml,
     /// Default result cache TTL in seconds (0 = no caching).
-    pub default_cache_ttl: u64,
+    pub default_cache_ttl:       u64,
     /// CDN `s-maxage` value in seconds (`None` = omit).
-    pub cdn_max_age: Option<u64>,
+    pub cdn_max_age:             Option<u64>,
     /// Whether REST endpoints require authentication by default.
-    pub require_auth: bool,
+    pub require_auth:            bool,
     /// SSE heartbeat interval in seconds.
-    pub sse_heartbeat_seconds: u64,
+    pub sse_heartbeat_seconds:   u64,
     /// Maximum depth for resource embedding (`?select=posts(comments)`).
-    pub max_embedding_depth: u32,
+    pub max_embedding_depth:     u32,
     /// Allowlist of type names to expose as REST resources (empty = all).
-    pub include: Vec<String>,
+    pub include:                 Vec<String>,
     /// Denylist of type names to exclude from REST resources.
-    pub exclude: Vec<String>,
+    pub exclude:                 Vec<String>,
     /// Whether to enable `ETag` / `If-None-Match` conditional response support.
-    pub etag: bool,
+    pub etag:                    bool,
     /// TTL in seconds for idempotency key deduplication.
     pub idempotency_ttl_seconds: u64,
 }

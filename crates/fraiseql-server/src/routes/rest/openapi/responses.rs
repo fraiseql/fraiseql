@@ -253,8 +253,7 @@ impl OpenApiGenerator<'_> {
         let mut required = Vec::new();
 
         for field in &writable {
-            properties
-                .insert(field.name.to_string(), field_type_to_json_schema(&field.field_type));
+            properties.insert(field.name.to_string(), field_type_to_json_schema(&field.field_type));
             if all_required && !field.nullable {
                 required.push(json!(field.name.to_string()));
             }

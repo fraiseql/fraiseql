@@ -4,22 +4,21 @@ use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{Router, routing::get};
 use fraiseql_core::{runtime::SubscriptionManager, schema::CompiledSchema};
-use futures::{SinkExt, StreamExt};
-use tokio::net::TcpListener;
-use tokio::sync::mpsc;
+use futures::{SinkExt, StreamExt, future::BoxFuture};
+use tokio::{net::TcpListener, sync::mpsc};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{self, client::IntoClientRequest},
 };
 
-use futures::future::BoxFuture;
-
-use super::context_hash::security_context_hash;
-use super::delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde, RlsEvaluator};
-use super::observer::RealtimeBroadcastObserver;
-use super::routes::{RealtimeSchemaConfig, realtime_router};
-use super::server::{
-    RealtimeConfig, RealtimeServer, RealtimeState, TokenInfo, TokenValidator, ws_handler,
+use super::{
+    context_hash::security_context_hash,
+    delivery::{EntityEvent, EventDeliveryPipeline, EventKindSerde, RlsEvaluator},
+    observer::RealtimeBroadcastObserver,
+    routes::{RealtimeSchemaConfig, realtime_router},
+    server::{
+        RealtimeConfig, RealtimeServer, RealtimeState, TokenInfo, TokenValidator, ws_handler,
+    },
 };
 
 // ── Test token validator ────────────────────────────────────────────────
@@ -49,14 +48,14 @@ impl TokenValidator for TestValidator {
             if token.starts_with("valid-") {
                 let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
                 Ok(TokenInfo {
-                    user_id: user_id.clone(),
+                    user_id:      user_id.clone(),
                     context_hash: {
                         use std::hash::{Hash, Hasher};
                         let mut hasher = std::collections::hash_map::DefaultHasher::new();
                         user_id.hash(&mut hasher);
                         hasher.finish()
                     },
-                    expires_at: chrono::Utc::now().timestamp() + expires_in,
+                    expires_at:   chrono::Utc::now().timestamp() + expires_in,
                 })
             } else if token == "expired-token" {
                 Err("token expired".to_owned())
@@ -77,9 +76,7 @@ async fn spawn_test_server(config: RealtimeConfig, validator: TestValidator) -> 
         validator: Arc::new(validator),
     };
 
-    let app = Router::new()
-        .route("/realtime/v1", get(ws_handler))
-        .with_state(state);
+    let app = Router::new().route("/realtime/v1", get(ws_handler)).with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -111,9 +108,7 @@ async fn spawn_test_server_with_entities(
         validator: Arc::new(validator),
     };
 
-    let app = Router::new()
-        .route("/realtime/v1", get(ws_handler))
-        .with_state(state);
+    let app = Router::new().route("/realtime/v1", get(ws_handler)).with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -140,9 +135,7 @@ async fn send_json(
     >,
     msg: serde_json::Value,
 ) {
-    ws.send(tungstenite::Message::Text(msg.to_string().into()))
-        .await
-        .unwrap();
+    ws.send(tungstenite::Message::Text(msg.to_string().into())).await.unwrap();
 }
 
 /// Read the next text message, with a timeout.
@@ -256,16 +249,13 @@ async fn test_websocket_idle_timeout_disconnects() {
     let msg = ws.next().await;
     match msg {
         Some(Ok(tungstenite::Message::Close(Some(frame)))) => {
-            assert_eq!(
-                frame.code,
-                tungstenite::protocol::frame::coding::CloseCode::Normal
-            );
-        }
+            assert_eq!(frame.code, tungstenite::protocol::frame::coding::CloseCode::Normal);
+        },
         // Connection closed without close frame — also acceptable
-        None => {}
+        None => {},
         other => {
             panic!("Expected close frame or connection drop, got {other:?}");
-        }
+        },
     }
 }
 
@@ -289,11 +279,9 @@ async fn test_websocket_graceful_close() {
         msg,
         None | Some(
             Ok(tungstenite::Message::Close(_))
-                | Err(
-                    tungstenite::Error::Protocol(
-                        tungstenite::error::ProtocolError::ResetWithoutClosingHandshake
-                    ) | tungstenite::Error::ConnectionClosed
-                )
+                | Err(tungstenite::Error::Protocol(
+                    tungstenite::error::ProtocolError::ResetWithoutClosingHandshake
+                ) | tungstenite::Error::ConnectionClosed)
         )
     );
     assert!(is_clean_close, "Expected close or None, got {msg:?}");
@@ -365,23 +353,17 @@ async fn test_websocket_token_expiry_disconnects() {
                     break;
                 }
                 assert_eq!(parsed["type"], "ping");
-            }
+            },
             Some(Ok(tungstenite::Message::Close(Some(frame)))) => {
-                assert_eq!(
-                    frame.code,
-                    tungstenite::protocol::frame::coding::CloseCode::from(4401)
-                );
+                assert_eq!(frame.code, tungstenite::protocol::frame::coding::CloseCode::from(4401));
                 got_token_expired = true;
                 break;
-            }
+            },
             Some(Ok(tungstenite::Message::Close(None))) | None => break,
             other => panic!("Unexpected message: {other:?}"),
         }
     }
-    assert!(
-        got_token_expired,
-        "Expected token_expired message before close"
-    );
+    assert!(got_token_expired, "Expected token_expired message before close");
 }
 
 /// Validator that lets the token through initially but marks it as expiring
@@ -421,9 +403,7 @@ async fn test_websocket_token_revalidation_interval() {
         validator: Arc::new(NearExpiryValidator),
     };
 
-    let app = Router::new()
-        .route("/realtime/v1", get(ws_handler))
-        .with_state(state);
+    let app = Router::new().route("/realtime/v1", get(ws_handler)).with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -449,17 +429,15 @@ async fn test_websocket_token_revalidation_interval() {
                     got_expired = true;
                     break;
                 }
-            }
+            },
             Ok(Some(Ok(tungstenite::Message::Close(Some(frame))))) => {
-                if frame.code
-                    == tungstenite::protocol::frame::coding::CloseCode::from(4401)
-                {
+                if frame.code == tungstenite::protocol::frame::coding::CloseCode::from(4401) {
                     got_expired = true;
                 }
                 break;
-            }
+            },
             Ok(None | Some(Ok(tungstenite::Message::Close(None)))) => break,
-            _ => {}
+            _ => {},
         }
     }
     assert!(got_expired, "Expected token_expired from revalidation");
@@ -485,8 +463,11 @@ async fn test_subscribe_to_entity() {
     assert_eq!(connected["type"], "connected");
 
     // Subscribe to Post
-    send_json(&mut ws, serde_json::json!({"type": "subscribe", "entity": "Post", "event": "*"}))
-        .await;
+    send_json(
+        &mut ws,
+        serde_json::json!({"type": "subscribe", "entity": "Post", "event": "*"}),
+    )
+    .await;
 
     let reply = next_msg(&mut ws).await;
     assert_eq!(reply["type"], "subscribed");
@@ -605,8 +586,7 @@ async fn test_subscribe_exceeds_fan_out_limit() {
         max_connections_per_context: 100,
         ..RealtimeConfig::default()
     };
-    let addr =
-        spawn_test_server_with_entities(config, TestValidator::new(), test_entities()).await;
+    let addr = spawn_test_server_with_entities(config, TestValidator::new(), test_entities()).await;
 
     // Connect 3 different users and subscribe each to Post
     let (mut ws1, _) = connect_async(ws_url(addr, Some("valid-user1"))).await.unwrap();
@@ -696,7 +676,12 @@ async fn test_duplicate_subscribe_is_idempotent() {
 /// RLS evaluator that allows all access.
 struct AllowAllRls;
 impl RlsEvaluator for AllowAllRls {
-    fn can_access<'a>(&'a self, _context_hash: u64, _entity: &'a str, _row: &'a serde_json::Value) -> BoxFuture<'a, bool> {
+    fn can_access<'a>(
+        &'a self,
+        _context_hash: u64,
+        _entity: &'a str,
+        _row: &'a serde_json::Value,
+    ) -> BoxFuture<'a, bool> {
         Box::pin(async { true })
     }
 }
@@ -704,7 +689,12 @@ impl RlsEvaluator for AllowAllRls {
 /// RLS evaluator that denies all access.
 struct DenyAllRls;
 impl RlsEvaluator for DenyAllRls {
-    fn can_access<'a>(&'a self, _context_hash: u64, _entity: &'a str, _row: &'a serde_json::Value) -> BoxFuture<'a, bool> {
+    fn can_access<'a>(
+        &'a self,
+        _context_hash: u64,
+        _entity: &'a str,
+        _row: &'a serde_json::Value,
+    ) -> BoxFuture<'a, bool> {
         Box::pin(async { false })
     }
 }
@@ -719,12 +709,18 @@ impl CountingRls {
             call_count: std::sync::atomic::AtomicUsize::new(0),
         }
     }
+
     fn count(&self) -> usize {
         self.call_count.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 impl RlsEvaluator for CountingRls {
-    fn can_access<'a>(&'a self, _context_hash: u64, _entity: &'a str, _row: &'a serde_json::Value) -> BoxFuture<'a, bool> {
+    fn can_access<'a>(
+        &'a self,
+        _context_hash: u64,
+        _entity: &'a str,
+        _row: &'a serde_json::Value,
+    ) -> BoxFuture<'a, bool> {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Box::pin(async { true })
     }
@@ -754,9 +750,7 @@ async fn spawn_server_with_delivery(
         validator: Arc::new(validator),
     };
 
-    let app = Router::new()
-        .route("/realtime/v1", get(ws_handler))
-        .with_state(state);
+    let app = Router::new().route("/realtime/v1", get(ws_handler)).with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1049,11 +1043,11 @@ async fn test_event_payload_format() {
 
     // Send a DELETE event with old data
     let event = EntityEvent {
-        entity: "Post".to_owned(),
+        entity:     "Post".to_owned(),
         event_kind: EventKindSerde::Delete,
-        new: None,
-        old: Some(serde_json::json!({"id": 7, "title": "Deleted post"})),
-        timestamp: "2026-04-28T15:30:00Z".to_owned(),
+        new:        None,
+        old:        Some(serde_json::json!({"id": 7, "title": "Deleted post"})),
+        timestamp:  "2026-04-28T15:30:00Z".to_owned(),
     };
     event_tx.send(event).await.unwrap();
 
@@ -1157,9 +1151,7 @@ async fn spawn_server_with_observer(
         validator: Arc::new(validator),
     };
 
-    let app = Router::new()
-        .route("/realtime/v1", get(ws_handler))
-        .with_state(state);
+    let app = Router::new().route("/realtime/v1", get(ws_handler)).with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1217,8 +1209,8 @@ async fn test_observer_slow_client_disconnected() {
                     got_close_4002 = true;
                 }
                 break;
-            }
-            Ok(Some(Ok(_))) => {} // flush buffered change events
+            },
+            Ok(Some(Ok(_))) => {}, // flush buffered change events
             Ok(None | Some(Err(_))) | Err(_) => break, // connection closed or outer timeout
         }
     }
@@ -1284,11 +1276,11 @@ async fn test_observer_end_to_end() {
 
     // Inject an event via the observer (the same path that a real mutation would use).
     observer.on_mutation_complete(EntityEvent {
-        entity: "Post".to_owned(),
+        entity:     "Post".to_owned(),
         event_kind: EventKindSerde::Insert,
-        new: Some(serde_json::json!({"id": 42, "title": "Hello realtime", "author_id": 7})),
-        old: None,
-        timestamp: "2026-04-29T00:00:00Z".to_owned(),
+        new:        Some(serde_json::json!({"id": 42, "title": "Hello realtime", "author_id": 7})),
+        old:        None,
+        timestamp:  "2026-04-29T00:00:00Z".to_owned(),
     });
 
     let msg = next_msg(&mut ws).await;
@@ -1497,11 +1489,7 @@ fn test_realtime_config_loaded_from_schema() {
     let config: RealtimeSchemaConfig = serde_json::from_value(json).unwrap();
 
     assert!(config.enabled, "expected enabled=true");
-    assert_eq!(
-        config.entities,
-        vec!["Post", "Comment"],
-        "expected entities list"
-    );
+    assert_eq!(config.entities, vec!["Post", "Comment"], "expected entities list");
     assert_eq!(config.max_connections_per_context, Some(25));
 }
 
@@ -1544,12 +1532,10 @@ fn test_realtime_entities_from_schema() {
 /// Returns the bound address.
 async fn spawn_combined_server(validator: TestValidator) -> SocketAddr {
     // Realtime side
-    let rt_server = Arc::new(RealtimeServer::with_entities(
-        RealtimeConfig::default(),
-        test_entities(),
-    ));
+    let rt_server =
+        Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), test_entities()));
     let rt_state = RealtimeState {
-        server: rt_server,
+        server:    rt_server,
         validator: Arc::new(validator),
     };
     let realtime_app = realtime_router(rt_state);
@@ -1600,10 +1586,8 @@ async fn test_graphql_subscriptions_still_work() {
     // Connect to /ws with the graphql-transport-ws subprotocol.
     let url = format!("ws://127.0.0.1:{}/ws", addr.port());
     let mut req = url.into_client_request().unwrap();
-    req.headers_mut().insert(
-        "Sec-WebSocket-Protocol",
-        "graphql-transport-ws".parse().unwrap(),
-    );
+    req.headers_mut()
+        .insert("Sec-WebSocket-Protocol", "graphql-transport-ws".parse().unwrap());
     let (mut ws, response) = connect_async(req).await.expect("GraphQL WS upgrade should succeed");
 
     assert_eq!(response.status(), 101, "Expected 101 Switching Protocols on /ws");
@@ -1631,13 +1615,10 @@ async fn test_realtime_and_graphql_ws_coexist() {
     // GraphQL WS endpoint: returns connection_ack after connection_init.
     let url = format!("ws://127.0.0.1:{}/ws", addr.port());
     let mut req = url.into_client_request().unwrap();
-    req.headers_mut().insert(
-        "Sec-WebSocket-Protocol",
-        "graphql-transport-ws".parse().unwrap(),
-    );
-    let (mut gql_ws, gql_resp) = connect_async(req)
-        .await
-        .expect("GraphQL WS upgrade should succeed");
+    req.headers_mut()
+        .insert("Sec-WebSocket-Protocol", "graphql-transport-ws".parse().unwrap());
+    let (mut gql_ws, gql_resp) =
+        connect_async(req).await.expect("GraphQL WS upgrade should succeed");
     assert_eq!(gql_resp.status(), 101);
     let ack = graphql_ws_init(&mut gql_ws).await;
     assert_eq!(ack["type"], "connection_ack");

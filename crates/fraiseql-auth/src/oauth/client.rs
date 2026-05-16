@@ -90,7 +90,7 @@ pub struct OAuth2Client {
     /// Client secret from provider.
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
-    pub(crate) client_secret:              Zeroizing<String>,
+    pub(crate) client_secret:   Zeroizing<String>,
     /// Authorization endpoint.
     pub authorization_endpoint: String,
     /// Token endpoint.
@@ -364,18 +364,18 @@ pub const FORBIDDEN_KEY_INJECTION_HEADERS: &[&str] = &["jku", "jwk", "x5u", "x5c
 /// OIDC client for OpenID Connect flow.
 pub struct OIDCClient {
     /// Provider configuration.
-    pub config:     OIDCProviderConfig,
+    pub config:               OIDCProviderConfig,
     /// Client ID.
-    pub client_id:  String,
+    pub client_id:            String,
     /// Client secret — retained for token revocation and introspection endpoints.
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
     #[allow(dead_code)] // Reason: retained for token revocation and introspection endpoints
     pub(crate) client_secret: Zeroizing<String>,
     /// JWKS key cache for ID token signature verification.
-    pub jwks_cache: Arc<JwksCache>,
+    pub jwks_cache:           Arc<JwksCache>,
     /// HTTP client for userinfo requests.
-    http_client:    reqwest::Client,
+    http_client:              reqwest::Client,
 }
 
 /// Custom `Debug` that redacts the client secret.

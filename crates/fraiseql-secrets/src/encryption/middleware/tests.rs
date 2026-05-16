@@ -1,7 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use super::*;
-
 use crate::secrets_manager::{SecretsBackend, SecretsError as SmError, SecretsManager};
 
 /// In-memory secrets backend for testing (avoids `set_var` which is unsafe).
@@ -332,8 +331,7 @@ fn test_emergency_rotation_marks_compromised() {
     let v2 = rm.emergency_rotate("test breach").unwrap();
 
     // Old version should be compromised
-    let v1_meta =
-        rm.get_version_history().unwrap().into_iter().find(|m| m.version == v1).unwrap();
+    let v1_meta = rm.get_version_history().unwrap().into_iter().find(|m| m.version == v1).unwrap();
     assert_eq!(v1_meta.status, KeyVersionStatus::Compromised);
 
     // New version should be current

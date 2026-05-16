@@ -218,7 +218,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         // 2. Route to appropriate handler (with RLS support for regular queries)
         match query_type {
             QueryType::Regular => {
-                self.query_runner().execute_regular_query_with_security(query, variables, security_context)
+                self.query_runner()
+                    .execute_regular_query_with_security(query, variables, security_context)
                     .await
             },
             QueryType::Aggregate(query_name) => {

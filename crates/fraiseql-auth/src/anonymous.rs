@@ -15,9 +15,7 @@
 //! - Rate-limited to [`ANON_RATE_MAX`] signups per IP per [`ANON_RATE_WINDOW_SECS`].
 //! - Each anonymous `user_id` is a `UUIDv4` with an `anon_` prefix (unpredictable).
 
-use std::sync::Arc;
-
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     Json,
@@ -51,7 +49,7 @@ const ANON_RATE_MAX: u32 = 10;
 #[derive(Debug, Clone)]
 struct RateRecord {
     /// Count of signups in the current window.
-    count:      u32,
+    count:        u32,
     /// Start of the current window (Unix seconds).
     window_start: u64,
 }
@@ -64,7 +62,7 @@ pub struct AnonSignupState {
     /// Session store used to issue the anonymous session.
     pub session_store: Arc<dyn SessionStore>,
     /// Per-IP signup rate-limit counters.
-    rate_counters: Arc<DashMap<String, RateRecord>>,
+    rate_counters:     Arc<DashMap<String, RateRecord>>,
 }
 
 impl AnonSignupState {
@@ -143,7 +141,7 @@ pub async fn anon_signup(
                 &e.to_string(),
             );
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+        },
     };
 
     // Rate-limit check.
@@ -183,7 +181,7 @@ pub async fn anon_signup(
                 }),
             )
                 .into_response()
-        }
+        },
         Err(e) => {
             logger.log_failure(
                 AuditEventType::AuthFailure,
@@ -193,7 +191,7 @@ pub async fn anon_signup(
                 &e.to_string(),
             );
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
+        },
     }
 }
 
@@ -281,10 +279,7 @@ mod tests {
         let state = make_state();
         let now = unix_now().unwrap();
         for i in 0..ANON_RATE_MAX {
-            assert!(
-                state.check_rate_limit("192.168.1.1", now),
-                "signup #{i} should be allowed"
-            );
+            assert!(state.check_rate_limit("192.168.1.1", now), "signup #{i} should be allowed");
         }
         assert!(
             !state.check_rate_limit("192.168.1.1", now),
@@ -356,10 +351,7 @@ mod tests {
 
         // IP B should still have full allowance.
         for i in 0..ANON_RATE_MAX {
-            assert!(
-                state.check_rate_limit("10.0.0.2", now),
-                "IP B signup #{i} should be allowed"
-            );
+            assert!(state.check_rate_limit("10.0.0.2", now), "IP B signup #{i} should be allowed");
         }
     }
 }

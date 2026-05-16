@@ -9,7 +9,8 @@
 //! - Mutations use `"arguments"` (not `"parameters"`) and top-level `"return_type"` / `"operation"`
 //! - Queries use `"returns_list"` as a sibling boolean, not nested `{"List": ...}`
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
+
 use crate::config::BucketConfig;
 
 /// Generates GraphQL type definitions for storage operations.
@@ -24,11 +25,11 @@ pub struct StorageSchemaTypes;
 #[derive(Debug, Default)]
 pub struct StorageSchemaEntries {
     /// Type definitions for inclusion in the compiled schema `types` array.
-    pub types: Vec<Value>,
+    pub types:     Vec<Value>,
     /// Mutation definitions for inclusion in the compiled schema `mutations` array.
     pub mutations: Vec<Value>,
     /// Query definitions for inclusion in the compiled schema `queries` array.
-    pub queries: Vec<Value>,
+    pub queries:   Vec<Value>,
 }
 
 impl StorageSchemaTypes {

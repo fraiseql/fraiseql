@@ -418,12 +418,12 @@ mod federation_tests {
     #[test]
     fn test_plan_response_not_cached() {
         let response = PlanResponse {
-            cached:             false,
+            cached: false,
             schema_fingerprint: "abc123".to_string(),
             #[cfg(feature = "federation")]
-            fetches:            None,
+            fetches: None,
             #[cfg(not(feature = "federation"))]
-            fetches:            None,
+            fetches: None,
         };
 
         let json = serde_json::to_value(&response).unwrap();
@@ -704,10 +704,7 @@ mod metadata_tests {
     fn ssn_serialises_to_scope_and_deny() {
         let map = flatten_field_metadata(&make_schema());
         let json = serde_json::to_value(map.get("User.ssn").unwrap()).unwrap();
-        assert_eq!(
-            json,
-            serde_json::json!({"requires_scope": "read:pii", "on_deny": "mask"})
-        );
+        assert_eq!(json, serde_json::json!({"requires_scope": "read:pii", "on_deny": "mask"}));
     }
 
     #[test]
@@ -782,10 +779,7 @@ mod openapi_tests {
         assert!(parsed.get("openapi").is_some(), "OpenAPI spec must contain 'openapi' key");
         assert!(parsed.get("info").is_some(), "OpenAPI spec must contain 'info' key");
         assert!(parsed.get("paths").is_some(), "OpenAPI spec must contain 'paths' key");
-        assert!(
-            parsed.get("components").is_some(),
-            "OpenAPI spec must contain 'components' key"
-        );
+        assert!(parsed.get("components").is_some(), "OpenAPI spec must contain 'components' key");
     }
 
     #[test]
@@ -950,7 +944,7 @@ mod query_tests {
         assert!(!is_db_explain_enabled(None));
 
         let config = DebugConfig {
-            enabled:          true,
+            enabled: true,
             database_explain: false,
             ..Default::default()
         };
@@ -962,7 +956,7 @@ mod query_tests {
         use fraiseql_core::schema::DebugConfig;
 
         let config = DebugConfig {
-            enabled:          true,
+            enabled: true,
             database_explain: true,
             ..Default::default()
         };
@@ -974,7 +968,7 @@ mod query_tests {
         use fraiseql_core::schema::DebugConfig;
 
         let config = DebugConfig {
-            enabled:          false,
+            enabled: false,
             database_explain: true,
             ..Default::default()
         };

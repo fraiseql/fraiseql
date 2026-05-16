@@ -273,7 +273,8 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
 /// from different perspectives and an internal fan-out validates the plan.
 ///
 /// - Subgraph A owns `User { id, name }` with `@key(fields: "id")`
-/// - Subgraph B extends `User { id (external), reviewCount }` with `extend type User @key(fields: "id")`
+/// - Subgraph B extends `User { id (external), reviewCount }` with `extend type User @key(fields:
+///   "id")`
 ///
 /// This test validates:
 /// - Both subgraphs start and respond to `_service { sdl }`
@@ -281,7 +282,8 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
 /// - Subgraph B resolves `_entities` for User by ID (returns reviewCount)
 /// - The two responses can be merged on the `id` key (mini gateway fan-out)
 ///
-/// Run with: `FRAISEQL_FEDERATION_E2E=1 FEDERATION_TESTS=1 cargo nextest run -p fraiseql-server --test federation_integration_test -- cross_subgraph`
+/// Run with: `FRAISEQL_FEDERATION_E2E=1 FEDERATION_TESTS=1 cargo nextest run -p fraiseql-server
+/// --test federation_integration_test -- cross_subgraph`
 #[tokio::test]
 #[ignore = "requires Docker + PostgreSQL (FRAISEQL_FEDERATION_E2E=1)"]
 async fn cross_subgraph_entity_resolution_e2e() {

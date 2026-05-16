@@ -87,9 +87,12 @@ type User {
 }
 
 mod config_tests {
+    use std::{
+        collections::HashMap,
+        path::{Path, PathBuf},
+    };
+
     use super::super::config::*;
-    use std::collections::HashMap;
-    use std::path::{Path, PathBuf};
 
     #[test]
     fn test_deserialize_minimal_config() {
@@ -429,19 +432,14 @@ mod merger_tests {
 }
 
 mod server_tests {
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
-    use axum::body::Body;
-    use axum::http::StatusCode;
+    use axum::{body::Body, http::StatusCode};
     use http_body_util::BodyExt;
     use serde_json::Value;
     use tower::ServiceExt;
 
-    use super::super::config::SubgraphConfig;
-    use super::super::planner::FieldOwnership;
-    use super::super::server::*;
+    use super::super::{config::SubgraphConfig, planner::FieldOwnership, server::*};
 
     fn test_state() -> GatewayState {
         let mut subgraphs = HashMap::new();

@@ -413,13 +413,8 @@ fn test_schema_export_require_auth_true_while_introspection_public() {
         )
     });
 
-    let effective = config
-        .schema_export_require_auth
-        .unwrap_or(config.introspection_require_auth);
-    assert!(
-        effective,
-        "schema export should require auth when explicitly set to true"
-    );
+    let effective = config.schema_export_require_auth.unwrap_or(config.introspection_require_auth);
+    assert!(effective, "schema export should require auth when explicitly set to true");
 }
 
 #[test]
@@ -435,10 +430,7 @@ fn test_schema_export_require_auth_unset_falls_back_to_introspection_require_aut
     let effective_auth = config_auth
         .schema_export_require_auth
         .unwrap_or(config_auth.introspection_require_auth);
-    assert!(
-        effective_auth,
-        "should fall back to introspection_require_auth=true"
-    );
+    assert!(effective_auth, "should fall back to introspection_require_auth=true");
 
     let config_public = ServerConfig {
         introspection_enabled: true,
@@ -450,10 +442,7 @@ fn test_schema_export_require_auth_unset_falls_back_to_introspection_require_aut
     let effective_public = config_public
         .schema_export_require_auth
         .unwrap_or(config_public.introspection_require_auth);
-    assert!(
-        !effective_public,
-        "should fall back to introspection_require_auth=false"
-    );
+    assert!(!effective_public, "should fall back to introspection_require_auth=false");
 }
 
 #[test]
@@ -518,8 +507,9 @@ fn test_playground_require_auth_fallback_both_directions() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    let effective_auth =
-        config_auth.playground_require_auth.unwrap_or(config_auth.introspection_require_auth);
+    let effective_auth = config_auth
+        .playground_require_auth
+        .unwrap_or(config_auth.introspection_require_auth);
     assert!(effective_auth, "should fall back to introspection_require_auth=true");
 
     let config_public = ServerConfig {
@@ -529,8 +519,9 @@ fn test_playground_require_auth_fallback_both_directions() {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    let effective_public =
-        config_public.playground_require_auth.unwrap_or(config_public.introspection_require_auth);
+    let effective_public = config_public
+        .playground_require_auth
+        .unwrap_or(config_public.introspection_require_auth);
     assert!(!effective_public, "should fall back to introspection_require_auth=false");
 }
 
@@ -580,9 +571,7 @@ fn test_subscription_require_auth_true_overrides_public_introspection() {
         )
     });
 
-    let effective = config
-        .subscription_require_auth
-        .unwrap_or(config.introspection_require_auth);
+    let effective = config.subscription_require_auth.unwrap_or(config.introspection_require_auth);
     assert!(effective, "subscription should require auth when explicitly set to true");
 }
 

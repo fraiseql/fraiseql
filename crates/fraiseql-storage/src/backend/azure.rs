@@ -36,12 +36,12 @@ impl AzureBackend {
         let key_b64 = std::env::var("AZURE_STORAGE_KEY").map_err(|_| FraiseQLError::Storage {
             message: "Azure Blob storage requires AZURE_STORAGE_KEY environment variable"
                 .to_string(),
-            code:  None,
+            code:    None,
         })?;
         let account_key =
             general_purpose::STANDARD.decode(&key_b64).map_err(|e| FraiseQLError::Storage {
                 message: format!("Invalid AZURE_STORAGE_KEY (not valid base64): {e}"),
-                code:  None,
+                code:    None,
             })?;
 
         Ok(Self {
@@ -95,7 +95,7 @@ impl AzureBackend {
 fn azure_err(op: &str, detail: impl std::fmt::Display) -> FraiseQLError {
     FraiseQLError::Storage {
         message: format!("Azure Blob {op} failed: {detail}"),
-        code:  None,
+        code:    None,
     }
 }
 
@@ -164,7 +164,10 @@ impl AzureBackend {
             .map_err(|e| azure_err("download", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound { id: key.to_string() }.into());
+            return Err(FileError::NotFound {
+                id: key.to_string(),
+            }
+            .into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -200,7 +203,10 @@ impl AzureBackend {
             .map_err(|e| azure_err("delete", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(FileError::NotFound { id: key.to_string() }.into());
+            return Err(FileError::NotFound {
+                id: key.to_string(),
+            }
+            .into());
         }
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -253,7 +259,7 @@ impl AzureBackend {
             message:
                 "Presigned URLs for Azure Blob require SAS token generation (not yet implemented)"
                     .to_string(),
-            code:  None,
+            code:    None,
         })
     }
 
@@ -271,7 +277,7 @@ impl AzureBackend {
     ) -> Result<super::types::ListResult> {
         Err(FraiseQLError::Storage {
             message: "list not yet implemented for Azure Blob".to_string(),
-            code: Some("not_implemented".to_string()),
+            code:    Some("not_implemented".to_string()),
         })
     }
 }

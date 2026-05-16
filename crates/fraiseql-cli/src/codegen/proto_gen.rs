@@ -359,7 +359,11 @@ fn generate_mutation_request_message(
 }
 
 /// Check if a type should be included based on include/exclude lists.
-pub(crate) fn should_include_type(name: &str, include_types: &[String], exclude_types: &[String]) -> bool {
+pub(crate) fn should_include_type(
+    name: &str,
+    include_types: &[String],
+    exclude_types: &[String],
+) -> bool {
     if !include_types.is_empty() && !include_types.iter().any(|t| t == name) {
         return false;
     }

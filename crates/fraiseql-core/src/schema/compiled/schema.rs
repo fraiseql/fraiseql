@@ -20,9 +20,9 @@ use sha2::{Digest, Sha256};
 use tracing::{info, warn};
 
 use super::{directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition};
-use crate::error::FraiseQLError;
 use crate::{
     compiler::fact_table::FactTableMetadata,
+    error::FraiseQLError,
     schema::{
         config_types::{
             DebugConfig, FederationConfig, GrpcConfig, McpConfig, NamingConvention,
@@ -368,8 +368,8 @@ impl CompiledSchema {
     /// extracts that field, recomputes the hash over the remaining JSON, and compares.
     ///
     /// - `strict_integrity = true`: missing or mismatched hash returns `Err`.
-    /// - `strict_integrity = false`: missing hash logs a warning; mismatch logs a warning
-    ///   but proceeds (backwards compatibility for schemas compiled without `_content_hash`).
+    /// - `strict_integrity = false`: missing hash logs a warning; mismatch logs a warning but
+    ///   proceeds (backwards compatibility for schemas compiled without `_content_hash`).
     ///
     /// # Errors
     ///
@@ -383,19 +383,20 @@ impl CompiledSchema {
     /// let json = r#"{"types": [], "queries": [], "mutations": [], "subscriptions": []}"#;
     /// let schema = CompiledSchema::from_json(json, false).unwrap();
     /// ```
-    pub fn from_json(json: &str, strict_integrity: bool) -> std::result::Result<Self, FraiseQLError> {
+    pub fn from_json(
+        json: &str,
+        strict_integrity: bool,
+    ) -> std::result::Result<Self, FraiseQLError> {
         let serde_err = |e: serde_json::Error| FraiseQLError::Parse {
-            message: format!("Schema JSON parse error: {e}"),
+            message:  format!("Schema JSON parse error: {e}"),
             location: String::new(),
         };
 
         let mut value: serde_json::Value = serde_json::from_str(json).map_err(serde_err)?;
 
-        let obj = value.as_object_mut().ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: "Schema JSON must be an object".to_string(),
-                path: None,
-            }
+        let obj = value.as_object_mut().ok_or_else(|| FraiseQLError::Validation {
+            message: "Schema JSON must be an object".to_string(),
+            path:    None,
         })?;
 
         // Extract and remove _content_hash
@@ -405,7 +406,7 @@ impl CompiledSchema {
             } else {
                 return Err(FraiseQLError::Validation {
                     message: "_content_hash must be a string".to_string(),
-                    path: None,
+                    path:    None,
                 });
             }
         } else if strict_integrity {
@@ -414,7 +415,9 @@ impl CompiledSchema {
                 path: None,
             });
         } else {
-            warn!("Schema integrity check skipped: no _content_hash field present. Consider recompiling with a newer CLI for integrity verification.");
+            warn!(
+                "Schema integrity check skipped: no _content_hash field present. Consider recompiling with a newer CLI for integrity verification."
+            );
             // No hash, parse directly from original
             let mut schema: Self = serde_json::from_str(json).map_err(serde_err)?;
             schema.build_indexes();
@@ -430,11 +433,15 @@ impl CompiledSchema {
             if expected != computed_hash {
                 if strict_integrity {
                     return Err(FraiseQLError::Validation {
-                        message: format!("Schema integrity check failed: hash mismatch (expected {expected}, got {computed_hash})"),
-                        path: None,
+                        message: format!(
+                            "Schema integrity check failed: hash mismatch (expected {expected}, got {computed_hash})"
+                        ),
+                        path:    None,
                     });
                 }
-                warn!("Schema integrity check: hash mismatch (expected {expected}, got {computed_hash}). Proceeding because strict_integrity is disabled.");
+                warn!(
+                    "Schema integrity check: hash mismatch (expected {expected}, got {computed_hash}). Proceeding because strict_integrity is disabled."
+                );
             } else {
                 info!("Schema integrity verified: hash matches");
             }
@@ -668,17 +675,17 @@ impl CompiledSchema {
                 .entities
                 .iter()
                 .map(|e| crate::federation::types::FederatedType {
-                    name:             e.name.clone(),
-                    keys:             vec![crate::federation::types::KeyDirective {
+                    name:                e.name.clone(),
+                    keys:                vec![crate::federation::types::KeyDirective {
                         fields:     e.key_fields.clone(),
                         resolvable: true,
                     }],
-                    is_extends:       false,
-                    external_fields:  Vec::new(),
-                    shareable_fields: Vec::new(),
+                    is_extends:          false,
+                    external_fields:     Vec::new(),
+                    shareable_fields:    Vec::new(),
                     inaccessible_fields: Vec::new(),
-                    field_directives: std::collections::HashMap::new(),
-                    type_shareable:  false,
+                    field_directives:    std::collections::HashMap::new(),
+                    type_shareable:      false,
                 })
                 .collect();
 

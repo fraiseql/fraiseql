@@ -721,8 +721,14 @@ async fn test_ip_bucket_cap_denies_new_ip_when_full() {
     };
     let limiter = RateLimiter::new(config);
 
-    assert!(limiter.check_ip_limit("1.1.1.1", None).await.allowed, "first IP should be tracked");
-    assert!(limiter.check_ip_limit("2.2.2.2", None).await.allowed, "second IP should be tracked");
+    assert!(
+        limiter.check_ip_limit("1.1.1.1", None).await.allowed,
+        "first IP should be tracked"
+    );
+    assert!(
+        limiter.check_ip_limit("2.2.2.2", None).await.allowed,
+        "second IP should be tracked"
+    );
 
     assert!(
         limiter.check_ip_limit("1.1.1.1", None).await.allowed,
@@ -746,8 +752,14 @@ async fn test_user_bucket_cap_denies_new_user_when_full() {
     };
     let limiter = RateLimiter::new(config);
 
-    assert!(limiter.check_user_limit("alice", None).await.allowed, "first user should be tracked");
-    assert!(limiter.check_user_limit("bob", None).await.allowed, "second user should be tracked");
+    assert!(
+        limiter.check_user_limit("alice", None).await.allowed,
+        "first user should be tracked"
+    );
+    assert!(
+        limiter.check_user_limit("bob", None).await.allowed,
+        "second user should be tracked"
+    );
 
     assert!(
         limiter.check_user_limit("alice", None).await.allowed,
@@ -833,8 +845,7 @@ async fn test_tenant_rate_limit_cleanup_does_not_panic() {
 #[tokio::test]
 #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
 async fn test_redis_rate_limiter_allows_up_to_capacity() {
-    let url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+    let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
     let config = RateLimitConfig {
         enabled:               true,
         rps_per_ip:            5,
@@ -857,8 +868,7 @@ async fn test_redis_rate_limiter_allows_up_to_capacity() {
 #[tokio::test]
 #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
 async fn test_redis_two_instances_share_bucket() {
-    let url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+    let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
     let config = RateLimitConfig {
         enabled:               true,
         rps_per_ip:            3,

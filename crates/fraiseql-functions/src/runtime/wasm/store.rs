@@ -4,11 +4,13 @@
 //! and implements the host import traits that allow WASM components to call back
 //! into the host for logging, context, and I/O operations.
 
-use crate::types::{EventPayload, LogEntry, LogLevel, ResourceLimits};
-use super::host_bridge::DynHostContext;
 use std::sync::Arc;
 
-use super::bindings::fraiseql::host::{context, io, logging};
+use super::{
+    bindings::fraiseql::host::{context, io, logging},
+    host_bridge::DynHostContext,
+};
+use crate::types::{EventPayload, LogEntry, LogLevel, ResourceLimits};
 
 /// Per-invocation state for WASM component execution.
 ///
@@ -100,15 +102,14 @@ impl StoreData {
     ///
     /// Returns `Err` if serialization fails (should not happen for valid `EventPayload`).
     pub fn get_event_payload_json(&self) -> wasmtime::Result<String> {
-        serde_json::to_string(&self.event_payload)
-            .map_err(|e| wasmtime::Error::msg(e.to_string()))
+        serde_json::to_string(&self.event_payload).map_err(|e| wasmtime::Error::msg(e.to_string()))
     }
 }
 
 impl wasmtime_wasi::WasiView for StoreData {
     fn ctx(&mut self) -> wasmtime_wasi::WasiCtxView<'_> {
         wasmtime_wasi::WasiCtxView {
-            ctx: &mut self.wasi_ctx,
+            ctx:   &mut self.wasi_ctx,
             table: &mut self.wasi_table,
         }
     }
@@ -133,7 +134,7 @@ impl logging::Host for StoreData {
 impl context::Host for StoreData {
     async fn get_event_payload(&mut self) -> String {
         self.get_event_payload_json()
-            .unwrap_or_else(|e| format!("{{\"error\": \"{e}\"}}", ))
+            .unwrap_or_else(|e| format!("{{\"error\": \"{e}\"}}",))
     }
 
     async fn get_auth_context(&mut self) -> Result<String, String> {
@@ -151,11 +152,7 @@ impl context::Host for StoreData {
 }
 
 impl io::Host for StoreData {
-    async fn query(
-        &mut self,
-        graphql: String,
-        variables: String,
-    ) -> Result<String, String> {
+    async fn query(&mut self, graphql: String, variables: String) -> Result<String, String> {
         let host = self.require_host_context()?;
         let vars: serde_json::Value =
             serde_json::from_str(&variables).map_err(|e| e.to_string())?;
@@ -163,18 +160,11 @@ impl io::Host for StoreData {
         serde_json::to_string(&result).map_err(|e| e.to_string())
     }
 
-    async fn sql_query(
-        &mut self,
-        sql: String,
-        params: String,
-    ) -> Result<String, String> {
+    async fn sql_query(&mut self, sql: String, params: String) -> Result<String, String> {
         let host = self.require_host_context()?;
         let params_vec: Vec<serde_json::Value> =
             serde_json::from_str(&params).map_err(|e| e.to_string())?;
-        let result = host
-            .sql_query(&sql, &params_vec)
-            .await
-            .map_err(|e| e.to_string())?;
+        let result = host.sql_query(&sql, &params_vec).await.map_err(|e| e.to_string())?;
         serde_json::to_string(&result).map_err(|e| e.to_string())
     }
 
@@ -191,21 +181,15 @@ impl io::Host for StoreData {
             .await
             .map_err(|e| e.to_string())?;
         Ok(io::HttpResponse {
-            status: response.status,
+            status:  response.status,
             headers: response.headers,
-            body: response.body,
+            body:    response.body,
         })
     }
 
-    async fn storage_get(
-        &mut self,
-        bucket: String,
-        key: String,
-    ) -> Result<Vec<u8>, String> {
+    async fn storage_get(&mut self, bucket: String, key: String) -> Result<Vec<u8>, String> {
         let host = self.require_host_context()?;
-        host.storage_get(&bucket, &key)
-            .await
-            .map_err(|e| e.to_string())
+        host.storage_get(&bucket, &key).await.map_err(|e| e.to_string())
     }
 
     async fn storage_put(
@@ -262,10 +246,10 @@ mod tests {
     fn test_store_data_creation() {
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
         let limits = ResourceLimits::default();
 
@@ -280,15 +264,15 @@ mod tests {
     fn test_store_data_log_respects_limit() {
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
         let limits = ResourceLimits {
             max_memory_bytes: 128 * 1024 * 1024,
-            max_duration: std::time::Duration::from_secs(5),
-            max_log_entries: 3,
+            max_duration:     std::time::Duration::from_secs(5),
+            max_log_entries:  3,
         };
 
         let mut store = StoreData::new(event, limits);
@@ -309,10 +293,10 @@ mod tests {
     fn test_store_data_get_event_payload() {
         let event = EventPayload {
             trigger_type: "mutation".to_string(),
-            entity: "User".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 42}),
-            timestamp: chrono::Utc::now(),
+            entity:       "User".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 42}),
+            timestamp:    chrono::Utc::now(),
         };
         let store = StoreData::new(event, ResourceLimits::default());
 
@@ -329,10 +313,10 @@ mod tests {
     fn test_store_data_host_context_typed() {
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
         let mut store = StoreData::new(event.clone(), ResourceLimits::default());
 

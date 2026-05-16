@@ -88,8 +88,7 @@ fn test_versioned_key_storage_add_version() {
     let storage = VersionedKeyStorage::new();
     let metadata = KeyVersionMetadata::new(1, 365);
     let result = storage.add_version(metadata);
-    let returned_version =
-        result.unwrap_or_else(|e| panic!("expected Ok from add_version: {e}"));
+    let returned_version = result.unwrap_or_else(|e| panic!("expected Ok from add_version: {e}"));
     assert_eq!(returned_version, 1);
 }
 

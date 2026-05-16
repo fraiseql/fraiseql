@@ -1,9 +1,10 @@
 //! SDL generation for federation _service query.
 
-use std::collections::HashMap;
-use std::fmt::Write as _;
+use std::{collections::HashMap, fmt::Write as _};
 
-use super::types::{FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection};
+use super::types::{
+    FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection,
+};
 
 const FEDERATION_SCHEMA: &str = r"
 directive @key(fields: String!, resolvable: Boolean = true) repeatable on OBJECT
@@ -45,7 +46,8 @@ fn serialize_field_selections(selections: &[FieldPathSelection]) -> String {
 
 /// Build the directive suffix for a field based on its federation directives.
 ///
-/// Order: `@external @shareable @inaccessible @override(from:) @requires(fields:) @provides(fields:)`
+/// Order: `@external @shareable @inaccessible @override(from:) @requires(fields:)
+/// @provides(fields:)`
 pub(crate) fn field_directive_suffix(d: &FieldFederationDirectives) -> String {
     let mut parts = Vec::new();
 
@@ -116,7 +118,7 @@ fn parse_type_header(trimmed: &str) -> Option<TypeHeader> {
             } else {
                 None
             }
-        }
+        },
         "extend" => {
             if tokens.len() >= 3 {
                 Some(TypeHeader {
@@ -126,7 +128,7 @@ fn parse_type_header(trimmed: &str) -> Option<TypeHeader> {
             } else {
                 None
             }
-        }
+        },
         _ => None,
     }
 }
@@ -140,10 +142,7 @@ fn extract_field_name(trimmed: &str) -> Option<String> {
         return None;
     }
 
-    let name: String = trimmed
-        .chars()
-        .take_while(|c| c.is_alphanumeric() || *c == '_')
-        .collect();
+    let name: String = trimmed.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
 
     if name.is_empty() { None } else { Some(name) }
 }
@@ -176,11 +175,8 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
     }
 
     // Build lookup map: type name → federated type metadata
-    let fed_type_map: HashMap<&str, &FederatedType> = metadata
-        .types
-        .iter()
-        .map(|t| (t.name.as_str(), t))
-        .collect();
+    let fed_type_map: HashMap<&str, &FederatedType> =
+        metadata.types.iter().map(|t| (t.name.as_str(), t)).collect();
 
     // State-machine line processor
     let mut output_lines: Vec<String> = Vec::new();
@@ -198,7 +194,7 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
                         // No federation directives for these types
                         current_type_name = None;
                         output_lines.push(line.to_string());
-                    }
+                    },
                     "type" | "interface" => {
                         if let Some(fed_type) = fed_type_map.get(type_info.name.as_str()) {
                             current_type_name = Some(type_info.name.clone());
@@ -237,10 +233,10 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
                             current_type_name = None;
                             output_lines.push(line.to_string());
                         }
-                    }
+                    },
                     _ => {
                         output_lines.push(line.to_string());
-                    }
+                    },
                 }
             } else {
                 output_lines.push(line.to_string());
@@ -281,8 +277,8 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
                     if brace_depth == 0 {
                         current_type_name = None;
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
     }

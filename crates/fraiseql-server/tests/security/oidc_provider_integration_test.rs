@@ -617,9 +617,14 @@ async fn test_discovery_timeout_handling() {
     // Test that provider handles connection failures gracefully
     let invalid_url = "http://localhost:1/invalid";
 
-    let provider =
-        new_provider_insecure("test", invalid_url, "id", "secret", "http://localhost:8000/callback")
-            .await;
+    let provider = new_provider_insecure(
+        "test",
+        invalid_url,
+        "id",
+        "secret",
+        "http://localhost:8000/callback",
+    )
+    .await;
 
     assert!(provider.is_err(), "Provider should fail on invalid URL");
 }

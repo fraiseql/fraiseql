@@ -17,13 +17,6 @@ pub mod search;
 mod tests;
 
 // Re-export public types from submodules for external use
-pub use prefer::{CountPreference, HandlingPreference, PreferHeader};
-pub use response::{RestError, RestResponse};
-pub use routing::{ResolvedGetQuery, ResolvedRoute};
-
-// Re-export header utilities for cross-module callers (streaming/, bulk/)
-pub(crate) use headers::{set_preference_applied, set_request_id};
-
 use std::sync::Arc;
 
 use fraiseql_core::{
@@ -31,11 +24,13 @@ use fraiseql_core::{
     runtime::Executor,
     schema::{CompiledSchema, RestConfig},
 };
+// Re-export header utilities for cross-module callers (streaming/, bulk/)
+pub(crate) use headers::{set_preference_applied, set_request_id};
+pub use prefer::{CountPreference, HandlingPreference, PreferHeader};
+pub use response::{RestError, RestResponse};
+pub use routing::{ResolvedGetQuery, ResolvedRoute};
 
-use super::{
-    idempotency::IdempotencyStore,
-    resource::RestRouteTable,
-};
+use super::{idempotency::IdempotencyStore, resource::RestRouteTable};
 
 // ---------------------------------------------------------------------------
 // REST Handler

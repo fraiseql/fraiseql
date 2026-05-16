@@ -17,32 +17,32 @@ fn test_mutation_coordinate_two_subgraph_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "Order".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "Order".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["order_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          false,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
             FederatedType {
-                name:             "OrderItem".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "OrderItem".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["item_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          true,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
         ],
         remote_subscription_fields: std::collections::HashMap::new(),
@@ -78,45 +78,45 @@ fn test_mutation_coordinate_three_subgraph_updates() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "User".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "User".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          false,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
             FederatedType {
-                name:             "Order".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "Order".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["order_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          true,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
             FederatedType {
-                name:             "Payment".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "Payment".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["payment_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          true,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
         ],
         remote_subscription_fields: std::collections::HashMap::new(),
@@ -174,32 +174,32 @@ fn test_mutation_circular_reference_handling() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "Author".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "Author".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["author_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          false,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
             FederatedType {
-                name:             "Book".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "Book".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["book_id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       true,
-                external_fields:  vec!["author_id".to_string()],
-                shareable_fields: vec![],
+                is_extends:          true,
+                external_fields:     vec!["author_id".to_string()],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
         ],
         remote_subscription_fields: std::collections::HashMap::new(),

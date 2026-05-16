@@ -5,8 +5,10 @@
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::json;
 
-use super::helpers::{error_ndjson_line, extract_rows};
-use super::*;
+use super::{
+    helpers::{error_ndjson_line, extract_rows},
+    *,
+};
 
 // ---------------------------------------------------------------------------
 // helpers tests

@@ -390,7 +390,11 @@ pub fn generate_test_token(claims: &Claims, secret: &[u8]) -> Result<String> {
 /// Trim a string and return `None` if the result is empty.
 fn trim_or_none(s: &str) -> Option<String> {
     let trimmed = s.trim();
-    if trimmed.is_empty() { None } else { Some(trimmed.to_owned()) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_owned())
+    }
 }
 
 /// Extract a flat string from a potentially nested JWT claim value.
@@ -401,8 +405,8 @@ fn trim_or_none(s: &str) -> Option<String> {
 ///
 /// Supported shapes:
 /// - **String**: returned as-is (after trim; empty/whitespace → `None`).
-/// - **Object**: tries keys `value`, `formatted`, `email` in order; falls back
-///   to the first string value in the object.
+/// - **Object**: tries keys `value`, `formatted`, `email` in order; falls back to the first string
+///   value in the object.
 /// - **Array**: returns the first element that is a string.
 /// - **Null / number / bool**: returns `None`.
 pub fn extract_claim_string(value: &serde_json::Value) -> Option<String> {
@@ -429,15 +433,13 @@ pub fn extract_claim_string(value: &serde_json::Value) -> Option<String> {
             None
         },
 
-        serde_json::Value::Array(arr) => {
-            arr.iter().find_map(|v| {
-                if let serde_json::Value::String(s) = v {
-                    trim_or_none(s)
-                } else {
-                    None
-                }
-            })
-        },
+        serde_json::Value::Array(arr) => arr.iter().find_map(|v| {
+            if let serde_json::Value::String(s) = v {
+                trim_or_none(s)
+            } else {
+                None
+            }
+        }),
 
         _ => None,
     }
@@ -452,9 +454,7 @@ pub fn extract_claim_string(value: &serde_json::Value) -> Option<String> {
 pub fn extract_name_string(value: &serde_json::Value) -> Option<String> {
     match value {
         // Strings and arrays: delegate to generic extraction.
-        serde_json::Value::String(_) | serde_json::Value::Array(_) => {
-            extract_claim_string(value)
-        },
+        serde_json::Value::String(_) | serde_json::Value::Array(_) => extract_claim_string(value),
 
         // Objects: try well-known keys first, then given+family concatenation.
         serde_json::Value::Object(map) => {
@@ -468,14 +468,8 @@ pub fn extract_name_string(value: &serde_json::Value) -> Option<String> {
             }
 
             // Name-specific: given + family concatenation.
-            let given = map
-                .get("given")
-                .and_then(|v| v.as_str())
-                .and_then(trim_or_none);
-            let family = map
-                .get("family")
-                .and_then(|v| v.as_str())
-                .and_then(trim_or_none);
+            let given = map.get("given").and_then(|v| v.as_str()).and_then(trim_or_none);
+            let family = map.get("family").and_then(|v| v.as_str()).and_then(trim_or_none);
 
             match (given, family) {
                 (Some(g), Some(f)) => Some(format!("{g} {f}")),
@@ -650,12 +644,12 @@ mod tests {
             }
         }
         Claims {
-            sub: "user-1".to_owned(),
-            iat: 1_000_000,
-            exp: 2_000_000,
-            nbf: None,
-            iss: "test-issuer".to_owned(),
-            aud: vec!["test-aud".to_owned()],
+            sub:   "user-1".to_owned(),
+            iat:   1_000_000,
+            exp:   2_000_000,
+            nbf:   None,
+            iss:   "test-issuer".to_owned(),
+            aud:   vec!["test-aud".to_owned()],
             extra: extra_map,
         }
     }
@@ -668,7 +662,9 @@ mod tests {
 
     #[test]
     fn claims_email_nested() {
-        let claims = make_claims(serde_json::json!({"email": {"value": "nested@example.com", "verified": true}}));
+        let claims = make_claims(
+            serde_json::json!({"email": {"value": "nested@example.com", "verified": true}}),
+        );
         assert_eq!(claims.email(), Some("nested@example.com".to_owned()));
     }
 

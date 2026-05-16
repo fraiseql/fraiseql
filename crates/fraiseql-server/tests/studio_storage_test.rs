@@ -8,9 +8,9 @@ use fraiseql_server::routes::studio::storage_browser::{ObjectListResponse, Presi
 #[test]
 fn test_object_list_response_shape() {
     let resp = ObjectListResponse {
-        objects: vec![],
-        total: 0,
-        page: 1,
+        objects:   vec![],
+        total:     0,
+        page:      1,
         page_size: 50,
     };
     let json = serde_json::to_string(&resp).unwrap();

@@ -460,8 +460,8 @@ async fn test_projection_filters_fields() {
     let adapter = setup_user_table(3).await;
     let projection = SqlProjectionHint {
         database:                    crate::DatabaseType::SQLite,
-        projection_template:
-            "json_object('name', json_extract(data, '$.name')) AS data".to_string(),
+        projection_template:         "json_object('name', json_extract(data, '$.name')) AS data"
+            .to_string(),
         estimated_reduction_percent: 50,
     };
     let results = adapter

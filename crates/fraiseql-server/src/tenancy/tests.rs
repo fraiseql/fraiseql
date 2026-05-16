@@ -25,15 +25,9 @@ mod audit_tests {
     #[tokio::test]
     async fn events_filtered_by_tenant_key() {
         let log = InMemoryAuditLog::new();
-        log.record("tenant-a", TenantEventKind::Created, None, None)
-            .await
-            .unwrap();
-        log.record("tenant-b", TenantEventKind::Created, None, None)
-            .await
-            .unwrap();
-        log.record("tenant-a", TenantEventKind::Suspended, None, None)
-            .await
-            .unwrap();
+        log.record("tenant-a", TenantEventKind::Created, None, None).await.unwrap();
+        log.record("tenant-b", TenantEventKind::Created, None, None).await.unwrap();
+        log.record("tenant-a", TenantEventKind::Suspended, None, None).await.unwrap();
 
         let events_a = log.events_for("tenant-a", 10, 0).await.unwrap();
         assert_eq!(events_a.len(), 2);
@@ -45,15 +39,9 @@ mod audit_tests {
     #[tokio::test]
     async fn events_returned_newest_first() {
         let log = InMemoryAuditLog::new();
-        log.record("t", TenantEventKind::Created, None, None)
-            .await
-            .unwrap();
-        log.record("t", TenantEventKind::Suspended, None, None)
-            .await
-            .unwrap();
-        log.record("t", TenantEventKind::Resumed, None, None)
-            .await
-            .unwrap();
+        log.record("t", TenantEventKind::Created, None, None).await.unwrap();
+        log.record("t", TenantEventKind::Suspended, None, None).await.unwrap();
+        log.record("t", TenantEventKind::Resumed, None, None).await.unwrap();
 
         let events = log.events_for("t", 10, 0).await.unwrap();
         assert_eq!(events[0].event, TenantEventKind::Resumed);
@@ -65,9 +53,7 @@ mod audit_tests {
     async fn pagination_with_limit_and_offset() {
         let log = InMemoryAuditLog::new();
         for _ in 0..5 {
-            log.record("t", TenantEventKind::Created, None, None)
-                .await
-                .unwrap();
+            log.record("t", TenantEventKind::Created, None, None).await.unwrap();
         }
 
         let page1 = log.events_for("t", 2, 0).await.unwrap();
@@ -104,15 +90,9 @@ mod audit_tests {
         // Verify by API: there are no update/delete methods on TenantAuditLog.
         // This test records multiple events and confirms all are preserved.
         let log = InMemoryAuditLog::new();
-        log.record("t", TenantEventKind::Created, None, None)
-            .await
-            .unwrap();
-        log.record("t", TenantEventKind::Suspended, None, None)
-            .await
-            .unwrap();
-        log.record("t", TenantEventKind::Deleted, None, None)
-            .await
-            .unwrap();
+        log.record("t", TenantEventKind::Created, None, None).await.unwrap();
+        log.record("t", TenantEventKind::Suspended, None, None).await.unwrap();
+        log.record("t", TenantEventKind::Deleted, None, None).await.unwrap();
 
         let events = log.events_for("t", 100, 0).await.unwrap();
         assert_eq!(events.len(), 3, "all events must be preserved (append-only)");
@@ -235,10 +215,9 @@ mod pool_factory_tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let executor =
-            create_tenant_executor::<StubPoolAdapter>("acme", &schema_json, &config)
-                .await
-                .unwrap();
+        let executor = create_tenant_executor::<StubPoolAdapter>("acme", &schema_json, &config)
+            .await
+            .unwrap();
         assert_eq!(executor.schema().types.len(), 0);
     }
 
@@ -400,10 +379,7 @@ mod schema_isolation_tests {
 
     #[test]
     fn underscore_in_key_accepted() {
-        assert_eq!(
-            tenant_schema_name("my_org").unwrap(),
-            "tenant_my_org"
-        );
+        assert_eq!(tenant_schema_name("my_org").unwrap(), "tenant_my_org");
     }
 
     #[test]
@@ -457,18 +433,12 @@ mod schema_isolation_tests {
 
     #[test]
     fn create_schema_ddl_generates_correct_sql() {
-        assert_eq!(
-            create_schema_ddl("acme").unwrap(),
-            "CREATE SCHEMA IF NOT EXISTS tenant_acme"
-        );
+        assert_eq!(create_schema_ddl("acme").unwrap(), "CREATE SCHEMA IF NOT EXISTS tenant_acme");
     }
 
     #[test]
     fn drop_schema_ddl_generates_correct_sql() {
-        assert_eq!(
-            drop_schema_ddl("acme").unwrap(),
-            "DROP SCHEMA IF EXISTS tenant_acme CASCADE"
-        );
+        assert_eq!(drop_schema_ddl("acme").unwrap(), "DROP SCHEMA IF EXISTS tenant_acme CASCADE");
     }
 
     #[test]
@@ -495,10 +465,7 @@ mod schema_isolation_tests {
 
     #[test]
     fn search_path_sql_generates_correct_statement() {
-        assert_eq!(
-            search_path_sql("acme").unwrap(),
-            "SET search_path TO tenant_acme, public"
-        );
+        assert_eq!(search_path_sql("acme").unwrap(), "SET search_path TO tenant_acme, public");
     }
 
     #[test]

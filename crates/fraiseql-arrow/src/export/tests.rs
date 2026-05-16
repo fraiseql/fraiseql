@@ -219,8 +219,7 @@ fn test_json_export_is_valid_ndjson() {
     let bytes = BulkExporter::export_batch(&batch, ExportFormat::Json).unwrap();
     let json_str = String::from_utf8(bytes).unwrap();
     // Each non-empty line should be valid JSON
-    let non_empty_lines: Vec<&str> =
-        json_str.lines().filter(|l| !l.trim().is_empty()).collect();
+    let non_empty_lines: Vec<&str> = json_str.lines().filter(|l| !l.trim().is_empty()).collect();
     assert!(!non_empty_lines.is_empty(), "expected at least one line");
     for line in non_empty_lines {
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(line);

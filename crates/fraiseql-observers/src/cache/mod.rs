@@ -270,6 +270,5 @@ impl Default for CacheStats {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

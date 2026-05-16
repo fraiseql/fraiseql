@@ -25,6 +25,5 @@ pub use middleware_fn::{RateLimitExceeded, rate_limit_middleware};
 #[cfg(feature = "redis-rate-limiting")]
 pub use redis::{REDIS_RATE_LIMIT_ERRORS, redis_error_count_total};
 
-
 #[cfg(test)]
 mod tests;

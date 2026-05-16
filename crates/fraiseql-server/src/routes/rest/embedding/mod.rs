@@ -14,6 +14,7 @@ mod tests;
 
 use std::{collections::HashMap, sync::Arc};
 
+use executor::{EmbedCtx, count_related, embed_into_rows, embed_into_single};
 use fraiseql_core::{
     db::traits::DatabaseAdapter,
     schema::{CompiledSchema, RestConfig},
@@ -24,7 +25,6 @@ use super::{
     handler::RestError,
     params::{EmbeddedSpec, SelectEntry},
 };
-use executor::{count_related, embed_into_rows, embed_into_single, EmbedCtx};
 
 /// Parameters for embedding execution, grouping shared context.
 pub struct EmbeddingRequest<'a, A: DatabaseAdapter> {

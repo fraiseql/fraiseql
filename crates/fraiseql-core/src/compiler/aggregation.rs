@@ -545,13 +545,13 @@ impl AggregationPlanner {
                         });
                     } else {
                         // Check if the measure references a native measure mapping
-                        let (resolved_column, is_native) =
-                            if let Some(native_col) = metadata.native_measures.get(measure.as_str())
-                            {
-                                (native_col.clone(), true)
-                            } else {
-                                (measure.clone(), false)
-                            };
+                        let (resolved_column, is_native) = if let Some(native_col) =
+                            metadata.native_measures.get(measure.as_str())
+                        {
+                            (native_col.clone(), true)
+                        } else {
+                            (measure.clone(), false)
+                        };
                         expressions.push(AggregateExpression::MeasureAggregate {
                             column:   resolved_column,
                             function: *function,

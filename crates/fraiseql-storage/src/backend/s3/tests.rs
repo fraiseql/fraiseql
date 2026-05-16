@@ -22,9 +22,7 @@ fn skip_if_no_s3() -> Option<()> {
 
 /// Helper to create an S3Backend for testing.
 fn create_test_backend() -> S3Backend {
-    let endpoint = std::env::var("S3_ENDPOINT")
-        .or_else(|_| std::env::var("AWS_ENDPOINT_URL"))
-        .ok();
+    let endpoint = std::env::var("S3_ENDPOINT").or_else(|_| std::env::var("AWS_ENDPOINT_URL")).ok();
 
     // Use a unique bucket name for tests to avoid conflicts
     let bucket = format!("test-{}", uuid::Uuid::new_v4());
@@ -107,10 +105,7 @@ fn test_s3_delete_removes_object() {
         let data = b"temporary file";
 
         // Upload
-        backend
-            .upload(key, data, "text/plain")
-            .await
-            .expect("upload succeeds");
+        backend.upload(key, data, "text/plain").await.expect("upload succeeds");
 
         // Verify exists
         let exists = backend.exists(key).await.expect("exists check succeeds");
@@ -187,19 +182,13 @@ fn test_s3_list_pagination() {
         }
 
         // First page with limit=2
-        let page1 = backend
-            .list("", None, 2)
-            .await
-            .expect("list page 1 succeeds");
+        let page1 = backend.list("", None, 2).await.expect("list page 1 succeeds");
         assert_eq!(page1.objects.len(), 2, "first page should have 2 items");
 
         let cursor1 = page1.next_cursor.expect("first page should have cursor");
 
         // Second page using cursor
-        let page2 = backend
-            .list("", Some(&cursor1), 2)
-            .await
-            .expect("list page 2 succeeds");
+        let page2 = backend.list("", Some(&cursor1), 2).await.expect("list page 2 succeeds");
         assert_eq!(page2.objects.len(), 2, "second page should have 2 items");
 
         // Verify pages don't overlap
@@ -210,10 +199,7 @@ fn test_s3_list_pagination() {
 
         // Third page (remaining items)
         let cursor2 = page2.next_cursor.expect("second page should have cursor");
-        let page3 = backend
-            .list("", Some(&cursor2), 2)
-            .await
-            .expect("list page 3 succeeds");
+        let page3 = backend.list("", Some(&cursor2), 2).await.expect("list page 3 succeeds");
         assert_eq!(page3.objects.len(), 1, "third page should have 1 item");
         assert!(page3.next_cursor.is_none(), "last page should have no cursor");
     });
@@ -233,23 +219,14 @@ fn test_s3_exists_true_and_false() {
         let key = "existence-test.txt";
 
         // Before upload, should not exist
-        let exists_before = backend
-            .exists(key)
-            .await
-            .expect("exists check succeeds");
+        let exists_before = backend.exists(key).await.expect("exists check succeeds");
         assert!(!exists_before, "should not exist before upload");
 
         // Upload
-        backend
-            .upload(key, b"test", "text/plain")
-            .await
-            .expect("upload succeeds");
+        backend.upload(key, b"test", "text/plain").await.expect("upload succeeds");
 
         // After upload, should exist
-        let exists_after = backend
-            .exists(key)
-            .await
-            .expect("exists check succeeds");
+        let exists_after = backend.exists(key).await.expect("exists check succeeds");
         assert!(exists_after, "should exist after upload");
 
         // Non-existent key should return false, not error
@@ -277,25 +254,17 @@ fn test_s3_large_object_streaming() {
         let key = "large-file.bin";
 
         // Upload large object
-        let upload_result = backend
-            .upload(key, &large_data, "application/octet-stream")
-            .await;
+        let upload_result = backend.upload(key, &large_data, "application/octet-stream").await;
         assert!(upload_result.is_ok(), "large upload should succeed");
 
         // Download and verify size
-        let downloaded = backend
-            .download(key)
-            .await
-            .expect("large download should succeed");
+        let downloaded = backend.download(key).await.expect("large download should succeed");
         assert_eq!(
             downloaded.len(),
             large_data.len(),
             "downloaded size should match uploaded size"
         );
-        assert_eq!(
-            downloaded, large_data,
-            "downloaded content should match uploaded content"
-        );
+        assert_eq!(downloaded, large_data, "downloaded content should match uploaded content");
     });
 }
 
@@ -337,9 +306,8 @@ fn test_s3_presign_upload_returns_valid_url() {
         let key = "presign-upload-test.txt";
 
         // Generate presigned URL for upload (1 hour expiry)
-        let presigned_result = backend
-            .presigned_url(key, std::time::Duration::from_secs(3600))
-            .await;
+        let presigned_result =
+            backend.presigned_url(key, std::time::Duration::from_secs(3600)).await;
 
         assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
 
@@ -370,15 +338,11 @@ fn test_s3_presign_download_returns_valid_url() {
         let data = b"presigned download content";
 
         // Upload file first
-        backend
-            .upload(key, data, "text/plain")
-            .await
-            .expect("upload succeeds");
+        backend.upload(key, data, "text/plain").await.expect("upload succeeds");
 
         // Generate presigned URL for download
-        let presigned_result = backend
-            .presigned_url(key, std::time::Duration::from_secs(3600))
-            .await;
+        let presigned_result =
+            backend.presigned_url(key, std::time::Duration::from_secs(3600)).await;
 
         assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
 
@@ -404,9 +368,7 @@ fn test_s3_presign_url_expires() {
         let key = "presign-expire-test.txt";
 
         // Generate presigned URL with 1 second expiry
-        let presigned_result = backend
-            .presigned_url(key, std::time::Duration::from_secs(1))
-            .await;
+        let presigned_result = backend.presigned_url(key, std::time::Duration::from_secs(1)).await;
 
         assert!(presigned_result.is_ok(), "presigned URL generation should succeed");
 
@@ -439,9 +401,7 @@ fn test_s3_presign_rejects_invalid_keys() {
         assert!(result.is_err(), "path traversal should be rejected");
 
         // Test empty key
-        let result = backend
-            .presigned_url("", std::time::Duration::from_secs(3600))
-            .await;
+        let result = backend.presigned_url("", std::time::Duration::from_secs(3600)).await;
         assert!(result.is_err(), "empty key should be rejected");
     });
 }
@@ -478,9 +438,6 @@ fn test_s3_presign_respects_expiry() {
         assert!(!long_url.is_empty(), "long TTL URL should not be empty");
 
         // URLs should differ (different expiry times)
-        assert_ne!(
-            short_url, long_url,
-            "URLs with different TTLs should be different"
-        );
+        assert_ne!(short_url, long_url, "URLs with different TTLs should be different");
     });
 }

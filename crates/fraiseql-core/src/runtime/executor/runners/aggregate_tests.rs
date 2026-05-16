@@ -2,8 +2,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
 
@@ -12,10 +11,9 @@ use crate::{
         DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, PartialPeriodConfig,
         SqlType, TemporalGrain,
     },
-    runtime::{Executor, RuntimeConfig},
+    runtime::{Executor, RuntimeConfig, executor::test_support::CapturingMockAdapter},
     security::{DefaultRLSPolicy, SecurityContext},
 };
-use crate::runtime::executor::test_support::CapturingMockAdapter;
 
 fn tenant_security_context(tenant_id: &str) -> SecurityContext {
     SecurityContext {
@@ -60,17 +58,17 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
     schema.add_fact_table(
         "tf_sales".to_string(),
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
                     name:     "tenant_id".to_string(),
                     sql_type: SqlType::Text,
@@ -82,9 +80,9 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
                     indexed:  true,
                 },
             ],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
@@ -179,14 +177,8 @@ async fn aggregate_rls_composes_with_user_where() {
 
     let sql = adapter.captured_aggregate_sql().expect("aggregate SQL should be captured");
     // Both RLS and user WHERE should be present (AND-composed)
-    assert!(
-        sql.contains("WHERE"),
-        "combined WHERE expected in SQL: {sql}"
-    );
-    assert!(
-        sql.contains("AND"),
-        "RLS + user WHERE should be AND-composed: {sql}"
-    );
+    assert!(sql.contains("WHERE"), "combined WHERE expected in SQL: {sql}");
+    assert!(sql.contains("AND"), "RLS + user WHERE should be AND-composed: {sql}");
 }
 
 // ── Window RLS tests ────────────────────────────────────────────────────────
@@ -257,17 +249,17 @@ fn schema_with_partial_period() -> crate::schema::CompiledSchema {
     schema.add_fact_table(
         "tf_events".to_string(),
         FactTableMetadata {
-            table_name:           "tf_events".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_events".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
                     name:     "tenant_id".to_string(),
                     sql_type: SqlType::Text,
@@ -279,13 +271,13 @@ fn schema_with_partial_period() -> crate::schema::CompiledSchema {
                     indexed:  true,
                 },
             ],
-            calendar_dimensions:  vec![],
-            partial_period:       Some(PartialPeriodConfig {
+            calendar_dimensions:      vec![],
+            partial_period:           Some(PartialPeriodConfig {
                 fine_grain_view:   "v_events_day".to_string(),
                 time_grain_column: "period_start".to_string(),
                 time_grain_trunc:  TemporalGrain::Month,
             }),
-            native_measures:      std::collections::HashMap::new(),
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
@@ -311,10 +303,7 @@ async fn partial_period_dispatch_generates_union_all() {
         sql.contains("UNION ALL"),
         "partial-period dispatch should generate UNION ALL, got: {sql}"
     );
-    assert!(
-        sql.contains("v_events_day"),
-        "fine-grain view should appear in SQL: {sql}"
-    );
+    assert!(sql.contains("v_events_day"), "fine-grain view should appear in SQL: {sql}");
 }
 
 #[tokio::test]
@@ -360,10 +349,7 @@ async fn partial_period_with_rls_includes_tenant_in_all_branches() {
         .unwrap();
 
     let sql = adapter.captured_aggregate_sql().expect("SQL should be captured");
-    assert!(
-        sql.contains("UNION ALL"),
-        "should use partial-period path: {sql}"
-    );
+    assert!(sql.contains("UNION ALL"), "should use partial-period path: {sql}");
 
     // RLS tenant filter should appear in EVERY branch
     let branches: Vec<&str> = sql.split("UNION ALL").collect();

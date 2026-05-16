@@ -170,7 +170,11 @@ pub async fn rate_limit_middleware(
         .and_then(extract_jwt_subject);
 
     // Extract tenant for tenant-aware limiting.
-    let tenant_id = req.headers().get("X-Tenant-ID").and_then(|v| v.to_str().ok()).map(str::to_string);
+    let tenant_id = req
+        .headers()
+        .get("X-Tenant-ID")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
 
     // ── Per-path limit (strictest, always enforced) ───────────────────────
     let path_result = limiter.check_path_limit(&path, &ip).await;
@@ -215,7 +219,8 @@ pub async fn rate_limit_middleware(
     if let Ok(limit_value) = format!("{limit}").parse() {
         response.headers_mut().insert("X-RateLimit-Limit", limit_value);
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // Reason: remaining tokens is a small non-negative count that fits in u32
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // Reason: remaining tokens is a small non-negative count that fits in u32
     if let Ok(remaining_value) = format!("{}", remaining as u32).parse() {
         response.headers_mut().insert("X-RateLimit-Remaining", remaining_value);
     }

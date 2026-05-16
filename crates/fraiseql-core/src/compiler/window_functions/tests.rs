@@ -4,8 +4,8 @@ use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, 
 
 fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![
             MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -17,7 +17,7 @@ fn create_test_metadata() -> FactTableMetadata {
                 nullable: false,
             },
         ],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
             paths: vec![crate::compiler::fact_table::DimensionPath {
                 name:      "category".to_string(),
@@ -25,7 +25,7 @@ fn create_test_metadata() -> FactTableMetadata {
                 data_type: "text".to_string(),
             }],
         },
-        denormalized_filters: vec![
+        denormalized_filters:     vec![
             FilterColumn {
                 name:     "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
@@ -37,10 +37,10 @@ fn create_test_metadata() -> FactTableMetadata {
                 indexed:  true,
             },
         ],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
 

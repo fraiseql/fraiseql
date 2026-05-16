@@ -2,13 +2,16 @@
 //! Re-export items not in `crate::utils::*` so submodules reach them via `use super::*`.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
 
-pub use crate::utils::operators::{OPERATOR_REGISTRY, get_operators_by_category};
-pub use crate::utils::vector::VectorInsertQuery;
+pub use crate::utils::{
+    operators::{OPERATOR_REGISTRY, get_operators_by_category},
+    vector::VectorInsertQuery,
+};
 
 mod casing_tests {
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_simple_camel_to_snake() {
@@ -136,7 +139,8 @@ mod casing_tests {
 mod opaque_id_tests {
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_opaque_id_creation() {
@@ -218,8 +222,7 @@ mod operators_tests {
 
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use super::super::*;
-    use super::*;
+    use super::{super::*, *};
 
     #[test]
     fn test_operator_registry_initialized() {
@@ -386,8 +389,7 @@ mod operators_tests {
 
 mod vector_tests {
 
-    use super::super::*;
-    use super::*;
+    use super::{super::*, *};
     use crate::schema::{DistanceMetric, VectorConfig};
 
     #[test]

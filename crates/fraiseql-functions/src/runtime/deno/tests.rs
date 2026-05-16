@@ -1,21 +1,22 @@
 //! Tests for `DenoRuntime` — `JavaScript`/`TypeScript` function execution via V8
 
 #![cfg(feature = "runtime-deno")]
-#![allow(clippy::unwrap_used)]  // Reason: tests are stubs, cleanup in GREEN phase
-#![allow(unused_imports)]  // Reason: used in test functions that may not be compiled in some configurations
+#![allow(clippy::unwrap_used)] // Reason: tests are stubs, cleanup in GREEN phase
+#![allow(unused_imports)] // Reason: used in test functions that may not be compiled in some configurations
 
-use crate::{EventPayload, FunctionModule, FunctionRuntime, ResourceLimits, RuntimeType};
 use chrono::Utc;
 
+use crate::{EventPayload, FunctionModule, FunctionRuntime, ResourceLimits, RuntimeType};
+
 /// Helper to create a test event payload
-#[allow(dead_code)]  // Reason: used in failing tests, will be used when GREEN phase implemented
+#[allow(dead_code)] // Reason: used in failing tests, will be used when GREEN phase implemented
 fn test_event() -> EventPayload {
     EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({"value": 42}),
-        timestamp: Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({"value": 42}),
+        timestamp:    Utc::now(),
     }
 }
 
@@ -31,14 +32,20 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_identity".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_identity".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let event_data = event.data.clone();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     // Should succeed and return the event as-is
@@ -57,13 +64,19 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_transform".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_transform".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     assert!(result.is_ok(), "Transform function should execute successfully");
@@ -89,13 +102,19 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_typescript".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_typescript".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     assert!(result.is_ok(), "TypeScript function should execute successfully");
@@ -113,13 +132,19 @@ async fn test_deno_syntax_error_returns_validation() {
     // Invalid JavaScript
     let source = "export default async (event) => { broken syntax here }".to_string();
 
-    let module = FunctionModule::from_source("test_syntax_error".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_syntax_error".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     // Should return an error (either Validation for syntax error or Unsupported for stub)
@@ -138,13 +163,19 @@ export default async (event) => {
 "#
     .to_string();
 
-    let module = FunctionModule::from_source("test_runtime_error".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_runtime_error".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     // Should return an internal error
@@ -186,15 +217,16 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_memory_limit".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_memory_limit".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 64 * 1024 * 1024, // 64MB hard limit
-        max_duration: std::time::Duration::from_secs(5),
-        max_log_entries: 10_000,
+        max_duration:     std::time::Duration::from_secs(5),
+        max_log_entries:  10_000,
     };
 
     let result = runtime
@@ -222,8 +254,8 @@ export default async (event) => {
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
-        max_duration: std::time::Duration::from_millis(100), // 100ms timeout
-        max_log_entries: 10_000,
+        max_duration:     std::time::Duration::from_millis(100), // 100ms timeout
+        max_log_entries:  10_000,
     };
 
     let result = runtime
@@ -246,15 +278,16 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_within_limits".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_within_limits".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let limits = ResourceLimits {
-        max_memory_bytes: 256 * 1024 * 1024, // 256MB
-        max_duration: std::time::Duration::from_secs(5), // 5 second timeout
-        max_log_entries: 10_000,
+        max_memory_bytes: 256 * 1024 * 1024,                 // 256MB
+        max_duration:     std::time::Duration::from_secs(5), // 5 second timeout
+        max_log_entries:  10_000,
     };
 
     let result = runtime
@@ -279,13 +312,19 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_memory_peak".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_memory_peak".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     // Should succeed
@@ -308,15 +347,16 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_async_timeout".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_async_timeout".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
-        max_duration: std::time::Duration::from_millis(200), // 200ms timeout
-        max_log_entries: 10_000,
+        max_duration:     std::time::Duration::from_millis(200), // 200ms timeout
+        max_log_entries:  10_000,
     };
 
     let result = runtime
@@ -347,7 +387,12 @@ export default async (event) => {
 
     let event = test_event();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     // Should succeed and have a log entry
@@ -375,13 +420,19 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_log_levels".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_log_levels".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
 
     assert!(result.is_ok(), "Log calls should execute successfully");
@@ -414,14 +465,20 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_log_timestamp".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_log_timestamp".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let before = chrono::Utc::now();
     let result = runtime
-        .invoke(&module, event.clone(), &crate::host::NoopHostContext::new(event), ResourceLimits::default())
+        .invoke(
+            &module,
+            event.clone(),
+            &crate::host::NoopHostContext::new(event),
+            ResourceLimits::default(),
+        )
         .await;
     let after = chrono::Utc::now();
 
@@ -447,15 +504,16 @@ async fn test_deno_guest_log_limit_enforced() {
     }
     source.push_str("    return { logged: true };\n};\n");
 
-    let module = FunctionModule::from_source("test_log_limit".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_log_limit".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
-        max_duration: std::time::Duration::from_secs(5),
-        max_log_entries: 1000, // Only allow 1000 logs
+        max_duration:     std::time::Duration::from_secs(5),
+        max_log_entries:  1000, // Only allow 1000 logs
     };
 
     let result = runtime
@@ -488,7 +546,8 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_query_op".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_query_op".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
@@ -555,7 +614,8 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_storage_get_op".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_storage_get_op".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
@@ -587,7 +647,8 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_storage_put_op".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_storage_put_op".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 
@@ -653,7 +714,8 @@ export default async (event) => {
 "
     .to_string();
 
-    let module = FunctionModule::from_source("test_env_var_op".to_string(), source, RuntimeType::Deno);
+    let module =
+        FunctionModule::from_source("test_env_var_op".to_string(), source, RuntimeType::Deno);
     let runtime = super::DenoRuntime::new(&super::DenoConfig::default())
         .expect("Failed to create DenoRuntime");
 

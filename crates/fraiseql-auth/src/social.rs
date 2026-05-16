@@ -232,11 +232,15 @@ mod tests {
         }
 
         async fn exchange_code(&self, _code: &str) -> Result<TokenResponse> {
-            Err(AuthError::OAuthError { message: "mock: not implemented".into() })
+            Err(AuthError::OAuthError {
+                message: "mock: not implemented".into(),
+            })
         }
 
         async fn user_info(&self, _access_token: &str) -> Result<UserInfo> {
-            Err(AuthError::OAuthError { message: "mock: not implemented".into() })
+            Err(AuthError::OAuthError {
+                message: "mock: not implemented".into(),
+            })
         }
     }
 
@@ -247,8 +251,10 @@ mod tests {
         for (name, base_url) in providers {
             registry.register(
                 name,
-                Arc::new(MockOAuthProvider { name, base_url: base_url.to_string() })
-                    as Arc<dyn OAuthProvider>,
+                Arc::new(MockOAuthProvider {
+                    name,
+                    base_url: base_url.to_string(),
+                }) as Arc<dyn OAuthProvider>,
             );
         }
         Arc::new(SocialLoginState {
@@ -285,8 +291,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_authorize_known_provider_returns_redirect() {
-        let state =
-            build_test_state(vec![("github", "https://github.com/login/oauth/authorize")]);
+        let state = build_test_state(vec![("github", "https://github.com/login/oauth/authorize")]);
         let app = build_app(state);
 
         let response = app
@@ -300,11 +305,7 @@ mod tests {
             .unwrap();
 
         // axum's Redirect::to returns 303 See Other
-        assert_eq!(
-            response.status(),
-            StatusCode::SEE_OTHER,
-            "known provider should redirect"
-        );
+        assert_eq!(response.status(), StatusCode::SEE_OTHER, "known provider should redirect");
 
         let location = response.headers().get("location").unwrap().to_str().unwrap();
         assert!(
@@ -315,10 +316,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_authorize_google_provider_redirects_to_google() {
-        let state = build_test_state(vec![(
-            "google",
-            "https://accounts.google.com/o/oauth2/v2/auth",
-        )]);
+        let state =
+            build_test_state(vec![("google", "https://accounts.google.com/o/oauth2/v2/auth")]);
         let app = build_app(state);
 
         let response = app
@@ -341,8 +340,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_authorize_unknown_provider_returns_400() {
-        let state =
-            build_test_state(vec![("github", "https://github.com/login/oauth/authorize")]);
+        let state = build_test_state(vec![("github", "https://github.com/login/oauth/authorize")]);
         let app = build_app(state);
 
         let response = app
@@ -472,13 +470,17 @@ mod tests {
         let mut registry = SocialProviderRegistry::new();
         registry.register(
             "github",
-            Arc::new(MockOAuthProvider { name: "github", base_url: String::new() })
-                as Arc<dyn OAuthProvider>,
+            Arc::new(MockOAuthProvider {
+                name:     "github",
+                base_url: String::new(),
+            }) as Arc<dyn OAuthProvider>,
         );
         registry.register(
             "google",
-            Arc::new(MockOAuthProvider { name: "google", base_url: String::new() })
-                as Arc<dyn OAuthProvider>,
+            Arc::new(MockOAuthProvider {
+                name:     "google",
+                base_url: String::new(),
+            }) as Arc<dyn OAuthProvider>,
         );
 
         let mut names = registry.names();

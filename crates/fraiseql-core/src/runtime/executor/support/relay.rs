@@ -22,7 +22,9 @@ use crate::{
     error::Result,
 };
 
-pub(in crate::runtime::executor) trait RelayDispatch: Send + Sync {
+pub(in crate::runtime::executor) trait RelayDispatch:
+    Send + Sync
+{
     #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural grouping
     fn execute_relay_page<'a>(
         &'a self,
@@ -38,7 +40,9 @@ pub(in crate::runtime::executor) trait RelayDispatch: Send + Sync {
     ) -> BoxFuture<'a, Result<RelayPageResult>>;
 }
 
-pub(in crate::runtime::executor) struct RelayDispatchImpl<A: RelayDatabaseAdapter>(pub(in crate::runtime::executor) Arc<A>);
+pub(in crate::runtime::executor) struct RelayDispatchImpl<A: RelayDatabaseAdapter>(
+    pub(in crate::runtime::executor) Arc<A>,
+);
 
 impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDispatchImpl<A> {
     #[allow(clippy::too_many_arguments)] // Reason: relay pagination requires all cursor/filter/sort/count arguments; no natural grouping

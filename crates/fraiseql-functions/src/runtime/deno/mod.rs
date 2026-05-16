@@ -19,10 +19,13 @@ pub mod executor;
 pub mod ops;
 pub mod tests;
 
-use crate::runtime::FunctionRuntime;
-use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
-use crate::HostContext;
 use fraiseql_error::Result;
+
+use crate::{
+    HostContext,
+    runtime::FunctionRuntime,
+    types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits},
+};
 
 /// `TypeScript` type declarations for FraiseQL host operations.
 ///
@@ -92,14 +95,14 @@ pub struct DenoConfig {
     /// Enable `TypeScript` support (built-in transpiler).
     pub enable_typescript: bool,
     /// Additional V8 flags (e.g., "--expose-gc").
-    pub v8_flags: Vec<String>,
+    pub v8_flags:          Vec<String>,
 }
 
 impl Default for DenoConfig {
     fn default() -> Self {
         Self {
             enable_typescript: true,
-            v8_flags: vec![],
+            v8_flags:          vec![],
         }
     }
 }
@@ -111,9 +114,7 @@ pub struct DenoRuntime {
 
 impl std::fmt::Debug for DenoRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DenoRuntime")
-            .field("config", &self.config)
-            .finish()
+        f.debug_struct("DenoRuntime").field("config", &self.config).finish()
     }
 }
 
@@ -169,7 +170,9 @@ impl FunctionRuntime for DenoRuntime {
         async move {
             let start = std::time::Instant::now();
 
-            let (tx, rx) = tokio::sync::oneshot::channel::<std::result::Result<executor::ExecutionResult, String>>();
+            let (tx, rx) = tokio::sync::oneshot::channel::<
+                std::result::Result<executor::ExecutionResult, String>,
+            >();
 
             std::thread::spawn(move || {
                 let result = executor::run_in_dedicated_thread(&source, &event_data, &limits);
@@ -180,7 +183,7 @@ impl FunctionRuntime for DenoRuntime {
 
             let exec_result = rx.await.map_err(|_| fraiseql_error::FraiseQLError::Internal {
                 message: "Deno executor thread crashed".to_string(),
-                source: None,
+                source:  None,
             })?;
 
             match exec_result {
@@ -193,9 +196,9 @@ impl FunctionRuntime for DenoRuntime {
                 Err(e) if e.starts_with("SyntaxError") => {
                     Err(fraiseql_error::FraiseQLError::Validation {
                         message: e,
-                        path: None,
+                        path:    None,
                     })
-                }
+                },
                 Err(e) => Err(fraiseql_error::FraiseQLError::Unsupported { message: e }),
             }
         }

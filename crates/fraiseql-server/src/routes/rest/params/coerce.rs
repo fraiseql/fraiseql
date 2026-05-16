@@ -11,7 +11,10 @@ use crate::routes::rest::params::helpers::validation_error;
 ///
 /// Returns `FraiseQLError::Validation` if the value cannot be parsed as the
 /// expected type.
-pub fn coerce_to_type(raw: &str, field_type: &FieldType) -> Result<serde_json::Value, FraiseQLError> {
+pub fn coerce_to_type(
+    raw: &str,
+    field_type: &FieldType,
+) -> Result<serde_json::Value, FraiseQLError> {
     match field_type {
         FieldType::Int => {
             let v: i64 = raw

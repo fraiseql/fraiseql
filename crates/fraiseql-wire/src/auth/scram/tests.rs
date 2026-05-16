@@ -71,9 +71,8 @@ fn test_scram_client_final_flow() {
 
     // Should succeed with valid format
     let result = client.client_final(&server_first);
-    let (client_final, state) = result.unwrap_or_else(|e| {
-        panic!("expected Ok for client_final with valid server message: {e}")
-    });
+    let (client_final, state) = result
+        .unwrap_or_else(|e| panic!("expected Ok for client_final with valid server message: {e}"));
     assert!(client_final.starts_with("c="));
     assert!(!state.auth_message.is_empty());
 }

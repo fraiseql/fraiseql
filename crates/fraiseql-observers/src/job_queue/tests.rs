@@ -5,8 +5,7 @@
 mod job_queue_tests {
     use uuid::Uuid;
 
-    use crate::config::ActionConfig;
-    use crate::job_queue::*;
+    use crate::{config::ActionConfig, job_queue::*};
 
     #[test]
     fn test_job_state_is_terminal() {
@@ -357,9 +356,13 @@ mod executor_tests {
 mod redis_tests {
     use uuid::Uuid;
 
-    use crate::job_queue::redis::{parse_job_state, RedisJobQueue};
-    use crate::config::ActionConfig;
-    use crate::job_queue::{Job, JobState};
+    use crate::{
+        config::ActionConfig,
+        job_queue::{
+            Job, JobState,
+            redis::{RedisJobQueue, parse_job_state},
+        },
+    };
 
     #[test]
     fn test_key_generation() {
@@ -413,9 +416,10 @@ mod redis_tests {
 mod traits_tests {
     use uuid::Uuid;
 
-    use crate::job_queue::traits::*;
-    use crate::config::ActionConfig;
-    use crate::job_queue::{Job, JobState};
+    use crate::{
+        config::ActionConfig,
+        job_queue::{Job, JobState, traits::*},
+    };
 
     #[tokio::test]
     async fn test_mock_queue_enqueue() {

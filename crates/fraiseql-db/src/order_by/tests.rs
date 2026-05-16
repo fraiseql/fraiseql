@@ -114,8 +114,7 @@ fn test_append_order_by_numeric_cast_postgres() {
     let mut sql = "SELECT data FROM v_order".to_string();
     let mut clause = OrderByClause::new("totalAmount".to_string(), OrderDirection::Desc);
     clause.field_type = OrderByFieldType::Numeric;
-    let appended =
-        append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
+    let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
     assert!(appended);
     assert_eq!(sql, "SELECT data FROM v_order ORDER BY (data->>'total_amount')::numeric DESC");
 }
@@ -142,13 +141,9 @@ fn test_append_order_by_datetime_cast_postgres() {
     let mut sql = "SELECT data FROM v_event".to_string();
     let mut clause = OrderByClause::new("createdAt".to_string(), OrderDirection::Desc);
     clause.field_type = OrderByFieldType::DateTime;
-    let appended =
-        append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
+    let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
     assert!(appended);
-    assert_eq!(
-        sql,
-        "SELECT data FROM v_event ORDER BY (data->>'created_at')::timestamptz DESC"
-    );
+    assert_eq!(sql, "SELECT data FROM v_event ORDER BY (data->>'created_at')::timestamptz DESC");
 }
 
 // ── native column ORDER BY ───────────────────────────────────────────
@@ -162,8 +157,7 @@ fn test_append_order_by_native_column() {
         field_type:    crate::types::sql_hints::OrderByFieldType::DateTime,
         native_column: Some("created_at".to_string()),
     };
-    let appended =
-        append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
+    let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
     assert!(appended);
     // Native column is used directly — no JSON extraction, no cast.
     assert_eq!(sql, "SELECT data FROM tv_user ORDER BY created_at DESC");

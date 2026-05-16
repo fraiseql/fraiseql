@@ -296,9 +296,9 @@ fn hierarchy_context_none_is_backward_compatible() {
 #[test]
 fn hierarchy_context_can_be_constructed() {
     let ctx = HierarchyContext {
-        table: "tb_category".to_string(),
+        table:       "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     assert_eq!(ctx.table, "tb_category");
     assert_eq!(ctx.path_column, "category_path");
@@ -308,9 +308,9 @@ fn hierarchy_context_can_be_constructed() {
 #[test]
 fn hierarchy_context_cross_table() {
     let ctx = HierarchyContext {
-        table: "tb_location".to_string(),
+        table:       "tb_location".to_string(),
         path_column: "location_path".to_string(),
-        fk_column: Some("fk_location".to_string()),
+        fk_column:   Some("fk_location".to_string()),
     };
     assert_eq!(ctx.fk_column, Some("fk_location".to_string()));
 }
@@ -325,7 +325,11 @@ fn descendant_of_id_self_referencing() {
         path_column: "category_path".to_string(),
         fk_column:   None,
     };
-    let clause = field("category_path", WhereOperator::DescendantOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let clause = field(
+        "category_path",
+        WhereOperator::DescendantOfId,
+        json!("550e8400-e29b-41d4-a716-446655440000"),
+    );
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
         sql,
@@ -342,7 +346,11 @@ fn ancestor_of_id_self_referencing() {
         path_column: "category_path".to_string(),
         fk_column:   None,
     };
-    let clause = field("category_path", WhereOperator::AncestorOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let clause = field(
+        "category_path",
+        WhereOperator::AncestorOfId,
+        json!("550e8400-e29b-41d4-a716-446655440000"),
+    );
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
         sql,
@@ -359,7 +367,11 @@ fn descendant_of_id_cross_table() {
         path_column: "location_path".to_string(),
         fk_column:   Some("fk_location".to_string()),
     };
-    let clause = field("location", WhereOperator::DescendantOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let clause = field(
+        "location",
+        WhereOperator::DescendantOfId,
+        json!("550e8400-e29b-41d4-a716-446655440000"),
+    );
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
         sql,
@@ -376,7 +388,11 @@ fn ancestor_of_id_cross_table() {
         path_column: "location_path".to_string(),
         fk_column:   Some("fk_location".to_string()),
     };
-    let clause = field("location", WhereOperator::AncestorOfId, json!("550e8400-e29b-41d4-a716-446655440000"));
+    let clause = field(
+        "location",
+        WhereOperator::AncestorOfId,
+        json!("550e8400-e29b-41d4-a716-446655440000"),
+    );
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
         sql,

@@ -166,7 +166,11 @@ impl DimensionRateLimiter {
         Self::new_with_clock(max_requests, window_secs, Arc::new(SystemClock))
     }
 
-    pub(crate) fn new_with_clock(max_requests: u32, window_secs: u64, clock: Arc<dyn Clock>) -> Self {
+    pub(crate) fn new_with_clock(
+        max_requests: u32,
+        window_secs: u64,
+        clock: Arc<dyn Clock>,
+    ) -> Self {
         #[allow(clippy::expect_used)]
         // Reason: MAX_RATE_LIMITER_ENTRIES is a non-zero compile-time constant
         let cap = NonZeroUsize::new(MAX_RATE_LIMITER_ENTRIES)

@@ -5,10 +5,12 @@
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::json;
 
-use super::cache_control::{apply_cache_headers, CacheContext};
-use super::sse::{
-    accepts_sse, event_kind_to_sse_type, extract_last_event_id, extract_stream_resource,
-    format_heartbeat, format_sse_event, is_stream_path, observers_not_available,
+use super::{
+    cache_control::{CacheContext, apply_cache_headers},
+    sse::{
+        accepts_sse, event_kind_to_sse_type, extract_last_event_id, extract_stream_resource,
+        format_heartbeat, format_sse_event, is_stream_path, observers_not_available,
+    },
 };
 
 // ---------------------------------------------------------------------------

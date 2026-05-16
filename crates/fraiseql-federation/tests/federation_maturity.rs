@@ -5,18 +5,17 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::collections::HashMap;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
-use fraiseql_federation::composition_validator::{CompositionError, CompositionValidator};
-use fraiseql_federation::health::{SubgraphHealthAggregator, SubgraphHealthStatus};
-use fraiseql_federation::observability::{EntityResolutionMetrics, SubgraphLatencyTracker};
-use fraiseql_federation::query_plan_cache::{
-    QueryPlan, QueryPlanCache, SubgraphFetch, normalize_query, schema_fingerprint,
-};
-use fraiseql_federation::service_sdl::generate_service_sdl;
-use fraiseql_federation::types::{
-    FederatedType, FederationMetadata, FieldFederationDirectives, KeyDirective,
+use fraiseql_federation::{
+    composition_validator::{CompositionError, CompositionValidator},
+    health::{SubgraphHealthAggregator, SubgraphHealthStatus},
+    observability::{EntityResolutionMetrics, SubgraphLatencyTracker},
+    query_plan_cache::{
+        QueryPlan, QueryPlanCache, SubgraphFetch, normalize_query, schema_fingerprint,
+    },
+    service_sdl::generate_service_sdl,
+    types::{FederatedType, FederationMetadata, FieldFederationDirectives, KeyDirective},
 };
 
 // ---------------------------------------------------------------------------
@@ -28,7 +27,7 @@ fn test_all_seven_directives_in_sdl() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![],
+        types: vec![],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -54,7 +53,7 @@ fn test_link_directive_imports_all_directives() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![],
+        types: vec![],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -65,11 +64,16 @@ fn test_link_directive_imports_all_directives() {
         "SDL must contain @link: {sdl}"
     );
 
-    for import in ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override"] {
-        assert!(
-            sdl.contains(&format!("\"{import}\"")),
-            "@link import missing {import}: {sdl}"
-        );
+    for import in [
+        "@key",
+        "@external",
+        "@requires",
+        "@provides",
+        "@shareable",
+        "@inaccessible",
+        "@override",
+    ] {
+        assert!(sdl.contains(&format!("\"{import}\"")), "@link import missing {import}: {sdl}");
     }
 }
 
@@ -84,14 +88,10 @@ fn test_composition_with_all_new_directives() {
         fields:     vec!["id".to_string()],
         resolvable: true,
     }];
-    users_type.set_field_directives(
-        "email".to_string(),
-        FieldFederationDirectives::new().shareable(),
-    );
-    users_type.set_field_directives(
-        "ssn".to_string(),
-        FieldFederationDirectives::new().inaccessible(),
-    );
+    users_type
+        .set_field_directives("email".to_string(), FieldFederationDirectives::new().shareable());
+    users_type
+        .set_field_directives("ssn".to_string(), FieldFederationDirectives::new().inaccessible());
 
     let mut users_type_b = FederatedType::new("User".to_string());
     users_type_b.is_extends = true;
@@ -99,14 +99,10 @@ fn test_composition_with_all_new_directives() {
         fields:     vec!["id".to_string()],
         resolvable: true,
     }];
-    users_type_b.set_field_directives(
-        "email".to_string(),
-        FieldFederationDirectives::new().shareable(),
-    );
-    users_type_b.set_field_directives(
-        "ssn".to_string(),
-        FieldFederationDirectives::new().inaccessible(),
-    );
+    users_type_b
+        .set_field_directives("email".to_string(), FieldFederationDirectives::new().shareable());
+    users_type_b
+        .set_field_directives("ssn".to_string(), FieldFederationDirectives::new().inaccessible());
 
     let subgraphs = vec![
         (
@@ -114,7 +110,7 @@ fn test_composition_with_all_new_directives() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types:   vec![users_type],
+                types: vec![users_type],
                 remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
@@ -123,7 +119,7 @@ fn test_composition_with_all_new_directives() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types:   vec![users_type_b],
+                types: vec![users_type_b],
                 remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
@@ -153,10 +149,7 @@ fn test_inaccessible_conflict_blocks_composition() {
         resolvable: true,
     }];
     // NOT inaccessible — should conflict
-    type_b.set_field_directives(
-        "internal_code".to_string(),
-        FieldFederationDirectives::new(),
-    );
+    type_b.set_field_directives("internal_code".to_string(), FieldFederationDirectives::new());
 
     let subgraphs = vec![
         (
@@ -164,7 +157,7 @@ fn test_inaccessible_conflict_blocks_composition() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types:   vec![type_a],
+                types: vec![type_a],
                 remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
@@ -173,7 +166,7 @@ fn test_inaccessible_conflict_blocks_composition() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types:   vec![type_b],
+                types: vec![type_b],
                 remote_subscription_fields: std::collections::HashMap::new(),
             },
         ),
@@ -184,7 +177,11 @@ fn test_inaccessible_conflict_blocks_composition() {
     assert!(result.is_err());
 
     let errors = result.unwrap_err();
-    assert!(errors.iter().any(|e| matches!(e, CompositionError::InaccessibleFieldConflict { .. })));
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, CompositionError::InaccessibleFieldConflict { .. }))
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -315,8 +312,9 @@ fn test_health_check_full_lifecycle() {
 
 #[test]
 fn test_multi_key_where_clause_for_compound_keys() {
-    use fraiseql_federation::entity_resolver::construct_batch_where_clause;
-    use fraiseql_federation::types::EntityRepresentation;
+    use fraiseql_federation::{
+        entity_resolver::construct_batch_where_clause, types::EntityRepresentation,
+    };
     use serde_json::json;
 
     let mut rep = EntityRepresentation {
@@ -327,11 +325,9 @@ fn test_multi_key_where_clause_for_compound_keys() {
     rep.key_fields.insert("order_id".to_string(), json!("O1"));
     rep.key_fields.insert("product_id".to_string(), json!("P1"));
 
-    let clause = construct_batch_where_clause(
-        &[rep],
-        &["order_id".to_string(), "product_id".to_string()],
-    )
-    .unwrap();
+    let clause =
+        construct_batch_where_clause(&[rep], &["order_id".to_string(), "product_id".to_string()])
+            .unwrap();
 
     assert!(clause.contains("\"order_id\" IN"), "clause: {clause}");
     assert!(clause.contains("\"product_id\" IN"), "clause: {clause}");

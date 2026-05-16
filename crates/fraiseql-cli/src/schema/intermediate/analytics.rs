@@ -14,16 +14,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFactTable {
     /// Name of the fact table
-    pub table_name:           String,
+    pub table_name:               String,
     /// Measure columns (numeric aggregates)
-    pub measures:             Vec<IntermediateMeasure>,
+    pub measures:                 Vec<IntermediateMeasure>,
     /// Dimension metadata
-    pub dimensions:           IntermediateDimensions,
+    pub dimensions:               IntermediateDimensions,
     /// Denormalized filter columns
-    pub denormalized_filters: Vec<IntermediateFilter>,
+    pub denormalized_filters:     Vec<IntermediateFilter>,
     /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views
     #[serde(default)]
-    pub native_measures:      HashMap<String, String>,
+    pub native_measures:          HashMap<String, String>,
     /// Maps deep JSONB dimension paths to flat SQL column names for GROUP BY
     #[serde(default)]
     pub native_dimension_mapping: HashMap<String, String>,

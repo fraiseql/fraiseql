@@ -194,11 +194,7 @@ fn make_executor() -> ObserverExecutor {
 }
 
 fn make_deduped(scope: TenantScope) -> DedupedObserverExecutor<InMemoryDedupStore> {
-    DedupedObserverExecutor::new_with_scope(
-        make_executor(),
-        InMemoryDedupStore::new(300),
-        scope,
-    )
+    DedupedObserverExecutor::new_with_scope(make_executor(), InMemoryDedupStore::new(300), scope)
 }
 
 /// `Unrestricted` passes events with any tenant (including None).

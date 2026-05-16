@@ -5,8 +5,7 @@
 mod search_tests {
     use uuid::Uuid;
 
-    use crate::event::EntityEvent;
-    use crate::search::*;
+    use crate::{event::EntityEvent, search::*};
 
     #[test]
     fn test_indexed_event_creation() {

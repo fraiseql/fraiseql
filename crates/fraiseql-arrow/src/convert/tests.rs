@@ -32,8 +32,7 @@ fn test_convert_simple_batch() {
 
 #[test]
 fn test_null_handling() {
-    let schema =
-        Arc::new(Schema::new(vec![Field::new("nullable_field", DataType::Utf8, true)]));
+    let schema = Arc::new(Schema::new(vec![Field::new("nullable_field", DataType::Utf8, true)]));
 
     let converter = RowToArrowConverter::new(schema, ConvertConfig::default());
 

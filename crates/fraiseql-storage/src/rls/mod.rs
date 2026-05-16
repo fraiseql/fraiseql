@@ -6,8 +6,10 @@
 #[cfg(test)]
 mod tests;
 
-use crate::config::{BucketAccess, BucketConfig};
-use crate::metadata::StorageMetadataRow;
+use crate::{
+    config::{BucketAccess, BucketConfig},
+    metadata::StorageMetadataRow,
+};
 
 /// The admin role name that bypasses all access checks.
 const ADMIN_ROLE: &str = "admin";
@@ -42,9 +44,7 @@ impl StorageRlsEvaluator {
     ) -> bool {
         match bucket.access {
             BucketAccess::PublicRead => true,
-            BucketAccess::Private => {
-                is_admin(roles) || is_owner(user_id, object)
-            }
+            BucketAccess::Private => is_admin(roles) || is_owner(user_id, object),
         }
     }
 
@@ -96,11 +96,8 @@ impl StorageRlsEvaluator {
                 if is_admin(roles) {
                     return objects;
                 }
-                objects
-                    .into_iter()
-                    .filter(|obj| is_owner(user_id, obj))
-                    .collect()
-            }
+                objects.into_iter().filter(|obj| is_owner(user_id, obj)).collect()
+            },
         }
     }
 }

@@ -513,9 +513,8 @@ impl IntrospectionResponses {
         for (type_name, field_names) in inaccessible {
             if let Some(response) = self.type_responses.get_mut(type_name) {
                 let mut val = response.as_ref().clone();
-                if let Some(fields) = val
-                    .pointer_mut("/data/__type/fields")
-                    .and_then(|v| v.as_array_mut())
+                if let Some(fields) =
+                    val.pointer_mut("/data/__type/fields").and_then(|v| v.as_array_mut())
                 {
                     fields.retain(|f| {
                         f.get("name")
@@ -529,19 +528,13 @@ impl IntrospectionResponses {
 
         // Filter __schema response (types array contains the same fields)
         let mut schema_val = self.schema_response.as_ref().clone();
-        if let Some(types) = schema_val
-            .pointer_mut("/data/__schema/types")
-            .and_then(|v| v.as_array_mut())
+        if let Some(types) =
+            schema_val.pointer_mut("/data/__schema/types").and_then(|v| v.as_array_mut())
         {
             for type_val in types.iter_mut() {
-                let type_name = type_val
-                    .get("name")
-                    .and_then(|n| n.as_str())
-                    .unwrap_or("");
+                let type_name = type_val.get("name").and_then(|n| n.as_str()).unwrap_or("");
                 if let Some(field_names) = inaccessible.get(type_name) {
-                    if let Some(fields) = type_val
-                        .get_mut("fields")
-                        .and_then(|v| v.as_array_mut())
+                    if let Some(fields) = type_val.get_mut("fields").and_then(|v| v.as_array_mut())
                     {
                         fields.retain(|f| {
                             f.get("name")

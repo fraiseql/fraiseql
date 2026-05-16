@@ -227,6 +227,5 @@ impl Job {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

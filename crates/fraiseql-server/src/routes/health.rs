@@ -187,7 +187,8 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     let observers = if let Some(ref runtime) = state.observer_runtime {
         let rt = runtime.read().await;
         let health = rt.health();
-        #[allow(clippy::cast_possible_truncation)] // Reason: events_processed is a counter that won't realistically exceed usize on any target
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: events_processed is a counter that won't realistically exceed usize on any target
         let pending = health.events_processed as usize;
         Some(ObserverHealth {
             running:        health.running,

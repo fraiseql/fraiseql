@@ -4,10 +4,11 @@
 //! This module provides `DynHostContext`, an object-safe wrapper that erases
 //! the future types via `Pin<Box<dyn Future>>`.
 
-use crate::host::HttpResponse;
+use std::{future::Future, pin::Pin};
+
 use fraiseql_error::Result;
-use std::future::Future;
-use std::pin::Pin;
+
+use crate::host::HttpResponse;
 
 /// Boxed future type alias for readability.
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -18,10 +19,18 @@ type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// storage as `Arc<dyn DynHostContext>` in `StoreData`.
 pub trait DynHostContext: Send + Sync {
     /// Execute a GraphQL query.
-    fn query(&self, graphql: &str, variables: serde_json::Value) -> BoxFuture<'_, Result<serde_json::Value>>;
+    fn query(
+        &self,
+        graphql: &str,
+        variables: serde_json::Value,
+    ) -> BoxFuture<'_, Result<serde_json::Value>>;
 
     /// Execute a raw SQL query.
-    fn sql_query(&self, sql: &str, params: &[serde_json::Value]) -> BoxFuture<'_, Result<Vec<serde_json::Value>>>;
+    fn sql_query(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> BoxFuture<'_, Result<Vec<serde_json::Value>>>;
 
     /// Make an HTTP request.
     fn http_request(
@@ -67,13 +76,21 @@ pub trait DynHostContext: Send + Sync {
 
 /// Blanket implementation: any `T: HostContext + Send + Sync` can be used as `DynHostContext`.
 impl<T: crate::HostContext + Send + Sync> DynHostContext for T {
-    fn query(&self, graphql: &str, variables: serde_json::Value) -> BoxFuture<'_, Result<serde_json::Value>> {
+    fn query(
+        &self,
+        graphql: &str,
+        variables: serde_json::Value,
+    ) -> BoxFuture<'_, Result<serde_json::Value>> {
         // Own the graphql string so the future doesn't borrow a local reference
         let graphql = graphql.to_string();
         Box::pin(async move { crate::HostContext::query(self, &graphql, variables).await })
     }
 
-    fn sql_query(&self, sql: &str, params: &[serde_json::Value]) -> BoxFuture<'_, Result<Vec<serde_json::Value>>> {
+    fn sql_query(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> BoxFuture<'_, Result<Vec<serde_json::Value>>> {
         let sql = sql.to_string();
         let params = params.to_vec();
         Box::pin(async move { crate::HostContext::sql_query(self, &sql, &params).await })

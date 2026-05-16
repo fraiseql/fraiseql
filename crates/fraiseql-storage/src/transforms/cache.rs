@@ -7,12 +7,10 @@ use std::sync::Arc;
 
 use fraiseql_error::Result;
 
-use crate::backend::LocalBackend;
-
 use super::TransformParams;
-
 #[cfg(test)]
 use super::{ImageTransformer, TransformOutput};
+use crate::backend::LocalBackend;
 
 /// Transform cache for storing and retrieving cached transformed images.
 ///
@@ -60,12 +58,10 @@ impl TransformCache {
             .as_ref()
             .map(|f| format!("{:?}", f).to_lowercase())
             .unwrap_or_else(|| "original".to_string());
-        let quality = params.quality.map(|q| q.to_string()).unwrap_or_else(|| "default".to_string());
+        let quality =
+            params.quality.map(|q| q.to_string()).unwrap_or_else(|| "default".to_string());
 
-        format!(
-            "_transforms/{}/{}_{}_{}_{}",
-            key, width, height, format, quality
-        )
+        format!("_transforms/{}/{}_{}_{}_{}", key, width, height, format, quality)
     }
 
     /// Gets or transforms an image, using cache when possible.
@@ -95,7 +91,7 @@ impl TransformCache {
         source_data: &[u8],
         params: &TransformParams,
     ) -> Result<Option<TransformOutput>> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
         let cache_key = Self::build_cache_key(key, params);
 
@@ -112,7 +108,8 @@ impl TransformCache {
                 if let Ok(metadata_str) = String::from_utf8(metadata) {
                     // If source hash matches, use cached result
                     if metadata_str == source_hash {
-                        if let Ok(cached) = serde_json::from_slice::<TransformOutput>(&cached_data) {
+                        if let Ok(cached) = serde_json::from_slice::<TransformOutput>(&cached_data)
+                        {
                             return Ok(Some(cached));
                         }
                     }

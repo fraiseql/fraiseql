@@ -6,12 +6,20 @@ mod auth_tests {
 
     use std::sync::Arc;
 
-    use axum::{Extension, Router, body::Body, http::{Request, StatusCode, header}, routing::get};
+    use axum::{
+        Extension, Router,
+        body::Body,
+        http::{Request, StatusCode, header},
+        routing::get,
+    };
     use chrono::Utc;
     use tower::ServiceExt as _;
 
     use super::super::auth::*;
-    use crate::{auth::{OidcServerClient, PkceStateStore}, middleware::AuthUser};
+    use crate::{
+        auth::{OidcServerClient, PkceStateStore},
+        middleware::AuthUser,
+    };
 
     fn mock_pkce_store() -> Arc<PkceStateStore> {
         Arc::new(PkceStateStore::new(600, None))
@@ -188,7 +196,10 @@ mod auth_tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert!(json.get("email").is_none(), "absent email must not be null-padded");
-        assert!(json.get("display_name").is_none(), "absent display_name must not be null-padded");
+        assert!(
+            json.get("display_name").is_none(),
+            "absent display_name must not be null-padded"
+        );
     }
 
     #[tokio::test]
@@ -329,8 +340,8 @@ mod auth_tests {
 
         let auth_state = Arc::new(AuthPkceState {
             pkce_store,
-            oidc_client:             mock_oidc_client(),
-            http_client:             Arc::new(reqwest::Client::new()),
+            oidc_client: mock_oidc_client(),
+            http_client: Arc::new(reqwest::Client::new()),
             post_login_redirect_uri: None,
         });
 
@@ -471,19 +482,19 @@ mod health_tests {
     #[test]
     fn test_health_response_serialization() {
         let response = HealthResponse {
-            status:      "healthy".to_string(),
-            database:    DatabaseStatus {
+            status: "healthy".to_string(),
+            database: DatabaseStatus {
                 connected:          true,
                 database_type:      "PostgreSQL".to_string(),
                 active_connections: Some(2),
                 idle_connections:   Some(8),
             },
-            observers:   None,
-            cache:       None,
-            secrets:     None,
+            observers: None,
+            cache: None,
+            secrets: None,
             #[cfg(feature = "federation")]
-            federation:  None,
-            version:     "2.0.0-a1".to_string(),
+            federation: None,
+            version: "2.0.0-a1".to_string(),
             schema_hash: Some("abc123def456abc1".to_string()),
         };
 
@@ -631,7 +642,7 @@ mod metrics_tests {
 }
 
 mod playground_tests {
-    use super::super::playground::{apollo_sandbox_html, graphiql_html, PlaygroundState};
+    use super::super::playground::{PlaygroundState, apollo_sandbox_html, graphiql_html};
     use crate::server_config::PlaygroundTool;
 
     #[test]
@@ -663,7 +674,12 @@ mod realtime_tests {
 
     use std::sync::Arc;
 
-    use axum::{Router, body::Body, http::{Request, StatusCode}, routing::post};
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+        routing::post,
+    };
     use tower::ServiceExt;
 
     use super::super::realtime::{BroadcastState, broadcast_handler};

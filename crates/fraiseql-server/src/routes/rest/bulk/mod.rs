@@ -17,6 +17,7 @@ use fraiseql_core::{
     schema::{CompiledSchema, MutationOperation, RestConfig},
     security::SecurityContext,
 };
+use helpers::{extract_entity_from_result, has_filter_params, set_rows_affected};
 use serde_json::json;
 
 use super::{
@@ -24,7 +25,6 @@ use super::{
     params::RestParamExtractor,
     resource::{RestRouteTable, RouteSource},
 };
-use helpers::{has_filter_params, extract_entity_from_result, set_rows_affected};
 
 // ---------------------------------------------------------------------------
 // Constants

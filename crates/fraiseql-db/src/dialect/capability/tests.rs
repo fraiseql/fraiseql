@@ -210,8 +210,7 @@ fn test_typed_expr_postgres_integer() {
 #[test]
 fn test_typed_expr_postgres_datetime() {
     assert_eq!(
-        DatabaseType::PostgreSQL
-            .typed_json_field_expr("created_at", OrderByFieldType::DateTime),
+        DatabaseType::PostgreSQL.typed_json_field_expr("created_at", OrderByFieldType::DateTime),
         "(data->>'created_at')::timestamptz"
     );
 }

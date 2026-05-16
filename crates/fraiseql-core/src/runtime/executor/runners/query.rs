@@ -5,8 +5,7 @@
 
 use std::sync::Arc;
 
-use super::super::context::ExecutorContext;
-use super::super::{null_masked_fields, resolve_inject_value};
+use super::super::{context::ExecutorContext, null_masked_fields, resolve_inject_value};
 use crate::{
     db::{
         CursorValue, ProjectionField, WhereClause, WhereOperator,
@@ -246,7 +245,6 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     pub(in super::super) const fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
         Self { ctx }
     }
-
 
     /// Extract an inline node ID literal from a `node(id: "...")` query string.
     ///
@@ -569,7 +567,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 9. Execute query with combined WHERE clause filter
         let results = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .execute_with_projection_arc(
                 sql_source,
                 projection_hint.as_ref(),
@@ -787,7 +786,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         };
 
         let results = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .execute_with_projection_arc(
                 sql_source,
                 projection_hint.as_ref(),
@@ -920,7 +920,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // Execute.
         let results = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .execute_with_projection_arc(
                 sql_source,
                 None,
@@ -1040,7 +1041,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 4. Execute COUNT query via adapter
         let rows = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
             .await?;
 
@@ -1475,7 +1477,8 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // 6. Execute the query (limit 1) with projection.
         let rows = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .execute_with_projection_arc(
                 &sql_source,
                 projection_hint.as_ref(),

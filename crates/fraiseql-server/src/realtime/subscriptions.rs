@@ -62,11 +62,11 @@ pub enum FilterOperator {
 #[derive(Debug, Clone)]
 pub struct FieldFilter {
     /// Field name to compare.
-    pub field: String,
+    pub field:    String,
     /// Comparison operator.
     pub operator: FilterOperator,
     /// Value to compare against.
-    pub value: Value,
+    pub value:    Value,
 }
 
 impl FilterOperator {
@@ -94,8 +94,7 @@ fn parse_filter_value(s: &str) -> Value {
     if let Ok(n) = s.parse::<i64>() {
         Value::Number(n.into())
     } else if let Ok(f) = s.parse::<f64>() {
-        serde_json::Number::from_f64(f)
-            .map_or_else(|| Value::String(s.to_owned()), Value::Number)
+        serde_json::Number::from_f64(f).map_or_else(|| Value::String(s.to_owned()), Value::Number)
     } else {
         Value::String(s.to_owned())
     }
@@ -114,16 +113,14 @@ pub fn parse_filter(filter_str: &str) -> Result<Vec<FieldFilter>, String> {
         .map(str::trim)
         .filter(|p| !p.is_empty())
         .map(|part| {
-            let (field, rest) = part
-                .split_once('=')
-                .ok_or_else(|| format!("invalid filter syntax: {part}"))?;
-            let (op_str, value_str) = rest
-                .split_once('.')
-                .ok_or_else(|| format!("invalid filter operator: {rest}"))?;
+            let (field, rest) =
+                part.split_once('=').ok_or_else(|| format!("invalid filter syntax: {part}"))?;
+            let (op_str, value_str) =
+                rest.split_once('.').ok_or_else(|| format!("invalid filter operator: {rest}"))?;
             Ok(FieldFilter {
-                field: field.to_owned(),
+                field:    field.to_owned(),
                 operator: FilterOperator::parse(op_str)?,
-                value: parse_filter_value(value_str),
+                value:    parse_filter_value(value_str),
             })
         })
         .collect()
@@ -133,9 +130,9 @@ pub fn parse_filter(filter_str: &str) -> Result<Vec<FieldFilter>, String> {
 #[derive(Debug, Clone)]
 pub struct SubscriptionDetails {
     /// Optional event type filter (None = all events).
-    pub event_filter: Option<EventKind>,
+    pub event_filter:          Option<EventKind>,
     /// Field-level filters applied to event payloads.
-    pub field_filters: Vec<FieldFilter>,
+    pub field_filters:         Vec<FieldFilter>,
     /// Security context hash for RLS grouping.
     pub security_context_hash: u64,
 }
@@ -146,11 +143,11 @@ pub struct SubscriptionDetails {
 /// Level 2: connection → map of entity → subscription details (for per-connection state).
 pub struct SubscriptionManager {
     /// entity → set of connection IDs subscribed to it.
-    entity_subscribers: DashMap<String, DashSet<ConnectionId>>,
+    entity_subscribers:       DashMap<String, DashSet<ConnectionId>>,
     /// `connection_id` → (entity → subscription details).
     connection_subscriptions: DashMap<ConnectionId, HashMap<String, SubscriptionDetails>>,
     /// Maximum subscriptions per entity (fan-out limit).
-    max_per_entity: usize,
+    max_per_entity:           usize,
 }
 
 impl SubscriptionManager {
@@ -186,10 +183,7 @@ impl SubscriptionManager {
         }
 
         // Check fan-out limit
-        let current_count = self
-            .entity_subscribers
-            .get(entity)
-            .map_or(0, |set| set.len());
+        let current_count = self.entity_subscribers.get(entity).map_or(0, |set| set.len());
         if current_count >= self.max_per_entity {
             return Err(format!(
                 "subscription limit reached for entity {entity} ({} max)",
@@ -246,17 +240,13 @@ impl SubscriptionManager {
     /// Number of subscriptions for a given entity.
     #[must_use]
     pub fn count_for_entity(&self, entity: &str) -> usize {
-        self.entity_subscribers
-            .get(entity)
-            .map_or(0, |set| set.len())
+        self.entity_subscribers.get(entity).map_or(0, |set| set.len())
     }
 
     /// Number of entities a connection is subscribed to.
     #[must_use]
     pub fn count_for_connection(&self, connection_id: &str) -> usize {
-        self.connection_subscriptions
-            .get(connection_id)
-            .map_or(0, |subs| subs.len())
+        self.connection_subscriptions.get(connection_id).map_or(0, |subs| subs.len())
     }
 
     /// Get all subscribers for an entity with their subscription details.
@@ -264,7 +254,10 @@ impl SubscriptionManager {
     /// Returns a vec of `(connection_id, details)` pairs, or `None` if no
     /// connections are subscribed to this entity.
     #[must_use]
-    pub fn get_subscribers(&self, entity: &str) -> Option<Vec<(ConnectionId, SubscriptionDetails)>> {
+    pub fn get_subscribers(
+        &self,
+        entity: &str,
+    ) -> Option<Vec<(ConnectionId, SubscriptionDetails)>> {
         let subscriber_set = self.entity_subscribers.get(entity)?;
         if subscriber_set.is_empty() {
             return None;

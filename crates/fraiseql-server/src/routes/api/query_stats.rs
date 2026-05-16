@@ -28,14 +28,14 @@ pub struct QueryStatsParams {
 #[derive(Debug, Serialize)]
 pub struct QueryStatsResponse {
     /// Which database backend produced this data.
-    pub database_type: String,
+    pub database_type:   String,
     /// Whether this backend supports query stats at all.
     pub stats_available: bool,
     /// The query statistics entries.
-    pub entries: Vec<QueryStatEntry>,
+    pub entries:         Vec<QueryStatEntry>,
     /// Optional informational message (e.g., extension not installed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
+    pub message:         Option<String>,
 }
 
 /// Response payload for a single query detail.
@@ -44,7 +44,7 @@ pub struct QueryStatsDetailResponse {
     /// Which database backend produced this data.
     pub database_type: String,
     /// The query statistics entry.
-    pub entry: QueryStatEntry,
+    pub entry:         QueryStatEntry,
 }
 
 /// Response payload for the reset endpoint.
@@ -128,9 +128,7 @@ pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
                 entry,
             },
         })),
-        None => Err(ApiError::not_found(format!(
-            "No query stats found for id '{queryid}'"
-        ))),
+        None => Err(ApiError::not_found(format!("No query stats found for id '{queryid}'"))),
     }
 }
 
@@ -158,9 +156,7 @@ pub async fn query_stats_reset_handler<A: DatabaseAdapter + 'static>(
         Err(fraiseql_error::FraiseQLError::Unsupported { message }) => {
             Err(ApiError::new(message, "UNSUPPORTED_OPERATION".to_string()))
         },
-        Err(e) => Err(ApiError::internal_error(format!(
-            "Failed to reset query stats: {e}"
-        ))),
+        Err(e) => Err(ApiError::internal_error(format!("Failed to reset query stats: {e}"))),
     }
 }
 
@@ -184,10 +180,10 @@ mod tests {
     #[test]
     fn query_stats_response_serializes_correctly() {
         let resp = QueryStatsResponse {
-            database_type: "PostgreSQL".to_string(),
+            database_type:   "PostgreSQL".to_string(),
             stats_available: true,
-            entries: vec![],
-            message: None,
+            entries:         vec![],
+            message:         None,
         };
         let json = serde_json::to_value(&resp).unwrap();
         assert_eq!(json["database_type"], "PostgreSQL");
@@ -198,10 +194,10 @@ mod tests {
     #[test]
     fn query_stats_response_includes_message_when_present() {
         let resp = QueryStatsResponse {
-            database_type: "SQLite".to_string(),
+            database_type:   "SQLite".to_string(),
             stats_available: false,
-            entries: vec![],
-            message: Some("not supported".to_string()),
+            entries:         vec![],
+            message:         Some("not supported".to_string()),
         };
         let json = serde_json::to_value(&resp).unwrap();
         assert_eq!(json["message"], "not supported");

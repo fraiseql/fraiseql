@@ -652,16 +652,13 @@ impl SchemaMerger {
         if toml_schema.rest.enabled {
             let path = &toml_schema.rest.path;
             if !path.starts_with('/') {
-                anyhow::bail!(
-                    "REST config: `path` must start with '/' (got {path:?})"
-                );
+                anyhow::bail!("REST config: `path` must start with '/' (got {path:?})");
             }
 
-            let rest_config: fraiseql_core::schema::RestConfig =
-                toml_schema.rest.clone().into();
+            let rest_config: fraiseql_core::schema::RestConfig = toml_schema.rest.clone().into();
 
-            merged["rest_config"] = serde_json::to_value(&rest_config)
-                .context("Failed to serialize REST config")?;
+            merged["rest_config"] =
+                serde_json::to_value(&rest_config).context("Failed to serialize REST config")?;
         }
 
         // Embed naming convention

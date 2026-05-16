@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
     Extension,
@@ -8,18 +7,16 @@ use axum::{
 };
 use tower::ServiceExt;
 
-use crate::backend::LocalBackend;
-use crate::config::{BucketAccess, BucketConfig};
-use crate::metadata::StorageMetadataRepo;
-use crate::rls::StorageRlsEvaluator;
-
 use super::{StorageState, StorageUser, storage_router};
+use crate::{
+    backend::LocalBackend,
+    config::{BucketAccess, BucketConfig},
+    metadata::StorageMetadataRepo,
+    rls::StorageRlsEvaluator,
+};
 
 /// Create a test state with a local backend and real metadata repo.
-async fn test_state(
-    bucket_name: &str,
-    access: BucketAccess,
-) -> (StorageState, impl std::any::Any) {
+async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, impl std::any::Any) {
     use sqlx::PgPool;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
@@ -55,10 +52,10 @@ async fn test_state(
     );
 
     let state = StorageState {
-        backend: Arc::new(crate::backend::StorageBackend::Local(backend)),
+        backend:  Arc::new(crate::backend::StorageBackend::Local(backend)),
         metadata: Arc::new(StorageMetadataRepo::new(pool)),
-        rls: StorageRlsEvaluator::new(),
-        buckets: Arc::new(buckets),
+        rls:      StorageRlsEvaluator::new(),
+        buckets:  Arc::new(buckets),
     };
 
     (state, (container, tmp))
@@ -68,7 +65,7 @@ async fn test_state(
 fn authenticated_router(state: StorageState) -> axum::Router {
     let user = StorageUser {
         user_id: Some("test-user".to_string()),
-        roles: vec!["user".to_string()],
+        roles:   vec!["user".to_string()],
     };
     storage_router(state).layer(Extension(user))
 }
@@ -99,11 +96,11 @@ async fn test_put_object_exceeding_size_limit_returns_413() {
     buckets.insert(
         "small-bucket".to_string(),
         BucketConfig {
-            name: "small-bucket".to_string(),
-            max_object_bytes: Some(64),
+            name:               "small-bucket".to_string(),
+            max_object_bytes:   Some(64),
             allowed_mime_types: None,
-            access: BucketAccess::PublicRead,
-            transform_presets: None,
+            access:             BucketAccess::PublicRead,
+            transform_presets:  None,
         },
     );
     let state = StorageState {
@@ -147,10 +144,7 @@ async fn test_get_object_returns_body_and_headers() {
         .unwrap();
     let resp = app.oneshot(download).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(
-        resp.headers().get(header::CONTENT_TYPE).unwrap(),
-        "text/plain"
-    );
+    assert_eq!(resp.headers().get(header::CONTENT_TYPE).unwrap(), "text/plain");
 
     let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
     assert_eq!(&body[..], b"hello world");
@@ -255,11 +249,11 @@ async fn test_mime_type_rejection_returns_415() {
     buckets.insert(
         "images-only".to_string(),
         BucketConfig {
-            name: "images-only".to_string(),
-            max_object_bytes: None,
+            name:               "images-only".to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: Some(vec!["image/*".to_string()]),
-            access: BucketAccess::PublicRead,
-            transform_presets: None,
+            access:             BucketAccess::PublicRead,
+            transform_presets:  None,
         },
     );
     let state = StorageState {
@@ -396,7 +390,7 @@ async fn test_different_user_denied_on_private_bucket() {
     // Read as different user — should be denied
     let other_user = StorageUser {
         user_id: Some("other-user".to_string()),
-        roles: vec!["user".to_string()],
+        roles:   vec!["user".to_string()],
     };
     let app = storage_router(state).layer(Extension(other_user));
     let download = Request::builder()

@@ -9,7 +9,11 @@ mod proto_gen_tests {
 
     use super::super::proto_gen::*;
 
-    fn make_field(name: &str, ft: FieldType, nullable: bool) -> fraiseql_core::schema::FieldDefinition {
+    fn make_field(
+        name: &str,
+        ft: FieldType,
+        nullable: bool,
+    ) -> fraiseql_core::schema::FieldDefinition {
         fraiseql_core::schema::FieldDefinition {
             name: name.into(),
             field_type: ft,
@@ -26,7 +30,10 @@ mod proto_gen_tests {
         }
     }
 
-    fn make_type(name: &str, fields: Vec<fraiseql_core::schema::FieldDefinition>) -> TypeDefinition {
+    fn make_type(
+        name: &str,
+        fields: Vec<fraiseql_core::schema::FieldDefinition>,
+    ) -> TypeDefinition {
         TypeDefinition {
             name: name.into(),
             sql_source: String::new().into(),
@@ -519,9 +526,7 @@ mod row_views_tests {
         assert!(ddl.contains("CREATE OR REPLACE VIEW `vr_user`"));
         assert!(ddl.contains("FROM `tb_user`"));
         assert!(ddl.contains("CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.id')) AS CHAR) AS `id`"));
-        assert!(
-            ddl.contains("CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) AS CHAR) AS `name`")
-        );
+        assert!(ddl.contains("CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.name')) AS CHAR) AS `name`"));
     }
 
     // ── SQLite ──────────────────────────────────────────────────────────

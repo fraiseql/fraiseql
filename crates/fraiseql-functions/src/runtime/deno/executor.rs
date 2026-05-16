@@ -8,21 +8,23 @@
 //!
 //! The result is returned to the outer async context via a `oneshot` channel.
 
-use crate::types::{LogEntry, LogLevel, ResourceLimits};
-use deno_core::{op2, Extension, JsRuntime, OpState, RuntimeOptions};
-use serde_json::Value;
 use std::{
     cell::RefCell,
     rc::Rc,
     sync::{Arc, Mutex},
 };
 
+use deno_core::{Extension, JsRuntime, OpState, RuntimeOptions, op2};
+use serde_json::Value;
+
+use crate::types::{LogEntry, LogLevel, ResourceLimits};
+
 // ── Log collector state stored in OpState ─────────────────────────────────────
 
 /// Shared log collector threaded into the `fraiseql_log` op via `OpState`.
 #[derive(Clone)]
 struct LogCollector {
-    logs: Arc<Mutex<Vec<LogEntry>>>,
+    logs:        Arc<Mutex<Vec<LogEntry>>>,
     max_entries: usize,
 }
 
@@ -111,7 +113,7 @@ pub struct ExecutionResult {
     /// The value returned by the function (serialised → deserialised).
     pub value: Value,
     /// Log entries captured during execution.
-    pub logs: Vec<LogEntry>,
+    pub logs:  Vec<LogEntry>,
 }
 
 // ── Core execution (runs on a dedicated thread with its own Tokio runtime) ─────
@@ -137,10 +139,8 @@ pub fn run_in_dedicated_thread(
     limits: &ResourceLimits,
 ) -> Result<ExecutionResult, String> {
     // Resource-limit guards (pattern-based, matched before V8 invocation)
-    let has_unbounded_alloc =
-        source.contains("while (true)") && source.contains("ArrayBuffer");
-    let has_infinite_loop =
-        source.contains("while (true)") && !source.contains("ArrayBuffer");
+    let has_unbounded_alloc = source.contains("while (true)") && source.contains("ArrayBuffer");
+    let has_infinite_loop = source.contains("while (true)") && !source.contains("ArrayBuffer");
 
     if has_unbounded_alloc {
         return Err("Memory limit exceeded: unbounded allocation detected".to_string());
@@ -152,7 +152,7 @@ pub fn run_in_dedicated_thread(
     // Shared log storage
     let logs_arc: Arc<Mutex<Vec<LogEntry>>> = Arc::new(Mutex::new(Vec::new()));
     let collector = LogCollector {
-        logs: Arc::clone(&logs_arc),
+        logs:        Arc::clone(&logs_arc),
         max_entries: limits.max_log_entries,
     };
 
@@ -179,23 +179,24 @@ pub fn run_in_dedicated_thread(
         });
 
         // Execute the wrapped script
-        js_runtime
-            .execute_script("<fraiseql-function>", wrapped)
-            .map_err(|e| {
-                let msg = e.to_string();
-                if msg.contains("SyntaxError") || msg.contains("Parse") {
-                    format!("SyntaxError: {msg}")
-                } else {
-                    format!("Execution error: {msg}")
-                }
-            })?;
+        js_runtime.execute_script("<fraiseql-function>", wrapped).map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("SyntaxError") || msg.contains("Parse") {
+                format!("SyntaxError: {msg}")
+            } else {
+                format!("Execution error: {msg}")
+            }
+        })?;
 
         // Drive the event loop to resolve Promises from async functions.
         // Enforce the max_duration timeout to prevent infinite hangs.
-        tokio::time::timeout(max_duration, js_runtime.run_event_loop(deno_core::PollEventLoopOptions::default()))
-            .await
-            .map_err(|_| "Execution timeout: event loop exceeded time limit".to_string())?
-            .map_err(|e| format!("Event loop error: {e}"))?;
+        tokio::time::timeout(
+            max_duration,
+            js_runtime.run_event_loop(deno_core::PollEventLoopOptions::default()),
+        )
+        .await
+        .map_err(|_| "Execution timeout: event loop exceeded time limit".to_string())?
+        .map_err(|e| format!("Event loop error: {e}"))?;
 
         // Retrieve the result stored in globalThis.__fraiseql_result
         let result_global = js_runtime
@@ -216,11 +217,9 @@ pub fn run_in_dedicated_thread(
             // Both undefined means the IIFE wrapper never completed (e.g. an unresolvable
             // Promise caused the event loop to drain without the try/catch finalising).
             if result_local.is_undefined() && error_local.is_undefined() {
-                return Err(
-                    "Execution incomplete: function did not produce a result \
+                return Err("Execution incomplete: function did not produce a result \
                      (possible unresolved promise)"
-                        .to_string(),
-                );
+                    .to_string());
             }
 
             let error_str = if error_local.is_null_or_undefined() {
@@ -245,9 +244,7 @@ pub fn run_in_dedicated_thread(
 
         // Parse the JSON result
         let value: Value = match result_json {
-            Some(json_str) => {
-                serde_json::from_str(&json_str).unwrap_or(Value::String(json_str))
-            }
+            Some(json_str) => serde_json::from_str(&json_str).unwrap_or(Value::String(json_str)),
             None => Value::Null,
         };
 

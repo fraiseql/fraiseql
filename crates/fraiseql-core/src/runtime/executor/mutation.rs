@@ -6,11 +6,10 @@
 //!
 //! - The compile-time-enforced public API ([`Executor::execute_mutation`], bounded on
 //!   [`SupportsMutations`]).
-//! - The runtime-guarded internal dispatch entry point
-//!   ([`Executor::execute_mutation_query`], bounded only on [`DatabaseAdapter`]).
-//! - Convenience wrappers used by the REST transport
-//!   ([`execute_mutation_with_security`], [`execute_mutation_batch`],
-//!   [`execute_bulk_by_filter`]).
+//! - The runtime-guarded internal dispatch entry point ([`Executor::execute_mutation_query`],
+//!   bounded only on [`DatabaseAdapter`]).
+//! - Convenience wrappers used by the REST transport ([`execute_mutation_with_security`],
+//!   [`execute_mutation_batch`], [`execute_bulk_by_filter`]).
 
 use std::collections::HashMap;
 
@@ -74,7 +73,9 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     ) -> Result<serde_json::Value> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
-        self.mutation_runner().execute_mutation(mutation_name, variables, type_selections).await
+        self.mutation_runner()
+            .execute_mutation(mutation_name, variables, type_selections)
+            .await
     }
 }
 
@@ -220,8 +221,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         security_context: Option<&SecurityContext>,
     ) -> crate::error::Result<crate::runtime::BulkResult> {
         // Execute the filter query to find matching rows.
-        let filter_result =
-            self.query_runner().execute_query_direct(query_match, None, security_context).await?;
+        let filter_result = self
+            .query_runner()
+            .execute_query_direct(query_match, None, security_context)
+            .await?;
 
         let args = body.cloned().unwrap_or(serde_json::json!({}));
         let result = self

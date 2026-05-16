@@ -284,8 +284,7 @@ fn test_optimized_view_offset_zero_roundtrips() {
 #[test]
 fn test_graphql_query_with_complex_variables_roundtrips() {
     let ticket = FlightTicket::GraphQLQuery {
-        query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }"
-            .to_string(),
+        query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }".to_string(),
         variables: Some(serde_json::json!({
             "filter": {
                 "status": "active",
@@ -308,10 +307,7 @@ fn test_ticket_exactly_at_size_limit_is_accepted() {
     // The error must be an InvalidTicket (parse error), not a size error.
     match result {
         Err(ArrowFlightError::InvalidTicket(ref msg)) => {
-            assert!(
-                !msg.contains("too large"),
-                "Should fail JSON parsing, not size limit: {msg}"
-            );
+            assert!(!msg.contains("too large"), "Should fail JSON parsing, not size limit: {msg}");
         },
         other => panic!("expected InvalidTicket parse error, got: {other:?}"),
     }

@@ -153,8 +153,7 @@ mod in_memory_tests {
     use serde_json::json;
     use uuid::Uuid;
 
-    use super::super::in_memory::*;
-    use super::super::{EventFilter, EventTransport, HealthStatus, TransportType};
+    use super::super::{EventFilter, EventTransport, HealthStatus, TransportType, in_memory::*};
     use crate::event::EventKind;
 
     #[tokio::test]
@@ -238,8 +237,12 @@ mod in_memory_tests {
         let kinds = vec![EventKind::Created, EventKind::Updated, EventKind::Deleted];
 
         for kind in &kinds {
-            let event =
-                crate::event::EntityEvent::new(*kind, "Order".to_string(), Uuid::new_v4(), json!({}));
+            let event = crate::event::EntityEvent::new(
+                *kind,
+                "Order".to_string(),
+                Uuid::new_v4(),
+                json!({}),
+            );
             transport.publish(event).await.unwrap();
         }
 
@@ -729,8 +732,9 @@ mod postgres_notify_tests {
 
     use sqlx::postgres::PgPool;
 
-    use super::super::postgres_notify::*;
-    use super::super::{EventFilter, EventTransport, HealthStatus, TransportType};
+    use super::super::{
+        EventFilter, EventTransport, HealthStatus, TransportType, postgres_notify::*,
+    };
     use crate::listener::ChangeLogListenerConfig;
 
     /// Returns `None` if `TEST_DATABASE_URL` is not set, allowing tests to skip gracefully.

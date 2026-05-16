@@ -183,8 +183,7 @@ fn test_nested_relation_where_camelcase_normalized() {
 
 #[test]
 fn test_nested_relation_where_multiple_operators() {
-    let json =
-        json!({ "machine": { "id": { "eq": "abc" } , "name": { "icontains": "test" } } });
+    let json = json!({ "machine": { "id": { "eq": "abc" } , "name": { "icontains": "test" } } });
     let clause = WhereClause::from_graphql_json(&json).unwrap();
     // Two nested fields → AND combination
     match clause {
@@ -399,11 +398,23 @@ fn test_operator_normalization_network_operators() {
     assert_eq!(WhereOperator::from_str("isLoopback").unwrap(), WhereOperator::IsLoopback);
     assert_eq!(WhereOperator::from_str("isMulticast").unwrap(), WhereOperator::IsMulticast);
     assert_eq!(WhereOperator::from_str("isLinkLocal").unwrap(), WhereOperator::IsLinkLocal);
-    assert_eq!(WhereOperator::from_str("isDocumentation").unwrap(), WhereOperator::IsDocumentation);
-    assert_eq!(WhereOperator::from_str("isCarrierGrade").unwrap(), WhereOperator::IsCarrierGrade);
-    assert_eq!(WhereOperator::from_str("containsSubnet").unwrap(), WhereOperator::ContainsSubnet);
+    assert_eq!(
+        WhereOperator::from_str("isDocumentation").unwrap(),
+        WhereOperator::IsDocumentation
+    );
+    assert_eq!(
+        WhereOperator::from_str("isCarrierGrade").unwrap(),
+        WhereOperator::IsCarrierGrade
+    );
+    assert_eq!(
+        WhereOperator::from_str("containsSubnet").unwrap(),
+        WhereOperator::ContainsSubnet
+    );
     assert_eq!(WhereOperator::from_str("containsIp").unwrap(), WhereOperator::ContainsIP);
-    assert_eq!(WhereOperator::from_str("strictlyContains").unwrap(), WhereOperator::StrictlyContains);
+    assert_eq!(
+        WhereOperator::from_str("strictlyContains").unwrap(),
+        WhereOperator::StrictlyContains
+    );
 }
 
 // ── Cycle 3: Integration with WHERE clause parsing ──────────────────────
@@ -452,10 +463,7 @@ fn test_descendant_of_id_from_str() {
 
 #[test]
 fn test_ancestor_of_id_from_str() {
-    assert_eq!(
-        WhereOperator::from_str("ancestor_of_id").unwrap(),
-        WhereOperator::AncestorOfId
-    );
+    assert_eq!(WhereOperator::from_str("ancestor_of_id").unwrap(), WhereOperator::AncestorOfId);
 }
 
 #[test]
@@ -468,10 +476,7 @@ fn test_descendant_of_id_camel_case() {
 
 #[test]
 fn test_ancestor_of_id_camel_case() {
-    assert_eq!(
-        WhereOperator::from_str("ancestorOfId").unwrap(),
-        WhereOperator::AncestorOfId
-    );
+    assert_eq!(WhereOperator::from_str("ancestorOfId").unwrap(), WhereOperator::AncestorOfId);
 }
 
 #[test]

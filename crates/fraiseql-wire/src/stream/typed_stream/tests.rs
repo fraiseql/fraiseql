@@ -98,8 +98,7 @@ fn test_deserialize_value_type() {
 
     // Test that Value (escape hatch) works
     let result = TypedJsonStream::<serde_json::Value>::deserialize_value(json.clone());
-    let value =
-        result.unwrap_or_else(|e| panic!("expected Ok for Value escape hatch, got: {e}"));
+    let value = result.unwrap_or_else(|e| panic!("expected Ok for Value escape hatch, got: {e}"));
     assert_eq!(value, json);
 }
 

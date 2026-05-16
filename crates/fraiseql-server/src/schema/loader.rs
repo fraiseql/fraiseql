@@ -285,7 +285,12 @@ impl CompiledSchemaLoader {
             "Extended schema loaded successfully"
         );
 
-        Ok(ExtendedCompiledSchema { schema, storage, functions, realtime })
+        Ok(ExtendedCompiledSchema {
+            schema,
+            storage,
+            functions,
+            realtime,
+        })
     }
 
     /// Get the path to the schema file.
@@ -318,8 +323,13 @@ fn validate_storage_config(config: &SchemaStorageConfig) -> Result<(), SchemaLoa
 }
 
 /// Valid trigger prefixes recognised by the trigger system.
-const VALID_TRIGGER_PREFIXES: &[&str] =
-    &["after:mutation:", "before:mutation:", "after:storage:", "cron:", "http:"];
+const VALID_TRIGGER_PREFIXES: &[&str] = &[
+    "after:mutation:",
+    "before:mutation:",
+    "after:storage:",
+    "cron:",
+    "http:",
+];
 
 /// Validate function definitions.
 ///

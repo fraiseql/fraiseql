@@ -1,8 +1,8 @@
 //! Storage backend abstraction for host context operations.
 
+use std::{future::Future, pin::Pin};
+
 use fraiseql_error::Result;
-use std::future::Future;
-use std::pin::Pin;
 
 /// Trait for storage backend implementations.
 pub trait StorageBackend: Send + Sync {
@@ -35,7 +35,11 @@ pub trait StorageBackend: Send + Sync {
 #[cfg(test)]
 pub struct MockStorageBackend {
     /// Storage data: bucket -> key -> bytes
-    data: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, std::collections::HashMap<String, Vec<u8>>>>>,
+    data: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<String, std::collections::HashMap<String, Vec<u8>>>,
+        >,
+    >,
 }
 
 #[cfg(test)]
@@ -54,10 +58,7 @@ impl MockStorageBackend {
     /// Panics if the internal Mutex is poisoned.
     pub fn store(&self, bucket: &str, key: &str, data: Vec<u8>) {
         let mut storage = self.data.lock().expect("storage lock poisoned");
-        storage
-            .entry(bucket.to_string())
-            .or_default()
-            .insert(key.to_string(), data);
+        storage.entry(bucket.to_string()).or_default().insert(key.to_string(), data);
     }
 
     /// Retrieve stored data (for test verification).
@@ -67,10 +68,7 @@ impl MockStorageBackend {
     /// Panics if the internal Mutex is poisoned.
     pub fn get_stored(&self, bucket: &str, key: &str) -> Option<Vec<u8>> {
         let storage = self.data.lock().expect("storage lock poisoned");
-        storage
-            .get(bucket)
-            .and_then(|bucket_data| bucket_data.get(key))
-            .cloned()
+        storage.get(bucket).and_then(|bucket_data| bucket_data.get(key)).cloned()
     }
 }
 
@@ -92,7 +90,7 @@ impl StorageBackend for MockStorageBackend {
                 .cloned()
                 .ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
                     message: format!("object not found: {}/{}", bucket, key),
-                    code: Some("not_found".to_string()),
+                    code:    Some("not_found".to_string()),
                 })
         })
     }
@@ -111,9 +109,7 @@ impl StorageBackend for MockStorageBackend {
 
         Box::pin(async move {
             let mut data = storage.lock().expect("storage lock poisoned");
-            data.entry(bucket)
-                .or_default()
-                .insert(key, body);
+            data.entry(bucket).or_default().insert(key, body);
             Ok(())
         })
     }

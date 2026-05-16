@@ -131,8 +131,7 @@ impl OpenApiGenerator<'_> {
 
         // Add relationship properties for embedded resources.
         for rel in &type_def.relationships {
-            let ref_schema =
-                json!({ "$ref": format!("#/components/schemas/{}", rel.target_type) });
+            let ref_schema = json!({ "$ref": format!("#/components/schemas/{}", rel.target_type) });
             let rel_schema = match rel.cardinality {
                 Cardinality::OneToMany => {
                     json!({

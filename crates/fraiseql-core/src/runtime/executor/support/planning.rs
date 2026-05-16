@@ -42,27 +42,30 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::Mutation { ref name, .. } => {
                 let mutation_def =
-                    self.ctx.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(|| {
-                        let display_names: Vec<String> = self
-                            .ctx.schema
-                            .mutations
-                            .iter()
-                            .map(|m| self.ctx.schema.display_name(&m.name))
-                            .collect();
-                        let candidate_refs: Vec<&str> =
-                            display_names.iter().map(String::as_str).collect();
-                        let suggestion = suggest_similar(name, &candidate_refs);
-                        let message = match suggestion.as_slice() {
-                            [s] => format!(
-                                "Mutation '{name}' not found in schema. Did you mean '{s}'?"
-                            ),
-                            _ => format!("Mutation '{name}' not found in schema"),
-                        };
-                        FraiseQLError::Validation {
-                            message,
-                            path: None,
-                        }
-                    })?;
+                    self.ctx.schema.mutations.iter().find(|m| m.name == *name).ok_or_else(
+                        || {
+                            let display_names: Vec<String> = self
+                                .ctx
+                                .schema
+                                .mutations
+                                .iter()
+                                .map(|m| self.ctx.schema.display_name(&m.name))
+                                .collect();
+                            let candidate_refs: Vec<&str> =
+                                display_names.iter().map(String::as_str).collect();
+                            let suggestion = suggest_similar(name, &candidate_refs);
+                            let message = match suggestion.as_slice() {
+                                [s] => format!(
+                                    "Mutation '{name}' not found in schema. Did you mean '{s}'?"
+                                ),
+                                _ => format!("Mutation '{name}' not found in schema"),
+                            };
+                            FraiseQLError::Validation {
+                                message,
+                                path: None,
+                            }
+                        },
+                    )?;
                 let fn_name =
                     mutation_def.sql_source.clone().unwrap_or_else(|| format!("fn_{name}"));
                 Ok(ExplainPlan {
@@ -75,7 +78,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::Aggregate(ref name) => {
                 let sql_source = self
-                    .ctx.schema
+                    .ctx
+                    .schema
                     .queries
                     .iter()
                     .find(|q| q.name == *name)
@@ -91,7 +95,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             },
             QueryType::Window(ref name) => {
                 let sql_source = self
-                    .ctx.schema
+                    .ctx
+                    .schema
                     .queries
                     .iter()
                     .find(|q| q.name == *name)
@@ -105,15 +110,13 @@ impl<A: DatabaseAdapter> Executor<A> {
                     query_type:     "window".to_string(),
                 })
             },
-            QueryType::IntrospectionSchema | QueryType::IntrospectionType(_) => {
-                Ok(ExplainPlan {
-                    sql:            String::new(),
-                    parameters:     Vec::new(),
-                    estimated_cost: 0,
-                    views_accessed: Vec::new(),
-                    query_type:     "introspection".to_string(),
-                })
-            },
+            QueryType::IntrospectionSchema | QueryType::IntrospectionType(_) => Ok(ExplainPlan {
+                sql:            String::new(),
+                parameters:     Vec::new(),
+                estimated_cost: 0,
+                views_accessed: Vec::new(),
+                query_type:     "introspection".to_string(),
+            }),
             QueryType::Federation(_) => Ok(ExplainPlan {
                 sql:            String::new(),
                 parameters:     Vec::new(),

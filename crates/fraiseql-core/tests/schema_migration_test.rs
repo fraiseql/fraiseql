@@ -42,8 +42,9 @@ fn test_v2_0_schema_passes_format_version_check() {
 /// All types defined in the v2.0 fixture are accessible after loading.
 #[test]
 fn test_v2_0_schema_types_accessible() {
-    let schema = CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
-        .expect("schema must load");
+    let schema =
+        CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
+            .expect("schema must load");
 
     assert_eq!(schema.types.len(), 2, "fixture has 2 types: User and Post");
     assert!(schema.find_type("User").is_some(), "User type must be findable");
@@ -54,8 +55,9 @@ fn test_v2_0_schema_types_accessible() {
 /// All queries defined in the v2.0 fixture are accessible after loading.
 #[test]
 fn test_v2_0_schema_queries_accessible() {
-    let schema = CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
-        .expect("schema must load");
+    let schema =
+        CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
+            .expect("schema must load");
 
     assert_eq!(schema.queries.len(), 3, "fixture has 3 queries");
     assert!(schema.find_query("users").is_some(), "users query must be findable");
@@ -67,8 +69,9 @@ fn test_v2_0_schema_queries_accessible() {
 /// All mutations defined in the v2.0 fixture are accessible after loading.
 #[test]
 fn test_v2_0_schema_mutations_accessible() {
-    let schema = CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
-        .expect("schema must load");
+    let schema =
+        CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
+            .expect("schema must load");
 
     assert_eq!(schema.mutations.len(), 3, "fixture has 3 mutations");
     assert!(schema.find_mutation("createUser").is_some(), "createUser must be findable");
@@ -79,8 +82,9 @@ fn test_v2_0_schema_mutations_accessible() {
 /// Optional fields absent in v2.0 schema deserialize to None, not errors.
 #[test]
 fn test_v2_0_schema_optional_fields_are_none() {
-    let schema = CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
-        .expect("schema must load");
+    let schema =
+        CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
+            .expect("schema must load");
 
     assert!(schema.federation.is_none(), "no federation config in v2.0");
     assert!(schema.security.is_none(), "no security config in v2.0");
@@ -92,8 +96,9 @@ fn test_v2_0_schema_optional_fields_are_none() {
 /// Enum types defined in the v2.0 fixture are accessible after loading.
 #[test]
 fn test_v2_0_schema_enums_accessible() {
-    let schema = CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
-        .expect("schema must load");
+    let schema =
+        CompiledSchema::from_json(include_str!("fixtures/schemas/compiled_v2_0.json"), false)
+            .expect("schema must load");
 
     assert_eq!(schema.enums.len(), 1, "fixture has 1 enum: UserRole");
     assert!(schema.find_enum("UserRole").is_some(), "UserRole enum must be findable");

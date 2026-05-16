@@ -3,9 +3,11 @@
 //! Tracks the health status of all registered subgraphs, providing
 //! an aggregate health endpoint for monitoring and load balancing.
 
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
 /// Health status of a single subgraph.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,18 +141,12 @@ impl SubgraphHealthAggregator {
 
         let reports: Vec<SubgraphHealthReport> = subgraphs.values().cloned().collect();
 
-        let healthy_count = reports
-            .iter()
-            .filter(|r| r.status == SubgraphHealthStatus::Healthy)
-            .count();
-        let degraded_count = reports
-            .iter()
-            .filter(|r| r.status == SubgraphHealthStatus::Degraded)
-            .count();
-        let unhealthy_count = reports
-            .iter()
-            .filter(|r| r.status == SubgraphHealthStatus::Unhealthy)
-            .count();
+        let healthy_count =
+            reports.iter().filter(|r| r.status == SubgraphHealthStatus::Healthy).count();
+        let degraded_count =
+            reports.iter().filter(|r| r.status == SubgraphHealthStatus::Degraded).count();
+        let unhealthy_count =
+            reports.iter().filter(|r| r.status == SubgraphHealthStatus::Unhealthy).count();
 
         let overall_status = if unhealthy_count > 0 {
             SubgraphHealthStatus::Unhealthy

@@ -957,8 +957,7 @@ operation = "CREATE"
 "#;
         let temp_path = write_temp_toml(toml);
         let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
-        let mutation =
-            schema.mutations.iter().find(|m| m.name == "create_user_profile").unwrap();
+        let mutation = schema.mutations.iter().find(|m| m.name == "create_user_profile").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("create_user_profile"));
         let _ = std::fs::remove_file(&temp_path);
     }
@@ -1582,7 +1581,7 @@ mod optimizer_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
-                        hierarchy:     None,
+                        hierarchy:      None,
                     })
                     .collect(),
                 description:         None,
@@ -1640,7 +1639,7 @@ mod optimizer_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
-                        hierarchy:     None,
+                        hierarchy:      None,
                     })
                     .collect(),
                 description:         None,
@@ -1708,7 +1707,7 @@ mod optimizer_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
-                        hierarchy:     None,
+                        hierarchy:      None,
                     })
                     .collect(),
                 description:         None,

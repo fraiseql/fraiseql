@@ -9,15 +9,13 @@ mod auto_tuner_tests {
     #![allow(missing_docs)] // Reason: test code
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
 
     use async_trait::async_trait;
     use fraiseql_core::db::{
         WhereClause,
-        types::{DatabaseType, JsonbValue, OrderByClause},
+        types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
     };
-    use fraiseql_core::db::types::PoolMetrics;
     use fraiseql_error::Result as FraiseQLResult;
 
     use super::super::auto_tuner::{PoolSizingAdvisor, PoolSizingRecommendation};

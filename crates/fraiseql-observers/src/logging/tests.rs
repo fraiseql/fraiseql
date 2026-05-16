@@ -20,9 +20,9 @@ mod mod_tests {
 }
 
 mod structured_tests {
-    use super::super::structured::*;
-    use super::super::correlation::TraceContext;
     use std::collections::HashMap;
+
+    use super::super::{correlation::TraceContext, structured::*};
 
     #[test]
     fn test_structured_logger_creation() {

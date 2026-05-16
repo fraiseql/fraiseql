@@ -67,8 +67,8 @@ fn test_compliance_config_with_key_rotation() {
 
 #[test]
 fn test_compliance_config_with_setting() {
-    let config = ComplianceConfig::new(ComplianceFramework::HIPAA)
-        .with_setting("data_handler", "medical");
+    let config =
+        ComplianceConfig::new(ComplianceFramework::HIPAA).with_setting("data_handler", "medical");
     assert_eq!(config.settings.get("data_handler"), Some(&"medical".to_string()));
 }
 

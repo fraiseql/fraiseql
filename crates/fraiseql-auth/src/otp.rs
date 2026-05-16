@@ -164,7 +164,8 @@ impl OtpStore for InMemoryOtpStore {
             }
             if entry.count >= OTP_RATE_MAX {
                 return Err(AuthError::RateLimited {
-                    retry_after_secs: (entry.window_start + OTP_RATE_WINDOW_SECS).saturating_sub(now),
+                    retry_after_secs: (entry.window_start + OTP_RATE_WINDOW_SECS)
+                        .saturating_sub(now),
                 });
             }
             entry.count += 1;
@@ -175,8 +176,14 @@ impl OtpStore for InMemoryOtpStore {
         let code = format!("{:06}", rand::rng().random_range(0u32..1_000_000));
         let expires = now + OTP_TTL_SECS;
 
-        self.codes
-            .insert(email.to_string(), OtpRecord { code: code.clone(), expires, attempts: 0 });
+        self.codes.insert(
+            email.to_string(),
+            OtpRecord {
+                code: code.clone(),
+                expires,
+                attempts: 0,
+            },
+        );
 
         Ok(code)
     }
@@ -187,26 +194,31 @@ impl OtpStore for InMemoryOtpStore {
         // space (10^6 values) is too small for timing oracles to be useful in
         // practice given the rate limit, and we do not branch on the secret
         // value before the comparison.  Improvements tracked separately.
-        let mut entry = self
-            .codes
-            .get_mut(email)
-            .ok_or_else(|| AuthError::InvalidToken { reason: "no pending OTP for email".into() })?;
+        let mut entry = self.codes.get_mut(email).ok_or_else(|| AuthError::InvalidToken {
+            reason: "no pending OTP for email".into(),
+        })?;
 
         if entry.is_expired() {
             drop(entry);
             self.codes.remove(email);
-            return Err(AuthError::InvalidToken { reason: "OTP has expired".into() });
+            return Err(AuthError::InvalidToken {
+                reason: "OTP has expired".into(),
+            });
         }
 
         entry.attempts += 1;
         if entry.attempts > MAX_VERIFY_ATTEMPTS {
             drop(entry);
             self.codes.remove(email);
-            return Err(AuthError::RateLimited { retry_after_secs: OTP_RATE_WINDOW_SECS });
+            return Err(AuthError::RateLimited {
+                retry_after_secs: OTP_RATE_WINDOW_SECS,
+            });
         }
 
         if entry.code != code {
-            return Err(AuthError::InvalidToken { reason: "invalid OTP code".into() });
+            return Err(AuthError::InvalidToken {
+                reason: "invalid OTP code".into(),
+            });
         }
 
         // Code is correct — consume it (single-use).
@@ -307,10 +319,14 @@ pub async fn otp_send(
 ) -> Response {
     let email = req.email.trim().to_lowercase();
     if email.is_empty() {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({
-            "error": "invalid_email",
-            "message": "email must not be blank"
-        }))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "error": "invalid_email",
+                "message": "email must not be blank"
+            })),
+        )
+            .into_response();
     }
 
     let code = match state.otp_store.create_otp(&email).await {
@@ -577,11 +593,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            response.status(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "no pending OTP → 422"
-        );
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY, "no pending OTP → 422");
     }
 
     #[tokio::test]

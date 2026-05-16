@@ -1,14 +1,14 @@
 //! Tests for `security/auth_middleware/` modules.
 
-
 mod middleware_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::collections::HashMap;
 
     use chrono::Utc;
     use jsonwebtoken::Algorithm;
     use zeroize::Zeroizing;
 
-    use std::collections::HashMap;
     use crate::security::{
         auth_middleware::{
             AuthMiddleware,

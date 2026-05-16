@@ -95,7 +95,7 @@ pub async fn usage_handler<A: DatabaseAdapter>(
 
     Ok(Json(UsageResponse {
         tenant_id: params.tenant_id,
-        period:    params.period,
+        period: params.period,
         usage,
     }))
 }

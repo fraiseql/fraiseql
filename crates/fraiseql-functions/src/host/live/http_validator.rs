@@ -6,8 +6,9 @@
 //! - Blocking private IP addresses (RFC 1918, loopback, link-local)
 //! - Blocking `IPv6` private ranges
 
-use fraiseql_error::{FraiseQLError, Result};
 use std::net::IpAddr;
+
+use fraiseql_error::{FraiseQLError, Result};
 
 /// Configuration for HTTP client validation.
 #[derive(Debug, Clone)]
@@ -29,10 +30,10 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            allowed_domains: vec!["*".to_string()],
+            allowed_domains:    vec!["*".to_string()],
             max_response_bytes: 10 * 1024 * 1024, // 10 MB
             connect_timeout_ms: 5000,
-            read_timeout_ms: 30000,
+            read_timeout_ms:    30000,
         }
     }
 }
@@ -60,26 +61,22 @@ impl Default for HttpClientConfig {
 /// private/reserved IP address.
 pub fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Result<()> {
     // Parse the URL
-    let parsed_url = reqwest::Url::parse(url).map_err(|e| {
-        FraiseQLError::Validation {
-            message: format!("invalid URL: {}", e),
-            path: None,
-        }
+    let parsed_url = reqwest::Url::parse(url).map_err(|e| FraiseQLError::Validation {
+        message: format!("invalid URL: {}", e),
+        path:    None,
     })?;
 
     // Check domain allowlist
-    let host = parsed_url
-        .host_str()
-        .ok_or_else(|| FraiseQLError::Validation {
-            message: "URL has no host".to_string(),
-            path: None,
-        })?;
+    let host = parsed_url.host_str().ok_or_else(|| FraiseQLError::Validation {
+        message: "URL has no host".to_string(),
+        path:    None,
+    })?;
 
     // Check if host matches allowlist
     if !is_domain_allowed(host, &config.allowed_domains) {
         return Err(FraiseQLError::Authorization {
-            message: format!("domain '{}' not in allowlist", host),
-            action: Some("http_request".to_string()),
+            message:  format!("domain '{}' not in allowlist", host),
+            action:   Some("http_request".to_string()),
             resource: Some(host.to_string()),
         });
     }
@@ -140,11 +137,9 @@ fn parse_ip_from_host(host: &str) -> Result<IpAddr> {
         host
     };
 
-    clean_host.parse::<IpAddr>().map_err(|e| {
-        FraiseQLError::Validation {
-            message: format!("failed to parse IP address: {}", e),
-            path: None,
-        }
+    clean_host.parse::<IpAddr>().map_err(|e| FraiseQLError::Validation {
+        message: format!("failed to parse IP address: {}", e),
+        path:    None,
     })
 }
 
@@ -166,23 +161,23 @@ fn validate_ip(ip: &IpAddr) -> Result<()> {
                 || is_ipv4_reserved(*v4)
             {
                 return Err(FraiseQLError::Authorization {
-                    message: format!("private/reserved IP address not allowed: {}", v4),
-                    action: Some("http_request".to_string()),
+                    message:  format!("private/reserved IP address not allowed: {}", v4),
+                    action:   Some("http_request".to_string()),
                     resource: Some(v4.to_string()),
                 });
             }
             Ok(())
-        }
+        },
         IpAddr::V6(v6) => {
             if v6.is_loopback() || v6.is_unique_local() || v6.is_unicast_link_local() {
                 return Err(FraiseQLError::Authorization {
-                    message: format!("private IPv6 address not allowed: {}", v6),
-                    action: Some("http_request".to_string()),
+                    message:  format!("private IPv6 address not allowed: {}", v6),
+                    action:   Some("http_request".to_string()),
                     resource: Some(v6.to_string()),
                 });
             }
             Ok(())
-        }
+        },
     }
 }
 

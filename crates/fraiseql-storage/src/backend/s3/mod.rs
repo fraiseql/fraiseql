@@ -54,7 +54,7 @@ impl S3Backend {
 fn storage_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
     FraiseQLError::Storage {
         message: format!("S3 {op} failed: {err}"),
-        code:  None,
+        code:    None,
     }
 }
 
@@ -86,24 +86,24 @@ impl S3Backend {
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
-        let resp = self
-            .client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(key)
-            .send()
-            .await
-            .map_err(|e| {
-                let msg = e.to_string();
-                if msg.contains("NoSuchKey") || msg.contains("404") {
-                    FraiseQLError::Storage {
-                        message: format!("File not found: {key}"),
-                        code: Some("not_found".to_string()),
+        let resp =
+            self.client
+                .get_object()
+                .bucket(&self.bucket)
+                .key(key)
+                .send()
+                .await
+                .map_err(|e| {
+                    let msg = e.to_string();
+                    if msg.contains("NoSuchKey") || msg.contains("404") {
+                        FraiseQLError::Storage {
+                            message: format!("File not found: {key}"),
+                            code:    Some("not_found".to_string()),
+                        }
+                    } else {
+                        storage_err("get_object", e)
                     }
-                } else {
-                    storage_err("get_object", e)
-                }
-            })?;
+                })?;
 
         let body = resp.body.collect().await.map_err(|e| storage_err("get_object body", e))?;
         Ok(body.into_bytes().to_vec())
@@ -133,14 +133,7 @@ impl S3Backend {
     /// Returns `FraiseQLError::Storage` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
-        match self
-            .client
-            .head_object()
-            .bucket(&self.bucket)
-            .key(key)
-            .send()
-            .await
-        {
+        match self.client.head_object().bucket(&self.bucket).key(key).send().await {
             Ok(_) => Ok(true),
             Err(err) => {
                 let msg = err.to_string();
@@ -149,7 +142,7 @@ impl S3Backend {
                 } else {
                     Err(storage_err("head_object", err))
                 }
-            }
+            },
         }
     }
 
@@ -217,10 +210,8 @@ impl S3Backend {
             });
         }
 
-        let next_cursor = resp
-            .next_continuation_token()
-            .filter(|t| !t.is_empty())
-            .map(|t| t.to_string());
+        let next_cursor =
+            resp.next_continuation_token().filter(|t| !t.is_empty()).map(|t| t.to_string());
 
         Ok(super::types::ListResult {
             objects,
@@ -255,21 +246,14 @@ impl super::PresignCapable for S3Backend {
             .await
             .map_err(|e| storage_err("presigned PUT URL", e))?;
 
-        let expires_at = chrono::Utc::now() + chrono::Duration::from_std(expires_in)
-            .map_err(|e| storage_err("duration conversion", e))?;
+        let expires_at = chrono::Utc::now()
+            + chrono::Duration::from_std(expires_in)
+                .map_err(|e| storage_err("duration conversion", e))?;
 
-        Ok(super::PresignedUrl::new(
-            presigned.uri().to_string(),
-            expires_at,
-            "PUT",
-        ))
+        Ok(super::PresignedUrl::new(presigned.uri().to_string(), expires_at, "PUT"))
     }
 
-    async fn presign_get(
-        &self,
-        key: &str,
-        expires_in: Duration,
-    ) -> Result<super::PresignedUrl> {
+    async fn presign_get(&self, key: &str, expires_in: Duration) -> Result<super::PresignedUrl> {
         validate_key(key)?;
 
         let presigning_config = aws_sdk_s3::presigning::PresigningConfig::expires_in(expires_in)
@@ -284,13 +268,10 @@ impl super::PresignCapable for S3Backend {
             .await
             .map_err(|e| storage_err("presigned GET URL", e))?;
 
-        let expires_at = chrono::Utc::now() + chrono::Duration::from_std(expires_in)
-            .map_err(|e| storage_err("duration conversion", e))?;
+        let expires_at = chrono::Utc::now()
+            + chrono::Duration::from_std(expires_in)
+                .map_err(|e| storage_err("duration conversion", e))?;
 
-        Ok(super::PresignedUrl::new(
-            presigned.uri().to_string(),
-            expires_at,
-            "GET",
-        ))
+        Ok(super::PresignedUrl::new(presigned.uri().to_string(), expires_at, "GET"))
     }
 }

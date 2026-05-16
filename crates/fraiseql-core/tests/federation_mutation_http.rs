@@ -24,18 +24,18 @@ fn test_build_mutation_query_for_update() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "User".to_string(),
-            keys:             vec![KeyDirective {
+        types: vec![FederatedType {
+            name:                "User".to_string(),
+            keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       true,
-            external_fields:  vec!["email".to_string()],
-            shareable_fields: vec![],
-                inaccessible_fields: vec![],
-            field_directives: std::collections::HashMap::new(),
-            type_shareable: false,
+            is_extends:          true,
+            external_fields:     vec!["email".to_string()],
+            shareable_fields:    vec![],
+            inaccessible_fields: vec![],
+            field_directives:    std::collections::HashMap::new(),
+            type_shareable:      false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
@@ -63,18 +63,18 @@ fn test_mutation_query_excludes_external_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             "Order".to_string(),
-            keys:             vec![KeyDirective {
+        types: vec![FederatedType {
+            name:                "Order".to_string(),
+            keys:                vec![KeyDirective {
                 fields:     vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:       true,
-            external_fields:  vec!["customer_id".to_string()],
-            shareable_fields: vec![],
-                inaccessible_fields: vec![],
-            field_directives: std::collections::HashMap::new(),
-            type_shareable: false,
+            is_extends:          true,
+            external_fields:     vec!["customer_id".to_string()],
+            shareable_fields:    vec![],
+            inaccessible_fields: vec![],
+            field_directives:    std::collections::HashMap::new(),
+            type_shareable:      false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };

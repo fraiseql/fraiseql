@@ -52,7 +52,7 @@ fn test_single_database_federation_postgresql() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type],
+        types: vec![user_type, order_type],
         remote_subscription_fields: HashMap::new(),
     };
 
@@ -90,7 +90,7 @@ fn test_postgres_to_mysql_entity_chain() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type],
+        types: vec![user_type, order_type],
         remote_subscription_fields: HashMap::new(),
     };
 
@@ -150,7 +150,7 @@ fn test_postgres_sqlite_entity_chain() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: HashMap::new(),
     };
 
@@ -229,7 +229,7 @@ fn test_three_database_chain_mysql_postgres_sqlite() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type, order_type, inventory_type],
+        types: vec![user_type, order_type, inventory_type],
         remote_subscription_fields: HashMap::new(),
     };
 
@@ -306,7 +306,7 @@ fn test_key_field_type_conversion_string_int() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: HashMap::new(),
     };
 
@@ -366,7 +366,7 @@ fn test_field_selection_across_databases() {
     let _metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: HashMap::new(),
     };
 
@@ -477,7 +477,7 @@ fn test_missing_entity_in_secondary_database() {
     let _metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: HashMap::new(),
     };
 
@@ -555,7 +555,7 @@ fn test_batch_entity_resolution_multiple_databases() {
     let _metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
         remote_subscription_fields: HashMap::new(),
     };
 

@@ -6,13 +6,13 @@
 //!
 //! # How it works
 //!
-//! 1. After a successful `OAuth` token exchange, call [`AccountStore::link_or_create_user`]
-//!    with the verified email, provider name, and provider-specific user ID.
+//! 1. After a successful `OAuth` token exchange, call [`AccountStore::link_or_create_user`] with
+//!    the verified email, provider name, and provider-specific user ID.
 //! 2. The store checks whether an account with that email already exists.
-//!    - **Existing account**: the new provider credential is linked to the existing
-//!      account and the existing `user_id` is returned.
-//!    - **New account**: a fresh `user_id` is generated, the account is stored, and
-//!      the new `user_id` is returned.
+//!    - **Existing account**: the new provider credential is linked to the existing account and the
+//!      existing `user_id` is returned.
+//!    - **New account**: a fresh `user_id` is generated, the account is stored, and the new
+//!      `user_id` is returned.
 //! 3. The caller creates or refreshes a session keyed by the returned `user_id`.
 
 use async_trait::async_trait;
@@ -92,11 +92,11 @@ pub trait AccountStore: Send + Sync {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountLinkResult {
     /// Stable internal user identifier.
-    pub user_id:   String,
+    pub user_id: String,
     /// Whether a new account was created (`true`) or an existing one was linked (`false`).
-    pub is_new:    bool,
+    pub is_new:  bool,
     /// Whether a new provider link was added to an existing account.
-    pub linked:    bool,
+    pub linked:  bool,
 }
 
 // ─── In-memory backend ────────────────────────────────────────────────────────
@@ -208,14 +208,15 @@ impl AccountStore for InMemoryAccountStore {
             &format!("account_created:{provider}"),
         );
 
-        Ok(AccountLinkResult { user_id, is_new: true, linked: false })
+        Ok(AccountLinkResult {
+            user_id,
+            is_new: true,
+            linked: false,
+        })
     }
 
     async fn get_account(&self, user_id: &str) -> Result<AccountRecord> {
-        self.by_user_id
-            .get(user_id)
-            .map(|r| r.clone())
-            .ok_or(AuthError::TokenNotFound)
+        self.by_user_id.get(user_id).map(|r| r.clone()).ok_or(AuthError::TokenNotFound)
     }
 }
 
@@ -306,7 +307,10 @@ mod tests {
         let store = InMemoryAccountStore::new();
 
         // First sign-in
-        store.link_or_create_user("alice@example.com", "github", "github_123").await.unwrap();
+        store
+            .link_or_create_user("alice@example.com", "github", "github_123")
+            .await
+            .unwrap();
 
         // Same provider + same provider_id — should NOT add a duplicate link
         let second = store

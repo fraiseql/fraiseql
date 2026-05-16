@@ -47,9 +47,8 @@ mod mod_tests {
 
     #[test]
     fn test_azure_ad_role_mapping() {
-        let roles = azure_ad::AzureADOAuth::map_azure_roles_to_fraiseql(vec![
-            "fraiseql.admin".to_string(),
-        ]);
+        let roles =
+            azure_ad::AzureADOAuth::map_azure_roles_to_fraiseql(vec!["fraiseql.admin".to_string()]);
         assert!(roles.contains(&"admin".to_string()));
     }
 

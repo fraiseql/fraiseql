@@ -32,7 +32,8 @@ fn load_golden(name: &str) -> CompiledSchema {
     let path = fixtures_dir().join(name);
     let json = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Cannot read fixture {name}: {e}"));
-    CompiledSchema::from_json(&json, false).unwrap_or_else(|e| panic!("Cannot parse fixture {name}: {e}"))
+    CompiledSchema::from_json(&json, false)
+        .unwrap_or_else(|e| panic!("Cannot parse fixture {name}: {e}"))
 }
 
 fn load_golden_json(name: &str) -> String {

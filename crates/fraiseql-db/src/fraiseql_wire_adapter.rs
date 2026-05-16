@@ -349,18 +349,12 @@ impl DatabaseAdapter for FraiseWireAdapter {
         })
     }
 
-    async fn query_stats(
-        &self,
-        _limit: u32,
-    ) -> Result<Vec<crate::types::QueryStatEntry>> {
+    async fn query_stats(&self, _limit: u32) -> Result<Vec<crate::types::QueryStatEntry>> {
         // fraiseql-wire does not have access to database-level query statistics.
         Ok(vec![])
     }
 
-    async fn query_stats_by_id(
-        &self,
-        _id: &str,
-    ) -> Result<Option<crate::types::QueryStatEntry>> {
+    async fn query_stats_by_id(&self, _id: &str) -> Result<Option<crate::types::QueryStatEntry>> {
         Ok(None)
     }
 }

@@ -7,7 +7,6 @@ use tokio::net::TcpListener;
 use tracing::{error, info, warn};
 
 use super::{DatabaseAdapter, Result, Server, ServerError, TlsSetup};
-
 #[cfg(feature = "observers")]
 use crate::subscriptions::event_bridge::{EventBridge, EventBridgeConfig};
 
@@ -55,8 +54,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // serving requests, but after the DB pool is available (async context).
         if let Some(ref usage_cfg) = self.config.usage.clone() {
             use std::time::Duration;
+
             use sqlx::postgres::PgPoolOptions;
             use tokio::time::MissedTickBehavior;
+
             use crate::usage::aggregator::{PostgresBackend, global_aggregator};
 
             match PgPoolOptions::new()
@@ -180,17 +181,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Start observer runtime if configured, wiring CDC events to EventBridge
         #[cfg(feature = "observers")]
-        #[allow(unused_variables)] // Reason: _bridge_handle is kept alive to prevent task cancellation
+        #[allow(unused_variables)]
+        // Reason: _bridge_handle is kept alive to prevent task cancellation
         let _bridge_handle = {
             let mut handle: Option<tokio::task::JoinHandle<()>> = None;
             if let Some(ref runtime) = self.observer_runtime {
                 info!("Starting observer runtime...");
 
                 // Create EventBridge to forward CDC events to GraphQL subscriptions
-                let bridge = EventBridge::new(
-                    self.subscription_manager.clone(),
-                    EventBridgeConfig::new(),
-                );
+                let bridge =
+                    EventBridge::new(self.subscription_manager.clone(), EventBridgeConfig::new());
                 let sender = bridge.sender();
 
                 let mut guard = runtime.write().await;
@@ -201,8 +201,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         info!("Observer runtime started");
                         // Spawn EventBridge after observer runtime is running
                         handle = Some(bridge.spawn());
-                        info!("EventBridge started — CDC events will be forwarded to subscriptions");
-                    }
+                        info!(
+                            "EventBridge started — CDC events will be forwarded to subscriptions"
+                        );
+                    },
                     Err(e) => {
                         error!("Failed to start observer runtime: {}", e);
                         warn!("Server will continue without observers");

@@ -4,6 +4,7 @@
 mod admin_scope_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
     use fraiseql_error::FraiseQLError;
+
     use super::super::admin_scope::{ADMIN_SCOPE, has_admin_scope, require_admin_scope};
 
     #[test]
@@ -251,10 +252,7 @@ mod auth_tests {
         let auth_state = BearerAuthState::with_max_failures("correct-token".to_string(), 2);
         let app = Router::new()
             .route("/protected", get(protected_handler))
-            .layer(middleware::from_fn_with_state(
-                auth_state,
-                bearer_auth_middleware,
-            ));
+            .layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
 
         // Two bad attempts (from unknown peer since ConnectInfo not wired in tests).
         for _ in 0..2 {
@@ -281,10 +279,7 @@ mod auth_tests {
         let auth_state = BearerAuthState::with_max_failures("good-token".to_string(), 2);
         let app = Router::new()
             .route("/protected", get(protected_handler))
-            .layer(middleware::from_fn_with_state(
-                auth_state,
-                bearer_auth_middleware,
-            ));
+            .layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
 
         // One bad attempt, then a successful one.
         let bad_req = Request::builder()
@@ -640,8 +635,8 @@ mod metrics_tests {
     };
     use tower::ServiceExt;
 
-    use crate::metrics_server::MetricsCollector;
     use super::super::metrics::metrics_middleware;
+    use crate::metrics_server::MetricsCollector;
 
     async fn ok_handler() -> StatusCode {
         StatusCode::OK

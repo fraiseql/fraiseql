@@ -9,11 +9,10 @@
 
 #[cfg(test)]
 mod routing {
+    use super::super::routing::match_route_path;
     use crate::routes::rest::resource::{
         HttpMethod, RestResource, RestRoute, RestRouteTable, RouteSource,
     };
-
-    use super::super::routing::match_route_path;
 
     fn make_test_route_table() -> RestRouteTable {
         RestRouteTable {
@@ -167,9 +166,7 @@ mod routing {
     #[test]
     fn resolve_patch_nested() {
         let table = make_test_route_table();
-        let resolved = table
-            .resolve("/users/42/update-email", HttpMethod::Patch)
-            .unwrap();
+        let resolved = table.resolve("/users/42/update-email", HttpMethod::Patch).unwrap();
         assert_eq!(
             resolved.route.source,
             RouteSource::Mutation {
@@ -194,9 +191,7 @@ mod routing {
     #[test]
     fn resolve_post_action() {
         let table = make_test_route_table();
-        let resolved = table
-            .resolve("/users/42/archive", HttpMethod::Post)
-            .unwrap();
+        let resolved = table.resolve("/users/42/archive", HttpMethod::Post).unwrap();
         assert_eq!(
             resolved.route.source,
             RouteSource::Mutation {
@@ -322,10 +317,7 @@ mod prefer {
     fn prefer_from_headers_multiple() {
         let mut headers = HeaderMap::new();
         headers.append("prefer", axum::http::HeaderValue::from_static("count=exact"));
-        headers.append(
-            "prefer",
-            axum::http::HeaderValue::from_static("return=representation"),
-        );
+        headers.append("prefer", axum::http::HeaderValue::from_static("return=representation"));
         let prefer = PreferHeader::from_headers(&headers);
         assert!(prefer.count_exact);
         assert!(prefer.return_representation);
@@ -410,10 +402,7 @@ mod headers {
     fn set_preference_applied_single() {
         let mut headers = HeaderMap::new();
         set_preference_applied(&mut headers, &["count=exact"]);
-        assert_eq!(
-            headers.get("preference-applied").unwrap().to_str().unwrap(),
-            "count=exact"
-        );
+        assert_eq!(headers.get("preference-applied").unwrap().to_str().unwrap(), "count=exact");
     }
 
     #[test]
@@ -446,14 +435,7 @@ mod headers {
         request_headers.insert("x-request-id", "test-id-123".parse().unwrap());
         let mut response_headers = HeaderMap::new();
         set_request_id(&request_headers, &mut response_headers);
-        assert_eq!(
-            response_headers
-                .get("x-request-id")
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            "test-id-123"
-        );
+        assert_eq!(response_headers.get("x-request-id").unwrap().to_str().unwrap(), "test-id-123");
     }
 
     #[test]
@@ -461,11 +443,7 @@ mod headers {
         let request_headers = HeaderMap::new();
         let mut response_headers = HeaderMap::new();
         set_request_id(&request_headers, &mut response_headers);
-        let id = response_headers
-            .get("x-request-id")
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let id = response_headers.get("x-request-id").unwrap().to_str().unwrap();
         assert!(uuid::Uuid::parse_str(id).is_ok());
     }
 }
@@ -659,14 +637,7 @@ mod mutation {
         let request_headers = HeaderMap::new();
         let rest = stored_response_to_rest(stored, &request_headers);
         assert_eq!(rest.status, StatusCode::CREATED);
-        assert_eq!(
-            rest.headers
-                .get("idempotency-key")
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            "replayed=true"
-        );
+        assert_eq!(rest.headers.get("idempotency-key").unwrap().to_str().unwrap(), "replayed=true");
         assert_eq!(rest.body.unwrap()["id"], 1);
     }
 }

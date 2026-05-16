@@ -6,8 +6,8 @@ use moka::sync::Cache as MokaCache;
 
 use super::{
     context::ExecutorContext,
-    support::relay::{RelayDispatch, RelayDispatchImpl},
     runners,
+    support::relay::{RelayDispatch, RelayDispatchImpl},
 };
 use crate::{
     db::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
@@ -300,7 +300,9 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        self.query_runner().execute_query_direct(query_match, variables, security_context).await
+        self.query_runner()
+            .execute_query_direct(query_match, variables, security_context)
+            .await
     }
 }
 
@@ -339,7 +341,8 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
         adapter: Arc<A>,
         config: RuntimeConfig,
     ) -> Self {
-        let relay_dispatch: Arc<dyn RelayDispatch> = Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
+        let relay_dispatch: Arc<dyn RelayDispatch> =
+            Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
         let introspection = IntrospectionResponses::build(&schema);

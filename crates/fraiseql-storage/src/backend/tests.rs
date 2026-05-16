@@ -2,8 +2,9 @@
 
 #[cfg(test)]
 mod backend_tests {
-    use crate::backend::LocalBackend;
     use tempfile::TempDir;
+
+    use crate::backend::LocalBackend;
 
     /// Helper to create a LocalBackend backed by a temp directory.
     fn temp_backend() -> (LocalBackend, TempDir) {
@@ -39,23 +40,14 @@ mod backend_tests {
             .expect("upload c");
 
         // List with "avatars/" prefix should return 2 files
-        let result = backend
-            .list("avatars/", None, 100)
-            .await
-            .expect("list avatars");
+        let result = backend.list("avatars/", None, 100).await.expect("list avatars");
         assert_eq!(result.objects.len(), 2, "should match 2 files under avatars/");
         assert!(
-            result
-                .objects
-                .iter()
-                .any(|o| o.key == "avatars/a.jpg"),
+            result.objects.iter().any(|o| o.key == "avatars/a.jpg"),
             "should include avatars/a.jpg"
         );
         assert!(
-            result
-                .objects
-                .iter()
-                .any(|o| o.key == "avatars/b.jpg"),
+            result.objects.iter().any(|o| o.key == "avatars/b.jpg"),
             "should include avatars/b.jpg"
         );
         assert!(result.next_cursor.is_none(), "all results fit in one page");
@@ -68,37 +60,22 @@ mod backend_tests {
         // Upload 5 files
         for i in 0..5 {
             let key = format!("file{}.txt", i);
-            backend
-                .upload(&key, b"data", "text/plain")
-                .await
-                .expect("upload");
+            backend.upload(&key, b"data", "text/plain").await.expect("upload");
         }
 
         // First page: limit=2
-        let page1 = backend
-            .list("", None, 2)
-            .await
-            .expect("first page");
+        let page1 = backend.list("", None, 2).await.expect("first page");
         assert_eq!(page1.objects.len(), 2, "first page should have 2 items");
         let cursor1 = page1.next_cursor.expect("should have next cursor");
 
         // Second page using cursor
-        let page2 = backend
-            .list("", Some(&cursor1), 2)
-            .await
-            .expect("second page");
+        let page2 = backend.list("", Some(&cursor1), 2).await.expect("second page");
         assert_eq!(page2.objects.len(), 2, "second page should have 2 items");
-        assert!(
-            page1.objects[1].key != page2.objects[0].key,
-            "pages should not overlap"
-        );
+        assert!(page1.objects[1].key != page2.objects[0].key, "pages should not overlap");
 
         // Third page should have last item and no cursor
         let cursor2 = page2.next_cursor.expect("should have cursor for page 3");
-        let page3 = backend
-            .list("", Some(&cursor2), 2)
-            .await
-            .expect("third page");
+        let page3 = backend.list("", Some(&cursor2), 2).await.expect("third page");
         assert_eq!(page3.objects.len(), 1, "third page should have 1 item");
         assert!(page3.next_cursor.is_none(), "last page should have no cursor");
     }
@@ -108,20 +85,14 @@ mod backend_tests {
         let (backend, _tmpdir) = temp_backend();
 
         // Upload some files
-        backend
-            .upload("foo/bar.txt", b"data", "text/plain")
-            .await
-            .expect("upload");
+        backend.upload("foo/bar.txt", b"data", "text/plain").await.expect("upload");
 
         // List with non-matching prefix
         let result = backend
             .list("nonexistent/", None, 100)
             .await
             .expect("list returns success for missing prefix");
-        assert!(
-            result.objects.is_empty(),
-            "non-matching prefix should return empty list"
-        );
+        assert!(result.objects.is_empty(), "non-matching prefix should return empty list");
         assert!(result.next_cursor.is_none(), "empty result should have no cursor");
     }
 
@@ -129,21 +100,16 @@ mod backend_tests {
     async fn test_list_object_info_fields() {
         let (backend, _tmpdir) = temp_backend();
 
-        backend
-            .upload("test.txt", b"hello world", "text/plain")
-            .await
-            .expect("upload");
+        backend.upload("test.txt", b"hello world", "text/plain").await.expect("upload");
 
-        let result = backend
-            .list("", None, 100)
-            .await
-            .expect("list");
+        let result = backend.list("", None, 100).await.expect("list");
         assert_eq!(result.objects.len(), 1);
 
         let obj = &result.objects[0];
         assert_eq!(obj.key, "test.txt");
         assert_eq!(obj.size, 11, "size should match data length");
-        // LocalBackend defaults to application/octet-stream since filesystem doesn't store content-type
+        // LocalBackend defaults to application/octet-stream since filesystem doesn't store
+        // content-type
         assert_eq!(obj.content_type, "application/octet-stream");
         assert!(!obj.etag.is_empty(), "etag should be populated");
         assert!(!obj.last_modified.is_empty(), "last_modified should be populated");

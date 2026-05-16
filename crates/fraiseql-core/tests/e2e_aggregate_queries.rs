@@ -1042,17 +1042,10 @@ fn test_native_measures_and_dimension_mapping_combined() {
         "groupBy": {"dimensions.category.id": true}
     });
 
-    let parsed = AggregateQueryParser::parse(
-        &query,
-        &metadata,
-        &std::collections::HashMap::new(),
-    )
-    .unwrap();
-    let plan = fraiseql_core::compiler::aggregation::AggregationPlanner::plan(
-        parsed,
-        metadata,
-    )
-    .unwrap();
+    let parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let plan =
+        fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
     let result = generator.generate_parameterized(&plan).unwrap();
 
     // Native measures should produce quoted identifiers, not JSONB extraction
@@ -1060,7 +1053,11 @@ fn test_native_measures_and_dimension_mapping_combined() {
     // Native dimension mapping should produce quoted GROUP BY column
     assert_sql_contains(&result.sql, &["GROUP BY", "\"category_id\""]);
     // Should NOT contain JSONB extraction for the native columns
-    assert!(!result.sql.contains("data->>"), "Native columns should not use JSONB extraction: {}", result.sql);
+    assert!(
+        !result.sql.contains("data->>"),
+        "Native columns should not use JSONB extraction: {}",
+        result.sql
+    );
 }
 
 #[test]
@@ -1075,17 +1072,10 @@ fn test_native_and_jsonb_dimensions_coexist() {
         "groupBy": {"dimensions.category.id": true, "source": true}
     });
 
-    let parsed = AggregateQueryParser::parse(
-        &query,
-        &metadata,
-        &std::collections::HashMap::new(),
-    )
-    .unwrap();
-    let plan = fraiseql_core::compiler::aggregation::AggregationPlanner::plan(
-        parsed,
-        metadata,
-    )
-    .unwrap();
+    let parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let plan =
+        fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
     let result = generator.generate_parameterized(&plan).unwrap();
 
     // Native dimension → quoted identifier
@@ -1107,19 +1097,21 @@ fn test_native_measures_with_where_filter() {
         "groupBy": {"dimensions.region.code": true}
     });
 
-    let parsed = AggregateQueryParser::parse(
-        &query,
-        &metadata,
-        &std::collections::HashMap::new(),
-    )
-    .unwrap();
-    let plan = fraiseql_core::compiler::aggregation::AggregationPlanner::plan(
-        parsed,
-        metadata,
-    )
-    .unwrap();
+    let parsed =
+        AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new()).unwrap();
+    let plan =
+        fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
     let result = generator.generate_parameterized(&plan).unwrap();
 
-    assert_sql_contains(&result.sql, &["SUM(\"volume\")", "WHERE", "device_id", "GROUP BY", "\"region_code\""]);
+    assert_sql_contains(
+        &result.sql,
+        &[
+            "SUM(\"volume\")",
+            "WHERE",
+            "device_id",
+            "GROUP BY",
+            "\"region_code\"",
+        ],
+    );
     assert!(result.params.contains(&json!("sensor-42")));
 }

@@ -3,8 +3,7 @@
 //! Caches query plans keyed on normalized query string and schema fingerprint,
 //! avoiding redundant planning for repeated queries against the same schema version.
 
-use std::num::NonZeroUsize;
-use std::sync::Mutex;
+use std::{num::NonZeroUsize, sync::Mutex};
 
 use lru::LruCache;
 

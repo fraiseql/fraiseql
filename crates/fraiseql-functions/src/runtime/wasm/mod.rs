@@ -26,13 +26,16 @@ pub mod bindings;
 pub mod host_bridge;
 pub mod store;
 
-use crate::runtime::FunctionRuntime;
-use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
-use crate::HostContext;
-use fraiseql_error::Result;
-use self::host_bridge::DynHostContext;
-use self::store::StoreData;
 use std::sync::Arc;
+
+use fraiseql_error::Result;
+
+use self::{host_bridge::DynHostContext, store::StoreData};
+use crate::{
+    HostContext,
+    runtime::FunctionRuntime,
+    types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits},
+};
 
 /// Configuration for the WASM runtime.
 ///
@@ -42,7 +45,7 @@ pub struct WasmConfig {
     /// Enable SIMD (Single Instruction, Multiple Data) support in WASM modules.
     ///
     /// SIMD can improve performance for data-parallel workloads but adds compilation overhead.
-    pub enable_simd: bool,
+    pub enable_simd:           bool,
     /// Optional directory for caching compiled components.
     ///
     /// If set, compiled modules are cached to disk to speed up subsequent loads.
@@ -52,7 +55,7 @@ pub struct WasmConfig {
 impl Default for WasmConfig {
     fn default() -> Self {
         Self {
-            enable_simd: true,
+            enable_simd:           true,
             compilation_cache_dir: None,
         }
     }
@@ -60,7 +63,7 @@ impl Default for WasmConfig {
 
 /// WASM runtime using wasmtime and the Component Model.
 pub struct WasmRuntime {
-    engine: wasmtime::Engine,
+    engine:       wasmtime::Engine,
     /// Handle to the background epoch ticker thread.
     /// Kept alive for the runtime's lifetime; dropped on `Drop`.
     epoch_ticker: Arc<EpochTicker>,
@@ -72,7 +75,7 @@ pub struct WasmRuntime {
 /// runaway guests rather than relying on post-hoc duration checks.
 struct EpochTicker {
     shutdown: std::sync::atomic::AtomicBool,
-    handle: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
+    handle:   std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
 impl EpochTicker {
@@ -82,7 +85,7 @@ impl EpochTicker {
     fn start(engine: wasmtime::Engine) -> Arc<Self> {
         let ticker = Arc::new(Self {
             shutdown: std::sync::atomic::AtomicBool::new(false),
-            handle: std::sync::Mutex::new(None),
+            handle:   std::sync::Mutex::new(None),
         });
 
         let ticker_clone = Arc::clone(&ticker);
@@ -120,7 +123,7 @@ impl std::fmt::Debug for WasmRuntime {
 impl Clone for WasmRuntime {
     fn clone(&self) -> Self {
         Self {
-            engine: self.engine.clone(),
+            engine:       self.engine.clone(),
             epoch_ticker: Arc::clone(&self.epoch_ticker),
         }
     }
@@ -143,7 +146,7 @@ impl WasmRuntime {
         let engine = wasmtime::Engine::new(&wasm_config).map_err(|e| {
             fraiseql_error::FraiseQLError::Validation {
                 message: format!("Failed to create WASM engine: {e}"),
-                path: None,
+                path:    None,
             }
         })?;
 
@@ -178,12 +181,10 @@ impl WasmRuntime {
         let timeout = limits.max_duration;
 
         // Load the component from bytecode
-        let component =
-            wasmtime::component::Component::new(&self.engine, &module.bytecode).map_err(|e| {
-                fraiseql_error::FraiseQLError::Validation {
-                    message: format!("Failed to load WASM component: {e}"),
-                    path: None,
-                }
+        let component = wasmtime::component::Component::new(&self.engine, &module.bytecode)
+            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+                message: format!("Failed to load WASM component: {e}"),
+                path:    None,
             })?;
 
         // Create store with host context
@@ -198,18 +199,20 @@ impl WasmRuntime {
         // Set epoch deadline for preemptive timeout.
         // Each epoch tick is 100ms, so deadline = timeout_ms / 100.
         let deadline_ticks = (timeout.as_millis() / EpochTicker::TICK_INTERVAL.as_millis()).max(1);
-        #[allow(clippy::cast_possible_truncation)] // Reason: deadline clamped by max_duration which fits in u64
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: deadline clamped by max_duration which fits in u64
         store.set_epoch_deadline(deadline_ticks as u64);
 
         // Create linker and add host imports
         let mut linker = wasmtime::component::Linker::new(&self.engine);
 
         // Add WASI imports — guests compiled for wasm32-wasip2 need these
-        wasmtime_wasi::p2::add_to_linker_async(&mut linker)
-            .map_err(|e| fraiseql_error::FraiseQLError::Validation {
+        wasmtime_wasi::p2::add_to_linker_async(&mut linker).map_err(|e| {
+            fraiseql_error::FraiseQLError::Validation {
                 message: format!("Failed to link WASI imports: {e}"),
-                path: None,
-            })?;
+                path:    None,
+            }
+        })?;
 
         bindings::FraiseqlFunction::add_to_linker::<
             StoreData,
@@ -217,19 +220,18 @@ impl WasmRuntime {
         >(&mut linker, |data| data)
         .map_err(|e| fraiseql_error::FraiseQLError::Validation {
             message: format!("Failed to link host imports: {e}"),
-            path: None,
+            path:    None,
         })?;
 
         // Instantiate the component using the low-level API so we can call
         // the export asynchronously (the generated `call_handle` is sync-only,
         // but async host imports require async dispatch).
-        let instance = linker
-            .instantiate_async(&mut store, &component)
-            .await
-            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+        let instance = linker.instantiate_async(&mut store, &component).await.map_err(|e| {
+            fraiseql_error::FraiseQLError::Internal {
                 message: format!("Failed to instantiate WASM component: {e}"),
-                source: None,
-            })?;
+                source:  None,
+            }
+        })?;
 
         // Serialize event to JSON for the guest
         let event_json = serde_json::to_string(store.data().event_payload_ref())
@@ -240,23 +242,19 @@ impl WasmRuntime {
             .get_typed_func::<(&str,), (std::result::Result<String, String>,)>(&mut store, "handle")
             .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("Failed to get handle export: {e}"),
-                source: None,
+                source:  None,
             })?;
 
-        let call_result = handle_func
-            .call_async(&mut store, (&event_json,))
-            .await;
+        let call_result = handle_func.call_async(&mut store, (&event_json,)).await;
 
         let duration = start.elapsed();
         let collected_logs = store.data().logs.clone();
         let peak_memory = store.data().memory_peak_bytes;
 
         let result_value = match call_result {
-            Ok((Ok(result_json),)) => Some(
-                serde_json::from_str(&result_json).unwrap_or_else(|e| {
-                    serde_json::json!({ "error": format!("invalid JSON from guest: {e}") })
-                }),
-            ),
+            Ok((Ok(result_json),)) => Some(serde_json::from_str(&result_json).unwrap_or_else(
+                |e| serde_json::json!({ "error": format!("invalid JSON from guest: {e}") }),
+            )),
             Ok((Err(error_msg),)) => Some(serde_json::json!({ "error": error_msg })),
             Err(trap) => {
                 let msg = trap.to_string();
@@ -265,7 +263,7 @@ impl WasmRuntime {
                 } else {
                     Some(serde_json::json!({ "error": format!("WASM trap: {msg}") }))
                 }
-            }
+            },
         };
 
         Ok(FunctionResult {
@@ -326,16 +324,16 @@ impl FunctionRuntime for WasmRuntime {
 ///
 /// # Limitations
 ///
-/// - **Env vars**: Always returns `Ok(None)`. The `HostContext::env_var` method reads
-///   from the process environment filtered by an allowlist at call time, and we cannot
-///   capture that behavior without knowing which names the guest will request.
-///   Use `invoke_with_context()` for full env var support.
-/// - **Async IO**: `query`, `sql_query`, `http_request`, `storage_get`, `storage_put`
-///   return `Unsupported`. Use `invoke_with_context()` for full IO support.
+/// - **Env vars**: Always returns `Ok(None)`. The `HostContext::env_var` method reads from the
+///   process environment filtered by an allowlist at call time, and we cannot capture that behavior
+///   without knowing which names the guest will request. Use `invoke_with_context()` for full env
+///   var support.
+/// - **Async IO**: `query`, `sql_query`, `http_request`, `storage_get`, `storage_put` return
+///   `Unsupported`. Use `invoke_with_context()` for full IO support.
 struct HostContextSnapshot {
     event_payload: EventPayload,
     /// Pre-captured auth context (Ok value or error message).
-    auth_context: std::result::Result<serde_json::Value, String>,
+    auth_context:  std::result::Result<serde_json::Value, String>,
 }
 
 impl HostContextSnapshot {
@@ -355,7 +353,11 @@ impl DynHostContext for HostContextSnapshot {
         &self,
         _graphql: &str,
         _variables: serde_json::Value,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>> + Send + '_>> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>> + Send + '_,
+        >,
+    > {
         Box::pin(async {
             Err(fraiseql_error::FraiseQLError::Unsupported {
                 message: "query not available in snapshot context".to_string(),
@@ -367,7 +369,13 @@ impl DynHostContext for HostContextSnapshot {
         &self,
         _sql: &str,
         _params: &[serde_json::Value],
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<serde_json::Value>>> + Send + '_>> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = fraiseql_error::Result<Vec<serde_json::Value>>>
+                + Send
+                + '_,
+        >,
+    > {
         Box::pin(async {
             Err(fraiseql_error::FraiseQLError::Unsupported {
                 message: "sql_query not available in snapshot context".to_string(),
@@ -381,7 +389,13 @@ impl DynHostContext for HostContextSnapshot {
         _url: &str,
         _headers: &[(String, String)],
         _body: Option<&[u8]>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<crate::host::HttpResponse>> + Send + '_>> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = fraiseql_error::Result<crate::host::HttpResponse>>
+                + Send
+                + '_,
+        >,
+    > {
         Box::pin(async {
             Err(fraiseql_error::FraiseQLError::Unsupported {
                 message: "http_request not available in snapshot context".to_string(),
@@ -393,7 +407,9 @@ impl DynHostContext for HostContextSnapshot {
         &self,
         _bucket: &str,
         _key: &str,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<u8>>> + Send + '_>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<u8>>> + Send + '_>,
+    > {
         Box::pin(async {
             Err(fraiseql_error::FraiseQLError::Unsupported {
                 message: "storage_get not available in snapshot context".to_string(),
@@ -407,7 +423,8 @@ impl DynHostContext for HostContextSnapshot {
         _key: &str,
         _body: &[u8],
         _content_type: &str,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<()>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<()>> + Send + '_>>
+    {
         Box::pin(async {
             Err(fraiseql_error::FraiseQLError::Unsupported {
                 message: "storage_put not available in snapshot context".to_string(),
@@ -447,8 +464,8 @@ impl DynHostContext for HostContextSnapshot {
 #[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod tests {
     use std::path::PathBuf;
-    use crate::{EventPayload, FunctionModule, RuntimeType};
-    use crate::runtime::FunctionRuntime;
+
+    use crate::{EventPayload, FunctionModule, RuntimeType, runtime::FunctionRuntime};
 
     /// Helper to find test fixture file.
     fn fixture_path(name: &str) -> PathBuf {
@@ -495,10 +512,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"test": true}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"test": true}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -527,10 +544,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"test": true}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"test": true}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -552,10 +569,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -577,10 +594,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "mutation".to_string(),
-            entity: "User".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"user_id": 42, "email": "test@example.com"}),
-            timestamp: chrono::Utc::now(),
+            entity:       "User".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"user_id": 42, "email": "test@example.com"}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -603,10 +620,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -628,10 +645,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -644,7 +661,7 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_query_with_live_host() {
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -654,10 +671,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "TestEntity".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 42, "name": "test_item"}),
-            timestamp: chrono::Utc::now(),
+            entity:       "TestEntity".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 42, "name": "test_item"}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig::default();
@@ -676,7 +693,7 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_http_request_with_live_host() {
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -686,10 +703,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "TestEntity".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 42}),
-            timestamp: chrono::Utc::now(),
+            entity:       "TestEntity".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 42}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig {
@@ -711,7 +728,7 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_storage_get_with_live_host() {
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -721,10 +738,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "File".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "File".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig::default();
@@ -743,7 +760,7 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_env_var_with_live_host() {
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -753,10 +770,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let mut config = HostContextConfig::default();
@@ -776,7 +793,7 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_wasm_guest_calls_auth_context_with_live_host() {
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -786,10 +803,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig::default();
@@ -807,7 +824,7 @@ mod tests {
 
     /// Mock host context that responds to all operations for integration testing.
     struct MockFullBridgeHost {
-        event: EventPayload,
+        event:   EventPayload,
         storage: std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>,
     }
 
@@ -825,17 +842,27 @@ mod tests {
             &self,
             _graphql: &str,
             _variables: serde_json::Value,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>> + Send + '_>> {
-            Box::pin(async {
-                Ok(serde_json::json!({"data": {"users": [{"id": 1}]}}))
-            })
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async { Ok(serde_json::json!({"data": {"users": [{"id": 1}]}})) })
         }
 
         fn sql_query(
             &self,
             _sql: &str,
             _params: &[serde_json::Value],
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<serde_json::Value>>> + Send + '_>> {
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = fraiseql_error::Result<Vec<serde_json::Value>>>
+                    + Send
+                    + '_,
+            >,
+        > {
             Box::pin(async { Ok(vec![]) })
         }
 
@@ -845,12 +872,18 @@ mod tests {
             _url: &str,
             _headers: &[(String, String)],
             _body: Option<&[u8]>,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<crate::host::HttpResponse>> + Send + '_>> {
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = fraiseql_error::Result<crate::host::HttpResponse>>
+                    + Send
+                    + '_,
+            >,
+        > {
             Box::pin(async {
                 Ok(crate::host::HttpResponse {
-                    status: 200,
+                    status:  200,
                     headers: vec![("content-type".to_string(), "application/json".to_string())],
-                    body: b"{}".to_vec(),
+                    body:    b"{}".to_vec(),
                 })
             })
         }
@@ -859,10 +892,10 @@ mod tests {
             &self,
             _bucket: &str,
             key: &str,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<u8>>> + Send + '_>> {
-            let data = self.storage.lock().expect("lock")
-                .get(key).cloned()
-                .unwrap_or_default();
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = fraiseql_error::Result<Vec<u8>>> + Send + '_>,
+        > {
+            let data = self.storage.lock().expect("lock").get(key).cloned().unwrap_or_default();
             Box::pin(async move { Ok(data) })
         }
 
@@ -872,9 +905,10 @@ mod tests {
             key: &str,
             body: &[u8],
             _content_type: &str,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = fraiseql_error::Result<()>> + Send + '_>> {
-            self.storage.lock().expect("lock")
-                .insert(key.to_string(), body.to_vec());
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = fraiseql_error::Result<()>> + Send + '_>,
+        > {
+            self.storage.lock().expect("lock").insert(key.to_string(), body.to_vec());
             Box::pin(async { Ok(()) })
         }
 
@@ -910,10 +944,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "FullBridge".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 1}),
-            timestamp: chrono::Utc::now(),
+            entity:       "FullBridge".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 1}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = std::sync::Arc::new(MockFullBridgeHost::new(event.clone()));
@@ -941,15 +975,20 @@ mod tests {
     #[cfg(feature = "runtime-wasm")]
     #[tokio::test]
     async fn test_before_mutation_chain_with_wasm_function_proceeds() {
-        use crate::observer::FunctionObserver;
-        use crate::triggers::mutation::{BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger};
-        use crate::host::NoopHostContext;
         use std::collections::HashMap;
+
+        use crate::{
+            host::NoopHostContext,
+            observer::FunctionObserver,
+            triggers::mutation::{
+                BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger,
+            },
+        };
 
         // Set up observer with WASM runtime
         let mut observer = FunctionObserver::new();
-        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
-            .expect("create wasm runtime");
+        let runtime =
+            super::WasmRuntime::new(&super::WasmConfig::default()).expect("create wasm runtime");
         observer.register_runtime(RuntimeType::Wasm, runtime);
 
         // Load the identity guest (returns event unchanged → Proceed with unchanged input)
@@ -969,10 +1008,10 @@ mod tests {
         let input = serde_json::json!({"name": "Alice", "email": "alice@example.com"});
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "User".to_string(),
-            event_kind: "created".to_string(),
-            data: input.clone(),
-            timestamp: chrono::Utc::now(),
+            entity:       "User".to_string(),
+            event_kind:   "created".to_string(),
+            data:         input.clone(),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event);
@@ -984,10 +1023,10 @@ mod tests {
             BeforeMutationResult::Proceed(output) => {
                 // Identity guest echoes event → no "input" key → chain proceeds with original input
                 assert_eq!(output, input, "should proceed with unchanged input");
-            }
+            },
             BeforeMutationResult::Abort(msg) => {
                 panic!("Expected Proceed, got Abort: {msg}");
-            }
+            },
         }
     }
 
@@ -995,8 +1034,8 @@ mod tests {
     async fn test_wasm_performance_baseline() {
         use crate::host::NoopHostContext;
 
-        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
-            .expect("create wasm runtime");
+        let runtime =
+            super::WasmRuntime::new(&super::WasmConfig::default()).expect("create wasm runtime");
 
         let bytecode = bytes::Bytes::from(load_wasm_fixture("guest-identity.wasm"));
         let module = FunctionModule::from_bytecode("perf_test".to_string(), bytecode);
@@ -1005,10 +1044,10 @@ mod tests {
         // Cold start: first invocation (includes component compilation)
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Perf".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 1}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Perf".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 1}),
+            timestamp:    chrono::Utc::now(),
         };
         let host = NoopHostContext::new(event.clone());
 
@@ -1036,28 +1075,24 @@ mod tests {
 
         // Relaxed assertions — these are guardrails, not benchmarks.
         // Cold start includes WASM compilation, should be under 500ms on CI.
-        assert!(
-            cold_duration.as_millis() < 500,
-            "cold start too slow: {cold_duration:?}"
-        );
+        assert!(cold_duration.as_millis() < 500, "cold start too slow: {cold_duration:?}");
         // Warm start should be significantly faster.
-        assert!(
-            avg_warm.as_millis() < 100,
-            "warm start too slow: {avg_warm:?}"
-        );
+        assert!(avg_warm.as_millis() < 100, "warm start too slow: {avg_warm:?}");
     }
 
     #[cfg(feature = "runtime-wasm")]
     #[tokio::test]
     async fn test_after_mutation_trigger_fires_without_blocking() {
-        use crate::observer::FunctionObserver;
-        use crate::triggers::mutation::{AfterMutationTrigger, EntityEvent, EventKind};
-        use crate::host::NoopHostContext;
+        use crate::{
+            host::NoopHostContext,
+            observer::FunctionObserver,
+            triggers::mutation::{AfterMutationTrigger, EntityEvent, EventKind},
+        };
 
         // Set up observer with WASM runtime
         let mut observer = FunctionObserver::new();
-        let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
-            .expect("create wasm runtime");
+        let runtime =
+            super::WasmRuntime::new(&super::WasmConfig::default()).expect("create wasm runtime");
         observer.register_runtime(RuntimeType::Wasm, runtime);
 
         // Load the identity guest
@@ -1066,16 +1101,16 @@ mod tests {
 
         let trigger = AfterMutationTrigger {
             function_name: "onUserCreated".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "User".to_string(),
+            event_filter:  Some(EventKind::Insert),
         };
 
         let entity_event = EntityEvent {
-            entity: "User".to_string(),
+            entity:     "User".to_string(),
             event_kind: EventKind::Insert,
-            old: None,
-            new: Some(serde_json::json!({"id": 1, "name": "Alice"})),
-            timestamp: chrono::Utc::now(),
+            old:        None,
+            new:        Some(serde_json::json!({"id": 1, "name": "Alice"})),
+            timestamp:  chrono::Utc::now(),
         };
 
         // Build payload and invoke — fire-and-forget semantics mean we just
