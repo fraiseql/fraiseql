@@ -6,8 +6,8 @@
 //!
 //! - The compile-time-enforced public API ([`Executor::execute_mutation`], bounded on
 //!   [`SupportsMutations`]).
-//! - The runtime-guarded internal dispatch entry point ([`Executor::execute_mutation_query`],
-//!   bounded only on [`DatabaseAdapter`]).
+//! - The runtime-guarded internal dispatch entry point (`Executor::execute_mutation_query`, bounded
+//!   only on [`DatabaseAdapter`]).
 //! - Convenience wrappers used by the REST transport ([`execute_mutation_with_security`],
 //!   [`execute_mutation_batch`], [`execute_bulk_by_filter`]).
 
@@ -63,7 +63,7 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     ///
     /// # Errors
     ///
-    /// Same as [`execute_mutation_query`](Executor::execute_mutation_query), minus the adapter
+    /// Same as `execute_mutation_query`, minus the adapter
     /// capability check.
     pub async fn execute_mutation(
         &self,

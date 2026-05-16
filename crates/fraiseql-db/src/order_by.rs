@@ -10,7 +10,7 @@ use crate::types::{DatabaseType, sql_hints::OrderByClause};
 
 /// Append an `ORDER BY` clause to the SQL buffer.
 ///
-/// Each field name is validated via [`OrderByClause::validate_field_name`] (the SQL
+/// Each field name is validated via `OrderByClause::validate_field_name` (the SQL
 /// injection boundary) and converted to its snake_case storage key before being
 /// interpolated into a dialect-specific JSON field expression.
 ///

@@ -855,6 +855,8 @@ mod event_tests {
 mod factory_tests {
     use std::{collections::HashMap, sync::Arc};
 
+    #[allow(unused_imports)]
+    // Reason: ObserverError used behind feature gates (queue, dedup, caching)
     use crate::{
         ObserverRuntimeConfig,
         config::{PerformanceConfig, TransportConfig, TransportKind},

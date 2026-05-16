@@ -268,7 +268,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Count rows matching a query's filters.
     ///
-    /// Delegates to [`QueryRunner::count_rows`].
+    /// Delegates to `QueryRunner::count_rows`.
     ///
     /// # Errors
     ///

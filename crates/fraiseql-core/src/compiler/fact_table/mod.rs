@@ -235,7 +235,7 @@ pub struct PartialPeriodConfig {
 
 /// Temporal granularity for period boundary calculations.
 ///
-/// Unlike [`TemporalBucket`](crate::compiler::aggregate_types::TemporalBucket) which
+/// Unlike [`TemporalBucket`](super::aggregate_types::TemporalBucket) which
 /// includes sub-day granularities (`Second`, `Minute`, `Hour`) for GROUP BY bucketing,
 /// `TemporalGrain` is restricted to date-level granularities that define meaningful
 /// period boundaries for partial-period UNION ALL queries.
@@ -276,7 +276,8 @@ impl TemporalGrain {
         }
     }
 
-    /// Converts to the corresponding [`TemporalBucket`] for use with SQL generators.
+    /// Converts to the corresponding [`TemporalBucket`](super::aggregate_types::TemporalBucket) for
+    /// use with SQL generators.
     #[must_use]
     pub const fn to_temporal_bucket(self) -> super::aggregate_types::TemporalBucket {
         match self {

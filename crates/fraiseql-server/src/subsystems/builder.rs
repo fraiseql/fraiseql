@@ -2,7 +2,7 @@
 
 use super::{FunctionsSubsystem, RealtimeSubsystem, ServerSubsystems, StorageSubsystem};
 
-/// Error returned when [`ServerSubsystemsBuilder::build`] detects a configuration problem.
+/// Error returned when `ServerSubsystemsBuilder::build` detects a configuration problem.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SubsystemBuildError {

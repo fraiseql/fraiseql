@@ -7,7 +7,7 @@
 //!
 //! # When to call
 //!
-//! Call once during server startup, after [`ServerSubsystemsBuilder::build`]
+//! Call once during server startup, after `ServerSubsystemsBuilder::build`
 //! succeeds but before the server begins accepting requests:
 //!
 //! ```rust,ignore

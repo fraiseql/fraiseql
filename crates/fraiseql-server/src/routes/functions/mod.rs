@@ -8,7 +8,7 @@
 //!
 //! The request body is forwarded as the `data` field of an [`EventPayload`]
 //! with `trigger_type = "http"`. The response is the JSON-encoded
-//! [`FunctionResult`] on success.
+//! `FunctionResult` on success.
 //!
 //! Routes are only mounted when a store and runtime have been attached via
 //! [`Server::with_functions`](crate::server::Server::with_functions).

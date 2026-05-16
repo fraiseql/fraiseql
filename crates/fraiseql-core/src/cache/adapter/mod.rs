@@ -275,7 +275,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// Set this to `schema.has_rls_configured()` at server startup.
     ///
-    /// [`SecurityContext`]: fraiseql_core::security::SecurityContext
+    /// [`SecurityContext`]: crate::security::SecurityContext
     #[must_use]
     pub const fn with_rls(mut self, has_rls: bool) -> Self {
         self.has_rls = has_rls;
