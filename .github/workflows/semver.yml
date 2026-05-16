@@ -35,6 +35,9 @@ jobs:
 
       # Compare the PR branch against the latest published crates.io baseline.
       # --workspace covers all public crates in the monorepo.
+      # Using crates.io as baseline (default) instead of a git rev, because
+      # the dev branch may contain WIP code that doesn't compile for
+      # semver-checks' build of the baseline.
       # Features omitted intentionally: semver-checks inspects public API
       # signatures which are feature-gated; the default feature set is sufficient
       # for detecting breaking changes in the core API surface.
@@ -42,5 +45,4 @@ jobs:
         run: |
           cargo semver-checks check-release \
             --workspace \
-            --exclude fraiseql-test-utils \
-            --baseline-rev HEAD~1
+            --exclude fraiseql-test-utils
