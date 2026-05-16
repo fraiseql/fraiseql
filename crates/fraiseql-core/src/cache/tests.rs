@@ -3023,12 +3023,12 @@ mod result_tests {
     #[test]
     #[ignore = "wall-clock dependent — set FRAISEQL_SCALING_TEST=1 with ≥8 cores"]
     fn test_concurrent_reads_do_not_serialize() {
+        const ITERS: usize = 10_000;
+
         if std::env::var("FRAISEQL_SCALING_TEST").is_err() {
             eprintln!("skipped: set FRAISEQL_SCALING_TEST=1 to run (needs ≥8 cores)");
             return;
         }
-
-        const ITERS: usize = 10_000;
         let config = CacheConfig::enabled();
         let cache = Arc::new(QueryResultCache::new(config));
         let key = 42_u64;
