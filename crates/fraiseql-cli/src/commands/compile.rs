@@ -5,7 +5,9 @@
 use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType};
+use fraiseql_core::schema::{
+    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, canonicalize_json,
+};
 use tracing::{info, warn};
 
 use crate::{
@@ -392,14 +394,17 @@ pub async fn run(
         let body =
             serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
         let value: serde_json::Value = serde_json::from_str(&body)?;
-        // Hash the canonical Value representation (matches what from_json verifies against)
-        let canonical = serde_json::to_string_pretty(&value)?;
+        // Canonicalize key order before hashing — required because serde_json may
+        // use IndexMap (preserve_order feature) and HashMap fields produce
+        // nondeterministic iteration order.
+        let sorted = canonicalize_json(value);
+        let canonical = serde_json::to_string_pretty(&sorted)?;
         let hash = Sha256::digest(canonical.as_bytes());
         let hash_hex = hex::encode(&hash[..16]);
 
-        let obj = value.as_object().context("schema must serialise as JSON object")?;
+        let obj = sorted.as_object().context("schema must serialise as JSON object")?;
 
-        // Insert _content_hash as the first field (serde_json::Map preserves insertion order)
+        // Insert _content_hash as the first field
         let mut new_obj = serde_json::Map::new();
         new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
         for (k, v) in obj {

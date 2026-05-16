@@ -19,6 +19,32 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::{info, warn};
 
+/// Recursively sort all object keys in a JSON value.
+///
+/// When `serde_json` is compiled with the `preserve_order` feature (common due
+/// to Cargo feature unification), `serde_json::Map` uses `IndexMap` instead of
+/// `BTreeMap`, making key order depend on insertion order.  Since
+/// [`CompiledSchema`] contains `HashMap` fields, their serialization order is
+/// nondeterministic.  This function normalises a `serde_json::Value` tree so
+/// that every object has its keys in sorted order, producing a canonical form
+/// suitable for hashing.
+#[must_use]
+pub fn canonicalize_json(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut sorted: Vec<(String, serde_json::Value)> = map.into_iter().collect();
+            sorted.sort_by(|(a, _), (b, _)| a.cmp(b));
+            let canonical_map: serde_json::Map<String, serde_json::Value> =
+                sorted.into_iter().map(|(k, v)| (k, canonicalize_json(v))).collect();
+            serde_json::Value::Object(canonical_map)
+        },
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.into_iter().map(canonicalize_json).collect())
+        },
+        other => other,
+    }
+}
+
 use super::{directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition};
 use crate::{
     compiler::fact_table::FactTableMetadata,
@@ -424,8 +450,11 @@ impl CompiledSchema {
             return Ok(schema);
         };
 
-        // Serialize the remaining JSON deterministically
-        let remaining_json = serde_json::to_string_pretty(&value).map_err(serde_err)?;
+        // Canonicalize key order before hashing — required because serde_json may
+        // use IndexMap (preserve_order feature) rather than BTreeMap, and HashMap
+        // fields produce nondeterministic iteration order.
+        let canonical = canonicalize_json(value.clone());
+        let remaining_json = serde_json::to_string_pretty(&canonical).map_err(serde_err)?;
         let computed_digest = Sha256::digest(remaining_json.as_bytes());
         let computed_hash = hex::encode(&computed_digest[..16]);
 
