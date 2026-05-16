@@ -12,7 +12,7 @@
 //!
 //! # Security
 //!
-//! - Rate-limited to [`ANON_RATE_MAX`] signups per IP per [`ANON_RATE_WINDOW_SECS`].
+//! - Rate-limited to `ANON_RATE_MAX` signups per IP per `ANON_RATE_WINDOW_SECS`.
 //! - Each anonymous `user_id` is a `UUIDv4` with an `anon_` prefix (unpredictable).
 
 use std::{net::SocketAddr, sync::Arc};
