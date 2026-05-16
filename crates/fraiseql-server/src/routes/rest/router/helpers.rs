@@ -12,8 +12,8 @@ use super::{RestError, RestResponse, StatusCode};
 ///
 /// Converts `{id}` path parameters to Axum's `:id` syntax.
 pub(super) fn to_axum_path(base_path: &str, route_path: &str) -> String {
-    let pattern = route_path.replace('{', ":").replace('}', "");
-    format!("{base_path}{pattern}")
+    let base = base_path.trim_end_matches('/');
+    format!("{base}{route_path}")
 }
 
 /// Strip the base path from a request path to get the route-relative path.
