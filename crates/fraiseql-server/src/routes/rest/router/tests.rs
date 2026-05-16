@@ -24,14 +24,14 @@ fn to_axum_path_simple() {
 
 #[test]
 fn to_axum_path_with_param() {
-    assert_eq!(to_axum_path("/rest/v1", "/users/{id}"), "/rest/v1/users/:id");
+    assert_eq!(to_axum_path("/rest/v1", "/users/{id}"), "/rest/v1/users/{id}");
 }
 
 #[test]
 fn to_axum_path_multiple_params() {
     assert_eq!(
         to_axum_path("/rest/v1", "/users/{uid}/posts/{pid}"),
-        "/rest/v1/users/:uid/posts/:pid"
+        "/rest/v1/users/{uid}/posts/{pid}"
     );
 }
 
