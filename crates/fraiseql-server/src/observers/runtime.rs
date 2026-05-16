@@ -672,7 +672,7 @@ impl ObserverRuntime {
 }
 
 /// Simple in-memory Dead Letter Queue for development
-struct InMemoryDlq {
+pub(crate) struct InMemoryDlq {
     items: std::sync::Mutex<Vec<fraiseql_observers::DlqItem>>,
 }
 
@@ -681,6 +681,34 @@ impl InMemoryDlq {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// Returns the number of items currently in the DLQ.
+    pub(crate) fn count(&self) -> usize {
+        self.items.lock().expect("items mutex poisoned").len()
+    }
+
+    /// Returns all DLQ items as a cloned snapshot.
+    pub(crate) fn list_all(&self) -> Vec<fraiseql_observers::DlqItem> {
+        self.items.lock().expect("items mutex poisoned").clone()
+    }
+
+    /// Returns a single DLQ item by ID, if it exists.
+    pub(crate) fn get(&self, id: uuid::Uuid) -> Option<fraiseql_observers::DlqItem> {
+        self.items
+            .lock()
+            .expect("items mutex poisoned")
+            .iter()
+            .find(|item| item.id == id)
+            .cloned()
+    }
+
+    /// Removes a DLQ item by ID.
+    pub(crate) fn remove(&self, id: uuid::Uuid) {
+        self.items
+            .lock()
+            .expect("items mutex poisoned")
+            .retain(|item| item.id != id);
     }
 }
 
