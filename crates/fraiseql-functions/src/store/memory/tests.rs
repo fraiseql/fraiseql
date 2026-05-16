@@ -2,9 +2,8 @@
 
 use bytes::Bytes;
 
-use crate::types::RuntimeType;
-
 use super::*;
+use crate::types::RuntimeType;
 
 fn sample_bytes() -> Bytes {
     Bytes::from_static(b"\x00asm\x01\x00\x00\x00")
@@ -56,14 +55,8 @@ async fn test_redeploy_bumps_version() {
 async fn test_list_functions_returns_active_only() {
     let store = InMemoryFunctionStore::new();
 
-    store
-        .store_function("fn_a", RuntimeType::Wasm, sample_bytes())
-        .await
-        .unwrap();
-    store
-        .store_function("fn_b", RuntimeType::Deno, sample_bytes())
-        .await
-        .unwrap();
+    store.store_function("fn_a", RuntimeType::Wasm, sample_bytes()).await.unwrap();
+    store.store_function("fn_b", RuntimeType::Deno, sample_bytes()).await.unwrap();
 
     let list = store.list_functions().await.unwrap();
     assert_eq!(list.len(), 2);
@@ -100,14 +93,8 @@ async fn test_delete_function_returns_false_when_not_found() {
 async fn test_list_excludes_deleted_functions() {
     let store = InMemoryFunctionStore::new();
 
-    store
-        .store_function("keep", RuntimeType::Wasm, sample_bytes())
-        .await
-        .unwrap();
-    store
-        .store_function("gone", RuntimeType::Wasm, sample_bytes())
-        .await
-        .unwrap();
+    store.store_function("keep", RuntimeType::Wasm, sample_bytes()).await.unwrap();
+    store.store_function("gone", RuntimeType::Wasm, sample_bytes()).await.unwrap();
 
     store.delete_function("gone").await.unwrap();
 
@@ -127,13 +114,7 @@ async fn test_get_missing_function_returns_none() {
 async fn test_function_status_roundtrip() {
     assert_eq!(FunctionStatus::Active.as_str(), "active");
     assert_eq!(FunctionStatus::Inactive.as_str(), "inactive");
-    assert_eq!(
-        FunctionStatus::parse("active"),
-        Some(FunctionStatus::Active)
-    );
-    assert_eq!(
-        FunctionStatus::parse("inactive"),
-        Some(FunctionStatus::Inactive)
-    );
+    assert_eq!(FunctionStatus::parse("active"), Some(FunctionStatus::Active));
+    assert_eq!(FunctionStatus::parse("inactive"), Some(FunctionStatus::Inactive));
     assert_eq!(FunctionStatus::parse("unknown"), None);
 }

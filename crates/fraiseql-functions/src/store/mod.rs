@@ -11,8 +11,9 @@
 pub mod memory;
 
 use async_trait::async_trait;
-use crate::types::RuntimeType;
 use fraiseql_error::Result;
+
+use crate::types::RuntimeType;
 
 /// Deployment status of a function version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,17 +54,17 @@ pub struct FunctionRecord {
     /// Trinity-pattern primary key (`pk_function`).
     pub pk_function: i64,
     /// Unique function name (scoped per tenant).
-    pub name: String,
+    pub name:        String,
     /// Which runtime executes this function.
-    pub runtime: RuntimeType,
+    pub runtime:     RuntimeType,
     /// Compiled bytecode or source text.
-    pub bytecode: bytes::Bytes,
+    pub bytecode:    bytes::Bytes,
     /// Monotonically increasing deploy version (1-based).
-    pub version: i32,
+    pub version:     i32,
     /// When this version was deployed.
     pub deployed_at: chrono::DateTime<chrono::Utc>,
     /// Whether this version is active.
-    pub status: FunctionStatus,
+    pub status:      FunctionStatus,
 }
 
 /// Trait for function deployment stores.

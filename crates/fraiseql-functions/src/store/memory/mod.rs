@@ -1,14 +1,15 @@
 //! In-memory function store for unit tests and local development.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 
-use crate::types::RuntimeType;
-
 use super::{FunctionRecord, FunctionStatus, FunctionStore};
+use crate::types::RuntimeType;
 
 /// In-memory function store backed by a `HashMap` behind a `Mutex`.
 ///
@@ -22,9 +23,9 @@ pub struct InMemoryFunctionStore {
 #[derive(Debug, Default)]
 struct StoreInner {
     /// Latest record per function name.
-    records: HashMap<String, FunctionRecord>,
+    records:      HashMap<String, FunctionRecord>,
     /// Next pk to assign.
-    next_pk: i64,
+    next_pk:      i64,
     /// Next version per function name.
     next_version: HashMap<String, i32>,
 }
@@ -41,8 +42,8 @@ impl InMemoryFunctionStore {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(StoreInner {
-                records: HashMap::new(),
-                next_pk: 1,
+                records:      HashMap::new(),
+                next_pk:      1,
                 next_version: HashMap::new(),
             })),
         }
@@ -59,7 +60,7 @@ impl FunctionStore for InMemoryFunctionStore {
     ) -> Result<FunctionRecord> {
         let mut guard = self.inner.lock().map_err(|_| FraiseQLError::Validation {
             message: "function store mutex poisoned".to_string(),
-            path: None,
+            path:    None,
         })?;
 
         let pk = guard.next_pk;
@@ -87,14 +88,11 @@ impl FunctionStore for InMemoryFunctionStore {
     async fn get_function(&self, name: &str) -> Result<Option<FunctionRecord>> {
         let guard = self.inner.lock().map_err(|_| FraiseQLError::Validation {
             message: "function store mutex poisoned".to_string(),
-            path: None,
+            path:    None,
         })?;
 
-        let record = guard
-            .records
-            .get(name)
-            .filter(|r| r.status == FunctionStatus::Active)
-            .cloned();
+        let record =
+            guard.records.get(name).filter(|r| r.status == FunctionStatus::Active).cloned();
 
         Ok(record)
     }
@@ -102,7 +100,7 @@ impl FunctionStore for InMemoryFunctionStore {
     async fn list_functions(&self) -> Result<Vec<FunctionRecord>> {
         let guard = self.inner.lock().map_err(|_| FraiseQLError::Validation {
             message: "function store mutex poisoned".to_string(),
-            path: None,
+            path:    None,
         })?;
 
         let mut records: Vec<FunctionRecord> = guard
@@ -120,18 +118,15 @@ impl FunctionStore for InMemoryFunctionStore {
     async fn delete_function(&self, name: &str) -> Result<bool> {
         let mut guard = self.inner.lock().map_err(|_| FraiseQLError::Validation {
             message: "function store mutex poisoned".to_string(),
-            path: None,
+            path:    None,
         })?;
 
-        let found = match guard
-            .records
-            .get_mut(name)
-            .filter(|r| r.status == FunctionStatus::Active)
+        let found = match guard.records.get_mut(name).filter(|r| r.status == FunctionStatus::Active)
         {
             Some(r) => {
                 r.status = FunctionStatus::Inactive;
                 true
-            }
+            },
             None => false,
         };
 

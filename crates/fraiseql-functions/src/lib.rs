@@ -21,8 +21,7 @@ pub mod types;
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
-pub use store::{FunctionRecord, FunctionStatus, FunctionStore};
-pub use store::memory::InMemoryFunctionStore;
+pub use store::{FunctionRecord, FunctionStatus, FunctionStore, memory::InMemoryFunctionStore};
 pub use triggers::{
     cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
     mutation::{
