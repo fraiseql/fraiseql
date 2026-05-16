@@ -94,35 +94,27 @@ pub mod prelude {
     //! - GraphQL execution: [`Executor`], [`ExecutorAdapter`]
     //! - GraphQL parsing: [`ParsedQuery`], [`parse_query`]
     //! - Tenancy: [`TenantContext`], [`Tenant`]
-    //! - Observer system (feature `observers`): [`EntityEvent`], [`EventKind`], [`ObserverExecutor`]
+    //! - Observer system (feature `observers`): [`EntityEvent`], [`EventKind`],
+    //!   [`ObserverExecutor`]
     //! - HTTP server (feature `server`): [`Server`], [`ServerConfig`]
 
-    // Error handling
-    pub use crate::{FraiseQLError, Result};
-
-    // Core types
-    pub use crate::{CompiledSchema, FraiseQLConfig, TenantContext};
-
-    // Database access
-    pub use fraiseql_core::db;
-    pub use fraiseql_core::prelude::DatabaseAdapter;
-
-    // GraphQL parsing
-    pub use fraiseql_core::graphql::{ParsedQuery, parse_query};
-
-    // Runtime executor
-    pub use fraiseql_core::runtime::{Executor, ExecutorAdapter};
-
-    // Tenancy support
-    pub use fraiseql_core::tenancy::TenantContext as Tenant;
+    pub use fraiseql_core::{
+        db,
+        graphql::{ParsedQuery, parse_query},
+        prelude::DatabaseAdapter,
+        runtime::{Executor, ExecutorAdapter},
+        tenancy::TenantContext as Tenant,
+    };
 
     // Optional: Observer system
     #[cfg(feature = "observers")]
     pub use crate::observers::{EntityEvent, EventKind, ObserverExecutor};
-
     // Optional: Server components
     #[cfg(feature = "server")]
     pub use crate::server::{Server, ServerConfig};
+    // Core types
+    pub use crate::{CompiledSchema, FraiseQLConfig, TenantContext};
+    pub use crate::{FraiseQLError, Result};
 }
 
 /// FraiseQL version string

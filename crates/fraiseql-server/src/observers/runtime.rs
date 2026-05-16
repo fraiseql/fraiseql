@@ -111,24 +111,24 @@ pub struct RuntimeHealth {
 
 /// Observer runtime that manages the execution loop
 pub struct ObserverRuntime {
-    config:            ObserverRuntimeConfig,
-    repository:        ObserverRepository,
-    running:           Arc<AtomicBool>,
+    config:              ObserverRuntimeConfig,
+    repository:          ObserverRepository,
+    running:             Arc<AtomicBool>,
     /// Handle to the background processing task
-    task_handle:       Option<JoinHandle<()>>,
+    task_handle:         Option<JoinHandle<()>>,
     /// Channel to send shutdown signal
-    shutdown_tx:       Option<mpsc::Sender<()>>,
+    shutdown_tx:         Option<mpsc::Sender<()>>,
     /// Statistics
-    events_processed:  Arc<std::sync::atomic::AtomicU64>,
-    errors:            Arc<std::sync::atomic::AtomicU64>,
-    observer_count:    Arc<std::sync::atomic::AtomicUsize>,
-    last_checkpoint:   Arc<std::sync::atomic::AtomicI64>,
+    events_processed:    Arc<std::sync::atomic::AtomicU64>,
+    errors:              Arc<std::sync::atomic::AtomicU64>,
+    observer_count:      Arc<std::sync::atomic::AtomicUsize>,
+    last_checkpoint:     Arc<std::sync::atomic::AtomicI64>,
     /// Hot-swappable components for reload
-    matcher:           Arc<RwLock<Option<EventMatcher>>>,
-    executor:          Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
-    entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
+    matcher:             Arc<RwLock<Option<EventMatcher>>>,
+    executor:            Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
+    entity_type_index:   Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
     /// In-memory DLQ shared across reloads and exposed to HTTP handlers.
-    dlq:               Arc<InMemoryDlq>,
+    dlq:                 Arc<InMemoryDlq>,
     /// Optional sender to forward CDC events to `EventBridge` for GraphQL subscriptions
     event_bridge_sender: Option<mpsc::Sender<BridgeEntityEvent>>,
 }
@@ -672,7 +672,7 @@ impl ObserverRuntime {
 }
 
 /// Simple in-memory Dead Letter Queue for development
-struct InMemoryDlq {
+pub(crate) struct InMemoryDlq {
     items: std::sync::Mutex<Vec<fraiseql_observers::DlqItem>>,
 }
 
@@ -681,6 +681,31 @@ impl InMemoryDlq {
         Self {
             items: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// Return a snapshot of all items currently in the DLQ.
+    pub fn list_all(&self) -> Vec<fraiseql_observers::DlqItem> {
+        self.items.lock().expect("items mutex poisoned").clone()
+    }
+
+    /// Look up a single DLQ item by its UUID.
+    pub fn get(&self, id: uuid::Uuid) -> Option<fraiseql_observers::DlqItem> {
+        self.items
+            .lock()
+            .expect("items mutex poisoned")
+            .iter()
+            .find(|item| item.id == id)
+            .cloned()
+    }
+
+    /// Remove a DLQ item by its UUID.
+    pub fn remove(&self, id: uuid::Uuid) {
+        self.items.lock().expect("items mutex poisoned").retain(|item| item.id != id);
+    }
+
+    /// Return the number of items currently in the DLQ.
+    pub fn count(&self) -> usize {
+        self.items.lock().expect("items mutex poisoned").len()
     }
 }
 
@@ -710,7 +735,8 @@ impl fraiseql_observers::DeadLetterQueue for InMemoryDlq {
         limit: i64,
     ) -> fraiseql_observers::Result<Vec<fraiseql_observers::DlqItem>> {
         let items = self.items.lock().expect("items mutex poisoned");
-        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // Reason: limit is a user-supplied i64 clamped to a small positive range; negative values
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        // Reason: limit is a user-supplied i64 clamped to a small positive range; negative values
         // wrap to 0 safely
         let limit_usize = limit as usize;
         Ok(items.iter().take(limit_usize).cloned().collect())
