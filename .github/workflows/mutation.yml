@@ -41,7 +41,6 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-core \
-            --in-place \
             --jobs 2 \
             --file src/cache/key.rs \
             --file src/runtime/executor/query.rs \
@@ -72,7 +71,6 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-auth \
-            --in-place \
             --jobs 2 \
             --file src/pkce.rs \
             --file src/jwks.rs \
