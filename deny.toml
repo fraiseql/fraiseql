@@ -69,8 +69,6 @@ name = "aws-smithy-http"
 reason = "aws-sdk-s3 transitively depends on two smithy-http versions"
 version = "=0.62.6"
 
-# ── New duplicates from wasmtime 18.x / deno_core 0.290 (added in v2.2.0) ──────
-
 [[bans.skip]]
 name = "aws-smithy-json"
 reason = "aws-sdk-s3 transitively depends on two smithy-json versions"
@@ -245,7 +243,6 @@ version = "=0.10.6"
 name = "winnow"
 reason = "transitive via toml_edit 0.22; ecosystem migrating to winnow 1.0"
 version = "=0.7.15"
-
 
 [[bans.skip]]
 name = "base64-simd"
