@@ -44,7 +44,7 @@ env:
 
 jobs:
   velocity-regression:
-    name: Velocitybench (${{ env.BENCH_FRAMEWORK }}, ${{ env.BENCH_DURATION }}s)
+    name: Velocitybench (fraiseql-tv, 30s)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     if: >
