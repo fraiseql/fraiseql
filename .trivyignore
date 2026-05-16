@@ -1,5 +1,5 @@
 # Trivy Vulnerability Exceptions for International Compliance
-# Last Updated: 2025-12-22
+# Last Updated: 2026-05-16
 # Review Schedule: Monthly
 # Approval: Security Team
 # Compliance: US (NIST/FedRAMP), EU (NIS2/GDPR), UK (NCSC), ISO 27001, SOC 2
@@ -192,6 +192,168 @@ CVE-2026-0861
 # Review date: 2026-03-02 (7-day SLA for HIGH)
 # Compliance: Documented risk acceptance per NIST 800-53 SI-2
 CVE-2023-2953
+
+# CVE-2026-33845: GnuTLS Denial of Service via DTLS zero-length fragment
+# Justification: DoS via crafted DTLS packets with zero-length fragments
+# Impact: Denial of service against DTLS connections
+# Severity: CRITICAL
+# Mitigation:
+#   - FraiseQL uses HTTP/HTTPS, not DTLS (UDP-based TLS)
+#   - TLS termination handled by reverse proxy (nginx/envoy), not GnuTLS
+#   - libgnutls30 is a transitive dependency in base image, not used directly
+#   - DTLS attack vector not reachable through HTTP API
+# Status: No fix available in debian:bookworm-slim (libgnutls30 3.7.9-2+deb12u6)
+# Review date: 2026-05-23 (7-day SLA for CRITICAL)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-33845
+
+# CVE-2026-42010: GnuTLS Authentication Bypass via NUL Character in Username
+# Justification: Authentication bypass using NUL character injection in TLS client certs
+# Impact: Potential authentication bypass in GnuTLS certificate verification
+# Severity: CRITICAL
+# Mitigation:
+#   - FraiseQL uses JWT/OIDC authentication, not TLS client certificates
+#   - TLS termination handled by reverse proxy, not GnuTLS directly
+#   - No GnuTLS API calls in application code
+#   - Certificate verification path not exposed to user input
+# Status: No fix available in debian:bookworm-slim (libgnutls30 3.7.9-2+deb12u6)
+# Review date: 2026-05-23 (7-day SLA for CRITICAL)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-42010
+
+# CVE-2026-7598: libssh2 integer overflow via large username or password
+# Justification: Integer overflow in libssh2 when processing large auth credentials
+# Impact: Potential heap corruption via crafted SSH auth parameters
+# Severity: CRITICAL
+# Mitigation:
+#   - FraiseQL does not initiate SSH connections
+#   - libssh2 is a transitive dependency (curl), not used directly
+#   - No SSH operations in application logic
+#   - Network policies restrict outbound SSH traffic
+# Status: No fix available in debian:bookworm-slim (libssh2-1 1.10.0-3+b1)
+# Review date: 2026-05-23 (7-day SLA for CRITICAL)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-7598
+
+# CVE-2026-5773: curl/libcurl incorrect SMB connection reuse
+# Justification: Wrong file transfer due to incorrect SMB connection reuse
+# Impact: Potential data leak via SMB connection confusion
+# Severity: HIGH
+# Mitigation:
+#   - FraiseQL does not use SMB/CIFS protocol
+#   - curl included for health checks only (HTTP/HTTPS)
+#   - No SMB connections initiated by application
+# Status: No fix available in debian:bookworm-slim (curl 7.88.1-10+deb12u14)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-5773
+
+# CVE-2026-6276: curl/libcurl cookie leak with custom Host headers
+# Justification: Information disclosure via cookie leak when reusing connections
+# Impact: Potential cookie leak with custom Host headers
+# Severity: HIGH
+# Mitigation:
+#   - FraiseQL server does not initiate outbound HTTP requests with cookies
+#   - curl included for container health checks only (no cookies)
+#   - Application is a server, not an HTTP client
+# Status: No fix available in debian:bookworm-slim (curl 7.88.1-10+deb12u14)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-6276
+
+# CVE-2026-4878: libcap privilege escalation via TOCTOU race condition
+# Justification: Race condition in cap_set_file() could allow privilege escalation
+# Impact: Potential privilege escalation via file capability manipulation
+# Severity: HIGH
+# Mitigation:
+#   - Container runs as non-root user 'fraiseql' (UID 65532)
+#   - Application does not use file capabilities API
+#   - Container filesystem is read-only in production
+#   - No cap_set_file() calls in application code
+# Status: No fix available in debian:bookworm-slim (libcap2 1:2.66-4+deb12u2+b2)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-4878
+
+# CVE-2026-41989: Libgcrypt DoS and buffer overflow via crafted ECDH ciphertext
+# Justification: Buffer overflow in ECDH decryption with crafted ciphertext
+# Impact: DoS or potential code execution via malicious ECDH data
+# Severity: HIGH
+# Mitigation:
+#   - FraiseQL does not perform direct ECDH operations
+#   - libgcrypt20 is a transitive dependency via GnuTLS
+#   - TLS handled by reverse proxy, not application directly
+#   - No user input reaches libgcrypt ECDH functions
+# Status: No fix available in debian:bookworm-slim (libgcrypt20 1.10.1-3)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-41989
+
+# CVE-2026-33846: GnuTLS DoS via heap buffer overflow in DTLS handshake
+# Justification: Heap buffer overflow during DTLS fragment reassembly
+# Impact: DoS via crafted DTLS handshake fragments
+# Severity: HIGH
+# Mitigation:
+#   - FraiseQL uses HTTP/HTTPS, not DTLS
+#   - DTLS handshake path not reachable through HTTP API
+#   - TLS termination handled by reverse proxy
+# Status: No fix available in debian:bookworm-slim (libgnutls30 3.7.9-2+deb12u6)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-33846
+
+# CVE-2026-3833: GnuTLS policy bypass due to case-sensitive nameConstraints
+# Justification: Certificate nameConstraints compared case-sensitively
+# Impact: Potential bypass of name constraint policies in TLS certs
+# Severity: HIGH
+# Mitigation:
+#   - FraiseQL uses JWT/OIDC, not TLS client certificate authentication
+#   - TLS termination handled by reverse proxy
+#   - No direct GnuTLS nameConstraints processing in application
+# Status: No fix available in debian:bookworm-slim (libgnutls30 3.7.9-2+deb12u6)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-3833
+
+# CVE-2026-42011: GnuTLS security bypass via incorrect name constraint handling
+# Justification: Incorrect name constraint handling allows security bypass
+# Impact: Potential bypass of TLS certificate validation
+# Severity: HIGH
+# Mitigation:
+#   - Same as CVE-2026-3833 — FraiseQL does not use GnuTLS cert validation
+#   - TLS termination handled by reverse proxy
+# Status: No fix available in debian:bookworm-slim (libgnutls30 3.7.9-2+deb12u6)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-42011
+
+# CVE-2026-29111: systemd arbitrary code execution via spurious IPC API call data
+# Justification: Code execution or DoS via crafted IPC messages to systemd
+# Impact: Potential code execution if attacker can send IPC to systemd
+# Severity: HIGH
+# Mitigation:
+#   - Container does not run systemd as init system
+#   - libsystemd0 is a transitive dependency, systemd not active in container
+#   - No D-Bus/IPC socket exposed in container
+#   - Container runs with minimal capabilities (no CAP_SYS_ADMIN)
+# Status: No fix available in debian:bookworm-slim (systemd 252.39-1~deb12u1)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2026-29111
+
+# CVE-2025-69720: ncurses buffer overflow leading to arbitrary code execution
+# Justification: Buffer overflow in ncurses library
+# Impact: Potential code execution via crafted terminal input
+# Severity: HIGH
+# Mitigation:
+#   - FraiseQL server has no interactive terminal interface
+#   - ncurses is a transitive dependency, not used by application
+#   - No terminal emulation or curses UI in server process
+#   - Container has no interactive shell access in production
+# Status: No fix available in debian:bookworm-slim (ncurses 6.4-4)
+# Review date: 2026-05-23 (7-day SLA for HIGH)
+# Compliance: Documented risk acceptance per NIST 800-53 SI-2
+CVE-2025-69720
 
 # =============================================================================
 # CATEGORY 6: LOW SEVERITY CVEs (All Documented & Accepted)
