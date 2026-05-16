@@ -33,7 +33,7 @@
 //! let schema = CompiledSchema::from_json(json_str, false)?;
 //!
 //! // From CLI config file
-//! let schema = CompiledSchema::from_json(&std::fs::read_to_string("schema.json", false)?)?;
+//! let schema = CompiledSchema::from_json(&std::fs::read_to_string("schema.json")?, false)?;
 //!
 //! // Access schema info
 //! println!("Types: {}", schema.types.len());
