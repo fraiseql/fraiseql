@@ -143,6 +143,29 @@ func (qb *QueryBuilder) SqlSource(source string) *QueryBuilder {
 	return qb
 }
 
+// SqlSourceDispatch sets an explicit dispatch mapping for this query.
+// The argument name identifies which query argument controls dispatch,
+// and the mapping maps enum values to SQL source names.
+func (qb *QueryBuilder) SqlSourceDispatch(argName string, mapping map[string]string) *QueryBuilder {
+	qb.config["sql_source_dispatch"] = map[string]interface{}{
+		"argument": argName,
+		"mapping":  mapping,
+	}
+	return qb
+}
+
+// SqlSourceDispatchWithTemplate sets a template-based dispatch for this query.
+// The argument name identifies which query argument controls dispatch,
+// and the template string contains a placeholder (e.g. "v_users_{env}")
+// that the compiler expands for each enum value.
+func (qb *QueryBuilder) SqlSourceDispatchWithTemplate(argName string, template string) *QueryBuilder {
+	qb.config["sql_source_dispatch"] = map[string]interface{}{
+		"argument": argName,
+		"template": template,
+	}
+	return qb
+}
+
 // Relay marks the query as a Relay connection query.
 // Requires ReturnsArray(true) and a sql_source set via Config or SqlSource.
 // The compiler derives the cursor column from the return type name (e.g. User -> pk_user).

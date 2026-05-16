@@ -113,9 +113,23 @@ type SubscriptionDefinition struct {
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
+// EnumValueDefinition represents a single value in a GraphQL enum.
+type EnumValueDefinition struct {
+	Name  string `json:"name"`
+	Value string `json:"value,omitempty"`
+}
+
+// EnumDefinition represents a GraphQL enum type.
+type EnumDefinition struct {
+	Name        string                `json:"name"`
+	Values      []EnumValueDefinition `json:"values"`
+	Description string                `json:"description,omitempty"`
+}
+
 // Schema represents the complete GraphQL schema
 type Schema struct {
 	Types            []TypeDefinition           `json:"types"`
+	Enums            []EnumDefinition           `json:"enums,omitempty"`
 	Queries          []QueryDefinition          `json:"queries"`
 	Mutations        []MutationDefinition       `json:"mutations"`
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
@@ -139,6 +153,7 @@ type InjectDefaults struct {
 type SchemaRegistry struct {
 	mu               sync.RWMutex
 	types            map[string]TypeDefinition
+	enums            map[string]EnumDefinition
 	queries          map[string]QueryDefinition
 	mutations        map[string]MutationDefinition
 	subscriptions    map[string]SubscriptionDefinition
@@ -157,6 +172,7 @@ func getInstance() *SchemaRegistry {
 	once.Do(func() {
 		registry = &SchemaRegistry{
 			types:            make(map[string]TypeDefinition),
+			enums:            make(map[string]EnumDefinition),
 			queries:          make(map[string]QueryDefinition),
 			mutations:        make(map[string]MutationDefinition),
 			subscriptions:    make(map[string]SubscriptionDefinition),
@@ -204,6 +220,30 @@ func RegisterType(name string, fields []FieldInfo, description string, relay ...
 		Description: description,
 		Relay:       isRelay,
 		SqlSource:   "v_" + toSnakeCase(name),
+	}
+	return nil
+}
+
+// Enum registers a GraphQL enum type with the schema registry.
+// The values map maps GraphQL enum value names to their internal/SQL values.
+// Returns an error if an enum with the same name is already registered.
+func Enum(name string, values map[string]string) error {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	if _, exists := reg.enums[name]; exists {
+		return fmt.Errorf("enum %q is already registered; each name must be unique within a schema", name)
+	}
+
+	var enumValues []EnumValueDefinition
+	for k, v := range values {
+		enumValues = append(enumValues, EnumValueDefinition{Name: k, Value: v})
+	}
+
+	reg.enums[name] = EnumDefinition{
+		Name:   name,
+		Values: enumValues,
 	}
 	return nil
 }
@@ -338,6 +378,10 @@ func GetSchema() Schema {
 		schema.Types = append(schema.Types, typeDef)
 	}
 
+	for _, enumDef := range reg.enums {
+		schema.Enums = append(schema.Enums, enumDef)
+	}
+
 	for _, queryDef := range reg.queries {
 		schema.Queries = append(schema.Queries, queryDef)
 	}
@@ -394,6 +438,7 @@ func Reset() {
 	defer reg.mu.Unlock()
 
 	reg.types = make(map[string]TypeDefinition)
+	reg.enums = make(map[string]EnumDefinition)
 	reg.queries = make(map[string]QueryDefinition)
 	reg.mutations = make(map[string]MutationDefinition)
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
@@ -404,6 +449,13 @@ func Reset() {
 
 	// Also clear custom scalars
 	ClearCustomScalars()
+}
+
+// ClearRegistry resets the global schema registry, removing all registered
+// types, enums, queries, mutations, subscriptions, and other definitions.
+// This is an alias for Reset(), provided for readability in test code.
+func ClearRegistry() {
+	Reset()
 }
 
 // RegisterTypes extracts fields from Go struct types and registers them
