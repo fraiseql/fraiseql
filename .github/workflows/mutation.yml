@@ -30,7 +30,7 @@ jobs:
   mutants-core:
     name: cargo-mutants (fraiseql-core)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -41,6 +41,8 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-core \
+            --in-place \
+            --jobs 2 \
             --file src/cache/key.rs \
             --file src/runtime/executor/query.rs \
             --file src/compiler/aggregation.rs \
@@ -59,7 +61,7 @@ jobs:
   mutants-auth:
     name: cargo-mutants (fraiseql-auth)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -70,6 +72,8 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-auth \
+            --in-place \
+            --jobs 2 \
             --file src/pkce.rs \
             --file src/jwks.rs \
             --timeout 60 \
