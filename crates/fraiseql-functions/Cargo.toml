@@ -12,6 +12,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+async-trait.workspace = true
 fraiseql-error.workspace = true
 fraiseql-observers.workspace = true
 fraiseql-core = {workspace = true, optional = true}

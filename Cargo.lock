@@ -3544,6 +3544,7 @@ dependencies = [
 name = "fraiseql-functions"
 version = "2.3.0"
 dependencies = [
+ "async-trait",
  "bytes",
  "chrono",
  "criterion",
