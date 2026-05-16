@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [dev]
 
+env:
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   semver:
     name: API semver compatibility
@@ -22,6 +25,9 @@ jobs:
           fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - uses: Swatinem/rust-cache@v2
 
