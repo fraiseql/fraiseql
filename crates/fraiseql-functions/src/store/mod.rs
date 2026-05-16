@@ -5,7 +5,8 @@
 //!
 //! # Implementations
 //!
-//! - [`InMemoryFunctionStore`] — for unit tests and local development
+//! - [`InMemoryFunctionStore`](memory::InMemoryFunctionStore) — for unit tests and local
+//!   development
 //! - `PgFunctionStore` — PostgreSQL-backed persistent store (feature: `host-live`)
 
 pub mod memory;
