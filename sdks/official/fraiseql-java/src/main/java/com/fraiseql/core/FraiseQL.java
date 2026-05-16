@@ -186,6 +186,7 @@ public class FraiseQL {
         private List<String> additionalViews = null;
         private String restPath = null;
         private String restMethod = null;
+        private Map<String, Object> config = null;
 
         private QueryBuilder(String name) {
             this.name = name;
@@ -344,6 +345,42 @@ public class FraiseQL {
         }
 
         /**
+         * Set a dispatch mapping that routes to different SQL sources based on an enum argument.
+         *
+         * @param argName the enum argument that controls dispatch
+         * @param mapping enum value to SQL source mapping
+         * @return this builder for chaining
+         */
+        public QueryBuilder sqlSourceDispatch(String argName, Map<String, String> mapping) {
+            if (this.config == null) {
+                this.config = new LinkedHashMap<>();
+            }
+            Map<String, Object> dispatch = new LinkedHashMap<>();
+            dispatch.put("argument", argName);
+            dispatch.put("mapping", new LinkedHashMap<>(mapping));
+            this.config.put("sql_source_dispatch", dispatch);
+            return this;
+        }
+
+        /**
+         * Set a dispatch template that generates SQL source names from an enum argument.
+         *
+         * @param argName the enum argument that controls dispatch
+         * @param template template string with {argName} placeholder
+         * @return this builder for chaining
+         */
+        public QueryBuilder sqlSourceDispatchTemplate(String argName, String template) {
+            if (this.config == null) {
+                this.config = new LinkedHashMap<>();
+            }
+            Map<String, Object> dispatch = new LinkedHashMap<>();
+            dispatch.put("argument", argName);
+            dispatch.put("template", template);
+            this.config.put("sql_source_dispatch", dispatch);
+            return this;
+        }
+
+        /**
          * Register this query in the schema.
          *
          * @throws IllegalStateException if relay(true) is set without returnsArray(true)
@@ -359,10 +396,10 @@ public class FraiseQL {
             // Apply default REST method when restPath is set but restMethod is not
             String effectiveRestMethod = restPath != null && restMethod == null ? "GET" : restMethod;
             if (sqlSource != null || cacheTtlSeconds != null || injectParams != null
-                    || additionalViews != null || restPath != null) {
+                    || additionalViews != null || restPath != null || config != null) {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay,
                     sqlSource, cacheTtlSeconds, injectParams, additionalViews,
-                    restPath, effectiveRestMethod);
+                    restPath, effectiveRestMethod, config);
             } else {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay);
             }

@@ -442,5 +442,4 @@ fn extract_date_from_operator(
 }
 
 #[cfg(test)]
-#[path = "partial_period_tests.rs"]
 mod tests;
