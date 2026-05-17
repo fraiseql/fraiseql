@@ -191,7 +191,7 @@ pub use validation::{ComplexityValidationError, RequestValidator};
 
 /// Convenience re-exports for building a FraiseQL HTTP server.
 ///
-/// Provides [`Server`], [`ServerConfig`], [`CompiledSchema`], and [`RequestValidator`].
+/// Provides [`Server`], [`ServerConfig`], `CompiledSchema`, and [`RequestValidator`].
 ///
 /// ```rust
 /// use fraiseql_server::prelude::*;

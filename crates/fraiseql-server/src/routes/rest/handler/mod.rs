@@ -1,7 +1,7 @@
 //! REST request handler — direct execution without GraphQL parsing.
 //!
 //! Receives HTTP requests, resolves routes from [`RestRouteTable`], extracts
-//! parameters via [`RestParamExtractor`], builds a [`QueryMatch`] or mutation
+//! parameters via `RestParamExtractor`, builds a `QueryMatch` or mutation
 //! call, and executes directly via the [`Executor`] APIs.
 
 pub mod coercion;
@@ -39,7 +39,7 @@ use super::{idempotency::IdempotencyStore, resource::RestRouteTable};
 /// REST request handler — translates HTTP requests to direct executor calls.
 ///
 /// This handler does NOT construct GraphQL strings. It builds typed
-/// [`QueryMatch`] or mutation calls and executes them directly.
+/// `QueryMatch` or mutation calls and executes them directly.
 pub struct RestHandler<'a, A: DatabaseAdapter> {
     pub(super) executor:          &'a Arc<Executor<A>>,
     pub(super) schema:            &'a CompiledSchema,

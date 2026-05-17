@@ -35,7 +35,7 @@ impl TenantKeyResolver {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Validation` if the `X-Tenant-ID` header value
-    /// contains invalid characters, exceeds [`MAX_TENANT_KEY_LEN`], or if
+    /// contains invalid characters, exceeds `MAX_TENANT_KEY_LEN`, or if
     /// `strict` is true and multiple sources provide conflicting tenant values.
     pub fn resolve(
         security_context: Option<&SecurityContext>,

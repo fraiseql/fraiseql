@@ -51,19 +51,19 @@ pub struct RealtimeSchemaConfig {
     #[serde(default)]
     pub entities: Vec<String>,
 
-    /// Override for [`RealtimeConfig::max_connections_per_context`].
+    /// Override for `RealtimeConfig::max_connections_per_context`.
     ///
     /// Falls back to the `RealtimeConfig` default when absent.
     #[serde(default)]
     pub max_connections_per_context: Option<usize>,
 
-    /// Override for [`RealtimeConfig::max_subscriptions_per_entity`].
+    /// Override for `RealtimeConfig::max_subscriptions_per_entity`.
     ///
     /// Falls back to the `RealtimeConfig` default when absent.
     #[serde(default)]
     pub max_subscriptions_per_entity: Option<usize>,
 
-    /// Override for [`RealtimeConfig::event_channel_capacity`].
+    /// Override for `RealtimeConfig::event_channel_capacity`.
     ///
     /// Falls back to the `RealtimeConfig` default when absent.
     #[serde(default)]

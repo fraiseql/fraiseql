@@ -162,7 +162,7 @@ impl ServerSubsystems {
 ///
 /// This is a lightweight, cloneable snapshot of the parts of [`FunctionsSubsystem`]
 /// that are needed on the hot path for before-mutation checks. It is extracted once
-/// at server startup and stored in [`AppState`] via an `Arc`.
+/// at server startup and stored in `AppState` via an `Arc`.
 pub struct BeforeMutationHooks {
     /// Registry of all loaded triggers, keyed by trigger type and mutation name.
     pub trigger_registry: TriggerRegistry,
