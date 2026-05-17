@@ -50,6 +50,31 @@ public class SchemaRegistry {
     }
 
     /**
+     * Returns a snapshot of the current schema state.
+     *
+     * @return schema containing all registered queries, mutations, and subscriptions
+     */
+    public static Schema getSchema() {
+        return new Schema(INSTANCE);
+    }
+
+    /**
+     * Snapshot of the schema registry state.
+     */
+    public static class Schema {
+        private final List<QueryInfo> queries;
+
+        Schema(SchemaRegistry registry) {
+            this.queries = Collections.unmodifiableList(new ArrayList<>(registry.queries.values()));
+        }
+
+        /** Returns all registered queries. */
+        public List<QueryInfo> getQueries() {
+            return queries;
+        }
+    }
+
+    /**
      * Register a GraphQL type in the schema.
      *
      * @param typeName the GraphQL type name
@@ -199,6 +224,16 @@ public class SchemaRegistry {
                               String restPath, String restMethod) {
         QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay,
             sqlSource, cacheTtlSeconds, injectParams, additionalViews, restPath, restMethod);
+        queries.put(queryName, queryInfo);
+    }
+
+    /** Register a query with all extended fields including REST annotation and config. */
+    public void registerQuery(String queryName, String returnType, Map<String, String> arguments, String description,
+                              boolean relay, String sqlSource, Long cacheTtlSeconds,
+                              Map<String, String> injectParams, List<String> additionalViews,
+                              String restPath, String restMethod, Map<String, Object> config) {
+        QueryInfo queryInfo = new QueryInfo(queryName, returnType, arguments, description, relay,
+            sqlSource, cacheTtlSeconds, injectParams, additionalViews, restPath, restMethod, config);
         queries.put(queryName, queryInfo);
     }
 
@@ -616,26 +651,35 @@ public class SchemaRegistry {
         public final List<String> additionalViews;
         public final String restPath;
         public final String restMethod;
+        public final Map<String, Object> config;
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description) {
-            this(name, returnType, arguments, description, false, null, null, null, null, null, null);
+            this(name, returnType, arguments, description, false, null, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description, boolean relay) {
-            this(name, returnType, arguments, description, relay, null, null, null, null, null, null);
+            this(name, returnType, arguments, description, relay, null, null, null, null, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews) {
             this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
-                injectParams, additionalViews, null, null);
+                injectParams, additionalViews, null, null, null);
         }
 
         public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
                          boolean relay, String sqlSource, Long cacheTtlSeconds,
                          Map<String, String> injectParams, List<String> additionalViews,
                          String restPath, String restMethod) {
+            this(name, returnType, arguments, description, relay, sqlSource, cacheTtlSeconds,
+                injectParams, additionalViews, restPath, restMethod, null);
+        }
+
+        public QueryInfo(String name, String returnType, Map<String, String> arguments, String description,
+                         boolean relay, String sqlSource, Long cacheTtlSeconds,
+                         Map<String, String> injectParams, List<String> additionalViews,
+                         String restPath, String restMethod, Map<String, Object> config) {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
@@ -649,7 +693,21 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableList(new ArrayList<>(additionalViews)) : null;
             this.restPath = restPath;
             this.restMethod = restMethod;
+            this.config = config != null
+                ? Collections.unmodifiableMap(new LinkedHashMap<>(config)) : null;
         }
+
+        /** Returns the query name. */
+        public String getName() { return name; }
+
+        /** Returns the query description. */
+        public String getDescription() { return description; }
+
+        /** Returns the query arguments map. */
+        public Map<String, String> getArguments() { return arguments; }
+
+        /** Returns the query config map (dispatch settings, etc.). */
+        public Map<String, Object> getConfig() { return config; }
 
         @Override
         public String toString() {

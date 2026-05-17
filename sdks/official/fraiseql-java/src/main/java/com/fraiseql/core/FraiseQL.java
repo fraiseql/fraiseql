@@ -186,6 +186,7 @@ public class FraiseQL {
         private List<String> additionalViews = null;
         private String restPath = null;
         private String restMethod = null;
+        private Map<String, Object> dispatchConfig = null;
 
         private QueryBuilder(String name) {
             this.name = name;
@@ -344,6 +345,37 @@ public class FraiseQL {
         }
 
         /**
+         * Set an explicit SQL source dispatch mapping for an enum argument.
+         * Each enum value maps to a different SQL view or table.
+         *
+         * @param paramName the enum argument name
+         * @param mapping   enum value to SQL source mapping
+         * @return this builder for chaining
+         */
+        public QueryBuilder sqlSourceDispatch(String paramName, Map<String, String> mapping) {
+            this.dispatchConfig = new LinkedHashMap<>();
+            this.dispatchConfig.put("param", paramName);
+            this.dispatchConfig.put("mapping", new LinkedHashMap<>(mapping));
+            return this;
+        }
+
+        /**
+         * Set a template-based SQL source dispatch for an enum argument.
+         * The template uses {@code {paramName}} as a placeholder that is replaced
+         * with the enum value at query time.
+         *
+         * @param paramName the enum argument name
+         * @param template  SQL source template (e.g. "v_users_{env}")
+         * @return this builder for chaining
+         */
+        public QueryBuilder sqlSourceDispatchTemplate(String paramName, String template) {
+            this.dispatchConfig = new LinkedHashMap<>();
+            this.dispatchConfig.put("param", paramName);
+            this.dispatchConfig.put("template", template);
+            return this;
+        }
+
+        /**
          * Register this query in the schema.
          *
          * @throws IllegalStateException if relay(true) is set without returnsArray(true)
@@ -358,11 +390,19 @@ public class FraiseQL {
             String finalReturnType = returnsArray ? "[" + returnType + "]" : returnType;
             // Apply default REST method when restPath is set but restMethod is not
             String effectiveRestMethod = restPath != null && restMethod == null ? "GET" : restMethod;
+
+            // Build config map from dispatch and other extended settings
+            Map<String, Object> config = null;
+            if (dispatchConfig != null) {
+                config = new LinkedHashMap<>();
+                config.put("sql_source_dispatch", new LinkedHashMap<>(dispatchConfig));
+            }
+
             if (sqlSource != null || cacheTtlSeconds != null || injectParams != null
-                    || additionalViews != null || restPath != null) {
+                    || additionalViews != null || restPath != null || config != null) {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay,
                     sqlSource, cacheTtlSeconds, injectParams, additionalViews,
-                    restPath, effectiveRestMethod);
+                    restPath, effectiveRestMethod, config);
             } else {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay);
             }

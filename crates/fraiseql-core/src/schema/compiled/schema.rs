@@ -41,6 +41,40 @@ use crate::{
     validation::CustomTypeRegistry,
 };
 
+/// Recursively sort all JSON object keys to produce a canonical representation.
+///
+/// This guarantees deterministic serialization regardless of `HashMap` iteration
+/// order or `serde_json` feature flags (`preserve_order`). Used by both the CLI
+/// (hash embed) and `from_json` (hash verify) to ensure round-trip consistency.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::canonicalize_json;
+///
+/// let v: serde_json::Value = serde_json::from_str(r#"{"b":1,"a":2}"#).unwrap();
+/// let c = canonicalize_json(&v);
+/// assert_eq!(serde_json::to_string(&c).unwrap(), r#"{"a":2,"b":1}"#);
+/// ```
+#[must_use]
+pub fn canonicalize_json(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut sorted = serde_json::Map::new();
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            for key in keys {
+                sorted.insert(key.clone(), canonicalize_json(&map[key]));
+            }
+            serde_json::Value::Object(sorted)
+        }
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.iter().map(canonicalize_json).collect())
+        }
+        other => other.clone(),
+    }
+}
+
 /// Current schema format version.
 ///
 /// Increment this constant when the compiled schema JSON format changes in a
@@ -424,8 +458,9 @@ impl CompiledSchema {
             return Ok(schema);
         };
 
-        // Serialize the remaining JSON deterministically
-        let remaining_json = serde_json::to_string_pretty(&value).map_err(serde_err)?;
+        // Canonicalize and serialize deterministically (sorted keys at all levels)
+        let canonical = canonicalize_json(&value);
+        let remaining_json = serde_json::to_string_pretty(&canonical).map_err(serde_err)?;
         let computed_digest = Sha256::digest(remaining_json.as_bytes());
         let computed_hash = hex::encode(&computed_digest[..16]);
 

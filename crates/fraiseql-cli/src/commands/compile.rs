@@ -5,7 +5,9 @@
 use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType};
+use fraiseql_core::schema::{
+    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, canonicalize_json,
+};
 use tracing::{info, warn};
 
 use crate::{
@@ -392,8 +394,8 @@ pub async fn run(
         let body =
             serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
         let value: serde_json::Value = serde_json::from_str(&body)?;
-        // Hash the canonical Value representation (matches what from_json verifies against)
-        let canonical = serde_json::to_string_pretty(&value)?;
+        // Canonicalize (recursively sort keys) before hashing — matches from_json verifier
+        let canonical = serde_json::to_string_pretty(&canonicalize_json(&value))?;
         let hash = Sha256::digest(canonical.as_bytes());
         let hash_hex = hex::encode(&hash[..16]);
 
