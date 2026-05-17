@@ -57,6 +57,20 @@ pub type BoxedFunctionRuntime = Box<dyn FunctionRuntime + Send + Sync>;
 /// This trait has the same semantic methods but without generic parameters,
 /// making it suitable for `Box<dyn SendFunctionRuntime>`.
 pub trait SendFunctionRuntime: Send + Sync {
+    /// Invoke a function module with the given event and resource limits.
+    fn invoke_raw(
+        &self,
+        module: &crate::types::FunctionModule,
+        event: crate::types::EventPayload,
+        limits: crate::types::ResourceLimits,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = fraiseql_error::Result<crate::types::FunctionResult>>
+                + Send
+                + '_,
+        >,
+    >;
+
     /// Get the list of file extensions this runtime supports.
     fn supported_extensions(&self) -> &[&str];
 

@@ -327,6 +327,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             pkce_store,
             #[cfg(feature = "auth")]
             oidc_server_client,
+            #[cfg(feature = "auth")]
+            social_login: None,
+            #[cfg(feature = "auth")]
+            anon_signup_state: None,
+            #[cfg(feature = "auth")]
+            mfa_state: None,
             api_key_authenticator,
             revocation_manager,
             apq_store: if apq_enabled {
@@ -352,6 +358,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             broadcast_manager: None,
             presence_manager: None,
             storage_backend: None,
+            storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             #[cfg(feature = "functions")]
             function_store: None,
             #[cfg(feature = "functions")]

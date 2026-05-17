@@ -26,7 +26,7 @@ use fraiseql_error::FraiseQLError;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "aws-s3")]
-use crate::{PresignCapable, PresignedUrl};
+use crate::PresignedUrl;
 use crate::{
     backend::StorageBackend,
     config::BucketConfig,

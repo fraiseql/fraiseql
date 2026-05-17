@@ -122,9 +122,9 @@ impl ResourceLimiter for FunctionStoreLimiter {
     /// For now, we allow table growth without limits (only memory is limited).
     fn table_growing(
         &mut self,
-        _current: u32,
-        _desired: u32,
-        _maximum: Option<u32>,
+        _current: usize,
+        _desired: usize,
+        _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
         Ok(true)
     }

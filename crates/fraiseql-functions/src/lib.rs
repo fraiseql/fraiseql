@@ -14,12 +14,14 @@ pub mod host;
 pub mod migrations;
 pub mod observer;
 pub mod runtime;
+pub mod store;
 pub mod triggers;
 pub mod types;
 
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
+pub use store::{FunctionRecord, FunctionStore, InMemoryFunctionStore};
 pub use triggers::{
     cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
     mutation::{
