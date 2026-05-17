@@ -856,7 +856,7 @@ mod factory_tests {
     use std::{collections::HashMap, sync::Arc};
 
     use crate::{
-        ObserverError, ObserverRuntimeConfig,
+        ObserverRuntimeConfig,
         config::{PerformanceConfig, TransportConfig, TransportKind},
         factory::*,
         matcher::EventMatcher,
@@ -919,7 +919,7 @@ mod factory_tests {
         {
             let result = ExecutorFactory::build(&config, dlq).await;
             assert!(
-                matches!(result, Err(ObserverError::InvalidConfig { .. })),
+                matches!(result, Err(crate::ObserverError::InvalidConfig { .. })),
                 "dedup without redis must return InvalidConfig"
             );
         }
@@ -980,7 +980,7 @@ mod factory_tests {
         let dlq = Arc::new(MockDeadLetterQueue::new());
         let result = ExecutorFactory::build_with_queue(&config, dlq).await;
         assert!(
-            matches!(result, Err(ObserverError::InvalidConfig { .. })),
+            matches!(result, Err(crate::ObserverError::InvalidConfig { .. })),
             "missing job_queue config must return InvalidConfig"
         );
     }
