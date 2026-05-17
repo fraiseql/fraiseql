@@ -16,9 +16,10 @@
 //! - Cross-table semi-joins could silently produce wrong results
 //! - Missing hierarchy config could silently generate broken SQL
 
-use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
-use fraiseql_core::db::where_generator::generic::GenericWhereGenerator;
-use fraiseql_core::db::where_generator::HierarchyContext;
+use fraiseql_core::db::{
+    where_clause::{WhereClause, WhereOperator},
+    where_generator::{HierarchyContext, generic::GenericWhereGenerator},
+};
 use serde_json::json;
 
 // ── Operator parsing ─────────────────────────────────────────────────────────
@@ -58,7 +59,11 @@ fn graphql_json_descendant_of_id() {
     });
     let clause = WhereClause::from_graphql_json(&input).unwrap();
     match &clause {
-        WhereClause::Field { path, operator, value } => {
+        WhereClause::Field {
+            path,
+            operator,
+            value,
+        } => {
             assert_eq!(path, &["category_path"]);
             assert_eq!(*operator, WhereOperator::DescendantOfId);
             assert_eq!(value, "550e8400-e29b-41d4-a716-446655440000");
@@ -76,7 +81,11 @@ fn graphql_json_ancestor_of_id() {
     });
     let clause = WhereClause::from_graphql_json(&input).unwrap();
     match &clause {
-        WhereClause::Field { path, operator, value } => {
+        WhereClause::Field {
+            path,
+            operator,
+            value,
+        } => {
             assert_eq!(path, &["category_path"]);
             assert_eq!(*operator, WhereOperator::AncestorOfId);
             assert_eq!(value, "550e8400-e29b-41d4-a716-446655440000");

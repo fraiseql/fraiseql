@@ -139,10 +139,11 @@ mod query_analyzer_tests {
 
 mod cascade_response_parser_tests {
     use serde_json::json;
-    use crate::cache::*;
-    use crate::cache::cascade_response_parser::CascadeEntities;
-    use crate::error::FraiseQLError;
 
+    use crate::{
+        cache::{cascade_response_parser::CascadeEntities, *},
+        error::FraiseQLError,
+    };
 
     #[test]
     fn test_parse_simple_cascade_response() {
@@ -328,9 +329,11 @@ mod cascade_response_parser_tests {
 
 mod response_cache_tests {
     use std::sync::Arc;
-    use crate::cache::*;
-    use crate::cache::response_cache::hash_security_context;
-    use crate::security::SecurityContext;
+
+    use crate::{
+        cache::{response_cache::hash_security_context, *},
+        security::SecurityContext,
+    };
 
     fn enabled_config() -> ResponseCacheConfig {
         ResponseCacheConfig {
@@ -769,8 +772,11 @@ mod cascade_metadata_tests {
 
 mod fact_table_version_tests {
     use std::time::Duration;
-    use crate::cache::*;
-    use crate::cache::fact_table_version::{generate_version_key_component, CachedVersion};
+
+    use crate::cache::{
+        fact_table_version::{CachedVersion, generate_version_key_component},
+        *,
+    };
 
     #[test]
     fn test_strategy_default_is_disabled() {
@@ -1261,8 +1267,7 @@ mod dependency_tracker_tests {
 }
 
 mod entity_key_tests {
-    use crate::cache::*;
-    use crate::error::FraiseQLError;
+    use crate::{cache::*, error::FraiseQLError};
 
     #[test]
     fn test_create_valid_entity_key() {
@@ -1358,15 +1363,15 @@ mod entity_key_tests {
 
 mod key_tests {
     use std::collections::{HashMap, HashSet};
+
     use indexmap::IndexMap;
-    use serde_json::{json, Value as JsonValue};
-    use crate::cache::*;
-    use crate::cache::key::verify_deterministic;
-    use crate::db::{WhereOperator, where_clause::WhereClause};
-    use crate::schema::QueryDefinition;
-    use crate::schema::CursorType;
+    use serde_json::{Value as JsonValue, json};
 
-
+    use crate::{
+        cache::{key::verify_deterministic, *},
+        db::{WhereOperator, where_clause::WhereClause},
+        schema::{CursorType, QueryDefinition},
+    };
 
     // ========================================================================
     // Security Tests (CRITICAL)
@@ -1827,9 +1832,9 @@ mod key_tests {
 }
 
 mod uuid_extractor_tests {
-    use serde_json::{json, Value};
-    use crate::cache::*;
+    use serde_json::{Value, json};
 
+    use crate::cache::*;
 
     #[test]
     fn test_extract_single_uuid_from_response() {
@@ -2179,10 +2184,10 @@ mod cascade_invalidator_tests {
 
 mod result_tests {
     use std::sync::Arc;
-    use serde_json::json;
-    use crate::cache::*;
-    use crate::db::types::JsonbValue;
 
+    use serde_json::json;
+
+    use crate::{cache::*, db::types::JsonbValue};
 
     // Helper to create test result
     fn test_result() -> Vec<JsonbValue> {

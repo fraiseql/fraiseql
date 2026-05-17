@@ -552,6 +552,5 @@ pub fn check_checkpoint_requirement(mode: CheckpointMode) -> Result<()> {
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests;

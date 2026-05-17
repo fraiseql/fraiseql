@@ -2,9 +2,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::sync::Arc;
-
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use indexmap::IndexMap;
 
@@ -215,7 +213,7 @@ fn test_deprecated_field_introspection() {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             FieldDefinition::new("sku", FieldType::String),
         ],
@@ -890,7 +888,6 @@ fn test_deprecated_input_field_introspection() {
     assert_eq!(old_email.deprecation_reason, Some("Use 'email' instead".to_string()));
 }
 
-
 // ---------------------------------------------------------------------------
 // schema_builder.rs tests
 // ---------------------------------------------------------------------------
@@ -941,24 +938,15 @@ fn test_filter_inaccessible_removes_fields_from_type_response() {
     };
 
     let mut inaccessible = HashMap::new();
-    inaccessible.insert(
-        "User".to_string(),
-        vec!["ssn".to_string(), "internal_id".to_string()],
-    );
+    inaccessible.insert("User".to_string(), vec!["ssn".to_string(), "internal_id".to_string()]);
 
     responses.filter_inaccessible(&inaccessible);
 
     // __type response should have ssn and internal_id removed
     let type_resp = responses.get_type_response("User");
-    let fields = type_resp
-        .pointer("/data/__type/fields")
-        .unwrap()
-        .as_array()
-        .unwrap();
-    let field_names: Vec<&str> = fields
-        .iter()
-        .map(|f| f.get("name").unwrap().as_str().unwrap())
-        .collect();
+    let fields = type_resp.pointer("/data/__type/fields").unwrap().as_array().unwrap();
+    let field_names: Vec<&str> =
+        fields.iter().map(|f| f.get("name").unwrap().as_str().unwrap()).collect();
     assert_eq!(field_names, vec!["id", "name"]);
 
     // __schema response should also be filtered
@@ -1012,10 +1000,6 @@ fn test_filter_inaccessible_no_federation_returns_all_fields() {
     responses.filter_inaccessible(&HashMap::new());
 
     let type_resp = responses.get_type_response("User");
-    let fields = type_resp
-        .pointer("/data/__type/fields")
-        .unwrap()
-        .as_array()
-        .unwrap();
+    let fields = type_resp.pointer("/data/__type/fields").unwrap().as_array().unwrap();
     assert_eq!(fields.len(), 3, "All fields should be returned");
 }

@@ -11,14 +11,17 @@
 //! - Return `Proceed(modified_input)` to allow the mutation with possibly modified input
 //! - Return `Abort(error_message)` to cancel the mutation
 //!
-//! Multiple before-hooks execute in declaration order. The first abort short-circuits remaining hooks.
+//! Multiple before-hooks execute in declaration order. The first abort short-circuits remaining
+//! hooks.
 //!
 //! **Timeout**: Defaults to 500ms (shorter than general function timeout of 5s)
 //! because before-hooks are on the critical mutation path.
 
-use crate::types::EventPayload;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+
+use crate::types::EventPayload;
 
 /// Types of mutations that can trigger events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -63,15 +66,15 @@ impl std::fmt::Display for EventKind {
 #[derive(Debug, Clone)]
 pub struct EntityEvent {
     /// Entity type (e.g., "User", "Post").
-    pub entity: String,
+    pub entity:     String,
     /// Kind of mutation.
     pub event_kind: EventKind,
     /// Old row data (None for Insert).
-    pub old: Option<serde_json::Value>,
+    pub old:        Option<serde_json::Value>,
     /// New row data (None for Delete).
-    pub new: Option<serde_json::Value>,
+    pub new:        Option<serde_json::Value>,
     /// Timestamp of the event.
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp:  chrono::DateTime<chrono::Utc>,
 }
 
 /// Trigger that fires after a mutation completes.
@@ -98,32 +101,29 @@ pub struct AfterMutationTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Entity type to trigger on (e.g., "User").
-    pub entity_type: String,
+    pub entity_type:   String,
     /// Optional filter on event kind (None = all).
-    pub event_filter: Option<EventKind>,
+    pub event_filter:  Option<EventKind>,
 }
 
 impl AfterMutationTrigger {
     /// Check if this trigger matches the given entity and event.
     pub fn matches(&self, entity: &str, event_kind: EventKind) -> bool {
-        self.entity_type == entity
-            && self
-                .event_filter
-                .is_none_or(|filter| filter == event_kind)
+        self.entity_type == entity && self.event_filter.is_none_or(|filter| filter == event_kind)
     }
 
     /// Build an `EventPayload` from an entity event.
     pub fn build_payload(&self, event: &EntityEvent) -> EventPayload {
         EventPayload {
             trigger_type: format!("after:mutation:{}", self.function_name),
-            entity: event.entity.clone(),
-            event_kind: event.event_kind.to_string(),
-            data: serde_json::json!({
+            entity:       event.entity.clone(),
+            event_kind:   event.event_kind.to_string(),
+            data:         serde_json::json!({
                 "event_kind": event.event_kind.as_str(),
                 "old": event.old,
                 "new": event.new,
             }),
-            timestamp: event.timestamp,
+            timestamp:    event.timestamp,
         }
     }
 }
@@ -249,16 +249,16 @@ impl BeforeMutationChain {
                         "before:mutation function '{}' not found in module registry",
                         trigger.function_name,
                     ),
-                    path: None,
+                    path:    None,
                 }
             })?;
 
             let payload = crate::types::EventPayload {
                 trigger_type: format!("before:mutation:{}", trigger.mutation_name),
-                entity: trigger.mutation_name.clone(),
-                event_kind: "before".to_string(),
-                data: current.clone(),
-                timestamp: chrono::Utc::now(),
+                entity:       trigger.mutation_name.clone(),
+                event_kind:   "before".to_string(),
+                data:         current.clone(),
+                timestamp:    chrono::Utc::now(),
             };
 
             let result = observer.invoke(module, payload, host, limits.clone()).await?;
@@ -270,11 +270,11 @@ impl BeforeMutationChain {
                         .unwrap_or("Aborted by before:mutation trigger")
                         .to_string();
                     return Ok(BeforeMutationResult::Abort(msg));
-                }
+                },
                 Some(ref v) if v.get("input").is_some() => {
                     current = v["input"].clone();
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
         Ok(BeforeMutationResult::Proceed(current))
@@ -313,7 +313,7 @@ impl BeforeMutationChain {
 #[derive(Debug, Clone)]
 pub struct TriggerMatcher {
     /// Map of `entity_type` → `event_kind` → triggers
-    specific: HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
+    specific:  HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
     /// Map of `entity_type` → triggers that match all event kinds
     all_kinds: HashMap<String, Vec<AfterMutationTrigger>>,
 }
@@ -322,7 +322,7 @@ impl TriggerMatcher {
     /// Create a new empty trigger matcher.
     pub fn new() -> Self {
         Self {
-            specific: HashMap::new(),
+            specific:  HashMap::new(),
             all_kinds: HashMap::new(),
         }
     }
@@ -337,13 +337,10 @@ impl TriggerMatcher {
                     .entry(event_kind.as_str().to_string())
                     .or_default()
                     .push(trigger);
-            }
+            },
             None => {
-                self.all_kinds
-                    .entry(trigger.entity_type.clone())
-                    .or_default()
-                    .push(trigger);
-            }
+                self.all_kinds.entry(trigger.entity_type.clone()).or_default().push(trigger);
+            },
         }
     }
 
@@ -389,8 +386,8 @@ mod tests {
     fn test_after_mutation_trigger_matches() {
         let trigger = AfterMutationTrigger {
             function_name: "onUserCreated".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "User".to_string(),
+            event_filter:  Some(EventKind::Insert),
         };
 
         assert!(trigger.matches("User", EventKind::Insert));
@@ -402,8 +399,8 @@ mod tests {
     fn test_after_mutation_trigger_matches_all_kinds() {
         let trigger = AfterMutationTrigger {
             function_name: "onUserChanged".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: None,
+            entity_type:   "User".to_string(),
+            event_filter:  None,
         };
 
         assert!(trigger.matches("User", EventKind::Insert));
@@ -416,16 +413,16 @@ mod tests {
     fn test_after_mutation_trigger_builds_payload() {
         let trigger = AfterMutationTrigger {
             function_name: "onUserCreated".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "User".to_string(),
+            event_filter:  Some(EventKind::Insert),
         };
 
         let event = EntityEvent {
-            entity: "User".to_string(),
+            entity:     "User".to_string(),
             event_kind: EventKind::Insert,
-            old: None,
-            new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-            timestamp: chrono::Utc::now(),
+            old:        None,
+            new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+            timestamp:  chrono::Utc::now(),
         };
 
         let payload = trigger.build_payload(&event);
@@ -460,8 +457,8 @@ mod tests {
         let mut matcher = TriggerMatcher::new();
         let trigger = AfterMutationTrigger {
             function_name: "onUserCreated".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "User".to_string(),
+            event_filter:  Some(EventKind::Insert),
         };
 
         matcher.add(trigger);
@@ -479,8 +476,8 @@ mod tests {
         let mut matcher = TriggerMatcher::new();
         let trigger = AfterMutationTrigger {
             function_name: "onUserChanged".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: None,
+            entity_type:   "User".to_string(),
+            event_filter:  None,
         };
 
         matcher.add(trigger);
@@ -496,15 +493,15 @@ mod tests {
         // Add specific triggers
         matcher.add(AfterMutationTrigger {
             function_name: "onUserCreated".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "User".to_string(),
+            event_filter:  Some(EventKind::Insert),
         });
 
         // Add all-kinds trigger
         matcher.add(AfterMutationTrigger {
             function_name: "onUserChanged".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: None,
+            entity_type:   "User".to_string(),
+            event_filter:  None,
         });
 
         // Insert should return both
@@ -523,14 +520,14 @@ mod tests {
 
         matcher.add(AfterMutationTrigger {
             function_name: "onUserCreated".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "User".to_string(),
+            event_filter:  Some(EventKind::Insert),
         });
 
         matcher.add(AfterMutationTrigger {
             function_name: "onPostCreated".to_string(),
-            entity_type: "Post".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "Post".to_string(),
+            event_filter:  Some(EventKind::Insert),
         });
 
         let user_results = matcher.find("User", EventKind::Insert);
@@ -548,8 +545,8 @@ mod tests {
 
         matcher.add(AfterMutationTrigger {
             function_name: "onUserCreated".to_string(),
-            entity_type: "User".to_string(),
-            event_filter: Some(EventKind::Insert),
+            entity_type:   "User".to_string(),
+            event_filter:  Some(EventKind::Insert),
         });
 
         let post_results = matcher.find("Post", EventKind::Insert);
@@ -561,11 +558,11 @@ mod tests {
     #[cfg(feature = "runtime-deno")]
     #[tokio::test]
     async fn test_before_mutation_chain_execute_empty_chain_proceeds() {
-        use crate::{
-            FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
-            host::NoopHostContext,
-        };
         use std::collections::HashMap;
+
+        use crate::{
+            FunctionModule, FunctionObserver, ResourceLimits, RuntimeType, host::NoopHostContext,
+        };
 
         // Empty chain: no triggers → Proceed with original input
         let chain = BeforeMutationChain { triggers: vec![] };
@@ -575,14 +572,20 @@ mod tests {
 
         let event = crate::types::EventPayload {
             trigger_type: "test".to_string(),
-            entity: "createUser".to_string(),
-            event_kind: "before".to_string(),
-            data: input.clone(),
-            timestamp: chrono::Utc::now(),
+            entity:       "createUser".to_string(),
+            event_kind:   "before".to_string(),
+            data:         input.clone(),
+            timestamp:    chrono::Utc::now(),
         };
 
         let result = chain
-            .execute(input.clone(), &modules, &observer, &NoopHostContext::new(event), ResourceLimits::default())
+            .execute(
+                input.clone(),
+                &modules,
+                &observer,
+                &NoopHostContext::new(event),
+                ResourceLimits::default(),
+            )
             .await
             .expect("execute");
 
@@ -595,16 +598,18 @@ mod tests {
     #[cfg(feature = "runtime-deno")]
     #[tokio::test]
     async fn test_before_mutation_chain_execute_passthrough_proceeds() {
+        use std::collections::HashMap;
+
         use crate::{
             FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
             host::NoopHostContext,
             runtime::deno::{DenoConfig, DenoRuntime},
         };
-        use std::collections::HashMap;
 
         // Function that returns the event as-is → Proceed with original input
         let source = "export default async (event) => event;".to_string();
-        let module = FunctionModule::from_source("validateUser".to_string(), source, RuntimeType::Deno);
+        let module =
+            FunctionModule::from_source("validateUser".to_string(), source, RuntimeType::Deno);
 
         let mut observer = FunctionObserver::new();
         let runtime = DenoRuntime::new(&DenoConfig::default()).unwrap();
@@ -623,20 +628,26 @@ mod tests {
         let input = serde_json::json!({ "name": "Alice" });
         let event = crate::types::EventPayload {
             trigger_type: "before:mutation:createUser".to_string(),
-            entity: "createUser".to_string(),
-            event_kind: "before".to_string(),
-            data: input.clone(),
-            timestamp: chrono::Utc::now(),
+            entity:       "createUser".to_string(),
+            event_kind:   "before".to_string(),
+            data:         input.clone(),
+            timestamp:    chrono::Utc::now(),
         };
 
         let result = chain
-            .execute(input.clone(), &modules, &observer, &NoopHostContext::new(event), ResourceLimits::default())
+            .execute(
+                input.clone(),
+                &modules,
+                &observer,
+                &NoopHostContext::new(event),
+                ResourceLimits::default(),
+            )
             .await
             .expect("execute");
 
         // Function returns the event data (which is the input), no "abort" key → Proceed
         match result {
-            BeforeMutationResult::Proceed(_) => {}
+            BeforeMutationResult::Proceed(_) => {},
             BeforeMutationResult::Abort(msg) => panic!("Expected Proceed, got Abort: {msg}"),
         }
     }
@@ -644,16 +655,18 @@ mod tests {
     #[cfg(feature = "runtime-deno")]
     #[tokio::test]
     async fn test_before_mutation_chain_execute_abort() {
+        use std::collections::HashMap;
+
         use crate::{
             FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
             host::NoopHostContext,
             runtime::deno::{DenoConfig, DenoRuntime},
         };
-        use std::collections::HashMap;
 
         // Function that returns {"abort": "name required"}
         let source = r#"export default async (event) => ({ abort: "name required" });"#.to_string();
-        let module = FunctionModule::from_source("validateUser".to_string(), source, RuntimeType::Deno);
+        let module =
+            FunctionModule::from_source("validateUser".to_string(), source, RuntimeType::Deno);
 
         let mut observer = FunctionObserver::new();
         let runtime = DenoRuntime::new(&DenoConfig::default()).unwrap();
@@ -672,14 +685,20 @@ mod tests {
         let input = serde_json::json!({ "name": "" });
         let event = crate::types::EventPayload {
             trigger_type: "before:mutation:createUser".to_string(),
-            entity: "createUser".to_string(),
-            event_kind: "before".to_string(),
-            data: input.clone(),
-            timestamp: chrono::Utc::now(),
+            entity:       "createUser".to_string(),
+            event_kind:   "before".to_string(),
+            data:         input.clone(),
+            timestamp:    chrono::Utc::now(),
         };
 
         let result = chain
-            .execute(input, &modules, &observer, &NoopHostContext::new(event), ResourceLimits::default())
+            .execute(
+                input,
+                &modules,
+                &observer,
+                &NoopHostContext::new(event),
+                ResourceLimits::default(),
+            )
             .await
             .expect("execute");
 
@@ -692,20 +711,23 @@ mod tests {
     #[cfg(feature = "runtime-deno")]
     #[tokio::test]
     async fn test_before_mutation_chain_execute_modify_input() {
+        use std::collections::HashMap;
+
         use crate::{
             FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
             host::NoopHostContext,
             runtime::deno::{DenoConfig, DenoRuntime},
         };
-        use std::collections::HashMap;
 
         // Function that uppercases the name and returns {"input": {modified}}
         let source = r#"
 export default async (event) => ({
   input: { ...event, name: event.name.toUpperCase() }
 });
-"#.to_string();
-        let module = FunctionModule::from_source("transformUser".to_string(), source, RuntimeType::Deno);
+"#
+        .to_string();
+        let module =
+            FunctionModule::from_source("transformUser".to_string(), source, RuntimeType::Deno);
 
         let mut observer = FunctionObserver::new();
         let runtime = DenoRuntime::new(&DenoConfig::default()).unwrap();
@@ -724,21 +746,27 @@ export default async (event) => ({
         let input = serde_json::json!({ "name": "alice" });
         let event = crate::types::EventPayload {
             trigger_type: "before:mutation:createUser".to_string(),
-            entity: "createUser".to_string(),
-            event_kind: "before".to_string(),
-            data: input.clone(),
-            timestamp: chrono::Utc::now(),
+            entity:       "createUser".to_string(),
+            event_kind:   "before".to_string(),
+            data:         input.clone(),
+            timestamp:    chrono::Utc::now(),
         };
 
         let result = chain
-            .execute(input, &modules, &observer, &NoopHostContext::new(event), ResourceLimits::default())
+            .execute(
+                input,
+                &modules,
+                &observer,
+                &NoopHostContext::new(event),
+                ResourceLimits::default(),
+            )
             .await
             .expect("execute");
 
         match result {
             BeforeMutationResult::Proceed(modified) => {
                 assert_eq!(modified["name"], "ALICE");
-            }
+            },
             BeforeMutationResult::Abort(msg) => panic!("Expected Proceed, got Abort: {msg}"),
         }
     }
@@ -771,11 +799,9 @@ export default async (event) => ({
     #[cfg(feature = "runtime-deno")]
     #[tokio::test]
     async fn test_before_mutation_chain_execute_missing_module_returns_error() {
-        use crate::{
-            FunctionModule, FunctionObserver, ResourceLimits,
-            host::NoopHostContext,
-        };
         use std::collections::HashMap;
+
+        use crate::{FunctionModule, FunctionObserver, ResourceLimits, host::NoopHostContext};
 
         let chain = BeforeMutationChain {
             triggers: vec![BeforeMutationTrigger {
@@ -790,14 +816,20 @@ export default async (event) => ({
         let input = serde_json::json!({ "name": "Alice" });
         let event = crate::types::EventPayload {
             trigger_type: "before:mutation:createUser".to_string(),
-            entity: "createUser".to_string(),
-            event_kind: "before".to_string(),
-            data: input.clone(),
-            timestamp: chrono::Utc::now(),
+            entity:       "createUser".to_string(),
+            event_kind:   "before".to_string(),
+            data:         input.clone(),
+            timestamp:    chrono::Utc::now(),
         };
 
         let result = chain
-            .execute(input, &modules, &observer, &NoopHostContext::new(event), ResourceLimits::default())
+            .execute(
+                input,
+                &modules,
+                &observer,
+                &NoopHostContext::new(event),
+                ResourceLimits::default(),
+            )
             .await;
 
         assert!(result.is_err(), "Expected error for missing module");

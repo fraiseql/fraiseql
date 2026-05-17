@@ -3,24 +3,30 @@
 //! via `use super::*` after the `use super::super::*` wildcard import.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
 
+pub use std::{collections::HashMap, sync::Arc, time::Duration};
+
 pub use fraiseql_error::{FraiseQLError, ValidationFieldError};
-pub use serde_json::{json, Value};
-pub use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::Duration,
+pub use serde_json::{Value, json};
+
+pub use crate::{
+    utils::clock::Clock,
+    validation::{
+        custom_scalar::CustomScalarResult,
+        error_responses::GraphQLValidationResponse,
+        id_policy::{
+            IdValidator, NumericIdValidator, OpaqueIdValidator, UlidIdValidator, UuidIdValidator,
+            validate_ids,
+        },
+        validators::{RequiredValidator, create_validator_from_rule},
+    },
 };
-pub use crate::validation::error_responses::GraphQLValidationResponse;
-pub use crate::validation::id_policy::{UlidIdValidator, NumericIdValidator, UuidIdValidator, OpaqueIdValidator, validate_ids, IdValidator};
-pub use crate::validation::validators::{RequiredValidator, create_validator_from_rule};
-pub use crate::utils::clock::Clock;
-pub use crate::validation::custom_scalar::CustomScalarResult;
 
 mod async_validators_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     // ── EmailFormatValidator ──────────────────────────────────────────────────
 
@@ -217,7 +223,8 @@ mod async_validators_tests {
 
 mod checksum_tests {
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     // Luhn tests
     #[test]
@@ -345,7 +352,8 @@ mod compile_time_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     fn create_test_context() -> SchemaContext {
         let mut types = HashMap::new();
@@ -649,9 +657,9 @@ mod compile_time_tests {
 
 mod composite_tests {
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
-    use crate::validation::composite::validate_single_rule;
-    use crate::validation::rules::ValidationRule;
+    #[allow(unused_imports)]
+    use super::*;
+    use crate::validation::{composite::validate_single_rule, rules::ValidationRule};
 
     #[test]
     fn test_validate_all_passes() {
@@ -998,7 +1006,8 @@ mod cross_field_tests {
     use serde_json::json;
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_operator_parsing() {
@@ -1464,7 +1473,8 @@ mod custom_scalar_registry_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[derive(Debug)]
     struct TestScalar;
@@ -1563,8 +1573,11 @@ mod date_validators_tests {
     use chrono::Datelike;
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
-    use crate::validation::date_validators::{parse_date, compare_dates, days_between, is_leap_year, get_days_in_month};
+    #[allow(unused_imports)]
+    use super::*;
+    use crate::validation::date_validators::{
+        compare_dates, days_between, get_days_in_month, is_leap_year, parse_date,
+    };
 
     // ── Helpers for time-independent tests ──────────────────────────────────
 
@@ -1851,7 +1864,8 @@ mod elo_expressions_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     // Helper to create test context
     fn create_test_user() -> Value {
@@ -2196,7 +2210,8 @@ mod elo_expressions_tests {
 
 mod elo_rust_integration_tests {
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_config_default() {
@@ -2305,7 +2320,8 @@ mod error_responses_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_create_empty_response() {
@@ -2385,7 +2401,8 @@ mod id_policy_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     // ==================== UUID Format Tests ====================
 
@@ -3253,7 +3270,8 @@ mod inheritance_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_override_mode() {
@@ -3563,7 +3581,8 @@ mod input_object_tests {
     use serde_json::json;
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_any_of_passes() {
@@ -4012,7 +4031,8 @@ mod input_processor_tests {
     use serde_json::json;
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_process_valid_uuid_id() {
@@ -4187,12 +4207,12 @@ mod input_processor_tests {
     }
 }
 
-
 mod mutual_exclusivity_tests {
     use serde_json::json;
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_one_of_validator_exactly_one_present() {
@@ -4499,7 +4519,8 @@ mod mutual_exclusivity_tests {
 
 mod rate_limiting_tests {
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
     use crate::validation::rate_limiting::DimensionRateLimiter;
 
     #[test]
@@ -4719,7 +4740,8 @@ mod rate_limiting_tests {
 
 mod rich_scalars_tests {
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     // Email tests
     #[test]
@@ -4839,7 +4861,8 @@ mod rich_scalars_tests {
 
 mod rules_tests {
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_required_rule() {
@@ -4989,7 +5012,8 @@ mod scalar_validator_tests {
     use serde_json::{Value, json};
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
     use crate::error::{FraiseQLError, Result};
 
     /// Passthrough scalar that always succeeds (for happy-path tests).
@@ -5174,7 +5198,8 @@ mod validators_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_pattern_validator() {

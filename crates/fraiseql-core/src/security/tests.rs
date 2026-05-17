@@ -1,9 +1,9 @@
 //! Tests for `security/` modules.
 
-
 mod audit_tests {
     use chrono::Utc;
-    use crate::security::audit::{AuditEntry, AuditError, AuditLevel, AuditExportConfig};
+
+    use crate::security::audit::{AuditEntry, AuditError, AuditExportConfig, AuditLevel};
 
     #[test]
     fn test_audit_entry_integrity_hash() {
@@ -169,9 +169,11 @@ mod audit_export_syslog_tests {
 
     use chrono::Utc;
     use parking_lot::Mutex;
-    use crate::security::audit::{AuditEntry, AuditExporter, AuditLevel, SyslogExportConfig};
-    use crate::security::audit_export_syslog::{Transport, escape_sd_value};
-    use crate::security::audit_export_syslog::SyslogAuditExporter;
+
+    use crate::security::{
+        audit::{AuditEntry, AuditExporter, AuditLevel, SyslogExportConfig},
+        audit_export_syslog::{SyslogAuditExporter, Transport, escape_sd_value},
+    };
 
     fn test_entry() -> AuditEntry {
         AuditEntry {
@@ -318,9 +320,11 @@ mod audit_export_webhook_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use chrono::Utc;
-    use crate::security::audit::{AuditEntry, AuditExporter, WebhookExportConfig};
-    use crate::security::audit::AuditLevel;
-    use crate::security::audit_export_webhook::WebhookAuditExporter;
+
+    use crate::security::{
+        audit::{AuditEntry, AuditExporter, AuditLevel, WebhookExportConfig},
+        audit_export_webhook::WebhookAuditExporter,
+    };
 
     fn test_entry() -> AuditEntry {
         AuditEntry {
@@ -423,8 +427,7 @@ mod audit_export_webhook_tests {
 }
 
 mod error_formatter_tests {
-    use crate::security::error_formatter::SanitizationConfig;
-    use crate::security::*;
+    use crate::security::{error_formatter::SanitizationConfig, *};
 
     // ============================================================================
     // Helper Functions
@@ -1880,8 +1883,7 @@ mod headers_tests {
 }
 
 mod introspection_enforcer_tests {
-    use crate::security::*;
-    use crate::security::introspection_enforcer::IntrospectionConfig;
+    use crate::security::{introspection_enforcer::IntrospectionConfig, *};
 
     // ============================================================================
     // Helper Functions
@@ -2624,10 +2626,15 @@ mod rls_policy_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use std::collections::HashMap;
-    use crate::security::*;
-    use crate::security::rls_policy::{RLSRule, extract_user_value};
-    use crate::db::WhereClause;
-    use crate::utils::clock::Clock;
+
+    use crate::{
+        db::WhereClause,
+        security::{
+            rls_policy::{RLSRule, extract_user_value},
+            *,
+        },
+        utils::clock::Clock,
+    };
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -3005,7 +3012,9 @@ mod rls_policy_tests {
 
 mod security_context_tests {
     use std::collections::HashMap;
+
     use chrono::Utc;
+
     use crate::security::*;
 
     #[test]
@@ -3450,6 +3459,7 @@ mod tls_enforcer_tests {
 
 mod validation_audit_tests {
     use chrono::Utc;
+
     use crate::security::*;
 
     #[test]

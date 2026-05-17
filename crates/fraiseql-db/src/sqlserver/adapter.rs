@@ -322,9 +322,12 @@ impl DatabaseAdapter for SqlServerAdapter {
                 sql.push_str(" ORDER BY (SELECT NULL)");
             }
             let off = offset.unwrap_or(0);
-            write!(sql, " OFFSET {off} ROWS").expect("write to String is infallible: fmt::Write for String always returns Ok");
+            write!(sql, " OFFSET {off} ROWS")
+                .expect("write to String is infallible: fmt::Write for String always returns Ok");
             if let Some(lim) = limit {
-                write!(sql, " FETCH NEXT {lim} ROWS ONLY").expect("write to String is infallible: fmt::Write for String always returns Ok");
+                write!(sql, " FETCH NEXT {lim} ROWS ONLY").expect(
+                    "write to String is infallible: fmt::Write for String always returns Ok",
+                );
             }
         }
 
@@ -383,11 +386,14 @@ impl DatabaseAdapter for SqlServerAdapter {
             }
             let off = offset.unwrap_or(0);
             param_count += 1;
-            write!(sql, " OFFSET @p{param_count} ROWS").expect("write to String is infallible: fmt::Write for String always returns Ok");
+            write!(sql, " OFFSET @p{param_count} ROWS")
+                .expect("write to String is infallible: fmt::Write for String always returns Ok");
             params.push(serde_json::Value::Number(off.into()));
             if let Some(lim) = limit {
                 param_count += 1;
-                write!(sql, " FETCH NEXT @p{param_count} ROWS ONLY").expect("write to String is infallible: fmt::Write for String always returns Ok");
+                write!(sql, " FETCH NEXT @p{param_count} ROWS ONLY").expect(
+                    "write to String is infallible: fmt::Write for String always returns Ok",
+                );
                 params.push(serde_json::Value::Number(lim.into()));
             }
         } else if has_order && limit.is_some() {
@@ -645,10 +651,7 @@ impl DatabaseAdapter for SqlServerAdapter {
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
-        Ok(rows
-            .iter()
-            .map(|row| Self::map_sqlserver_stat_row(row))
-            .collect())
+        Ok(rows.iter().map(|row| Self::map_sqlserver_stat_row(row)).collect())
     }
 
     async fn query_stats_by_id(&self, id: &str) -> Result<Option<crate::types::QueryStatEntry>> {
@@ -697,14 +700,10 @@ impl DatabaseAdapter for SqlServerAdapter {
 impl SqlServerAdapter {
     /// Map a tiberius row from DMV query to `QueryStatEntry`.
     fn map_sqlserver_stat_row(row: &tiberius::Row) -> crate::types::QueryStatEntry {
-        let logical_reads: i64 = row.try_get::<i64, _>("total_logical_reads")
-            .ok()
-            .flatten()
-            .unwrap_or(0);
-        let physical_reads: i64 = row.try_get::<i64, _>("total_physical_reads")
-            .ok()
-            .flatten()
-            .unwrap_or(0);
+        let logical_reads: i64 =
+            row.try_get::<i64, _>("total_logical_reads").ok().flatten().unwrap_or(0);
+        let physical_reads: i64 =
+            row.try_get::<i64, _>("total_physical_reads").ok().flatten().unwrap_or(0);
 
         #[allow(clippy::cast_precision_loss)]
         // Reason: read counts are always small enough that f64 is lossless
@@ -715,38 +714,36 @@ impl SqlServerAdapter {
         };
 
         crate::types::QueryStatEntry {
-            query_id: row.try_get::<&str, _>("query_id")
+            query_id: row.try_get::<&str, _>("query_id").ok().flatten().unwrap_or("").to_string(),
+            query_text: row
+                .try_get::<&str, _>("query_text")
                 .ok()
                 .flatten()
                 .unwrap_or("")
                 .to_string(),
-            query_text: row.try_get::<&str, _>("query_text")
-                .ok()
-                .flatten()
-                .unwrap_or("")
-                .to_string(),
-            calls: row.try_get::<i64, _>("calls")
-                .ok()
-                .flatten()
-                .unwrap_or(0)
-                .unsigned_abs(),
-            total_exec_time_ms: row.try_get::<f64, _>("total_exec_time_ms")
+            calls: row.try_get::<i64, _>("calls").ok().flatten().unwrap_or(0).unsigned_abs(),
+            total_exec_time_ms: row
+                .try_get::<f64, _>("total_exec_time_ms")
                 .ok()
                 .flatten()
                 .unwrap_or(0.0),
-            mean_exec_time_ms: row.try_get::<f64, _>("mean_exec_time_ms")
+            mean_exec_time_ms: row
+                .try_get::<f64, _>("mean_exec_time_ms")
                 .ok()
                 .flatten()
                 .unwrap_or(0.0),
-            min_exec_time_ms: row.try_get::<f64, _>("min_exec_time_ms")
+            min_exec_time_ms: row
+                .try_get::<f64, _>("min_exec_time_ms")
                 .ok()
                 .flatten()
                 .unwrap_or(0.0),
-            max_exec_time_ms: row.try_get::<f64, _>("max_exec_time_ms")
+            max_exec_time_ms: row
+                .try_get::<f64, _>("max_exec_time_ms")
                 .ok()
                 .flatten()
                 .unwrap_or(0.0),
-            rows_returned: row.try_get::<i64, _>("rows_returned")
+            rows_returned: row
+                .try_get::<i64, _>("rows_returned")
                 .ok()
                 .flatten()
                 .unwrap_or(0)

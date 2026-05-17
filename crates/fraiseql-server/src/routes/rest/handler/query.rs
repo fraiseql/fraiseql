@@ -3,11 +3,7 @@
 use std::collections::HashMap;
 
 use axum::http::{HeaderMap, HeaderValue};
-use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    runtime::QueryMatch,
-    security::SecurityContext,
-};
+use fraiseql_core::{db::traits::DatabaseAdapter, runtime::QueryMatch, security::SecurityContext};
 use serde_json::json;
 
 use super::{
@@ -267,9 +263,9 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         if has_embeddings {
             if let Some(data) = body.get_mut("data") {
                 let embed_req = super::super::embedding::EmbeddingRequest {
-                    executor:         self.executor,
-                    schema:           self.schema,
-                    config:           self.config,
+                    executor: self.executor,
+                    schema: self.schema,
+                    config: self.config,
                     parent_type_name: &query_match.query_def.return_type,
                     security_context,
                 };

@@ -88,8 +88,8 @@ mod compile_tests {
     use indexmap::IndexMap;
 
     use super::super::compile::{
-        WIDE_FANOUT_THRESHOLD, emit_ddl_to_dir, field_type_to_pg, infer_native_columns_from_arg_types,
-        to_snake_case, wide_cascade_mutations,
+        WIDE_FANOUT_THRESHOLD, emit_ddl_to_dir, field_type_to_pg,
+        infer_native_columns_from_arg_types, to_snake_case, wide_cascade_mutations,
     };
 
     fn mutation_with_fanout(
@@ -182,7 +182,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
-                        hierarchy:     None,
+                        hierarchy:      None,
                     },
                     FieldDefinition {
                         name:           "name".into(),
@@ -196,7 +196,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
-                        hierarchy:     None,
+                        hierarchy:      None,
                     },
                 ],
                 description:         Some("User type".to_string()),
@@ -538,7 +538,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
-                        hierarchy:     None,
+                        hierarchy:      None,
                     },
                     FieldDefinition {
                         name:           "email".into(),
@@ -552,7 +552,7 @@ mod compile_tests {
                         requires_scope: None,
                         on_deny:        FieldDenyPolicy::default(),
                         encryption:     None,
-                        hierarchy:     None,
+                        hierarchy:      None,
                     },
                 ],
                 description:         Some("Test type".to_string()),
@@ -574,10 +574,16 @@ mod compile_tests {
         let ddl_file = tmp.path().join("user_profile.sql");
         assert!(ddl_file.exists(), "user_profile.sql must be created");
         let content = std::fs::read_to_string(ddl_file).unwrap();
-        assert!(content.contains("CREATE TABLE IF NOT EXISTS tb_user_profile"), "DDL must contain CREATE TABLE");
+        assert!(
+            content.contains("CREATE TABLE IF NOT EXISTS tb_user_profile"),
+            "DDL must contain CREATE TABLE"
+        );
         assert!(content.contains("id UUID NOT NULL"), "id field must be UUID NOT NULL");
         assert!(content.contains("email TEXT"), "email field must be TEXT");
-        assert!(!content.contains("email TEXT NOT NULL"), "nullable field must not have NOT NULL");
+        assert!(
+            !content.contains("email TEXT NOT NULL"),
+            "nullable field must not have NOT NULL"
+        );
     }
 
     #[test]
@@ -745,8 +751,14 @@ mod dependency_graph_tests {
                 },
             ],
             edges:        vec![
-                GraphEdge { from: "A".to_string(), to: "B".to_string() },
-                GraphEdge { from: "B".to_string(), to: "A".to_string() },
+                GraphEdge {
+                    from: "A".to_string(),
+                    to:   "B".to_string(),
+                },
+                GraphEdge {
+                    from: "B".to_string(),
+                    to:   "A".to_string(),
+                },
             ],
             cycles:       vec![CycleInfo {
                 types:             vec!["A".to_string(), "B".to_string()],
@@ -799,8 +811,14 @@ mod dependency_graph_tests {
                 },
             ],
             edges:        vec![
-                GraphEdge { from: "A".to_string(), to: "B".to_string() },
-                GraphEdge { from: "B".to_string(), to: "A".to_string() },
+                GraphEdge {
+                    from: "A".to_string(),
+                    to:   "B".to_string(),
+                },
+                GraphEdge {
+                    from: "B".to_string(),
+                    to:   "A".to_string(),
+                },
             ],
             cycles:       vec![CycleInfo {
                 types:             vec!["A".to_string(), "B".to_string()],
@@ -1171,8 +1189,8 @@ mod generate_proto_tests {
     };
     use tempfile::TempDir;
 
-    use crate::output::OutputFormatter;
     use super::super::generate_proto::*;
+    use crate::output::OutputFormatter;
 
     fn make_field(name: &str, ft: FieldType, nullable: bool) -> FieldDefinition {
         FieldDefinition {
@@ -1481,7 +1499,10 @@ mod generate_views_tests {
         assert!(sql.contains("Entity: User"));
         assert!(sql.contains("Vector Arrow (va_)"));
         assert!(sql.contains("trigger-based"));
-        assert!(sql.contains("FROM v_user"), "must use entity sql_source, not schema_placeholder");
+        assert!(
+            sql.contains("FROM v_user"),
+            "must use entity sql_source, not schema_placeholder"
+        );
         assert!(!sql.contains("schema_placeholder"));
     }
 
@@ -1500,7 +1521,10 @@ mod generate_views_tests {
         assert!(sql.contains("CREATE MATERIALIZED VIEW tv_order_summary"));
         assert!(sql.contains("Entity: Order"));
         assert!(sql.contains("scheduled"));
-        assert!(sql.contains("FROM v_order"), "must use entity sql_source, not schema_placeholder");
+        assert!(
+            sql.contains("FROM v_order"),
+            "must use entity sql_source, not schema_placeholder"
+        );
         assert!(!sql.contains("schema_placeholder"));
     }
 
@@ -1597,8 +1621,8 @@ mod introspect_facts_tests {
         };
 
         let metadata = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
@@ -1610,18 +1634,18 @@ mod introspect_facts_tests {
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![FilterColumn {
+            denormalized_filters:     vec![FilterColumn {
                 name:     "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
                 indexed:  true,
             }],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -1846,9 +1870,10 @@ mod run_tests {
 
     use tempfile::TempDir;
 
+    use super::super::run::{
+        auto_detect_input, build_config_from, resolve_input, resolve_runtime_config,
+    };
     use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
-
-    use super::super::run::{auto_detect_input, build_config_from, resolve_input, resolve_runtime_config};
 
     #[test]
     fn test_resolve_input_explicit_existing_file() {
@@ -2745,8 +2770,8 @@ mod validate_facts_tests {
             },
             denormalized_filters: filters,
             calendar_dimensions: vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }

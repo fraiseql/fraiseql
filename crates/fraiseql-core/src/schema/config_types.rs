@@ -402,7 +402,6 @@ impl Default for SubscriptionHooksConfig {
     }
 }
 
-
 /// Naming convention for GraphQL operation names.
 ///
 /// Controls how operation names (queries, mutations, subscriptions) are exposed

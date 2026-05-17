@@ -5,17 +5,19 @@ use axum::{
     routing::{get, post},
 };
 
-use super::changelog_handlers::{
-    ChangelogState, changelog_list_handler, checkpoint_get_handler, checkpoint_save_handler,
-};
-use super::dlq_handlers::{
-    DlqState, delivery_health_handler, dlq_get_handler, dlq_list_handler, dlq_retry_all_handler,
-    dlq_retry_handler,
-};
-use super::handlers::{
-    ObserverState, RuntimeHealthState, create_observer, delete_observer, disable_observer,
-    enable_observer, get_observer, get_observer_stats, get_runtime_health, list_observer_logs,
-    list_observers, reload_observers, update_observer,
+use super::{
+    changelog_handlers::{
+        ChangelogState, changelog_list_handler, checkpoint_get_handler, checkpoint_save_handler,
+    },
+    dlq_handlers::{
+        DlqState, delivery_health_handler, dlq_get_handler, dlq_list_handler,
+        dlq_retry_all_handler, dlq_retry_handler,
+    },
+    handlers::{
+        ObserverState, RuntimeHealthState, create_observer, delete_observer, disable_observer,
+        enable_observer, get_observer, get_observer_stats, get_runtime_health, list_observer_logs,
+        list_observers, reload_observers, update_observer,
+    },
 };
 
 /// Create the observer management router.

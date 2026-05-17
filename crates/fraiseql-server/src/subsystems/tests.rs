@@ -3,11 +3,14 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(missing_docs)] // Reason: test code
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
-use fraiseql_functions::{FunctionDefinition, FunctionObserver, RuntimeType};
-use fraiseql_functions::triggers::TriggerRegistry;
+use fraiseql_functions::{
+    FunctionDefinition, FunctionObserver, RuntimeType, triggers::TriggerRegistry,
+};
 use fraiseql_storage::{
     StorageMetadataRepo, StorageRlsEvaluator, StorageState,
     backend::{LocalBackend, StorageBackend},
@@ -16,17 +19,18 @@ use fraiseql_storage::{
 use sqlx::PgPool;
 use tempfile::tempdir;
 
-use crate::realtime::{
-    observer::RealtimeBroadcastObserver,
-    routes::RealtimeSchemaConfig,
-    server::{RealtimeConfig, RealtimeServer},
-};
-use crate::schema::loader::{FunctionsConfig, SchemaStorageConfig, SchemaBucketDef};
-
 use super::{
     FunctionsSubsystem, RealtimeSubsystem, ServerSubsystems, StorageSubsystem,
     builder::{ServerSubsystemsBuilder, SubsystemBuildError},
     validator::{SubsystemConfigWarning, validate_subsystems_config},
+};
+use crate::{
+    realtime::{
+        observer::RealtimeBroadcastObserver,
+        routes::RealtimeSchemaConfig,
+        server::{RealtimeConfig, RealtimeServer},
+    },
+    schema::loader::{FunctionsConfig, SchemaBucketDef, SchemaStorageConfig},
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -42,27 +46,27 @@ async fn local_storage_state(bucket_name: &str) -> StorageState {
     buckets.insert(
         bucket_name.to_string(),
         BucketConfig {
-            name: bucket_name.to_string(),
-            max_object_bytes: None,
+            name:               bucket_name.to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: None,
-            access: BucketAccess::Private,
-            transform_presets: None,
+            access:             BucketAccess::Private,
+            transform_presets:  None,
         },
     );
     StorageState {
-        backend: Arc::new(backend),
+        backend:  Arc::new(backend),
         metadata: Arc::new(StorageMetadataRepo::new(lazy_pool())),
-        rls: StorageRlsEvaluator::new(),
-        buckets: Arc::new(buckets),
+        rls:      StorageRlsEvaluator::new(),
+        buckets:  Arc::new(buckets),
     }
 }
 
 fn minimal_schema_storage_config() -> SchemaStorageConfig {
     SchemaStorageConfig {
         buckets: vec![SchemaBucketDef {
-            name: "avatars".to_string(),
-            access: "private".to_string(),
-            max_object_bytes: None,
+            name:               "avatars".to_string(),
+            access:             "private".to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: None,
         }],
     }
@@ -70,7 +74,7 @@ fn minimal_schema_storage_config() -> SchemaStorageConfig {
 
 fn minimal_functions_config() -> FunctionsConfig {
     FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![FunctionDefinition::new(
             "on_create_user",
             "after:mutation:createUser",
@@ -97,10 +101,7 @@ async fn test_server_state_with_storage() {
         schema_config: minimal_schema_storage_config(),
     };
 
-    let subsystems = ServerSubsystemsBuilder::new()
-        .with_storage(subsystem)
-        .build()
-        .unwrap();
+    let subsystems = ServerSubsystemsBuilder::new().with_storage(subsystem).build().unwrap();
 
     assert!(subsystems.storage.is_some());
     assert!(subsystems.functions.is_none());
@@ -128,10 +129,7 @@ fn test_server_state_with_functions() {
         module_registry: std::collections::HashMap::new(),
     };
 
-    let subsystems = ServerSubsystemsBuilder::new()
-        .with_functions(subsystem)
-        .build()
-        .unwrap();
+    let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
 
     assert!(subsystems.functions.is_some());
     assert!(subsystems.storage.is_none());
@@ -159,10 +157,7 @@ fn test_server_state_with_realtime() {
         schema_config: minimal_realtime_config(),
     };
 
-    let subsystems = ServerSubsystemsBuilder::new()
-        .with_realtime(subsystem)
-        .build()
-        .unwrap();
+    let subsystems = ServerSubsystemsBuilder::new().with_realtime(subsystem).build().unwrap();
 
     assert!(subsystems.realtime.is_some());
     assert!(subsystems.storage.is_none());
@@ -188,14 +183,19 @@ async fn test_server_state_all_features() {
     let observer = Arc::new(FunctionObserver::new());
     let config = minimal_functions_config();
     let trigger_registry = TriggerRegistry::load_from_definitions(&config.definitions).unwrap();
-    let functions = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
+    let functions = FunctionsSubsystem {
+        observer,
+        trigger_registry,
+        config,
+        module_registry: std::collections::HashMap::new(),
+    };
 
     let entities: HashSet<String> = ["User".to_string()].into();
     let rt_server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities));
     let (rt_observer, _rx) = RealtimeBroadcastObserver::new(256);
     let realtime = RealtimeSubsystem {
-        server: rt_server,
-        observer: rt_observer,
+        server:        rt_server,
+        observer:      rt_observer,
         schema_config: minimal_realtime_config(),
     };
 
@@ -218,7 +218,7 @@ fn test_server_state_validates_deps_functions_need_storage() {
     // Functions with after:storage triggers but no storage subsystem → error.
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![FunctionDefinition::new(
             "on_upload",
             "after:storage:avatars:upload",
@@ -229,11 +229,14 @@ fn test_server_state_validates_deps_functions_need_storage() {
     // not yet implemented. The builder's validation reads config.definitions directly,
     // so the registry contents don't affect the cross-subsystem dependency check.
     let trigger_registry = TriggerRegistry::new();
-    let functions = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
+    let functions = FunctionsSubsystem {
+        observer,
+        trigger_registry,
+        config,
+        module_registry: std::collections::HashMap::new(),
+    };
 
-    let result = ServerSubsystemsBuilder::new()
-        .with_functions(functions)
-        .build();
+    let result = ServerSubsystemsBuilder::new().with_functions(functions).build();
 
     assert!(
         matches!(result, Err(SubsystemBuildError::MissingDependency { .. })),
@@ -252,7 +255,7 @@ async fn test_server_state_validates_deps_storage_triggers_ok_with_storage() {
 
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![FunctionDefinition::new(
             "on_upload",
             "after:storage:avatars:upload",
@@ -263,7 +266,12 @@ async fn test_server_state_validates_deps_storage_triggers_ok_with_storage() {
     // not yet implemented. The builder's validation reads config.definitions directly,
     // so the registry contents don't affect the cross-subsystem dependency check.
     let trigger_registry = TriggerRegistry::new();
-    let functions = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
+    let functions = FunctionsSubsystem {
+        observer,
+        trigger_registry,
+        config,
+        module_registry: std::collections::HashMap::new(),
+    };
 
     let result = ServerSubsystemsBuilder::new()
         .with_storage(storage)
@@ -291,7 +299,12 @@ fn test_subsystems_is_functions_enabled() {
     let observer = Arc::new(FunctionObserver::new());
     let config = minimal_functions_config();
     let trigger_registry = TriggerRegistry::load_from_definitions(&config.definitions).unwrap();
-    let subsystem = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
+    let subsystem = FunctionsSubsystem {
+        observer,
+        trigger_registry,
+        config,
+        module_registry: std::collections::HashMap::new(),
+    };
     let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
     assert!(subsystems.is_functions_enabled());
 }
@@ -353,24 +366,29 @@ async fn test_validate_unknown_bucket_warns() {
     let schema_config = SchemaStorageConfig {
         buckets: vec![
             SchemaBucketDef {
-                name: "avatars".to_string(),
-                access: "private".to_string(),
-                max_object_bytes: None,
+                name:               "avatars".to_string(),
+                access:             "private".to_string(),
+                max_object_bytes:   None,
                 allowed_mime_types: None,
             },
             SchemaBucketDef {
-                name: "docs".to_string(), // present in schema but not in runtime
-                access: "private".to_string(),
-                max_object_bytes: None,
+                name:               "docs".to_string(), // present in schema but not in runtime
+                access:             "private".to_string(),
+                max_object_bytes:   None,
                 allowed_mime_types: None,
             },
         ],
     };
-    let subsystem = StorageSubsystem { state, schema_config };
+    let subsystem = StorageSubsystem {
+        state,
+        schema_config,
+    };
     let subsystems = ServerSubsystemsBuilder::new().with_storage(subsystem).build().unwrap();
     let warnings = validate_subsystems_config(&subsystems);
     assert!(
-        warnings.iter().any(|w| matches!(w, SubsystemConfigWarning::UnknownBucket { name } if name == "docs")),
+        warnings
+            .iter()
+            .any(|w| matches!(w, SubsystemConfigWarning::UnknownBucket { name } if name == "docs")),
         "expected UnknownBucket warning for 'docs'"
     );
 }
@@ -380,11 +398,16 @@ async fn test_validate_unknown_bucket_warns() {
 fn test_validate_empty_functions_registry_warns() {
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![], // no definitions
     };
     let trigger_registry = TriggerRegistry::new();
-    let subsystem = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
+    let subsystem = FunctionsSubsystem {
+        observer,
+        trigger_registry,
+        config,
+        module_registry: std::collections::HashMap::new(),
+    };
     let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
     let warnings = validate_subsystems_config(&subsystems);
     assert!(
@@ -406,7 +429,11 @@ fn test_validate_realtime_no_entities_warns() {
         "entities": []
     }))
     .unwrap();
-    let subsystem = RealtimeSubsystem { server, observer, schema_config };
+    let subsystem = RealtimeSubsystem {
+        server,
+        observer,
+        schema_config,
+    };
     let subsystems = ServerSubsystemsBuilder::new().with_realtime(subsystem).build().unwrap();
     let warnings = validate_subsystems_config(&subsystems);
     assert!(
@@ -421,7 +448,12 @@ fn test_validate_functions_with_definitions_no_warning() {
     let observer = Arc::new(FunctionObserver::new());
     let config = minimal_functions_config();
     let trigger_registry = TriggerRegistry::new();
-    let subsystem = FunctionsSubsystem { observer, trigger_registry, config, module_registry: std::collections::HashMap::new() };
+    let subsystem = FunctionsSubsystem {
+        observer,
+        trigger_registry,
+        config,
+        module_registry: std::collections::HashMap::new(),
+    };
     let subsystems = ServerSubsystemsBuilder::new().with_functions(subsystem).build().unwrap();
     let warnings = validate_subsystems_config(&subsystems);
     assert!(

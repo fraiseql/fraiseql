@@ -1517,7 +1517,8 @@ fn with_rls_sets_has_rls_field() {
 
     let mock2 = MockAdapter::new();
     let cache2 = QueryResultCache::new(CacheConfig::enabled());
-    let adapter_no_rls = CachedDatabaseAdapter::new(mock2, cache2, "v1".to_string()).with_rls(false);
+    let adapter_no_rls =
+        CachedDatabaseAdapter::new(mock2, cache2, "v1".to_string()).with_rls(false);
     assert!(!adapter_no_rls.has_rls, "with_rls(false) must set has_rls=false");
 }
 
@@ -1552,16 +1553,33 @@ async fn cache_key_differs_for_different_where_clauses() {
     };
 
     // Tenant A: 1 DB call, result cached
-    adapter.execute_where_query("v_item", Some(&where_tenant_a), None, None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_item", Some(&where_tenant_a), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Tenant A again: cache hit, no extra DB call
-    adapter.execute_where_query("v_item", Some(&where_tenant_a), None, None, None).await.unwrap();
-    assert_eq!(adapter.inner().call_count(), 1, "second request for same tenant must be a cache hit");
+    adapter
+        .execute_where_query("v_item", Some(&where_tenant_a), None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        adapter.inner().call_count(),
+        1,
+        "second request for same tenant must be a cache hit"
+    );
 
     // Tenant B: different WHERE clause → different cache key → DB call
-    adapter.execute_where_query("v_item", Some(&where_tenant_b), None, None, None).await.unwrap();
-    assert_eq!(adapter.inner().call_count(), 2, "different tenant WHERE clause must be a cache miss");
+    adapter
+        .execute_where_query("v_item", Some(&where_tenant_b), None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        adapter.inner().call_count(),
+        2,
+        "different tenant WHERE clause must be a cache miss"
+    );
 }
 
 #[tokio::test]
@@ -1582,10 +1600,16 @@ async fn with_rls_does_not_disable_cache() {
     };
 
     // First call → DB hit
-    adapter.execute_where_query("v_thing", Some(&where_clause), None, None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_thing", Some(&where_clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 1);
 
     // Second call with same WHERE → cache hit (has_rls=true must NOT disable cache)
-    adapter.execute_where_query("v_thing", Some(&where_clause), None, None, None).await.unwrap();
+    adapter
+        .execute_where_query("v_thing", Some(&where_clause), None, None, None)
+        .await
+        .unwrap();
     assert_eq!(adapter.inner().call_count(), 1, "has_rls=true must not prevent cache hits");
 }

@@ -150,7 +150,9 @@ fn generate_federation_graph(
     }
 }
 
-pub(crate) fn generate_json_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+pub(crate) fn generate_json_graph(
+    federation: Option<&fraiseql_core::schema::FederationConfig>,
+) -> String {
     let subgraphs: Vec<serde_json::Value> = match federation {
         Some(fed) if fed.enabled => {
             let name = fed.service_name.clone().unwrap_or_else(|| "this-service".to_string());
@@ -168,7 +170,9 @@ pub(crate) fn generate_json_graph(federation: Option<&fraiseql_core::schema::Fed
     .unwrap_or_else(|_| r#"{"subgraphs":[],"edges":[]}"#.to_string())
 }
 
-pub(crate) fn generate_dot_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+pub(crate) fn generate_dot_graph(
+    federation: Option<&fraiseql_core::schema::FederationConfig>,
+) -> String {
     use std::fmt::Write as _;
 
     let mut dot =
@@ -252,11 +256,8 @@ pub async fn plan_handler<A: DatabaseAdapter>(
     // iterate to find any matching plan.
     let executor = state.executor();
     let schema = executor.schema();
-    let fingerprint = schema
-        .federation
-        .as_ref()
-        .and_then(|f| f.version.clone())
-        .unwrap_or_default();
+    let fingerprint =
+        schema.federation.as_ref().and_then(|f| f.version.clone()).unwrap_or_default();
 
     let plan = plan_cache.get(&normalized, &fingerprint);
 
@@ -279,7 +280,9 @@ pub async fn plan_handler<A: DatabaseAdapter>(
     }))
 }
 
-pub(crate) fn generate_mermaid_graph(federation: Option<&fraiseql_core::schema::FederationConfig>) -> String {
+pub(crate) fn generate_mermaid_graph(
+    federation: Option<&fraiseql_core::schema::FederationConfig>,
+) -> String {
     use std::fmt::Write as _;
 
     let mut mermaid = "graph LR\n".to_string();

@@ -1,6 +1,5 @@
 //! Tests for `security/kms/` modules.
 
-
 mod base_tests {
     use crate::utils::clock::{Clock as _, SystemClock};
 
@@ -63,8 +62,10 @@ mod models_tests {
 mod vault_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use crate::security::kms::*;
-    use crate::security::kms::vault::{VAULT_REQUEST_TIMEOUT, base64_encode, base64_decode};
+    use crate::security::kms::{
+        vault::{VAULT_REQUEST_TIMEOUT, base64_decode, base64_encode},
+        *,
+    };
 
     #[test]
     fn test_vault_config_api_url() {

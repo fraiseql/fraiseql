@@ -16,9 +16,10 @@
 //! - `*/5 * * * *` - Every 5 minutes
 //! - `0 0 1 * *` - First day of every month
 
-use crate::types::EventPayload;
 use chrono::{Datelike, Timelike};
 use serde::{Deserialize, Serialize};
+
+use crate::types::EventPayload;
 
 /// A parsed cron field that can be a number, wildcard, or step value.
 #[derive(Debug, Clone)]
@@ -47,7 +48,7 @@ impl CronField {
                     return false;
                 }
                 (value - start).is_multiple_of(*step)
-            }
+            },
             CronField::List(values) => values.contains(&value),
             CronField::Range { start, end } => value >= *start && value <= *end,
         }
@@ -87,9 +88,8 @@ impl CronField {
             let start = start_str
                 .parse::<u32>()
                 .map_err(|_| format!("Invalid range start: {}", start_str))?;
-            let end = end_str
-                .parse::<u32>()
-                .map_err(|_| format!("Invalid range end: {}", end_str))?;
+            let end =
+                end_str.parse::<u32>().map_err(|_| format!("Invalid range end: {}", end_str))?;
 
             return Ok(CronField::Range { start, end });
         }
@@ -97,10 +97,7 @@ impl CronField {
         if field.contains(',') {
             let values = field
                 .split(',')
-                .map(|v| {
-                    v.parse::<u32>()
-                        .map_err(|_| format!("Invalid list value: {}", v))
-                })
+                .map(|v| v.parse::<u32>().map_err(|_| format!("Invalid list value: {}", v)))
                 .collect::<Result<Vec<u32>, String>>()?;
 
             return Ok(CronField::List(values));
@@ -120,15 +117,15 @@ pub struct CronSchedule {
     /// The raw cron expression (e.g., "0 2 * * *").
     pub expression: String,
     /// Parsed minute field (0-59)
-    minute: CronField,
+    minute:         CronField,
     /// Parsed hour field (0-23)
-    hour: CronField,
+    hour:           CronField,
     /// Parsed day-of-month field (1-31)
-    day: CronField,
+    day:            CronField,
     /// Parsed month field (1-12)
-    month: CronField,
+    month:          CronField,
     /// Parsed day-of-week field (0-6, 0=Sunday)
-    weekday: CronField,
+    weekday:        CronField,
 }
 
 impl CronSchedule {
@@ -141,10 +138,7 @@ impl CronSchedule {
         let parts: Vec<&str> = expression.split_whitespace().collect();
 
         if parts.len() != 5 {
-            return Err(format!(
-                "Cron expression must have 5 fields, got {}",
-                parts.len()
-            ));
+            return Err(format!("Cron expression must have 5 fields, got {}", parts.len()));
         }
 
         let minute = CronField::parse(parts[0])?;
@@ -276,24 +270,20 @@ impl CronExecutionState {
     }
 }
 
-
 /// A trigger that fires on a cron schedule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CronTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Cron expression (e.g., `"0 2 * * *"`).
-    pub schedule: String,
+    pub schedule:      String,
     /// Timezone for schedule evaluation (e.g., `"UTC"`, `"America/New_York"`).
-    pub timezone: String,
+    pub timezone:      String,
 }
 
 impl CronTrigger {
     /// Build an `EventPayload` from a cron execution.
-    pub fn build_payload(
-        &self,
-        exec_time: &chrono::DateTime<chrono::Utc>,
-    ) -> EventPayload {
+    pub fn build_payload(&self, exec_time: &chrono::DateTime<chrono::Utc>) -> EventPayload {
         let trigger_type = format!("cron:{}", self.function_name);
 
         let data = serde_json::json!({
@@ -324,8 +314,8 @@ impl CronTrigger {
 /// # Lifecycle
 ///
 /// 1. Build a scheduler with [`CronScheduler::new`].
-/// 2. Call [`CronScheduler::start`] to spawn the background task; this returns
-///    a [`CronSchedulerHandle`] that can be used to stop the task.
+/// 2. Call [`CronScheduler::start`] to spawn the background task; this returns a
+///    [`CronSchedulerHandle`] that can be used to stop the task.
 /// 3. On server shutdown, drop (or explicitly call `stop()` on) the handle.
 pub struct CronScheduler {
     /// Triggers paired with their per-trigger execution state.
@@ -339,10 +329,7 @@ impl CronScheduler {
     /// executions recorded). Call [`Self::start`] to begin scheduling.
     #[must_use]
     pub fn new(triggers: Vec<CronTrigger>) -> Self {
-        let triggers = triggers
-            .into_iter()
-            .map(|t| (t, CronExecutionState::new()))
-            .collect();
+        let triggers = triggers.into_iter().map(|t| (t, CronExecutionState::new())).collect();
         Self { triggers }
     }
 
@@ -385,8 +372,7 @@ async fn cron_scheduler_task(
     module_registry: std::collections::HashMap<String, crate::types::FunctionModule>,
     mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) {
-    let mut interval =
-        tokio::time::interval(tokio::time::Duration::from_secs(60));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     // Skip the initial immediate tick so the scheduler doesn't fire on startup.
     interval.tick().await;

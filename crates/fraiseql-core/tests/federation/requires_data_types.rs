@@ -33,7 +33,7 @@ fn test_requires_with_numeric_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -76,7 +76,7 @@ fn test_requires_with_boolean_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -119,7 +119,7 @@ fn test_requires_with_null_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -162,7 +162,7 @@ fn test_provides_field_present() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -205,7 +205,7 @@ fn test_requires_with_array_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -248,7 +248,7 @@ fn test_requires_with_object_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -291,7 +291,7 @@ fn test_requires_enforcement_string_values() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -339,7 +339,7 @@ fn test_requires_and_provides_on_same_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 

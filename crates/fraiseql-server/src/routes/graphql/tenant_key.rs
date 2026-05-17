@@ -9,11 +9,12 @@
 //! whether the key is registered — that validation happens in
 //! [`TenantExecutorRegistry::executor_for`](super::tenant_registry::TenantExecutorRegistry::executor_for).
 
+use std::collections::HashSet;
+
 use axum::http::HeaderMap;
 use dashmap::DashMap;
 use fraiseql_core::security::SecurityContext;
 use fraiseql_error::{FraiseQLError, Result};
-use std::collections::HashSet;
 use tracing::warn;
 
 /// Maximum length for a tenant key from the `X-Tenant-ID` header.
@@ -83,12 +84,16 @@ impl TenantKeyResolver {
         if sources.len() > 1 {
             let unique_values: HashSet<_> = sources.iter().map(|(_, v)| v).collect();
             if unique_values.len() > 1 {
-                let conflicts: Vec<String> = sources.iter().map(|(src, val)| format!("{}: {}", src, val)).collect();
+                let conflicts: Vec<String> =
+                    sources.iter().map(|(src, val)| format!("{}: {}", src, val)).collect();
                 warn!("Tenant source conflict detected: {}", conflicts.join(", "));
                 if strict {
                     return Err(FraiseQLError::Validation {
-                        message: format!("Conflicting tenant values from sources: {}", conflicts.join(", ")),
-                        path: None,
+                        message: format!(
+                            "Conflicting tenant values from sources: {}",
+                            conflicts.join(", ")
+                        ),
+                        path:    None,
                     });
                 }
             }

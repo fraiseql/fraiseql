@@ -39,7 +39,10 @@ pub(crate) fn resolve_dialect(name: &str) -> anyhow::Result<Box<dyn SqlDialect>>
 /// # Errors
 ///
 /// Returns an error if protobuf encoding fails.
-pub(crate) fn build_file_descriptor_set(proto_source: &str, package: &str) -> anyhow::Result<Vec<u8>> {
+pub(crate) fn build_file_descriptor_set(
+    proto_source: &str,
+    package: &str,
+) -> anyhow::Result<Vec<u8>> {
     use prost::Message;
     use prost_types::{FileDescriptorProto, FileDescriptorSet};
 

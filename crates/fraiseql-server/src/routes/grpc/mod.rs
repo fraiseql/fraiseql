@@ -594,4 +594,5 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     }))
 }
 
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;

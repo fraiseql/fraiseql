@@ -3,12 +3,15 @@
 #[cfg(test)]
 mod tests;
 
-use crate::runtime::FunctionRuntime;
-use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits, RuntimeType};
-use crate::HostContext;
+use std::{collections::HashMap, sync::Arc};
+
 use fraiseql_error::Result;
-use std::collections::HashMap;
-use std::sync::Arc;
+
+use crate::{
+    HostContext,
+    runtime::FunctionRuntime,
+    types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits, RuntimeType},
+};
 
 /// Executes functions in response to trigger events.
 ///
@@ -37,8 +40,7 @@ impl FunctionObserver {
         runtime_type: RuntimeType,
         runtime: R,
     ) {
-        self.runtimes
-            .insert(runtime_type, Arc::new(runtime));
+        self.runtimes.insert(runtime_type, Arc::new(runtime));
     }
 
     /// Execute a function module in response to an event.
@@ -64,18 +66,14 @@ impl FunctionObserver {
         H: HostContext + ?Sized,
     {
         #[allow(unused_variables)] // Reason: used only when runtime features are enabled
-        let runtime_box = self
-            .runtimes
-            .get(&module.runtime)
-            .ok_or_else(|| fraiseql_error::FraiseQLError::Unsupported {
-                message: format!(
-                    "No runtime registered for {:?}",
-                    module.runtime
-                ),
-            })?;
+        let runtime_box = self.runtimes.get(&module.runtime).ok_or_else(|| {
+            fraiseql_error::FraiseQLError::Unsupported {
+                message: format!("No runtime registered for {:?}", module.runtime),
+            }
+        })?;
 
         // Dispatch based on runtime type
-        #[allow(unreachable_patterns)]  // Reason: pattern reachability depends on features
+        #[allow(unreachable_patterns)] // Reason: pattern reachability depends on features
         match module.runtime {
             RuntimeType::Wasm => {
                 #[cfg(feature = "runtime-wasm")]
@@ -83,8 +81,8 @@ impl FunctionObserver {
                     let runtime = runtime_box
                         .downcast_ref::<crate::runtime::wasm::WasmRuntime>()
                         .ok_or_else(|| fraiseql_error::FraiseQLError::Unsupported {
-                            message: "Invalid WASM runtime".to_string(),
-                        })?;
+                        message: "Invalid WASM runtime".to_string(),
+                    })?;
                     runtime.invoke(module, event, host, limits).await
                 }
                 #[cfg(not(feature = "runtime-wasm"))]
@@ -93,15 +91,15 @@ impl FunctionObserver {
                         message: "WASM runtime not enabled".to_string(),
                     })
                 }
-            }
+            },
             RuntimeType::Deno => {
                 #[cfg(feature = "runtime-deno")]
                 {
                     let runtime = runtime_box
                         .downcast_ref::<crate::runtime::deno::DenoRuntime>()
                         .ok_or_else(|| fraiseql_error::FraiseQLError::Unsupported {
-                            message: "Invalid Deno runtime".to_string(),
-                        })?;
+                        message: "Invalid Deno runtime".to_string(),
+                    })?;
                     runtime.invoke(module, event, host, limits).await
                 }
                 #[cfg(not(feature = "runtime-deno"))]
@@ -110,7 +108,7 @@ impl FunctionObserver {
                         message: "Deno runtime not enabled".to_string(),
                     })
                 }
-            }
+            },
         }
     }
 
@@ -127,9 +125,7 @@ impl FunctionObserver {
         registry: &crate::triggers::registry::TriggerRegistry,
         event: &crate::triggers::mutation::EntityEvent,
     ) -> Vec<crate::triggers::mutation::AfterMutationTrigger> {
-        registry
-            .after_mutation_triggers
-            .find(&event.entity, event.event_kind)
+        registry.after_mutation_triggers.find(&event.entity, event.event_kind)
     }
 }
 

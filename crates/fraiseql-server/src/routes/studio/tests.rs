@@ -23,11 +23,11 @@ mod admin_tests {
     #[test]
     fn test_admin_health_response_serializes() {
         let resp = AdminHealthResponse {
-            uptime_secs:  10,
-            version:      "test".to_string(),
-            pool_active:  1,
-            pool_idle:    4,
-            pool_max:     5,
+            uptime_secs:    10,
+            version:        "test".to_string(),
+            pool_active:    1,
+            pool_idle:      4,
+            pool_max:       5,
             cache_hit_rate: Some(0.8),
             cache_entries:  Some(100),
         };
@@ -130,9 +130,8 @@ mod metrics_summary_tests {
     #![allow(clippy::float_cmp)] // Reason: testing exact 0.0 from zero-division guards
     use std::sync::atomic::Ordering;
 
-    use crate::metrics_server::MetricsCollector;
-
     use super::super::metrics_summary::*;
+    use crate::metrics_server::MetricsCollector;
 
     #[test]
     fn test_metrics_summary_serializes() {

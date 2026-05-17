@@ -80,12 +80,7 @@ pub(crate) fn cidr_containment_check(field_sql: &str, ranges: &[&str], negate: b
 }
 
 /// CIDR ranges for RFC1918 private addresses plus IPv6 unique-local.
-const PRIVATE_RANGES: &[&str] = &[
-    "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
-    "fc00::/7",
-];
+const PRIVATE_RANGES: &[&str] = &["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"];
 
 /// CIDR ranges for loopback addresses.
 const LOOPBACK_RANGES: &[&str] = &["127.0.0.0/8", "::1/128"];
@@ -604,7 +599,11 @@ pub fn generate_where_operator_sql(
 
         WhereOperator::IsLinkLocal { field, value } => {
             let field_sql = field.to_sql();
-            Ok(cidr_containment_check(&field_sql, LINK_LOCAL_RANGES, !value))
+            Ok(cidr_containment_check(
+                &field_sql,
+                LINK_LOCAL_RANGES,
+                !value,
+            ))
         }
 
         WhereOperator::IsDocumentation { field, value } => {

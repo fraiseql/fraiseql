@@ -214,15 +214,26 @@ fn compile_emit_ddl_writes_files() {
         .output()
         .unwrap();
 
-    assert!(out.status.success(), "compile --emit-ddl must exit 0; stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "compile --emit-ddl must exit 0; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(ddl_dir.exists(), "DDL directory must be created");
 
     // minimal_schema.json has a User type → expect user.sql
     let user_sql = ddl_dir.join("user.sql");
-    assert!(user_sql.exists(), "user.sql must be emitted; files: {:?}", std::fs::read_dir(&ddl_dir).unwrap().collect::<Vec<_>>());
+    assert!(
+        user_sql.exists(),
+        "user.sql must be emitted; files: {:?}",
+        std::fs::read_dir(&ddl_dir).unwrap().collect::<Vec<_>>()
+    );
 
     let content = std::fs::read_to_string(&user_sql).unwrap();
-    assert!(content.contains("CREATE TABLE"), "DDL must contain CREATE TABLE; got: {content}");
+    assert!(
+        content.contains("CREATE TABLE"),
+        "DDL must contain CREATE TABLE; got: {content}"
+    );
     assert!(content.contains("tb_user"), "table name must be tb_user; got: {content}");
 }
 

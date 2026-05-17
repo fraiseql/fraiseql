@@ -36,8 +36,8 @@ pub mod runtime;
 #[cfg(test)]
 mod tests;
 
-use chrono::{DateTime, Utc};
 pub use changelog_handlers::ChangelogState;
+use chrono::{DateTime, Utc};
 pub use config::ObserverManagementConfig;
 pub use dlq_handlers::DlqState;
 pub use handlers::{ObserverState, RuntimeHealthState};

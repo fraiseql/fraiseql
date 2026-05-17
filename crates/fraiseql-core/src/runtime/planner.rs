@@ -120,7 +120,10 @@ impl QueryPlanner {
     /// `snake_case` keys, which violates client expectations.
     ///
     /// `Stream` is only used as a fallback when no specific fields are requested.
-    pub(crate) const fn choose_jsonb_strategy(&self, projection_fields: &[String]) -> JsonbStrategy {
+    pub(crate) const fn choose_jsonb_strategy(
+        &self,
+        projection_fields: &[String],
+    ) -> JsonbStrategy {
         if projection_fields.is_empty() {
             self.jsonb_options.default_strategy
         } else {
@@ -168,7 +171,10 @@ impl QueryPlanner {
     }
 
     /// Extract parameters from query match.
-    pub(crate) fn extract_parameters(&self, query_match: &QueryMatch) -> Vec<(String, serde_json::Value)> {
+    pub(crate) fn extract_parameters(
+        &self,
+        query_match: &QueryMatch,
+    ) -> Vec<(String, serde_json::Value)> {
         query_match.arguments.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 

@@ -1,8 +1,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::*;
-
 use serde_json;
+
+use super::*;
 
 #[test]
 fn test_dashboard_overview_creation() {

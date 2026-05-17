@@ -54,7 +54,11 @@ impl StorageRouteState {
     /// Create state with the given backend and the default 100 `MiB` upload limit.
     #[must_use]
     pub fn new(backend: Arc<dyn StorageBackend>) -> Self {
-        Self { backend, max_upload_bytes: DEFAULT_MAX_UPLOAD_BYTES, tenant_prefix: None }
+        Self {
+            backend,
+            max_upload_bytes: DEFAULT_MAX_UPLOAD_BYTES,
+            tenant_prefix: None,
+        }
     }
 
     /// Override the maximum upload size.
@@ -193,10 +197,8 @@ pub async fn download_handler(
     let full_key = prefixed_key(state.tenant_prefix.as_deref(), &key);
 
     match state.backend.download(&full_key).await {
-        Ok(data) => {
-            (StatusCode::OK, [(header::CONTENT_TYPE, "application/octet-stream")], data)
-                .into_response()
-        },
+        Ok(data) => (StatusCode::OK, [(header::CONTENT_TYPE, "application/octet-stream")], data)
+            .into_response(),
         Err(e) => file_error_response(&e),
     }
 }
@@ -252,7 +254,10 @@ pub async fn presigned_url_handler(
     match state.backend.presigned_url(&full_key, expiry).await {
         Ok(url) => (
             StatusCode::OK,
-            axum::Json(PresignedUrlResponse { url, expires_in: params.expiry_secs }),
+            axum::Json(PresignedUrlResponse {
+                url,
+                expires_in: params.expiry_secs,
+            }),
         )
             .into_response(),
         Err(e) => {
@@ -285,5 +290,5 @@ pub fn storage_router(state: StorageRouteState) -> Router {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;

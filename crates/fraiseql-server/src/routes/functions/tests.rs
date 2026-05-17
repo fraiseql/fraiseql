@@ -9,8 +9,7 @@ use axum::{
     http::{Method, Request, StatusCode},
 };
 use fraiseql_functions::{
-    FunctionStore,
-    InMemoryFunctionStore,
+    FunctionStore, InMemoryFunctionStore,
     runtime::SendFunctionRuntime,
     types::{EventPayload, FunctionModule, FunctionResult, LogEntry, ResourceLimits, RuntimeType},
 };
@@ -29,9 +28,8 @@ fn make_test_state(store: Arc<dyn FunctionStore>) -> FunctionsRouteState {
             _limits: ResourceLimits,
         ) -> std::pin::Pin<
             Box<
-                dyn std::future::Future<
-                        Output = fraiseql_error::Result<FunctionResult>,
-                    > + Send
+                dyn std::future::Future<Output = fraiseql_error::Result<FunctionResult>>
+                    + Send
                     + '_,
             >,
         > {

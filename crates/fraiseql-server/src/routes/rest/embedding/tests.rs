@@ -4,7 +4,9 @@
 
 use fraiseql_core::schema::{Cardinality, Relationship};
 
-use super::executor::{extract_join_key, extract_query_data, find_list_query_for_type, set_empty_embedding};
+use super::executor::{
+    extract_join_key, extract_query_data, find_list_query_for_type, set_empty_embedding,
+};
 
 #[test]
 fn extract_join_key_one_to_many() {

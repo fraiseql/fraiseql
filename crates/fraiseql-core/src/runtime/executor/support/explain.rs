@@ -50,8 +50,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         // Look up the query definition by name.
         let query_def =
             self.ctx.schema.queries.iter().find(|q| q.name == query_name).ok_or_else(|| {
-                let display_names: Vec<String> =
-                    self.ctx.schema.queries.iter().map(|q| self.ctx.schema.display_name(&q.name)).collect();
+                let display_names: Vec<String> = self
+                    .ctx
+                    .schema
+                    .queries
+                    .iter()
+                    .map(|q| self.ctx.schema.display_name(&q.name))
+                    .collect();
                 let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
                 let suggestion = crate::runtime::suggest_similar(query_name, &candidate_refs);
                 let message = match suggestion.as_slice() {
@@ -82,7 +87,8 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         // Delegate EXPLAIN ANALYZE to the database adapter.
         let explain_output = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .explain_where_query(sql_source, where_clause.as_ref(), limit, offset)
             .await?;
 

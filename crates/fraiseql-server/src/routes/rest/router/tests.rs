@@ -8,8 +8,10 @@ use axum::http::StatusCode;
 use fraiseql_core::schema::{FieldType, MutationDefinition, MutationOperation, RestConfig};
 use fraiseql_test_utils::schema_builder::{TestFieldBuilder, TestSchemaBuilder, TestTypeBuilder};
 
-use super::helpers::{error_response, parse_query_pairs, strip_base_path, to_axum_path};
-use super::*;
+use super::{
+    helpers::{error_response, parse_query_pairs, strip_base_path, to_axum_path},
+    *,
+};
 
 // ---------------------------------------------------------------------------
 // helpers tests

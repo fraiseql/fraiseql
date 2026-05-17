@@ -16,16 +16,17 @@ mod tests;
 
 use std::collections::HashMap;
 
+pub use bracket::parse_bracket_key;
+pub use coerce::coerce_to_type;
 use fraiseql_core::{
     schema::{QueryDefinition, RestConfig, TypeDefinition},
     utils::operators::OPERATOR_REGISTRY,
 };
 use fraiseql_error::FraiseQLError;
-
-pub use bracket::parse_bracket_key;
-pub use coerce::coerce_to_type;
 pub use helpers::{count_where_fields, field_names, json_depth, validation_error};
-pub use logical::{parse_logical_group, parse_logical_value, parse_nested_logical, split_logical_parts};
+pub use logical::{
+    parse_logical_group, parse_logical_value, parse_nested_logical, split_logical_parts,
+};
 pub use select::{parse_select_entries, validate_embedding_depth};
 
 // ---------------------------------------------------------------------------

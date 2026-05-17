@@ -1,8 +1,8 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::*;
-
 use chrono::Duration;
+
+use super::*;
 
 #[tokio::test]
 async fn test_cache_set_and_get() {

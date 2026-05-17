@@ -1,8 +1,10 @@
 //! Host context trait for function runtime access to FraiseQL services.
 
-use crate::types::{EventPayload, LogEntry, LogLevel};
-use fraiseql_error::Result;
 use std::future::Future;
+
+use fraiseql_error::Result;
+
+use crate::types::{EventPayload, LogEntry, LogLevel};
 
 #[cfg(feature = "host-live")]
 pub mod live;
@@ -14,11 +16,11 @@ pub mod factory;
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
     /// HTTP status code.
-    pub status: u16,
+    pub status:  u16,
     /// Response headers.
     pub headers: Vec<(String, String)>,
     /// Response body.
-    pub body: Vec<u8>,
+    pub body:    Vec<u8>,
 }
 
 /// Trait for providing host services to functions (queries, storage, HTTP, etc.).
@@ -71,11 +73,7 @@ pub trait HostContext: Send + Sync {
     /// # Errors
     ///
     /// Returns `Err` if the object does not exist or access is denied.
-    fn storage_get(
-        &self,
-        bucket: &str,
-        key: &str,
-    ) -> impl Future<Output = Result<Vec<u8>>> + Send;
+    fn storage_get(&self, bucket: &str, key: &str) -> impl Future<Output = Result<Vec<u8>>> + Send;
 
     /// Store an object to storage.
     ///
@@ -118,7 +116,7 @@ pub trait HostContext: Send + Sync {
 /// All I/O methods return `Unsupported` errors. Logs are captured in-memory for test verification.
 pub struct NoopHostContext {
     event_payload: EventPayload,
-    logs: std::sync::Arc<std::sync::Mutex<Vec<LogEntry>>>,
+    logs:          std::sync::Arc<std::sync::Mutex<Vec<LogEntry>>>,
 }
 
 impl NoopHostContext {
@@ -136,10 +134,7 @@ impl NoopHostContext {
     ///
     /// Panics if the Mutex is poisoned (should never happen in normal operation).
     pub fn captured_logs(&self) -> Vec<LogEntry> {
-        self.logs
-            .lock()
-            .expect("log mutex poisoned")
-            .clone()
+        self.logs.lock().expect("log mutex poisoned").clone()
     }
 }
 
@@ -176,11 +171,7 @@ impl HostContext for NoopHostContext {
         })
     }
 
-    async fn storage_get(
-        &self,
-        _bucket: &str,
-        _key: &str,
-    ) -> Result<Vec<u8>> {
+    async fn storage_get(&self, _bucket: &str, _key: &str) -> Result<Vec<u8>> {
         Err(fraiseql_error::FraiseQLError::Unsupported {
             message: "HostContext::storage_get not implemented".to_string(),
         })
@@ -218,10 +209,7 @@ impl HostContext for NoopHostContext {
             message: message.to_string(),
             timestamp: chrono::Utc::now(),
         };
-        self.logs
-            .lock()
-            .expect("log mutex poisoned")
-            .push(entry);
+        self.logs.lock().expect("log mutex poisoned").push(entry);
     }
 }
 
@@ -233,10 +221,10 @@ mod tests {
     fn test_noop_host_context_returns_unsupported() {
         let payload = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
         let ctx = NoopHostContext::new(payload);
 
@@ -249,10 +237,10 @@ mod tests {
     fn test_noop_host_context_log_captures_entries() {
         let payload = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
         let ctx = NoopHostContext::new(payload);
 
@@ -279,10 +267,10 @@ mod tests {
     fn test_event_payload_available_in_context() {
         let payload = EventPayload {
             trigger_type: "mutation".to_string(),
-            entity: "User".to_string(),
-            event_kind: "updated".to_string(),
-            data: serde_json::json!({"id": 42}),
-            timestamp: chrono::Utc::now(),
+            entity:       "User".to_string(),
+            event_kind:   "updated".to_string(),
+            data:         serde_json::json!({"id": 42}),
+            timestamp:    chrono::Utc::now(),
         };
         let ctx = NoopHostContext::new(payload);
 
@@ -297,17 +285,16 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_host_storage_get_returns_bytes() {
-        use crate::host::live::LiveHostContext;
-        use crate::host::live::HostContextConfig;
-        use std::collections::HashMap;
-        use std::sync::Arc;
+        use std::{collections::HashMap, sync::Arc};
+
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let payload = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "File".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "File".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         // Create a mock storage backend
@@ -337,15 +324,14 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_host_storage_without_backend_returns_unsupported() {
-        use crate::host::live::LiveHostContext;
-        use crate::host::live::HostContextConfig;
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let payload = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "File".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "File".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -355,8 +341,10 @@ mod tests {
         assert!(result.is_err());
         match result {
             Err(fraiseql_error::FraiseQLError::Unsupported { message }) => {
-                assert!(message.contains("not yet implemented") || message.contains("not configured"));
-            }
+                assert!(
+                    message.contains("not yet implemented") || message.contains("not configured")
+                );
+            },
             other => panic!("expected Unsupported error, got {:?}", other),
         }
     }
@@ -364,15 +352,14 @@ mod tests {
     #[cfg(feature = "host-live")]
     #[tokio::test]
     async fn test_host_storage_put_respects_size_limit() {
-        use crate::host::live::LiveHostContext;
-        use crate::host::live::HostContextConfig;
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let payload = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "File".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "File".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         // Create config with very small size limit
@@ -385,9 +372,7 @@ mod tests {
 
         // Try to upload larger than limit (but first check if storage is not configured)
         let oversized_data = vec![0u8; 100];
-        let result = ctx
-            .storage_put("documents", "large.txt", &oversized_data, "text/plain")
-            .await;
+        let result = ctx.storage_put("documents", "large.txt", &oversized_data, "text/plain").await;
 
         // Should fail with Unsupported since storage backend is not configured
         assert!(result.is_err());

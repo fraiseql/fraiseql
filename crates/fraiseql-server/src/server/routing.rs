@@ -23,11 +23,11 @@ use super::{
 #[cfg(feature = "auth")]
 use super::{AuthMeState, AuthPkceState, auth_callback, auth_me, auth_start};
 #[cfg(feature = "auth")]
+use crate::auth::anon_signup;
+#[cfg(feature = "auth")]
 use crate::auth::social::social_authorize;
 #[cfg(feature = "auth")]
 use crate::auth::{mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify};
-#[cfg(feature = "auth")]
-use crate::auth::anon_signup;
 use crate::middleware::{Hs256AuthState, hs256_auth_middleware};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
@@ -297,8 +297,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         revoke_user_handler,
                     },
                     data::{
-                        mutate_handler as data_mutate_handler,
-                        query_handler as data_query_handler,
+                        mutate_handler as data_mutate_handler, query_handler as data_query_handler,
                     },
                     function_ops::{
                         delete_secret_handler, function_logs_handler, invoke_function_handler,
@@ -314,86 +313,46 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         presign_handler,
                     },
                 };
-                let auth = BearerAuthState::with_max_failures(token.clone(), self.config.admin_auth_max_failures);
+                let auth = BearerAuthState::with_max_failures(
+                    token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
                 let studio_admin_router = Router::new()
                     // Schema + health
                     .route("/admin/v1/schema", get(studio_schema_handler::<A>))
                     .route("/admin/v1/health/detailed", get(studio_health_handler::<A>))
                     // Data browser
-                    .route(
-                        "/admin/v1/data/{entity}/query",
-                        post(data_query_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/data/{entity}/mutate",
-                        post(data_mutate_handler::<A>),
-                    )
+                    .route("/admin/v1/data/{entity}/query", post(data_query_handler::<A>))
+                    .route("/admin/v1/data/{entity}/mutate", post(data_mutate_handler::<A>))
                     // Auth user management
                     .route("/admin/v1/users", get(list_users_handler::<A>))
                     .route("/admin/v1/users/invite", post(invite_user_handler::<A>))
-                    .route(
-                        "/admin/v1/users/{id}/revoke",
-                        post(revoke_user_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/users/{id}/mfa",
-                        get(mfa_status_handler::<A>),
-                    )
+                    .route("/admin/v1/users/{id}/revoke", post(revoke_user_handler::<A>))
+                    .route("/admin/v1/users/{id}/mfa", get(mfa_status_handler::<A>))
                     // Storage browser
-                    .route(
-                        "/admin/v1/storage/buckets",
-                        get(list_buckets_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/storage/objects",
-                        get(list_objects_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/storage/objects/sign",
-                        post(presign_handler::<A>),
-                    )
+                    .route("/admin/v1/storage/buckets", get(list_buckets_handler::<A>))
+                    .route("/admin/v1/storage/objects", get(list_objects_handler::<A>))
+                    .route("/admin/v1/storage/objects/sign", post(presign_handler::<A>))
                     .route(
                         "/admin/v1/storage/objects",
                         axum::routing::delete(delete_object_handler::<A>),
                     )
                     // Realtime monitor
-                    .route(
-                        "/admin/v1/realtime/stats",
-                        get(realtime_stats_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/realtime/broadcast",
-                        get(broadcast_channels_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/realtime/presence",
-                        get(presence_rooms_handler::<A>),
-                    )
+                    .route("/admin/v1/realtime/stats", get(realtime_stats_handler::<A>))
+                    .route("/admin/v1/realtime/broadcast", get(broadcast_channels_handler::<A>))
+                    .route("/admin/v1/realtime/presence", get(presence_rooms_handler::<A>))
                     .route("/admin/v1/realtime/cdc", get(cdc_lag_handler::<A>))
                     // Function operations
                     .route("/admin/v1/functions", get(list_functions_handler::<A>))
-                    .route(
-                        "/admin/v1/functions/{name}/invoke",
-                        post(invoke_function_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/functions/{name}/logs",
-                        get(function_logs_handler::<A>),
-                    )
-                    .route(
-                        "/admin/v1/functions/{name}/secrets",
-                        get(list_secrets_handler::<A>),
-                    )
+                    .route("/admin/v1/functions/{name}/invoke", post(invoke_function_handler::<A>))
+                    .route("/admin/v1/functions/{name}/logs", get(function_logs_handler::<A>))
+                    .route("/admin/v1/functions/{name}/secrets", get(list_secrets_handler::<A>))
                     .route(
                         "/admin/v1/functions/{name}/secrets/{key}",
-                        put(set_secret_handler::<A>)
-                            .delete(delete_secret_handler::<A>),
+                        put(set_secret_handler::<A>).delete(delete_secret_handler::<A>),
                     )
                     // Metrics summary
-                    .route(
-                        "/admin/v1/metrics/summary",
-                        get(metrics_summary_handler::<A>),
-                    )
+                    .route("/admin/v1/metrics/summary", get(metrics_summary_handler::<A>))
                     .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
                     .with_state(state.clone());
                 info!("Studio admin API mounted at /admin/v1/* (bearer token required)");
@@ -481,7 +440,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
             #[cfg(feature = "federation")]
             if !remote_sub_fields.is_empty() {
-                subscription_state = subscription_state.with_remote_subscription_fields(remote_sub_fields);
+                subscription_state =
+                    subscription_state.with_remote_subscription_fields(remote_sub_fields);
             }
 
             let subscription_require_auth = self
@@ -582,14 +542,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     info!("Schema export endpoints enabled (OIDC auth required)");
                     let auth_state = OidcAuthState::new(validator.clone());
                     let schema_router = Router::new()
-                        .route(
-                            "/api/v1/schema.graphql",
-                            get(api::schema::export_sdl_handler::<A>),
-                        )
-                        .route(
-                            "/api/v1/schema.json",
-                            get(api::schema::export_json_handler::<A>),
-                        )
+                        .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
+                        .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
                         .route_layer(middleware::from_fn_with_state(
                             auth_state,
                             oidc_auth_middleware,
@@ -604,14 +558,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             } else {
                 info!("Schema export endpoints enabled (no auth required)");
                 let schema_router = Router::new()
-                    .route(
-                        "/api/v1/schema.graphql",
-                        get(api::schema::export_sdl_handler::<A>),
-                    )
-                    .route(
-                        "/api/v1/schema.json",
-                        get(api::schema::export_json_handler::<A>),
-                    )
+                    .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
+                    .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
                     .with_state(state.clone());
                 app = app.merge(schema_router);
             }
@@ -622,10 +570,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     info!("Schema metadata endpoint enabled (OIDC auth required)");
                     let auth_state = OidcAuthState::new(validator.clone());
                     let metadata_router = Router::new()
-                        .route(
-                            "/api/v1/schema/metadata",
-                            get(api::metadata::metadata_handler::<A>),
-                        )
+                        .route("/api/v1/schema/metadata", get(api::metadata::metadata_handler::<A>))
                         .route_layer(middleware::from_fn_with_state(
                             auth_state,
                             oidc_auth_middleware,
@@ -640,10 +585,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             } else {
                 info!("Schema metadata endpoint enabled (no auth required)");
                 let metadata_router = Router::new()
-                    .route(
-                        "/api/v1/schema/metadata",
-                        get(api::metadata::metadata_handler::<A>),
-                    )
+                    .route("/api/v1/schema/metadata", get(api::metadata::metadata_handler::<A>))
                     .with_state(state.clone());
                 app = app.merge(metadata_router);
             }
@@ -658,8 +600,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     "Metrics endpoints enabled (bearer token required)"
                 );
 
-                let auth_state =
-                    BearerAuthState::with_max_failures(token.clone(), self.config.admin_auth_max_failures);
+                let auth_state = BearerAuthState::with_max_failures(
+                    token.clone(),
+                    self.config.admin_auth_max_failures,
+                );
 
                 // Create a separate metrics router with auth middleware applied
                 // The routes need relative paths since we use merge (not nest)
@@ -785,10 +729,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                         "/api/v1/admin/grafana-dashboard",
                         get(api::admin::grafana_dashboard_handler::<A>),
                     )
-                    .route(
-                        "/api/v1/admin/usage",
-                        get(api::usage::usage_handler::<A>),
-                    )
+                    .route("/api/v1/admin/usage", get(api::usage::usage_handler::<A>))
                     .route(
                         "/api/v1/admin/query-stats",
                         get(api::query_stats::query_stats_handler::<A>),
@@ -924,7 +865,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .route("/auth/v1/mfa/unenroll", post(mfa_unenroll))
                 .with_state(Arc::clone(mfa));
             app = app.merge(mfa_router);
-            info!("TOTP MFA routes mounted: POST /auth/v1/mfa/{{enroll,challenge,verify,unenroll}}");
+            info!(
+                "TOTP MFA routes mounted: POST /auth/v1/mfa/{{enroll,challenge,verify,unenroll}}"
+            );
         }
 
         // /auth/me session-identity endpoint — mounted when:
@@ -1119,7 +1062,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 (&self.function_store, &self.function_runtime)
             {
                 let functions_state = FunctionsRouteState {
-                    store: store.clone(),
+                    store:   store.clone(),
                     runtime: runtime.clone(),
                 };
                 app = app.merge(functions_router(functions_state));

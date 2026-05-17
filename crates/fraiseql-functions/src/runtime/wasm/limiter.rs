@@ -2,8 +2,8 @@
 //!
 //! Enforces memory limits and tracks peak memory usage during WASM component execution.
 
-use std::error::Error;
-use std::fmt;
+use std::{error::Error, fmt};
+
 use wasmtime::ResourceLimiter;
 
 /// Error type for resource limit violations.
@@ -14,7 +14,7 @@ pub struct ResourceLimitError {
 
 impl ResourceLimitError {
     /// Create a new resource limit error.
-    #[allow(clippy::missing_const_for_fn)]  // String isn't const-compatible
+    #[allow(clippy::missing_const_for_fn)] // String isn't const-compatible
     pub fn new(message: String) -> Self {
         Self { message }
     }
@@ -32,7 +32,7 @@ impl Error for ResourceLimitError {}
 #[derive(Debug, Clone, Copy)]
 pub struct LimitStats {
     /// Peak memory usage in bytes.
-    pub peak_memory: u64,
+    pub peak_memory:    u64,
     /// Current memory usage in bytes.
     pub current_memory: u64,
 }
@@ -41,7 +41,7 @@ impl LimitStats {
     /// Create new limit stats with zero values.
     pub const fn new() -> Self {
         Self {
-            peak_memory: 0,
+            peak_memory:    0,
             current_memory: 0,
         }
     }
@@ -61,9 +61,9 @@ pub struct FunctionStoreLimiter {
     /// Maximum memory allowed in bytes.
     max_limit: u64,
     /// Current memory usage.
-    current: u64,
+    current:   u64,
     /// Peak memory usage seen.
-    peak: u64,
+    peak:      u64,
 }
 
 impl FunctionStoreLimiter {
@@ -81,7 +81,7 @@ impl FunctionStoreLimiter {
     #[must_use]
     pub const fn stats(&self) -> LimitStats {
         LimitStats {
-            peak_memory: self.peak,
+            peak_memory:    self.peak,
             current_memory: self.current,
         }
     }
@@ -110,10 +110,7 @@ impl ResourceLimiter for FunctionStoreLimiter {
         // Check against limit
         if self.current > self.max_limit {
             // Memory limit exceeded
-            let msg = format!(
-                "Memory limit exceeded: {} > {}",
-                self.current, self.max_limit
-            );
+            let msg = format!("Memory limit exceeded: {} > {}", self.current, self.max_limit);
             return Err(wasmtime::Error::new(ResourceLimitError::new(msg)));
         }
 
@@ -139,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_limiter_tracks_peak_memory() {
-        let mut limiter = FunctionStoreLimiter::new(1024 * 1024);  // 1MB limit
+        let mut limiter = FunctionStoreLimiter::new(1024 * 1024); // 1MB limit
 
         // Simulate memory growth
         assert!(limiter.memory_growing(0, 512 * 1024, None).is_ok());
@@ -159,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_limiter_enforces_memory_limit() {
-        let mut limiter = FunctionStoreLimiter::new(1024 * 1024);  // 1MB limit
+        let mut limiter = FunctionStoreLimiter::new(1024 * 1024); // 1MB limit
 
         // Growing within limit succeeds
         assert!(limiter.memory_growing(0, 512 * 1024, None).is_ok());

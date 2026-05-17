@@ -32,49 +32,49 @@ pub struct DlqState {
 #[derive(Debug, Serialize)]
 pub struct DeliveryStatusSummary {
     /// Whether the observer runtime is running.
-    pub running: bool,
+    pub running:          bool,
     /// Number of loaded observers.
-    pub observer_count: usize,
+    pub observer_count:   usize,
     /// Total events processed since startup.
     pub events_processed: u64,
     /// Total errors since startup.
-    pub errors: u64,
+    pub errors:           u64,
     /// Number of items currently in the DLQ.
-    pub dlq_count: usize,
+    pub dlq_count:        usize,
 }
 
 /// A single DLQ item in the HTTP response.
 #[derive(Debug, Serialize)]
 pub struct DlqItemResponse {
     /// Unique DLQ item ID.
-    pub id: Uuid,
+    pub id:            Uuid,
     /// ID of the event that triggered the action.
-    pub event_id: Uuid,
+    pub event_id:      Uuid,
     /// Entity type (e.g. "Order", "User").
-    pub entity_type: String,
+    pub entity_type:   String,
     /// Entity instance ID.
-    pub entity_id: Uuid,
+    pub entity_id:     Uuid,
     /// Event type (INSERT, UPDATE, DELETE).
-    pub event_type: String,
+    pub event_type:    String,
     /// Action type that failed (e.g. "webhook", "email").
-    pub action_type: String,
+    pub action_type:   String,
     /// Error message from the last attempt.
     pub error_message: String,
     /// Number of retry attempts made.
-    pub attempts: u32,
+    pub attempts:      u32,
 }
 
 impl From<&fraiseql_observers::DlqItem> for DlqItemResponse {
     fn from(item: &fraiseql_observers::DlqItem) -> Self {
         Self {
-            id: item.id,
-            event_id: item.event.id,
-            entity_type: item.event.entity_type.clone(),
-            entity_id: item.event.entity_id,
-            event_type: item.event.event_type.as_str().to_string(),
-            action_type: action_type_str(&item.action).to_string(),
+            id:            item.id,
+            event_id:      item.event.id,
+            entity_type:   item.event.entity_type.clone(),
+            entity_id:     item.event.entity_id,
+            event_type:    item.event.event_type.as_str().to_string(),
+            action_type:   action_type_str(&item.action).to_string(),
             error_message: item.error_message.clone(),
-            attempts: item.attempts,
+            attempts:      item.attempts,
         }
     }
 }
@@ -83,11 +83,11 @@ impl From<&fraiseql_observers::DlqItem> for DlqItemResponse {
 #[derive(Debug, Serialize)]
 pub struct DlqListResponse {
     /// Items on the current page.
-    pub items: Vec<DlqItemResponse>,
+    pub items:  Vec<DlqItemResponse>,
     /// Total number of items matching the filter.
-    pub total: usize,
+    pub total:  usize,
     /// Limit requested.
-    pub limit: usize,
+    pub limit:  usize,
     /// Offset applied.
     pub offset: usize,
 }
@@ -97,12 +97,12 @@ pub struct DlqListResponse {
 pub struct DlqListQuery {
     /// Maximum items to return (default 50).
     #[serde(default = "default_limit")]
-    pub limit: usize,
+    pub limit:       usize,
     /// Offset for pagination (default 0).
     #[serde(default)]
-    pub offset: usize,
+    pub offset:      usize,
     /// Optional filter: action type (e.g. "webhook").
-    pub action: Option<String>,
+    pub action:      Option<String>,
     /// Optional filter: entity type (e.g. "Order").
     pub object_type: Option<String>,
 }
@@ -128,9 +128,9 @@ pub struct RetryAllResponse {
     /// Number of items successfully re-processed.
     pub items_retried: usize,
     /// Number of items that failed re-processing.
-    pub items_failed: usize,
+    pub items_failed:  usize,
     /// Human-readable result message.
-    pub message: String,
+    pub message:       String,
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -138,19 +138,17 @@ pub struct RetryAllResponse {
 /// `GET /api/observers/delivery/health`
 ///
 /// Returns a summary of observer delivery health including DLQ counts.
-pub async fn delivery_health_handler(
-    State(state): State<DlqState>,
-) -> impl IntoResponse {
+pub async fn delivery_health_handler(State(state): State<DlqState>) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let health = runtime.health();
     let dlq = runtime.dlq();
 
     let summary = DeliveryStatusSummary {
-        running: health.running,
-        observer_count: health.observer_count,
+        running:          health.running,
+        observer_count:   health.observer_count,
         events_processed: health.events_processed,
-        errors: health.errors,
-        dlq_count: dlq.count(),
+        errors:           health.errors,
+        dlq_count:        dlq.count(),
     };
 
     (StatusCode::OK, Json(summary))
@@ -216,8 +214,9 @@ pub async fn dlq_get_handler(
     let dlq = runtime.dlq();
 
     match dlq.get(id) {
-        Some(item) => (StatusCode::OK, Json(serde_json::json!(DlqItemResponse::from(&item))))
-            .into_response(),
+        Some(item) => {
+            (StatusCode::OK, Json(serde_json::json!(DlqItemResponse::from(&item)))).into_response()
+        },
         None => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "DLQ item not found" })),
@@ -291,9 +290,7 @@ pub async fn dlq_retry_handler(
 /// `POST /api/observers/dlq/retry-all`
 ///
 /// Re-processes all DLQ items. Successfully retried items are removed from the DLQ.
-pub async fn dlq_retry_all_handler(
-    State(state): State<DlqState>,
-) -> impl IntoResponse {
+pub async fn dlq_retry_all_handler(State(state): State<DlqState>) -> impl IntoResponse {
     let runtime = state.runtime.read().await;
     let dlq = runtime.dlq();
     let items = dlq.list_all();
@@ -303,8 +300,8 @@ pub async fn dlq_retry_all_handler(
             StatusCode::OK,
             Json(RetryAllResponse {
                 items_retried: 0,
-                items_failed: 0,
-                message: "No items in DLQ".to_string(),
+                items_failed:  0,
+                message:       "No items in DLQ".to_string(),
             }),
         );
     }
@@ -315,8 +312,8 @@ pub async fn dlq_retry_all_handler(
             StatusCode::SERVICE_UNAVAILABLE,
             Json(RetryAllResponse {
                 items_retried: 0,
-                items_failed: items.len(),
-                message: "Observer executor not available".to_string(),
+                items_failed:  items.len(),
+                message:       "Observer executor not available".to_string(),
             }),
         );
     };
@@ -341,8 +338,8 @@ pub async fn dlq_retry_all_handler(
         StatusCode::OK,
         Json(RetryAllResponse {
             items_retried: retried,
-            items_failed: failed,
-            message: format!("Batch retry completed: {retried} retried, {failed} failed"),
+            items_failed:  failed,
+            message:       format!("Batch retry completed: {retried} retried, {failed} failed"),
         }),
     )
 }
@@ -361,11 +358,11 @@ mod tests {
     #[test]
     fn delivery_status_summary_serializes() {
         let summary = DeliveryStatusSummary {
-            running: true,
-            observer_count: 3,
+            running:          true,
+            observer_count:   3,
             events_processed: 42,
-            errors: 1,
-            dlq_count: 2,
+            errors:           1,
+            dlq_count:        2,
         };
         let json = serde_json::to_value(&summary).expect("serialize");
         assert_eq!(json["running"], true);
@@ -376,9 +373,9 @@ mod tests {
     #[test]
     fn dlq_list_response_serializes() {
         let response = DlqListResponse {
-            items: vec![],
-            total: 0,
-            limit: 50,
+            items:  vec![],
+            total:  0,
+            limit:  50,
             offset: 0,
         };
         let json = serde_json::to_value(&response).expect("serialize");
@@ -401,8 +398,8 @@ mod tests {
     fn retry_all_response_serializes() {
         let response = RetryAllResponse {
             items_retried: 5,
-            items_failed: 1,
-            message: "done".to_string(),
+            items_failed:  1,
+            message:       "done".to_string(),
         };
         let json = serde_json::to_value(&response).expect("serialize");
         assert_eq!(json["items_retried"], 5);

@@ -13,17 +13,17 @@ mod tests;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use fraiseql_core::schema::{DeleteResponse, RestConfig};
+use helpers::{
+    build_cursor_links, build_offset_links, check_if_none_match, compute_etag,
+    extract_collection_data, extract_delete_entity, extract_id_from_data, extract_mutation_data,
+    extract_relay_page_info, extract_single_data, format_id_for_url, header_value,
+};
 use serde_json::json;
 
 use super::{
     handler::{PreferHeader, RestError, RestResponse, set_request_id},
     params::PaginationParams,
     resource::HttpMethod,
-};
-use helpers::{
-    check_if_none_match, compute_etag, extract_collection_data, extract_delete_entity,
-    extract_id_from_data, extract_mutation_data, extract_relay_page_info, extract_single_data,
-    format_id_for_url, build_offset_links, build_cursor_links, header_value,
 };
 
 // ---------------------------------------------------------------------------
@@ -58,9 +58,8 @@ impl<'a> RestResponseFormatter<'a> {
         request_headers: &HeaderMap,
     ) -> Result<RestResponse, RestError> {
         let data = extract_single_data(result)?;
-        let serialized = serde_json::to_vec(&data).map_err(|e| {
-            RestError::internal(format!("Failed to serialize response: {e}"))
-        })?;
+        let serialized = serde_json::to_vec(&data)
+            .map_err(|e| RestError::internal(format!("Failed to serialize response: {e}")))?;
 
         let etag = if self.config.etag {
             Some(compute_etag(&serialized))
@@ -75,9 +74,9 @@ impl<'a> RestResponseFormatter<'a> {
                 headers.insert("etag", header_value(etag_val));
                 set_request_id(request_headers, &mut headers);
                 return Ok(RestResponse {
-                    status:  StatusCode::NOT_MODIFIED,
+                    status: StatusCode::NOT_MODIFIED,
                     headers,
-                    body:    None,
+                    body: None,
                 });
             }
         }
@@ -97,7 +96,7 @@ impl<'a> RestResponseFormatter<'a> {
         Ok(RestResponse {
             status: StatusCode::OK,
             headers,
-            body:   Some(body),
+            body: Some(body),
         })
     }
 
@@ -117,9 +116,8 @@ impl<'a> RestResponseFormatter<'a> {
     ) -> Result<RestResponse, RestError> {
         let data = extract_collection_data(result)?;
 
-        let serialized = serde_json::to_vec(&data).map_err(|e| {
-            RestError::internal(format!("Failed to serialize response: {e}"))
-        })?;
+        let serialized = serde_json::to_vec(&data)
+            .map_err(|e| RestError::internal(format!("Failed to serialize response: {e}")))?;
 
         let etag = if self.config.etag {
             Some(compute_etag(&serialized))
@@ -134,9 +132,9 @@ impl<'a> RestResponseFormatter<'a> {
                 headers.insert("etag", header_value(etag_val));
                 set_request_id(request_headers, &mut headers);
                 return Ok(RestResponse {
-                    status:  StatusCode::NOT_MODIFIED,
+                    status: StatusCode::NOT_MODIFIED,
                     headers,
-                    body:    None,
+                    body: None,
                 });
             }
         }
@@ -193,7 +191,7 @@ impl<'a> RestResponseFormatter<'a> {
         Ok(RestResponse {
             status: StatusCode::OK,
             headers,
-            body:   Some(body),
+            body: Some(body),
         })
     }
 
@@ -231,7 +229,7 @@ impl<'a> RestResponseFormatter<'a> {
         Ok(RestResponse {
             status: StatusCode::CREATED,
             headers,
-            body:   Some(body),
+            body: Some(body),
         })
     }
 
@@ -259,7 +257,7 @@ impl<'a> RestResponseFormatter<'a> {
         Ok(RestResponse {
             status: StatusCode::OK,
             headers,
-            body:   Some(body),
+            body: Some(body),
         })
     }
 
@@ -305,7 +303,7 @@ impl<'a> RestResponseFormatter<'a> {
                 return Ok(RestResponse {
                     status: StatusCode::OK,
                     headers,
-                    body:   Some(body),
+                    body: Some(body),
                 });
             }
         }
@@ -314,7 +312,7 @@ impl<'a> RestResponseFormatter<'a> {
         Ok(RestResponse {
             status: StatusCode::NO_CONTENT,
             headers,
-            body:   None,
+            body: None,
         })
     }
 
@@ -345,9 +343,9 @@ impl<'a> RestResponseFormatter<'a> {
         }
 
         RestResponse {
-            status:  StatusCode::METHOD_NOT_ALLOWED,
+            status: StatusCode::METHOD_NOT_ALLOWED,
             headers,
-            body:    Some(RestError::method_not_allowed().to_json()),
+            body: Some(RestError::method_not_allowed().to_json()),
         }
     }
 }

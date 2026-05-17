@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use fraiseql_core::schema::{FieldType, MutationOperation, QueryDefinition, RestConfig, TypeDefinition};
+use fraiseql_core::schema::{
+    FieldType, MutationOperation, QueryDefinition, RestConfig, TypeDefinition,
+};
 
 use super::{Diagnostic, DiagnosticLevel, HttpMethod, RestResource, RouteSource};
 
@@ -61,10 +63,7 @@ pub(super) fn validate_cqrs_mutation(
 }
 
 /// Validate pk_*/fk_*/id field types.
-pub(super) fn validate_field_types(
-    type_def: &TypeDefinition,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+pub(super) fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut Vec<Diagnostic>) {
     for field in &type_def.fields {
         let name: &str = field.name.as_str();
         if name.starts_with("pk_") || name.starts_with("fk_") {

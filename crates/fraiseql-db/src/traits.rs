@@ -876,10 +876,7 @@ pub trait DatabaseAdapter: Send + Sync {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Database` if the underlying query fails.
-    async fn query_stats_by_id(
-        &self,
-        id: &str,
-    ) -> Result<Option<crate::types::QueryStatEntry>> {
+    async fn query_stats_by_id(&self, id: &str) -> Result<Option<crate::types::QueryStatEntry>> {
         let stats = self.query_stats(1000).await?;
         Ok(stats.into_iter().find(|e| e.query_id == id))
     }

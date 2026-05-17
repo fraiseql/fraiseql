@@ -2,14 +2,17 @@
 //! CDC → `EventBridge` wiring, broadcast channels, presence, and tenant filtering.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use fraiseql_core::runtime::subscription::{SubscriptionEvent, SubscriptionManager, SubscriptionOperation};
-use fraiseql_core::schema::CompiledSchema;
-use fraiseql_server::subscriptions::broadcast::{BroadcastConfig, BroadcastManager};
-use fraiseql_server::subscriptions::event_bridge::{EntityEvent, EventBridge, EventBridgeConfig};
-use fraiseql_server::subscriptions::presence::{PresenceConfig, PresenceManager};
+use fraiseql_core::{
+    runtime::subscription::{SubscriptionEvent, SubscriptionManager, SubscriptionOperation},
+    schema::CompiledSchema,
+};
+use fraiseql_server::subscriptions::{
+    broadcast::{BroadcastConfig, BroadcastManager},
+    event_bridge::{EntityEvent, EventBridge, EventBridgeConfig},
+    presence::{PresenceConfig, PresenceManager},
+};
 
 // ============================================================================
 // CDC → EventBridge Wiring
@@ -24,7 +27,8 @@ async fn test_cdc_event_bridge_end_to_end() {
     let handle = bridge.spawn();
 
     // Simulate CDC event from ChangeLogListener
-    let event = EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}));
+    let event =
+        EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}));
     sender.send(event).await.unwrap();
 
     // Allow processing
@@ -49,7 +53,8 @@ async fn test_cdc_event_bridge_multiple_events() {
             1 => "UPDATE",
             _ => "DELETE",
         };
-        let event = EntityEvent::new("Product", format!("prod_{i}"), op, serde_json::json!({"id": i}));
+        let event =
+            EntityEvent::new("Product", format!("prod_{i}"), op, serde_json::json!({"id": i}));
         sender.send(event).await.unwrap();
     }
 
@@ -152,7 +157,11 @@ async fn test_broadcast_payload_size_limit() {
     let manager = BroadcastManager::new(config);
 
     let result = manager
-        .publish("ch", "e".into(), serde_json::json!({"big": "this payload exceeds the 32 byte limit"}))
+        .publish(
+            "ch",
+            "e".into(),
+            serde_json::json!({"big": "this payload exceeds the 32 byte limit"}),
+        )
         .await;
 
     assert!(result.is_err(), "oversized payload should be rejected");
@@ -165,10 +174,7 @@ async fn test_broadcast_gc_empty_channels() {
     // Create a channel with a subscriber (active)
     let _rx = manager.subscribe("active").await.unwrap();
     // Create a channel without subscribers (orphan)
-    manager
-        .publish("orphan", "e".into(), serde_json::json!({}))
-        .await
-        .unwrap();
+    manager.publish("orphan", "e".into(), serde_json::json!({})).await.unwrap();
 
     assert_eq!(manager.channel_count().await, 2);
 
@@ -273,9 +279,7 @@ async fn test_presence_heartbeat_keeps_member_alive() {
 async fn test_presence_update_state() {
     let mgr = PresenceManager::new(PresenceConfig::new());
 
-    mgr.join("room1", "alice", serde_json::json!({"cursor": [0, 0]}))
-        .await
-        .unwrap();
+    mgr.join("room1", "alice", serde_json::json!({"cursor": [0, 0]})).await.unwrap();
 
     let diff = mgr
         .update_state("room1", "alice", serde_json::json!({"cursor": [100, 200]}))

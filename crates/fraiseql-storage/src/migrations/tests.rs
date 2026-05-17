@@ -27,10 +27,7 @@ fn test_migration_ddl_is_valid_sql() {
     );
 
     // Must use IF NOT EXISTS for idempotency
-    assert!(
-        ddl.contains("IF NOT EXISTS"),
-        "DDL must use IF NOT EXISTS"
-    );
+    assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
 
     // Must have the required columns matching StorageMetadataRow
     for col in [
@@ -52,10 +49,7 @@ fn test_migration_ddl_is_valid_sql() {
         ddl.contains("idx_storage_objects_bucket_key"),
         "DDL must create bucket+key index"
     );
-    assert!(
-        ddl.contains("idx_storage_objects_owner"),
-        "DDL must create owner index"
-    );
+    assert!(ddl.contains("idx_storage_objects_owner"), "DDL must create owner index");
 
     // Must follow Trinity pattern for primary key
     assert!(

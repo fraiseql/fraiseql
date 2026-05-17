@@ -155,7 +155,6 @@ impl<A: DatabaseAdapter> Executor<A> {
         // the multi-root pipeline path.
         Ok((QueryType::Regular, Some(parsed)))
     }
-
 }
 
 /// Extract the value of a named string argument from the first (root) field of

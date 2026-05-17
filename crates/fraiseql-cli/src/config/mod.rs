@@ -146,7 +146,8 @@ pub(crate) fn expand_env_vars(content: &str) -> Result<String> {
     let mut last_end = 0;
 
     for cap in ENV_VAR_REGEX.captures_iter(content) {
-        // INVARIANT: Regex captures iterator yields Captures where group 0 (the full match) is always present
+        // INVARIANT: Regex captures iterator yields Captures where group 0 (the full match) is
+        // always present
         let m = cap.get(0).expect("INVARIANT: Regex captures group 0 is always present");
         result.push_str(&content[last_end..m.start()]);
         let var_name = &cap[1];
@@ -154,10 +155,10 @@ pub(crate) fn expand_env_vars(content: &str) -> Result<String> {
             Ok(val) => {
                 validate_env_var_value(var_name, &val)?;
                 result.push_str(&val);
-            }
+            },
             Err(_) => {
                 result.push_str(&format!("${{{}}}", var_name));
-            }
+            },
         }
         last_end = m.end();
     }
@@ -176,13 +177,21 @@ fn validate_env_var_value(var_name: &str, value: &str) -> Result<()> {
         anyhow::bail!("Environment variable {} contains null character", var_name);
     }
     // Check for unescaped TOML metacharacters: ", ', \, ], [, {, }
-    if value.contains('"') || value.contains('\'') || value.contains('\\') ||
-       value.contains(']') || value.contains('[') || value.contains('{') || value.contains('}') {
-        anyhow::bail!("Environment variable {} contains TOML metacharacter that could break TOML parsing", var_name);
+    if value.contains('"')
+        || value.contains('\'')
+        || value.contains('\\')
+        || value.contains(']')
+        || value.contains('[')
+        || value.contains('{')
+        || value.contains('}')
+    {
+        anyhow::bail!(
+            "Environment variable {} contains TOML metacharacter that could break TOML parsing",
+            var_name
+        );
     }
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests;

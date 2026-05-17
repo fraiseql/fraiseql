@@ -47,10 +47,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
     }
 
     // Validate federation version
-    let version = federation
-        .get("version")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
+    let version = federation.get("version").and_then(|v| v.as_str()).unwrap_or("unknown");
     if version != "v2" {
         warnings.push(format!("Federation version '{version}' is not v2"));
     }
@@ -65,10 +62,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
 
     if let Some(types) = types {
         for fed_type in types {
-            let name = fed_type
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("<unknown>");
+            let name = fed_type.get("name").and_then(|v| v.as_str()).unwrap_or("<unknown>");
 
             // Check @key presence
             let keys = fed_type.get("keys").and_then(|v| v.as_array());
@@ -109,10 +103,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
     // Validate @requires fields exist on type
     if let Some(types) = types {
         for fed_type in types {
-            let name = fed_type
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("<unknown>");
+            let name = fed_type.get("name").and_then(|v| v.as_str()).unwrap_or("<unknown>");
 
             errors.extend(check_requires_fields(name, fed_type));
             warnings.extend(check_provides_fields(name, fed_type));
@@ -120,16 +111,14 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
             // Check resolvable: false keys
             if let Some(keys) = fed_type.get("keys").and_then(|v| v.as_array()) {
                 for key in keys {
-                    let resolvable = key.get("resolvable").and_then(|v| v.as_bool()).unwrap_or(true);
+                    let resolvable =
+                        key.get("resolvable").and_then(|v| v.as_bool()).unwrap_or(true);
                     if !resolvable {
                         let fields_str = key
                             .get("fields")
                             .and_then(|v| v.as_array())
                             .map(|f| {
-                                f.iter()
-                                    .filter_map(|v| v.as_str())
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
+                                f.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", ")
                             })
                             .unwrap_or_default();
                         warnings.push(format!(
@@ -148,13 +137,9 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
     // Validate @override directives
     if let Some(types) = types {
         for fed_type in types {
-            let name = fed_type
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("<unknown>");
+            let name = fed_type.get("name").and_then(|v| v.as_str()).unwrap_or("<unknown>");
 
-            if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object())
-            {
+            if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object()) {
                 for (field_name, directive) in directives {
                     if let Some(override_from) =
                         directive.get("override_from").and_then(|v| v.as_str())
@@ -191,11 +176,7 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
         if warnings.is_empty() {
             CommandResult::success("federation check", data)
         } else {
-            CommandResult::success_with_warnings(
-                "federation check",
-                data,
-                warnings,
-            )
+            CommandResult::success_with_warnings("federation check", data, warnings)
         }
     } else {
         let data = json!({
@@ -205,11 +186,11 @@ pub fn run(schema_path: &str, supergraph_path: Option<&str>, json: bool) -> Resu
         });
 
         CommandResult {
-            status:  "validation-failed".to_string(),
+            status: "validation-failed".to_string(),
             command: "federation check".to_string(),
-            data:    Some(data),
+            data: Some(data),
             message: None,
-            code:    Some("COMPOSITION_ERROR".to_string()),
+            code: Some("COMPOSITION_ERROR".to_string()),
             errors,
             warnings,
         }
@@ -271,15 +252,13 @@ fn collect_known_fields(fed_type: &serde_json::Value) -> std::collections::HashS
 }
 
 /// Collect known subgraph names from `@override(from:)` annotations in the schema.
-fn known_subgraph_names_from_metadata(schema: &serde_json::Value) -> std::collections::HashSet<String> {
+fn known_subgraph_names_from_metadata(
+    schema: &serde_json::Value,
+) -> std::collections::HashSet<String> {
     let mut names = std::collections::HashSet::new();
-    if let Some(types) = schema
-        .pointer("/federation/types")
-        .and_then(|v| v.as_array())
-    {
+    if let Some(types) = schema.pointer("/federation/types").and_then(|v| v.as_array()) {
         for fed_type in types {
-            if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object())
-            {
+            if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object()) {
                 for directive in directives.values() {
                     if let Some(from) = directive.get("override_from").and_then(|v| v.as_str()) {
                         if !from.is_empty() {
@@ -349,19 +328,13 @@ fn check_provides_fields(type_name: &str, fed_type: &serde_json::Value) -> Vec<S
 fn check_root_field_inaccessibility(schema: &serde_json::Value) -> Vec<String> {
     let mut warns = Vec::new();
 
-    let types = schema
-        .pointer("/federation/types")
-        .and_then(|v| v.as_array());
+    let types = schema.pointer("/federation/types").and_then(|v| v.as_array());
 
     if let Some(types) = types {
         for fed_type in types {
-            let name = fed_type
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let name = fed_type.get("name").and_then(|v| v.as_str()).unwrap_or("");
             if name == "Query" || name == "Mutation" {
-                if let Some(fields) =
-                    fed_type.get("inaccessible_fields").and_then(|v| v.as_array())
+                if let Some(fields) = fed_type.get("inaccessible_fields").and_then(|v| v.as_array())
                 {
                     for f in fields {
                         if let Some(field_name) = f.as_str() {
@@ -388,48 +361,36 @@ fn validate_against_supergraph(
 ) -> std::result::Result<Vec<String>, Vec<String>> {
     // Validate supergraph file exists and is readable
     if !std::path::Path::new(supergraph_path).exists() {
-        return Err(vec![format!(
-            "Supergraph schema not found: {supergraph_path}"
-        )]);
+        return Err(vec![format!("Supergraph schema not found: {supergraph_path}")]);
     }
 
-    let content = fs::read_to_string(supergraph_path).map_err(|e| {
-        vec![format!("Failed to read supergraph: {e}")]
-    })?;
+    let content = fs::read_to_string(supergraph_path)
+        .map_err(|e| vec![format!("Failed to read supergraph: {e}")])?;
 
-    let supergraph: serde_json::Value = serde_json::from_str(&content).map_err(|e| {
-        vec![format!("Failed to parse supergraph JSON: {e}")]
-    })?;
+    let supergraph: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| vec![format!("Failed to parse supergraph JSON: {e}")])?;
 
     let mut warnings = Vec::new();
     let mut errs = Vec::new();
 
     // Basic supergraph structure validation
     if supergraph.get("federation").is_none() {
-        return Err(vec![
-            "Supergraph schema has no federation metadata".to_string()
-        ]);
+        return Err(vec!["Supergraph schema has no federation metadata".to_string()]);
     }
 
     // Collect known subgraph names from the supergraph
     let supergraph_subgraph_names = known_subgraph_names_from_metadata(&supergraph);
 
     // Validate @override(from:) references in local schema
-    let local_content = fs::read_to_string(local_path).map_err(|e| {
-        vec![format!("Failed to re-read local schema: {e}")]
-    })?;
-    let local_schema: serde_json::Value = serde_json::from_str(&local_content).map_err(|e| {
-        vec![format!("Failed to re-parse local schema: {e}")]
-    })?;
+    let local_content = fs::read_to_string(local_path)
+        .map_err(|e| vec![format!("Failed to re-read local schema: {e}")])?;
+    let local_schema: serde_json::Value = serde_json::from_str(&local_content)
+        .map_err(|e| vec![format!("Failed to re-parse local schema: {e}")])?;
 
-    if let Some(types) = local_schema
-        .pointer("/federation/types")
-        .and_then(|v| v.as_array())
-    {
+    if let Some(types) = local_schema.pointer("/federation/types").and_then(|v| v.as_array()) {
         for fed_type in types {
             let name = fed_type.get("name").and_then(|v| v.as_str()).unwrap_or("<unknown>");
-            if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object())
-            {
+            if let Some(directives) = fed_type.get("field_directives").and_then(|v| v.as_object()) {
                 for (field_name, directive) in directives {
                     if let Some(override_from) =
                         directive.get("override_from").and_then(|v| v.as_str())
@@ -453,9 +414,7 @@ fn validate_against_supergraph(
         return Err(errs);
     }
 
-    warnings.push(format!(
-        "Composition check against '{supergraph_path}' passed"
-    ));
+    warnings.push(format!("Composition check against '{supergraph_path}' passed"));
 
     Ok(warnings)
 }

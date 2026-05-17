@@ -3,8 +3,7 @@
 #![allow(clippy::field_reassign_with_default)] // Reason: test code builds structs incrementally for clarity
 
 mod config_tests {
-    use super::super::security;
-    use super::super::*;
+    use super::super::{security, *};
 
     #[test]
     fn test_default_config() {
@@ -146,8 +145,7 @@ url = "${TEST_DB_URL}"
     #[test]
     fn test_env_var_expansion_multiple_occurrences() {
         temp_env::with_var("FRAISEQL_TEST_HOST", Some("db.example.com"), || {
-            let toml_str =
-                r#"primary = "${FRAISEQL_TEST_HOST}" replica = "${FRAISEQL_TEST_HOST}""#;
+            let toml_str = r#"primary = "${FRAISEQL_TEST_HOST}" replica = "${FRAISEQL_TEST_HOST}""#;
             let expanded = expand_env_vars(toml_str).unwrap();
             assert_eq!(expanded, r#"primary = "db.example.com" replica = "db.example.com""#);
         });
@@ -169,10 +167,7 @@ mode = "row"
 tenant_claim = "tenant_id"
 "#;
         let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(matches!(
-            config.fraiseql.tenancy.mode,
-            security::TenancyModeConfig::Row
-        ));
+        assert!(matches!(config.fraiseql.tenancy.mode, security::TenancyModeConfig::Row));
         assert_eq!(config.fraiseql.tenancy.tenant_claim, "tenant_id");
     }
 
@@ -187,10 +182,7 @@ mode = "schema"
 tenant_claim = "org_id"
 "#;
         let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(matches!(
-            config.fraiseql.tenancy.mode,
-            security::TenancyModeConfig::Schema
-        ));
+        assert!(matches!(config.fraiseql.tenancy.mode, security::TenancyModeConfig::Schema));
         assert_eq!(config.fraiseql.tenancy.tenant_claim, "org_id");
     }
 
@@ -201,10 +193,7 @@ tenant_claim = "org_id"
 name = "test-app"
 "#;
         let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(matches!(
-            config.fraiseql.tenancy.mode,
-            security::TenancyModeConfig::None
-        ));
+        assert!(matches!(config.fraiseql.tenancy.mode, security::TenancyModeConfig::None));
         assert_eq!(config.fraiseql.tenancy.tenant_claim, "tenant_id");
     }
 

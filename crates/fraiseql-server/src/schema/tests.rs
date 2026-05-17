@@ -10,8 +10,7 @@
 #![allow(missing_docs)] // Reason: test code
 #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-use std::io::Write as _;
-use std::path::PathBuf;
+use std::{io::Write as _, path::PathBuf};
 
 use tempfile::NamedTempFile;
 

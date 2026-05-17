@@ -36,7 +36,10 @@ mod metadata_tests {
     #[test]
     fn test_format_table_empty_metadata() {
         let table = format_table(&json!({}));
-        assert!(table.contains("No metadata"), "Empty metadata should report no entries:\n{table}");
+        assert!(
+            table.contains("No metadata"),
+            "Empty metadata should report no entries:\n{table}"
+        );
     }
 
     #[test]
@@ -46,10 +49,7 @@ mod metadata_tests {
 
         assert!(table.contains("User.name"), "Missing field name:\n{table}");
         // All optional columns should default to "-"
-        let data_line = table
-            .lines()
-            .find(|l| l.contains("User.name"))
-            .unwrap();
+        let data_line = table.lines().find(|l| l.contains("User.name")).unwrap();
         assert!(data_line.contains('-'), "Missing dash for unset columns: {data_line}");
     }
 
@@ -70,9 +70,8 @@ mod metadata_tests {
         let metadata = json!({"User.email": {"encrypted": true}});
         let table = format_table(&metadata);
         // The separator line consists only of dashes and spaces
-        let has_separator = table
-            .lines()
-            .any(|l| !l.is_empty() && l.chars().all(|c| c == '-' || c == ' '));
+        let has_separator =
+            table.lines().any(|l| !l.is_empty() && l.chars().all(|c| c == '-' || c == ' '));
         assert!(has_separator, "Missing separator line:\n{table}");
     }
 }

@@ -26,12 +26,14 @@ pub mod bindings;
 pub mod limiter;
 pub mod store;
 
-
-use crate::runtime::FunctionRuntime;
-use crate::types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits};
-use crate::HostContext;
 use fraiseql_error::Result;
+
 use self::store::StoreData;
+use crate::{
+    HostContext,
+    runtime::FunctionRuntime,
+    types::{EventPayload, FunctionModule, FunctionResult, ResourceLimits},
+};
 
 /// Configuration for the WASM runtime.
 ///
@@ -41,7 +43,7 @@ pub struct WasmConfig {
     /// Enable SIMD (Single Instruction, Multiple Data) support in WASM modules.
     ///
     /// SIMD can improve performance for data-parallel workloads but adds compilation overhead.
-    pub enable_simd: bool,
+    pub enable_simd:           bool,
     /// Optional directory for caching compiled components.
     ///
     /// If set, compiled modules are cached to disk to speed up subsequent loads.
@@ -51,7 +53,7 @@ pub struct WasmConfig {
 impl Default for WasmConfig {
     fn default() -> Self {
         Self {
-            enable_simd: true,
+            enable_simd:           true,
             compilation_cache_dir: None,
         }
     }
@@ -93,7 +95,7 @@ impl WasmRuntime {
         let engine = wasmtime::Engine::new(&wasm_config).map_err(|e| {
             fraiseql_error::FraiseQLError::Validation {
                 message: format!("Failed to create WASM engine: {}", e),
-                path: None,
+                path:    None,
             }
         })?;
 
@@ -103,8 +105,8 @@ impl WasmRuntime {
     /// Get the underlying wasmtime engine.
     ///
     /// Used for component loading and store creation during function invocation.
-    #[allow(dead_code)]  // Reason: available for component instantiation when host bridge is wired
-    #[allow(clippy::missing_const_for_fn)]  // Reason: reference return prevents const
+    #[allow(dead_code)] // Reason: available for component instantiation when host bridge is wired
+    #[allow(clippy::missing_const_for_fn)] // Reason: reference return prevents const
     pub(crate) fn engine(&self) -> &wasmtime::Engine {
         &self.engine
     }
@@ -127,7 +129,7 @@ impl FunctionRuntime for WasmRuntime {
     /// Logging (debug/info/warn/error) and context access (event payload) are functional.
     /// Host imports for I/O operations (query, sql-query, http-request, storage-get, storage-put)
     /// are stubs returning errors pending full host bridge wiring.
-    #[allow(clippy::manual_async_fn)]  // Reason: impl Future syntax for trait compatibility
+    #[allow(clippy::manual_async_fn)] // Reason: impl Future syntax for trait compatibility
     fn invoke<H>(
         &self,
         module: &FunctionModule,
@@ -150,9 +152,9 @@ impl FunctionRuntime for WasmRuntime {
                 Err(e) => {
                     return Err(fraiseql_error::FraiseQLError::Validation {
                         message: format!("Failed to load WASM component: {}", e),
-                        path: None,
+                        path:    None,
                     });
-                }
+                },
             };
 
             let store_data = StoreData::new(event.clone(), limits);
@@ -163,8 +165,8 @@ impl FunctionRuntime for WasmRuntime {
             let peak_memory = store.data().memory_peak_bytes;
 
             // Convert event to JSON value to return
-            let result_value = serde_json::to_value(&event)
-                .unwrap_or(serde_json::json!({ "trigger": "test" }));
+            let result_value =
+                serde_json::to_value(&event).unwrap_or(serde_json::json!({ "trigger": "test" }));
 
             Ok(FunctionResult {
                 value: Some(result_value),
@@ -192,8 +194,8 @@ impl FunctionRuntime for WasmRuntime {
 #[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
 mod tests {
     use std::path::PathBuf;
-    use crate::{EventPayload, FunctionModule, RuntimeType};
-    use crate::runtime::FunctionRuntime;
+
+    use crate::{EventPayload, FunctionModule, RuntimeType, runtime::FunctionRuntime};
 
     /// Helper to find test fixture file
     fn fixture_path(name: &str) -> PathBuf {
@@ -247,10 +249,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"test": true}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"test": true}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -258,9 +260,7 @@ mod tests {
 
         // Note: This test will fail if guest-identity.wasm is not a valid WASM component
         // (it's a placeholder until Cycle 0 - WASM Toolchain builds real fixtures)
-        let _result = runtime
-            .invoke(&module, event, &host, limits)
-            .await;
+        let _result = runtime.invoke(&module, event, &host, limits).await;
 
         // For now, we just verify the infrastructure is wired correctly
         // Real assertion will verify logs when actual WASM fixture is available
@@ -280,10 +280,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -310,10 +310,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "mutation".to_string(),
-            entity: "User".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"user_id": 42, "email": "test@example.com"}),
-            timestamp: chrono::Utc::now(),
+            entity:       "User".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"user_id": 42, "email": "test@example.com"}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -340,10 +340,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -371,10 +371,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let host = NoopHostContext::new(event.clone());
@@ -394,7 +394,7 @@ mod tests {
     async fn test_wasm_guest_calls_query_with_live_host() {
         // RED: Component calls fraiseql:host/io.query
         // Should receive GraphQL result as JSON string
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -404,10 +404,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "TestEntity".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 42, "name": "test_item"}),
-            timestamp: chrono::Utc::now(),
+            entity:       "TestEntity".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 42, "name": "test_item"}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig::default();
@@ -430,7 +430,7 @@ mod tests {
     async fn test_wasm_guest_calls_http_request_with_live_host() {
         // RED: Component calls fraiseql:host/io.http-request
         // Should receive HTTP response with status, headers, body
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -440,10 +440,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "TestEntity".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 42}),
-            timestamp: chrono::Utc::now(),
+            entity:       "TestEntity".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 42}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig {
@@ -469,7 +469,7 @@ mod tests {
     async fn test_wasm_guest_calls_storage_get_with_live_host() {
         // RED: Component calls fraiseql:host/io.storage-get
         // Should receive bytes from storage backend or error
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -479,10 +479,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "File".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "File".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig::default();
@@ -505,7 +505,7 @@ mod tests {
     async fn test_wasm_guest_calls_env_var_with_live_host() {
         // RED: Component calls fraiseql:host/context.get-env-var
         // Should receive environment variable value or None
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -515,10 +515,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let mut config = HostContextConfig::default();
@@ -542,7 +542,7 @@ mod tests {
     async fn test_wasm_guest_calls_auth_context_with_live_host() {
         // RED: Component calls fraiseql:host/context.get-auth-context
         // Should receive auth context JSON with user info
-        use crate::host::live::{LiveHostContext, HostContextConfig};
+        use crate::host::live::{HostContextConfig, LiveHostContext};
 
         let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
             .expect("Failed to create WasmRuntime");
@@ -552,10 +552,10 @@ mod tests {
 
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let config = HostContextConfig::default();

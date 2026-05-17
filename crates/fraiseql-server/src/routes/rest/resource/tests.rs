@@ -7,11 +7,13 @@ use fraiseql_core::schema::{
     MutationOperation, RestConfig, TypeDefinition,
 };
 
-use super::*;
-use super::naming::{
-    camel_to_kebab, derive_action_name, simple_pluralize, strip_cqrs_prefix, type_name_to_snake,
+use super::{
+    naming::{
+        camel_to_kebab, derive_action_name, simple_pluralize, strip_cqrs_prefix, type_name_to_snake,
+    },
+    validation::is_filtered_out,
+    *,
 };
-use super::validation::is_filtered_out;
 
 // -----------------------------------------------------------------------
 // Test helpers
@@ -364,9 +366,11 @@ fn test_cqrs_mutation_to_view_warns() {
     schema.mutations.push(insert_mutation("createUser", "User", "v_user"));
 
     let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
-    assert!(table.diagnostics.iter().any(|d| {
-        d.level == DiagnosticLevel::Warning && d.message.contains("writes to view")
-    }));
+    assert!(
+        table.diagnostics.iter().any(|d| {
+            d.level == DiagnosticLevel::Warning && d.message.contains("writes to view")
+        })
+    );
 }
 
 #[test]
@@ -628,7 +632,6 @@ fn test_insert_mutation_returns_201() {
     schema.mutations.push(insert_mutation("createUser", "User", "tb_user"));
 
     let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
-    let create =
-        table.resources[0].routes.iter().find(|r| r.method == HttpMethod::Post).unwrap();
+    let create = table.resources[0].routes.iter().find(|r| r.method == HttpMethod::Post).unwrap();
     assert_eq!(create.success_status, 201);
 }

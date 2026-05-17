@@ -7,8 +7,7 @@ mod actions_tests {
 
     use serde_json::json;
 
-    use crate::actions::*;
-    use crate::event::EventKind;
+    use crate::{actions::*, event::EventKind};
 
     #[test]
     fn test_webhook_action_creation() {
@@ -218,10 +217,7 @@ mod actions_tests {
     #[test]
     fn test_500_is_transient_failure() {
         let result = classify_http_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR, 5.0);
-        assert!(matches!(
-            result,
-            Err(crate::error::ObserverError::ActionExecutionFailed { .. })
-        ));
+        assert!(matches!(result, Err(crate::error::ObserverError::ActionExecutionFailed { .. })));
     }
 
     // --- SSRF protection tests (C7) ---
@@ -325,8 +321,10 @@ mod actions_additional_tests {
     use serde_json::json;
     use uuid::Uuid;
 
-    use crate::actions_additional::*;
-    use crate::event::{EntityEvent, EventKind};
+    use crate::{
+        actions_additional::*,
+        event::{EntityEvent, EventKind},
+    };
 
     fn create_test_event() -> EntityEvent {
         EntityEvent::new(
@@ -410,8 +408,7 @@ mod actions_additional_tests {
 
 #[cfg(test)]
 mod elasticsearch_sink_tests {
-    use crate::elasticsearch_sink::*;
-    use crate::error::ObserverError;
+    use crate::{elasticsearch_sink::*, error::ObserverError};
 
     #[test]
     fn test_config_default() {
@@ -858,12 +855,12 @@ mod event_tests {
 mod factory_tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use crate::factory::*;
     use crate::{
+        ObserverRuntimeConfig,
         config::{PerformanceConfig, TransportConfig, TransportKind},
+        factory::*,
         matcher::EventMatcher,
         testing::mocks::MockDeadLetterQueue,
-        ObserverRuntimeConfig,
     };
 
     #[tokio::test]
@@ -1066,11 +1063,11 @@ mod matcher_tests {
     use serde_json::json;
     use uuid::Uuid;
 
-    use crate::matcher::*;
     use crate::{
+        ObserverDefinition,
         config::{ActionConfig, FailurePolicy, RetryConfig},
         event::{EntityEvent, EventKind},
-        ObserverDefinition,
+        matcher::*,
     };
 
     fn create_observer(event_type: &str, entity: &str) -> ObserverDefinition {
@@ -1422,8 +1419,7 @@ mod storage_tests {
 mod traits_tests {
     use uuid::Uuid;
 
-    use crate::traits::*;
-    use crate::{config::ActionConfig, event::EntityEvent};
+    use crate::{config::ActionConfig, event::EntityEvent, traits::*};
 
     #[test]
     fn test_action_result_creation() {

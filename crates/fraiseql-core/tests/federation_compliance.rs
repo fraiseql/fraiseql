@@ -83,32 +83,32 @@ fn test_sdl_entity_union_includes_all_types() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![
+        types: vec![
             FederatedType {
-                name:             "User".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "User".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          false,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
             FederatedType {
-                name:             "Order".to_string(),
-                keys:             vec![KeyDirective {
+                name:                "Order".to_string(),
+                keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:       false,
-                external_fields:  vec![],
-                shareable_fields: vec![],
+                is_extends:          false,
+                external_fields:     vec![],
+                shareable_fields:    vec![],
                 inaccessible_fields: vec![],
-                field_directives: std::collections::HashMap::new(),
-                type_shareable: false,
+                field_directives:    std::collections::HashMap::new(),
+                type_shareable:      false,
             },
         ],
         remote_subscription_fields: std::collections::HashMap::new(),
@@ -286,17 +286,17 @@ fn test_service_sdl_is_valid_graphql() {
 fn test_key_directive_required_on_entities() {
     // All entity types must have @key directive
     let fed_type = FederatedType {
-        name:             "User".to_string(),
-        keys:             vec![KeyDirective {
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
             fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends:       false,
-        external_fields:  vec![],
-        shareable_fields: vec![],
-                inaccessible_fields: vec![],
-        field_directives: std::collections::HashMap::new(),
-        type_shareable: false,
+        is_extends:          false,
+        external_fields:     vec![],
+        shareable_fields:    vec![],
+        inaccessible_fields: vec![],
+        field_directives:    std::collections::HashMap::new(),
+        type_shareable:      false,
     };
 
     assert!(!fed_type.keys.is_empty(), "Entity types must have @key directive");
@@ -306,17 +306,17 @@ fn test_key_directive_required_on_entities() {
 fn test_external_directive_on_extended_fields() {
     // Fields in @extends types must be marked @external if owned elsewhere
     let fed_type = FederatedType {
-        name:             "Order".to_string(),
-        keys:             vec![KeyDirective {
+        name:                "Order".to_string(),
+        keys:                vec![KeyDirective {
             fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends:       true,
-        external_fields:  vec!["customerId".to_string()],
-        shareable_fields: vec![],
-                inaccessible_fields: vec![],
-        field_directives: std::collections::HashMap::new(),
-        type_shareable: false,
+        is_extends:          true,
+        external_fields:     vec!["customerId".to_string()],
+        shareable_fields:    vec![],
+        inaccessible_fields: vec![],
+        field_directives:    std::collections::HashMap::new(),
+        type_shareable:      false,
     };
 
     assert!(fed_type.is_extends);
@@ -327,17 +327,17 @@ fn test_external_directive_on_extended_fields() {
 fn test_extends_directive_marks_extended_types() {
     // Extended types must have @extends
     let fed_type = FederatedType {
-        name:             "Order".to_string(),
-        keys:             vec![KeyDirective {
+        name:                "Order".to_string(),
+        keys:                vec![KeyDirective {
             fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends:       true,
-        external_fields:  vec!["customerId".to_string()],
-        shareable_fields: vec![],
-                inaccessible_fields: vec![],
-        field_directives: std::collections::HashMap::new(),
-        type_shareable: false,
+        is_extends:          true,
+        external_fields:     vec!["customerId".to_string()],
+        shareable_fields:    vec![],
+        inaccessible_fields: vec![],
+        field_directives:    std::collections::HashMap::new(),
+        type_shareable:      false,
     };
 
     assert!(fed_type.is_extends);
@@ -403,31 +403,31 @@ fn test_entity_ownership_is_exclusive() {
     // An entity can only be owned by one subgraph
     // (No two subgraphs should have is_extends: false for same type)
     let owner_subgraph = FederatedType {
-        name:             "User".to_string(),
-        keys:             vec![KeyDirective {
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
             fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends:       false,
-        external_fields:  vec![],
-        shareable_fields: vec![],
-                inaccessible_fields: vec![],
-        field_directives: std::collections::HashMap::new(),
-        type_shareable: false,
+        is_extends:          false,
+        external_fields:     vec![],
+        shareable_fields:    vec![],
+        inaccessible_fields: vec![],
+        field_directives:    std::collections::HashMap::new(),
+        type_shareable:      false,
     };
 
     let extending_subgraph = FederatedType {
-        name:             "User".to_string(),
-        keys:             vec![KeyDirective {
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
             fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends:       true,
-        external_fields:  vec![],
-        shareable_fields: vec![],
-                inaccessible_fields: vec![],
-        field_directives: std::collections::HashMap::new(),
-        type_shareable: false,
+        is_extends:          true,
+        external_fields:     vec![],
+        shareable_fields:    vec![],
+        inaccessible_fields: vec![],
+        field_directives:    std::collections::HashMap::new(),
+        type_shareable:      false,
     };
 
     // Only owner should have is_extends: false
@@ -439,17 +439,17 @@ fn test_entity_ownership_is_exclusive() {
 fn test_external_fields_reference_owned_subgraph() {
     // External fields must be defined in the owning subgraph
     let extended_type = FederatedType {
-        name:             "Order".to_string(),
-        keys:             vec![KeyDirective {
+        name:                "Order".to_string(),
+        keys:                vec![KeyDirective {
             fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends:       true,
-        external_fields:  vec!["customerId".to_string()],
-        shareable_fields: vec![],
-                inaccessible_fields: vec![],
-        field_directives: std::collections::HashMap::new(),
-        type_shareable: false,
+        is_extends:          true,
+        external_fields:     vec!["customerId".to_string()],
+        shareable_fields:    vec![],
+        inaccessible_fields: vec![],
+        field_directives:    std::collections::HashMap::new(),
+        type_shareable:      false,
     };
 
     // This subgraph extends Order and references customerId from another subgraph
@@ -466,7 +466,7 @@ fn test_federation_v2_version_string() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![],
+        types: vec![],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -480,14 +480,14 @@ fn test_federation_enabled_flag() {
     let enabled = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![],
+        types: vec![],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let disabled = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
-        types:   vec![],
+        types: vec![],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 

@@ -100,7 +100,7 @@ pub(crate) struct EntityCircuitBreaker {
     pub(crate) config: CircuitBreakerConfig,
     /// All mutable state — including the consecutive-failure counter — lives inside
     /// this single mutex so that counter increments and state transitions are atomic.
-    state:  Mutex<CircuitState>,
+    state:             Mutex<CircuitState>,
 }
 
 impl EntityCircuitBreaker {
@@ -326,9 +326,9 @@ struct PerEntityJson {
 /// Instantiated from the compiled schema JSON and shared via `Arc` across
 /// request handlers and the metrics endpoint.
 pub struct FederationCircuitBreakerManager {
-    breakers:                   DashMap<String, Arc<EntityCircuitBreaker>>,
-    pub(crate) default_config:  CircuitBreakerConfig,
-    per_entity_config:          DashMap<String, CircuitBreakerConfig>,
+    breakers:                  DashMap<String, Arc<EntityCircuitBreaker>>,
+    pub(crate) default_config: CircuitBreakerConfig,
+    per_entity_config:         DashMap<String, CircuitBreakerConfig>,
 }
 
 impl FederationCircuitBreakerManager {

@@ -7,8 +7,7 @@
 //! including NULL values, by spinning up a real Postgres database via testcontainers.
 
 use serde_json::json;
-use testcontainers_modules::postgres::Postgres;
-use testcontainers_modules::testcontainers::runners::AsyncRunner;
+use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
 
 #[tokio::test]
 #[ignore = "requires a running PostgreSQL container (testcontainers); run with --include-ignored"]
@@ -22,7 +21,8 @@ async fn row_to_map_handles_text_array_columns() {
         .expect("failed to start postgres container");
 
     let host_port = container.get_host_port_ipv4(5432).await.expect("failed to get port");
-    let conn_string = format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
+    let conn_string =
+        format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
 
     let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
         .await
@@ -98,7 +98,8 @@ async fn row_to_map_handles_enum_columns() {
         .expect("failed to start postgres container");
 
     let host_port = container.get_host_port_ipv4(5432).await.expect("failed to get port");
-    let conn_string = format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
+    let conn_string =
+        format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
 
     let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
         .await
@@ -165,7 +166,8 @@ async fn row_to_map_handles_mixed_types_with_nulls() {
         .expect("failed to start postgres container");
 
     let host_port = container.get_host_port_ipv4(5432).await.expect("failed to get port");
-    let conn_string = format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
+    let conn_string =
+        format!("host=127.0.0.1 port={host_port} user=postgres password=postgres dbname=test");
 
     let (client, connection) = tokio_postgres::connect(&conn_string, tokio_postgres::NoTls)
         .await
@@ -197,13 +199,7 @@ async fn row_to_map_handles_mixed_types_with_nulls() {
         .execute(
             "INSERT INTO mixed_types (id, int_val, text_val, bool_val, json_val)
              VALUES ($1, $2, $3, $4, $5)",
-            &[
-                &1i64,
-                &42i32,
-                &"hello",
-                &true,
-                &json!({"key": "value"}),
-            ],
+            &[&1i64, &42i32, &"hello", &true, &json!({"key": "value"})],
         )
         .await
         .expect("failed to insert row with all values");

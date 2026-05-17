@@ -95,10 +95,8 @@ fn load_project_metadata() -> (String, String) {
     if toml_path.exists() {
         if let Ok(content) = fs::read_to_string(toml_path) {
             if let Ok(parsed) = toml::from_str::<toml::Value>(&content) {
-                let name = parsed
-                    .get("project")
-                    .and_then(|p| p.get("name"))
-                    .and_then(toml::Value::as_str);
+                let name =
+                    parsed.get("project").and_then(|p| p.get("name")).and_then(toml::Value::as_str);
                 let version = parsed
                     .get("project")
                     .and_then(|p| p.get("version"))

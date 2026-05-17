@@ -369,8 +369,8 @@ impl SubscriptionManager {
                         "Tenant mismatch — event filtered"
                     );
                     return false;
-                }
-                _ => {} // match or no tenant on event (pass through)
+                },
+                _ => {}, // match or no tenant on event (pass through)
             }
         }
 

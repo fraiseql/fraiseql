@@ -748,8 +748,11 @@ mod jwks_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use std::time::{Duration, Instant};
-    use crate::security::oidc::*;
-    use crate::security::oidc::jwks::{CachedJwks, MAX_JWKS_RESPONSE_BYTES};
+
+    use crate::security::oidc::{
+        jwks::{CachedJwks, MAX_JWKS_RESPONSE_BYTES},
+        *,
+    };
 
     #[test]
     fn test_jwk_deserialization() {
@@ -873,7 +876,9 @@ mod replay_cache_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use std::time::Duration;
+
     use async_trait::async_trait;
+
     use crate::security::oidc::*;
 
     #[tokio::test]

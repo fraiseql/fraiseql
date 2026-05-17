@@ -1,7 +1,6 @@
 //! GraphQL HTTP handlers and execution logic.
 
-use std::sync::atomic::Ordering;
-use std::time::Instant;
+use std::{sync::atomic::Ordering, time::Instant};
 
 use axum::{
     Json,
@@ -505,13 +504,14 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         if let Some(mutation_name) = detect_mutation_name(&query) {
             if let Some(chain) = hooks.trigger_registry.before_chain(&mutation_name) {
                 let input = request.variables.clone().unwrap_or(serde_json::Value::Null);
-                let host = fraiseql_functions::NoopHostContext::new(fraiseql_functions::EventPayload {
-                    trigger_type: format!("before:mutation:{mutation_name}"),
-                    entity: mutation_name.clone(),
-                    event_kind: "before".to_string(),
-                    data: input.clone(),
-                    timestamp: chrono::Utc::now(),
-                });
+                let host =
+                    fraiseql_functions::NoopHostContext::new(fraiseql_functions::EventPayload {
+                        trigger_type: format!("before:mutation:{mutation_name}"),
+                        entity:       mutation_name.clone(),
+                        event_kind:   "before".to_string(),
+                        data:         input.clone(),
+                        timestamp:    chrono::Utc::now(),
+                    });
                 match chain
                     .execute(
                         input,
@@ -528,19 +528,18 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                         } else {
                             Some(modified)
                         }
-                    }
+                    },
                     Ok(fraiseql_functions::BeforeMutationResult::Abort(msg)) => {
                         return Err(ErrorResponse::from_error(GraphQLError::validation(msg)));
-                    }
+                    },
                     Err(e) => {
                         error!(error = %e, mutation = %mutation_name, "before:mutation chain failed");
-                        return Err(ErrorResponse::from_error(
-                            state.error_sanitizer.sanitize(GraphQLError::internal(
-                                "before:mutation hook execution failed",
-                            )),
-                        ));
-                    }
-                    // Reason: BeforeMutationResult is non_exhaustive; treat unknown variants as Proceed
+                        return Err(ErrorResponse::from_error(state.error_sanitizer.sanitize(
+                            GraphQLError::internal("before:mutation hook execution failed"),
+                        )));
+                    },
+                    // Reason: BeforeMutationResult is non_exhaustive; treat unknown variants as
+                    // Proceed
                     Ok(_) => request.variables,
                 }
             } else {
@@ -564,9 +563,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
     let exec_result = if let Some(sec_ctx) = security_context {
-        executor
-            .execute_with_security(&query, variables.as_ref(), &sec_ctx)
-            .await
+        executor.execute_with_security(&query, variables.as_ref(), &sec_ctx).await
     } else {
         executor.execute(&query, variables.as_ref()).await
     };
@@ -591,7 +588,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     let op_name = request.operation_name.as_deref().unwrap_or("");
     let result = exec_result.map_err(|e| {
         let elapsed = start_time.elapsed();
-        #[allow(clippy::cast_possible_truncation)] // Reason: microsecond counter cannot exceed u64 in any practical uptime
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: microsecond counter cannot exceed u64 in any practical uptime
         let elapsed_us = elapsed.as_micros() as u64;
         error!(
             error = %e,
@@ -609,12 +607,15 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         // Must be emitted before error sanitization so we log the real reason.
         #[cfg(feature = "auth")]
         if matches!(e, fraiseql_core::FraiseQLError::Authorization { .. }) {
-            use fraiseql_auth::audit::logger::{AuditEntry, AuditEventType, SecretType, get_audit_logger};
-            let resource = if let fraiseql_core::FraiseQLError::Authorization { ref resource, .. } = e {
-                resource.clone().unwrap_or_else(|| op_name.to_string())
-            } else {
-                op_name.to_string()
+            use fraiseql_auth::audit::logger::{
+                AuditEntry, AuditEventType, SecretType, get_audit_logger,
             };
+            let resource =
+                if let fraiseql_core::FraiseQLError::Authorization { ref resource, .. } = e {
+                    resource.clone().unwrap_or_else(|| op_name.to_string())
+                } else {
+                    op_name.to_string()
+                };
             get_audit_logger().log_entry(AuditEntry {
                 event_type:    AuditEventType::AuthorizationDenied,
                 secret_type:   SecretType::JwtToken,
@@ -632,7 +633,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     })?;
 
     let elapsed = start_time.elapsed();
-    #[allow(clippy::cast_possible_truncation)] // Reason: microsecond counter cannot exceed u64 in any practical uptime
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: microsecond counter cannot exceed u64 in any practical uptime
     let elapsed_us = elapsed.as_micros() as u64;
 
     // Record successful query metrics
@@ -654,7 +656,8 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         "Query executed successfully"
     );
 
-    #[allow(unused_mut)] // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
+    #[allow(unused_mut)]
+    // Reason: mut is required by decrypt_response(&mut ...) when the secrets feature is enabled
     let mut response_json = result;
 
     // Decrypt encrypted fields if field encryption is configured

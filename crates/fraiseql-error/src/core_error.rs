@@ -233,7 +233,7 @@ pub enum FraiseQLError {
         /// Error message.
         message: String,
         /// Optional error code (e.g., `"not_found"`, `"permission_denied"`).
-        code: Option<String>,
+        code:    Option<String>,
     },
 
     /// Unsupported operation error.

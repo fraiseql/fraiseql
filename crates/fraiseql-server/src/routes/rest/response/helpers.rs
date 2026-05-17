@@ -3,7 +3,7 @@
 //! Contains utility functions for `ETag` computation, data extraction, and link building.
 
 use axum::http::{HeaderMap, HeaderValue};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use xxhash_rust::xxh3::xxh3_64;
 
 /// Compute an `ETag` for response body data.
@@ -34,9 +34,7 @@ pub(super) fn check_if_none_match(headers: &HeaderMap, etag: &str) -> Option<boo
 /// # Errors
 ///
 /// Returns `RestError` if JSON parsing fails.
-pub(super) fn extract_single_data(
-    result: &Value,
-) -> Result<Value, super::RestError> {
+pub(super) fn extract_single_data(result: &Value) -> Result<Value, super::RestError> {
     if let Some(data_obj) = result.get("data") {
         if let Value::Object(map) = data_obj {
             Ok(map.values().next().cloned().unwrap_or(Value::Null))
@@ -53,9 +51,7 @@ pub(super) fn extract_single_data(
 /// # Errors
 ///
 /// Returns `RestError` if JSON parsing fails.
-pub(super) fn extract_collection_data(
-    result: &Value,
-) -> Result<Value, super::RestError> {
+pub(super) fn extract_collection_data(result: &Value) -> Result<Value, super::RestError> {
     extract_single_data(result)
 }
 
@@ -66,9 +62,7 @@ pub(super) fn extract_collection_data(
 /// # Errors
 ///
 /// Returns `RestError` if JSON parsing fails.
-pub(super) fn extract_mutation_data(
-    result: &Value,
-) -> Result<Value, super::RestError> {
+pub(super) fn extract_mutation_data(result: &Value) -> Result<Value, super::RestError> {
     if let Some(data_obj) = result.get("data") {
         if let Value::Object(map) = data_obj {
             // For mutations, extract the entity from mutation_response
@@ -91,10 +85,7 @@ pub(super) fn extract_mutation_data(
 /// Extract entity data from a DELETE mutation response.
 ///
 /// Parses `data.{mutation_name}.entity` from the mutation result.
-pub(super) fn extract_delete_entity(
-    result: &Value,
-    mutation_name: &str,
-) -> Option<Value> {
+pub(super) fn extract_delete_entity(result: &Value, mutation_name: &str) -> Option<Value> {
     let entity = result.get("data")?.get(mutation_name)?.get("entity")?;
 
     if entity.is_null() {
@@ -124,25 +115,14 @@ pub(super) fn format_id_for_url(id: &Value) -> String {
 }
 
 /// Build pagination links for offset-based pagination.
-pub(super) fn build_offset_links(
-    base: &str,
-    limit: u64,
-    offset: u64,
-    total: Option<u64>,
-) -> Value {
+pub(super) fn build_offset_links(base: &str, limit: u64, offset: u64, total: Option<u64>) -> Value {
     let mut links = serde_json::Map::new();
 
     // self
-    links.insert(
-        "self".to_string(),
-        json!(format!("{base}?limit={limit}&offset={offset}")),
-    );
+    links.insert("self".to_string(), json!(format!("{base}?limit={limit}&offset={offset}")));
 
     // first
-    links.insert(
-        "first".to_string(),
-        json!(format!("{base}?limit={limit}&offset=0")),
-    );
+    links.insert("first".to_string(), json!(format!("{base}?limit={limit}&offset=0")));
 
     // next (if there could be more items)
     let next_offset = offset + limit;
@@ -227,9 +207,7 @@ pub(super) fn build_cursor_links(
 
 /// Extract the end cursor from a Relay connection response.
 pub(super) fn extract_end_cursor(data: &Value) -> Option<&str> {
-    data.get("pageInfo")?
-        .get("endCursor")?
-        .as_str()
+    data.get("pageInfo")?.get("endCursor")?.as_str()
 }
 
 /// Create a `HeaderValue` from an `ETag` string.

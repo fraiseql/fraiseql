@@ -243,7 +243,10 @@ impl HttpEntityResolver {
     ///
     /// Returns `FraiseQLError::Internal` if the HTTP client cannot be initialised
     /// (e.g., invalid TLS configuration).
-    pub fn new(config: HttpClientConfig, mtls: Option<&super::tls::MtlsConfig>) -> fraiseql_error::Result<Self> {
+    pub fn new(
+        config: HttpClientConfig,
+        mtls: Option<&super::tls::MtlsConfig>,
+    ) -> fraiseql_error::Result<Self> {
         // Redirects are disabled to prevent redirect-chain SSRF attacks:
         // a compromised subgraph could redirect to an internal network address,
         // bypassing the URL-parse SSRF guard applied to the initial URL only.

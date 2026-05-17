@@ -166,9 +166,8 @@ fn test_typed_stream_with_value_type() {
         TypedJsonStream::new(Box::new(json_stream));
 
     // This verifies the stream compiles and has correct type
-    let _stream: Box<
-        dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin,
-    > = Box::new(typed_stream);
+    let _stream: Box<dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin> =
+        Box::new(typed_stream);
 }
 
 #[test]
@@ -187,13 +186,11 @@ fn test_filtered_stream_with_typed_output() {
     let predicate = Box::new(|v: &serde_json::Value| v["active"].as_bool().unwrap_or(false));
 
     let filtered = FilteredStream::new(json_stream, predicate);
-    let typed_stream: TypedJsonStream<serde_json::Value> =
-        TypedJsonStream::new(Box::new(filtered));
+    let typed_stream: TypedJsonStream<serde_json::Value> = TypedJsonStream::new(Box::new(filtered));
 
     // This verifies the full pipeline compiles
-    let _stream: Box<
-        dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin,
-    > = Box::new(typed_stream);
+    let _stream: Box<dyn futures::stream::Stream<Item = crate::Result<serde_json::Value>> + Unpin> =
+        Box::new(typed_stream);
 }
 
 #[test]
@@ -233,7 +230,6 @@ fn test_stream_pipeline_type_flow() {
     // - FilteredStream outputs Result<Value>
     // - TypedJsonStream<T> takes Box<dyn Stream<Item = Result<Value>>>
     // - TypedJsonStream<T> outputs Result<T>
-    let _final_stream: Box<
-        dyn futures::stream::Stream<Item = crate::Result<TestUser>> + Unpin,
-    > = Box::new(typed);
+    let _final_stream: Box<dyn futures::stream::Stream<Item = crate::Result<TestUser>> + Unpin> =
+        Box::new(typed);
 }

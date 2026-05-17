@@ -10,7 +10,10 @@
 use std::collections::BTreeMap;
 
 use axum::{Json, extract::State};
-use fraiseql_core::{db::traits::DatabaseAdapter, schema::{CompiledSchema, FieldDenyPolicy}};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    schema::{CompiledSchema, FieldDenyPolicy},
+};
 use serde::Serialize;
 
 use crate::routes::{api::types::ApiResponse, graphql::AppState};

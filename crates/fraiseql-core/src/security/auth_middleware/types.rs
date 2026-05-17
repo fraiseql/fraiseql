@@ -5,8 +5,10 @@ use std::{collections::HashMap, fmt};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-use crate::security::errors::{Result, SecurityError};
-use crate::types::UserId;
+use crate::{
+    security::errors::{Result, SecurityError},
+    types::UserId,
+};
 
 /// Authenticated user information extracted from JWT claims
 ///
@@ -198,7 +200,11 @@ pub(super) struct JwtClaims {
 /// Trim a string and return `None` if the result is empty.
 fn trim_or_none(s: &str) -> Option<String> {
     let trimmed = s.trim();
-    if trimmed.is_empty() { None } else { Some(trimmed.to_owned()) }
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_owned())
+    }
 }
 
 /// Extract a flat string from a potentially nested JWT claim value.
@@ -242,9 +248,7 @@ pub(crate) fn extract_claim_string(value: &serde_json::Value) -> Option<String> 
 /// objects with `value`/`formatted` keys and `given`+`family` concatenation.
 pub(crate) fn extract_name_string(value: &serde_json::Value) -> Option<String> {
     match value {
-        serde_json::Value::String(_) | serde_json::Value::Array(_) => {
-            extract_claim_string(value)
-        },
+        serde_json::Value::String(_) | serde_json::Value::Array(_) => extract_claim_string(value),
         serde_json::Value::Object(map) => {
             for key in &["value", "formatted", "email"] {
                 if let Some(serde_json::Value::String(s)) = map.get(*key) {

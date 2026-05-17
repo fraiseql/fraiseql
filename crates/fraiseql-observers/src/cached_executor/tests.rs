@@ -4,11 +4,13 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::*;
-use crate::cache::{CacheBackend, CachedActionResult};
-use crate::config::ActionConfig;
-use crate::error::Result;
-use crate::event::{EntityEvent, EventKind};
-use crate::traits::{ActionExecutor, ActionResult};
+use crate::{
+    cache::{CacheBackend, CachedActionResult},
+    config::ActionConfig,
+    error::Result,
+    event::{EntityEvent, EventKind},
+    traits::{ActionExecutor, ActionResult},
+};
 
 // Simple mock executor for testing
 #[derive(Clone)]
@@ -29,11 +31,7 @@ impl TestExecutor {
 }
 
 impl ActionExecutor for TestExecutor {
-    async fn execute(
-        &self,
-        _event: &EntityEvent,
-        _action: &ActionConfig,
-    ) -> Result<ActionResult> {
+    async fn execute(&self, _event: &EntityEvent, _action: &ActionConfig) -> Result<ActionResult> {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(ActionResult {
             action_type: "test".to_string(),
@@ -112,8 +110,7 @@ async fn test_cache_hit_does_not_execute_action() {
         reply_to:         None,
     };
 
-    let cache_key =
-        CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
+    let cache_key = CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
     let cached_result =
         CachedActionResult::new("cached".to_string(), true, "Cached result".to_string(), 1.0);
 

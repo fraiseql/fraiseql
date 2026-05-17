@@ -314,8 +314,7 @@ mod change_log_tests {
 }
 
 mod coordinator_tests {
-    use super::super::coordinator::*;
-    use super::super::state::ListenerState;
+    use super::super::{coordinator::*, state::ListenerState};
 
     #[tokio::test]
     async fn test_coordinator_creation() {
@@ -389,8 +388,7 @@ mod coordinator_tests {
 mod failover_tests {
     use std::sync::Arc;
 
-    use super::super::coordinator::MultiListenerCoordinator;
-    use super::super::failover::*;
+    use super::super::{coordinator::MultiListenerCoordinator, failover::*};
 
     #[tokio::test]
     async fn test_failover_manager_creation() {

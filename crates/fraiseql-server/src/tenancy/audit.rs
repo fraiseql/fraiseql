@@ -128,9 +128,9 @@ impl TenantAuditLog for InMemoryAuditLog {
         payload: Option<serde_json::Value>,
     ) -> fraiseql_error::Result<()> {
         let entry = TenantEvent {
-            tenant_key:  tenant_key.to_string(),
+            tenant_key: tenant_key.to_string(),
             event,
-            actor:       actor.map(ToString::to_string),
+            actor: actor.map(ToString::to_string),
             payload,
             occurred_at: chrono::Utc::now().to_rfc3339(),
         };

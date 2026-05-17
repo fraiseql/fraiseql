@@ -5,8 +5,7 @@
 use fraiseql_error::FraiseQLError;
 
 use super::EmbeddedSpec;
-use crate::routes::rest::params::helpers::validation_error;
-use crate::routes::rest::params::SelectEntry;
+use crate::routes::rest::params::{SelectEntry, helpers::validation_error};
 
 /// Parse a `?select=` value into a list of [`SelectEntry`] items.
 ///

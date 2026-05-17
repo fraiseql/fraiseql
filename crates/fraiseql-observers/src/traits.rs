@@ -56,8 +56,18 @@ pub struct ActionResult {
 impl ActionResult {
     /// Creates a new `ActionResult`.
     #[must_use]
-    pub const fn new(action_type: String, success: bool, message: String, duration_ms: f64) -> Self {
-        Self { action_type, success, message, duration_ms }
+    pub const fn new(
+        action_type: String,
+        success: bool,
+        message: String,
+        duration_ms: f64,
+    ) -> Self {
+        Self {
+            action_type,
+            success,
+            message,
+            duration_ms,
+        }
     }
 }
 

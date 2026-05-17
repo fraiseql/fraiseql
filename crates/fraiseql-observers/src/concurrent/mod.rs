@@ -151,6 +151,5 @@ impl<E: ActionExecutor + Clone + Send + Sync + 'static> ConcurrentActionExecutor
     }
 }
 
-
 #[cfg(test)]
 mod tests;

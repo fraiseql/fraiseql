@@ -364,7 +364,8 @@ pub trait SqlDialect: Send + Sync + 'static {
         })
     }
 
-    /// Generate SQL for an INET unary check (IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback, IsNotLoopback).
+    /// Generate SQL for an INET unary check (IsIPv4, IsIPv6, IsPrivate, IsPublic, IsLoopback,
+    /// IsNotLoopback).
     ///
     /// `check_name` identifies the operator (passed to `UnsupportedOperator` on failure).
     ///

@@ -155,8 +155,16 @@ pub async fn run() {
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
-            FederationCommands::Check { schema, against, json } => {
-                match commands::federation::check::run(&schema, against.as_deref(), json || cli.json) {
+            FederationCommands::Check {
+                schema,
+                against,
+                json,
+            } => {
+                match commands::federation::check::run(
+                    &schema,
+                    against.as_deref(),
+                    json || cli.json,
+                ) {
                     Ok(result) => {
                         if !json {
                             println!(
@@ -437,7 +445,12 @@ pub async fn run() {
 /// Error: <message>
 /// ```
 /// If `debug_info` is provided and `json` is `false`, a debug section is appended.
-pub(crate) fn format_cli_error(message: &str, debug_info: Option<&str>, json: bool, code: i32) -> String {
+pub(crate) fn format_cli_error(
+    message: &str,
+    debug_info: Option<&str>,
+    json: bool,
+    code: i32,
+) -> String {
     if json {
         serde_json::json!({
             "error": {

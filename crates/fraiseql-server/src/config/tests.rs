@@ -141,8 +141,9 @@ fn test_validation_cross_field() {
 mod env_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
-    use super::super::env::*;
     use std::time::Duration;
+
+    use super::super::env::*;
 
     // ─── resolve_env_value ──────────────────────────────────────────────────
 
@@ -370,7 +371,8 @@ mod error_sanitization_tests {
 // ── pool_tuning_tests ─────────────────────────────────────────────────────────
 
 mod pool_tuning_tests {
-    #[allow(clippy::wildcard_imports)] // Reason: test module — wildcard import keeps test boilerplate minimal
+    #[allow(clippy::wildcard_imports)]
+    // Reason: test module — wildcard import keeps test boilerplate minimal
     use super::super::pool_tuning::*;
 
     #[test]

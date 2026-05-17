@@ -31,14 +31,12 @@ impl AnnotatedTypeIndex {
         let mut tenant_fields: HashMap<String, HashSet<String>> = HashMap::new();
         for typ in types {
             for field in &typ.fields {
-                let has_tenant_id = field.directives.as_ref().is_some_and(|dirs| {
-                    dirs.iter().any(|d| d.name == "tenant_id")
-                });
+                let has_tenant_id = field
+                    .directives
+                    .as_ref()
+                    .is_some_and(|dirs| dirs.iter().any(|d| d.name == "tenant_id"));
                 if has_tenant_id {
-                    tenant_fields
-                        .entry(typ.name.clone())
-                        .or_default()
-                        .insert(field.name.clone());
+                    tenant_fields.entry(typ.name.clone()).or_default().insert(field.name.clone());
                 }
             }
         }
@@ -92,9 +90,7 @@ pub fn validate_tenant_annotations(
                 let inject_source = format!("jwt:{tenant_claim}");
                 if query.inject.is_empty() {
                     // Auto-inject: no explicit inject → safe to add
-                    query
-                        .inject
-                        .insert(field_name.clone(), inject_source);
+                    query.inject.insert(field_name.clone(), inject_source);
                 } else if !query.inject.contains_key(field_name) {
                     // Explicit inject exists but missing tenant field → error
                     bail!(
@@ -119,9 +115,7 @@ pub fn validate_tenant_annotations(
             for field_name in fields {
                 let inject_source = format!("jwt:{tenant_claim}");
                 if mutation.inject.is_empty() {
-                    mutation
-                        .inject
-                        .insert(field_name.clone(), inject_source);
+                    mutation.inject.insert(field_name.clone(), inject_source);
                 } else if !mutation.inject.contains_key(field_name) {
                     bail!(
                         "Mutation '{}' references @tenant_id-annotated type '{}' but \

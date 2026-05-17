@@ -1,8 +1,7 @@
 mod executor_tests {
-    use super::super::executor::{
-        graphql_value, is_scalar_field_type, is_valid_graphql_name,
-    };
     use fraiseql_core::schema::FieldType;
+
+    use super::super::executor::{graphql_value, is_scalar_field_type, is_valid_graphql_name};
 
     #[test]
     fn test_graphql_value_string() {
@@ -69,9 +68,12 @@ mod executor_tests {
 mod tools_tests {
     #![allow(clippy::unwrap_used)]
 
-    use super::super::tools::{should_include, field_type_to_json_schema, arguments_to_json_schema};
-    use super::super::McpConfig;
     use fraiseql_core::schema::{ArgumentDefinition, FieldType};
+
+    use super::super::{
+        McpConfig,
+        tools::{arguments_to_json_schema, field_type_to_json_schema, should_include},
+    };
 
     fn make_config(include: Vec<String>, exclude: Vec<String>) -> McpConfig {
         McpConfig {

@@ -1,16 +1,20 @@
 //! Tests for `routes/grpc/` modules.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use fraiseql_core::{
+    db::{
+        dialect::RowViewColumnType,
+        types::{ColumnSpec, ColumnValue},
+    },
+    schema::FieldType,
+};
+use prost_reflect::Value;
+
 use super::handler::{
     column_specs_from_type, column_value_to_proto, encode_response, encode_row,
     field_type_to_column_type, grpc_method_to_mutation_name, grpc_method_to_query_name,
     proto_value_to_json,
 };
-use fraiseql_core::{
-    db::{dialect::RowViewColumnType, types::{ColumnSpec, ColumnValue}},
-    schema::FieldType,
-};
-use prost_reflect::Value;
 
 // ── field_type_to_column_type ────────────────────────────────────────
 
@@ -19,10 +23,7 @@ fn scalar_types_map_correctly() {
     assert_eq!(field_type_to_column_type(&FieldType::String), Some(RowViewColumnType::Text));
     assert_eq!(field_type_to_column_type(&FieldType::Int), Some(RowViewColumnType::Int32));
     assert_eq!(field_type_to_column_type(&FieldType::Float), Some(RowViewColumnType::Float64));
-    assert_eq!(
-        field_type_to_column_type(&FieldType::Boolean),
-        Some(RowViewColumnType::Boolean)
-    );
+    assert_eq!(field_type_to_column_type(&FieldType::Boolean), Some(RowViewColumnType::Boolean));
     assert_eq!(field_type_to_column_type(&FieldType::Id), Some(RowViewColumnType::Uuid));
     assert_eq!(
         field_type_to_column_type(&FieldType::DateTime),
@@ -134,9 +135,8 @@ fn bool_encodes() {
 
 #[test]
 fn uuid_encodes_as_string() {
-    let v = column_value_to_proto(&ColumnValue::Uuid(
-        "00000000-0000-0000-0000-000000000000".into(),
-    ));
+    let v =
+        column_value_to_proto(&ColumnValue::Uuid("00000000-0000-0000-0000-000000000000".into()));
     assert_eq!(v, Some(Value::String("00000000-0000-0000-0000-000000000000".into())));
 }
 
@@ -190,27 +190,27 @@ fn test_descriptor_pool() -> prost_reflect::DescriptorPool {
     };
 
     let user_msg = DescriptorProto {
-        name:  Some("User".into()),
+        name: Some("User".into()),
         field: vec![
             FieldDescriptorProto {
-                name:   Some("id".into()),
+                name: Some("id".into()),
                 number: Some(1),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("name".into()),
+                name: Some("name".into()),
                 number: Some(2),
                 r#type: Some(field_descriptor_proto::Type::String.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
             FieldDescriptorProto {
-                name:   Some("age".into()),
+                name: Some("age".into()),
                 number: Some(3),
                 r#type: Some(field_descriptor_proto::Type::Int32.into()),
-                label:  Some(field_descriptor_proto::Label::Optional.into()),
+                label: Some(field_descriptor_proto::Label::Optional.into()),
                 ..Default::default()
             },
         ],
@@ -218,9 +218,9 @@ fn test_descriptor_pool() -> prost_reflect::DescriptorPool {
     };
 
     let file = FileDescriptorProto {
-        name:         Some("test.proto".into()),
-        package:      Some("test".into()),
-        syntax:       Some("proto3".into()),
+        name: Some("test.proto".into()),
+        package: Some("test".into()),
+        syntax: Some("proto3".into()),
         message_type: vec![user_msg],
         ..Default::default()
     };

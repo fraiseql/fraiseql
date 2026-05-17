@@ -2,13 +2,15 @@
 //! Re-export items not in `crate::apq::*` so submodules reach them via `use super::*`.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
 
-pub use serde_json::json;
 pub use std::time::Duration;
+
+pub use serde_json::json;
 
 mod hasher_tests {
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_hash_query_deterministic() {
@@ -363,7 +365,8 @@ mod memory_storage_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[tokio::test]
     async fn set_and_get() {
@@ -456,7 +459,8 @@ mod memory_storage_tests {
 mod metrics_tests {
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     #[test]
     fn test_metrics_initialization() {
@@ -583,7 +587,8 @@ mod redis_storage_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
     use super::super::*;
-    #[allow(unused_imports)] use super::*;
+    #[allow(unused_imports)]
+    use super::*;
 
     /// These tests require a running Redis instance at `REDIS_URL`.
     /// Run with: `REDIS_URL=redis://localhost:6379 cargo test -p fraiseql-core --features redis-apq
@@ -650,8 +655,7 @@ mod redis_storage_tests {
 
 mod storage_tests {
 
-    use super::super::*;
-    use super::*;
+    use super::{super::*, *};
 
     #[test]
     fn test_apq_stats_creation() {

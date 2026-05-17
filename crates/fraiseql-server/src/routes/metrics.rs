@@ -434,11 +434,12 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// Escapes backslashes, double-quotes, and newlines per the Prometheus
 /// exposition format, then truncates to `max_chars`.
 fn truncate_label(s: &str, max_chars: usize) -> String {
-    let truncated = if s.len() > max_chars { &s[..max_chars] } else { s };
-    truncated
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', "\\n")
+    let truncated = if s.len() > max_chars {
+        &s[..max_chars]
+    } else {
+        s
+    };
+    truncated.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
 }
 
 /// JSON metrics handler - returns metrics in JSON format.

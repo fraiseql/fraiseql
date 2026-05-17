@@ -99,19 +99,23 @@ pub struct ServerArgs {
     #[arg(long, env = "FRAISEQL_INTROSPECTION_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub introspection_require_auth: Option<bool>,
 
-    /// Require authentication for schema metadata endpoint (overrides `introspection_require_auth` for `/api/v1/schema/metadata`).
+    /// Require authentication for schema metadata endpoint (overrides `introspection_require_auth`
+    /// for `/api/v1/schema/metadata`).
     #[arg(long, env = "FRAISEQL_METADATA_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub metadata_require_auth: Option<bool>,
 
-    /// Require authentication for schema export endpoints (overrides `introspection_require_auth` for `/api/v1/schema.graphql` and `/api/v1/schema.json`).
+    /// Require authentication for schema export endpoints (overrides `introspection_require_auth`
+    /// for `/api/v1/schema.graphql` and `/api/v1/schema.json`).
     #[arg(long, env = "FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub schema_export_require_auth: Option<bool>,
 
-    /// Require authentication for playground endpoint (overrides `introspection_require_auth` for the playground path).
+    /// Require authentication for playground endpoint (overrides `introspection_require_auth` for
+    /// the playground path).
     #[arg(long, env = "FRAISEQL_PLAYGROUND_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub playground_require_auth: Option<bool>,
 
-    /// Require authentication for subscription endpoint (overrides `introspection_require_auth` for the `WebSocket` subscription path).
+    /// Require authentication for subscription endpoint (overrides `introspection_require_auth`
+    /// for the `WebSocket` subscription path).
     #[arg(long, env = "FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub subscription_require_auth: Option<bool>,
 
@@ -162,10 +166,10 @@ impl ServerArgs {
             admin_token:                std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
             introspection_enabled:      parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
             introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH"),
-            metadata_require_auth:           parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
-            schema_export_require_auth:      parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"),
-            playground_require_auth:         parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH"),
-            subscription_require_auth:       parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH"),
+            metadata_require_auth:      parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
+            schema_export_require_auth: parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"),
+            playground_require_auth:    parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH"),
+            subscription_require_auth:  parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH"),
             rate_limiting_enabled:      parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
             rate_limit_rps_per_ip:      std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
                 .ok()

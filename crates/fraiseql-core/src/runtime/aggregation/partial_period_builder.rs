@@ -101,7 +101,7 @@ impl AggregationSqlGenerator {
         let union_sql = branches.join("\nUNION ALL\n");
 
         Ok(PartialPeriodSql {
-            sql:    union_sql,
+            sql: union_sql,
             params,
         })
     }
@@ -113,8 +113,8 @@ impl AggregationSqlGenerator {
     /// * `plan` — the original aggregation plan (for GROUP BY / aggregate expressions)
     /// * `view_name` — the view to query (fine-grain or coarse-grain)
     /// * `time_col` — the time-grain column name
-    /// * `trunc_grain` — if `Some`, apply `DATE_TRUNC` to `time_col` in GROUP BY (fine-grain);
-    ///   if `None`, use `time_col` directly (coarse-grain, already period-aligned)
+    /// * `trunc_grain` — if `Some`, apply `DATE_TRUNC` to `time_col` in GROUP BY (fine-grain); if
+    ///   `None`, use `time_col` directly (coarse-grain, already period-aligned)
     /// * `date_gte` — inclusive lower bound of the date range
     /// * `date_lt` — exclusive upper bound of the date range
     /// * `extra_where` — additional WHERE conditions (e.g., tenant filter)
@@ -196,17 +196,15 @@ impl AggregationSqlGenerator {
         metadata: &FactTableMetadata,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        let gte_param = self.emit_value_param(
-            &serde_json::Value::String(date_gte.to_string()),
-            params,
-        );
-        let lt_param = self.emit_value_param(
-            &serde_json::Value::String(date_lt.to_string()),
-            params,
-        );
+        let gte_param =
+            self.emit_value_param(&serde_json::Value::String(date_gte.to_string()), params);
+        let lt_param =
+            self.emit_value_param(&serde_json::Value::String(date_lt.to_string()), params);
 
         let quoted_col = self.quote_identifier(time_col);
-        let mut where_parts = vec![format!("{quoted_col} >= {gte_param} AND {quoted_col} < {lt_param}")];
+        let mut where_parts = vec![format!(
+            "{quoted_col} >= {gte_param} AND {quoted_col} < {lt_param}"
+        )];
 
         if let Some(wc) = extra_where {
             let extra_sql = self.where_clause_to_sql_parameterized(wc, metadata, params)?;
@@ -246,20 +244,16 @@ impl AggregationSqlGenerator {
         match (expr, trunc_grain) {
             // Fine-grain branch: rewrite TemporalBucket on the time-grain column
             // to use DATE_TRUNC at the coarse grain level.
-            (
-                GroupByExpression::TemporalBucket { column, .. },
-                Some(grain),
-            ) if column == time_col => {
+            (GroupByExpression::TemporalBucket { column, .. }, Some(grain))
+                if column == time_col =>
+            {
                 Ok(self.temporal_bucket_sql(column, grain.to_temporal_bucket()))
-            }
+            },
 
             // Fine-grain branch: rewrite NativeColumn on the time-grain column
-            (
-                GroupByExpression::NativeColumn { column, .. },
-                Some(grain),
-            ) if column == time_col => {
+            (GroupByExpression::NativeColumn { column, .. }, Some(grain)) if column == time_col => {
                 Ok(self.temporal_bucket_sql(column, grain.to_temporal_bucket()))
-            }
+            },
 
             // Coarse branch: temporal bucket on the time-grain column uses
             // the column directly — data is already period-aligned.

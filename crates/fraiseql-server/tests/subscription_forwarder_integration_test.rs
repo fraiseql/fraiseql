@@ -11,15 +11,13 @@
 //! **Infrastructure:** none (in-process mock WebSocket server)
 //! **Parallelism:** safe (ephemeral ports)
 
-use futures::{SinkExt, StreamExt};
-use serde_json::json;
-use tokio::net::TcpListener;
-use tokio::sync::mpsc;
-use tokio_tungstenite::tungstenite::Message as WsMessage;
-
 use fraiseql_federation::subscription_forwarder::{
     ForwardError, ForwardedEvent, SubscriptionForwarder,
 };
+use futures::{SinkExt, StreamExt};
+use serde_json::json;
+use tokio::{net::TcpListener, sync::mpsc};
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 /// Set the env var that allows http:// URLs for local dev/test.
 fn allow_insecure() {
@@ -32,11 +30,11 @@ fn allow_insecure() {
 #[derive(Clone)]
 struct MockSubgraphConfig {
     /// Events to emit after receiving a subscribe message.
-    events: Vec<serde_json::Value>,
+    events:        Vec<serde_json::Value>,
     /// Whether to send connection_ack on connection_init.
-    send_ack: bool,
+    send_ack:      bool,
     /// Delay before sending connection_ack (millis).
-    ack_delay_ms: u64,
+    ack_delay_ms:  u64,
     /// Whether to send `complete` after all events.
     send_complete: bool,
 }
@@ -44,9 +42,9 @@ struct MockSubgraphConfig {
 impl Default for MockSubgraphConfig {
     fn default() -> Self {
         Self {
-            events: vec![],
-            send_ack: true,
-            ack_delay_ms: 0,
+            events:        vec![],
+            send_ack:      true,
+            ack_delay_ms:  0,
             send_complete: true,
         }
     }
@@ -116,11 +114,8 @@ async fn handle_mock_connection(stream: tokio::net::TcpStream, config: MockSubgr
         if let WsMessage::Text(text) = msg {
             let val: serde_json::Value = serde_json::from_str(&text).unwrap();
             if val.get("type").and_then(|t| t.as_str()) == Some("subscribe") {
-                operation_id = val
-                    .get("id")
-                    .and_then(|id| id.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
+                operation_id =
+                    val.get("id").and_then(|id| id.as_str()).unwrap_or("unknown").to_string();
                 break;
             }
         }
@@ -140,9 +135,7 @@ async fn handle_mock_connection(stream: tokio::net::TcpStream, config: MockSubgr
     if config.send_complete {
         let complete = json!({"type": "complete", "id": operation_id});
         let _ = write
-            .send(WsMessage::Text(
-                serde_json::to_string(&complete).unwrap().into(),
-            ))
+            .send(WsMessage::Text(serde_json::to_string(&complete).unwrap().into()))
             .await;
     }
 }
@@ -165,25 +158,16 @@ async fn test_forwarder_receives_next_events() {
 
     let (tx, mut rx) = mpsc::channel(16);
     forwarder
-        .forward(
-            "op_1",
-            "subscription { postCreated { id body } }",
-            json!({}),
-            tx,
-        )
+        .forward("op_1", "subscription { postCreated { id body } }", json!({}), tx)
         .await
         .unwrap();
 
     // Should receive 2 next events + 1 complete
     let event1 = rx.recv().await.unwrap();
-    assert!(
-        matches!(&event1, ForwardedEvent::Next(v) if v["data"]["postCreated"]["id"] == "1")
-    );
+    assert!(matches!(&event1, ForwardedEvent::Next(v) if v["data"]["postCreated"]["id"] == "1"));
 
     let event2 = rx.recv().await.unwrap();
-    assert!(
-        matches!(&event2, ForwardedEvent::Next(v) if v["data"]["postCreated"]["id"] == "2")
-    );
+    assert!(matches!(&event2, ForwardedEvent::Next(v) if v["data"]["postCreated"]["id"] == "2"));
 
     let event3 = rx.recv().await.unwrap();
     assert!(matches!(event3, ForwardedEvent::Complete));
@@ -251,9 +235,7 @@ async fn test_forwarder_init_timeout_when_no_ack() {
     let forwarder = SubscriptionForwarder::new(&url).unwrap();
 
     let (tx, _rx) = mpsc::channel(16);
-    let result = forwarder
-        .forward("op_1", "subscription { x { id } }", json!({}), tx)
-        .await;
+    let result = forwarder.forward("op_1", "subscription { x { id } }", json!({}), tx).await;
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -275,9 +257,7 @@ async fn test_forwarder_connection_refused() {
     let forwarder = SubscriptionForwarder::new(&url).unwrap();
 
     let (tx, _rx) = mpsc::channel(16);
-    let result = forwarder
-        .forward("op_1", "subscription { x { id } }", json!({}), tx)
-        .await;
+    let result = forwarder.forward("op_1", "subscription { x { id } }", json!({}), tx).await;
 
     assert!(result.is_err());
     assert!(matches!(result.unwrap_err(), ForwardError::ConnectionFailed(_)));
@@ -312,5 +292,7 @@ async fn test_forwarder_passes_variables() {
         .unwrap();
 
     let event = rx.recv().await.unwrap();
-    assert!(matches!(&event, ForwardedEvent::Next(v) if v["data"]["userUpdated"]["name"] == "Alice"));
+    assert!(
+        matches!(&event, ForwardedEvent::Next(v) if v["data"]["userUpdated"]["name"] == "Alice")
+    );
 }

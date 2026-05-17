@@ -20,12 +20,14 @@ pub mod types;
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
-pub use triggers::mutation::{
-    AfterMutationTrigger, BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger,
-    EntityEvent, EventKind, TriggerMatcher,
+pub use triggers::{
+    cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
+    mutation::{
+        AfterMutationTrigger, BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger,
+        EntityEvent, EventKind, TriggerMatcher,
+    },
+    registry::TriggerRegistry,
 };
-pub use triggers::registry::TriggerRegistry;
-pub use triggers::cron::{CronScheduler, CronSchedulerHandle, CronTrigger};
 pub use types::{
     EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,
     ResourceLimits, RuntimeType,
@@ -40,8 +42,8 @@ mod tests {
     #[test]
     fn test_function_result_captures_output() {
         let logs = vec![LogEntry {
-            level: LogLevel::Info,
-            message: "test".to_string(),
+            level:     LogLevel::Info,
+            message:   "test".to_string(),
             timestamp: chrono::Utc::now(),
         }];
         let duration = Duration::from_millis(100);
@@ -62,10 +64,10 @@ mod tests {
     fn test_event_payload_serialization() {
         let payload = EventPayload {
             trigger_type: "mutation".to_string(),
-            entity: "User".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 123}),
-            timestamp: chrono::Utc::now(),
+            entity:       "User".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 123}),
+            timestamp:    chrono::Utc::now(),
         };
 
         let json = serde_json::to_string(&payload).expect("serialize");

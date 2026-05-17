@@ -403,7 +403,9 @@ audit_logging_enabled = false
 mod schema_integrity_cli_tests {
     use super::*;
 
-    fn minimal_fixtures(temp_dir: &tempfile::TempDir) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    fn minimal_fixtures(
+        temp_dir: &tempfile::TempDir,
+    ) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
         let types_json = r#"{"types":[{"name":"Thing","sql_source":"v_thing","fields":[{"name":"id","type":"ID","nullable":false}]}],"queries":[{"name":"things","return_type":"Thing","returns_list":true,"nullable":false,"sql_source":"v_thing"}],"mutations":[]}"#;
         let toml_config = r#"
 [schema]
@@ -426,7 +428,12 @@ audit_logging_enabled = false
         (types_path, toml_path, output_path)
     }
 
-    fn run_compile(toml_path: &std::path::Path, types_path: &std::path::Path, output_path: &std::path::Path, extra_args: &[&str]) {
+    fn run_compile(
+        toml_path: &std::path::Path,
+        types_path: &std::path::Path,
+        output_path: &std::path::Path,
+        extra_args: &[&str],
+    ) {
         let cli_path = env!("CARGO_BIN_EXE_fraiseql-cli");
         let mut args = vec![
             "compile",
@@ -473,7 +480,10 @@ audit_logging_enabled = false
         let result = fraiseql_core::schema::CompiledSchema::from_json(&tampered, true);
         assert!(result.is_err(), "strict from_json must reject tampered schema");
         let msg = format!("{}", result.unwrap_err());
-        assert!(msg.contains("hash mismatch") || msg.contains("integrity"), "error must mention hash: {msg}");
+        assert!(
+            msg.contains("hash mismatch") || msg.contains("integrity"),
+            "error must mention hash: {msg}"
+        );
     }
 
     #[test]

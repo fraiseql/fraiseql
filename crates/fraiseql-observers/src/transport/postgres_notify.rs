@@ -32,7 +32,7 @@ use crate::{
 /// the `EventTransport` trait for backward compatibility.
 pub struct PostgresNotifyTransport {
     /// Inner change log listener (wrapped)
-    listener:      Arc<Mutex<ChangeLogListener>>,
+    listener:                 Arc<Mutex<ChangeLogListener>>,
     /// Poll interval for checking new events
     pub(crate) poll_interval: Duration,
 }

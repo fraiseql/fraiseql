@@ -4,27 +4,26 @@
 
 mod aggregate_parser_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::aggregate_parser::*;
     use serde_json::json;
+
     use crate::{
         compiler::{
             aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
-            aggregation::{
-                AggregateSelection, GroupBySelection, OrderDirection,
-            },
+            aggregation::{AggregateSelection, GroupBySelection, OrderDirection},
             fact_table::{
                 DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
             },
         },
         error::FraiseQLError,
+        runtime::aggregate_parser::*,
     };
 
     fn create_test_metadata() -> FactTableMetadata {
         use crate::compiler::fact_table::DimensionPath;
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
@@ -36,7 +35,7 @@ mod aggregate_parser_tests {
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![
                     DimensionPath {
@@ -51,14 +50,14 @@ mod aggregate_parser_tests {
                     },
                 ],
             },
-            denormalized_filters: vec![FilterColumn {
+            denormalized_filters:     vec![FilterColumn {
                 name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
                 indexed:  true,
             }],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -392,18 +391,19 @@ mod aggregate_parser_tests {
     #[test]
     fn test_parser_resolves_native_measure_aggregate() {
         let metadata = FactTableMetadata {
-            table_name:           "mv_daily_sales".to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn {
+            table_name:               "mv_daily_sales".to_string(),
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::from([
-                ("measures.volume".to_string(), "volume".to_string()),
-            ]),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::from([(
+                "measures.volume".to_string(),
+                "volume".to_string(),
+            )]),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -423,7 +423,9 @@ mod aggregate_parser_tests {
         // The measure field should be the JSONB path, resolved by planner later
         match &request.aggregates[0] {
             crate::compiler::aggregation::AggregateSelection::MeasureAggregate {
-                measure, function, ..
+                measure,
+                function,
+                ..
             } => {
                 assert_eq!(measure, "measures.volume");
                 assert_eq!(*function, AggregateFunction::Sum);
@@ -435,19 +437,20 @@ mod aggregate_parser_tests {
     #[test]
     fn test_group_by_uses_dimension_mapping() {
         let metadata = FactTableMetadata {
-            table_name:           "mv_daily_sales".to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn {
+            table_name:               "mv_daily_sales".to_string(),
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::from([
-                ("dimensions.category.id".to_string(), "category_id".to_string()),
-            ]),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::from([(
+                "dimensions.category.id".to_string(),
+                "category_id".to_string(),
+            )]),
         };
 
         let query = json!({
@@ -462,9 +465,7 @@ mod aggregate_parser_tests {
 
         assert_eq!(request.group_by.len(), 1);
         match &request.group_by[0] {
-            crate::compiler::aggregation::GroupBySelection::NativeDimension {
-                column, ..
-            } => {
+            crate::compiler::aggregation::GroupBySelection::NativeDimension { column, .. } => {
                 assert_eq!(column, "category_id");
             },
             other => panic!("Expected NativeDimension, got: {other:?}"),
@@ -474,23 +475,24 @@ mod aggregate_parser_tests {
     #[test]
     fn test_mapped_dimension_not_in_group_by_unless_selected() {
         let metadata = FactTableMetadata {
-            table_name:           "mv_daily_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "mv_daily_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::from([
-                ("dimensions.category.id".to_string(), "category_id".to_string()),
-            ]),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::from([(
+                "dimensions.category.id".to_string(),
+                "category_id".to_string(),
+            )]),
         };
 
         // Query selects only an aggregate, NOT the mapped dimension
@@ -510,31 +512,35 @@ mod aggregate_parser_tests {
 
 mod aggregate_projector_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::aggregate_projector::*;
     use std::collections::HashMap;
+
     use serde_json::{Value, json};
 
-    use crate::compiler::{
-            aggregation::AggregationPlan,
+    use crate::{
+        compiler::{
             aggregate_types::AggregateFunction,
             aggregation::{
-                AggregateExpression, AggregateSelection, AggregationRequest, GroupByExpression,
-                GroupBySelection,
+                AggregateExpression, AggregateSelection, AggregationPlan, AggregationRequest,
+                GroupByExpression, GroupBySelection,
             },
-            fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType},
-        };
+            fact_table::{
+                DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+            },
+        },
+        runtime::aggregate_projector::*,
+    };
 
     fn create_test_plan() -> AggregationPlan {
         use crate::compiler::fact_table::DimensionPath;
 
         let metadata = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![DimensionPath {
                     name:      "category".to_string(),
@@ -542,14 +548,14 @@ mod aggregate_projector_tests {
                     data_type: "text".to_string(),
                 }],
             },
-            denormalized_filters: vec![FilterColumn {
+            denormalized_filters:     vec![FilterColumn {
                 name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
                 indexed:  true,
             }],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -862,8 +868,9 @@ mod aggregate_projector_tests {
 
 mod cascade_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::cascade::*;
     use serde_json::json;
+
+    use crate::runtime::cascade::*;
 
     #[test]
     fn to_cascade_code_is_one_to_one() {
@@ -927,8 +934,8 @@ mod cascade_tests {
 
 mod field_filter_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::field_filter::*;
     use crate::{
+        runtime::field_filter::*,
         schema::{FieldDefinition, FieldDenyPolicy, FieldType, RoleDefinition, SecurityConfig},
         security::SecurityContext,
     };
@@ -946,7 +953,7 @@ mod field_filter_tests {
             requires_scope: requires_scope.map(|s| s.to_string()),
             on_deny:        FieldDenyPolicy::default(),
             encryption:     None,
-            hierarchy:     None,
+            hierarchy:      None,
         }
     }
 
@@ -1210,10 +1217,11 @@ mod field_filter_tests {
 
 mod input_validator_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::input_validator::*;
     use serde_json::Value;
+
     use crate::{
         error::{FraiseQLError, ValidationFieldError},
+        runtime::input_validator::*,
         validation::ValidationRule,
     };
 
@@ -1631,11 +1639,13 @@ mod jsonb_strategy_tests {
 
 mod matcher_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::matcher::*;
     use std::collections::HashMap;
+
     use indexmap::IndexMap;
+
     use crate::{
         error::FraiseQLError,
+        runtime::matcher::*,
         schema::{CompiledSchema, CursorType, QueryDefinition},
     };
 
@@ -2030,7 +2040,6 @@ mod runtime_mod_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use crate::runtime::*;
 
-
     #[test]
     fn test_default_config() {
         let config = RuntimeConfig::default();
@@ -2043,11 +2052,14 @@ mod runtime_mod_tests {
 
 mod mutation_result_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::mutation_result::*;
     use std::collections::HashMap;
+
     use serde_json::{Value as JsonValue, json};
-    use crate::error::{FraiseQLError, Result};
-    use crate::runtime::cascade::MutationErrorClass;
+
+    use crate::{
+        error::{FraiseQLError, Result},
+        runtime::{cascade::MutationErrorClass, mutation_result::*},
+    };
 
     /// Terse builder for constructing row fixtures in tests.
     #[derive(Default)]
@@ -2288,12 +2300,13 @@ mod mutation_result_tests {
 
 mod planner_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::planner::*;
     use std::collections::HashMap;
+
     use indexmap::IndexMap;
+
     use crate::{
         graphql::{FieldSelection, ParsedQuery},
-        runtime::{JsonbOptimizationOptions, JsonbStrategy, matcher::QueryMatch},
+        runtime::{JsonbOptimizationOptions, JsonbStrategy, matcher::QueryMatch, planner::*},
         schema::{AutoParams, CursorType, QueryDefinition},
     };
 
@@ -2503,13 +2516,11 @@ mod planner_tests {
 
 mod projection_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::projection::*;
-
     use serde_json::json;
+
     use crate::{
-        db::types::JsonbValue,
-        error::FraiseQLError,
-        graphql::FieldSelection,
+        db::types::JsonbValue, error::FraiseQLError, graphql::FieldSelection,
+        runtime::projection::*,
     };
 
     #[test]
@@ -3170,8 +3181,6 @@ mod query_tracing_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use crate::runtime::query_tracing::*;
 
-
-
     #[test]
     fn test_trace_builder_new() {
         let builder = QueryTraceBuilder::new("query_1", "{ user { id } }");
@@ -3341,8 +3350,9 @@ mod query_tracing_tests {
 
 mod relay_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::relay::*;
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    use crate::runtime::relay::*;
 
     #[test]
     fn test_edge_cursor_roundtrip() {
@@ -3434,9 +3444,9 @@ mod relay_tests {
 
 mod sql_logger_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+    use std::{thread, time::Duration};
+
     use crate::runtime::sql_logger::*;
-    use std::time::Duration;
-    use std::thread;
 
     #[test]
     fn test_sql_operation_detection() {
@@ -3592,9 +3602,12 @@ mod sql_logger_tests {
 
 mod tenant_enforcer_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::tenant_enforcer::*;
-    use crate::db::where_clause::{WhereClause, WhereOperator};
     use serde_json::json;
+
+    use crate::{
+        db::where_clause::{WhereClause, WhereOperator},
+        runtime::tenant_enforcer::*,
+    };
 
     #[test]
     fn test_tenant_enforcer_with_org_id() {
@@ -3748,21 +3761,16 @@ mod tenant_enforcer_tests {
 
 mod window_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::window::*;
-
     use crate::{
         compiler::{
-            aggregation::OrderDirection,
+            aggregation::{OrderByClause, OrderDirection},
             window_functions::{
-                FrameBoundary, FrameType, SelectColumn, WindowExecutionPlan,
-                WindowFrame, WindowFunction, WindowFunctionType,
+                FrameBoundary, FrameType, SelectColumn, WindowExecutionPlan, WindowFrame,
+                WindowFunction, WindowFunctionType,
             },
         },
-        db::types::DatabaseType,
-    };
-    use crate::{
-        compiler::aggregation::OrderByClause,
-        db::{WhereClause, WhereOperator},
+        db::{WhereClause, WhereOperator, types::DatabaseType},
+        runtime::window::*,
     };
 
     #[test]
@@ -4096,23 +4104,23 @@ mod window_tests {
 
 mod window_parser_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::window_parser::*;
     use serde_json::json;
-    use crate::compiler::{
+
+    use crate::{
+        compiler::{
             aggregation::OrderDirection,
             fact_table::{
                 DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
             },
-            window_functions::{
-                PartitionByColumn, WindowFunctionSpec,
-                WindowSelectColumn,
-            },
-        };
+            window_functions::{PartitionByColumn, WindowFunctionSpec, WindowSelectColumn},
+        },
+        runtime::window_parser::*,
+    };
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
@@ -4124,11 +4132,11 @@ mod window_parser_tests {
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
                     name:     "customer_id".to_string(),
                     sql_type: SqlType::Uuid,
@@ -4140,9 +4148,9 @@ mod window_parser_tests {
                     indexed:  true,
                 },
             ],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -4439,12 +4447,16 @@ mod window_parser_tests {
 
 mod window_projector_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::window_projector::*;
     use std::collections::HashMap;
+
     use serde_json::{Value, json};
-    use crate::compiler::window_functions::{
+
+    use crate::{
+        compiler::window_functions::{
             SelectColumn, WindowExecutionPlan, WindowFunction, WindowFunctionType,
-        };
+        },
+        runtime::window_projector::*,
+    };
 
     fn create_test_plan() -> WindowExecutionPlan {
         WindowExecutionPlan {

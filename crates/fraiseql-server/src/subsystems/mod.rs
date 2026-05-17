@@ -36,19 +36,16 @@ mod tests;
 
 use std::sync::Arc;
 
+pub use builder::{ServerSubsystemsBuilder, SubsystemBuildError};
 use fraiseql_functions::{FunctionObserver, triggers::TriggerRegistry};
+pub use validator::{SubsystemConfigWarning, validate_subsystems_config};
 
 use crate::{
     realtime::{
-        observer::RealtimeBroadcastObserver,
-        routes::RealtimeSchemaConfig,
-        server::RealtimeServer,
+        observer::RealtimeBroadcastObserver, routes::RealtimeSchemaConfig, server::RealtimeServer,
     },
     schema::loader::{FunctionsConfig, SchemaStorageConfig},
 };
-
-pub use builder::{ServerSubsystemsBuilder, SubsystemBuildError};
-pub use validator::{SubsystemConfigWarning, validate_subsystems_config};
 
 // ── Subsystem structs ─────────────────────────────────────────────────────────
 
@@ -133,7 +130,11 @@ impl ServerSubsystems {
     /// Equivalent to `ServerSubsystemsBuilder::new().build().unwrap()`.
     #[must_use]
     pub const fn none() -> Self {
-        Self { storage: None, functions: None, realtime: None }
+        Self {
+            storage:   None,
+            functions: None,
+            realtime:  None,
+        }
     }
 
     /// Returns `true` if the storage subsystem is present.
@@ -166,7 +167,7 @@ pub struct BeforeMutationHooks {
     /// Registry of all loaded triggers, keyed by trigger type and mutation name.
     pub trigger_registry: TriggerRegistry,
     /// Loaded function modules keyed by function name.
-    pub module_registry: std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
+    pub module_registry:  std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
     /// Observer that dispatches events to the appropriate function runtime.
-    pub observer: std::sync::Arc<FunctionObserver>,
+    pub observer:         std::sync::Arc<FunctionObserver>,
 }

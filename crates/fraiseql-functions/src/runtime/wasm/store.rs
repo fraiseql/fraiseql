@@ -32,10 +32,7 @@ pub struct StoreData {
 
 impl StoreData {
     /// Create a new store data for an invocation.
-    pub fn new(
-        event_payload: EventPayload,
-        limits: ResourceLimits,
-    ) -> Self {
+    pub fn new(event_payload: EventPayload, limits: ResourceLimits) -> Self {
         Self {
             event_payload,
             host_context: None,
@@ -82,8 +79,7 @@ impl StoreData {
     ///
     /// Returns `Err` if serialization fails (should not happen for valid `EventPayload`).
     pub fn get_event_payload_json(&self) -> wasmtime::Result<String> {
-        serde_json::to_string(&self.event_payload)
-            .map_err(|e| wasmtime::Error::msg(e.to_string()))
+        serde_json::to_string(&self.event_payload).map_err(|e| wasmtime::Error::msg(e.to_string()))
     }
 
     /// Get the auth context (if available) as JSON or an error string.
@@ -110,7 +106,7 @@ impl StoreData {
     /// # Errors
     ///
     /// Never returns an error.
-    #[allow(clippy::missing_const_for_fn)]  // Reason: returns Result with generic type
+    #[allow(clippy::missing_const_for_fn)] // Reason: returns Result with generic type
     pub fn get_env_var_value(&self, _name: &str) -> wasmtime::Result<Option<String>> {
         Ok(None)
     }
@@ -124,10 +120,10 @@ mod tests {
     fn test_store_data_creation() {
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
         let limits = ResourceLimits::default();
 
@@ -142,15 +138,15 @@ mod tests {
     fn test_store_data_log_respects_limit() {
         let event = EventPayload {
             trigger_type: "test".to_string(),
-            entity: "Test".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({}),
-            timestamp: chrono::Utc::now(),
+            entity:       "Test".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    chrono::Utc::now(),
         };
         let limits = ResourceLimits {
             max_memory_bytes: 128 * 1024 * 1024,
-            max_duration: std::time::Duration::from_secs(5),
-            max_log_entries: 3, // Only allow 3 logs
+            max_duration:     std::time::Duration::from_secs(5),
+            max_log_entries:  3, // Only allow 3 logs
         };
 
         let mut store = StoreData::new(event, limits);
@@ -173,10 +169,10 @@ mod tests {
     fn test_store_data_get_event_payload() {
         let event = EventPayload {
             trigger_type: "mutation".to_string(),
-            entity: "User".to_string(),
-            event_kind: "created".to_string(),
-            data: serde_json::json!({"id": 42}),
-            timestamp: chrono::Utc::now(),
+            entity:       "User".to_string(),
+            event_kind:   "created".to_string(),
+            data:         serde_json::json!({"id": 42}),
+            timestamp:    chrono::Utc::now(),
         };
         let store = StoreData::new(event, ResourceLimits::default());
 

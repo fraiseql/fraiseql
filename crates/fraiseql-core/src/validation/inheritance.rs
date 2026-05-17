@@ -98,7 +98,7 @@ pub struct ValidationRuleRegistry {
     /// Rules by type name
     pub(crate) rules_by_type: HashMap<String, Vec<RuleMetadata>>,
     /// Parent type references
-    parent_types:  HashMap<String, String>,
+    parent_types:             HashMap<String, String>,
 }
 
 impl ValidationRuleRegistry {

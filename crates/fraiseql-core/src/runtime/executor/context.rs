@@ -8,14 +8,13 @@ use std::{collections::HashMap, sync::Arc};
 
 use moka::sync::Cache as MokaCache;
 
+use super::{QueryType, support::relay::RelayDispatch};
 use crate::{
     db::{traits::DatabaseAdapter, types::PoolMetrics},
     graphql::ParsedQuery,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig},
     schema::{CompiledSchema, IntrospectionResponses},
 };
-
-use super::{QueryType, support::relay::RelayDispatch};
 
 /// All shared state for an executor instance.
 ///

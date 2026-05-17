@@ -192,7 +192,10 @@ mod check_tests {
         let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "validation-failed");
         assert!(
-            result.errors.iter().any(|e| e.contains("userId") && e.contains("no field named")),
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("userId") && e.contains("no field named")),
             "Expected error about missing key field 'userId': {:?}",
             result.errors
         );
@@ -331,12 +334,8 @@ mod check_tests {
         fs::write(&local_path, serde_json::to_string_pretty(&local).unwrap()).unwrap();
         fs::write(&super_path, serde_json::to_string_pretty(&supergraph).unwrap()).unwrap();
 
-        let result = run(
-            local_path.to_str().unwrap(),
-            Some(super_path.to_str().unwrap()),
-            false,
-        )
-        .unwrap();
+        let result =
+            run(local_path.to_str().unwrap(), Some(super_path.to_str().unwrap()), false).unwrap();
         assert_eq!(result.status, "validation-failed", "Result: {result:?}");
         assert!(
             result
@@ -412,7 +411,10 @@ mod check_tests {
         let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "validation-failed", "Result: {result:?}");
         assert!(
-            result.errors.iter().any(|e| e.contains("nonexistent") && e.contains("@requires")),
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("nonexistent") && e.contains("@requires")),
             "Expected @requires error about nonexistent field: {:?}",
             result.errors
         );
@@ -484,7 +486,10 @@ mod check_tests {
         let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
         assert!(
-            result.warnings.iter().any(|w| w.contains("@provides") && w.contains("cannot be fully validated")),
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("@provides") && w.contains("cannot be fully validated")),
             "Expected @provides warning: {:?}",
             result.warnings
         );
@@ -518,7 +523,9 @@ mod check_tests {
 
         let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert!(
-            result.warnings.iter().any(|w| w.contains("@inaccessible") && w.contains("Query") && w.contains("secretField")),
+            result.warnings.iter().any(|w| w.contains("@inaccessible")
+                && w.contains("Query")
+                && w.contains("secretField")),
             "Expected warning about @inaccessible on Query root field: {:?}",
             result.warnings
         );
@@ -552,7 +559,9 @@ mod check_tests {
 
         let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert!(
-            result.warnings.iter().any(|w| w.contains("@inaccessible") && w.contains("Mutation") && w.contains("dangerousAction")),
+            result.warnings.iter().any(|w| w.contains("@inaccessible")
+                && w.contains("Mutation")
+                && w.contains("dangerousAction")),
             "Expected warning about @inaccessible on Mutation root field: {:?}",
             result.warnings
         );
@@ -587,7 +596,10 @@ mod check_tests {
         let result = run(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!(result.status, "success", "Errors: {:?}", result.errors);
         assert!(
-            result.warnings.iter().any(|w| w.contains("resolvable: false") && w.contains("Product")),
+            result
+                .warnings
+                .iter()
+                .any(|w| w.contains("resolvable: false") && w.contains("Product")),
             "Expected resolvable: false warning: {:?}",
             result.warnings
         );
@@ -690,7 +702,8 @@ mod check_tests {
         let path = dir.path().join("schema.compiled.json");
         fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
 
-        let result = run(path.to_str().unwrap(), Some("/nonexistent/supergraph.json"), false).unwrap();
+        let result =
+            run(path.to_str().unwrap(), Some("/nonexistent/supergraph.json"), false).unwrap();
         assert_eq!(result.status, "validation-failed");
         assert!(result.errors[0].contains("not found"));
     }

@@ -101,10 +101,7 @@ fn test_sqlserver_collation() {
     let mapper = CollationMapper::new(config, DatabaseType::SQLServer);
 
     assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("French_100_CI_AI".to_string()));
-    assert_eq!(
-        mapper.map_locale("ja-JP").unwrap(),
-        Some("Japanese_XJIS_100_CI_AI".to_string())
-    );
+    assert_eq!(mapper.map_locale("ja-JP").unwrap(), Some("Japanese_XJIS_100_CI_AI".to_string()));
 }
 
 #[test]

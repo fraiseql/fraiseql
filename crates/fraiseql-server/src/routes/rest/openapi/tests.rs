@@ -495,8 +495,8 @@ fn bulk_delete_produces_collection_delete() {
 #[test]
 fn post_body_supports_array_for_bulk_insert() {
     let spec = generate(&rest_schema());
-    let post_body = &spec["paths"]["/users"]["post"]["requestBody"]["content"]["application/json"]
-        ["schema"];
+    let post_body =
+        &spec["paths"]["/users"]["post"]["requestBody"]["content"]["application/json"]["schema"];
     assert!(post_body["oneOf"].is_array(), "Expected oneOf schema for bulk insert support");
     let variants = post_body["oneOf"].as_array().unwrap();
     assert_eq!(variants.len(), 2);
