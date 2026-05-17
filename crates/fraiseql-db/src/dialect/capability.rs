@@ -79,8 +79,8 @@ impl Feature {
 impl DatabaseType {
     /// Return a SQL expression that extracts a text value from the `data` JSONB column.
     ///
-    /// The `key` must already be validated via [`OrderByClause::validate_field_name`]
-    /// and converted to snake_case storage form via [`OrderByClause::storage_key`].
+    /// The `key` must already be validated via `OrderByClause::validate_field_name`
+    /// and converted to snake_case storage form via `OrderByClause::storage_key`.
     ///
     /// # Examples
     ///

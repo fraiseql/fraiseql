@@ -93,7 +93,7 @@ pub struct SubgraphLatencyEntry {
 /// Per-subgraph latency tracker for federation queries.
 ///
 /// Records timing for each subgraph fetch using lock-free atomic histogram buckets.
-/// Produces standard Prometheus text exposition via [`to_prometheus_histogram`].
+/// Produces standard Prometheus text exposition via `to_prometheus_histogram`.
 #[derive(Debug, Default)]
 pub struct SubgraphLatencyTracker {
     histograms: DashMap<String, Arc<SubgraphHistogram>>,

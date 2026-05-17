@@ -729,7 +729,7 @@ impl CompiledSchema {
 
     /// Returns the tenancy isolation mode configured for this schema.
     ///
-    /// Defaults to [`TenancyMode::None`] when no security or tenancy configuration
+    /// Defaults to `TenancyMode::None` when no security or tenancy configuration
     /// is present, meaning single-tenant operation with no isolation machinery.
     #[must_use]
     pub fn tenancy_mode(&self) -> crate::schema::TenancyMode {

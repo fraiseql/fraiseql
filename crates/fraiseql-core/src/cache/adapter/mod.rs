@@ -269,13 +269,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
     /// Enable or disable the RLS unauthenticated-request cache bypass.
     ///
-    /// When `true`, any request without a [`SecurityContext`] will bypass both
+    /// When `true`, any request without a `SecurityContext` will bypass both
     /// cache read and write, preventing unauthenticated requests from being
     /// served stale data that belongs to an authenticated tenant.
     ///
     /// Set this to `schema.has_rls_configured()` at server startup.
-    ///
-    /// [`SecurityContext`]: fraiseql_core::security::SecurityContext
     #[must_use]
     pub const fn with_rls(mut self, has_rls: bool) -> Self {
         self.has_rls = has_rls;

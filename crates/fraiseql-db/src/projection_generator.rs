@@ -276,7 +276,7 @@ impl PostgresProjectionGenerator {
     /// When a composite field carries `sub_fields`, the generator recurses and
     /// emits a nested `jsonb_build_object(...)` that selects only the requested
     /// sub-fields rather than returning the entire blob.  Recursion is capped at
-    /// [`MAX_PROJECTION_DEPTH`] levels; deeper fields fall back to `data->'field'`.
+    /// `MAX_PROJECTION_DEPTH` levels; deeper fields fall back to `data->'field'`.
     ///
     /// # Arguments
     ///
@@ -306,7 +306,7 @@ impl PostgresProjectionGenerator {
     /// * `field` — field to render
     /// * `path`  — JSONB path prefix built so far (e.g. `"data"` at depth 0, `"data"->'author'` at
     ///   depth 1)
-    /// * `depth` — current recursion depth (capped at [`MAX_PROJECTION_DEPTH`])
+    /// * `depth` — current recursion depth (capped at `MAX_PROJECTION_DEPTH`)
     fn render_field(field: &ProjectionField, path: &str, depth: usize) -> Result<String> {
         let resp_key = Self::escape_sql_string(&field.name);
         let jsonb_key = to_snake_case(&field.name);
