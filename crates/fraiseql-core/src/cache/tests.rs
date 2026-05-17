@@ -3024,13 +3024,13 @@ mod result_tests {
     #[test]
     #[ignore = "wall-clock dependent — run manually to confirm lock-free read scaling"]
     fn test_concurrent_reads_do_not_serialize() {
+        const ITERS: usize = 10_000;
+
         let cores = std::thread::available_parallelism().map_or(0, |n| n.get());
         if cores < 8 {
             eprintln!("Skipping: need >= 8 cores for meaningful concurrency test (have {cores})");
             return;
         }
-
-        const ITERS: usize = 10_000;
         let config = CacheConfig::enabled();
         let cache = Arc::new(QueryResultCache::new(config));
         let key = 42_u64;
