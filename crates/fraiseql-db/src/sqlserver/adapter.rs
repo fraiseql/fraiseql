@@ -641,9 +641,8 @@ impl DatabaseAdapter for SqlServerAdapter {
              ORDER BY qs.total_elapsed_time DESC"
         );
 
-        let result = match conn.simple_query(&sql).await {
-            Ok(r) => r,
-            Err(_) => return Ok(vec![]),
+        let Ok(result) = conn.simple_query(&sql).await else {
+            return Ok(vec![]);
         };
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
@@ -651,7 +650,7 @@ impl DatabaseAdapter for SqlServerAdapter {
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
-        Ok(rows.iter().map(|row| Self::map_sqlserver_stat_row(row)).collect())
+        Ok(rows.iter().map(Self::map_sqlserver_stat_row).collect())
     }
 
     async fn query_stats_by_id(&self, id: &str) -> Result<Option<crate::types::QueryStatEntry>> {
@@ -683,9 +682,8 @@ impl DatabaseAdapter for SqlServerAdapter {
              WHERE CONVERT(VARCHAR(20), qs.query_hash, 1) = '{id}'"
         );
 
-        let result = match conn.simple_query(&sql).await {
-            Ok(r) => r,
-            Err(_) => return Ok(None),
+        let Ok(result) = conn.simple_query(&sql).await else {
+            return Ok(None);
         };
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
@@ -693,7 +691,7 @@ impl DatabaseAdapter for SqlServerAdapter {
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
-        Ok(rows.first().map(|row| Self::map_sqlserver_stat_row(row)))
+        Ok(rows.first().map(Self::map_sqlserver_stat_row))
     }
 }
 

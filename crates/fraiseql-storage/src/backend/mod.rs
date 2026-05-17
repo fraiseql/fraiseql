@@ -7,6 +7,8 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+#[cfg(feature = "aws-s3")]
+use fraiseql_error::FraiseQLError;
 use fraiseql_error::Result;
 use serde::{Deserialize, Serialize};
 
