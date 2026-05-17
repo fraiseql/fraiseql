@@ -67,10 +67,10 @@ pub fn canonicalize_json(value: &serde_json::Value) -> serde_json::Value {
                 sorted.insert(key.clone(), canonicalize_json(&map[key]));
             }
             serde_json::Value::Object(sorted)
-        }
+        },
         serde_json::Value::Array(arr) => {
             serde_json::Value::Array(arr.iter().map(canonicalize_json).collect())
-        }
+        },
         other => other.clone(),
     }
 }
