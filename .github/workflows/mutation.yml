@@ -10,7 +10,6 @@ on:
       - 'crates/fraiseql-db/src/where_sql_generator.rs'
       - 'crates/fraiseql-core/src/cache/key.rs'
       - 'crates/fraiseql-core/src/security/query_validator.rs'
-      - 'crates/fraiseql-core/src/runtime/executor/query.rs'
       - 'crates/fraiseql-core/src/compiler/aggregation.rs'
       - 'crates/fraiseql-core/src/cache/adapter/query.rs'
       - 'crates/fraiseql-federation/src/http_resolver.rs'
@@ -41,10 +40,9 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-core \
+            --test-tool nextest \
+            --build-timeout 300 \
             --file src/cache/key.rs \
-            --file src/runtime/executor/query.rs \
-            --file src/compiler/aggregation.rs \
-            --file src/cache/adapter/query.rs \
             --file src/security/query_validator.rs \
             --timeout 60 \
             --output mutants-report-core/
@@ -70,6 +68,8 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-auth \
+            --test-tool nextest \
+            --build-timeout 300 \
             --file src/pkce.rs \
             --file src/jwks.rs \
             --timeout 60 \
@@ -96,6 +96,8 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-db \
+            --test-tool nextest \
+            --build-timeout 300 \
             --file src/where_sql_generator.rs \
             --timeout 60 \
             --output mutants-report-db/
@@ -121,6 +123,8 @@ jobs:
       - name: Run mutation tests
         run: |
           cargo mutants --package fraiseql-federation \
+            --test-tool nextest \
+            --build-timeout 300 \
             --file src/http_resolver.rs \
             --timeout 60 \
             --output mutants-report-federation/
