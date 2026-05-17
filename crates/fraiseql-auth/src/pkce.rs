@@ -75,7 +75,7 @@ pub enum PkceError {
     #[error("state expired — please restart the authorization flow")]
     StateExpired,
 
-    /// The in-memory store has reached [`MAX_PKCE_ENTRIES`] entries.
+    /// The in-memory store has reached `MAX_PKCE_ENTRIES` entries.
     ///
     /// This prevents unbounded memory growth under load or during a DoS
     /// attack. Callers should return HTTP 429 to the client and invite them
@@ -120,7 +120,7 @@ pub struct InMemoryPkceStateStore {
     state_ttl_secs: u64,
     entries:        DashMap<String, PkceEntry>,
     encryptor:      Option<Arc<StateEncryptionService>>,
-    /// Maximum number of in-flight entries; defaults to [`MAX_PKCE_ENTRIES`].
+    /// Maximum number of in-flight entries; defaults to `MAX_PKCE_ENTRIES`.
     /// Overridable in tests via [`InMemoryPkceStateStore::with_max_entries`].
     max_entries:    usize,
 }
@@ -494,7 +494,7 @@ impl PkceStateStore {
     ///
     /// No-op for the Redis backend — Redis TTL handles expiry automatically.
     /// Call from a background task on a fixed interval for the in-memory
-    /// backend to reclaim memory and free capacity below [`MAX_PKCE_ENTRIES`].
+    /// backend to reclaim memory and free capacity below `MAX_PKCE_ENTRIES`.
     pub async fn cleanup_expired(&self) {
         match self {
             Self::InMemory(s) => s.cleanup_expired_sync(),

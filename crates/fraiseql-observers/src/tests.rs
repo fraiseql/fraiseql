@@ -856,7 +856,7 @@ mod factory_tests {
     use std::{collections::HashMap, sync::Arc};
 
     use crate::{
-        ObserverRuntimeConfig,
+        ObserverError, ObserverRuntimeConfig,
         config::{PerformanceConfig, TransportConfig, TransportKind},
         factory::*,
         matcher::EventMatcher,

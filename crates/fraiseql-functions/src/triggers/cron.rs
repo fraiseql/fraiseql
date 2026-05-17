@@ -309,7 +309,7 @@ impl CronTrigger {
 /// Each registered [`CronTrigger`] is checked once per minute. When a trigger's
 /// schedule matches the current time and it has not already fired in this
 /// scheduling window, the function is invoked via the provided
-/// [`FunctionObserver`].
+/// [`FunctionObserver`](crate::FunctionObserver).
 ///
 /// # Lifecycle
 ///

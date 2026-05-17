@@ -297,7 +297,7 @@ impl TriggerRegistry {
         self.before_mutation_triggers.iter().any(|t| t.mutation_name == mutation_name)
     }
 
-    /// Build a [`BeforeMutationChain`] for the named mutation.
+    /// Build a [`BeforeMutationChain`](crate::BeforeMutationChain) for the named mutation.
     ///
     /// Returns `None` when no `before:mutation` triggers are registered for this mutation
     /// (the fast path — zero overhead when hooks are absent).
