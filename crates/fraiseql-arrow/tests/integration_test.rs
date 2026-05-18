@@ -35,8 +35,8 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
             .unwrap();
     });
 
-    // Give server time to start
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Yield to let the spawned server task start accepting connections.
+    tokio::task::yield_now().await;
 
     Ok(format!("http://127.0.0.1:{}", addr.port()))
 }
