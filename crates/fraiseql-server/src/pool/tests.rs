@@ -210,7 +210,7 @@ mod auto_tuner_tests {
         assert_eq!(tuner.recommended_size(), 25);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_start_task_samples_at_interval() {
         let config = PoolPressureMonitorConfig {
             enabled: true,
@@ -221,7 +221,7 @@ mod auto_tuner_tests {
         let tuner = Arc::new(PoolSizingAdvisor::new(config));
         let adapter = Arc::new(MockAdapter::with_metrics(metrics(10, 8, 0)));
         let handle = PoolSizingAdvisor::start(tuner.clone(), adapter, None);
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::advance(Duration::from_millis(50)).await;
         // Not crashing and handle is alive = success
         assert!(!handle.is_finished());
         handle.abort();

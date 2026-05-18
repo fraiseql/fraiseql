@@ -26,7 +26,7 @@
 #![allow(clippy::used_underscore_binding)] // Reason: test variables prefixed with _ by convention
 #![allow(clippy::needless_pass_by_value)] // Reason: test helper signatures follow test patterns
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use fraiseql_test_utils::try_database_url;
 use sqlx::postgres::PgPool;
@@ -318,8 +318,8 @@ async fn test_pool_size_limits() {
     let conn = pool.acquire().await.expect("Should acquire a connection");
     drop(conn);
 
-    // Give the pool a short window to process the connection return into its idle list.
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    // Yield to let the pool process the connection return into its idle list.
+    tokio::task::yield_now().await;
 
     let num_idle = pool.num_idle();
     assert!(num_idle >= 1, "pool should have idle connections after query, got {num_idle}");

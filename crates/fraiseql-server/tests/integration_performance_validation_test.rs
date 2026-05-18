@@ -301,7 +301,7 @@ mod integration_performance_tests {
                 }
 
                 // Simulate query execution
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                tokio::task::yield_now().await;
                 success.fetch_add(1, Ordering::Relaxed);
 
                 active.fetch_sub(1, Ordering::Relaxed);
@@ -683,7 +683,7 @@ mod integration_performance_tests {
 
     async fn simulate_pool_connection(_pool_size: u64, _req_id: u64) -> Result<u64, String> {
         // Simulate getting connection from pool (may queue if pool exhausted)
-        tokio::time::sleep(tokio::time::Duration::from_micros(10)).await;
+        tokio::task::yield_now().await;
         Ok(1)
     }
 

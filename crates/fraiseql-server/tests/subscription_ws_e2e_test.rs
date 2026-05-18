@@ -150,11 +150,12 @@ async fn ws_e2e_subscribe_and_receive_next_frame() {
     )
     .await;
 
-    // Give the server a moment to register the subscription.
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-    // Verify the subscription was registered.
-    assert_eq!(manager.subscription_count(), 1, "subscription should be registered");
+    // Wait for the server to register the subscription (multi-hop TCP path).
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription should be registered");
+        tokio::task::yield_now().await;
+    }
 
     // 3. Publish an event through the manager.
     let event = SubscriptionEvent::new(
@@ -259,12 +260,18 @@ async fn ws_e2e_complete_unsubscribes() {
     )
     .await;
 
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    assert_eq!(manager.subscription_count(), 1);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription should be registered");
+        tokio::task::yield_now().await;
+    }
 
     // Complete (unsubscribe).
     send_json(&mut sink, json!({"type": "complete", "id": "op_1"})).await;
 
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    assert_eq!(manager.subscription_count(), 0, "subscription should be removed after complete");
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 0 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription should be removed after complete");
+        tokio::task::yield_now().await;
+    }
 }

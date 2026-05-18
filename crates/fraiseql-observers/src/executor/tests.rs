@@ -1450,7 +1450,7 @@ fn test_compile_condition_returns_error_for_invalid_dsl() {
 
 // ── Action timeout tests (14-5) ───────────────────────────────────────────
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn test_action_timeout_fires_when_dispatcher_is_slow() {
     use std::time::Duration;
 

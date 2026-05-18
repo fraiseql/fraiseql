@@ -371,8 +371,8 @@ async fn test_shutdown_cleanup() {
     let bridge = EventBridge::new(manager, config);
     let handle = bridge.spawn();
 
-    // Give it a moment to start
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+    // Yield to let the bridge task start.
+    tokio::task::yield_now().await;
 
     // Clean up gracefully
     handle.abort();
@@ -443,7 +443,7 @@ async fn test_listener_recovery_after_restart() {
     let handle1 = bridge1.spawn();
 
     // Simulate listener crash
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+    tokio::task::yield_now().await;
     handle1.abort();
 
     // Restart listener with same manager
