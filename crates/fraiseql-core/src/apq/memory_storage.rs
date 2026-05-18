@@ -1,9 +1,8 @@
 //! In-memory APQ storage backend with LRU eviction and TTL support.
 
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, time::Duration};
+
+use tokio::time::Instant;
 
 use async_trait::async_trait;
 use serde_json::json;

@@ -3572,11 +3572,11 @@ mod pkce_tests {
         assert!(store.is_empty(), "store must be empty after consuming the only entry");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_cleanup_removes_expired_leaves_valid() {
         let store = store_no_enc(1);
         store.create_state("https://a.example.com").await.unwrap();
-        tokio::time::sleep(Duration::from_millis(1100)).await;
+        tokio::time::advance(Duration::from_millis(1100)).await;
         store.cleanup_expired().await;
         assert_eq!(store.len(), 0, "expired entry must be removed by cleanup");
 
@@ -3602,7 +3602,7 @@ mod pkce_tests {
         assert!(err.to_string().contains("full"), "error must mention 'full' — got: {err}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_purge_expired_frees_capacity_for_new_entries() {
         let store = PkceStateStore::new_capped(1, None, 2);
 
@@ -3611,7 +3611,7 @@ mod pkce_tests {
 
         assert!(store.create_state("https://c.example.com").await.is_err());
 
-        tokio::time::sleep(Duration::from_millis(1100)).await;
+        tokio::time::advance(Duration::from_millis(1100)).await;
         store.purge_expired();
 
         store.create_state("https://c.example.com").await.unwrap();

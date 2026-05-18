@@ -88,7 +88,7 @@ mod resilience_mod_tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_circuit_breaker_half_open_limited_requests() {
         let config = CircuitBreakerConfig {
             failure_threshold:      0.1,
@@ -109,8 +109,8 @@ mod resilience_mod_tests {
             })
             .await;
 
-        // Wait for timeout
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        // Advance frozen time past the timeout
+        tokio::time::advance(Duration::from_millis(150)).await;
 
         // Should allow limited requests in half-open
         let result1 = breaker.call(|| Box::pin(async { Ok::<i32, _>(1) })).await;

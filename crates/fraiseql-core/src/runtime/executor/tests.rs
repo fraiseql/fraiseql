@@ -364,7 +364,7 @@ mod context {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_execute_with_context_cancelled_during_execution() {
         let schema = test_schema();
         let adapter = Arc::new(MockAdapter::new(vec![]));
@@ -373,7 +373,7 @@ mod context {
         let ctx = ExecutionContext::new("test-query-3".to_string());
         let token = ctx.cancellation_token().clone();
 
-        // Spawn a task to cancel after a short delay
+        // Spawn a task to cancel after a short delay (instant with paused time)
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(10)).await;
             token.cancel();

@@ -12,10 +12,9 @@
 //! expiry.  A Redis-backed implementation is available under the
 //! `redis-idempotency` feature flag.
 
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
+
+use tokio::time::Instant;
 
 use dashmap::DashMap;
 use serde_json::Value;

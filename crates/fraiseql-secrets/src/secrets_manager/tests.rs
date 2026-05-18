@@ -76,7 +76,7 @@ async fn test_lease_renewal_task_cancels_cleanly() {
     assert_eq!(rotate_count.load(Ordering::SeqCst), 0);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn test_lease_renewal_triggers_rotate_when_expiry_near() {
     let rotate_count = Arc::new(AtomicUsize::new(0));
     let backend = MockBackend {
@@ -98,8 +98,9 @@ async fn test_lease_renewal_triggers_rotate_when_expiry_near() {
 
     let handle = tokio::spawn(task.run());
 
-    // Wait long enough for at least one tick to fire.
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    // Advance frozen time to let the worker process at least one tick.
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_millis(200)).await;
     cancel_tx.send(true).unwrap();
     tokio::time::timeout(Duration::from_secs(2), handle)
         .await
@@ -112,7 +113,7 @@ async fn test_lease_renewal_triggers_rotate_when_expiry_near() {
     );
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn test_lease_renewal_skips_non_expiring_keys() {
     let rotate_count = Arc::new(AtomicUsize::new(0));
     let backend = MockBackend {
@@ -127,7 +128,8 @@ async fn test_lease_renewal_skips_non_expiring_keys() {
         LeaseRenewalTask::new(manager, vec!["db/creds".to_string()], Duration::from_millis(50));
 
     let handle = tokio::spawn(task.run());
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_millis(200)).await;
     cancel_tx.send(true).unwrap();
     tokio::time::timeout(Duration::from_secs(2), handle)
         .await

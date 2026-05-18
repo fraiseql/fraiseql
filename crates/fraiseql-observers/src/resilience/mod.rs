@@ -35,13 +35,12 @@ use std::{
         Arc,
         atomic::{AtomicU64, AtomicUsize, Ordering},
     },
-    time::Instant,
 };
 
 pub use degradation::{DegradationLevel, GracefulDegradation};
 pub use per_endpoint::PerEndpointCircuitBreaker;
 pub use strategies::{ResilienceStrategy, ResilientExecutor};
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 
 use crate::error::{ObserverError, Result};
 

@@ -56,7 +56,7 @@ async fn same_key_different_body_returns_conflict() {
     assert!(matches!(store.check("key1", hash2).await, IdempotencyCheck::Conflict));
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn expired_key_treated_as_new() {
     let store = InMemoryIdempotencyStore::new(Duration::from_millis(1), 100);
     let body = json!({"name": "Alice"});
@@ -64,23 +64,23 @@ async fn expired_key_treated_as_new() {
 
     store.store("key1".to_string(), body_hash, make_response()).await;
 
-    // Wait for TTL to expire
-    tokio::time::sleep(Duration::from_millis(5)).await;
+    // Advance frozen time past the TTL.
+    tokio::time::advance(Duration::from_millis(5)).await;
 
     assert!(matches!(store.check("key1", body_hash).await, IdempotencyCheck::New));
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn max_entries_evicts_oldest() {
     let store = InMemoryIdempotencyStore::new(Duration::from_secs(3600), 3);
     let hash = hash_body(&json!({}));
 
     store.store("key1".to_string(), hash, make_response()).await;
-    tokio::time::sleep(Duration::from_millis(1)).await;
+    tokio::time::advance(Duration::from_millis(1)).await;
     store.store("key2".to_string(), hash, make_response()).await;
-    tokio::time::sleep(Duration::from_millis(1)).await;
+    tokio::time::advance(Duration::from_millis(1)).await;
     store.store("key3".to_string(), hash, make_response()).await;
-    tokio::time::sleep(Duration::from_millis(1)).await;
+    tokio::time::advance(Duration::from_millis(1)).await;
 
     // This should evict key1 (oldest)
     store.store("key4".to_string(), hash, make_response()).await;

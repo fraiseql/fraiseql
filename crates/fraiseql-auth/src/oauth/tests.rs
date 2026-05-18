@@ -581,7 +581,7 @@ fn test_oidc_authorization_url_nonce_is_unique() {
 
 // --- TokenRefreshWorker tests ---
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn test_token_refresh_worker_processes_due_refresh() {
     struct MockRefresher {
         call_count: std::sync::atomic::AtomicU32,
@@ -612,15 +612,16 @@ async fn test_token_refresh_worker_processes_due_refresh() {
 
     let handle = tokio::spawn(worker.run());
 
-    // Wait for worker to process the due refresh
-    tokio::time::sleep(StdDuration::from_millis(200)).await;
+    // Allow the worker to run through a few poll cycles.
+    tokio::task::yield_now().await;
+    tokio::time::advance(StdDuration::from_millis(200)).await;
     let _ = cancel_tx.send(true);
     handle.await.unwrap();
 
     assert!(refresher.call_count.load(std::sync::atomic::Ordering::Relaxed) >= 1);
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn test_token_refresh_worker_handles_missing_session() {
     struct NoSessionRefresher;
 
@@ -644,7 +645,8 @@ async fn test_token_refresh_worker_handles_missing_session() {
         TokenRefreshWorker::new(scheduler, refresher, StdDuration::from_millis(50));
 
     let handle = tokio::spawn(worker.run());
-    tokio::time::sleep(StdDuration::from_millis(200)).await;
+    tokio::task::yield_now().await;
+    tokio::time::advance(StdDuration::from_millis(200)).await;
     let _ = cancel_tx.send(true);
     handle.await.unwrap();
     // No panic = success

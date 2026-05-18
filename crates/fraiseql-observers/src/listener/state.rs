@@ -3,12 +3,9 @@
 //! Tracks listener states: Initializing → Connecting → Running → Recovering
 //! Provides state transitions, duration tracking, and recovery management.
 
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 
 use crate::error::{ObserverError, Result};
 

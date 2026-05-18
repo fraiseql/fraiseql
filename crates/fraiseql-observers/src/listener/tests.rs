@@ -510,13 +510,13 @@ mod lease_tests {
         assert_eq!(holder, None);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_lease_renewal() {
         let lease = CheckpointLease::in_process("listener-1".to_string(), 1000, 100);
 
         lease.acquire().await.unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        tokio::time::advance(std::time::Duration::from_millis(50)).await;
         let time_remaining_before = lease.time_remaining_ms().await.unwrap();
 
         lease.renew().await.unwrap();
@@ -526,14 +526,14 @@ mod lease_tests {
         assert!(time_remaining_after > time_remaining_before);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_lease_expiration() {
         let lease = CheckpointLease::in_process("listener-1".to_string(), 1000, 50);
 
         lease.acquire().await.unwrap();
         assert!(lease.is_valid().await.unwrap());
 
-        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+        tokio::time::advance(std::time::Duration::from_millis(60)).await;
         assert!(!lease.is_valid().await.unwrap());
     }
 
@@ -567,7 +567,7 @@ mod lease_tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_lease_time_remaining() {
         let lease = CheckpointLease::in_process("listener-1".to_string(), 1000, 200);
 
@@ -576,7 +576,7 @@ mod lease_tests {
 
         lease.acquire().await.unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        tokio::time::advance(std::time::Duration::from_millis(50)).await;
         let remaining_after_50ms = lease.time_remaining_ms().await.unwrap();
 
         assert!(remaining_after_50ms < 200);
@@ -793,16 +793,16 @@ mod state_tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_listener_state_duration_tracking() {
         let state_machine = ListenerStateMachine::new("listener-1".to_string());
 
         let initial_duration = state_machine.get_state_duration().await;
         assert!(initial_duration.as_millis() < 100);
 
-        // Transition and wait
+        // Transition and advance frozen time
         state_machine.transition(ListenerState::Connecting).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::advance(Duration::from_millis(50)).await;
 
         let connecting_duration = state_machine.get_state_duration().await;
         assert!(connecting_duration.as_millis() >= 50);

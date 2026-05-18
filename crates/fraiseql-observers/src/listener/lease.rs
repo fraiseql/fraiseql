@@ -14,9 +14,9 @@
 //! **Redis** uses `SET NX EX` with Lua-guarded release and renewal; `renew()` extends
 //! the TTL atomically.
 
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 
 use crate::error::{ObserverError, Result};
 
