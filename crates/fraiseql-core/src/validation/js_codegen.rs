@@ -1,8 +1,8 @@
-//! JavaScript code generation from ELO validation expressions.
+//! `JavaScript` code generation from ELO validation expressions.
 //!
-//! Translates ELO expressions into JavaScript validator functions that can be
+//! Translates ELO expressions into `JavaScript` validator functions that can be
 //! used for client-side validation, ensuring the same rules apply on both the
-//! server (Rust) and the client (browser/Node.js).
+//! server (Rust) and the client (browser/`Node.js`).
 //!
 //! # Example
 //!
@@ -14,20 +14,20 @@
 //! assert!(js.contains("function validate_User"));
 //! ```
 
-/// JavaScript code generator for ELO expressions.
+/// `JavaScript` code generator for ELO expressions.
 #[derive(Debug, Clone, Default)]
 pub struct JsCodegen {
     _private: (),
 }
 
 impl JsCodegen {
-    /// Create a new JavaScript code generator.
+    /// Create a new `JavaScript` code generator.
     #[must_use]
     pub const fn new() -> Self {
         Self { _private: () }
     }
 
-    /// Emit a JavaScript validator function for a single type + expression.
+    /// Emit a `JavaScript` validator function for a single type + expression.
     ///
     /// Returns a self-contained ES module `export function validate_<Type>(data)`.
     #[must_use]
@@ -43,7 +43,7 @@ impl JsCodegen {
         )
     }
 
-    /// Emit a JavaScript module with validators for multiple types.
+    /// Emit a `JavaScript` module with validators for multiple types.
     ///
     /// Each entry is `(type_name, elo_expression)`.
     #[must_use]
@@ -59,7 +59,7 @@ impl JsCodegen {
         parts.join("\n")
     }
 
-    /// Translate an ELO expression to a JavaScript boolean expression.
+    /// Translate an ELO expression to a `JavaScript` boolean expression.
     #[must_use]
     pub fn elo_to_js(&self, expression: &str) -> String {
         let expr = expression.trim();

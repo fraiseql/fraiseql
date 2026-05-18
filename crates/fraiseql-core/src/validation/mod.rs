@@ -17,6 +17,7 @@ pub mod elo_rust_integration;
 pub mod error_responses;
 mod id_policy;
 pub mod inheritance;
+pub mod js_codegen;
 pub mod input_object;
 mod input_processor;
 pub mod mutual_exclusivity;
