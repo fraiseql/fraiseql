@@ -31,6 +31,10 @@ jobs:
           - "wire-backend"                                                              # wire protocol standalone
           - "azure-blob"                                                               # Azure Blob storage standalone
           - "gcs"                                                                    # Google Cloud Storage standalone
+          - "metrics,observers"                                                          # metrics + observers combo
+          - "webhooks,auth"                                                                # webhooks triggered from auth events
+          - "tracing-opentelemetry"                                                        # OpenTelemetry standalone
+          - "functions,rest,testing"                                                        # empty features compile-only sanity check
           - "auth,observers,secrets,federation"                                         # kitchen sink
     steps:
       - uses: actions/checkout@v6
