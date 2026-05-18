@@ -798,9 +798,8 @@ parity-generate:
 	@cd sdks/official/fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
 	    bun run tests/generate-parity-schema.ts > /tmp/parity-typescript.json
 	@echo "  [2/5] TypeScript done"
-	@cd sdks/official/fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
-	    python3 -c "import sys; d=sys.stdin.read(); s=d.find('{'); print(d[s:d.rfind('}')+1])" \
-	    > /tmp/parity-go.json
+	@cd sdks/official/fraiseql-go && SCHEMA_OUTPUT_FILE=/tmp/parity-go.json \
+	    go test -run TestGenerateParitySchema -v ./fraiseql/
 	@echo "  [3/5] Go done"
 	@cd sdks/official/fraiseql-java && \
 	    JAVA_HOME="$${JAVA_HOME:-$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1)}" \
