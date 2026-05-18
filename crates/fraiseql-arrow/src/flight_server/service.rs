@@ -343,7 +343,7 @@ impl FraiseQLFlightService {
     /// # struct MyExecutor;
     /// # #[async_trait::async_trait]
     /// # impl QueryExecutor for MyExecutor {
-    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<String, String> { panic!("example stub") }
+    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<serde_json::Value, String> { panic!("example stub") }
     /// # }
     /// let executor: Arc<dyn QueryExecutor> = Arc::new(MyExecutor);
     /// service.set_executor(executor);
