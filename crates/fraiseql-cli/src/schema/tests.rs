@@ -604,15 +604,12 @@ sql_source = "v_user"
 "#;
 
         // Write temp file
-        let temp_path = "/tmp/test_fraiseql.toml";
-        std::fs::write(temp_path, toml_content).unwrap();
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_content).unwrap();
 
         // Merge
-        let result = SchemaMerger::merge_toml_only(temp_path);
+        let result = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap());
         result.unwrap_or_else(|e| panic!("expected Ok from merge_toml_only: {e}"));
-
-        // Clean up
-        let _ = std::fs::remove_file(temp_path);
     }
 
     #[test]
@@ -828,18 +825,16 @@ max_query_depth = 3
 max_query_complexity = 25
 "#;
 
-        let temp_path = "/tmp/test_fraiseql_validation.toml";
-        std::fs::write(temp_path, toml_content).unwrap();
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_content).unwrap();
 
-        let schema = SchemaMerger::merge_toml_only(temp_path)
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap())
             .unwrap_or_else(|e| panic!("expected Ok from merge_toml_only (with validation): {e}"));
 
         // validation_config should be populated
         let vc = schema.validation_config.as_ref().expect("validation_config should be set");
         assert_eq!(vc.max_query_depth, Some(3));
         assert_eq!(vc.max_query_complexity, Some(25));
-
-        let _ = std::fs::remove_file(temp_path);
     }
 
     #[test]
@@ -860,16 +855,14 @@ sql_source = "v_user"
 type = "ID"
 "#;
 
-        let temp_path = "/tmp/test_fraiseql_no_validation.toml";
-        std::fs::write(temp_path, toml_content).unwrap();
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_content).unwrap();
 
-        let schema = SchemaMerger::merge_toml_only(temp_path)
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap())
             .unwrap_or_else(|e| panic!("expected Ok from merge_toml_only (no validation): {e}"));
 
         // validation_config should be None when no [validation] section
         assert!(schema.validation_config.is_none());
-
-        let _ = std::fs::remove_file(temp_path);
     }
 
     // ── CRUD naming config ─────────────────────────────────────────────────────
@@ -894,16 +887,10 @@ type = "ID"
         assert_eq!(pascal_to_snake("DnsServerConfig"), "dns_server_config");
     }
 
-    fn write_temp_toml(content: &str) -> String {
-        let path = format!(
-            "/tmp/test_crud_merger_{}.toml",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .subsec_nanos()
-        );
-        std::fs::write(&path, content).unwrap();
-        path
+    fn write_temp_toml(content: &str) -> tempfile::NamedTempFile {
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), content).unwrap();
+        tmp
     }
 
     #[test]
@@ -927,12 +914,12 @@ type = "ID"
 return_type = "User"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
+        let tmp = write_temp_toml(toml);
         let schema =
-            SchemaMerger::merge_toml_only(&temp_path).expect("should merge with crud naming");
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge with crud naming");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_user").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("app.create_user"));
-        let _ = std::fs::remove_file(&temp_path);
+
     }
 
     #[test]
@@ -955,11 +942,11 @@ type = "ID"
 return_type = "UserProfile"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_user_profile").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("create_user_profile"));
-        let _ = std::fs::remove_file(&temp_path);
+
     }
 
     #[test]
@@ -984,11 +971,11 @@ return_type = "User"
 operation = "CREATE"
 sql_source = "custom_create_user_fn"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_user").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("custom_create_user_fn"));
-        let _ = std::fs::remove_file(&temp_path);
+
     }
 
     #[test]
@@ -1008,13 +995,13 @@ type = "ID"
 return_type = "User"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let err = SchemaMerger::merge_toml_only(&temp_path)
+        let tmp = write_temp_toml(toml);
+        let err = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap())
             .expect_err("should fail without sql_source and no crud config");
         let msg = format!("{err}");
         assert!(msg.contains("create_user"), "error should name the mutation, got: {msg}");
         assert!(msg.contains("sql_source") || msg.contains("crud"), "got: {msg}");
-        let _ = std::fs::remove_file(&temp_path);
+
     }
 
     #[test]
@@ -1038,11 +1025,11 @@ type = "ID"
 return_type = "Order"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_order").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("app.insert_order"));
-        let _ = std::fs::remove_file(&temp_path);
+
     }
 
     #[test]
@@ -1070,13 +1057,13 @@ operation = "UPDATE"
 return_type = "User"
 operation = "DELETE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let update = schema.mutations.iter().find(|m| m.name == "update_user").unwrap();
         let delete = schema.mutations.iter().find(|m| m.name == "delete_user").unwrap();
         assert_eq!(update.sql_source.as_deref(), Some("app.update_user"));
         assert_eq!(delete.sql_source.as_deref(), Some("app.delete_user"));
-        let _ = std::fs::remove_file(&temp_path);
+
     }
 }
 

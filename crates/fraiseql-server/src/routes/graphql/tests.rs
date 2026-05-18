@@ -569,14 +569,15 @@ mod app_state_tests {
         let hash_before = schema.content_hash();
         let adapter = Arc::new(StubAdapter);
         let executor = Arc::new(Executor::new(schema, adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
-
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("schema.json");
-        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
-        std::fs::write(&path, &schema_json).unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state =
+            AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
 
-        let result = state.reload_schema(&path).await;
+        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
+        std::fs::write(&schema_path, &schema_json).unwrap();
+
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_ok());
         assert_eq!(state.executor().schema().content_hash(), hash_before);
     }
@@ -585,11 +586,14 @@ mod app_state_tests {
     async fn test_concurrent_reload_serialized() {
         let adapter = Arc::new(StubAdapter);
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+        let dir = tempfile::tempdir().unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state =
+            AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
 
         let _guard = state.reload_lock.lock().await;
 
-        let result = state.reload_schema(std::path::Path::new("/tmp/test.json")).await;
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("already in progress"));
     }
@@ -671,20 +675,21 @@ mod app_state_tests {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
-
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("schema.json");
+        let schema_path = dir.path().join("schema.json");
+        let state =
+            AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
+
         let mut new_schema = CompiledSchema::default();
         new_schema
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
         let schema_json = serde_json::to_string(&new_schema).unwrap();
-        std::fs::write(&path, &schema_json).unwrap();
+        std::fs::write(&schema_path, &schema_json).unwrap();
 
         assert!(!reload_called.load(std::sync::atomic::Ordering::Relaxed));
 
-        let result = state.reload_schema(&path).await;
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_ok());
         assert!(reload_called.load(std::sync::atomic::Ordering::Relaxed));
     }
@@ -694,14 +699,15 @@ mod app_state_tests {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
-
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("schema.json");
-        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
-        std::fs::write(&path, &schema_json).unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state =
+            AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
 
-        let result = state.reload_schema(&path).await;
+        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
+        std::fs::write(&schema_path, &schema_json).unwrap();
+
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_ok());
         assert!(!reload_called.load(std::sync::atomic::Ordering::Relaxed));
     }
