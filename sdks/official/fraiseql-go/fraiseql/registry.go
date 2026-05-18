@@ -113,9 +113,21 @@ type SubscriptionDefinition struct {
 	Config      map[string]interface{} `json:"config,omitempty"`
 }
 
+// EnumValueDefinition represents a single value in a GraphQL enum.
+type EnumValueDefinition struct {
+	Name string `json:"name"`
+}
+
+// EnumDefinition represents a GraphQL enum type.
+type EnumDefinition struct {
+	Name   string                `json:"name"`
+	Values []EnumValueDefinition `json:"values"`
+}
+
 // Schema represents the complete GraphQL schema
 type Schema struct {
 	Types            []TypeDefinition           `json:"types"`
+	Enums            []EnumDefinition           `json:"enums,omitempty"`
 	Queries          []QueryDefinition          `json:"queries"`
 	Mutations        []MutationDefinition       `json:"mutations"`
 	Subscriptions    []SubscriptionDefinition   `json:"subscriptions"`
@@ -139,6 +151,7 @@ type InjectDefaults struct {
 type SchemaRegistry struct {
 	mu               sync.RWMutex
 	types            map[string]TypeDefinition
+	enums            map[string]EnumDefinition
 	queries          map[string]QueryDefinition
 	mutations        map[string]MutationDefinition
 	subscriptions    map[string]SubscriptionDefinition
@@ -157,6 +170,7 @@ func getInstance() *SchemaRegistry {
 	once.Do(func() {
 		registry = &SchemaRegistry{
 			types:            make(map[string]TypeDefinition),
+			enums:            make(map[string]EnumDefinition),
 			queries:          make(map[string]QueryDefinition),
 			mutations:        make(map[string]MutationDefinition),
 			subscriptions:    make(map[string]SubscriptionDefinition),
@@ -338,6 +352,10 @@ func GetSchema() Schema {
 		schema.Types = append(schema.Types, typeDef)
 	}
 
+	for _, enumDef := range reg.enums {
+		schema.Enums = append(schema.Enums, enumDef)
+	}
+
 	for _, queryDef := range reg.queries {
 		schema.Queries = append(schema.Queries, queryDef)
 	}
@@ -394,6 +412,7 @@ func Reset() {
 	defer reg.mu.Unlock()
 
 	reg.types = make(map[string]TypeDefinition)
+	reg.enums = make(map[string]EnumDefinition)
 	reg.queries = make(map[string]QueryDefinition)
 	reg.mutations = make(map[string]MutationDefinition)
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
@@ -404,6 +423,29 @@ func Reset() {
 
 	// Also clear custom scalars
 	ClearCustomScalars()
+}
+
+// ClearRegistry clears the registry (alias for Reset, used in tests)
+func ClearRegistry() {
+	Reset()
+}
+
+// Enum registers a GraphQL enum type with the schema registry.
+// The values map keys are the enum member names (e.g., "DAY", "WEEK").
+func Enum(name string, values map[string]string) {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	enumValues := make([]EnumValueDefinition, 0, len(values))
+	for memberName := range values {
+		enumValues = append(enumValues, EnumValueDefinition{Name: memberName})
+	}
+
+	reg.enums[name] = EnumDefinition{
+		Name:   name,
+		Values: enumValues,
+	}
 }
 
 // RegisterTypes extracts fields from Go struct types and registers them
