@@ -819,11 +819,8 @@ async fn test_event_not_delivered_to_unsubscribed_client() {
     // Send an event
     event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
 
-    // Give delivery time to process
-    tokio::time::sleep(Duration::from_millis(50)).await;
-
-    // Client should NOT receive anything (use timeout to verify)
-    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    // Client should NOT receive anything (timeout covers the delivery window)
+    let result = tokio::time::timeout(Duration::from_millis(200), ws.next()).await;
     assert!(result.is_err(), "Expected timeout (no message), got a message");
 
     ws.close(None).await.ok();
@@ -848,9 +845,8 @@ async fn test_event_rls_filters_unauthorized() {
     // Send event — RLS denies all
     event_tx.send(make_post_event(EventKindSerde::Insert, 42)).await.unwrap();
 
-    // Should NOT receive the event (silently dropped by RLS)
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    // Should NOT receive the event (timeout covers the delivery window)
+    let result = tokio::time::timeout(Duration::from_millis(200), ws.next()).await;
     assert!(result.is_err(), "Expected no message (RLS denied), got a message");
 
     ws.close(None).await.ok();
@@ -925,18 +921,7 @@ async fn test_event_rls_grouping_by_context_hash() {
     // Send event
     event_tx.send(make_post_event(EventKindSerde::Insert, 1)).await.unwrap();
 
-    // Wait for delivery
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Should have 3 RLS evaluations (3 distinct context hashes: sameuser, other1, other2)
-    // NOT 5 (one per connection)
-    let rls_calls = counting_rls.count();
-    assert_eq!(
-        rls_calls, 3,
-        "Expected 3 RLS evaluations (one per distinct context hash), got {rls_calls}"
-    );
-
-    // All 5 clients should have received the event
+    // All 5 clients should have received the event (next_msg blocks until delivery)
     for ws in &mut same_user_ws {
         let msg = next_msg(ws).await;
         assert_eq!(msg["type"], "change");
@@ -945,6 +930,14 @@ async fn test_event_rls_grouping_by_context_hash() {
     assert_eq!(msg["type"], "change");
     let msg = next_msg(&mut ws_diff2).await;
     assert_eq!(msg["type"], "change");
+
+    // After delivery, should have 3 RLS evaluations (3 distinct context hashes)
+    // NOT 5 (one per connection)
+    let rls_calls = counting_rls.count();
+    assert_eq!(
+        rls_calls, 3,
+        "Expected 3 RLS evaluations (one per distinct context hash), got {rls_calls}"
+    );
 
     for ws in &mut same_user_ws {
         ws.close(None).await.ok();
@@ -976,8 +969,7 @@ async fn test_event_field_filter_applied() {
 
     // Send event with author_id=456 — should NOT be delivered
     event_tx.send(make_post_event(EventKindSerde::Insert, 456)).await.unwrap();
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    let result = tokio::time::timeout(Duration::from_millis(200), ws.next()).await;
     assert!(result.is_err(), "Expected no message for author_id=456");
 
     // Send event with author_id=123 — SHOULD be delivered
@@ -1012,8 +1004,7 @@ async fn test_event_type_filter_applied() {
 
     // Send UPDATE event — should NOT be delivered
     event_tx.send(make_post_event(EventKindSerde::Update, 42)).await.unwrap();
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    let result = tokio::time::timeout(Duration::from_millis(100), ws.next()).await;
+    let result = tokio::time::timeout(Duration::from_millis(200), ws.next()).await;
     assert!(result.is_err(), "Expected no message for UPDATE event");
 
     // Send INSERT event — SHOULD be delivered
@@ -1195,9 +1186,6 @@ async fn test_observer_slow_client_disconnected() {
     for i in 2..=8_i64 {
         observer.on_mutation_complete(make_post_event(EventKindSerde::Insert, i));
     }
-
-    // Give the delivery pipeline and connection handler time to process.
-    tokio::time::sleep(Duration::from_millis(300)).await;
 
     // Drain the WebSocket until we see close code 4002.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
@@ -1412,15 +1400,18 @@ async fn test_connection_state_cleanup_on_disconnect() {
 
     ws.close(None).await.ok();
 
-    // Give the server time to process the disconnect
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // A new connection with the same user must succeed (slot freed)
-    let result = connect_async(ws_url(addr, Some("valid-cleanup"))).await;
-    assert!(result.is_ok(), "reconnect should succeed after disconnect cleanup");
-    if let Ok((mut ws2, _)) = result {
-        ws2.close(None).await.ok();
+    // Retry reconnection until the server has processed the disconnect (slot freed).
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut connected = false;
+    while tokio::time::Instant::now() < deadline {
+        if let Ok((mut ws2, _)) = connect_async(ws_url(addr, Some("valid-cleanup"))).await {
+            ws2.close(None).await.ok();
+            connected = true;
+            break;
+        }
+        tokio::task::yield_now().await;
     }
+    assert!(connected, "reconnect should succeed after disconnect cleanup");
 }
 
 // ── Axum Route & Server Integration ──────────────────────────────────────

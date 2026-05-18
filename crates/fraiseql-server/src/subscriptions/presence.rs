@@ -9,11 +9,11 @@
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, time::Instant};
 use tracing::debug;
 
 // ──────────────────────── Configuration ────────────────────────

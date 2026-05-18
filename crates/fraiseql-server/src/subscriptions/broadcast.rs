@@ -7,10 +7,12 @@
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
-    time::Instant,
 };
 
-use tokio::sync::{RwLock, broadcast};
+use tokio::{
+    sync::{RwLock, broadcast},
+    time::Instant,
+};
 use tracing::debug;
 
 /// Configuration for the broadcast subsystem.
