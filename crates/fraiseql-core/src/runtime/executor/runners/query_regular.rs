@@ -1,0 +1,750 @@
+//! Regular (non-relay) query execution methods for [`QueryRunner`].
+
+use std::sync::Arc;
+
+use super::super::{null_masked_fields, resolve_inject_value};
+use super::query::QueryRunner;
+use super::query_params::{combine_explicit_arg_where, compute_projection_reduction, inject_param_where_clause};
+use super::query_projection::{build_typed_projection_fields, enrich_order_by_clauses};
+use crate::{
+    db::{
+        WhereClause,
+        projection_generator::PostgresProjectionGenerator,
+        traits::DatabaseAdapter,
+    },
+    error::{FraiseQLError, Result},
+    runtime::{JsonbStrategy, ResultProjector},
+    schema::SqlProjectionHint,
+    security::{RlsWhereClause, SecurityContext},
+};
+
+impl<A: DatabaseAdapter> QueryRunner<A> {
+    /// Execute a regular query with row-level security (RLS) filtering.
+    ///
+    /// This method:
+    /// 1. Validates the user's security context (token expiration, etc.)
+    /// 2. Evaluates RLS policies to determine what rows the user can access
+    /// 3. Composes RLS filters with user-provided WHERE clauses
+    /// 4. Passes the composed filter to the database adapter for SQL-level filtering
+    ///
+    /// RLS filtering happens at the database level, not in Rust, ensuring:
+    /// - High performance (database can optimize filters)
+    /// - Correct handling of pagination (LIMIT applied after RLS filtering)
+    /// - Type-safe composition via `WhereClause` enum
+    ///
+    /// # Errors
+    ///
+    /// * [`FraiseQLError::Validation`] — security token expired, role check failed, or query not
+    ///   found in schema.
+    /// * [`FraiseQLError::Database`] — the database adapter returned an error.
+    pub(in super::super) async fn execute_regular_query_with_security(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: &SecurityContext,
+    ) -> Result<serde_json::Value> {
+        // 1. Validate security context (check expiration, etc.)
+        if security_context.is_expired() {
+            return Err(FraiseQLError::Validation {
+                message: "Security token has expired".to_string(),
+                path:    Some("request.authorization".to_string()),
+            });
+        }
+
+        // 2. Match query to compiled template
+        let query_match = self.ctx.matcher.match_query(query, variables)?;
+
+        // 2b. Enforce requires_role — return "not found" (not "forbidden") to prevent enumeration
+        if let Some(ref required_role) = query_match.query_def.requires_role {
+            if !security_context.roles.iter().any(|r| r == required_role) {
+                return Err(FraiseQLError::Validation {
+                    message: format!("Query '{}' not found in schema", query_match.query_def.name),
+                    path:    None,
+                });
+            }
+        }
+
+        // Inject session variables (transaction-scoped set_config) when configured.
+        //
+        // Must run before any DB execution (including the relay branch below) so that
+        // PostgreSQL-native Row Level Security policies that rely on `current_setting()`
+        // values (e.g. `app.tenant_id`) are effective for read queries, matching the
+        // behaviour already in place for mutations.
+        {
+            let sv = &self.ctx.schema.session_variables;
+            if !sv.variables.is_empty() || sv.inject_started_at {
+                let vars = crate::runtime::executor::security::resolve_session_variables(
+                    sv,
+                    security_context,
+                );
+                if !vars.is_empty() {
+                    let pairs: Vec<(&str, &str)> =
+                        vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+                    self.ctx.adapter.set_session_variables(&pairs).await?;
+                }
+            }
+        }
+
+        // Route relay queries to dedicated handler with security context.
+        if query_match.query_def.relay {
+            return self.execute_relay_query(&query_match, variables, Some(security_context)).await;
+        }
+
+        // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
+        let response_cache_key =
+            self.ctx.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
+                let query_key = Self::compute_response_cache_key(&query_match);
+                let sec_hash =
+                    crate::cache::response_cache::hash_security_context(Some(security_context));
+                (query_key, sec_hash)
+            });
+
+        if let (Some((query_key, sec_hash)), Some(rc)) =
+            (response_cache_key, self.ctx.response_cache.as_ref())
+        {
+            if let Some(cached) = rc.get(query_key, sec_hash)? {
+                return Ok((*cached).clone());
+            }
+        }
+
+        // 3. Create execution plan
+        let plan = self.ctx.planner.plan(&query_match)?;
+
+        // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
+        //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
+        //    evaluation.
+        let rls_where_clause: Option<RlsWhereClause> =
+            if let Some(ref rls_policy) = self.ctx.config.rls_policy {
+                // Evaluate RLS policy with user's security context
+                rls_policy.evaluate(security_context, &query_match.query_def.name)?
+            } else {
+                // No RLS policy configured, allow all access
+                None
+            };
+
+        // 5. Get SQL source from query definition
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
+
+        // 6. Generate SQL projection hint for requested fields (optimization). Build a recursive
+        //    ProjectionField tree from the selection set so that composite sub-fields are projected
+        //    with nested jsonb_build_object instead of returning the full blob.
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
+            let root_fields = query_match
+                .selections
+                .first()
+                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+            let typed_fields = build_typed_projection_fields(
+                root_fields,
+                &self.ctx.schema,
+                &query_match.query_def.return_type,
+                0,
+            );
+
+            let generator = PostgresProjectionGenerator::new();
+            let projection_sql = generator
+                .generate_typed_projection_sql(&typed_fields)
+                .unwrap_or_else(|_| "data".to_string());
+
+            Some(SqlProjectionHint::new(
+                self.ctx.adapter.database_type(),
+                projection_sql,
+                compute_projection_reduction(plan.projection_fields.len()),
+            ))
+        } else {
+            // Stream strategy: return full JSONB, no projection hint
+            None
+        };
+
+        // 7. AND inject conditions onto the RLS WHERE clause. Inject conditions always come after
+        //    RLS so they cannot bypass it.
+        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
+        {
+            // Common path: unwrap RlsWhereClause into WhereClause for the adapter
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let mut conditions: Vec<WhereClause> = query_match
+                .query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, security_context)?;
+                    Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
+
+        // 5b. Compose user-supplied WHERE from GraphQL arguments when has_where is enabled.
+        //     Security conditions (RLS + inject) are always first so they cannot be bypassed.
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
+        // 5c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
+        //     This handles single-entity lookups like `user(id: "...")` where the
+        //     arguments are direct equality filters, not the structured `where` argument.
+        let combined_where = combine_explicit_arg_where(
+            combined_where,
+            &query_match.query_def.arguments,
+            &query_match.arguments,
+            &query_match.query_def.native_columns,
+        );
+
+        // 8. Extract limit/offset from query arguments when auto_params are enabled
+        let limit = if query_match.query_def.auto_params.has_limit {
+            query_match
+                .arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        let offset = if query_match.query_def.auto_params.has_offset {
+            query_match
+                .arguments
+                .get("offset")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        // 8b. Extract order_by from query arguments when has_order_by is enabled,
+        //     then enrich each clause with the schema field type so the SQL generator
+        //     emits correct type casts (e.g., `(data->>'amount')::numeric`).
+        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
+            query_match
+                .arguments
+                .get("orderBy")
+                .map(crate::db::OrderByClause::from_graphql_json)
+                .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.ctx.schema,
+                        &query_match.query_def.return_type,
+                        &query_match.query_def.native_columns,
+                    )
+                })
+        } else {
+            None
+        };
+
+        // 9. Execute query with combined WHERE clause filter
+        let results = self
+            .ctx
+            .adapter
+            .execute_with_projection_arc(
+                sql_source,
+                projection_hint.as_ref(),
+                combined_where.as_ref(),
+                limit,
+                offset,
+                order_by_clauses.as_deref(),
+            )
+            .await?;
+
+        // 10. Apply field-level RBAC filtering (reject / mask / allow)
+        let access = super::super::support::security::apply_field_rbac_filtering(
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            plan.projection_fields,
+            security_context,
+        )?;
+
+        // 11. Project results — include both allowed and masked fields in projection
+        let mut all_projection_fields = access.allowed;
+        all_projection_fields.extend(access.masked.iter().cloned());
+        let projector = ResultProjector::new(all_projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
+        let mut projected =
+            projector.project_results(&results, query_match.query_def.returns_list)?;
+
+        // 11. Null out masked fields in the projected result
+        if !access.masked.is_empty() {
+            null_masked_fields(&mut projected, &access.masked);
+        }
+
+        // 12. Wrap in GraphQL data envelope
+        let response =
+            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+
+        // 13. Store in response cache (if enabled) and return value
+        if let (Some((query_key, sec_hash)), Some(rc)) =
+            (response_cache_key, self.ctx.response_cache.as_ref())
+        {
+            let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
+            let _ = rc.put(
+                query_key,
+                sec_hash,
+                Arc::new(response.clone()),
+                vec![sql_source.to_string()],
+            );
+        }
+
+        Ok(response)
+    }
+
+    /// Compute a response cache key from a query match.
+    ///
+    /// Hashes the query name, matched fields, and arguments to produce
+    /// a u64 key. Combined with the security context hash, this forms
+    /// the full response cache key.
+    fn compute_response_cache_key(query_match: &crate::runtime::matcher::QueryMatch) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = ahash::AHasher::default();
+        query_match.query_def.name.hash(&mut hasher);
+        for field in &query_match.fields {
+            field.hash(&mut hasher);
+        }
+        // Hash arguments (sorted keys for determinism)
+        let mut keys: Vec<&String> = query_match.arguments.keys().collect();
+        keys.sort();
+        for key in keys {
+            key.hash(&mut hasher);
+            serde_json::to_string(&query_match.arguments[key])
+                .unwrap_or_default()
+                .hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    /// Execute a regular (non-aggregate, non-relay) GraphQL query.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] if the query does not match a compiled
+    /// template or requires a security context that is not present.
+    /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
+    pub(in super::super) async fn execute_regular_query(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        // 1. Match query to compiled template
+        let query_match = self.ctx.matcher.match_query(query, variables)?;
+
+        // Guard: role-restricted queries are invisible to unauthenticated users
+        if query_match.query_def.requires_role.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!("Query '{}' not found in schema", query_match.query_def.name),
+                path:    None,
+            });
+        }
+
+        // Guard: queries with inject params require a security context.
+        if !query_match.query_def.inject_params.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but was called without a security context",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            });
+        }
+
+        // Route relay queries to dedicated handler.
+        if query_match.query_def.relay {
+            return self.execute_relay_query(&query_match, variables, None).await;
+        }
+
+        // 2. Create execution plan
+        let plan = self.ctx.planner.plan(&query_match)?;
+
+        // 3. Execute SQL query
+        let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
+            crate::error::FraiseQLError::Validation {
+                message: "Query has no SQL source".to_string(),
+                path:    None,
+            }
+        })?;
+
+        // 3a. Generate SQL projection hint for requested fields (optimization).
+        //     Recursive typed projection: composite sub-fields are projected with nested
+        //     jsonb_build_object instead of returning the full blob.
+        let projection_hint = if !plan.projection_fields.is_empty()
+            && plan.jsonb_strategy == JsonbStrategy::Project
+        {
+            let root_fields = query_match
+                .selections
+                .first()
+                .map_or(&[] as &[_], |s| s.nested_fields.as_slice());
+            let typed_fields = build_typed_projection_fields(
+                root_fields,
+                &self.ctx.schema,
+                &query_match.query_def.return_type,
+                0,
+            );
+            let generator = PostgresProjectionGenerator::new();
+            let projection_sql = generator
+                .generate_typed_projection_sql(&typed_fields)
+                .unwrap_or_else(|_| "data".to_string());
+
+            Some(SqlProjectionHint::new(
+                self.ctx.adapter.database_type(),
+                projection_sql,
+                compute_projection_reduction(plan.projection_fields.len()),
+            ))
+        } else {
+            // Stream strategy: return full JSONB, no projection hint
+            None
+        };
+
+        // 3b. Extract auto_params (limit, offset, where, order_by) from arguments
+        let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?
+        } else {
+            None
+        };
+
+        // 3c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
+        let user_where = combine_explicit_arg_where(
+            user_where,
+            &query_match.query_def.arguments,
+            &query_match.arguments,
+            &query_match.query_def.native_columns,
+        );
+
+        let limit = if query_match.query_def.auto_params.has_limit {
+            query_match
+                .arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        let offset = if query_match.query_def.auto_params.has_offset {
+            query_match
+                .arguments
+                .get("offset")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
+
+        let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
+            query_match
+                .arguments
+                .get("orderBy")
+                .map(crate::db::OrderByClause::from_graphql_json)
+                .transpose()?
+                .map(|clauses| {
+                    enrich_order_by_clauses(
+                        clauses,
+                        &self.ctx.schema,
+                        &query_match.query_def.return_type,
+                        &query_match.query_def.native_columns,
+                    )
+                })
+        } else {
+            None
+        };
+
+        let results = self
+            .ctx
+            .adapter
+            .execute_with_projection_arc(
+                sql_source,
+                projection_hint.as_ref(),
+                user_where.as_ref(),
+                limit,
+                offset,
+                order_by_clauses.as_deref(),
+            )
+            .await?;
+
+        // 4. Project results
+        let projector = ResultProjector::new(plan.projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
+        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+
+        // 5. Wrap in GraphQL data envelope
+        let response =
+            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+
+        // 6. Serialize to JSON string
+        Ok(response)
+    }
+
+    /// Execute a pre-built `QueryMatch` directly, bypassing GraphQL string parsing.
+    ///
+    /// Used by the REST transport for embedded sub-queries and NDJSON streaming
+    /// where the query parameters are already resolved from HTTP request parameters.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source.
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub(in super::super) async fn execute_query_direct(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        _variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        // Evaluate RLS policy if present.
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.ctx.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_match.query_def.name)?
+        } else {
+            None
+        };
+
+        // Get SQL source.
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
+
+        // Build execution plan.
+        let plan = self.ctx.planner.plan(query_match)?;
+
+        // Extract auto_params from arguments.
+        let user_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?
+        } else {
+            None
+        };
+
+        let limit = query_match
+            .arguments
+            .get("limit")
+            .and_then(|v| v.as_u64())
+            .and_then(|v| u32::try_from(v).ok());
+
+        let offset = query_match
+            .arguments
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .and_then(|v| u32::try_from(v).ok());
+
+        let order_by_clauses = query_match
+            .arguments
+            .get("orderBy")
+            .map(crate::db::OrderByClause::from_graphql_json)
+            .transpose()?
+            .map(|clauses| {
+                enrich_order_by_clauses(
+                    clauses,
+                    &self.ctx.schema,
+                    &query_match.query_def.return_type,
+                    &query_match.query_def.native_columns,
+                )
+            });
+
+        // Convert explicit arguments to WHERE conditions.
+        let user_where = combine_explicit_arg_where(
+            user_where,
+            &query_match.query_def.arguments,
+            &query_match.arguments,
+            &query_match.query_def.native_columns,
+        );
+
+        // Compose RLS and user WHERE clauses.
+        let composed_where = match (&rls_where_clause, &user_where) {
+            (Some(rls), Some(user)) => {
+                Some(WhereClause::And(vec![rls.as_where_clause().clone(), user.clone()]))
+            },
+            (Some(rls), None) => Some(rls.as_where_clause().clone()),
+            (None, Some(user)) => Some(user.clone()),
+            (None, None) => None,
+        };
+
+        // Inject security-derived params.
+        if !query_match.query_def.inject_params.is_empty() {
+            if let Some(ctx) = security_context {
+                for (param_name, source) in &query_match.query_def.inject_params {
+                    let _value = resolve_inject_value(param_name, source, ctx)?;
+                    // Injected params are applied at the SQL level via WHERE clauses,
+                    // not via GraphQL variables, so no mutation of variables is needed here.
+                }
+            }
+        }
+
+        // Execute.
+        let results = self
+            .ctx
+            .adapter
+            .execute_with_projection_arc(
+                sql_source,
+                None,
+                composed_where.as_ref(),
+                limit,
+                offset,
+                order_by_clauses.as_deref(),
+            )
+            .await?;
+
+        // Project results.
+        let projector = ResultProjector::new(plan.projection_fields)
+            .configure_typename_from_selections(
+                &query_match.selections,
+                &query_match.query_def.return_type,
+            );
+        let projected = projector.project_results(&results, query_match.query_def.returns_list)?;
+
+        // Wrap in GraphQL data envelope.
+        let response =
+            ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
+
+        Ok(response)
+    }
+
+    /// Count the total number of rows matching the query's WHERE and RLS conditions.
+    ///
+    /// Issues a `SELECT COUNT(*) FROM {view} WHERE {conditions}` query, ignoring
+    /// pagination (ORDER BY, LIMIT, OFFSET). Useful for REST `X-Total-Count` headers
+    /// and `count=exact` query parameter support.
+    ///
+    /// # Arguments
+    ///
+    /// * `query_match` - Pre-built query match identifying the SQL source and filters
+    /// * `variables` - Optional variables (unused for count, reserved for future use)
+    /// * `security_context` - Optional authenticated user context for RLS and inject
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if the query has no SQL source, or if
+    /// inject params are required but no security context is provided.
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    pub(in super::super) async fn count_rows(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        _variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<u64> {
+        // 1. Evaluate RLS policy
+        let rls_where_clause: Option<RlsWhereClause> = if let (Some(ref rls_policy), Some(ctx)) =
+            (&self.ctx.config.rls_policy, security_context)
+        {
+            rls_policy.evaluate(ctx, &query_match.query_def.name)?
+        } else {
+            None
+        };
+
+        // 2. Get SQL source
+        let sql_source =
+            query_match
+                .query_def
+                .sql_source
+                .as_ref()
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "Query has no SQL source".to_string(),
+                    path:    None,
+                })?;
+
+        // 3. Build combined WHERE clause (RLS + inject)
+        let combined_where: Option<WhereClause> = if query_match.query_def.inject_params.is_empty()
+        {
+            rls_where_clause.map(RlsWhereClause::into_where_clause)
+        } else {
+            let ctx = security_context.ok_or_else(|| FraiseQLError::Validation {
+                message: format!(
+                    "Query '{}' has inject params but no security context is available",
+                    query_match.query_def.name
+                ),
+                path:    None,
+            })?;
+            let mut conditions: Vec<WhereClause> = query_match
+                .query_def
+                .inject_params
+                .iter()
+                .map(|(col, source)| {
+                    let value = resolve_inject_value(col, source, ctx)?;
+                    Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            if let Some(rls) = rls_where_clause {
+                conditions.insert(0, rls.into_where_clause());
+            }
+            match conditions.len() {
+                0 => None,
+                1 => Some(conditions.remove(0)),
+                _ => Some(WhereClause::And(conditions)),
+            }
+        };
+
+        // 3b. Compose user-supplied WHERE when has_where is enabled (same as execute_from_match).
+        let combined_where: Option<WhereClause> = if query_match.query_def.auto_params.has_where {
+            let user_where = query_match
+                .arguments
+                .get("where")
+                .map(WhereClause::from_graphql_json)
+                .transpose()?;
+            match (combined_where, user_where) {
+                (None, None) => None,
+                (Some(sec), None) => Some(sec),
+                (None, Some(user)) => Some(user),
+                (Some(sec), Some(user)) => Some(WhereClause::And(vec![sec, user])),
+            }
+        } else {
+            combined_where
+        };
+
+        // 4. Execute COUNT query via adapter
+        let rows = self
+            .ctx
+            .adapter
+            .execute_where_query_arc(sql_source, combined_where.as_ref(), None, None, None)
+            .await?;
+
+        // Return the row count
+        #[allow(clippy::cast_possible_truncation)] // Reason: row count fits u64
+        Ok(rows.len() as u64)
+    }
+}
