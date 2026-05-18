@@ -2,8 +2,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
@@ -15,10 +14,12 @@ use crate::{
         where_clause::WhereClause,
     },
     error::{FraiseQLError, Result},
-    runtime::{Executor, RuntimeConfig},
+    runtime::{
+        Executor, RuntimeConfig,
+        executor::test_support::{MockAdapter, ReadOnlyMockAdapter},
+    },
     schema::CompiledSchema,
 };
-use crate::runtime::executor::test_support::{MockAdapter, ReadOnlyMockAdapter};
 
 // ── mod mutation: mutation execution and adapter capability guard ─────────
 
@@ -789,10 +790,7 @@ mod mutation_audit {
     {
         fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
             if event.metadata().target() == "fraiseql::mutation_audit" {
-                self.events
-                    .lock()
-                    .unwrap()
-                    .push(event.metadata().name().to_string());
+                self.events.lock().unwrap().push(event.metadata().name().to_string());
             }
         }
     }
@@ -802,7 +800,9 @@ mod mutation_audit {
         let mut schema = CompiledSchema::new();
         let mut def = MutationDefinition::new("createUser", "User");
         def.sql_source = Some("fn_create_user".to_string());
-        def.operation = MutationOperation::Insert { table: "users".to_string() };
+        def.operation = MutationOperation::Insert {
+            table: "users".to_string(),
+        };
         schema.mutations.push(def);
         schema
     }
@@ -812,7 +812,10 @@ mod mutation_audit {
     #[test]
     fn kind_str_insert() {
         assert_eq!(
-            MutationOperation::Insert { table: "users".to_string() }.kind_str(),
+            MutationOperation::Insert {
+                table: "users".to_string(),
+            }
+            .kind_str(),
             "insert"
         );
     }
@@ -820,7 +823,10 @@ mod mutation_audit {
     #[test]
     fn kind_str_update() {
         assert_eq!(
-            MutationOperation::Update { table: "users".to_string() }.kind_str(),
+            MutationOperation::Update {
+                table: "users".to_string(),
+            }
+            .kind_str(),
             "update"
         );
     }
@@ -828,7 +834,10 @@ mod mutation_audit {
     #[test]
     fn kind_str_delete() {
         assert_eq!(
-            MutationOperation::Delete { table: "users".to_string() }.kind_str(),
+            MutationOperation::Delete {
+                table: "users".to_string(),
+            }
+            .kind_str(),
             "delete"
         );
     }
@@ -842,7 +851,10 @@ mod mutation_audit {
 
     #[test]
     fn audit_mutations_default_false() {
-        assert!(!RuntimeConfig::default().audit_mutations, "audit_mutations must default to false");
+        assert!(
+            !RuntimeConfig::default().audit_mutations,
+            "audit_mutations must default to false"
+        );
     }
 
     // ── tracing event emission ────────────────────────────────────────────
@@ -851,18 +863,20 @@ mod mutation_audit {
     #[tokio::test]
     async fn audit_event_emitted_when_enabled() {
         let captured = Arc::new(Mutex::new(Vec::<String>::new()));
-        let layer = CapturingLayer { events: captured.clone() };
+        let layer = CapturingLayer {
+            events: captured.clone(),
+        };
         let subscriber = Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
 
         let schema = schema_with_insert_mutation();
-        let config = RuntimeConfig { audit_mutations: true, ..RuntimeConfig::default() };
+        let config = RuntimeConfig {
+            audit_mutations: true,
+            ..RuntimeConfig::default()
+        };
         let executor = Executor::with_config(schema, Arc::new(AuditMockAdapter), config);
 
-        executor
-            .execute_mutation("createUser", None, &HashMap::new())
-            .await
-            .unwrap();
+        executor.execute_mutation("createUser", None, &HashMap::new()).await.unwrap();
 
         let events = captured.lock().unwrap();
         assert!(
@@ -875,7 +889,9 @@ mod mutation_audit {
     #[tokio::test]
     async fn no_audit_event_when_disabled() {
         let captured = Arc::new(Mutex::new(Vec::<String>::new()));
-        let layer = CapturingLayer { events: captured.clone() };
+        let layer = CapturingLayer {
+            events: captured.clone(),
+        };
         let subscriber = Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
 
@@ -883,10 +899,7 @@ mod mutation_audit {
         // Default config: audit_mutations=false
         let executor = Executor::new(schema, Arc::new(AuditMockAdapter));
 
-        executor
-            .execute_mutation("createUser", None, &HashMap::new())
-            .await
-            .unwrap();
+        executor.execute_mutation("createUser", None, &HashMap::new()).await.unwrap();
 
         let events = captured.lock().unwrap();
         assert!(

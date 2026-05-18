@@ -961,7 +961,6 @@ fn serde_roundtrip_via_json_string() {
     assert_eq!(back, v);
 }
 
-
 // ---------------------------------------------------------------------------
 // scalar_types.rs tests
 // ---------------------------------------------------------------------------
@@ -1044,11 +1043,9 @@ fn test_case_sensitive_matching() {
     assert!(!is_known_scalar("email"));
 }
 
-
 // ---------------------------------------------------------------------------
 // security_config.rs tests
 // ---------------------------------------------------------------------------
-
 
 // ── TenancyMode ─────────────────────────────────────────────────────
 
@@ -1132,10 +1129,7 @@ fn security_config_tenancy_skipped_when_default() {
     let config = SecurityConfig::default();
     let json = serde_json::to_string(&config).unwrap();
     // tenancy field should be absent when it's the default
-    assert!(
-        !json.contains("tenancy"),
-        "default tenancy should be skipped in serialization"
-    );
+    assert!(!json.contains("tenancy"), "default tenancy should be skipped in serialization");
 }
 
 #[test]
@@ -1167,11 +1161,9 @@ fn security_config_with_tenancy_round_trip() {
     assert_eq!(back.tenancy.tenant_claim, "org_id");
 }
 
-
 // ---------------------------------------------------------------------------
 // field_type.rs tests
 // ---------------------------------------------------------------------------
-
 
 #[test]
 fn test_parse_builtin_scalars() {
@@ -1403,34 +1395,30 @@ fn test_field_encryption_default_algorithm() {
 
 #[test]
 fn test_field_with_encryption_builder() {
-    let field = FieldDefinition::new("email", FieldType::String).with_encryption(
-        FieldEncryptionConfig {
+    let field =
+        FieldDefinition::new("email", FieldType::String).with_encryption(FieldEncryptionConfig {
             key_reference: "keys/email".to_string(),
             algorithm:     "AES-256-GCM".to_string(),
-        },
-    );
+        });
     assert!(field.is_encrypted());
     assert_eq!(field.encryption.unwrap().key_reference, "keys/email");
 }
 
 #[test]
 fn test_field_encryption_roundtrip_serialization() {
-    let field = FieldDefinition::new("email", FieldType::String).with_encryption(
-        FieldEncryptionConfig {
+    let field =
+        FieldDefinition::new("email", FieldType::String).with_encryption(FieldEncryptionConfig {
             key_reference: "keys/email".to_string(),
             algorithm:     "AES-256-GCM".to_string(),
-        },
-    );
+        });
     let json = serde_json::to_string(&field).unwrap();
     let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
     assert_eq!(field, deserialized);
 }
 
-
 // ---------------------------------------------------------------------------
 // config_types.rs tests
 // ---------------------------------------------------------------------------
-
 
 #[test]
 fn test_federation_config_default() {

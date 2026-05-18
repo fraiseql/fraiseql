@@ -4,21 +4,22 @@
 /// tracing target and normalised before aggregation.
 ///
 /// The `period` field is a UTC calendar month bucket in `"YYYY-MM"` format,
-/// assigned at the moment the event is recorded by [`MutationAuditLayer`](super::layer::MutationAuditLayer).
+/// assigned at the moment the event is recorded by
+/// [`MutationAuditLayer`](super::layer::MutationAuditLayer).
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct MutationAuditEvent {
     /// GraphQL mutation field name (e.g. `"create_user"`).
     pub mutation_name: String,
     /// Return-type entity name (e.g. `"User"`).
-    pub entity_type: String,
+    pub entity_type:   String,
     /// Mutation operation kind (`"create"`, `"update"`, `"delete"`, `"custom"`).
-    pub operation: String,
+    pub operation:     String,
     /// Tenant identifier extracted from the security context; empty string when
     /// no tenant is present (single-tenant deployments).
-    pub tenant_id: String,
+    pub tenant_id:     String,
     /// UTC calendar month in `"YYYY-MM"` format (e.g. `"2026-05"`).
-    pub period: String,
+    pub period:        String,
 }
 
 impl MutationAuditEvent {

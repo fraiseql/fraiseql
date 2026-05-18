@@ -128,8 +128,8 @@ fn test_schema_with_fact_tables_validation() {
     ir.fact_tables.insert(
         "tf_sales".to_string(),
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
@@ -141,14 +141,14 @@ fn test_schema_with_fact_tables_validation() {
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
@@ -168,20 +168,20 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
     ir.fact_tables.insert(
         "sales".to_string(),
         FactTableMetadata {
-            table_name:           "sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     ); // Missing tf_ prefix
@@ -207,16 +207,16 @@ fn test_validator_rejects_fact_table_without_measures() {
     ir.fact_tables.insert(
         "tf_sales".to_string(),
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
@@ -357,20 +357,20 @@ async fn test_executor_classifies_aggregate_query() {
     schema.add_fact_table(
         "tf_sales".to_string(),
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
@@ -479,17 +479,17 @@ fn mock_user_results() -> Vec<JsonbValue> {
 /// Create test fact table metadata for WHERE clause tests
 fn create_test_fact_table_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![
+        denormalized_filters:     vec![
             FilterColumn {
                 name:     "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
@@ -501,10 +501,10 @@ fn create_test_fact_table_metadata() -> FactTableMetadata {
                 indexed:  true,
             },
         ],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
 

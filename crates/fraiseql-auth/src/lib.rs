@@ -19,11 +19,11 @@ pub mod middleware;
 pub mod monitoring;
 pub mod multi_provider;
 pub mod oauth;
-pub mod otp;
 pub mod oidc_provider;
 pub mod oidc_server_client;
-pub mod phone_otp;
 pub mod operation_rbac;
+pub mod otp;
+pub mod phone_otp;
 pub mod pkce;
 pub mod provider;
 pub mod providers;
@@ -33,8 +33,8 @@ pub mod security_config;
 pub mod security_init;
 pub mod session;
 pub mod session_postgres;
-pub mod state_encryption;
 pub mod social;
+pub mod state_encryption;
 pub mod state_store;
 pub mod totp_mfa;
 
@@ -62,15 +62,15 @@ mod advanced_auth_integration_tests;
 #[cfg(test)]
 mod tests;
 
-pub use audit::logger::{
-    AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
-    get_audit_logger, init_audit_logger,
-};
 pub use account_linking::{
     AccountLinkResult, AccountRecord, AccountStore, InMemoryAccountStore, ProviderLink,
     normalize_email,
 };
 pub use anonymous::{AnonSignupResponse, AnonSignupState, anon_signup, upgrade_anonymous_session};
+pub use audit::logger::{
+    AuditEntry, AuditEventType, AuditExt, AuditLogger, SecretType, StructuredAuditLogger,
+    get_audit_logger, init_audit_logger,
+};
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 pub use error_sanitizer::{
@@ -83,11 +83,11 @@ pub use handlers::{
 pub use jwks::{JwksCache, JwksError};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use middleware::{AuthMiddleware, AuthenticatedUser};
+pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use multi_provider::{
     AuthTokenResponse, AuthorizeQuery, CallbackQuery, MultiProviderAuthState, ProvidersResponse,
     authorize, callback, list_providers,
 };
-pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use oauth::{
     AuthorizationRequest, ExternalAuthProvider, IdTokenClaims, NonceParameter, OAuth2Client,
     OAuth2ClientConfig, OAuthAuditEvent, OAuthSession, OIDCClient, OIDCProviderConfig,
@@ -101,12 +101,9 @@ pub use otp::{
     EmailDelivery, InMemoryOtpStore, NoopEmailDelivery, OtpRequest, OtpResponse, OtpRouteState,
     OtpStore, VerifyRequest, otp_send, otp_verify,
 };
-pub use social::{
-    SocialAuthorizeParams, SocialLoginState, SocialProviderRegistry, social_authorize,
-};
 pub use phone_otp::{
-    InMemorySmsSender, SmsOtpAuthState, SmsOtpRequest, SmsOtpResponse, SmsSender,
-    SmsVerifyRequest, SmsVerifyResponse, normalize_e164, send_sms_otp, verify_sms_otp,
+    InMemorySmsSender, SmsOtpAuthState, SmsOtpRequest, SmsOtpResponse, SmsSender, SmsVerifyRequest,
+    SmsVerifyResponse, normalize_e164, send_sms_otp, verify_sms_otp,
 };
 pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
@@ -123,12 +120,15 @@ pub use security_init::{
 };
 pub use session::{SessionData, SessionStore, TokenPair, unix_now};
 pub use session_postgres::PostgresSessionStore;
-pub use totp_mfa::{
-    EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore, TotpEnrollment,
-    mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify,
+pub use social::{
+    SocialAuthorizeParams, SocialLoginState, SocialProviderRegistry, social_authorize,
 };
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
     StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,
 };
 pub use state_store::{InMemoryStateStore, StateStore};
+pub use totp_mfa::{
+    EnrollmentResponse, InMemoryMfaStore, MfaRouteState, MfaStore, TotpEnrollment, mfa_challenge,
+    mfa_enroll, mfa_unenroll, mfa_verify,
+};

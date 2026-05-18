@@ -214,18 +214,18 @@ pub fn metadata_single_key(type_name: &str, key_field: &str) -> FederationMetada
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             type_name.to_string(),
-            keys:             vec![KeyDirective {
+        types: vec![FederatedType {
+            name:                type_name.to_string(),
+            keys:                vec![KeyDirective {
                 fields:     vec![key_field.to_string()],
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
-            shareable_fields: vec![],
-                inaccessible_fields: vec![],
-            field_directives: std::collections::HashMap::new(),
-            type_shareable: false,
+            is_extends:          false,
+            external_fields:     vec![],
+            shareable_fields:    vec![],
+            inaccessible_fields: vec![],
+            field_directives:    std::collections::HashMap::new(),
+            type_shareable:      false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     }
@@ -241,7 +241,7 @@ pub fn metadata_extended_type(
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
+        types: vec![FederatedType {
             name:                type_name.to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec![key_field.to_string()],
@@ -252,7 +252,7 @@ pub fn metadata_extended_type(
             shareable_fields:    shareable_fields.iter().map(|s| (*s).to_string()).collect(),
             inaccessible_fields: vec![],
             field_directives:    std::collections::HashMap::new(),
-            type_shareable: false,
+            type_shareable:      false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     }
@@ -263,18 +263,18 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![FederatedType {
-            name:             type_name.to_string(),
-            keys:             vec![KeyDirective {
+        types: vec![FederatedType {
+            name:                type_name.to_string(),
+            keys:                vec![KeyDirective {
                 fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
                 resolvable: true,
             }],
-            is_extends:       false,
-            external_fields:  vec![],
-            shareable_fields: vec![],
-                inaccessible_fields: vec![],
-            field_directives: std::collections::HashMap::new(),
-            type_shareable: false,
+            is_extends:          false,
+            external_fields:     vec![],
+            shareable_fields:    vec![],
+            inaccessible_fields: vec![],
+            field_directives:    std::collections::HashMap::new(),
+            type_shareable:      false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     }

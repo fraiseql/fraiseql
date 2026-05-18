@@ -6,8 +6,9 @@
 //! - Blocking private IP addresses (RFC 1918, loopback, link-local)
 //! - Blocking `IPv6` private ranges
 
-use fraiseql_error::{FraiseQLError, Result};
 use std::net::IpAddr;
+
+use fraiseql_error::{FraiseQLError, Result};
 
 /// Configuration for HTTP client validation.
 #[derive(Debug, Clone)]
@@ -29,10 +30,10 @@ pub struct HttpClientConfig {
 impl Default for HttpClientConfig {
     fn default() -> Self {
         Self {
-            allowed_domains: vec!["*".to_string()],
+            allowed_domains:    vec!["*".to_string()],
             max_response_bytes: 10 * 1024 * 1024, // 10 MB
             connect_timeout_ms: 5000,
-            read_timeout_ms: 30000,
+            read_timeout_ms:    30000,
         }
     }
 }
@@ -60,26 +61,22 @@ impl Default for HttpClientConfig {
 /// private/reserved IP address.
 pub fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Result<()> {
     // Parse the URL
-    let parsed_url = reqwest::Url::parse(url).map_err(|e| {
-        FraiseQLError::Validation {
-            message: format!("invalid URL: {}", e),
-            path: None,
-        }
+    let parsed_url = reqwest::Url::parse(url).map_err(|e| FraiseQLError::Validation {
+        message: format!("invalid URL: {}", e),
+        path:    None,
     })?;
 
     // Check domain allowlist
-    let host = parsed_url
-        .host_str()
-        .ok_or_else(|| FraiseQLError::Validation {
-            message: "URL has no host".to_string(),
-            path: None,
-        })?;
+    let host = parsed_url.host_str().ok_or_else(|| FraiseQLError::Validation {
+        message: "URL has no host".to_string(),
+        path:    None,
+    })?;
 
     // Check if host matches allowlist
     if !is_domain_allowed(host, &config.allowed_domains) {
         return Err(FraiseQLError::Authorization {
-            message: format!("domain '{}' not in allowlist", host),
-            action: Some("http_request".to_string()),
+            message:  format!("domain '{}' not in allowlist", host),
+            action:   Some("http_request".to_string()),
             resource: Some(host.to_string()),
         });
     }
@@ -140,11 +137,9 @@ fn parse_ip_from_host(host: &str) -> Result<IpAddr> {
         host
     };
 
-    clean_host.parse::<IpAddr>().map_err(|e| {
-        FraiseQLError::Validation {
-            message: format!("failed to parse IP address: {}", e),
-            path: None,
-        }
+    clean_host.parse::<IpAddr>().map_err(|e| FraiseQLError::Validation {
+        message: format!("failed to parse IP address: {}", e),
+        path:    None,
     })
 }
 
@@ -166,23 +161,23 @@ fn validate_ip(ip: &IpAddr) -> Result<()> {
                 || is_ipv4_reserved(*v4)
             {
                 return Err(FraiseQLError::Authorization {
-                    message: format!("private/reserved IP address not allowed: {}", v4),
-                    action: Some("http_request".to_string()),
+                    message:  format!("private/reserved IP address not allowed: {}", v4),
+                    action:   Some("http_request".to_string()),
                     resource: Some(v4.to_string()),
                 });
             }
             Ok(())
-        }
+        },
         IpAddr::V6(v6) => {
             if v6.is_loopback() || v6.is_unique_local() || v6.is_unicast_link_local() {
                 return Err(FraiseQLError::Authorization {
-                    message: format!("private IPv6 address not allowed: {}", v6),
-                    action: Some("http_request".to_string()),
+                    message:  format!("private IPv6 address not allowed: {}", v6),
+                    action:   Some("http_request".to_string()),
                     resource: Some(v6.to_string()),
                 });
             }
             Ok(())
-        }
+        },
     }
 }
 
@@ -195,179 +190,4 @@ const fn is_ipv4_reserved(ip: std::net::Ipv4Addr) -> bool {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_domain_allowed_with_wildcard() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["*".to_string()],
-            ..Default::default()
-        };
-        assert!(is_domain_allowed("example.com", &config.allowed_domains));
-        assert!(is_domain_allowed("any.domain.anywhere", &config.allowed_domains));
-    }
-
-    #[test]
-    fn test_is_domain_allowed_exact_match() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["example.com".to_string(), "safe.io".to_string()],
-            ..Default::default()
-        };
-        assert!(is_domain_allowed("example.com", &config.allowed_domains));
-        assert!(is_domain_allowed("safe.io", &config.allowed_domains));
-        assert!(!is_domain_allowed("other.com", &config.allowed_domains));
-    }
-
-    #[test]
-    fn test_is_domain_allowed_glob_pattern() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["*.example.com".to_string()],
-            ..Default::default()
-        };
-        assert!(is_domain_allowed("api.example.com", &config.allowed_domains));
-        assert!(is_domain_allowed("sub.api.example.com", &config.allowed_domains));
-        assert!(!is_domain_allowed("example.com", &config.allowed_domains));
-        assert!(!is_domain_allowed("other.com", &config.allowed_domains));
-    }
-
-    #[test]
-    fn test_parse_ip_ipv4() {
-        let ip = parse_ip_from_host("192.168.1.1").unwrap();
-        assert_eq!(ip.to_string(), "192.168.1.1");
-    }
-
-    #[test]
-    fn test_parse_ip_ipv6_with_brackets() {
-        let ip = parse_ip_from_host("[::1]").unwrap();
-        assert_eq!(ip.to_string(), "::1");
-    }
-
-    #[test]
-    fn test_parse_ip_ipv6_without_brackets() {
-        let ip = parse_ip_from_host("::1").unwrap();
-        assert_eq!(ip.to_string(), "::1");
-    }
-
-    #[test]
-    fn test_validate_ip_blocks_loopback_v4() {
-        let ip = "127.0.0.1".parse::<IpAddr>().unwrap();
-        assert!(validate_ip(&ip).is_err());
-    }
-
-    #[test]
-    fn test_validate_ip_blocks_private_v4() {
-        let ips = vec!["10.0.0.1", "172.16.0.1", "192.168.1.1"];
-        for ip_str in ips {
-            let ip = ip_str.parse::<IpAddr>().unwrap();
-            assert!(validate_ip(&ip).is_err(), "should block {}", ip_str);
-        }
-    }
-
-    #[test]
-    fn test_validate_ip_blocks_link_local_v4() {
-        let ip = "169.254.1.1".parse::<IpAddr>().unwrap();
-        assert!(validate_ip(&ip).is_err());
-    }
-
-    #[test]
-    fn test_validate_ip_allows_public_v4() {
-        let ips = vec!["8.8.8.8", "1.1.1.1", "208.67.222.222"];
-        for ip_str in ips {
-            let ip = ip_str.parse::<IpAddr>().unwrap();
-            assert!(validate_ip(&ip).is_ok(), "should allow {}", ip_str);
-        }
-    }
-
-    #[test]
-    fn test_validate_ip_blocks_loopback_v6() {
-        let ip = "::1".parse::<IpAddr>().unwrap();
-        assert!(validate_ip(&ip).is_err());
-    }
-
-    #[test]
-    fn test_validate_ip_blocks_link_local_v6() {
-        let ip = "fe80::1".parse::<IpAddr>().unwrap();
-        assert!(validate_ip(&ip).is_err());
-    }
-
-    #[test]
-    fn test_validate_ip_blocks_unique_local_v6() {
-        let ips = vec!["fd00::1", "fc00::1"];
-        for ip_str in ips {
-            let ip = ip_str.parse::<IpAddr>().unwrap();
-            assert!(validate_ip(&ip).is_err(), "should block {}", ip_str);
-        }
-    }
-
-    #[test]
-    fn test_validate_ip_allows_public_v6() {
-        let ips = vec!["2001:4860:4860::8888", "2606:4700:4700::1111"];
-        for ip_str in ips {
-            let ip = ip_str.parse::<IpAddr>().unwrap();
-            assert!(validate_ip(&ip).is_ok(), "should allow {}", ip_str);
-        }
-    }
-
-    #[test]
-    fn test_validate_outbound_url_valid() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["example.com".to_string()],
-            ..Default::default()
-        };
-        assert!(validate_outbound_url("https://example.com/api", &config).is_ok());
-    }
-
-    #[test]
-    fn test_validate_outbound_url_invalid_domain() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["example.com".to_string()],
-            ..Default::default()
-        };
-        assert!(validate_outbound_url("https://other.com/api", &config).is_err());
-    }
-
-    #[test]
-    fn test_validate_outbound_url_blocks_private_ip() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["*".to_string()],
-            ..Default::default()
-        };
-        assert!(validate_outbound_url("http://127.0.0.1/api", &config).is_err());
-        assert!(validate_outbound_url("http://192.168.1.1/api", &config).is_err());
-        assert!(validate_outbound_url("http://10.0.0.1/api", &config).is_err());
-    }
-
-    #[test]
-    fn test_validate_outbound_url_blocks_ipv6_loopback() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["*".to_string()],
-            ..Default::default()
-        };
-        assert!(validate_outbound_url("http://[::1]/api", &config).is_err());
-    }
-
-    #[test]
-    fn test_validate_outbound_url_blocks_ipv6_link_local() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["*".to_string()],
-            ..Default::default()
-        };
-        assert!(validate_outbound_url("http://[fe80::1]/api", &config).is_err());
-    }
-
-    #[test]
-    fn test_validate_outbound_url_allows_public_ip() {
-        let config = HttpClientConfig {
-            allowed_domains: vec!["*".to_string()],
-            ..Default::default()
-        };
-        assert!(validate_outbound_url("http://8.8.8.8/api", &config).is_ok());
-    }
-
-    #[test]
-    fn test_validate_outbound_url_invalid_url() {
-        let config = HttpClientConfig::default();
-        assert!(validate_outbound_url("not a valid url", &config).is_err());
-    }
-}
+mod tests;

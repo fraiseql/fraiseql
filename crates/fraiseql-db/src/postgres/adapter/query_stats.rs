@@ -95,10 +95,7 @@ impl PostgresAdapter {
     /// # Errors
     ///
     /// Returns `FraiseQLError::Database` if the SQL query fails.
-    pub(crate) async fn pg_query_stats_by_id(
-        &self,
-        id: &str,
-    ) -> Result<Option<QueryStatEntry>> {
+    pub(crate) async fn pg_query_stats_by_id(&self, id: &str) -> Result<Option<QueryStatEntry>> {
         if !self.has_pg_stat_statements().await? {
             return Ok(None);
         }
@@ -142,13 +139,12 @@ impl PostgresAdapter {
         }
 
         let client = self.acquire_connection_with_retry().await?;
-        client
-            .execute("SELECT pg_stat_statements_reset()", &[])
-            .await
-            .map_err(|e| FraiseQLError::Database {
+        client.execute("SELECT pg_stat_statements_reset()", &[]).await.map_err(|e| {
+            FraiseQLError::Database {
                 message:   format!("Failed to reset pg_stat_statements: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
+            }
+        })?;
         Ok(())
     }
 }

@@ -355,8 +355,8 @@ impl SchemaConverter {
     /// Convert `IntermediateFactTable` to `FactTableMetadata`.
     fn convert_fact_table(ft: IntermediateFactTable) -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           ft.table_name,
-            measures:             ft
+            table_name:               ft.table_name,
+            measures:                 ft
                 .measures
                 .into_iter()
                 .map(|m| MeasureColumn {
@@ -365,7 +365,7 @@ impl SchemaConverter {
                     nullable: m.nullable,
                 })
                 .collect(),
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  ft.dimensions.name,
                 paths: ft
                     .dimensions
@@ -378,7 +378,7 @@ impl SchemaConverter {
                     })
                     .collect(),
             },
-            denormalized_filters: ft
+            denormalized_filters:     ft
                 .denormalized_filters
                 .into_iter()
                 .map(|f| FilterColumn {
@@ -387,9 +387,9 @@ impl SchemaConverter {
                     indexed:  f.indexed,
                 })
                 .collect(),
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      ft.native_measures,
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          ft.native_measures,
             native_dimension_mapping: ft.native_dimension_mapping,
         }
     }

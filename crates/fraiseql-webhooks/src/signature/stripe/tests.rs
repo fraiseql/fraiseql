@@ -22,8 +22,7 @@ fn test_valid_signature() {
     let verifier = StripeVerifier::with_clock(clock);
     let payload = b"test payload";
     let secret = "whsec_test";
-    let signature =
-        generate_signature(&String::from_utf8_lossy(payload), secret, 1_679_076_299);
+    let signature = generate_signature(&String::from_utf8_lossy(payload), secret, 1_679_076_299);
 
     assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
 }

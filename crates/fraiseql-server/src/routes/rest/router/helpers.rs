@@ -12,8 +12,8 @@ use super::{RestError, RestResponse, StatusCode};
 ///
 /// Converts `{id}` path parameters to Axum's `:id` syntax.
 pub(super) fn to_axum_path(base_path: &str, route_path: &str) -> String {
-    let pattern = route_path.replace('{', ":").replace('}', "");
-    format!("{base_path}{pattern}")
+    let base = base_path.trim_end_matches('/');
+    format!("{base}{route_path}")
 }
 
 /// Strip the base path from a request path to get the route-relative path.
@@ -34,17 +34,13 @@ pub(super) fn parse_query_pairs(query: &str) -> Vec<(String, String)> {
     let mut pairs = Vec::new();
     for part in query.split('&') {
         if let Some((key, value)) = part.split_once('=') {
-            let decoded_key = urlencoding::decode(key)
-                .unwrap_or_else(|_| key.into())
-                .into_owned();
-            let decoded_value = urlencoding::decode(value)
-                .unwrap_or_else(|_| value.into())
-                .into_owned();
+            let decoded_key = urlencoding::decode(key).unwrap_or_else(|_| key.into()).into_owned();
+            let decoded_value =
+                urlencoding::decode(value).unwrap_or_else(|_| value.into()).into_owned();
             pairs.push((decoded_key, decoded_value));
         } else if !part.is_empty() {
-            let decoded_key = urlencoding::decode(part)
-                .unwrap_or_else(|_| part.into())
-                .into_owned();
+            let decoded_key =
+                urlencoding::decode(part).unwrap_or_else(|_| part.into()).into_owned();
             pairs.push((decoded_key, String::new()));
         }
     }

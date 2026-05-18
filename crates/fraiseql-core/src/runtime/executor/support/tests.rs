@@ -4,9 +4,6 @@
 
 mod explain_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::executor::support::explain::*;
-
-
     use std::sync::Arc;
 
     use async_trait::async_trait;
@@ -18,7 +15,7 @@ mod explain_tests {
             types::{JsonbValue, OrderByClause},
         },
         error::{FraiseQLError, Result},
-        runtime::Executor,
+        runtime::{Executor, executor::support::explain::*},
         schema::{CompiledSchema, MutationDefinition, QueryDefinition},
     };
 
@@ -159,19 +156,17 @@ mod explain_tests {
 
 mod pipeline_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    use crate::runtime::executor::support::pipeline::*;
-
-
     use std::sync::Arc;
 
     use async_trait::async_trait;
+
     use crate::{
         db::{
             WhereClause,
             types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         },
         graphql::{ParsedQuery, parse_query},
-        runtime::Executor,
+        runtime::{Executor, executor::support::pipeline::*},
         schema::{CompiledSchema, QueryDefinition, SqlProjectionHint},
     };
 

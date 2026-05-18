@@ -17,7 +17,7 @@ mod tests;
 
 pub use broadcast::{BroadcastConfig, BroadcastManager, BroadcastMessage};
 pub use event_bridge::{EntityEvent, EventBridge, EventBridgeConfig};
-pub use presence::{PresenceConfig, PresenceManager};
 pub use lifecycle::{NoopLifecycle, SubscriptionLifecycle};
+pub use presence::{PresenceConfig, PresenceManager};
 pub use protocol::{ProtocolCodec, ProtocolError, WsProtocol};
 pub use webhook_lifecycle::WebhookLifecycle;

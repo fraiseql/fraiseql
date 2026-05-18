@@ -724,8 +724,7 @@ mod audit_tests {
 }
 
 mod claims_validator_tests {
-    use super::super::claims_validator::*;
-    use super::super::types::IdTokenClaims;
+    use super::super::{claims_validator::*, types::IdTokenClaims};
     use crate::error::AuthError;
 
     fn make_claims(nonce: Option<&str>, auth_time: Option<i64>) -> IdTokenClaims {
@@ -1061,8 +1060,7 @@ mod types_tests {
     #[test]
     fn test_temporal_claims_iat_too_far_in_future() {
         let now = Utc::now().timestamp();
-        let max_skew =
-            i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
+        let max_skew = i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
         let claims = make_temporal_claims(now + max_skew + 60, None);
         let err = claims
             .validate_temporal_claims()
@@ -1082,8 +1080,7 @@ mod types_tests {
     #[test]
     fn test_temporal_claims_nbf_in_future_rejected() {
         let now = Utc::now().timestamp();
-        let max_skew =
-            i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
+        let max_skew = i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
         let claims = make_temporal_claims(now - 60, Some(now + max_skew + 60));
         let err = claims.validate_temporal_claims().expect_err("nbf in future must be rejected");
         assert!(err.contains("nbf"), "error message must mention nbf, got: {err}");
@@ -1101,8 +1098,7 @@ mod types_tests {
     #[test]
     fn test_temporal_claims_iat_within_clock_skew_accepted() {
         let now = Utc::now().timestamp();
-        let max_skew =
-            i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
+        let max_skew = i64::try_from(MAX_CLOCK_SKEW_SECS).expect("MAX_CLOCK_SKEW_SECS fits in i64");
         // 100s in future — within the 300s skew window
         let claims = make_temporal_claims(now + 100_i64.min(max_skew - 1), None);
         claims
@@ -1834,9 +1830,8 @@ mod client_tests {
     #[tokio::test]
     async fn verify_id_token_rejects_jku_header() {
         let client = fake_oidc_client();
-        let token = fake_jwt_with_header(
-            r#"{"alg":"RS256","kid":"k1","jku":"https://evil.example/keys"}"#,
-        );
+        let token =
+            fake_jwt_with_header(r#"{"alg":"RS256","kid":"k1","jku":"https://evil.example/keys"}"#);
 
         let result = client.verify_id_token(&token, None, None).await;
         assert!(result.is_err(), "jku header must be rejected: {result:?}");

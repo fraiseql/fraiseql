@@ -32,8 +32,8 @@ use serde_json::json;
 /// Helper to create test fact table metadata for `tf_sales`
 fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![
             MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -45,7 +45,7 @@ fn create_test_metadata() -> FactTableMetadata {
                 nullable: false,
             },
         ],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![
                 DimensionPath {
@@ -60,12 +60,12 @@ fn create_test_metadata() -> FactTableMetadata {
                 },
             ],
         },
-        denormalized_filters: vec![FilterColumn {
+        denormalized_filters:     vec![FilterColumn {
             name:     "occurred_at".to_string(),
             sql_type: SqlType::Timestamp,
             indexed:  true,
         }],
-        calendar_dimensions:  vec![CalendarDimension {
+        calendar_dimensions:      vec![CalendarDimension {
             source_column: "occurred_at".to_string(),
             granularities: vec![CalendarGranularity {
                 column_name: "date_info".to_string(),
@@ -83,9 +83,9 @@ fn create_test_metadata() -> FactTableMetadata {
                 ],
             }],
         }],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
 

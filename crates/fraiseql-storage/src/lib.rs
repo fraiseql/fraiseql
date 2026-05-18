@@ -1,7 +1,8 @@
 //! Object storage abstraction layer for FraiseQL.
 //!
 //! Provides enum-based dispatch to local filesystem, AWS S3, Google Cloud Storage,
-//! Azure Blob Storage, and S3-compatible European providers (Hetzner, Scaleway, OVH, Exoscale, Backblaze, R2).
+//! Azure Blob Storage, and S3-compatible European providers (Hetzner, Scaleway, OVH, Exoscale,
+//! Backblaze, R2).
 //!
 //! # Architecture
 //!
@@ -26,29 +27,26 @@ pub mod service;
 pub mod transforms;
 
 // Re-exports for convenience
-pub use backend::{
-    StorageBackend, LocalBackend, PresignedUrl,
-    validate_key, create_backend,
-    types::{ListResult, ObjectInfo, ObjectMetadata, StorageObject, PutResult},
-};
-
-#[cfg(feature = "aws-s3")]
-pub use backend::PresignCapable;
-pub use config::{BucketConfig, BucketAccess, StorageConfig};
-pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
-pub use service::BucketService;
-pub use metadata::{StorageMetadataRepo, StorageMetadataRow, NewStorageObject};
-pub use rls::StorageRlsEvaluator;
-pub use routes::{StorageState, StorageUser, storage_router};
-
-#[cfg(feature = "aws-s3")]
-pub use backend::S3Backend;
-
-#[cfg(feature = "gcs")]
-pub use backend::GcsBackend;
-
 #[cfg(feature = "azure-blob")]
 pub use backend::AzureBackend;
-
+#[cfg(feature = "gcs")]
+pub use backend::GcsBackend;
+#[cfg(feature = "aws-s3")]
+pub use backend::PresignCapable;
+#[cfg(feature = "aws-s3")]
+pub use backend::S3Backend;
+pub use backend::{
+    LocalBackend, PresignedUrl, StorageBackend, create_backend,
+    types::{ListResult, ObjectInfo, ObjectMetadata, PutResult, StorageObject},
+    validate_key,
+};
+pub use config::{BucketAccess, BucketConfig, StorageConfig};
+pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
+pub use metadata::{NewStorageObject, StorageMetadataRepo, StorageMetadataRow};
+pub use rls::StorageRlsEvaluator;
+pub use routes::{StorageState, StorageUser, storage_router};
+pub use service::BucketService;
 #[cfg(feature = "transforms")]
-pub use transforms::{ImageTransformer, OutputFormat, TransformOutput, TransformParams, TransformCache};
+pub use transforms::{
+    ImageTransformer, OutputFormat, TransformCache, TransformOutput, TransformParams,
+};

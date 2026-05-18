@@ -11,11 +11,15 @@
 //! an integer microsecond sum, and a total count. This design avoids `Mutex` contention
 //! on the hot `record()` path and produces correct Prometheus histogram text exposition.
 
-use std::collections::HashMap;
-use std::fmt::Write as _;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    fmt::Write as _,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 use dashmap::DashMap;
 
@@ -28,13 +32,13 @@ pub const LATENCY_BUCKETS_SECS: [f64; 10] = [
 #[derive(Debug)]
 pub struct SubgraphHistogram {
     /// Cumulative bucket counts: `[0..9]` for `LATENCY_BUCKETS_SECS[i]`, `[10]` = +Inf.
-    bucket_counts: [AtomicU64; 11],
+    bucket_counts:    [AtomicU64; 11],
     /// Sum of all recorded durations in microseconds (integer to avoid f64 atomics).
     sum_microseconds: AtomicU64,
     /// Total number of observations.
-    count: AtomicU64,
+    count:            AtomicU64,
     /// Number of successful observations.
-    success_count: AtomicU64,
+    success_count:    AtomicU64,
 }
 
 impl SubgraphHistogram {
@@ -77,19 +81,19 @@ impl SubgraphHistogram {
 #[derive(Debug, Clone)]
 pub struct SubgraphLatencyEntry {
     /// Subgraph name or URL
-    pub subgraph: String,
+    pub subgraph:     String,
     /// Duration of the fetch
-    pub duration: Duration,
+    pub duration:     Duration,
     /// Number of entities resolved in this fetch
     pub entity_count: usize,
     /// Whether the fetch succeeded
-    pub success: bool,
+    pub success:      bool,
 }
 
 /// Per-subgraph latency tracker for federation queries.
 ///
 /// Records timing for each subgraph fetch using lock-free atomic histogram buckets.
-/// Produces standard Prometheus text exposition via [`to_prometheus_histogram`].
+/// Produces standard Prometheus text exposition via `to_prometheus_histogram`.
 #[derive(Debug, Default)]
 pub struct SubgraphLatencyTracker {
     histograms: DashMap<String, Arc<SubgraphHistogram>>,
@@ -270,9 +274,9 @@ impl SubgraphTimer<'_> {
 #[derive(Debug)]
 pub struct EntityResolutionMetrics {
     /// Total successful entity resolutions
-    pub success_total: AtomicU64,
+    pub success_total:           AtomicU64,
     /// Total failed entity resolutions
-    pub failure_total: AtomicU64,
+    pub failure_total:           AtomicU64,
     /// Total entities resolved
     pub entities_resolved_total: AtomicU64,
 }
@@ -281,8 +285,8 @@ impl EntityResolutionMetrics {
     /// Create new zero-initialized metrics.
     pub const fn new() -> Self {
         Self {
-            success_total:          AtomicU64::new(0),
-            failure_total:          AtomicU64::new(0),
+            success_total:           AtomicU64::new(0),
+            failure_total:           AtomicU64::new(0),
             entities_resolved_total: AtomicU64::new(0),
         }
     }

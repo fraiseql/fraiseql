@@ -15,9 +15,9 @@ use fraiseql_server::routes::studio::data::{
 #[test]
 fn test_data_query_response_shape() {
     let resp = DataQueryResponse {
-        rows: vec![serde_json::json!({"id": 1, "name": "Alice"})],
-        total: 42,
-        page: 1,
+        rows:      vec![serde_json::json!({"id": 1, "name": "Alice"})],
+        total:     42,
+        page:      1,
         page_size: 50,
     };
     let json = serde_json::to_string(&resp).unwrap();

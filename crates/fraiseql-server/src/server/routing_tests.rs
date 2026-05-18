@@ -6,18 +6,14 @@
 //! 404 (route not mounted) or something else (handler ran).
 //!
 //! Concretely:
-//! - `GET /realtime/v1` without a `WebSocket` `Upgrade` header → **400** when the
-//!   realtime router is merged (handler exists but rejects non-WS requests), or
-//!   **404** when it is not.
-//! - `GET /storage/v1/list/{bucket}` → **non-404** when the storage router is
-//!   merged (handler runs, may return 401/500 due to auth/DB), or **404** when
-//!   it is not.
+//! - `GET /realtime/v1` without a `WebSocket` `Upgrade` header → **400** when the realtime router
+//!   is merged (handler exists but rejects non-WS requests), or **404** when it is not.
+//! - `GET /storage/v1/list/{bucket}` → **non-404** when the storage router is merged (handler runs,
+//!   may return 401/500 due to auth/DB), or **404** when it is not.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use axum::{Router, routing::get};
 use fraiseql_storage::{
@@ -55,9 +51,9 @@ impl TokenValidator for AlwaysOkValidator {
     fn validate<'a>(&'a self, _token: &'a str) -> BoxFuture<'a, Result<TokenInfo, String>> {
         Box::pin(async move {
             Ok(TokenInfo {
-                user_id: "test-user".to_string(),
+                user_id:      "test-user".to_string(),
                 context_hash: 0,
-                expires_at: i64::MAX,
+                expires_at:   i64::MAX,
             })
         })
     }
@@ -69,7 +65,10 @@ fn realtime_state() -> RealtimeState {
         RealtimeConfig::default(),
         ["TestEntity".to_string()].into(),
     ));
-    RealtimeState { server, validator: Arc::new(AlwaysOkValidator) }
+    RealtimeState {
+        server,
+        validator: Arc::new(AlwaysOkValidator),
+    }
 }
 
 /// Build a `StorageState` backed by a temp directory with one public-read bucket.
@@ -80,18 +79,18 @@ async fn storage_state(bucket: &str) -> StorageState {
     buckets.insert(
         bucket.to_string(),
         BucketConfig {
-            name: bucket.to_string(),
-            max_object_bytes: None,
+            name:               bucket.to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: None,
-            access: BucketAccess::PublicRead,
-            transform_presets: None,
+            access:             BucketAccess::PublicRead,
+            transform_presets:  None,
         },
     );
     StorageState {
-        backend: Arc::new(backend),
+        backend:  Arc::new(backend),
         metadata: Arc::new(StorageMetadataRepo::new(lazy_pool())),
-        rls: StorageRlsEvaluator::new(),
-        buckets: Arc::new(buckets),
+        rls:      StorageRlsEvaluator::new(),
+        buckets:  Arc::new(buckets),
     }
 }
 
@@ -124,10 +123,7 @@ async fn test_realtime_route_not_mounted_when_disabled() {
     let router = Router::new().route("/health", get(|| async { "ok" }));
 
     let addr = spawn(router).await;
-    let status = reqwest::get(format!("http://{addr}/realtime/v1"))
-        .await
-        .unwrap()
-        .status();
+    let status = reqwest::get(format!("http://{addr}/realtime/v1")).await.unwrap().status();
 
     assert_eq!(status.as_u16(), 404, "/realtime/v1 should not be mounted");
 }
@@ -145,8 +141,10 @@ async fn test_storage_routes_mounted_when_enabled() {
         .merge(fraiseql_storage::storage_router(state));
 
     let addr = spawn(router).await;
-    let status =
-        reqwest::get(format!("http://{addr}/storage/v1/list/public-test")).await.unwrap().status();
+    let status = reqwest::get(format!("http://{addr}/storage/v1/list/public-test"))
+        .await
+        .unwrap()
+        .status();
 
     assert_ne!(status.as_u16(), 404, "/storage/v1/list should be mounted (got {status})");
 }
@@ -158,8 +156,10 @@ async fn test_storage_routes_not_mounted_when_disabled() {
     let router = Router::new().route("/health", get(|| async { "ok" }));
 
     let addr = spawn(router).await;
-    let status =
-        reqwest::get(format!("http://{addr}/storage/v1/list/public-test")).await.unwrap().status();
+    let status = reqwest::get(format!("http://{addr}/storage/v1/list/public-test"))
+        .await
+        .unwrap()
+        .status();
 
     assert_eq!(status.as_u16(), 404, "/storage/v1 routes should not be mounted");
 }
@@ -185,11 +185,15 @@ async fn test_existing_routes_unaffected_when_subsystems_added() {
     assert_eq!(health_status.as_u16(), 200);
 
     // Both subsystem routes exist (non-404)
-    let rt_status =
-        reqwest::get(format!("http://{addr}/realtime/v1?token=test")).await.unwrap().status();
+    let rt_status = reqwest::get(format!("http://{addr}/realtime/v1?token=test"))
+        .await
+        .unwrap()
+        .status();
     assert_ne!(rt_status.as_u16(), 404);
 
-    let st_status =
-        reqwest::get(format!("http://{addr}/storage/v1/list/coexist-test")).await.unwrap().status();
+    let st_status = reqwest::get(format!("http://{addr}/storage/v1/list/coexist-test"))
+        .await
+        .unwrap()
+        .status();
     assert_ne!(st_status.as_u16(), 404);
 }

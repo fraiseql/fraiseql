@@ -149,8 +149,7 @@ mod resilience_mod_tests {
 mod degradation_tests {
     use std::sync::Arc;
 
-    use super::super::degradation::*;
-    use super::super::{CircuitBreaker, CircuitBreakerConfig};
+    use super::super::{CircuitBreaker, CircuitBreakerConfig, degradation::*};
 
     #[tokio::test]
     async fn test_degradation_creation() {
@@ -215,8 +214,7 @@ mod degradation_tests {
 
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod per_endpoint_tests {
-    use super::super::per_endpoint::*;
-    use super::super::{CircuitBreakerConfig, CircuitState};
+    use super::super::{CircuitBreakerConfig, CircuitState, per_endpoint::*};
     use crate::error::ObserverError;
 
     #[tokio::test]
@@ -300,8 +298,7 @@ mod per_endpoint_tests {
 mod strategies_tests {
     use std::sync::Arc;
 
-    use super::super::strategies::*;
-    use super::super::{CircuitBreaker, CircuitBreakerConfig};
+    use super::super::{CircuitBreaker, CircuitBreakerConfig, strategies::*};
 
     #[tokio::test]
     async fn test_strategy_fail_fast() {

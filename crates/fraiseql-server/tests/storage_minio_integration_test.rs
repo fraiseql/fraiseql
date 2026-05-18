@@ -32,10 +32,8 @@ mod minio_tests {
 
     use aws_config::BehaviorVersion;
     use aws_sdk_s3::{Client, config::Credentials};
+    use fraiseql_server::storage::{S3StorageBackend, StorageBackend as _};
     use testcontainers_modules::{minio::MinIO, testcontainers::runners::AsyncRunner};
-
-    use fraiseql_server::storage::S3StorageBackend;
-    use fraiseql_server::storage::StorageBackend as _;
 
     const BUCKET: &str = "fraiseql-test";
     const MINIO_USER: &str = "minioadmin";
@@ -51,9 +49,7 @@ mod minio_tests {
             .credentials_provider(creds)
             .load()
             .await;
-        let s3_cfg = aws_sdk_s3::config::Builder::from(&config)
-            .force_path_style(true)
-            .build();
+        let s3_cfg = aws_sdk_s3::config::Builder::from(&config).force_path_style(true).build();
         Client::from_conf(s3_cfg)
     }
 
@@ -89,21 +85,15 @@ mod minio_tests {
 
         // Create the test bucket via the SDK client
         let s3 = build_s3_client(&endpoint).await;
-        s3.create_bucket()
-            .bucket(BUCKET)
-            .send()
-            .await
-            .expect("create test bucket");
+        s3.create_bucket().bucket(BUCKET).send().await.expect("create test bucket");
 
         let backend = build_backend(&endpoint).await;
 
         // --- upload ---
         let key = "test/hello.txt";
         let content = b"Hello from FraiseQL storage!";
-        let stored_key = backend
-            .upload(key, content, "text/plain")
-            .await
-            .expect("upload should succeed");
+        let stored_key =
+            backend.upload(key, content, "text/plain").await.expect("upload should succeed");
         assert_eq!(stored_key, key);
 
         // --- exists ---
@@ -112,11 +102,7 @@ mod minio_tests {
 
         // --- download ---
         let downloaded = backend.download(key).await.expect("download should succeed");
-        assert_eq!(
-            downloaded.as_slice(),
-            content,
-            "downloaded content must match uploaded bytes"
-        );
+        assert_eq!(downloaded.as_slice(), content, "downloaded content must match uploaded bytes");
 
         // --- delete ---
         backend.delete(key).await.expect("delete should succeed");
@@ -135,11 +121,7 @@ mod minio_tests {
         let endpoint = format!("http://127.0.0.1:{port}");
 
         let s3 = build_s3_client(&endpoint).await;
-        s3.create_bucket()
-            .bucket(BUCKET)
-            .send()
-            .await
-            .expect("create test bucket");
+        s3.create_bucket().bucket(BUCKET).send().await.expect("create test bucket");
 
         let backend = build_backend(&endpoint).await;
 
@@ -165,11 +147,7 @@ mod minio_tests {
         let resp = reqwest::get(&url).await.expect("GET presigned URL");
         assert_eq!(resp.status(), 200, "presigned URL should return 200 OK");
         let body = resp.bytes().await.expect("response body");
-        assert_eq!(
-            body.as_ref(),
-            payload,
-            "body via presigned URL must match uploaded bytes"
-        );
+        assert_eq!(body.as_ref(), payload, "body via presigned URL must match uploaded bytes");
     }
 
     /// Tenant isolation: key prefixes separate two tenants' namespaces.
@@ -181,11 +159,7 @@ mod minio_tests {
         let endpoint = format!("http://127.0.0.1:{port}");
 
         let s3 = build_s3_client(&endpoint).await;
-        s3.create_bucket()
-            .bucket(BUCKET)
-            .send()
-            .await
-            .expect("create test bucket");
+        s3.create_bucket().bucket(BUCKET).send().await.expect("create test bucket");
 
         let backend = build_backend(&endpoint).await;
 

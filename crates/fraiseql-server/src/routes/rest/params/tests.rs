@@ -285,10 +285,7 @@ fn bracket_operator_filter() {
     let ext = extractor_list(&config, &qd, &td);
 
     let result = ext.extract(&[], &[("name[icontains]", "Ali")]).unwrap();
-    assert_eq!(
-        result.where_clause,
-        Some(serde_json::json!({ "name": { "icontains": "Ali" } }))
-    );
+    assert_eq!(result.where_clause, Some(serde_json::json!({ "name": { "icontains": "Ali" } })));
 }
 
 #[test]
@@ -511,8 +508,7 @@ fn coerce_json_value() {
 
 #[test]
 fn coerce_list_csv() {
-    let result =
-        coerce_to_type("a,b,c", &FieldType::List(Box::new(FieldType::String))).unwrap();
+    let result = coerce_to_type("a,b,c", &FieldType::List(Box::new(FieldType::String))).unwrap();
     assert_eq!(result, serde_json::json!(["a", "b", "c"]));
 }
 

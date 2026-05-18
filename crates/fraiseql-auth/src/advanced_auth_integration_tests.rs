@@ -55,9 +55,7 @@ async fn test_mfa_enroll_then_challenge_verify_integration() {
         6,
         1,
         30,
-        totp_rs::Secret::Encoded(enrollment.secret_base32.clone())
-            .to_bytes()
-            .unwrap(),
+        totp_rs::Secret::Encoded(enrollment.secret_base32.clone()).to_bytes().unwrap(),
         None,
         String::new(),
     )
@@ -69,10 +67,7 @@ async fn test_mfa_enroll_then_challenge_verify_integration() {
     // Create challenge and verify with TOTP code
     let challenge_token = mfa_store.create_challenge("user-42").await.unwrap();
     let verify_code = totp.generate_current().unwrap();
-    let user_id = mfa_store
-        .verify_challenge(&challenge_token, &verify_code)
-        .await
-        .unwrap();
+    let user_id = mfa_store.verify_challenge(&challenge_token, &verify_code).await.unwrap();
     assert_eq!(user_id, "user-42");
 
     // Verify with recovery code via a new challenge
@@ -95,10 +90,10 @@ async fn test_sms_otp_same_phone_returns_same_user() {
     let sms_sender = Arc::new(InMemorySmsSender::new());
 
     let state = Arc::new(SmsOtpAuthState {
-        otp_store:     otp_store as Arc<dyn OtpStore>,
-        sms_sender:    sms_sender.clone(),
+        otp_store: otp_store as Arc<dyn OtpStore>,
+        sms_sender: sms_sender.clone(),
         session_store,
-        user_store:    Some(account_store.clone() as Arc<dyn AccountStore>),
+        user_store: Some(account_store.clone() as Arc<dyn AccountStore>),
     });
     let app = Router::new()
         .route("/auth/v1/otp/sms", post(send_sms_otp))

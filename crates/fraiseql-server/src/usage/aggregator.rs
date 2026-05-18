@@ -18,7 +18,10 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, OnceLock, atomic::{AtomicU64, Ordering}},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use dashmap::DashMap;
@@ -142,7 +145,7 @@ pub struct UsageAggregator {
     /// (e.g. to upgrade from `NoopBackend` to `PostgresBackend` once the DB pool
     /// is available at server startup, after the tracing subscriber has already
     /// taken a reference via [`global_aggregator`]).
-    backend: std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
+    backend:  std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
 }
 
 impl std::fmt::Debug for UsageAggregator {
@@ -159,7 +162,7 @@ impl UsageAggregator {
     pub fn new() -> Self {
         Self {
             counters: DashMap::new(),
-            backend: std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
+            backend:  std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
         }
     }
 
@@ -168,7 +171,7 @@ impl UsageAggregator {
     pub fn new_with_backend(backend: std::sync::Arc<dyn UsageBackend>) -> Self {
         Self {
             counters: DashMap::new(),
-            backend: std::sync::RwLock::new(backend),
+            backend:  std::sync::RwLock::new(backend),
         }
     }
 
@@ -190,11 +193,7 @@ impl UsageAggregator {
     /// This method is lock-free on the hot path: it uses [`AtomicU64::fetch_add`]
     /// after the initial shard lock in [`DashMap::entry`].
     pub fn record(&self, event: &MutationAuditEvent) {
-        let key = (
-            event.tenant_id.clone(),
-            event.period.clone(),
-            event.entity_type.clone(),
-        );
+        let key = (event.tenant_id.clone(), event.period.clone(), event.entity_type.clone());
         self.counters
             .entry(key)
             .or_insert_with(|| AtomicU64::new(0))
@@ -303,7 +302,9 @@ pub trait UsageBackend: Send + Sync {
     /// # Errors
     ///
     /// Returns an error if the backing store is unavailable or the read fails.
-    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String>;
+    async fn load(
+        &self,
+    ) -> Result<std::collections::HashMap<(String, String, String), u64>, String>;
 }
 
 /// No-op backend — counters are in-memory only, lost on restart.
@@ -367,7 +368,9 @@ impl UsageBackend for RedisBackend {
         Ok(())
     }
 
-    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
+    async fn load(
+        &self,
+    ) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
         use ::redis::AsyncCommands as _;
 
         let mut conn = self.client.clone();
@@ -410,7 +413,9 @@ impl UsageBackend for NoopBackend {
         Ok(())
     }
 
-    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
+    async fn load(
+        &self,
+    ) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
         Ok(std::collections::HashMap::new())
     }
 }
@@ -496,7 +501,9 @@ impl UsageBackend for PostgresBackend {
         Ok(())
     }
 
-    async fn load(&self) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
+    async fn load(
+        &self,
+    ) -> Result<std::collections::HashMap<(String, String, String), u64>, String> {
         let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
             "SELECT tenant_id, period, entity_type, count
              FROM fraiseql_usage_counters",

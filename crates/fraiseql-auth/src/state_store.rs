@@ -67,9 +67,9 @@ pub trait StateStore: Send + Sync {
 #[derive(Debug)]
 pub struct InMemoryStateStore {
     // Map of state -> (provider, expiry_secs)
-    pub(crate) states:     Arc<DashMap<String, (String, u64)>>,
+    pub(crate) states: Arc<DashMap<String, (String, u64)>>,
     // Maximum number of states to store (prevents memory exhaustion)
-    max_states: usize,
+    max_states:        usize,
 }
 
 impl InMemoryStateStore {

@@ -402,8 +402,10 @@ fn test_domain_registry_register_lookup_remove() {
 fn test_tenant_key_priority_jwt_over_header_over_host() {
     use axum::http::{HeaderMap, HeaderValue};
     use chrono::Utc;
-    use fraiseql_core::security::SecurityContext;
-    use fraiseql_core::types::{TenantId, UserId};
+    use fraiseql_core::{
+        security::SecurityContext,
+        types::{TenantId, UserId},
+    };
 
     let domain_reg = DomainRegistry::new();
     domain_reg.register("api.acme.com", "from-host");
@@ -443,7 +445,8 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     assert_eq!(key, Some("from-host".to_string()));
 
     // Nothing → None
-    let key = TenantKeyResolver::resolve(None, &HeaderMap::new(), Some(&domain_reg), false).unwrap();
+    let key =
+        TenantKeyResolver::resolve(None, &HeaderMap::new(), Some(&domain_reg), false).unwrap();
     assert_eq!(key, None);
 }
 

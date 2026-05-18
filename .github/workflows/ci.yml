@@ -183,7 +183,7 @@ jobs:
             # redis-pkce, redis-idempotency, and observers-enterprise require NATS/Redis
             # infrastructure not available in the Test Suite runner.
             # SYNC:SERVER_FEATURES — keep in sync with other SYNC:SERVER_FEATURES locations
-            cargo test -p fraiseql-server --lib --features "arrow,auth,aws-s3,cors,database,federation,grpc,mcp,metrics,observers,redis-apq,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend" --verbose
+            cargo test -p fraiseql-server --lib --features "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,rest,secrets,testing,tracing-opentelemetry,webhooks,wire-backend" --verbose
           fi
 
       - name: Run doc tests
@@ -1098,7 +1098,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
+          go-version: "1.23"
 
       - uses: actions/setup-java@v5
         with:

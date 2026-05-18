@@ -51,19 +51,19 @@ pub struct RealtimeSchemaConfig {
     #[serde(default)]
     pub entities: Vec<String>,
 
-    /// Override for [`RealtimeConfig::max_connections_per_context`].
+    /// Override for `RealtimeConfig::max_connections_per_context`.
     ///
     /// Falls back to the `RealtimeConfig` default when absent.
     #[serde(default)]
     pub max_connections_per_context: Option<usize>,
 
-    /// Override for [`RealtimeConfig::max_subscriptions_per_entity`].
+    /// Override for `RealtimeConfig::max_subscriptions_per_entity`.
     ///
     /// Falls back to the `RealtimeConfig` default when absent.
     #[serde(default)]
     pub max_subscriptions_per_entity: Option<usize>,
 
-    /// Override for [`RealtimeConfig::event_channel_capacity`].
+    /// Override for `RealtimeConfig::event_channel_capacity`.
     ///
     /// Falls back to the `RealtimeConfig` default when absent.
     #[serde(default)]
@@ -85,7 +85,5 @@ pub struct RealtimeSchemaConfig {
 /// ```
 #[must_use = "merge this router into your axum application with `Router::merge`"]
 pub fn realtime_router(state: RealtimeState) -> Router {
-    Router::new()
-        .route("/realtime/v1", get(ws_handler))
-        .with_state(state)
+    Router::new().route("/realtime/v1", get(ws_handler)).with_state(state)
 }

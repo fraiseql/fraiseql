@@ -40,7 +40,7 @@ fn test_provides_field_present_in_result() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -82,7 +82,7 @@ fn test_provides_field_missing_in_result() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -132,7 +132,7 @@ fn test_provides_multiple_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -165,7 +165,7 @@ fn test_provides_no_directives() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -202,7 +202,7 @@ fn test_provides_nested_field_path() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![user_type],
+        types: vec![user_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -247,7 +247,7 @@ fn test_provides_warning_context() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![order_type],
+        types: vec![order_type],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 

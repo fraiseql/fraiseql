@@ -2,24 +2,24 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
 use indexmap::IndexMap;
 
 use crate::{
-    db::where_clause::WhereClause,
-    db::types::JsonbValue,
-    runtime::{Executor, RuntimeConfig},
+    db::{types::JsonbValue, where_clause::WhereClause},
+    runtime::{
+        Executor, RuntimeConfig,
+        executor::test_support::{
+            CapturingMockAdapter, MockAdapter, mock_user_results, test_schema,
+        },
+    },
     schema::{
         AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType, InjectedParamSource,
         QueryDefinition, TypeDefinition,
     },
     security::{DefaultRLSPolicy, SecurityContext},
-};
-use crate::runtime::executor::test_support::{
-    CapturingMockAdapter, MockAdapter, mock_user_results, test_schema,
 };
 
 // ── mod routing: per-view dispatch correctness ────────────────────────────
@@ -484,10 +484,7 @@ mod session_variables {
             Ok(self.mock_results.clone())
         }
 
-        async fn set_session_variables(
-            &self,
-            variables: &[(&str, &str)],
-        ) -> Result<()> {
+        async fn set_session_variables(&self, variables: &[(&str, &str)]) -> Result<()> {
             let mut guard = self.captured.lock().unwrap();
             for (k, v) in variables {
                 guard.push(((*k).to_string(), (*v).to_string()));
@@ -613,15 +610,12 @@ mod session_variables {
     }
 }
 
-
 // ---------------------------------------------------------------------------
 // Inline tests from query.rs (projection_reduction, pg_type_to_cast)
 // ---------------------------------------------------------------------------
 
 mod pg_type_cast_tests {
     use super::super::*;
-
-
     use crate::graphql::FieldSelection;
 
     // -------------------------------------------------------------------------

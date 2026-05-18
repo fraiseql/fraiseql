@@ -63,10 +63,7 @@ fn test_sqlserver_schema_qualified() {
 
 #[test]
 fn test_sqlserver_three_part_name() {
-    assert_eq!(
-        quote_sqlserver_identifier("catalog.schema.table"),
-        "[catalog].[schema].[table]"
-    );
+    assert_eq!(quote_sqlserver_identifier("catalog.schema.table"), "[catalog].[schema].[table]");
 }
 
 // Delimiter-escape tests — the delimiter character must be doubled inside the quoted name.

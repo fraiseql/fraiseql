@@ -535,7 +535,8 @@ EXAMPLES:
     fraiseql setup --dry-run
     fraiseql setup  # Uses DATABASE_URL or [database].url from fraiseql.toml")]
     Setup {
-        /// Database connection URL (or use DATABASE_URL env var, or [database].url in fraiseql.toml)
+        /// Database connection URL (or use DATABASE_URL env var, or [database].url in
+        /// fraiseql.toml)
         #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 
@@ -650,14 +651,18 @@ pub(crate) enum SchemaCommands {
     /// Display field-level security metadata from a running server
     Metadata {
         /// Server base URL
-        #[arg(short, long, value_name = "URL", default_value = "http://localhost:8080")]
+        #[arg(
+            short,
+            long,
+            value_name = "URL",
+            default_value = "http://localhost:8080"
+        )]
         server: String,
 
         /// Bearer token for authentication
         #[arg(short, long, value_name = "TOKEN")]
         token: Option<String>,
     },
-
 }
 
 #[derive(Subcommand)]

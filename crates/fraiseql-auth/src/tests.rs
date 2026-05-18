@@ -112,9 +112,9 @@ mod security_config_tests {
 
 #[cfg(test)]
 mod security_init_tests {
-    use super::super::security_init::*;
-    use super::super::security_config::SecurityConfigFromSchema;
-    use super::super::error::AuthError;
+    use super::super::{
+        error::AuthError, security_config::SecurityConfigFromSchema, security_init::*,
+    };
 
     #[test]
     fn test_init_default_security_config() {
@@ -573,6 +573,7 @@ mod provider_tests {
 #[cfg(test)]
 mod proxy_tests {
     use std::net::IpAddr;
+
     use super::super::proxy::*;
 
     #[test]
@@ -717,8 +718,7 @@ mod proxy_tests {
 
 #[cfg(test)]
 mod handlers_tests {
-    use super::super::handlers::*;
-    use super::super::error::AuthError;
+    use super::super::{error::AuthError, handlers::*};
 
     #[test]
     fn auth_callback_rejects_oversized_code() {
@@ -796,7 +796,10 @@ mod account_linking_tests {
     async fn test_first_login_creates_new_user() {
         let store = InMemoryAccountStore::new();
 
-        let result = store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
+        let result = store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
 
         assert!(result.is_new, "first login should create new user");
         assert!(!result.linked, "first login should not be a link");
@@ -813,8 +816,14 @@ mod account_linking_tests {
     async fn test_same_provider_same_identity_returns_existing_user() {
         let store = InMemoryAccountStore::new();
 
-        let r1 = store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
-        let r2 = store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
+        let r1 = store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
+        let r2 = store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
 
         assert_eq!(r1.user_id, r2.user_id, "same identity must return same user");
         assert_eq!(store.len(), 1);
@@ -824,8 +833,14 @@ mod account_linking_tests {
     async fn test_different_provider_same_email_links_accounts() {
         let store = InMemoryAccountStore::new();
 
-        let r1 = store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
-        let r2 = store.link_or_create_user("alice@example.com", "google", "google-456").await.unwrap();
+        let r1 = store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
+        let r2 = store
+            .link_or_create_user("alice@example.com", "google", "google-456")
+            .await
+            .unwrap();
 
         assert_eq!(r1.user_id, r2.user_id, "same email must link to same user");
         assert!(r2.linked, "second provider should be linked");
@@ -839,7 +854,10 @@ mod account_linking_tests {
     async fn test_different_email_creates_different_users() {
         let store = InMemoryAccountStore::new();
 
-        let r_a = store.link_or_create_user("alice@example.com", "github", "gh-alice").await.unwrap();
+        let r_a = store
+            .link_or_create_user("alice@example.com", "github", "gh-alice")
+            .await
+            .unwrap();
         let r_b = store.link_or_create_user("bob@example.com", "github", "gh-bob").await.unwrap();
 
         assert_ne!(r_a.user_id, r_b.user_id, "different emails must create different users");
@@ -850,8 +868,14 @@ mod account_linking_tests {
     async fn test_email_matching_is_case_insensitive() {
         let store = InMemoryAccountStore::new();
 
-        let r1 = store.link_or_create_user("Alice@Example.COM", "github", "gh-123").await.unwrap();
-        let r2 = store.link_or_create_user("alice@example.com", "google", "google-456").await.unwrap();
+        let r1 = store
+            .link_or_create_user("Alice@Example.COM", "github", "gh-123")
+            .await
+            .unwrap();
+        let r2 = store
+            .link_or_create_user("alice@example.com", "google", "google-456")
+            .await
+            .unwrap();
 
         assert_eq!(r1.user_id, r2.user_id, "case-insensitive email must link accounts");
     }
@@ -862,7 +886,10 @@ mod account_linking_tests {
 
         let r1 = store.link_or_create_user("alice@example.com", "github", "gh-1").await.unwrap();
         let r2 = store.link_or_create_user("alice@example.com", "google", "gg-2").await.unwrap();
-        let r3 = store.link_or_create_user("alice@example.com", "azure_ad", "az-3").await.unwrap();
+        let r3 = store
+            .link_or_create_user("alice@example.com", "azure_ad", "az-3")
+            .await
+            .unwrap();
 
         assert_eq!(r1.user_id, r2.user_id);
         assert_eq!(r2.user_id, r3.user_id);
@@ -883,7 +910,10 @@ mod account_linking_tests {
     async fn test_get_account_returns_correct_account() {
         let store = InMemoryAccountStore::new();
 
-        let created = store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
+        let created = store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
         let account = store.get_account(&created.user_id).await.unwrap();
 
         assert_eq!(account.email, "alice@example.com");
@@ -893,11 +923,23 @@ mod account_linking_tests {
     async fn test_repeat_link_does_not_duplicate_provider() {
         let store = InMemoryAccountStore::new();
 
-        store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
-        store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
-        store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
+        store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
+        store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
+        store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
 
-        let r = store.link_or_create_user("alice@example.com", "github", "gh-123").await.unwrap();
+        let r = store
+            .link_or_create_user("alice@example.com", "github", "gh-123")
+            .await
+            .unwrap();
         let account = store.get_account(&r.user_id).await.unwrap();
         assert_eq!(account.providers.len(), 1, "repeated link must not duplicate");
     }
@@ -905,8 +947,7 @@ mod account_linking_tests {
 
 #[cfg(test)]
 mod session_tests {
-    use super::super::session::*;
-    use super::super::error::AuthError;
+    use super::super::{error::AuthError, session::*};
 
     #[test]
     fn test_hash_token() {
@@ -1133,8 +1174,8 @@ mod session_postgres_tests {
 #[cfg(test)]
 mod state_store_tests {
     use std::sync::Arc;
-    use super::super::state_store::*;
-    use super::super::error::AuthError;
+
+    use super::super::{error::AuthError, state_store::*};
 
     #[tokio::test]
     async fn test_in_memory_state_store() {
@@ -1422,9 +1463,10 @@ mod state_store_tests {
 #[cfg(test)]
 mod jwt_tests {
     use std::collections::HashMap;
+
     use jsonwebtoken::Algorithm;
-    use super::super::jwt::*;
-    use super::super::error::AuthError;
+
+    use super::super::{error::AuthError, jwt::*};
 
     fn create_test_claims() -> Claims {
         let now = std::time::SystemTime::now()
@@ -1678,11 +1720,10 @@ mod jwt_tests {
 #[cfg(test)]
 mod middleware_tests {
     use std::collections::HashMap;
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-    use super::super::middleware::*;
-    use super::super::error::AuthError;
-    use super::super::jwt::Claims;
+
+    use axum::{http::StatusCode, response::IntoResponse};
+
+    use super::super::{error::AuthError, jwt::Claims, middleware::*};
 
     #[test]
     fn test_authenticated_user_clone() {
@@ -1926,19 +1967,46 @@ mod middleware_tests {
             AuthError::InvalidState,
             AuthError::TokenNotFound,
             AuthError::SessionRevoked,
-            AuthError::InvalidToken { reason: "test".to_string() },
-            AuthError::MissingClaim { claim: "test".to_string() },
-            AuthError::InvalidClaimValue { claim: "test".to_string(), reason: "test".to_string() },
-            AuthError::OAuthError { message: "test".to_string() },
-            AuthError::SessionError { message: "test".to_string() },
-            AuthError::DatabaseError { message: "test".to_string() },
-            AuthError::ConfigError { message: "test".to_string() },
-            AuthError::OidcMetadataError { message: "test".to_string() },
-            AuthError::PkceError { message: "test".to_string() },
-            AuthError::Forbidden { message: "test".to_string() },
-            AuthError::Internal { message: "test".to_string() },
-            AuthError::SystemTimeError { message: "test".to_string() },
-            AuthError::RateLimited { retry_after_secs: 60 },
+            AuthError::InvalidToken {
+                reason: "test".to_string(),
+            },
+            AuthError::MissingClaim {
+                claim: "test".to_string(),
+            },
+            AuthError::InvalidClaimValue {
+                claim:  "test".to_string(),
+                reason: "test".to_string(),
+            },
+            AuthError::OAuthError {
+                message: "test".to_string(),
+            },
+            AuthError::SessionError {
+                message: "test".to_string(),
+            },
+            AuthError::DatabaseError {
+                message: "test".to_string(),
+            },
+            AuthError::ConfigError {
+                message: "test".to_string(),
+            },
+            AuthError::OidcMetadataError {
+                message: "test".to_string(),
+            },
+            AuthError::PkceError {
+                message: "test".to_string(),
+            },
+            AuthError::Forbidden {
+                message: "test".to_string(),
+            },
+            AuthError::Internal {
+                message: "test".to_string(),
+            },
+            AuthError::SystemTimeError {
+                message: "test".to_string(),
+            },
+            AuthError::RateLimited {
+                retry_after_secs: 60,
+            },
         ];
 
         for error in errors {
@@ -1959,10 +2027,9 @@ mod middleware_tests {
 
 #[cfg(test)]
 mod operation_rbac_tests {
-    use super::super::operation_rbac::*;
-    use super::super::middleware::AuthenticatedUser;
-    use super::super::jwt::Claims;
-    use super::super::error::AuthError;
+    use super::super::{
+        error::AuthError, jwt::Claims, middleware::AuthenticatedUser, operation_rbac::*,
+    };
 
     fn create_test_user(role: &str) -> AuthenticatedUser {
         let mut extra = std::collections::HashMap::new();
@@ -2164,8 +2231,7 @@ mod operation_rbac_tests {
 
 #[cfg(test)]
 mod rate_limiting_tests_inner {
-    use super::super::rate_limiting::*;
-    use super::super::error::AuthError;
+    use super::super::{error::AuthError, rate_limiting::*};
 
     #[test]
     fn test_rate_limiter_allows_within_limit() {
@@ -2761,8 +2827,10 @@ mod rate_limiting_tests_inner {
 mod anonymous_tests {
     use std::sync::Arc;
 
-    use super::super::anonymous::*;
-    use super::super::session::{InMemorySessionStore, SessionStore};
+    use super::super::{
+        anonymous::*,
+        session::{InMemorySessionStore, SessionStore},
+    };
 
     /// Test the `AnonSignupState` unit behavior directly (no HTTP handler,
     /// since `anon_signup` requires `ConnectInfo<SocketAddr>` which needs a
@@ -2796,8 +2864,10 @@ mod otp_tests {
     use axum::{Router, body::Body, http::Request, routing::post};
     use tower::ServiceExt as _;
 
-    use super::super::otp::*;
-    use super::super::session::{InMemorySessionStore, SessionStore};
+    use super::super::{
+        otp::*,
+        session::{InMemorySessionStore, SessionStore},
+    };
 
     fn build_otp_state() -> (Arc<OtpRouteState>, Arc<InMemoryOtpStore>) {
         let otp_store = Arc::new(InMemoryOtpStore::new());
@@ -2805,7 +2875,7 @@ mod otp_tests {
         let session_store: Arc<dyn SessionStore> = Arc::new(InMemorySessionStore::new());
 
         let state = Arc::new(OtpRouteState {
-            otp_store:      otp_store.clone(),
+            otp_store: otp_store.clone(),
             email_delivery,
             session_store,
         });
@@ -2921,10 +2991,12 @@ mod phone_otp_tests {
     use axum::{Router, body::Body, http::Request, routing::post};
     use tower::ServiceExt as _;
 
-    use super::super::phone_otp::*;
-    use super::super::account_linking::{AccountStore, InMemoryAccountStore};
-    use super::super::otp::InMemoryOtpStore;
-    use super::super::session::{InMemorySessionStore, SessionStore};
+    use super::super::{
+        account_linking::{AccountStore, InMemoryAccountStore},
+        otp::InMemoryOtpStore,
+        phone_otp::*,
+        session::{InMemorySessionStore, SessionStore},
+    };
 
     fn build_sms_state() -> (Arc<SmsOtpAuthState>, Arc<InMemorySmsSender>, Arc<InMemoryOtpStore>) {
         let otp_store = Arc::new(InMemoryOtpStore::new());
@@ -3039,7 +3111,8 @@ mod phone_otp_tests {
         let (state, sms_sender, _) = build_sms_state();
         let app = sms_router(state);
 
-        let req = post_json("/auth/v1/otp/sms", serde_json::json!({ "phone": "+1 (415) 555-1234" }));
+        let req =
+            post_json("/auth/v1/otp/sms", serde_json::json!({ "phone": "+1 (415) 555-1234" }));
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
@@ -3157,17 +3230,19 @@ mod totp_mfa_tests {
     use axum::{Router, body::Body, http::Request, routing::post};
     use tower::ServiceExt as _;
 
-    use super::super::session::{InMemorySessionStore, SessionStore};
-    use super::super::totp_mfa::*;
+    use super::super::{
+        session::{InMemorySessionStore, SessionStore},
+        totp_mfa::*,
+    };
 
     fn build_mfa_state() -> (Arc<MfaRouteState>, Arc<InMemoryMfaStore>) {
         let mfa_store = Arc::new(InMemoryMfaStore::new());
         let session_store: Arc<dyn SessionStore> = Arc::new(InMemorySessionStore::new());
 
         let state = Arc::new(MfaRouteState {
-            mfa_store:     mfa_store.clone(),
+            mfa_store: mfa_store.clone(),
             session_store,
-            issuer:        "FraiseQL".to_string(),
+            issuer: "FraiseQL".to_string(),
         });
 
         (state, mfa_store)
@@ -3215,10 +3290,8 @@ mod totp_mfa_tests {
     async fn test_mfa_store_begin_and_confirm_enrollment() {
         let store = InMemoryMfaStore::new();
 
-        let enrollment = store
-            .begin_enrollment("user-1", "FraiseQL", "alice@example.com")
-            .await
-            .unwrap();
+        let enrollment =
+            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
 
         assert!(!enrollment.secret_base32.is_empty());
         assert!(enrollment.otpauth_uri.starts_with("otpauth://"));
@@ -3231,9 +3304,7 @@ mod totp_mfa_tests {
             6,
             1,
             30,
-            totp_rs::Secret::Encoded(enrollment.secret_base32.clone())
-                .to_bytes()
-                .unwrap(),
+            totp_rs::Secret::Encoded(enrollment.secret_base32.clone()).to_bytes().unwrap(),
             None,
             String::new(),
         )
@@ -3250,19 +3321,15 @@ mod totp_mfa_tests {
         let store = InMemoryMfaStore::new();
 
         // Enroll and confirm
-        let enrollment = store
-            .begin_enrollment("user-1", "FraiseQL", "alice@example.com")
-            .await
-            .unwrap();
+        let enrollment =
+            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
 
         let totp = totp_rs::TOTP::new(
             totp_rs::Algorithm::SHA1,
             6,
             1,
             30,
-            totp_rs::Secret::Encoded(enrollment.secret_base32.clone())
-                .to_bytes()
-                .unwrap(),
+            totp_rs::Secret::Encoded(enrollment.secret_base32.clone()).to_bytes().unwrap(),
             None,
             String::new(),
         )
@@ -3273,10 +3340,7 @@ mod totp_mfa_tests {
         // Create challenge and verify
         let challenge_token = store.create_challenge("user-1").await.unwrap();
         let current_code = totp.generate_current().unwrap();
-        let user_id = store
-            .verify_challenge(&challenge_token, &current_code)
-            .await
-            .unwrap();
+        let user_id = store.verify_challenge(&challenge_token, &current_code).await.unwrap();
         assert_eq!(user_id, "user-1");
     }
 
@@ -3284,10 +3348,8 @@ mod totp_mfa_tests {
     async fn test_mfa_verify_with_recovery_code() {
         let store = InMemoryMfaStore::new();
 
-        let enrollment = store
-            .begin_enrollment("user-1", "FraiseQL", "alice@example.com")
-            .await
-            .unwrap();
+        let enrollment =
+            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
         let recovery_code = enrollment.recovery_codes[0].clone();
 
         // Confirm enrollment with TOTP
@@ -3296,9 +3358,7 @@ mod totp_mfa_tests {
             6,
             1,
             30,
-            totp_rs::Secret::Encoded(enrollment.secret_base32.clone())
-                .to_bytes()
-                .unwrap(),
+            totp_rs::Secret::Encoded(enrollment.secret_base32.clone()).to_bytes().unwrap(),
             None,
             String::new(),
         )
@@ -3321,19 +3381,15 @@ mod totp_mfa_tests {
     async fn test_mfa_unenroll_with_valid_code() {
         let store = InMemoryMfaStore::new();
 
-        let enrollment = store
-            .begin_enrollment("user-1", "FraiseQL", "alice@example.com")
-            .await
-            .unwrap();
+        let enrollment =
+            store.begin_enrollment("user-1", "FraiseQL", "alice@example.com").await.unwrap();
 
         let totp = totp_rs::TOTP::new(
             totp_rs::Algorithm::SHA1,
             6,
             1,
             30,
-            totp_rs::Secret::Encoded(enrollment.secret_base32.clone())
-                .to_bytes()
-                .unwrap(),
+            totp_rs::Secret::Encoded(enrollment.secret_base32.clone()).to_bytes().unwrap(),
             None,
             String::new(),
         )
@@ -3351,10 +3407,8 @@ mod totp_mfa_tests {
         let (state, _) = build_mfa_state();
         let app = mfa_router(state);
 
-        let req = post_json(
-            "/auth/v1/mfa/challenge",
-            serde_json::json!({ "user_id": "user-no-mfa" }),
-        );
+        let req =
+            post_json("/auth/v1/mfa/challenge", serde_json::json!({ "user_id": "user-no-mfa" }));
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
     }
@@ -3362,11 +3416,12 @@ mod totp_mfa_tests {
 
 // ── pkce_tests ────────────────────────────────────────────────────────────────
 mod pkce_tests {
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
 
-    use super::super::pkce::*;
-    use super::super::state_encryption::{EncryptionAlgorithm, StateEncryptionService};
+    use super::super::{
+        pkce::*,
+        state_encryption::{EncryptionAlgorithm, StateEncryptionService},
+    };
 
     fn store_no_enc(ttl_secs: u64) -> PkceStateStore {
         PkceStateStore::new(ttl_secs, None)
@@ -3853,8 +3908,7 @@ mod state_encryption_service_tests {
 }
 
 mod state_encryption_legacy_tests {
-    use super::super::state_encryption::*;
-    use super::super::error::AuthError;
+    use super::super::{error::AuthError, state_encryption::*};
 
     fn test_key() -> [u8; 32] {
         [42u8; 32]
@@ -4400,12 +4454,14 @@ mod multi_provider_tests {
     use axum::{Router, body::Body, http::Request, routing::get};
     use tower::ServiceExt as _;
 
-    use super::super::multi_provider::*;
-    use super::super::account_linking::AccountStore;
-    use super::super::error::Result as AuthResult;
-    use super::super::provider::{OAuthProvider, TokenResponse, UserInfo};
-    use super::super::session::{InMemorySessionStore, SessionStore};
-    use super::super::state_store::{InMemoryStateStore, StateStore};
+    use super::super::{
+        account_linking::AccountStore,
+        error::Result as AuthResult,
+        multi_provider::*,
+        provider::{OAuthProvider, TokenResponse, UserInfo},
+        session::{InMemorySessionStore, SessionStore},
+        state_store::{InMemoryStateStore, StateStore},
+    };
 
     #[derive(Debug, Clone)]
     struct MockProvider {
@@ -4468,7 +4524,9 @@ mod multi_provider_tests {
         }
     }
 
-    fn build_multi_provider_state(providers: Vec<(&str, MockProvider)>) -> Arc<MultiProviderAuthState> {
+    fn build_multi_provider_state(
+        providers: Vec<(&str, MockProvider)>,
+    ) -> Arc<MultiProviderAuthState> {
         build_state_with_user_store(providers, None)
     }
 
@@ -4504,10 +4562,7 @@ mod multi_provider_tests {
         ]);
         let app = multi_auth_router(state);
 
-        let req = Request::builder()
-            .uri("/auth/v1/providers")
-            .body(Body::empty())
-            .unwrap();
+        let req = Request::builder().uri("/auth/v1/providers").body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), axum::http::StatusCode::OK);
@@ -4525,10 +4580,7 @@ mod multi_provider_tests {
         let state = build_multi_provider_state(vec![]);
         let app = multi_auth_router(state);
 
-        let req = Request::builder()
-            .uri("/auth/v1/providers")
-            .body(Body::empty())
-            .unwrap();
+        let req = Request::builder().uri("/auth/v1/providers").body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
         assert_eq!(resp.status(), axum::http::StatusCode::OK);
@@ -4539,9 +4591,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_authorize_redirects_to_provider() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4550,11 +4600,7 @@ mod multi_provider_tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
 
-        assert!(
-            resp.status().is_redirection(),
-            "expected redirect, got {}",
-            resp.status()
-        );
+        assert!(resp.status().is_redirection(), "expected redirect, got {}", resp.status());
 
         let location = resp
             .headers()
@@ -4572,9 +4618,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_authorize_unknown_provider_returns_400() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4594,9 +4638,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_authorize_missing_redirect_uri_returns_400() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4609,9 +4651,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_authorize_empty_redirect_uri_returns_400() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4624,9 +4664,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_authorize_oversized_redirect_uri_returns_400() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let long_uri = "https://example.com/".to_string() + &"a".repeat(2100);
@@ -4641,9 +4679,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_callback_unknown_state_returns_400() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4656,9 +4692,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_callback_missing_code_returns_400() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4671,9 +4705,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_callback_provider_error_returns_sanitized_message() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4692,9 +4724,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_authorize_to_callback_round_trip() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4720,10 +4750,7 @@ mod multi_provider_tests {
             .expect("state must be in redirect URL");
 
         let callback_uri = format!("/auth/v1/callback?code=auth_code_123&state={state_token}");
-        let req2 = Request::builder()
-            .uri(&callback_uri)
-            .body(Body::empty())
-            .unwrap();
+        let req2 = Request::builder().uri(&callback_uri).body(Body::empty()).unwrap();
         let resp2 = app.oneshot(req2).await.unwrap();
 
         assert_eq!(resp2.status(), axum::http::StatusCode::OK, "callback should return 200");
@@ -4740,9 +4767,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_callback_state_consumed_on_first_use() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let req = Request::builder()
@@ -4770,7 +4795,11 @@ mod multi_provider_tests {
             .body(Body::empty())
             .unwrap();
         let resp2 = app.oneshot(req2).await.unwrap();
-        assert_eq!(resp2.status(), axum::http::StatusCode::BAD_REQUEST, "state replay must be rejected");
+        assert_eq!(
+            resp2.status(),
+            axum::http::StatusCode::BAD_REQUEST,
+            "state replay must be rejected"
+        );
     }
 
     #[tokio::test]
@@ -4798,10 +4827,18 @@ mod multi_provider_tests {
         assert!(loc_gh.starts_with("https://github.example.com/"), "github redirect wrong");
         assert!(loc_gg.starts_with("https://google.example.com/"), "google redirect wrong");
 
-        let state_gh = reqwest::Url::parse(&loc_gh).unwrap()
-            .query_pairs().find(|(k, _)| k == "state").map(|(_, v)| v.into_owned()).unwrap();
-        let state_gg = reqwest::Url::parse(&loc_gg).unwrap()
-            .query_pairs().find(|(k, _)| k == "state").map(|(_, v)| v.into_owned()).unwrap();
+        let state_gh = reqwest::Url::parse(&loc_gh)
+            .unwrap()
+            .query_pairs()
+            .find(|(k, _)| k == "state")
+            .map(|(_, v)| v.into_owned())
+            .unwrap();
+        let state_gg = reqwest::Url::parse(&loc_gg)
+            .unwrap()
+            .query_pairs()
+            .find(|(k, _)| k == "state")
+            .map(|(_, v)| v.into_owned())
+            .unwrap();
 
         let req_cb_gh = Request::builder()
             .uri(format!("/auth/v1/callback?code=c1&state={state_gh}"))
@@ -4917,9 +4954,7 @@ mod multi_provider_tests {
 
     #[tokio::test]
     async fn test_without_user_store_uses_provider_id() {
-        let state = build_multi_provider_state(vec![
-            ("github", MockProvider::new("github")),
-        ]);
+        let state = build_multi_provider_state(vec![("github", MockProvider::new("github"))]);
         let app = multi_auth_router(state);
 
         let json = do_auth_round_trip(&app, "github").await;
@@ -4930,8 +4965,7 @@ mod multi_provider_tests {
 
 // ── oidc_provider_tests ───────────────────────────────────────────────────────
 mod oidc_provider_tests {
-    use super::super::oidc_provider::*;
-    use super::super::provider::OAuthProvider;
+    use super::super::{oidc_provider::*, provider::OAuthProvider};
 
     #[test]
     fn oidc_discovery_cap_constant_is_reasonable() {

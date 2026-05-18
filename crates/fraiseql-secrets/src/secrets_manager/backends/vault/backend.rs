@@ -235,10 +235,8 @@ impl SecretsBackend for VaultBackend {
             // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic.
             #[allow(clippy::cast_possible_truncation)]
             // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
-            let cache_ttl_secs = response
-                .lease_duration
-                .saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64)
-                / 100;
+            let cache_ttl_secs =
+                response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
             let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
 
             // Extract secret from response data

@@ -294,12 +294,12 @@ pub struct PostgresSagaStore {
 }
 
 impl PostgresSagaStore {
+    /// Trinity-convention table name for the saga recovery table.
+    pub const TABLE_RECOVERY: &'static str = "tb_federation_saga_recovery";
     /// Trinity-convention table name for the main sagas table.
     pub const TABLE_SAGAS: &'static str = "tb_federation_sagas";
     /// Trinity-convention table name for the saga steps table.
     pub const TABLE_STEPS: &'static str = "tb_federation_saga_steps";
-    /// Trinity-convention table name for the saga recovery table.
-    pub const TABLE_RECOVERY: &'static str = "tb_federation_saga_recovery";
 
     /// Create a new PostgreSQL saga store.
     ///

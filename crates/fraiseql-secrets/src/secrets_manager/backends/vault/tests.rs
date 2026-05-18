@@ -553,7 +553,6 @@ fn vault_debug_does_not_expose_token() {
 /// This test confirms the struct field exists and can be queried.
 #[test]
 fn vault_backend_has_rotation_locks_field() {
-    let vault =
-        VaultBackend::new("https://vault.example.com:8200", "test-token").unwrap();
+    let vault = VaultBackend::new("https://vault.example.com:8200", "test-token").unwrap();
     assert_eq!(vault.rotation_locks_len(), 0, "fresh backend should have no locks");
 }

@@ -45,7 +45,7 @@ fn bench_compile_empty_schema_rich_types() {
             query_defaults:       None,
             naming_convention:    NamingConvention::default(),
             session_variables:    None,
-            hierarchies_config:    None,
+            hierarchies_config:   None,
         };
 
         let _compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -96,7 +96,7 @@ fn bench_metadata_access_performance() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -153,7 +153,7 @@ fn bench_operator_metadata_parsing() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -214,7 +214,7 @@ fn bench_database_template_access() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -281,7 +281,7 @@ fn bench_lookup_data_access() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");
@@ -342,7 +342,7 @@ fn bench_full_operator_traversal() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("Compilation should succeed");

@@ -165,8 +165,8 @@ pub fn generate_test_data(count: usize) -> Vec<TestRow> {
 /// Create standard sales metadata for testing
 pub fn create_sales_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![
             MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -178,7 +178,7 @@ pub fn create_sales_metadata() -> FactTableMetadata {
                 nullable: false,
             },
         ],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![
                 DimensionPath {
@@ -193,7 +193,7 @@ pub fn create_sales_metadata() -> FactTableMetadata {
                 },
             ],
         },
-        denormalized_filters: vec![
+        denormalized_filters:     vec![
             FilterColumn {
                 name:     "customer_id".to_string(),
                 sql_type: SqlType::Text,
@@ -205,9 +205,9 @@ pub fn create_sales_metadata() -> FactTableMetadata {
                 indexed:  true,
             },
         ],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

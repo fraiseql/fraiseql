@@ -176,24 +176,35 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
                 } else {
                     None
                 };
-            request.where_clause =
-                match (rls_where.map(RlsWhereClause::into_where_clause), request.where_clause.take()) {
-                    (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
-                    (Some(rls), None) => Some(rls),
-                    (None, user) => user,
-                };
+            request.where_clause = match (
+                rls_where.map(RlsWhereClause::into_where_clause),
+                request.where_clause.take(),
+            ) {
+                (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
+                (Some(rls), None) => Some(rls),
+                (None, user) => user,
+            };
         }
 
-        // 2. Check partial-period dispatch — if conditions are met, generate UNION ALL SQL
-        //    instead of a single SELECT.
+        // 2. Check partial-period dispatch — if conditions are met, generate UNION ALL SQL instead
+        //    of a single SELECT.
         let today = chrono::Utc::now().date_naive();
-        if let Some((lower_bound, pp_config)) = crate::runtime::partial_period::should_use_partial_period(
-            metadata,
-            request.where_clause.as_ref(),
-            today,
-        ) {
+        if let Some((lower_bound, pp_config)) =
+            crate::runtime::partial_period::should_use_partial_period(
+                metadata,
+                request.where_clause.as_ref(),
+                today,
+            )
+        {
             return self
-                .execute_partial_period_aggregate(&request, metadata, pp_config, lower_bound, today, query_name)
+                .execute_partial_period_aggregate(
+                    &request,
+                    metadata,
+                    pp_config,
+                    lower_bound,
+                    today,
+                    query_name,
+                )
                 .await;
         }
 
@@ -208,7 +219,8 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
 
         // 5. Execute with bind parameters (eliminates escape-based injection risk)
         let rows = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .execute_parameterized_aggregate(&parameterized.sql, &parameterized.params)
             .await?;
 
@@ -241,14 +253,19 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         today: chrono::NaiveDate,
         query_name: &str,
     ) -> Result<serde_json::Value> {
-        let branch_plan =
-            crate::runtime::partial_period::determine_branches(lower_bound, config.time_grain_trunc, today);
+        let branch_plan = crate::runtime::partial_period::determine_branches(
+            lower_bound,
+            config.time_grain_trunc,
+            today,
+        );
 
         // Split the WHERE clause to separate the date condition from the rest
         let extra_where = request
             .where_clause
             .as_ref()
-            .and_then(|wc| crate::runtime::partial_period::split_where_clause(wc, &config.time_grain_column))
+            .and_then(|wc| {
+                crate::runtime::partial_period::split_where_clause(wc, &config.time_grain_column)
+            })
             .and_then(|split| split.remaining);
 
         // Generate execution plan (for GROUP BY / aggregate expression resolution)
@@ -345,12 +362,14 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
                 } else {
                     None
                 };
-            request.where_clause =
-                match (rls_where.map(RlsWhereClause::into_where_clause), request.where_clause.take()) {
-                    (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
-                    (Some(rls), None) => Some(rls),
-                    (None, user) => user,
-                };
+            request.where_clause = match (
+                rls_where.map(RlsWhereClause::into_where_clause),
+                request.where_clause.take(),
+            ) {
+                (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
+                (Some(rls), None) => Some(rls),
+                (None, user) => user,
+            };
         }
 
         // 2. Generate execution plan (validates semantic names against metadata)
@@ -364,7 +383,8 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
         //    values are passed as prepared-statement parameters, not inlined.
         let rows = self
-            .ctx.adapter
+            .ctx
+            .adapter
             .execute_parameterized_aggregate(&sql.raw_sql, &sql.parameters)
             .await?;
 
@@ -372,7 +392,8 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
         let projected = crate::runtime::WindowProjector::project(rows, &plan)?;
 
         // 6. Wrap in GraphQL data envelope
-        let response = crate::runtime::WindowProjector::wrap_in_data_envelope(projected, query_name);
+        let response =
+            crate::runtime::WindowProjector::wrap_in_data_envelope(projected, query_name);
 
         // 7. Serialize to JSON string
         Ok(response)

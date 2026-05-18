@@ -24,8 +24,7 @@ pub fn parse_logical_group(
     dsl_key: &str,
     depth: usize,
 ) -> Result<serde_json::Value, FraiseQLError> {
-    use crate::routes::rest::params::bracket::parse_bracket_key;
-    use crate::routes::rest::params::helpers::validation_error;
+    use crate::routes::rest::params::{bracket::parse_bracket_key, helpers::validation_error};
 
     if depth > MAX_LOGICAL_DEPTH {
         return Err(validation_error(format!(

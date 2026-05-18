@@ -99,7 +99,9 @@ pub fn init_security_config(schema_json_str: &str) -> Result<SecurityConfigFromS
 /// # Errors
 ///
 /// Returns error if security configuration section is invalid or missing required fields
-pub(crate) fn init_security_config_from_value(schema_json: &JsonValue) -> Result<SecurityConfigFromSchema> {
+pub(crate) fn init_security_config_from_value(
+    schema_json: &JsonValue,
+) -> Result<SecurityConfigFromSchema> {
     debug!("Initializing security configuration from schema");
 
     // Extract security section from schema

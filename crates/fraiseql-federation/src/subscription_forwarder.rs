@@ -5,11 +5,9 @@
 //! using the `graphql-transport-ws` protocol and proxies events back to
 //! the client.
 
-use std::collections::HashMap;
-use std::hash::BuildHasher;
+use std::{collections::HashMap, hash::BuildHasher};
 
-use futures::stream::SplitSink;
-use futures::{SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt, stream::SplitSink};
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tracing::{debug, warn};
 
@@ -139,13 +137,9 @@ impl SubscriptionForwarder {
         debug!(url = %ws_url, "Connecting to remote subgraph for subscription");
 
         let (ws_stream, _response) =
-            tokio_tungstenite::connect_async_with_config(
-                &ws_url,
-                None,
-                false,
-            )
-            .await
-            .map_err(|e| ForwardError::ConnectionFailed(e.to_string()))?;
+            tokio_tungstenite::connect_async_with_config(&ws_url, None, false)
+                .await
+                .map_err(|e| ForwardError::ConnectionFailed(e.to_string()))?;
 
         let (mut write, mut read) = ws_stream.split();
 
@@ -166,7 +160,9 @@ impl SubscriptionForwarder {
                         }
                     },
                     Ok(WsMessage::Close(_)) => {
-                        return Err(ForwardError::InitFailed("remote closed during init".to_string()));
+                        return Err(ForwardError::InitFailed(
+                            "remote closed during init".to_string(),
+                        ));
                     },
                     Err(e) => {
                         return Err(ForwardError::ConnectionFailed(e.to_string()));
@@ -204,13 +200,15 @@ impl SubscriptionForwarder {
                     let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("");
                     match msg_type {
                         "next" => {
-                            let payload = val.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+                            let payload =
+                                val.get("payload").cloned().unwrap_or(serde_json::Value::Null);
                             if event_tx.send(ForwardedEvent::Next(payload)).await.is_err() {
                                 break; // Client disconnected
                             }
                         },
                         "error" => {
-                            let payload = val.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+                            let payload =
+                                val.get("payload").cloned().unwrap_or(serde_json::Value::Null);
                             let _ = event_tx.send(ForwardedEvent::Error(payload)).await;
                             break;
                         },
@@ -276,8 +274,8 @@ async fn send_json<S>(
 where
     S: futures::Sink<WsMessage, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
-    let json = serde_json::to_string(value)
-        .map_err(|e| ForwardError::ProtocolError(e.to_string()))?;
+    let json =
+        serde_json::to_string(value).map_err(|e| ForwardError::ProtocolError(e.to_string()))?;
     sink.send(WsMessage::Text(json.into()))
         .await
         .map_err(|e| ForwardError::ConnectionFailed(e.to_string()))

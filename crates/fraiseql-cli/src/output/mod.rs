@@ -325,6 +325,5 @@ impl CommandResult {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

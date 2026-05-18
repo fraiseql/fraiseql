@@ -3,8 +3,7 @@
 //! Proves the full compile → server → HTTP pipeline works without manual
 //! intervention:
 //!
-//! 1. Generate fixture files in a temp directory (fraiseql.toml + TOML-only
-//!    type/query definitions)
+//! 1. Generate fixture files in a temp directory (fraiseql.toml + TOML-only type/query definitions)
 //! 2. Compile via `fraiseql_cli::commands::compile::compile_to_schema()`
 //! 3. Spin up testcontainers PostgreSQL
 //! 4. Apply DDL (table + JSONB view matching `sql_source`)
@@ -79,8 +78,8 @@ fn write_fixtures(dir: &TempDir) -> String {
 ///
 /// Creates:
 /// - `tb_users` — source table with `id` and `name` columns
-/// - `v_users` — JSONB view (matching `sql_source = "v_users"`) that
-///   FraiseQL's executor queries via `SELECT data FROM "v_users"`
+/// - `v_users` — JSONB view (matching `sql_source = "v_users"`) that FraiseQL's executor queries
+///   via `SELECT data FROM "v_users"`
 /// - One seeded row `(name = 'Alice')`
 async fn apply_ddl(port: u16) {
     let (client, conn) = tokio_postgres::connect(
@@ -119,10 +118,10 @@ async fn apply_ddl(port: u16) {
 /// Reusable in-process server started from a compiled schema and a live
 /// PostgreSQL adapter.  Shuts down when dropped.
 struct TestPipeline {
-    pub url:       String,
-    _shutdown:     oneshot::Sender<()>,
+    pub url:   String,
+    _shutdown: oneshot::Sender<()>,
     // Keep the temp directory alive for the full test lifetime.
-    _fixtures:     TempDir,
+    _fixtures: TempDir,
 }
 
 impl TestPipeline {
@@ -131,15 +130,12 @@ impl TestPipeline {
     async fn start(fixtures: TempDir, toml_path: &str, db_url: &str) -> Self {
         // ── 1. Compile schema ──────────────────────────────────────────────
         let opts = CompileOptions::new(toml_path);
-        let (schema, _report) = compile_to_schema(opts)
-            .await
-            .expect("compile_to_schema must succeed");
+        let (schema, _report) =
+            compile_to_schema(opts).await.expect("compile_to_schema must succeed");
 
         // ── 2. Build PostgresAdapter ───────────────────────────────────────
         let adapter = Arc::new(
-            PostgresAdapter::new(db_url)
-                .await
-                .expect("PostgresAdapter::new must succeed"),
+            PostgresAdapter::new(db_url).await.expect("PostgresAdapter::new must succeed"),
         );
 
         // ── 3. Construct server ────────────────────────────────────────────
@@ -149,13 +145,8 @@ impl TestPipeline {
             .expect("Server::new must succeed");
 
         // ── 4. Bind to ephemeral port ──────────────────────────────────────
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind to ephemeral port");
-        let port = listener
-            .local_addr()
-            .expect("local_addr")
-            .port();
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
+        let port = listener.local_addr().expect("local_addr").port();
 
         // ── 5. Spawn server as background task ─────────────────────────────
         let (tx, rx) = oneshot::channel::<()>();
@@ -233,22 +224,13 @@ async fn pipeline_e2e_compile_to_http_query() {
         .expect("response must be valid JSON");
 
     // ── Assertions ─────────────────────────────────────────────────────────
-    assert!(
-        resp["errors"].is_null(),
-        "expected no GraphQL errors, got: {}",
-        resp["errors"]
-    );
+    assert!(resp["errors"].is_null(), "expected no GraphQL errors, got: {}", resp["errors"]);
 
-    let users = resp["data"]["users"]
-        .as_array()
-        .expect("data.users must be an array");
+    let users = resp["data"]["users"].as_array().expect("data.users must be an array");
 
     assert_eq!(users.len(), 1, "expected exactly 1 user row, got: {resp}");
 
     let alice = &users[0];
     assert_eq!(alice["name"], "Alice", "full response: {resp}");
-    assert!(
-        alice["id"].as_i64().is_some(),
-        "id must be an integer, full response: {resp}"
-    );
+    assert!(alice["id"].as_i64().is_some(), "id must be an integer, full response: {resp}");
 }

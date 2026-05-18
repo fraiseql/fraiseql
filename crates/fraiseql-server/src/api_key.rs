@@ -98,7 +98,7 @@ pub enum ApiKeyResult {
 
 /// API key authenticator.
 pub struct ApiKeyAuthenticator {
-    header_name: HeaderName,
+    header_name:            HeaderName,
     pub(crate) static_keys: Vec<ResolvedStaticKey>,
 }
 

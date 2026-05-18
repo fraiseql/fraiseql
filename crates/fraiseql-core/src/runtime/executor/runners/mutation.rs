@@ -67,8 +67,8 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
 ///
 /// # Errors
 ///
-/// * [`FraiseQLError::Validation`] — mutation not found, no `sql_source`, missing security
-///   context for `inject` params, or database function returned no rows.
+/// * [`FraiseQLError::Validation`] — mutation not found, no `sql_source`, missing security context
+///   for `inject` params, or database function returned no rows.
 /// * [`FraiseQLError::Database`] — the adapter's `execute_function_call` failed.
 pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     ctx: &ExecutorContext<A>,
@@ -79,12 +79,8 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
 ) -> Result<serde_json::Value> {
     // 1. Locate the mutation definition
     let mutation_def = ctx.schema.find_mutation(mutation_name).ok_or_else(|| {
-        let display_names: Vec<String> = ctx
-            .schema
-            .mutations
-            .iter()
-            .map(|m| ctx.schema.display_name(&m.name))
-            .collect();
+        let display_names: Vec<String> =
+            ctx.schema.mutations.iter().map(|m| ctx.schema.display_name(&m.name)).collect();
         let candidate_refs: Vec<&str> = display_names.iter().map(String::as_str).collect();
         let suggestion = suggest_similar(mutation_name, &candidate_refs);
         let message = match suggestion.as_slice() {
@@ -135,8 +131,8 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         }
     };
 
-    // 3. Build positional args Vec from variables in ArgumentDefinition order. Validate that
-    //    every required (non-nullable, no default) argument is present.
+    // 3. Build positional args Vec from variables in ArgumentDefinition order. Validate that every
+    //    required (non-nullable, no default) argument is present.
     //
     //    Input object unwrapping: when the mutation has a single argument named "input"
     //    whose type is an Input type, AND the client sends a JSON object for that argument,
@@ -180,9 +176,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         } else if !mutation_def.arguments[0].nullable {
             missing_required.push("input");
         }
-    } else if let Some(input_type) =
-        input_type_name.and_then(|n| ctx.schema.find_input_type(n))
-    {
+    } else if let Some(input_type) = input_type_name.and_then(|n| ctx.schema.find_input_type(n)) {
         // Insert / Delete / Custom: flatten Input type fields to positional typed args.
         let input_obj = vars_obj.and_then(|obj| obj.get("input")).and_then(|v| v.as_object());
         if let Some(input_obj) = input_obj {
@@ -281,7 +275,9 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     if matches!(outcome, MutationOutcome::Success { .. })
         && !mutation_def.invalidates_fact_tables.is_empty()
     {
-        ctx.adapter.bump_fact_table_versions(&mutation_def.invalidates_fact_tables).await?;
+        ctx.adapter
+            .bump_fact_table_versions(&mutation_def.invalidates_fact_tables)
+            .await?;
     }
 
     // Invalidate query result cache for views/entities touched by this mutation.
@@ -289,9 +285,9 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // Strategy:
     // - UPDATE/DELETE with entity_id: entity-aware eviction only (precise, no false positives).
     //   Evicts only the cache entries that actually contain the mutated entity UUID.
-    // - CREATE or explicit invalidates_views: view-level flush. For CREATE the new entity isn't
-    //   in any existing cache entry, so entity-aware is a no-op. View-level ensures list
-    //   queries return the new row.
+    // - CREATE or explicit invalidates_views: view-level flush. For CREATE the new entity isn't in
+    //   any existing cache entry, so entity-aware is a no-op. View-level ensures list queries
+    //   return the new row.
     // - No entity_id and no views declared: infer view from return type (backward-compat).
     if let MutationOutcome::Success {
         entity_type,
@@ -390,9 +386,9 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                     ctx.schema
                         .find_union(&mutation_return_type)
                         .and_then(|u| {
-                            u.member_types.iter().find(|t| {
-                                ctx.schema.find_type(t).is_none_or(|td| !td.is_error)
-                            })
+                            u.member_types
+                                .iter()
+                                .find(|t| ctx.schema.find_type(t).is_none_or(|td| !td.is_error))
                         })
                         .cloned()
                 })
@@ -402,9 +398,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             // Success entities use snake_case keys (from DB), so source == output.
             let requested = selection_for_type(&typename);
             let mappings: Vec<FieldMapping> = match &requested {
-                Some(fields) => {
-                    fields.iter().map(|f| FieldMapping::simple(f.clone())).collect()
-                },
+                Some(fields) => fields.iter().map(|f| FieldMapping::simple(f.clone())).collect(),
                 None => {
                     // No selection filtering — pass all fields
                     entity

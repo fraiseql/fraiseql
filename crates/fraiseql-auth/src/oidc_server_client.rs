@@ -56,14 +56,14 @@ pub struct OidcTokenResponse {
 /// The client secret is read from the environment at that time and
 /// held in memory — it is never written to disk or emitted in logs.
 pub struct OidcServerClient {
-    client_id:              String,
+    client_id:                String,
     /// Intentionally private: the secret must never be accessible via a field.
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
-    pub(crate) client_secret:          Zeroizing<String>,
-    server_redirect_uri:    String,
-    authorization_endpoint: String,
-    token_endpoint:         String,
+    pub(crate) client_secret: Zeroizing<String>,
+    server_redirect_uri:      String,
+    authorization_endpoint:   String,
+    token_endpoint:           String,
 }
 
 /// Custom `Debug` implementation that redacts the client secret.

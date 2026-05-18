@@ -37,6 +37,7 @@ use fraiseql_core::schema::{CrudNamingConfig, NamingConvention};
 pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
 pub use operations::{MutationDefinition, QueryDefaults, QueryDefinition, SchemaMetadata};
+use rest::RestTomlConfig;
 pub use security::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,
     EncryptionAlgorithm, EnterpriseSecurityConfig, ErrorSanitizationTomlConfig, FieldAuthRule,
@@ -44,7 +45,6 @@ pub use security::{
     StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode,
     TrustedDocumentsConfig,
 };
-use rest::RestTomlConfig;
 use serde::{Deserialize, Serialize};
 pub use server_settings::{DebugConfig, McpConfig, ValidationConfig};
 pub use subscriptions::{SubscriptionHooksConfig, SubscriptionsConfig};
@@ -325,9 +325,9 @@ impl TomlSchema {
         // Validate hierarchy configs have non-empty values
         if let Some(ref hierarchies) = self.hierarchies {
             for (name, config) in hierarchies {
-                config.validate().map_err(|e| {
-                    anyhow::anyhow!("Invalid hierarchy config '{name}': {e}")
-                })?;
+                config
+                    .validate()
+                    .map_err(|e| anyhow::anyhow!("Invalid hierarchy config '{name}': {e}"))?;
             }
         }
 

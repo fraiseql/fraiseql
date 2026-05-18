@@ -250,7 +250,12 @@ impl OidcProvider {
     }
 
     /// Add authorization URL parameter
-    pub(crate) fn add_auth_params(&self, url: &mut String, state: &str, pkce_challenge: Option<&str>) {
+    pub(crate) fn add_auth_params(
+        &self,
+        url: &mut String,
+        state: &str,
+        pkce_challenge: Option<&str>,
+    ) {
         url.push('?');
         write!(url, "client_id={}", urlencoding::encode(&self.client_id))
             .expect("write to String is infallible");

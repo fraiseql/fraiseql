@@ -20,9 +20,7 @@ use crate::{
         where_clause::WhereClause,
     },
     error::Result,
-    schema::{
-        AutoParams, CompiledSchema, CursorType, QueryDefinition,
-    },
+    schema::{AutoParams, CompiledSchema, CursorType, QueryDefinition},
 };
 
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
@@ -40,10 +38,10 @@ impl CapturingMockAdapter {
     pub fn new(mock_results: Vec<JsonbValue>) -> Self {
         Self {
             mock_results,
-            captured_where:            std::sync::Mutex::new(None),
-            captured_limit:            std::sync::Mutex::new(None),
-            captured_offset:           std::sync::Mutex::new(None),
-            captured_aggregate_sql:    std::sync::Mutex::new(None),
+            captured_where: std::sync::Mutex::new(None),
+            captured_limit: std::sync::Mutex::new(None),
+            captured_offset: std::sync::Mutex::new(None),
+            captured_aggregate_sql: std::sync::Mutex::new(None),
             captured_aggregate_params: std::sync::Mutex::new(None),
         }
     }

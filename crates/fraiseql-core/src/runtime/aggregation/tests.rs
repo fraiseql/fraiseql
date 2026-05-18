@@ -11,48 +11,48 @@ use crate::compiler::{
 fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableMetadata {
     use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
     crate::compiler::fact_table::FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![FilterColumn {
+        denormalized_filters:     vec![FilterColumn {
             name:     "customer_id".to_string(),
             sql_type: SqlType::BigInt,
             indexed:  true,
         }],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
 
 fn create_test_plan() -> AggregationPlan {
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![FilterColumn {
+        denormalized_filters:     vec![FilterColumn {
             name:     "occurred_at".to_string(),
             sql_type: SqlType::Timestamp,
             indexed:  true,
         }],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -878,20 +878,20 @@ fn test_stringagg_delimiter_clean_value_unchanged() {
 
 fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![FilterColumn {
+        denormalized_filters:     vec![FilterColumn {
             name:     "status".to_string(),
             sql_type: SqlType::Timestamp,
             indexed:  true,
         }],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -977,17 +977,17 @@ fn test_parameterized_postgres_placeholder_numbering() {
     // then inject a HAVING condition directly (like test_having_clause).
     let injection = "risky";
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![
+        denormalized_filters:     vec![
             FilterColumn {
                 name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
@@ -999,9 +999,9 @@ fn test_parameterized_postgres_placeholder_numbering() {
                 indexed:  true,
             },
         ],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -1078,20 +1078,20 @@ fn test_parameterized_sqlserver_uses_at_p_placeholder() {
 fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     // WHERE status IN ("a","b","c") → WHERE status IN ($1,$2,$3) with 3 params
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![FilterColumn {
+        denormalized_filters:     vec![FilterColumn {
             name:     "status".to_string(),
             sql_type: SqlType::Timestamp,
             indexed:  true,
         }],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::new(),
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
     let request = AggregationRequest {
@@ -1152,17 +1152,17 @@ mod partial_period_builder_tests {
 
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "v_events_month".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "v_events_month".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
                     name:     "tenant_id".to_string(),
                     sql_type: SqlType::BigInt,
@@ -1174,14 +1174,14 @@ mod partial_period_builder_tests {
                     indexed:  true,
                 },
             ],
-            calendar_dimensions:  vec![],
-            partial_period:       Some(PartialPeriodConfig {
+            calendar_dimensions:      vec![],
+            partial_period:           Some(PartialPeriodConfig {
                 fine_grain_view:   "v_events_day".to_string(),
                 time_grain_column: "period_start".to_string(),
                 time_grain_trunc:  TemporalGrain::Month,
             }),
-        native_measures:      std::collections::HashMap::new(),
-        native_dimension_mapping: std::collections::HashMap::new(),
+            native_measures:          std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
 
@@ -1240,9 +1240,7 @@ mod partial_period_builder_tests {
             current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
-        let result = gen
-            .generate_partial_period(&plan, &config, &branch_plan, None)
-            .unwrap();
+        let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
 
         // Fine-grain branch uses fine-grain view
         assert!(
@@ -1284,16 +1282,10 @@ mod partial_period_builder_tests {
             current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
-        let result = gen
-            .generate_partial_period(&plan, &config, &branch_plan, None)
-            .unwrap();
+        let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
 
         // UNION ALL present
-        assert!(
-            result.sql.contains("UNION ALL"),
-            "expected UNION ALL: {}",
-            result.sql
-        );
+        assert!(result.sql.contains("UNION ALL"), "expected UNION ALL: {}", result.sql);
         // Coarse branch uses original view
         assert!(
             result.sql.contains("FROM v_events_month"),
@@ -1324,17 +1316,10 @@ mod partial_period_builder_tests {
             current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
-        let result = gen
-            .generate_partial_period(&plan, &config, &branch_plan, None)
-            .unwrap();
+        let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
 
         // 3 branches × 2 date params each = 6 params
-        assert_eq!(
-            result.params.len(),
-            6,
-            "expected 6 params, got {}",
-            result.params.len()
-        );
+        assert_eq!(result.params.len(), 6, "expected 6 params, got {}", result.params.len());
 
         // Branch 1: $1, $2
         assert!(result.sql.contains("$1"), "missing $1: {}", result.sql);
@@ -1374,9 +1359,8 @@ mod partial_period_builder_tests {
             value:    json!(42),
         };
 
-        let result = gen
-            .generate_partial_period(&plan, &config, &branch_plan, Some(&extra))
-            .unwrap();
+        let result =
+            gen.generate_partial_period(&plan, &config, &branch_plan, Some(&extra)).unwrap();
 
         // Two branches, each should have the tenant_id condition
         let branches: Vec<&str> = result.sql.split("UNION ALL").collect();
@@ -1391,12 +1375,7 @@ mod partial_period_builder_tests {
         }
 
         // 2 branches × (2 date params + 1 tenant_id param) = 6 total
-        assert_eq!(
-            result.params.len(),
-            6,
-            "expected 6 params: {:?}",
-            result.params
-        );
+        assert_eq!(result.params.len(), 6, "expected 6 params: {:?}", result.params);
     }
 
     #[test]
@@ -1412,9 +1391,7 @@ mod partial_period_builder_tests {
             current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
-        let result = gen
-            .generate_partial_period(&plan, &config, &branch_plan, None)
-            .unwrap();
+        let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
 
         assert_eq!(
             result.sql.split("UNION ALL").count(),
@@ -1437,9 +1414,7 @@ mod partial_period_builder_tests {
             current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
-        let result = gen
-            .generate_partial_period(&plan, &config, &branch_plan, None)
-            .unwrap();
+        let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
 
         assert!(
             !result.sql.contains("UNION ALL"),
@@ -1461,32 +1436,20 @@ mod partial_period_builder_tests {
             current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
-        let result = gen
-            .generate_partial_period(&plan, &config, &branch_plan, None)
-            .unwrap();
+        let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
 
         let branches: Vec<&str> = result.sql.split("UNION ALL").collect();
         assert_eq!(branches.len(), 3);
 
         for (i, branch) in branches.iter().enumerate() {
-            assert!(
-                branch.contains("COUNT(*)"),
-                "branch {} missing COUNT(*): {}",
-                i + 1,
-                branch
-            );
+            assert!(branch.contains("COUNT(*)"), "branch {} missing COUNT(*): {}", i + 1, branch);
             assert!(
                 branch.contains("SUM(volume)"),
                 "branch {} missing SUM(volume): {}",
                 i + 1,
                 branch
             );
-            assert!(
-                branch.contains("GROUP BY"),
-                "branch {} missing GROUP BY: {}",
-                i + 1,
-                branch
-            );
+            assert!(branch.contains("GROUP BY"), "branch {} missing GROUP BY: {}", i + 1, branch);
         }
     }
 }
@@ -1498,22 +1461,23 @@ fn test_aggregation_plan_uses_native_measure() {
     use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
 
     let metadata = FactTableMetadata {
-        table_name:           "mv_daily_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "mv_daily_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "volume".to_string(),
             sql_type: SqlType::BigInt,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::from([
-            ("measures.volume".to_string(), "volume".to_string()),
-        ]),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::from([(
+            "measures.volume".to_string(),
+            "volume".to_string(),
+        )]),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -1534,9 +1498,7 @@ fn test_aggregation_plan_uses_native_measure() {
 
     let plan = AggregationPlanner::plan(request, metadata).unwrap();
     match &plan.aggregate_expressions[0] {
-        AggregateExpression::MeasureAggregate {
-            column, native, ..
-        } => {
+        AggregateExpression::MeasureAggregate { column, native, .. } => {
             assert_eq!(column, "volume");
             assert!(native, "native flag should be true for native measures");
         },
@@ -1549,18 +1511,19 @@ fn test_native_measure_sql_uses_quoted_identifier() {
     use crate::compiler::aggregation::AggregationPlanner;
 
     let metadata = FactTableMetadata {
-        table_name:           "mv_daily_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               "mv_daily_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::from([
-            ("measures.volume".to_string(), "volume".to_string()),
-        ]),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::from([(
+            "measures.volume".to_string(),
+            "volume".to_string(),
+        )]),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -1601,20 +1564,20 @@ fn test_non_native_measure_unchanged() {
     use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
 
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -1635,9 +1598,7 @@ fn test_non_native_measure_unchanged() {
 
     let plan = AggregationPlanner::plan(request, metadata).unwrap();
     match &plan.aggregate_expressions[0] {
-        AggregateExpression::MeasureAggregate {
-            column, native, ..
-        } => {
+        AggregateExpression::MeasureAggregate { column, native, .. } => {
             assert_eq!(column, "revenue");
             assert!(!native, "native flag should be false for regular measures");
         },
@@ -1658,19 +1619,20 @@ fn test_native_dimension_mapping_sql_output() {
     use crate::compiler::aggregation::{AggregationPlan, AggregationRequest, GroupByExpression};
 
     let metadata = FactTableMetadata {
-        table_name:           "mv_daily_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               "mv_daily_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      std::collections::HashMap::new(),
-        native_dimension_mapping: std::collections::HashMap::from([
-            ("dimensions.category.id".to_string(), "category_id".to_string()),
-        ]),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::from([(
+            "dimensions.category.id".to_string(),
+            "category_id".to_string(),
+        )]),
     };
 
     let request = AggregationRequest {
@@ -1692,7 +1654,7 @@ fn test_native_dimension_mapping_sql_output() {
     let plan = AggregationPlan {
         metadata,
         request,
-        group_by_expressions:  vec![GroupByExpression::NativeColumn {
+        group_by_expressions: vec![GroupByExpression::NativeColumn {
             column:  "category_id".to_string(),
             pg_cast: String::new(),
             alias:   "category_id".to_string(),
@@ -1700,7 +1662,7 @@ fn test_native_dimension_mapping_sql_output() {
         aggregate_expressions: vec![AggregateExpression::Count {
             alias: "count".to_string(),
         }],
-        having_conditions:     vec![],
+        having_conditions: vec![],
     };
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -1711,9 +1673,5 @@ fn test_native_dimension_mapping_sql_output() {
         "expected GROUP BY \"category_id\", got: {}",
         sql.sql
     );
-    assert!(
-        !sql.sql.contains("data->"),
-        "should not contain JSONB extraction: {}",
-        sql.sql
-    );
+    assert!(!sql.sql.contains("data->"), "should not contain JSONB extraction: {}", sql.sql);
 }

@@ -32,7 +32,6 @@ use std::{
     time::Duration,
 };
 
-
 use axum::{
     extract::{
         State,
@@ -181,11 +180,14 @@ pub async fn subscription_handler(
     };
 
     // Resolve tenant from headers (same as GraphQL handler)
-    let tenant_id = super::graphql::TenantKeyResolver::resolve(None, &headers, None, false).ok().flatten();
+    let tenant_id = super::graphql::TenantKeyResolver::resolve(None, &headers, None, false)
+        .ok()
+        .flatten();
 
     ws.protocols([protocol.as_str()])
-
-        .on_upgrade(move |socket| handle_subscription_connection(socket, state, protocol, tenant_id))
+        .on_upgrade(move |socket| {
+            handle_subscription_connection(socket, state, protocol, tenant_id)
+        })
         .into_response()
 }
 
@@ -548,7 +550,9 @@ async fn handle_client_message(
             // Forward to remote subgraph when the subscription field is owned remotely.
             #[cfg(feature = "federation")]
             if let Some(subgraph_url) = state.remote_subscription_fields.get(&subscription_name) {
-                use fraiseql_federation::subscription_forwarder::{ForwardedEvent, SubscriptionForwarder};
+                use fraiseql_federation::subscription_forwarder::{
+                    ForwardedEvent, SubscriptionForwarder,
+                };
 
                 match SubscriptionForwarder::new(subgraph_url) {
                     Ok(forwarder) => {
@@ -561,7 +565,9 @@ async fn handle_client_message(
                         let fwd_query = payload.query.clone();
                         let fwd_vars = variables_value.clone();
                         tokio::spawn(async move {
-                            if let Err(e) = forwarder.forward(&fwd_op, &fwd_query, fwd_vars, event_tx).await {
+                            if let Err(e) =
+                                forwarder.forward(&fwd_op, &fwd_query, fwd_vars, event_tx).await
+                            {
                                 warn!(error = %e, "Remote subscription forwarder failed");
                             }
                         });
@@ -574,17 +580,30 @@ async fn handle_client_message(
                                 let server_msg = match event {
                                     ForwardedEvent::Next(data) => {
                                         ServerMessage::next(&relay_op, data)
-                                    }
+                                    },
                                     ForwardedEvent::Error(errors) => {
                                         let errors_vec = errors.as_array().map_or_else(
-                                            || vec![GraphQLError::with_code(errors.to_string(), "REMOTE_ERROR")],
-                                            |arr| arr.iter().map(|e| GraphQLError::with_code(
-                                                e.get("message").and_then(|v| v.as_str()).unwrap_or("Remote subgraph error"),
-                                                "REMOTE_ERROR",
-                                            )).collect(),
+                                            || {
+                                                vec![GraphQLError::with_code(
+                                                    errors.to_string(),
+                                                    "REMOTE_ERROR",
+                                                )]
+                                            },
+                                            |arr| {
+                                                arr.iter()
+                                                    .map(|e| {
+                                                        GraphQLError::with_code(
+                                                            e.get("message")
+                                                                .and_then(|v| v.as_str())
+                                                                .unwrap_or("Remote subgraph error"),
+                                                            "REMOTE_ERROR",
+                                                        )
+                                                    })
+                                                    .collect()
+                                            },
                                         );
                                         ServerMessage::error(&relay_op, errors_vec)
-                                    }
+                                    },
                                     ForwardedEvent::Complete => ServerMessage::complete(&relay_op),
                                 };
                                 if relay_tx.send(server_msg).await.is_err() {
@@ -601,7 +620,7 @@ async fn handle_client_message(
                             "Subscription forwarded to remote subgraph"
                         );
                         return Ok(());
-                    }
+                    },
                     Err(e) => {
                         let error = ServerMessage::error(
                             &op_id,
@@ -611,18 +630,21 @@ async fn handle_client_message(
                             debug!(connection_id = %connection_id, error = %send_err, "Could not send forwarding error to client");
                         }
                         return Ok(());
-                    }
+                    },
                 }
             }
 
             // Validate client-provided tenant variable against server-resolved
             if let Some(server_tid) = tenant_id {
-                if let Some(client_tid) = variables_value.get("tenant_id").and_then(|v| v.as_str()) {
+                if let Some(client_tid) = variables_value.get("tenant_id").and_then(|v| v.as_str())
+                {
                     if client_tid != server_tid {
                         let error = ServerMessage::error(
                             &op_id,
                             vec![GraphQLError::with_code(
-                                format!("Tenant mismatch: client provided '{client_tid}', server resolved '{server_tid}'"),
+                                format!(
+                                    "Tenant mismatch: client provided '{client_tid}', server resolved '{server_tid}'"
+                                ),
                                 "TENANT_MISMATCH",
                             )],
                         );

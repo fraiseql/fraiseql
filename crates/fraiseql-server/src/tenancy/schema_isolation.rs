@@ -27,9 +27,7 @@ const TENANT_SCHEMA_PREFIX: &str = "tenant_";
 /// exceeding 63 characters.
 pub fn tenant_schema_name(key: &str) -> Result<String> {
     if key.is_empty() {
-        return Err(FraiseQLError::validation(
-            "Tenant key must not be empty for schema isolation",
-        ));
+        return Err(FraiseQLError::validation("Tenant key must not be empty for schema isolation"));
     }
 
     // Only allow alphanumeric + underscore to prevent SQL injection
@@ -98,9 +96,7 @@ pub fn drop_schema_ddl(key: &str) -> Result<String> {
 pub async fn provision_tenant_schema(key: &str, adapter: &dyn DatabaseAdapter) -> Result<()> {
     let ddl = create_schema_ddl(key)?;
     adapter.execute_raw_query(&ddl).await.map_err(|e| {
-        FraiseQLError::database(format!(
-            "Failed to provision schema for tenant '{key}': {e}"
-        ))
+        FraiseQLError::database(format!("Failed to provision schema for tenant '{key}': {e}"))
     })?;
     Ok(())
 }
@@ -117,9 +113,7 @@ pub async fn provision_tenant_schema(key: &str, adapter: &dyn DatabaseAdapter) -
 pub async fn drop_tenant_schema(key: &str, adapter: &dyn DatabaseAdapter) -> Result<()> {
     let ddl = drop_schema_ddl(key)?;
     adapter.execute_raw_query(&ddl).await.map_err(|e| {
-        FraiseQLError::database(format!(
-            "Failed to drop schema for tenant '{key}': {e}"
-        ))
+        FraiseQLError::database(format!("Failed to drop schema for tenant '{key}': {e}"))
     })?;
     Ok(())
 }
@@ -139,9 +133,7 @@ pub async fn drop_tenant_schema(key: &str, adapter: &dyn DatabaseAdapter) -> Res
 pub async fn configure_search_path(key: &str, adapter: &dyn DatabaseAdapter) -> Result<()> {
     let sql = search_path_sql(key)?;
     adapter.execute_raw_query(&sql).await.map_err(|e| {
-        FraiseQLError::database(format!(
-            "Failed to set search_path for tenant '{key}': {e}"
-        ))
+        FraiseQLError::database(format!("Failed to set search_path for tenant '{key}': {e}"))
     })?;
     Ok(())
 }

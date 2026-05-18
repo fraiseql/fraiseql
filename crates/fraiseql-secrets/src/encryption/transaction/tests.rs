@@ -66,8 +66,7 @@ fn test_transaction_context_with_role() {
 
 #[test]
 fn test_transaction_context_with_client_ip() {
-    let ctx =
-        TransactionContext::new("user123", "sess456", "req789").with_client_ip("192.168.1.1");
+    let ctx = TransactionContext::new("user123", "sess456", "req789").with_client_ip("192.168.1.1");
     assert_eq!(ctx.client_ip, Some("192.168.1.1".to_string()));
 }
 

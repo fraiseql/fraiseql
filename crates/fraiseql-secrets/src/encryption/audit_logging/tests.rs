@@ -4,8 +4,7 @@ use super::*;
 
 #[test]
 fn test_audit_log_entry_creation() {
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
     assert_eq!(entry.user_id(), "user123");
     assert_eq!(entry.field_name(), "email");
     assert_eq!(entry.operation(), OperationType::Insert);
@@ -14,27 +13,24 @@ fn test_audit_log_entry_creation() {
 
 #[test]
 fn test_audit_log_entry_with_failure() {
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Select, "req456", "sess789")
-            .with_failure("Decryption failed: wrong key");
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Select, "req456", "sess789")
+        .with_failure("Decryption failed: wrong key");
     assert_eq!(entry.status(), EventStatus::Failure);
     assert_eq!(entry.error_message(), Some("Decryption failed: wrong key"));
 }
 
 #[test]
 fn test_audit_log_entry_with_context() {
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Update, "req456", "sess789")
-            .with_context("ip_address", "192.168.1.1")
-            .with_context("user_role", "admin");
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Update, "req456", "sess789")
+        .with_context("ip_address", "192.168.1.1")
+        .with_context("user_role", "admin");
     assert_eq!(entry.context().get("ip_address"), Some(&"192.168.1.1".to_string()));
     assert_eq!(entry.context().get("user_role"), Some(&"admin".to_string()));
 }
 
 #[test]
 fn test_audit_log_entry_to_csv() {
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
     let csv = entry.to_csv();
     assert!(csv.contains("user123"));
     assert!(csv.contains("email"));
@@ -44,8 +40,7 @@ fn test_audit_log_entry_to_csv() {
 
 #[test]
 fn test_audit_log_entry_to_json_like() {
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Select, "req456", "sess789");
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Select, "req456", "sess789");
     let json = entry.to_json_like();
     assert!(json.contains("user123"));
     assert!(json.contains("email"));
@@ -55,8 +50,7 @@ fn test_audit_log_entry_to_json_like() {
 #[test]
 fn test_audit_logger_logging() {
     let mut logger = AuditLogger::new(10);
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
     let result = logger.log_entry(entry);
     result.unwrap_or_else(|e| panic!("expected Ok from log_entry: {e}"));
     assert_eq!(logger.entry_count(), 1);
@@ -156,8 +150,7 @@ fn test_audit_logger_bounded_history() {
 #[test]
 fn test_audit_logger_clear() {
     let mut logger = AuditLogger::new(10);
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789");
     let _ = logger.log_entry(entry);
     assert_eq!(logger.entry_count(), 1);
     logger.clear();
@@ -180,18 +173,16 @@ fn test_event_status_display() {
 
 #[test]
 fn test_audit_log_entry_with_security_context() {
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789")
-            .with_security_context(Some("192.168.1.1"), Some("admin"));
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789")
+        .with_security_context(Some("192.168.1.1"), Some("admin"));
     assert_eq!(entry.context().get("ip_address"), Some(&"192.168.1.1".to_string()));
     assert_eq!(entry.context().get("user_role"), Some(&"admin".to_string()));
 }
 
 #[test]
 fn test_audit_log_entry_with_partial_security_context() {
-    let entry =
-        AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789")
-            .with_security_context(Some("192.168.1.1"), None);
+    let entry = AuditLogEntry::new("user123", "email", OperationType::Insert, "req456", "sess789")
+        .with_security_context(Some("192.168.1.1"), None);
     assert_eq!(entry.context().get("ip_address"), Some(&"192.168.1.1".to_string()));
     assert!(!entry.context().contains_key("user_role"));
 }

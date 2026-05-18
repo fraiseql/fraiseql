@@ -30,10 +30,10 @@ pub struct FederationMetadata {
 impl Default for FederationMetadata {
     fn default() -> Self {
         Self {
-            enabled:                      false,
-            version:                      "v2".to_string(),
-            types:                        Vec::new(),
-            remote_subscription_fields:   HashMap::new(),
+            enabled: false,
+            version: "v2".to_string(),
+            types: Vec::new(),
+            remote_subscription_fields: HashMap::new(),
         }
     }
 }

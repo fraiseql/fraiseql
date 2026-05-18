@@ -77,19 +77,17 @@ pub fn period_start(date: NaiveDate, grain: TemporalGrain) -> NaiveDate {
         TemporalGrain::Week => {
             let days_since_monday = date.weekday().num_days_from_monday();
             date - TimeDelta::days(i64::from(days_since_monday))
-        }
-        TemporalGrain::Month => {
-            NaiveDate::from_ymd_opt(date.year(), date.month(), 1)
-                .expect("day 1 of any month is valid")
-        }
+        },
+        TemporalGrain::Month => NaiveDate::from_ymd_opt(date.year(), date.month(), 1)
+            .expect("day 1 of any month is valid"),
         TemporalGrain::Quarter => {
             let quarter_month = ((date.month() - 1) / 3) * 3 + 1;
             NaiveDate::from_ymd_opt(date.year(), quarter_month, 1)
                 .expect("quarter start is always valid")
-        }
+        },
         TemporalGrain::Year => {
             NaiveDate::from_ymd_opt(date.year(), 1, 1).expect("Jan 1 is always valid")
-        }
+        },
     }
 }
 
@@ -121,13 +119,12 @@ pub fn next_period_start(date: NaiveDate, grain: TemporalGrain) -> NaiveDate {
         TemporalGrain::Week => start + TimeDelta::weeks(1),
         TemporalGrain::Month => {
             if start.month() == 12 {
-                NaiveDate::from_ymd_opt(start.year() + 1, 1, 1)
-                    .expect("next year Jan 1 is valid")
+                NaiveDate::from_ymd_opt(start.year() + 1, 1, 1).expect("next year Jan 1 is valid")
             } else {
                 NaiveDate::from_ymd_opt(start.year(), start.month() + 1, 1)
                     .expect("next month day 1 is valid")
             }
-        }
+        },
         TemporalGrain::Quarter => {
             if start.month() == 10 {
                 NaiveDate::from_ymd_opt(start.year() + 1, 1, 1)
@@ -136,23 +133,21 @@ pub fn next_period_start(date: NaiveDate, grain: TemporalGrain) -> NaiveDate {
                 NaiveDate::from_ymd_opt(start.year(), start.month() + 3, 1)
                     .expect("next quarter start is valid")
             }
-        }
+        },
         TemporalGrain::Year => {
             NaiveDate::from_ymd_opt(start.year() + 1, 1, 1).expect("next year Jan 1 is valid")
-        }
+        },
     }
 }
 
 /// Plan describing which UNION ALL branches to generate.
 ///
 /// A partial-period UNION ALL query has up to 3 branches:
-/// - **`partial_leading`**: fine-grain rows from the non-aligned lower bound to the
-///   next period boundary (omitted when the lower bound is period-aligned).
-/// - **`complete_middle`**: coarse-grain rows for fully completed periods between
-///   the leading partial period and the current period (omitted when there are no
-///   complete periods in range).
-/// - **`current_period`**: fine-grain rows for the in-progress period up to today
-///   (always present).
+/// - **`partial_leading`**: fine-grain rows from the non-aligned lower bound to the next period
+///   boundary (omitted when the lower bound is period-aligned).
+/// - **`complete_middle`**: coarse-grain rows for fully completed periods between the leading
+///   partial period and the current period (omitted when there are no complete periods in range).
+/// - **`current_period`**: fine-grain rows for the in-progress period up to today (always present).
 ///
 /// Date ranges are half-open intervals: `[gte, lt)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -238,8 +233,8 @@ pub fn determine_branches(
 /// conditions are met:
 /// 1. The fact table has `partial_period` configuration
 /// 2. The WHERE clause contains a lower-bound date filter on the time-grain column
-/// 3. The resulting branch plan would produce more than one branch (otherwise
-///    UNION ALL of a single branch is overhead for no benefit)
+/// 3. The resulting branch plan would produce more than one branch (otherwise UNION ALL of a single
+///    branch is overhead for no benefit)
 ///
 /// Returns `None` when the standard aggregation path should be used instead.
 #[must_use]
@@ -314,7 +309,7 @@ pub fn extract_lower_date_bound(
             } else {
                 None
             }
-        }
+        },
 
         WhereClause::And(children) => {
             for child in children {
@@ -323,7 +318,7 @@ pub fn extract_lower_date_bound(
                 }
             }
             None
-        }
+        },
 
         // OR/NOT/unknown: cannot safely extract a lower bound — fall back to standard path.
         _ => None,
@@ -335,8 +330,8 @@ pub fn extract_lower_date_bound(
 /// Returns `None` if no lower-bound date condition is found on `column_name`.
 /// When found, the matched condition is removed from the clause:
 /// - If the clause was a single condition, `remaining` is `None`.
-/// - If the clause was an AND chain, the matched child is removed. If only one
-///   child remains, the AND wrapper is unwrapped.
+/// - If the clause was an AND chain, the matched child is removed. If only one child remains, the
+///   AND wrapper is unwrapped.
 ///
 /// # Arguments
 ///
@@ -358,7 +353,7 @@ pub fn split_where_clause(
                 lower_bound: date,
                 remaining:   None,
             })
-        }
+        },
 
         WhereClause::NativeField {
             column,
@@ -374,7 +369,7 @@ pub fn split_where_clause(
                 lower_bound: date,
                 remaining:   None,
             })
-        }
+        },
 
         WhereClause::And(children) => {
             // Find the first child that matches the date column.
@@ -408,7 +403,7 @@ pub fn split_where_clause(
                 lower_bound: date,
                 remaining,
             })
-        }
+        },
 
         // OR/NOT/unknown: cannot safely split.
         _ => None,

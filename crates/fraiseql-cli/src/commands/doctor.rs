@@ -49,7 +49,11 @@ impl DoctorCheck {
         }
     }
 
-    pub(crate) fn warn(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
+    pub(crate) fn warn(
+        name: &'static str,
+        detail: impl Into<String>,
+        hint: impl Into<String>,
+    ) -> Self {
         Self {
             name,
             status: CheckStatus::Warn,
@@ -58,7 +62,11 @@ impl DoctorCheck {
         }
     }
 
-    pub(crate) fn fail(name: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
+    pub(crate) fn fail(
+        name: &'static str,
+        detail: impl Into<String>,
+        hint: impl Into<String>,
+    ) -> Self {
         Self {
             name,
             status: CheckStatus::Fail,

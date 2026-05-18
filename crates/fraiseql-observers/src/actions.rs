@@ -181,7 +181,10 @@ pub(crate) fn validate_headers(headers: &HashMap<String, String>) -> Result<()> 
 /// 429 Too Many Requests is transient because the server indicated it *can*
 /// accept the request after a retry window; routing it to DLQ immediately would
 /// discard actionable work.
-pub(crate) fn classify_http_status(status: reqwest::StatusCode, duration_ms: f64) -> Result<WebhookResponse> {
+pub(crate) fn classify_http_status(
+    status: reqwest::StatusCode,
+    duration_ms: f64,
+) -> Result<WebhookResponse> {
     if status.is_success() {
         Ok(WebhookResponse {
             status_code: status.as_u16(),

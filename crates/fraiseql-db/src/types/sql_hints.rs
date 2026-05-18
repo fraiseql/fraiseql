@@ -244,8 +244,16 @@ pub struct SqlProjectionHint {
 
 impl SqlProjectionHint {
     /// Creates a new `SqlProjectionHint`.
-    pub const fn new(database: DatabaseType, projection_template: String, estimated_reduction_percent: u32) -> Self {
-        Self { database, projection_template, estimated_reduction_percent }
+    pub const fn new(
+        database: DatabaseType,
+        projection_template: String,
+        estimated_reduction_percent: u32,
+    ) -> Self {
+        Self {
+            database,
+            projection_template,
+            estimated_reduction_percent,
+        }
     }
 }
 

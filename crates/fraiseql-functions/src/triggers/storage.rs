@@ -23,8 +23,9 @@
 //!
 //! Storage triggers fire asynchronously after the storage operation completes.
 //! Failures in the trigger function do not affect the storage operation result.
-use crate::types::EventPayload;
 use serde::{Deserialize, Serialize};
+
+use crate::types::EventPayload;
 
 /// Storage operation type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -53,17 +54,17 @@ impl StorageOperation {
 #[derive(Debug, Clone)]
 pub struct StorageEventPayload {
     /// Bucket name.
-    pub bucket: String,
+    pub bucket:       String,
     /// Object key/path.
-    pub key: String,
+    pub key:          String,
     /// Object size in bytes.
-    pub size_bytes: i64,
+    pub size_bytes:   i64,
     /// MIME type of the object.
     pub content_type: String,
     /// User ID of the owner (if applicable).
-    pub owner_id: Option<String>,
+    pub owner_id:     Option<String>,
     /// Operation that triggered the event.
-    pub operation: StorageOperation,
+    pub operation:    StorageOperation,
 }
 
 /// A trigger that fires after storage operations.
@@ -72,9 +73,9 @@ pub struct StorageTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Bucket name to listen on.
-    pub bucket: String,
+    pub bucket:        String,
     /// Operation filter (Upload, Delete, or Any).
-    pub operation: StorageOperation,
+    pub operation:     StorageOperation,
 }
 
 impl StorageTrigger {
@@ -118,11 +119,7 @@ impl StorageTrigger {
 
     /// Build an `EventPayload` from a storage event.
     pub fn build_payload(&self, event: &StorageEventPayload) -> EventPayload {
-        let trigger_type = format!(
-            "after:storage:{}:{}",
-            event.bucket,
-            event.operation.as_str()
-        );
+        let trigger_type = format!("after:storage:{}:{}", event.bucket, event.operation.as_str());
 
         let mut data = serde_json::json!({
             "bucket": event.bucket,

@@ -36,9 +36,9 @@ pub struct ChangelogQuery {
     pub after_cursor: i64,
     /// Maximum number of entries to return (default 100, max 1000).
     #[serde(default = "default_changelog_limit")]
-    pub limit: i64,
+    pub limit:        i64,
     /// Optional filter by `object_type`.
-    pub object_type: Option<String>,
+    pub object_type:  Option<String>,
 }
 
 const fn default_changelog_limit() -> i64 {
@@ -52,34 +52,34 @@ const MAX_CHANGELOG_LIMIT: i64 = 1_000;
 #[derive(Debug, Serialize)]
 pub struct ChangelogEntryResponse {
     /// Monotonic bigint cursor — used for polling.
-    pub cursor: i64,
+    pub cursor:            i64,
     /// Public UUID identity.
-    pub id: String,
+    pub id:                String,
     /// Organization / tenant (nullable).
-    pub org_id: Option<String>,
+    pub org_id:            Option<String>,
     /// User who made the change (nullable).
-    pub user_id: Option<String>,
+    pub user_id:           Option<String>,
     /// Entity type (e.g. "Order").
-    pub object_type: String,
+    pub object_type:       String,
     /// Entity instance ID.
-    pub object_id: String,
+    pub object_id:         String,
     /// INSERT, UPDATE, DELETE, or NOOP.
     pub modification_type: String,
     /// Change status (nullable).
-    pub status: Option<String>,
+    pub status:            Option<String>,
     /// Raw Debezium envelope `{op, before, after}`.
-    pub object_data: serde_json::Value,
+    pub object_data:       serde_json::Value,
     /// Extra metadata (nullable).
-    pub metadata: Option<serde_json::Value>,
+    pub metadata:          Option<serde_json::Value>,
     /// When the change was recorded (ISO 8601).
-    pub created_at: Option<String>,
+    pub created_at:        Option<String>,
 }
 
 /// Response wrapper for the changelog list endpoint.
 #[derive(Debug, Serialize)]
 pub struct ChangelogListResponse {
     /// Changelog entries ordered by cursor ASC.
-    pub entries: Vec<ChangelogEntryResponse>,
+    pub entries:     Vec<ChangelogEntryResponse>,
     /// The cursor of the last entry (for use as `after_cursor` on the next poll).
     /// `None` when the result set is empty.
     pub next_cursor: Option<i64>,
@@ -93,7 +93,7 @@ pub struct CheckpointResponse {
     /// Last successfully processed cursor value.
     pub last_cursor: i64,
     /// When the checkpoint was last updated.
-    pub updated_at: Option<String>,
+    pub updated_at:  Option<String>,
 }
 
 /// Request body for `PUT /api/observers/checkpoint/:listener_id`.
@@ -107,17 +107,17 @@ pub struct SaveCheckpointRequest {
 
 /// Row shape returned by the changelog query.
 type ChangelogRow = (
-    i64,                    // pk_entity_change_log
-    uuid::Uuid,             // id
-    Option<String>,         // fk_customer_org
-    Option<String>,         // fk_contact
-    String,                 // object_type
-    String,                 // object_id
-    String,                 // modification_type
-    Option<String>,         // change_status
-    serde_json::Value,      // object_data
+    i64,                       // pk_entity_change_log
+    uuid::Uuid,                // id
+    Option<String>,            // fk_customer_org
+    Option<String>,            // fk_contact
+    String,                    // object_type
+    String,                    // object_id
+    String,                    // modification_type
+    Option<String>,            // change_status
+    serde_json::Value,         // object_data
     Option<serde_json::Value>, // extra_metadata
-    Option<DateTime<Utc>>,  // created_at
+    Option<DateTime<Utc>>,     // created_at
 );
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -237,7 +237,7 @@ pub async fn checkpoint_get_handler(
             Json(CheckpointResponse {
                 listener_id: lid,
                 last_cursor: cursor,
-                updated_at: updated.map(|t| t.to_rfc3339()),
+                updated_at:  updated.map(|t| t.to_rfc3339()),
             }),
         )
             .into_response(),
@@ -303,65 +303,4 @@ pub async fn checkpoint_save_handler(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn changelog_entry_response_serializes() {
-        let entry = ChangelogEntryResponse {
-            cursor: 42,
-            id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
-            org_id: Some("acme".to_string()),
-            user_id: None,
-            object_type: "Order".to_string(),
-            object_id: "123".to_string(),
-            modification_type: "INSERT".to_string(),
-            status: None,
-            object_data: serde_json::json!({"op": "c", "after": {"id": 1}}),
-            metadata: None,
-            created_at: None,
-        };
-        let json = serde_json::to_value(&entry).expect("serialize");
-        assert_eq!(json["cursor"], 42);
-        assert_eq!(json["object_type"], "Order");
-    }
-
-    #[test]
-    fn changelog_list_response_serializes() {
-        let response = ChangelogListResponse {
-            entries: vec![],
-            next_cursor: None,
-        };
-        let json = serde_json::to_value(&response).expect("serialize");
-        assert!(json["next_cursor"].is_null());
-        assert_eq!(json["entries"].as_array().unwrap().len(), 0);
-    }
-
-    #[test]
-    fn checkpoint_response_serializes() {
-        let response = CheckpointResponse {
-            listener_id: "my_app".to_string(),
-            last_cursor: 100,
-            updated_at: Some("2026-01-01T00:00:00Z".to_string()),
-        };
-        let json = serde_json::to_value(&response).expect("serialize");
-        assert_eq!(json["last_cursor"], 100);
-    }
-
-    #[test]
-    fn save_checkpoint_request_deserializes() {
-        let json = r#"{"last_cursor": 42}"#;
-        let req: SaveCheckpointRequest = serde_json::from_str(json).expect("deserialize");
-        assert_eq!(req.last_cursor, 42);
-    }
-
-    #[test]
-    fn default_changelog_limit_is_100() {
-        assert_eq!(default_changelog_limit(), 100);
-    }
-
-    #[test]
-    fn max_limit_is_1000() {
-        assert_eq!(MAX_CHANGELOG_LIMIT, 1_000);
-    }
-}
+mod tests;

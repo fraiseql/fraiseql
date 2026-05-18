@@ -140,9 +140,7 @@ mod cli_tests {
 
     use clap::Parser as _;
 
-    use crate::cli::*;
-    use crate::middleware::RateLimitConfig;
-    use crate::server_config::ServerConfig;
+    use crate::{cli::*, middleware::RateLimitConfig, server_config::ServerConfig};
 
     #[test]
     fn cli_parse_config_flag() {
@@ -288,7 +286,7 @@ mod cli_tests {
     #[test]
     fn apply_introspection_overrides() {
         let args = ServerArgs {
-            introspection_enabled:      Some(true),
+            introspection_enabled: Some(true),
             introspection_require_auth: Some(false),
             ..Default::default()
         };
@@ -1028,8 +1026,10 @@ mod tls_tests {
 
     use std::path::{Path, PathBuf};
 
-    use crate::server_config::{DatabaseTlsConfig, TlsServerConfig};
-    use crate::tls::*;
+    use crate::{
+        server_config::{DatabaseTlsConfig, TlsServerConfig},
+        tls::*,
+    };
 
     #[test]
     fn test_tls_setup_disabled() {

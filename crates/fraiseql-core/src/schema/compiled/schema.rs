@@ -20,9 +20,9 @@ use sha2::{Digest, Sha256};
 use tracing::{info, warn};
 
 use super::{directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition};
-use crate::error::FraiseQLError;
 use crate::{
     compiler::fact_table::FactTableMetadata,
+    error::FraiseQLError,
     schema::{
         config_types::{
             DebugConfig, FederationConfig, GrpcConfig, McpConfig, NamingConvention,
@@ -40,6 +40,40 @@ use crate::{
     },
     validation::CustomTypeRegistry,
 };
+
+/// Recursively sort all JSON object keys to produce a canonical representation.
+///
+/// This guarantees deterministic serialization regardless of `HashMap` iteration
+/// order or `serde_json` feature flags (`preserve_order`). Used by both the CLI
+/// (hash embed) and `from_json` (hash verify) to ensure round-trip consistency.
+///
+/// # Example
+///
+/// ```
+/// use fraiseql_core::schema::canonicalize_json;
+///
+/// let v: serde_json::Value = serde_json::from_str(r#"{"b":1,"a":2}"#).unwrap();
+/// let c = canonicalize_json(&v);
+/// assert_eq!(serde_json::to_string(&c).unwrap(), r#"{"a":2,"b":1}"#);
+/// ```
+#[must_use]
+pub fn canonicalize_json(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut sorted = serde_json::Map::new();
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            for key in keys {
+                sorted.insert(key.clone(), canonicalize_json(&map[key]));
+            }
+            serde_json::Value::Object(sorted)
+        },
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.iter().map(canonicalize_json).collect())
+        },
+        other => other.clone(),
+    }
+}
 
 /// Current schema format version.
 ///
@@ -368,8 +402,8 @@ impl CompiledSchema {
     /// extracts that field, recomputes the hash over the remaining JSON, and compares.
     ///
     /// - `strict_integrity = true`: missing or mismatched hash returns `Err`.
-    /// - `strict_integrity = false`: missing hash logs a warning; mismatch logs a warning
-    ///   but proceeds (backwards compatibility for schemas compiled without `_content_hash`).
+    /// - `strict_integrity = false`: missing hash logs a warning; mismatch logs a warning but
+    ///   proceeds (backwards compatibility for schemas compiled without `_content_hash`).
     ///
     /// # Errors
     ///
@@ -383,19 +417,20 @@ impl CompiledSchema {
     /// let json = r#"{"types": [], "queries": [], "mutations": [], "subscriptions": []}"#;
     /// let schema = CompiledSchema::from_json(json, false).unwrap();
     /// ```
-    pub fn from_json(json: &str, strict_integrity: bool) -> std::result::Result<Self, FraiseQLError> {
+    pub fn from_json(
+        json: &str,
+        strict_integrity: bool,
+    ) -> std::result::Result<Self, FraiseQLError> {
         let serde_err = |e: serde_json::Error| FraiseQLError::Parse {
-            message: format!("Schema JSON parse error: {e}"),
+            message:  format!("Schema JSON parse error: {e}"),
             location: String::new(),
         };
 
         let mut value: serde_json::Value = serde_json::from_str(json).map_err(serde_err)?;
 
-        let obj = value.as_object_mut().ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: "Schema JSON must be an object".to_string(),
-                path: None,
-            }
+        let obj = value.as_object_mut().ok_or_else(|| FraiseQLError::Validation {
+            message: "Schema JSON must be an object".to_string(),
+            path:    None,
         })?;
 
         // Extract and remove _content_hash
@@ -405,7 +440,7 @@ impl CompiledSchema {
             } else {
                 return Err(FraiseQLError::Validation {
                     message: "_content_hash must be a string".to_string(),
-                    path: None,
+                    path:    None,
                 });
             }
         } else if strict_integrity {
@@ -414,15 +449,18 @@ impl CompiledSchema {
                 path: None,
             });
         } else {
-            warn!("Schema integrity check skipped: no _content_hash field present. Consider recompiling with a newer CLI for integrity verification.");
+            warn!(
+                "Schema integrity check skipped: no _content_hash field present. Consider recompiling with a newer CLI for integrity verification."
+            );
             // No hash, parse directly from original
             let mut schema: Self = serde_json::from_str(json).map_err(serde_err)?;
             schema.build_indexes();
             return Ok(schema);
         };
 
-        // Serialize the remaining JSON deterministically
-        let remaining_json = serde_json::to_string_pretty(&value).map_err(serde_err)?;
+        // Canonicalize and serialize deterministically (sorted keys at all levels)
+        let canonical = canonicalize_json(&value);
+        let remaining_json = serde_json::to_string_pretty(&canonical).map_err(serde_err)?;
         let computed_digest = Sha256::digest(remaining_json.as_bytes());
         let computed_hash = hex::encode(&computed_digest[..16]);
 
@@ -430,11 +468,15 @@ impl CompiledSchema {
             if expected != computed_hash {
                 if strict_integrity {
                     return Err(FraiseQLError::Validation {
-                        message: format!("Schema integrity check failed: hash mismatch (expected {expected}, got {computed_hash})"),
-                        path: None,
+                        message: format!(
+                            "Schema integrity check failed: hash mismatch (expected {expected}, got {computed_hash})"
+                        ),
+                        path:    None,
                     });
                 }
-                warn!("Schema integrity check: hash mismatch (expected {expected}, got {computed_hash}). Proceeding because strict_integrity is disabled.");
+                warn!(
+                    "Schema integrity check: hash mismatch (expected {expected}, got {computed_hash}). Proceeding because strict_integrity is disabled."
+                );
             } else {
                 info!("Schema integrity verified: hash matches");
             }
@@ -668,17 +710,17 @@ impl CompiledSchema {
                 .entities
                 .iter()
                 .map(|e| crate::federation::types::FederatedType {
-                    name:             e.name.clone(),
-                    keys:             vec![crate::federation::types::KeyDirective {
+                    name:                e.name.clone(),
+                    keys:                vec![crate::federation::types::KeyDirective {
                         fields:     e.key_fields.clone(),
                         resolvable: true,
                     }],
-                    is_extends:       false,
-                    external_fields:  Vec::new(),
-                    shareable_fields: Vec::new(),
+                    is_extends:          false,
+                    external_fields:     Vec::new(),
+                    shareable_fields:    Vec::new(),
                     inaccessible_fields: Vec::new(),
-                    field_directives: std::collections::HashMap::new(),
-                    type_shareable:  false,
+                    field_directives:    std::collections::HashMap::new(),
+                    type_shareable:      false,
                 })
                 .collect();
 
@@ -722,7 +764,7 @@ impl CompiledSchema {
 
     /// Returns the tenancy isolation mode configured for this schema.
     ///
-    /// Defaults to [`TenancyMode::None`] when no security or tenancy configuration
+    /// Defaults to `TenancyMode::None` when no security or tenancy configuration
     /// is present, meaning single-tenant operation with no isolation machinery.
     #[must_use]
     pub fn tenancy_mode(&self) -> crate::schema::TenancyMode {

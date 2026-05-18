@@ -87,9 +87,7 @@ fn test_is_retriable() {
 fn test_retriable_classification() {
     // Transient errors should be retriable
     assert!(WireError::ConnectionClosed.is_retriable());
-    assert!(
-        WireError::Io(io::Error::new(io::ErrorKind::ConnectionReset, "reset")).is_retriable()
-    );
+    assert!(WireError::Io(io::Error::new(io::ErrorKind::ConnectionReset, "reset")).is_retriable());
 
     // Permanent errors should not be retriable
     assert!(!WireError::auth_failed("user", "invalid password").is_retriable());

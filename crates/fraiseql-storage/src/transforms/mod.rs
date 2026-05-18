@@ -11,9 +11,8 @@ pub mod transformer;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "transforms")]
-pub use transformer::{ImageTransformer, OutputFormat, TransformOutput, TransformParams};
-
 /// Re-export for convenience when transforms feature is enabled
 #[cfg(feature = "transforms")]
 pub use cache::TransformCache;
+#[cfg(feature = "transforms")]
+pub use transformer::{ImageTransformer, OutputFormat, TransformOutput, TransformParams};

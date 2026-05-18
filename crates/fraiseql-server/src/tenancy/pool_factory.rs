@@ -89,10 +89,11 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
     pool_config: &TenantPoolConfig,
 ) -> Result<Arc<Executor<A>>> {
     // 1. Parse and validate schema
-    let schema = CompiledSchema::from_json(schema_json, false).map_err(|e| FraiseQLError::Parse {
-        message:  format!("Invalid compiled schema JSON: {e}"),
-        location: String::new(),
-    })?;
+    let schema =
+        CompiledSchema::from_json(schema_json, false).map_err(|e| FraiseQLError::Parse {
+            message:  format!("Invalid compiled schema JSON: {e}"),
+            location: String::new(),
+        })?;
 
     schema
         .validate_format_version()
@@ -124,9 +125,6 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
 ///
 /// Returns `FraiseQLError::Validation` if the tenant key is invalid.
 /// Returns `FraiseQLError::Database` if the DDL execution fails.
-pub async fn destroy_tenant_schema(
-    tenant_key: &str,
-    adapter: &dyn DatabaseAdapter,
-) -> Result<()> {
+pub async fn destroy_tenant_schema(tenant_key: &str, adapter: &dyn DatabaseAdapter) -> Result<()> {
     schema_isolation::drop_tenant_schema(tenant_key, adapter).await
 }

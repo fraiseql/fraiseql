@@ -324,10 +324,9 @@ fn resolve_inject_value(
         InjectedParamSource::Jwt(claim) => {
             let value = match claim.as_str() {
                 "sub" => Some(serde_json::Value::String(security_ctx.user_id.0.clone())),
-                "tenant_id" | "org_id" => security_ctx
-                    .tenant_id
-                    .as_ref()
-                    .map(|t| serde_json::Value::String(t.0.clone())),
+                "tenant_id" | "org_id" => {
+                    security_ctx.tenant_id.as_ref().map(|t| serde_json::Value::String(t.0.clone()))
+                },
                 other => security_ctx.attributes.get(other).cloned(),
             };
             value.ok_or_else(|| FraiseQLError::Validation {

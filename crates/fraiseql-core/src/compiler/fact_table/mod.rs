@@ -52,16 +52,16 @@ mod tests;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactTableMetadata {
     /// Table name (e.g., "`tf_sales`")
-    pub table_name:           String,
+    pub table_name:               String,
     /// Measures (aggregatable numeric columns)
-    pub measures:             Vec<MeasureColumn>,
+    pub measures:                 Vec<MeasureColumn>,
     /// Dimension column (JSONB)
-    pub dimensions:           DimensionColumn,
+    pub dimensions:               DimensionColumn,
     /// Denormalized filter columns
-    pub denormalized_filters: Vec<FilterColumn>,
+    pub denormalized_filters:     Vec<FilterColumn>,
     /// Calendar dimensions for optimized temporal aggregations
     #[serde(default)]
-    pub calendar_dimensions:  Vec<CalendarDimension>,
+    pub calendar_dimensions:      Vec<CalendarDimension>,
     /// Optional partial-period awareness configuration.
     ///
     /// When a coarse-grain fact table (e.g. monthly pre-aggregated) is queried with
@@ -69,14 +69,14 @@ pub struct FactTableMetadata {
     /// combining fine-grain source data for boundary periods with pre-aggregated data
     /// for complete intermediate periods.
     #[serde(default)]
-    pub partial_period:       Option<PartialPeriodConfig>,
+    pub partial_period:           Option<PartialPeriodConfig>,
     /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views.
     ///
     /// When a materialized view stores measures as native columns (e.g. `volume BIGINT`)
     /// instead of inside a JSONB `data` column, this mapping tells the SQL generator to
     /// use `SUM("volume")` instead of `SUM((data->'measures'->>'volume')::numeric)`.
     #[serde(default)]
-    pub native_measures:      HashMap<String, String>,
+    pub native_measures:          HashMap<String, String>,
     /// Maps deep JSONB dimension paths to flat SQL column names.
     ///
     /// When a materialized view denormalizes dimension values into flat columns
@@ -235,7 +235,7 @@ pub struct PartialPeriodConfig {
 
 /// Temporal granularity for period boundary calculations.
 ///
-/// Unlike [`TemporalBucket`](crate::compiler::aggregate_types::TemporalBucket) which
+/// Unlike `TemporalBucket` which
 /// includes sub-day granularities (`Second`, `Minute`, `Hour`) for GROUP BY bucketing,
 /// `TemporalGrain` is restricted to date-level granularities that define meaningful
 /// period boundaries for partial-period UNION ALL queries.
@@ -276,7 +276,7 @@ impl TemporalGrain {
         }
     }
 
-    /// Converts to the corresponding [`TemporalBucket`] for use with SQL generators.
+    /// Converts to the corresponding `TemporalBucket` for use with SQL generators.
     #[must_use]
     pub const fn to_temporal_bucket(self) -> super::aggregate_types::TemporalBucket {
         match self {

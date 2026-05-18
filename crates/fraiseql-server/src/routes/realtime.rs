@@ -2,12 +2,7 @@
 
 use std::sync::Arc;
 
-use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::subscriptions::BroadcastManager;
@@ -68,13 +63,11 @@ pub async fn broadcast_handler(
     }
 
     match state.manager.publish(&req.channel, req.event, req.payload).await {
-        Ok(receivers) => {
-            (StatusCode::OK, Json(BroadcastResponse { receivers })).into_response()
-        }
+        Ok(receivers) => (StatusCode::OK, Json(BroadcastResponse { receivers })).into_response(),
         Err(e) => {
-            let status = StatusCode::from_u16(e.status_code())
-                .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+            let status =
+                StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
             (status, Json(serde_json::json!({"error": e.to_string()}))).into_response()
-        }
+        },
     }
 }

@@ -396,25 +396,25 @@ pub struct LoggingConfig {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
     /// Storage backend identifier (e.g. `"s3"`, `"gcs"`, `"local"`).
-    pub backend:      String,
+    pub backend:          String,
     /// Bucket or container name (required for cloud backends).
     #[serde(default)]
-    pub bucket:       Option<String>,
+    pub bucket:           Option<String>,
     /// Local filesystem path (used by the `"local"` backend).
     #[serde(default)]
-    pub path:         Option<String>,
+    pub path:             Option<String>,
     /// Cloud region (e.g. `"eu-west-1"` for AWS, `"fr-par"` for Scaleway).
     #[serde(default)]
-    pub region:       Option<String>,
+    pub region:           Option<String>,
     /// Custom endpoint URL (for S3-compatible providers or local development).
     #[serde(default)]
-    pub endpoint:     Option<String>,
+    pub endpoint:         Option<String>,
     /// GCP project ID (used by the `"gcs"` backend).
     #[serde(default)]
-    pub project_id:   Option<String>,
+    pub project_id:       Option<String>,
     /// Azure storage account name (used by the `"azure"` backend).
     #[serde(default)]
-    pub account_name: Option<String>,
+    pub account_name:     Option<String>,
     /// Maximum upload size in bytes for this storage backend.
     ///
     /// Defaults to `104_857_600` (100 `MiB`). Uploads exceeding this size are
@@ -533,10 +533,10 @@ impl ServerLimitsConfig {
 /// Builder for [`ServerLimitsConfig`].
 #[derive(Debug)]
 pub struct ServerLimitsConfigBuilder {
-    max_request_size:     String,
-    request_timeout:      String,
+    max_request_size:        String,
+    request_timeout:         String,
     max_concurrent_requests: usize,
-    max_queue_depth:      usize,
+    max_queue_depth:         usize,
 }
 
 impl Default for ServerLimitsConfigBuilder {
@@ -647,9 +647,8 @@ impl DatabaseConfigBuilder {
     ///
     /// Returns an error string if `url_env` was not set.
     pub fn build(self) -> Result<DatabaseConfig, String> {
-        let url_env = self
-            .url_env
-            .ok_or_else(|| "DatabaseConfig: url_env is required".to_string())?;
+        let url_env =
+            self.url_env.ok_or_else(|| "DatabaseConfig: url_env is required".to_string())?;
         Ok(DatabaseConfig {
             url_env,
             pool_size: if self.pool_size == 0 {
@@ -657,9 +656,9 @@ impl DatabaseConfigBuilder {
             } else {
                 self.pool_size
             },
-            pool_timeout:          self.pool_timeout,
-            statement_timeout:     self.statement_timeout,
-            replicas:              self.replicas,
+            pool_timeout: self.pool_timeout,
+            statement_timeout: self.statement_timeout,
+            replicas: self.replicas,
             health_check_interval: self.health_check_interval,
         })
     }

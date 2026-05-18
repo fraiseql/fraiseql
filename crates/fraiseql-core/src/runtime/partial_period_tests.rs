@@ -106,58 +106,34 @@ fn test_period_start_year() {
 
 #[test]
 fn test_next_period_start_day() {
-    assert_eq!(
-        next_period_start(date(2024, 1, 15), TemporalGrain::Day),
-        date(2024, 1, 16)
-    );
+    assert_eq!(next_period_start(date(2024, 1, 15), TemporalGrain::Day), date(2024, 1, 16));
 }
 
 #[test]
 fn test_next_period_start_week() {
     // Wednesday → next Monday
-    assert_eq!(
-        next_period_start(date(2024, 1, 3), TemporalGrain::Week),
-        date(2024, 1, 8)
-    );
+    assert_eq!(next_period_start(date(2024, 1, 3), TemporalGrain::Week), date(2024, 1, 8));
 }
 
 #[test]
 fn test_next_period_start_month() {
-    assert_eq!(
-        next_period_start(date(2024, 1, 15), TemporalGrain::Month),
-        date(2024, 2, 1)
-    );
+    assert_eq!(next_period_start(date(2024, 1, 15), TemporalGrain::Month), date(2024, 2, 1));
     // Year boundary
-    assert_eq!(
-        next_period_start(date(2024, 12, 1), TemporalGrain::Month),
-        date(2025, 1, 1)
-    );
+    assert_eq!(next_period_start(date(2024, 12, 1), TemporalGrain::Month), date(2025, 1, 1));
     // Leap year February
-    assert_eq!(
-        next_period_start(date(2024, 2, 29), TemporalGrain::Month),
-        date(2024, 3, 1)
-    );
+    assert_eq!(next_period_start(date(2024, 2, 29), TemporalGrain::Month), date(2024, 3, 1));
 }
 
 #[test]
 fn test_next_period_start_quarter() {
-    assert_eq!(
-        next_period_start(date(2024, 2, 15), TemporalGrain::Quarter),
-        date(2024, 4, 1)
-    );
+    assert_eq!(next_period_start(date(2024, 2, 15), TemporalGrain::Quarter), date(2024, 4, 1));
     // Q4 → next year Q1
-    assert_eq!(
-        next_period_start(date(2024, 10, 1), TemporalGrain::Quarter),
-        date(2025, 1, 1)
-    );
+    assert_eq!(next_period_start(date(2024, 10, 1), TemporalGrain::Quarter), date(2025, 1, 1));
 }
 
 #[test]
 fn test_next_period_start_year() {
-    assert_eq!(
-        next_period_start(date(2024, 6, 15), TemporalGrain::Year),
-        date(2025, 1, 1)
-    );
+    assert_eq!(next_period_start(date(2024, 6, 15), TemporalGrain::Year), date(2025, 1, 1));
 }
 
 // =============================================================================
@@ -344,10 +320,7 @@ fn test_extract_native_field_gte() {
         operator: WhereOperator::Gte,
         value:    json!("2024-03-01"),
     };
-    assert_eq!(
-        extract_lower_date_bound(&wc, "period_start"),
-        Some(date(2024, 3, 1))
-    );
+    assert_eq!(extract_lower_date_bound(&wc, "period_start"), Some(date(2024, 3, 1)));
 }
 
 #[test]
@@ -522,24 +495,24 @@ mod should_use_tests {
 
     fn metadata_with_pp() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "v_events_month".into(),
-            measures:             vec![MeasureColumn {
+            table_name:               "v_events_month".into(),
+            measures:                 vec![MeasureColumn {
                 name:     "volume".into(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "data".into(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       Some(PartialPeriodConfig {
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           Some(PartialPeriodConfig {
                 fine_grain_view:   "v_events_day".into(),
                 time_grain_column: "period_start".into(),
                 time_grain_trunc:  TemporalGrain::Month,
             }),
-            native_measures:      std::collections::HashMap::new(),
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }

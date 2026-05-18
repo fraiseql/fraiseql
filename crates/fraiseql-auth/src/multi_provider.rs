@@ -15,11 +15,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_linking::AccountStore,
-    handlers::generate_secure_state,
-    provider::OAuthProvider,
-    session::SessionStore,
-    state_store::StateStore,
+    account_linking::AccountStore, handlers::generate_secure_state, provider::OAuthProvider,
+    session::SessionStore, state_store::StateStore,
 };
 
 /// Maximum length for the `redirect_uri` query parameter.
@@ -43,10 +40,7 @@ pub struct MultiProviderAuthState {
 
 impl MultiProviderAuthState {
     /// Create a new multi-provider auth state.
-    pub fn new(
-        state_store: Arc<dyn StateStore>,
-        session_store: Arc<dyn SessionStore>,
-    ) -> Self {
+    pub fn new(state_store: Arc<dyn StateStore>, session_store: Arc<dyn SessionStore>) -> Self {
         Self {
             providers: HashMap::new(),
             state_store,
@@ -192,15 +186,9 @@ impl AuthTokenResponseBuilder {
                 .access_token
                 .ok_or("AuthTokenResponse: access_token is required")?,
             refresh_token: self.refresh_token,
-            token_type:    self
-                .token_type
-                .ok_or("AuthTokenResponse: token_type is required")?,
-            expires_in:    self
-                .expires_in
-                .ok_or("AuthTokenResponse: expires_in is required")?,
-            provider:      self
-                .provider
-                .ok_or("AuthTokenResponse: provider is required")?,
+            token_type:    self.token_type.ok_or("AuthTokenResponse: token_type is required")?,
+            expires_in:    self.expires_in.ok_or("AuthTokenResponse: expires_in is required")?,
+            provider:      self.provider.ok_or("AuthTokenResponse: provider is required")?,
         })
     }
 }
@@ -272,10 +260,7 @@ pub async fn authorize(
 
     // Look up provider
     let Some(provider) = state.get_provider(&q.provider) else {
-        return json_error(
-            StatusCode::BAD_REQUEST,
-            &format!("unknown provider: {}", q.provider),
-        );
+        return json_error(StatusCode::BAD_REQUEST, &format!("unknown provider: {}", q.provider));
     };
 
     // Generate state and store with provider name
@@ -290,11 +275,7 @@ pub async fn authorize(
 
     let expiry = now + 600; // 10 minutes
 
-    if let Err(e) = state
-        .state_store
-        .store(state_value.clone(), q.provider.clone(), expiry)
-        .await
-    {
+    if let Err(e) = state.state_store.store(state_value.clone(), q.provider.clone(), expiry).await {
         tracing::error!("state store failed: {e}");
         return json_error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -375,10 +356,7 @@ pub async fn callback(
     // Look up provider
     let Some(provider) = state.get_provider(&provider_name) else {
         tracing::error!(provider = %provider_name, "provider from state not found in registry");
-        return json_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "provider configuration error",
-        );
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "provider configuration error");
     };
 
     // Exchange code for tokens
@@ -402,14 +380,14 @@ pub async fn callback(
     // Resolve local user ID — use AccountStore for account linking when available,
     // otherwise fall back to raw provider user ID.
     let local_user_id = if let Some(account_store) = &state.user_store {
-        match account_store.link_or_create_user(&user_info.email, &provider_name, &user_info.id).await {
+        match account_store
+            .link_or_create_user(&user_info.email, &provider_name, &user_info.id)
+            .await
+        {
             Ok(result) => result.user_id,
             Err(e) => {
                 tracing::error!(error = %e, "account store lookup failed");
-                return json_error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "user resolution failed",
-                );
+                return json_error(StatusCode::INTERNAL_SERVER_ERROR, "user resolution failed");
             },
         }
     } else {
@@ -418,14 +396,15 @@ pub async fn callback(
 
     // Create session (7-day expiry)
     let session_expiry = now + (7 * 24 * 60 * 60);
-    let session_tokens = match state.session_store.create_session(&local_user_id, session_expiry).await {
+    let session_tokens = match state
+        .session_store
+        .create_session(&local_user_id, session_expiry)
+        .await
+    {
         Ok(t) => t,
         Err(e) => {
             tracing::error!(error = %e, "session creation failed");
-            return json_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "session could not be created",
-            );
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "session could not be created");
         },
     };
 

@@ -23,7 +23,7 @@ use tokio::sync::Semaphore;
 #[repr(u8)]
 pub enum TenantStatus {
     /// Tenant is operational — requests are served normally.
-    Active = 0,
+    Active    = 0,
     /// Tenant is suspended — data requests return 503 with `Retry-After: 60`.
     Suspended = 1,
 }
@@ -56,10 +56,10 @@ pub struct TenantQuota {
     pub max_requests_per_sec: Option<u32>,
     /// Maximum concurrent in-flight requests (semaphore capacity).
     #[serde(default)]
-    pub max_concurrent: Option<u32>,
+    pub max_concurrent:       Option<u32>,
     /// Maximum storage in bytes (soft limit, checked periodically).
     #[serde(default)]
-    pub max_storage_bytes: Option<u64>,
+    pub max_storage_bytes:    Option<u64>,
 }
 
 /// A single tenant entry in the registry: executor + lifecycle status + quotas.
@@ -86,9 +86,7 @@ impl<A: DatabaseAdapter> TenantEntry<A> {
     }
 
     fn with_quota(mut self, quota: TenantQuota) -> Self {
-        self.concurrency = quota
-            .max_concurrent
-            .map(|n| Arc::new(Semaphore::new(n as usize)));
+        self.concurrency = quota.max_concurrent.map(|n| Arc::new(Semaphore::new(n as usize)));
         self.quota = quota;
         self
     }
@@ -236,8 +234,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
             self.tenants.insert(key, entry);
             false
         } else {
-            self.tenants
-                .insert(key, TenantEntry::new(executor).with_quota(quota));
+            self.tenants.insert(key, TenantEntry::new(executor).with_quota(quota));
             true
         }
     }

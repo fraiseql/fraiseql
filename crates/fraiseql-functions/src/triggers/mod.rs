@@ -50,8 +50,8 @@ pub mod storage;
 #[cfg(test)]
 mod tests;
 
-pub use cron::{CronTrigger, CronSchedule, CronExecutionState, CronScheduler, CronSchedulerHandle};
-pub use http::{HttpTriggerRoute, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerMatcher};
+pub use cron::{CronExecutionState, CronSchedule, CronScheduler, CronSchedulerHandle, CronTrigger};
+pub use http::{HttpTriggerMatcher, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerRoute};
 pub use mutation::{AfterMutationTrigger, BeforeMutationTrigger};
-pub use registry::{TriggerRegistry, ParsedTrigger, RegistryError};
-pub use storage::{StorageTrigger, StorageOperation, StorageEventPayload};
+pub use registry::{ParsedTrigger, RegistryError, TriggerRegistry};
+pub use storage::{StorageEventPayload, StorageOperation, StorageTrigger};

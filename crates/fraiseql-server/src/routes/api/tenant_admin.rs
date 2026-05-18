@@ -19,10 +19,7 @@ use crate::{
         api::types::ApiError,
         graphql::{AppState, tenant_registry::TenantQuota},
     },
-    tenancy::{
-        audit::TenantEventKind,
-        pool_factory::TenantPoolConfig,
-    },
+    tenancy::{audit::TenantEventKind, pool_factory::TenantPoolConfig},
 };
 
 // ── Request / Response types ─────────────────────────────────────────────
@@ -178,15 +175,16 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let schema_json = serde_json::to_string(&body.schema)
         .map_err(|e| ApiError::validation_error(format!("invalid schema JSON: {e}")))?;
 
-    let executor = factory(key.clone(), schema_json, body.connection).await.map_err(|e| match &e {
-        fraiseql_error::FraiseQLError::Parse { .. }
-        | fraiseql_error::FraiseQLError::Validation { .. } => ApiError::validation_error(e),
-        fraiseql_error::FraiseQLError::ConnectionPool { .. }
-        | fraiseql_error::FraiseQLError::Database { .. } => {
-            ApiError::new(format!("Connection failed: {e}"), "SERVICE_UNAVAILABLE")
-        },
-        _ => ApiError::internal_error(e),
-    })?;
+    let executor =
+        factory(key.clone(), schema_json, body.connection).await.map_err(|e| match &e {
+            fraiseql_error::FraiseQLError::Parse { .. }
+            | fraiseql_error::FraiseQLError::Validation { .. } => ApiError::validation_error(e),
+            fraiseql_error::FraiseQLError::ConnectionPool { .. }
+            | fraiseql_error::FraiseQLError::Database { .. } => {
+                ApiError::new(format!("Connection failed: {e}"), "SERVICE_UNAVAILABLE")
+            },
+            _ => ApiError::internal_error(e),
+        })?;
 
     let quota = TenantQuota {
         max_requests_per_sec: body.max_requests_per_sec,
@@ -237,10 +235,7 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     info!(tenant_key = %key, "tenant executor removed");
 
     if let Some(audit_log) = state.tenant_audit_log() {
-        if let Err(e) = audit_log
-            .record(&key, TenantEventKind::Deleted, None, None)
-            .await
-        {
+        if let Err(e) = audit_log.record(&key, TenantEventKind::Deleted, None, None).await {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
         }
     }
@@ -275,10 +270,7 @@ pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + '
     info!(tenant_key = %key, "tenant suspended");
 
     if let Some(audit_log) = state.tenant_audit_log() {
-        if let Err(e) = audit_log
-            .record(&key, TenantEventKind::Suspended, None, None)
-            .await
-        {
+        if let Err(e) = audit_log.record(&key, TenantEventKind::Suspended, None, None).await {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
         }
     }
@@ -312,10 +304,7 @@ pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     info!(tenant_key = %key, "tenant resumed");
 
     if let Some(audit_log) = state.tenant_audit_log() {
-        if let Err(e) = audit_log
-            .record(&key, TenantEventKind::Resumed, None, None)
-            .await
-        {
+        if let Err(e) = audit_log.record(&key, TenantEventKind::Resumed, None, None).await {
             tracing::warn!(tenant_key = %key, error = %e, "failed to record audit event");
         }
     }

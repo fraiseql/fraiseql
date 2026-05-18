@@ -54,8 +54,9 @@
 //! }
 //! ```
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 /// HTTP method for trigger routes.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -92,9 +93,9 @@ pub struct HttpTriggerRoute {
     /// Name of the function to invoke.
     pub function_name: String,
     /// HTTP method (GET, POST, etc.).
-    pub method: String,
+    pub method:        String,
     /// Path pattern (e.g., "/users/:id").
-    pub path: String,
+    pub path:          String,
     /// Whether authentication is required.
     pub requires_auth: bool,
 }
@@ -104,8 +105,8 @@ impl HttpTriggerRoute {
     pub fn new(function_name: &str, method: &str, path: &str) -> Self {
         Self {
             function_name: function_name.to_string(),
-            method: method.to_string(),
-            path: path.to_string(),
+            method:        method.to_string(),
+            path:          path.to_string(),
             requires_auth: false,
         }
     }
@@ -138,13 +139,10 @@ impl HttpTriggerRoute {
             return false;
         }
 
-        route_parts
-            .iter()
-            .zip(request_parts.iter())
-            .all(|(route_part, request_part)| {
-                // Exact match or parameter (e.g., ":id")
-                route_part == request_part || route_part.starts_with(':')
-            })
+        route_parts.iter().zip(request_parts.iter()).all(|(route_part, request_part)| {
+            // Exact match or parameter (e.g., ":id")
+            route_part == request_part || route_part.starts_with(':')
+        })
     }
 
     /// Extract path parameters from a request path.
@@ -172,17 +170,17 @@ impl HttpTriggerRoute {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpTriggerPayload {
     /// HTTP method (GET, POST, etc.).
-    pub method: String,
+    pub method:  String,
     /// Request path.
-    pub path: String,
+    pub path:    String,
     /// Request headers.
     pub headers: serde_json::Value,
     /// Query parameters.
-    pub query: serde_json::Value,
+    pub query:   serde_json::Value,
     /// Path parameters (extracted from route pattern).
-    pub params: serde_json::Value,
+    pub params:  serde_json::Value,
     /// Request body (if any).
-    pub body: Option<serde_json::Value>,
+    pub body:    Option<serde_json::Value>,
 }
 
 impl HttpTriggerPayload {
@@ -264,11 +262,11 @@ impl HttpTriggerPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpTriggerResponse {
     /// HTTP status code (default 200).
-    pub status: u16,
+    pub status:  u16,
     /// Response headers.
     pub headers: serde_json::Value,
     /// Response body.
-    pub body: serde_json::Value,
+    pub body:    serde_json::Value,
 }
 
 impl HttpTriggerResponse {
@@ -298,9 +296,9 @@ impl HttpTriggerResponse {
     /// Create a 204 No Content response.
     pub fn no_content() -> Self {
         Self {
-            status: 204,
+            status:  204,
             headers: serde_json::json!({}),
-            body: serde_json::json!({}),
+            body:    serde_json::json!({}),
         }
     }
 
@@ -350,9 +348,7 @@ pub struct HttpTriggerMatcher {
 impl HttpTriggerMatcher {
     /// Create a new empty HTTP trigger matcher.
     pub const fn new() -> Self {
-        Self {
-            routes: Vec::new(),
-        }
+        Self { routes: Vec::new() }
     }
 
     /// Add a route to the matcher.
@@ -375,99 +371,4 @@ impl HttpTriggerMatcher {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_http_method_parsing() {
-        let method = HttpMethod::new("GET");
-        assert_eq!(method.as_str(), "GET");
-        assert!(method.matches("get"));
-        assert!(method.matches("GET"));
-    }
-
-    #[test]
-    fn test_http_route_exact_match() {
-        let route = HttpTriggerRoute {
-            function_name: "hello".to_string(),
-            method: "GET".to_string(),
-            path: "/hello".to_string(),
-            requires_auth: false,
-        };
-
-        assert!(route.matches("GET", "/hello"));
-        assert!(!route.matches("POST", "/hello"));
-        assert!(!route.matches("GET", "/goodbye"));
-    }
-
-    #[test]
-    fn test_http_route_pattern_match() {
-        let route = HttpTriggerRoute {
-            function_name: "getUser".to_string(),
-            method: "GET".to_string(),
-            path: "/users/:id".to_string(),
-            requires_auth: false,
-        };
-
-        assert!(route.pattern_matches("/users/123"));
-        assert!(route.pattern_matches("/users/abc"));
-        assert!(!route.pattern_matches("/users/123/posts"));
-        assert!(!route.pattern_matches("/posts/123"));
-    }
-
-    #[test]
-    fn test_http_route_extract_params() {
-        let route = HttpTriggerRoute {
-            function_name: "getUser".to_string(),
-            method: "GET".to_string(),
-            path: "/users/:id/posts/:post_id".to_string(),
-            requires_auth: false,
-        };
-
-        let params = route.extract_params("/users/123/posts/456");
-        assert_eq!(params.get("id"), Some(&"123".to_string()));
-        assert_eq!(params.get("post_id"), Some(&"456".to_string()));
-    }
-
-    #[test]
-    fn test_http_trigger_matcher() {
-        let mut matcher = HttpTriggerMatcher::new();
-
-        matcher.add(HttpTriggerRoute {
-            function_name: "getUser".to_string(),
-            method: "GET".to_string(),
-            path: "/users/:id".to_string(),
-            requires_auth: true,
-        });
-
-        matcher.add(HttpTriggerRoute {
-            function_name: "createUser".to_string(),
-            method: "POST".to_string(),
-            path: "/users".to_string(),
-            requires_auth: true,
-        });
-
-        // GET /users/:id should match
-        let route = matcher.find("GET", "/users/123");
-        assert!(route.is_some());
-        assert_eq!(route.expect("route matched").function_name, "getUser");
-
-        // POST /users should match
-        let route = matcher.find("POST", "/users");
-        assert!(route.is_some());
-        assert_eq!(route.expect("route matched").function_name, "createUser");
-
-        // GET /posts should not match
-        let route = matcher.find("GET", "/posts");
-        assert!(route.is_none());
-    }
-
-    #[test]
-    fn test_http_response_builder() {
-        let response = HttpTriggerResponse::ok(serde_json::json!({"ok": true}));
-        assert_eq!(response.status, 200);
-
-        let response = HttpTriggerResponse::with_status(201, serde_json::json!({"id": 1}));
-        assert_eq!(response.status, 201);
-    }
-}
+mod tests;

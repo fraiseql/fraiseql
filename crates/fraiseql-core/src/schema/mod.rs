@@ -33,7 +33,7 @@
 //! let schema = CompiledSchema::from_json(json_str, false)?;
 //!
 //! // From CLI config file
-//! let schema = CompiledSchema::from_json(&std::fs::read_to_string("schema.json", false)?)?;
+//! let schema = CompiledSchema::from_json(&std::fs::read_to_string("schema.json")?, false)?;
 //!
 //! // Access schema info
 //! println!("Types: {}", schema.types.len());
@@ -60,7 +60,7 @@ mod subscription_types;
 pub use compiled::{
     ArgumentDefinition, AutoParams, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType,
     DirectiveDefinition, DirectiveLocationKind, MutationDefinition, MutationOperation,
-    QueryDefinition, is_safe_sql_identifier,
+    QueryDefinition, canonicalize_json, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, CircuitBreakerConfig,
@@ -71,7 +71,6 @@ pub use config_types::{
     SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
-pub use hierarchy::{HierarchiesConfig, HierarchyDefinition};
 pub use field_type::{
     DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy, FieldEncryptionConfig,
     FieldType, VectorConfig, VectorIndexType,
@@ -81,6 +80,7 @@ pub use graphql_type_defs::{
     InterfaceDefinition, SqlProjectionHint, TypeDefinition, UnionDefinition,
 };
 pub use graphql_value::GraphQLValue;
+pub use hierarchy::{HierarchiesConfig, HierarchyDefinition};
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,

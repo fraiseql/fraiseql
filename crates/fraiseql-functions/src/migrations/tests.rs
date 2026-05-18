@@ -48,14 +48,8 @@ fn test_cron_migration_ddl_is_valid_sql() {
     }
 
     // Must have indexes
-    assert!(
-        ddl.contains("idx_cron_state_function"),
-        "DDL must create function_name index"
-    );
-    assert!(
-        ddl.contains("idx_cron_state_next_fire"),
-        "DDL must create next_fire_at index"
-    );
+    assert!(ddl.contains("idx_cron_state_function"), "DDL must create function_name index");
+    assert!(ddl.contains("idx_cron_state_next_fire"), "DDL must create next_fire_at index");
 
     // Trinity-style PK
     assert!(

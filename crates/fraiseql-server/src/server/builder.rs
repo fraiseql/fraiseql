@@ -193,8 +193,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         if audit_mutations {
             info!("Mutation audit logging enabled (target: fraiseql::mutation_audit)");
         }
-        let executor_config = RuntimeConfig { audit_mutations, ..RuntimeConfig::default() };
-        let executor = Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
+        let executor_config = RuntimeConfig {
+            audit_mutations,
+            ..RuntimeConfig::default()
+        };
+        let executor =
+            Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let mut server = Self::from_executor(
@@ -268,7 +272,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// Accepts a pre-built executor so that relay vs. non-relay constructors can supply
     /// the appropriate variant without duplicating auth/rate-limiter/observer setup.
-    #[allow(clippy::too_many_arguments)] // Reason: internal constructor collects all pre-built subsystems; a builder struct would not
+    #[allow(clippy::too_many_arguments)]
+    // Reason: internal constructor collects all pre-built subsystems; a builder struct would not
     // reduce call-site clarity
     #[allow(clippy::cognitive_complexity)] // Reason: internal constructor that assembles server from pre-built subsystems
     pub(super) async fn from_executor(
@@ -470,7 +475,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Enable ephemeral broadcast channels (`POST /realtime/v1/broadcast`).
     #[must_use]
     pub fn with_broadcast(mut self, config: crate::subscriptions::BroadcastConfig) -> Self {
-        self.broadcast_manager = Some(Arc::new(crate::subscriptions::BroadcastManager::new(config)));
+        self.broadcast_manager =
+            Some(Arc::new(crate::subscriptions::BroadcastManager::new(config)));
         self
     }
 

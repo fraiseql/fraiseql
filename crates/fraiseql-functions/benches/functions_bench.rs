@@ -32,13 +32,9 @@ fn bench_registry_load(c: &mut Criterion) {
     group.bench_function("3_functions", |b| {
         b.iter(|| TriggerRegistry::load_from_definitions(black_box(&definitions_small)).unwrap());
     });
-    group.bench_with_input(
-        BenchmarkId::new("n_functions", 50),
-        &definitions_large,
-        |b, defs| {
-            b.iter(|| TriggerRegistry::load_from_definitions(black_box(defs)).unwrap());
-        },
-    );
+    group.bench_with_input(BenchmarkId::new("n_functions", 50), &definitions_large, |b, defs| {
+        b.iter(|| TriggerRegistry::load_from_definitions(black_box(defs)).unwrap());
+    });
     group.finish();
 }
 

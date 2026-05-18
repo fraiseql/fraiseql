@@ -6,11 +6,13 @@
 use axum::http::{HeaderMap, HeaderValue};
 use serde_json::json;
 
-use super::helpers::{
-    build_offset_links, check_if_none_match, compute_etag, extract_id_from_data,
-    extract_relay_page_info, extract_single_data, format_id_for_url,
+use super::{
+    helpers::{
+        build_offset_links, check_if_none_match, compute_etag, extract_id_from_data,
+        extract_relay_page_info, extract_single_data, format_id_for_url,
+    },
+    *,
 };
-use super::*;
 
 // ---------------------------------------------------------------------------
 // helpers tests
@@ -192,9 +194,7 @@ fn format_mutation_post() {
     let result = json!({ "data": { "createUser": { "id": 42, "name": "Bob" } } });
     let headers = empty_headers();
 
-    let resp = formatter
-        .format_mutation_post(&result, "/rest/v1/users", &headers)
-        .unwrap();
+    let resp = formatter.format_mutation_post(&result, "/rest/v1/users", &headers).unwrap();
     assert_eq!(resp.status, StatusCode::CREATED);
     assert!(resp.headers.get("location").is_some());
 }
@@ -213,9 +213,7 @@ fn format_delete_entity() {
     let prefer = PreferHeader::default();
     let headers = empty_headers();
 
-    let resp = formatter
-        .format_delete(&result, &prefer, "deleteUser", &headers)
-        .unwrap();
+    let resp = formatter.format_delete(&result, &prefer, "deleteUser", &headers).unwrap();
     assert_eq!(resp.status, StatusCode::OK);
     assert!(resp.body.is_some());
 }
@@ -234,9 +232,7 @@ fn format_delete_no_content() {
     let prefer = PreferHeader::default();
     let headers = empty_headers();
 
-    let resp = formatter
-        .format_delete(&result, &prefer, "deleteUser", &headers)
-        .unwrap();
+    let resp = formatter.format_delete(&result, &prefer, "deleteUser", &headers).unwrap();
     assert_eq!(resp.status, StatusCode::NO_CONTENT);
     assert!(resp.body.is_none());
 }
@@ -247,10 +243,7 @@ fn format_method_not_allowed() {
     let formatter = RestResponseFormatter::new(&config, "/rest/v1/users");
     let headers = empty_headers();
 
-    let resp = formatter.format_method_not_allowed(
-        &[HttpMethod::Get, HttpMethod::Post],
-        &headers,
-    );
+    let resp = formatter.format_method_not_allowed(&[HttpMethod::Get, HttpMethod::Post], &headers);
     assert_eq!(resp.status, StatusCode::METHOD_NOT_ALLOWED);
     assert!(resp.headers.get("allow").is_some());
 }

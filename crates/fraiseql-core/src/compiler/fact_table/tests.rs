@@ -17,20 +17,20 @@ fn test_is_fact_table() {
 #[test]
 fn test_validate_valid_fact_table() {
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -41,16 +41,16 @@ fn test_validate_valid_fact_table() {
 #[test]
 fn test_validate_missing_measures() {
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -62,20 +62,20 @@ fn test_validate_missing_measures() {
 #[test]
 fn test_validate_non_numeric_measure() {
     let metadata = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "category".to_string(),
             sql_type: SqlType::Text, // Wrong type for measure!
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -861,22 +861,23 @@ fn test_native_measures_backward_compat_absent() {
 #[test]
 fn test_native_measures_roundtrip() {
     let ft = FactTableMetadata {
-        table_name:           "mv_daily_sales".to_string(),
-        measures:             vec![MeasureColumn {
+        table_name:               "mv_daily_sales".to_string(),
+        measures:                 vec![MeasureColumn {
             name:     "volume".to_string(),
             sql_type: SqlType::BigInt,
             nullable: false,
         }],
-        dimensions:           DimensionColumn {
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      HashMap::from([
-            ("measures.volume".to_string(), "volume".to_string()),
-        ]),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          HashMap::from([(
+            "measures.volume".to_string(),
+            "volume".to_string(),
+        )]),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -930,19 +931,20 @@ fn test_native_dimension_mapping_backward_compat_absent() {
 #[test]
 fn test_native_dimension_mapping_roundtrip() {
     let ft = FactTableMetadata {
-        table_name:           "mv_daily_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               "mv_daily_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-        native_measures:      HashMap::new(),
-        native_dimension_mapping: HashMap::from([
-            ("dimensions.category.id".to_string(), "category_id".to_string()),
-        ]),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          HashMap::new(),
+        native_dimension_mapping: HashMap::from([(
+            "dimensions.category.id".to_string(),
+            "category_id".to_string(),
+        )]),
     };
 
     let json = serde_json::to_string(&ft).unwrap();

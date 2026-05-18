@@ -113,8 +113,7 @@ fn value_as_str(v: &Value) -> &str {
 fn test_contains_escapes_percent() {
     let mut param_index = 0;
     let mut params = HashMap::new();
-    let op =
-        WhereOperator::Contains(Field::DirectColumn("note".to_string()), "50%".to_string());
+    let op = WhereOperator::Contains(Field::DirectColumn("note".to_string()), "50%".to_string());
     generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
     assert_eq!(value_as_str(&params[&1]), "50\\%");
 }
@@ -123,8 +122,7 @@ fn test_contains_escapes_percent() {
 fn test_contains_escapes_underscore() {
     let mut param_index = 0;
     let mut params = HashMap::new();
-    let op =
-        WhereOperator::Contains(Field::DirectColumn("code".to_string()), "A_B".to_string());
+    let op = WhereOperator::Contains(Field::DirectColumn("code".to_string()), "A_B".to_string());
     generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
     assert_eq!(value_as_str(&params[&1]), "A\\_B");
 }
@@ -133,8 +131,7 @@ fn test_contains_escapes_underscore() {
 fn test_startswith_escapes_wildcard_in_prefix() {
     let mut param_index = 0;
     let mut params = HashMap::new();
-    let op =
-        WhereOperator::Startswith(Field::DirectColumn("name".to_string()), "C%D".to_string());
+    let op = WhereOperator::Startswith(Field::DirectColumn("name".to_string()), "C%D".to_string());
     generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
     // prefix escaped, trailing % appended for LIKE
     assert_eq!(value_as_str(&params[&1]), "C\\%D%");
@@ -326,7 +323,10 @@ fn test_is_private_false_replaces_is_public() {
         value: false,
     };
     let sql = generate_where_operator_sql(&op, &mut param_index, &mut params).unwrap();
-    assert!(sql.starts_with("NOT ("), "value=false must negate with NOT (");
+    assert!(
+        sql.starts_with("NOT ("),
+        "value=false must negate with NOT ("
+    );
     assert!(sql.contains("10.0.0.0/8"));
 }
 

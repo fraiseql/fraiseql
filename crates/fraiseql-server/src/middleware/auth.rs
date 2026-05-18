@@ -33,7 +33,7 @@ struct FailureRecord {
 /// the state can be `Clone`d cheaply across requests.
 #[derive(Clone)]
 pub(crate) struct FailureLimiter {
-    records:     Arc<DashMap<String, FailureRecord>>,
+    records:      Arc<DashMap<String, FailureRecord>>,
     max_failures: u32,
 }
 
@@ -46,19 +46,16 @@ impl FailureLimiter {
     }
 
     fn now_secs() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0)
+        SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
     }
 
     /// Record a failed attempt and return `true` if the IP is now rate-limited.
     pub(crate) fn record_failure(&self, ip: &str) -> bool {
         let now = Self::now_secs();
-        let mut entry = self
-            .records
-            .entry(ip.to_string())
-            .or_insert_with(|| FailureRecord { count: 0, window_start: now });
+        let mut entry = self.records.entry(ip.to_string()).or_insert_with(|| FailureRecord {
+            count:        0,
+            window_start: now,
+        });
 
         if now >= entry.window_start + ADMIN_AUTH_WINDOW_SECS {
             // Window expired — start fresh
@@ -98,7 +95,7 @@ impl FailureLimiter {
 #[derive(Clone)]
 pub struct BearerAuthState {
     /// Expected bearer token.
-    pub token: Arc<String>,
+    pub token:       Arc<String>,
     /// Per-IP brute-force guard.
     failure_limiter: FailureLimiter,
 }
@@ -122,7 +119,6 @@ impl BearerAuthState {
         }
     }
 }
-
 
 /// Bearer token authentication middleware.
 ///
@@ -208,10 +204,7 @@ pub async fn bearer_auth_middleware(
             if !constant_time_compare(token, &auth_state.token) {
                 // Record failure; return 429 once the limit is crossed.
                 if auth_state.failure_limiter.record_failure(&peer_key) {
-                    return (
-                        StatusCode::TOO_MANY_REQUESTS,
-                        "Too many failed auth attempts",
-                    )
+                    return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts")
                         .into_response();
                 }
                 return (StatusCode::FORBIDDEN, "Invalid token").into_response();

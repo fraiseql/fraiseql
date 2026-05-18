@@ -39,7 +39,7 @@ fn test_convert_minimal_schema() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -64,7 +64,7 @@ fn test_convert_type_with_fields() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
                 IntermediateField {
                     name:           "name".to_string(),
@@ -74,7 +74,7 @@ fn test_convert_type_with_fields() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
             ],
             description:   Some("User type".to_string()),
@@ -106,7 +106,7 @@ fn test_convert_type_with_fields() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -163,7 +163,7 @@ fn test_validate_unknown_type_reference() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -236,7 +236,7 @@ fn test_convert_query_with_arguments() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -300,7 +300,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -365,7 +365,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -397,7 +397,7 @@ fn test_convert_field_with_deprecated_directive() {
                     }]),
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
                 IntermediateField {
                     name:           "id".to_string(),
@@ -407,7 +407,7 @@ fn test_convert_field_with_deprecated_directive() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
             ],
             description:   None,
@@ -439,7 +439,7 @@ fn test_convert_field_with_deprecated_directive() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -514,7 +514,7 @@ fn test_convert_enum() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -602,7 +602,7 @@ fn test_convert_input_object() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -660,7 +660,7 @@ fn test_rich_filter_types_generated() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -722,7 +722,7 @@ fn test_rich_filter_types_have_sql_templates() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -796,7 +796,7 @@ fn test_lookup_data_embedded_in_schema() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -870,7 +870,7 @@ fn test_convert_interface() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
-                hierarchy:        None,
+                hierarchy:      None,
             }],
             description: Some("An object with a globally unique ID".to_string()),
         }],
@@ -894,7 +894,7 @@ fn test_convert_interface() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -926,7 +926,7 @@ fn test_convert_type_implements_interface() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
                 IntermediateField {
                     name:           "name".to_string(),
@@ -936,7 +936,7 @@ fn test_convert_type_implements_interface() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
             ],
             description:   None,
@@ -957,7 +957,7 @@ fn test_convert_type_implements_interface() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
-                hierarchy:        None,
+                hierarchy:      None,
             }],
             description: None,
         }],
@@ -981,7 +981,7 @@ fn test_convert_type_implements_interface() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -1012,7 +1012,7 @@ fn test_validate_unknown_interface() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
-                hierarchy:        None,
+                hierarchy:      None,
             }],
             description:   None,
             implements:    vec!["UnknownInterface".to_string()],
@@ -1043,7 +1043,7 @@ fn test_validate_unknown_interface() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -1070,7 +1070,7 @@ fn test_validate_missing_interface_field() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
             ],
             description:   None,
@@ -1091,7 +1091,7 @@ fn test_validate_missing_interface_field() {
                 directives:     None,
                 requires_scope: None,
                 on_deny:        None,
-                hierarchy:        None,
+                hierarchy:      None,
             }],
             description: None,
         }],
@@ -1115,7 +1115,7 @@ fn test_validate_missing_interface_field() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let result = SchemaConverter::convert(intermediate);
@@ -1141,7 +1141,7 @@ fn test_convert_union() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 }],
                 description:   None,
                 implements:    vec![],
@@ -1159,7 +1159,7 @@ fn test_convert_union() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 }],
                 description:   None,
                 implements:    vec![],
@@ -1195,7 +1195,7 @@ fn test_convert_union() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -1226,7 +1226,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
                 IntermediateField {
                     name:           "name".to_string(),
@@ -1236,7 +1236,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: None,
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
                 IntermediateField {
                     name:           "salary".to_string(),
@@ -1246,7 +1246,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: Some("read:Employee.salary".to_string()),
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
                 IntermediateField {
                     name:           "ssn".to_string(),
@@ -1256,7 +1256,7 @@ fn test_convert_field_requires_scope() {
                     directives:     None,
                     requires_scope: Some("admin".to_string()),
                     on_deny:        None,
-                    hierarchy:        None,
+                    hierarchy:      None,
                 },
             ],
             description:   None,
@@ -1288,7 +1288,7 @@ fn test_convert_field_requires_scope() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let compiled = SchemaConverter::convert(intermediate).expect("test");
@@ -1320,7 +1320,7 @@ fn test_convert_field_requires_scope() {
 mod tenancy_tests {
     use indexmap::IndexMap;
 
-    use super::super::tenancy::{validate_tenant_annotations, AnnotatedTypeIndex};
+    use super::super::tenancy::{AnnotatedTypeIndex, validate_tenant_annotations};
     use crate::schema::intermediate::{
         IntermediateField, IntermediateMutation, IntermediateQuery, IntermediateSchema,
         IntermediateType, fragments::IntermediateAppliedDirective,
@@ -1347,7 +1347,7 @@ mod tenancy_tests {
             directives:     None,
             requires_scope: None,
             on_deny:        None,
-            hierarchy:        None,
+            hierarchy:      None,
         }
     }
 
@@ -1363,13 +1363,13 @@ mod tenancy_tests {
             }]),
             requires_scope: None,
             on_deny:        None,
-            hierarchy:        None,
+            hierarchy:      None,
         }
     }
 
     fn make_query(name: &str, return_type: &str) -> IntermediateQuery {
         IntermediateQuery {
-            name:        name.to_string(),
+            name: name.to_string(),
             return_type: return_type.to_string(),
             ..Default::default()
         }
@@ -1377,7 +1377,7 @@ mod tenancy_tests {
 
     fn make_mutation(name: &str, return_type: &str) -> IntermediateMutation {
         IntermediateMutation {
-            name:        name.to_string(),
+            name: name.to_string(),
             return_type: return_type.to_string(),
             ..Default::default()
         }
@@ -1444,10 +1444,7 @@ mod tenancy_tests {
             vec![],
         );
         validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
-        assert_eq!(
-            schema.queries[0].inject.get("tenant_id"),
-            Some(&"jwt:tenant_id".to_string())
-        );
+        assert_eq!(schema.queries[0].inject.get("tenant_id"), Some(&"jwt:tenant_id".to_string()));
     }
 
     #[test]
@@ -1461,10 +1458,7 @@ mod tenancy_tests {
             vec![make_mutation("createUser", "User")],
         );
         validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
-        assert_eq!(
-            schema.mutations[0].inject.get("tenant_id"),
-            Some(&"jwt:tenant_id".to_string())
-        );
+        assert_eq!(schema.mutations[0].inject.get("tenant_id"), Some(&"jwt:tenant_id".to_string()));
     }
 
     #[test]
@@ -1475,10 +1469,7 @@ mod tenancy_tests {
             vec![],
         );
         validate_tenant_annotations(&mut schema, "org_id").unwrap();
-        assert_eq!(
-            schema.queries[0].inject.get("tenant_id"),
-            Some(&"jwt:org_id".to_string())
-        );
+        assert_eq!(schema.queries[0].inject.get("tenant_id"), Some(&"jwt:org_id".to_string()));
     }
 
     // ── Existing inject accepted ────────────────────────────────────────
@@ -1490,7 +1481,7 @@ mod tenancy_tests {
         let mut schema = make_schema(
             vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
             vec![IntermediateQuery {
-                name:        "getUser".to_string(),
+                name: "getUser".to_string(),
                 return_type: "User".to_string(),
                 inject,
                 ..Default::default()
@@ -1509,7 +1500,7 @@ mod tenancy_tests {
         let mut schema = make_schema(
             vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
             vec![IntermediateQuery {
-                name:        "getUser".to_string(),
+                name: "getUser".to_string(),
                 return_type: "User".to_string(),
                 inject,
                 ..Default::default()
@@ -1531,7 +1522,7 @@ mod tenancy_tests {
             vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
             vec![],
             vec![IntermediateMutation {
-                name:        "createUser".to_string(),
+                name: "createUser".to_string(),
                 return_type: "User".to_string(),
                 inject,
                 ..Default::default()

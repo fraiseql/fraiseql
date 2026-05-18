@@ -8,11 +8,13 @@ mod concurrent_tests {
     use serde_json::json;
     use uuid::Uuid;
 
-    use crate::concurrent::*;
-    use crate::config::ActionConfig;
-    use crate::error::Result;
-    use crate::event::EntityEvent;
-    use crate::traits::{ActionExecutor, ActionResult};
+    use crate::{
+        concurrent::*,
+        config::ActionConfig,
+        error::Result,
+        event::EntityEvent,
+        traits::{ActionExecutor, ActionResult},
+    };
 
     // Create a simple mock for testing
     #[derive(Clone)]

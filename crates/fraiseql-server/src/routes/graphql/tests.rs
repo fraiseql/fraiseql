@@ -455,8 +455,7 @@ mod app_state_tests {
         schema::CompiledSchema,
     };
 
-    use super::super::app_state::AppState;
-    use super::super::tenant_registry::TenantExecutorRegistry;
+    use super::super::{app_state::AppState, tenant_registry::TenantExecutorRegistry};
 
     /// Minimal no-op database adapter for unit tests.
     #[derive(Debug, Clone)]
@@ -663,8 +662,7 @@ mod app_state_tests {
         }
 
         fn on_schema_reload(&self) {
-            self.reload_called
-                .store(true, std::sync::atomic::Ordering::Relaxed);
+            self.reload_called.store(true, std::sync::atomic::Ordering::Relaxed);
         }
     }
 
@@ -673,8 +671,7 @@ mod app_state_tests {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state =
-            AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("schema.json");
@@ -697,8 +694,7 @@ mod app_state_tests {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state =
-            AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("schema.json");
@@ -1138,8 +1134,7 @@ mod tenant_registry_tests {
         schema_v2
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("posts", "Post"));
-        let executor_v2 =
-            Arc::new(Executor::new(schema_v2, Arc::new(StubAdapter::new("abc-v2"))));
+        let executor_v2 = Arc::new(Executor::new(schema_v2, Arc::new(StubAdapter::new("abc-v2"))));
         registry.upsert("tenant-abc", executor_v2);
 
         assert_eq!(guard_v1.schema().queries.len(), 1);
@@ -1169,10 +1164,7 @@ mod tenant_registry_tests {
         let registry = TenantExecutorRegistry::new(default_executor());
         registry.upsert("tenant-abc", tenant_executor("abc"));
         registry.suspend("tenant-abc").unwrap();
-        assert_eq!(
-            registry.tenant_status("tenant-abc").unwrap(),
-            TenantStatus::Suspended
-        );
+        assert_eq!(registry.tenant_status("tenant-abc").unwrap(), TenantStatus::Suspended);
     }
 
     #[test]
@@ -1202,16 +1194,10 @@ mod tenant_registry_tests {
         registry.upsert("tenant-abc", tenant_executor("abc"));
 
         registry.suspend("tenant-abc").unwrap();
-        assert_eq!(
-            registry.tenant_status("tenant-abc").unwrap(),
-            TenantStatus::Suspended
-        );
+        assert_eq!(registry.tenant_status("tenant-abc").unwrap(), TenantStatus::Suspended);
 
         registry.resume("tenant-abc").unwrap();
-        assert_eq!(
-            registry.tenant_status("tenant-abc").unwrap(),
-            TenantStatus::Active
-        );
+        assert_eq!(registry.tenant_status("tenant-abc").unwrap(), TenantStatus::Active);
 
         let exec = registry.executor_for(Some("tenant-abc"));
         assert!(exec.is_ok());
@@ -1221,10 +1207,7 @@ mod tenant_registry_tests {
     fn test_new_tenant_starts_active() {
         let registry = TenantExecutorRegistry::new(default_executor());
         registry.upsert("tenant-abc", tenant_executor("abc"));
-        assert_eq!(
-            registry.tenant_status("tenant-abc").unwrap(),
-            TenantStatus::Active
-        );
+        assert_eq!(registry.tenant_status("tenant-abc").unwrap(), TenantStatus::Active);
     }
 
     #[test]
@@ -1234,30 +1217,21 @@ mod tenant_registry_tests {
         registry.suspend("tenant-abc").unwrap();
 
         registry.upsert("tenant-abc", tenant_executor("abc-v2"));
-        assert_eq!(
-            registry.tenant_status("tenant-abc").unwrap(),
-            TenantStatus::Suspended
-        );
+        assert_eq!(registry.tenant_status("tenant-abc").unwrap(), TenantStatus::Suspended);
     }
 
     #[test]
     fn test_suspend_unknown_tenant_returns_not_found() {
         let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
         let err = registry.suspend("unknown").unwrap_err();
-        assert!(
-            matches!(err, FraiseQLError::NotFound { .. }),
-            "Expected NotFound, got: {err:?}"
-        );
+        assert!(matches!(err, FraiseQLError::NotFound { .. }), "Expected NotFound, got: {err:?}");
     }
 
     #[test]
     fn test_resume_unknown_tenant_returns_not_found() {
         let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
         let err = registry.resume("unknown").unwrap_err();
-        assert!(
-            matches!(err, FraiseQLError::NotFound { .. }),
-            "Expected NotFound, got: {err:?}"
-        );
+        assert!(matches!(err, FraiseQLError::NotFound { .. }), "Expected NotFound, got: {err:?}");
     }
 
     #[test]
@@ -1373,10 +1347,7 @@ mod tenant_registry_tests {
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc-v2"), new_quota);
 
-        assert_eq!(
-            registry.tenant_status("tenant-abc").unwrap(),
-            TenantStatus::Suspended
-        );
+        assert_eq!(registry.tenant_status("tenant-abc").unwrap(), TenantStatus::Suspended);
         let retrieved = registry.tenant_quota("tenant-abc").unwrap();
         assert_eq!(retrieved.max_concurrent, Some(10));
     }

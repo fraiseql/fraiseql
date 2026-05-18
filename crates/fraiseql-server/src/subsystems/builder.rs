@@ -13,11 +13,11 @@ pub enum SubsystemBuildError {
     #[error("{dependant} requires {dependency}: {reason}")]
     MissingDependency {
         /// The subsystem that has an unmet dependency.
-        dependant: &'static str,
+        dependant:  &'static str,
         /// The subsystem that is missing.
         dependency: &'static str,
         /// Human-readable explanation.
-        reason: String,
+        reason:     String,
     },
 }
 
@@ -38,9 +38,9 @@ pub enum SubsystemBuildError {
 /// ```
 #[derive(Default)]
 pub struct ServerSubsystemsBuilder {
-    storage: Option<StorageSubsystem>,
+    storage:   Option<StorageSubsystem>,
     functions: Option<FunctionsSubsystem>,
-    realtime: Option<RealtimeSubsystem>,
+    realtime:  Option<RealtimeSubsystem>,
 }
 
 impl ServerSubsystemsBuilder {
@@ -80,9 +80,9 @@ impl ServerSubsystemsBuilder {
     pub fn build(self) -> Result<ServerSubsystems, SubsystemBuildError> {
         self.validate()?;
         Ok(ServerSubsystems {
-            storage: self.storage,
+            storage:   self.storage,
             functions: self.functions,
-            realtime: self.realtime,
+            realtime:  self.realtime,
         })
     }
 
@@ -90,15 +90,17 @@ impl ServerSubsystemsBuilder {
     fn validate(&self) -> Result<(), SubsystemBuildError> {
         // If functions define after:storage triggers, the storage subsystem must be present.
         if let Some(functions) = &self.functions {
-            let has_storage_triggers = functions.config.definitions.iter().any(|d| {
-                d.trigger.starts_with("after:storage:")
-            });
+            let has_storage_triggers = functions
+                .config
+                .definitions
+                .iter()
+                .any(|d| d.trigger.starts_with("after:storage:"));
 
             if has_storage_triggers && self.storage.is_none() {
                 return Err(SubsystemBuildError::MissingDependency {
-                    dependant: "functions",
+                    dependant:  "functions",
                     dependency: "storage",
-                    reason: "one or more function definitions use after:storage triggers but \
+                    reason:     "one or more function definitions use after:storage triggers but \
                              no storage subsystem is configured; either add a [storage] section \
                              to the compiled schema or remove the after:storage triggers"
                         .to_string(),

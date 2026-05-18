@@ -304,6 +304,5 @@ impl Default for SearchStats {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

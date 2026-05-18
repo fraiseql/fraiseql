@@ -8,7 +8,7 @@
 //!
 //! The request body is forwarded as the `data` field of an [`EventPayload`]
 //! with `trigger_type = "http"`. The response is the JSON-encoded
-//! [`FunctionResult`] on success.
+//! `FunctionResult` on success.
 //!
 //! Routes are only mounted when a store and runtime have been attached via
 //! [`Server::with_functions`](crate::server::Server::with_functions).
@@ -28,14 +28,14 @@ use fraiseql_functions::{
     runtime::SendFunctionRuntime,
     types::{EventPayload, FunctionModule, ResourceLimits},
 };
-use sha2::Digest as _;
 use serde_json::json;
+use sha2::Digest as _;
 
 /// Shared state for function route handlers.
 #[derive(Clone)]
 pub struct FunctionsRouteState {
     /// Deployment store — provides bytecode lookup by function name.
-    pub store: Arc<dyn FunctionStore>,
+    pub store:   Arc<dyn FunctionStore>,
     /// Execution runtime — runs the bytecode and returns a result.
     pub runtime: Arc<dyn SendFunctionRuntime>,
 }
@@ -66,22 +66,22 @@ pub async fn invoke_function_handler(
                 json!({ "error": format!("function '{name}' not found") }).to_string(),
             )
                 .into_response();
-        }
+        },
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 json!({ "error": e.to_string() }).to_string(),
             )
                 .into_response();
-        }
+        },
     };
 
     // Convert the stored record into an executable module.
     let module = FunctionModule {
-        name: record.name.clone(),
+        name:        record.name.clone(),
         source_hash: format!("{:x}", sha2::Sha256::digest(&record.bytecode)),
-        bytecode: record.bytecode,
-        runtime: record.runtime,
+        bytecode:    record.bytecode,
+        runtime:     record.runtime,
     };
 
     // Parse the request body as JSON event data, defaulting to null for empty bodies.
@@ -109,12 +109,11 @@ pub async fn invoke_function_handler(
                 "memory_peak_bytes": result.memory_peak_bytes,
             });
             (StatusCode::OK, body.to_string()).into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            json!({ "error": e.to_string() }).to_string(),
-        )
-            .into_response(),
+        },
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": e.to_string() }).to_string())
+                .into_response()
+        },
     }
 }
 
@@ -128,5 +127,5 @@ pub fn functions_router(state: FunctionsRouteState) -> Router {
         .with_state(state)
 }
 
-
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;

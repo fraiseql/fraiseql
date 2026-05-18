@@ -525,7 +525,10 @@ fn evaluate_rls_expression(
 }
 
 /// Extract a value from user context by field name
-pub(crate) fn extract_user_value(field: &str, context: &SecurityContext) -> Option<serde_json::Value> {
+pub(crate) fn extract_user_value(
+    field: &str,
+    context: &SecurityContext,
+) -> Option<serde_json::Value> {
     match field {
         "id" | "user_id" => Some(serde_json::json!(context.user_id)),
         "tenant_id" => context.tenant_id.as_ref().map(|t| serde_json::json!(t)),

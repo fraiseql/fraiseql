@@ -58,13 +58,13 @@ pub enum PoolSizingRecommendation {
 /// `max_connections` in `fraiseql.toml` and restarting the server.
 pub struct PoolSizingAdvisor {
     /// Pressure monitoring configuration.
-    pub(crate) config:  PoolPressureMonitorConfig,
+    pub(crate) config:         PoolPressureMonitorConfig,
     /// Consecutive samples with high queue depth.
-    high_queue_samples: AtomicU32,
+    high_queue_samples:        AtomicU32,
     /// Consecutive samples with high idle ratio.
-    low_idle_samples:   AtomicU32,
+    low_idle_samples:          AtomicU32,
     /// Total resize operations applied or recommended.
-    adjustments_total:  AtomicU64,
+    adjustments_total:         AtomicU64,
     /// Current recommended/actual target pool size (0 = not yet sampled).
     pub(crate) current_target: AtomicU32,
 }

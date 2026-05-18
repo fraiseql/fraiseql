@@ -18,19 +18,22 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe (oneshot, no shared state)
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode, header};
-use axum::middleware::{self, Next};
-use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use axum::Router;
+use axum::{
+    Router,
+    body::Body,
+    http::{Request, StatusCode, header},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use chrono::{Duration, Utc};
 use fraiseql_core::security::AuthenticatedUser;
-use fraiseql_server::middleware::AuthUser;
-use fraiseql_server::routes::auth::{AuthMeState, auth_me};
+use fraiseql_server::{
+    middleware::AuthUser,
+    routes::auth::{AuthMeState, auth_me},
+};
 use tower::ServiceExt;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -41,10 +44,7 @@ fn make_me_state(expose_claims: &[&str]) -> Arc<AuthMeState> {
     })
 }
 
-fn make_auth_user(
-    user_id: &str,
-    extra_claims: HashMap<String, serde_json::Value>,
-) -> AuthUser {
+fn make_auth_user(user_id: &str, extra_claims: HashMap<String, serde_json::Value>) -> AuthUser {
     AuthUser(AuthenticatedUser {
         user_id: fraiseql_core::types::UserId::new(user_id),
         scopes: vec!["read".to_owned()],
@@ -57,19 +57,13 @@ fn make_auth_user(
 
 /// Middleware that injects a pre-built AuthUser into request extensions,
 /// simulating a successful OIDC validation.
-async fn inject_auth_user(
-    request: Request<Body>,
-    next: Next,
-) -> Response {
+async fn inject_auth_user(request: Request<Body>, next: Next) -> Response {
     // AuthUser is already set by the test — pass through
     next.run(request).await
 }
 
 /// Middleware that requires AuthUser extension and returns 401 if missing.
-async fn require_auth_user(
-    request: Request<Body>,
-    next: Next,
-) -> Response {
+async fn require_auth_user(request: Request<Body>, next: Next) -> Response {
     if request.extensions().get::<AuthUser>().is_none() {
         return (StatusCode::UNAUTHORIZED, "Authentication required").into_response();
     }
@@ -77,10 +71,7 @@ async fn require_auth_user(
 }
 
 /// Build a router where AuthUser is pre-injected via Extension.
-fn auth_me_router_with_user(
-    state: Arc<AuthMeState>,
-    user: AuthUser,
-) -> Router {
+fn auth_me_router_with_user(state: Arc<AuthMeState>, user: AuthUser) -> Router {
     Router::new()
         .route("/auth/me", get(auth_me))
         .route_layer(middleware::from_fn(inject_auth_user))
@@ -104,9 +95,7 @@ async fn get_response(router: &Router, uri: &str) -> (StatusCode, serde_json::Va
         .unwrap();
 
     let status = response.status();
-    let body = axum::body::to_bytes(response.into_body(), 1024 * 64)
-        .await
-        .unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 1024 * 64).await.unwrap();
 
     if body.is_empty() {
         return (status, serde_json::Value::Null);
@@ -214,17 +203,17 @@ async fn test_auth_me_reads_host_cookie() {
 
     // Required auth — will reject invalid tokens with 401
     let config = OidcConfig {
-        issuer: "https://test.fraiseql.dev".to_string(),
-        audience: Some("https://api.test.fraiseql.dev".to_string()),
-        required: true,
+        issuer:               "https://test.fraiseql.dev".to_string(),
+        audience:             Some("https://api.test.fraiseql.dev".to_string()),
+        required:             true,
         additional_audiences: vec![],
-        jwks_cache_ttl_secs: 3600,
-        allowed_algorithms: vec!["RS256".to_string()],
-        clock_skew_secs: 60,
-        jwks_uri: None,
-        scope_claim: "scope".to_string(),
-        require_jti: false,
-        me: None,
+        jwks_cache_ttl_secs:  3600,
+        allowed_algorithms:   vec!["RS256".to_string()],
+        clock_skew_secs:      60,
+        jwks_uri:             None,
+        scope_claim:          "scope".to_string(),
+        require_jti:          false,
+        me:                   None,
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
     let auth_state = OidcAuthState::new(Arc::new(validator));
@@ -255,12 +244,7 @@ async fn test_auth_me_reads_host_cookie() {
 
     // Without any auth header or cookie → also 401 (required mode)
     let response_no_auth = router
-        .oneshot(
-            Request::builder()
-                .uri("/auth/me")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/auth/me").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response_no_auth.status(), StatusCode::UNAUTHORIZED);

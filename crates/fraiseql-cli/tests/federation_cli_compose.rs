@@ -262,7 +262,7 @@ fn test_compose_workflow_basic() {
     let users_schema = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![{
+        types: vec![{
             let mut t = FederatedType::new("User".to_string());
             t.keys.push(KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -276,7 +276,7 @@ fn test_compose_workflow_basic() {
     let orders_schema = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![{
+        types: vec![{
             let mut t = FederatedType::new("Order".to_string());
             t.keys.push(KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -321,7 +321,7 @@ fn test_compose_workflow_with_validation_errors() {
     let invalid_schema = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types:   vec![],
+        types: vec![],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
 
@@ -681,7 +681,7 @@ fn compose_federation_schemas(
         return Ok(FederationMetadata {
             enabled: false,
             version: "v2".to_string(),
-            types:   vec![],
+            types: vec![],
             remote_subscription_fields: std::collections::HashMap::new(),
         });
     }
@@ -699,7 +699,7 @@ fn compose_federation_schemas(
     Ok(FederationMetadata {
         enabled: subgraphs.iter().any(|s| s.enabled),
         version: subgraphs.first().map_or_else(|| "v2".to_string(), |s| s.version.clone()),
-        types:   composed_types,
+        types: composed_types,
         remote_subscription_fields: std::collections::HashMap::new(),
     })
 }

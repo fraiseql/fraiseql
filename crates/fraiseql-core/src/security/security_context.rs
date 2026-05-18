@@ -31,8 +31,10 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::security::AuthenticatedUser;
-use crate::types::{TenantId, UserId};
+use crate::{
+    security::AuthenticatedUser,
+    types::{TenantId, UserId},
+};
 
 /// Security context for authorization evaluation.
 ///

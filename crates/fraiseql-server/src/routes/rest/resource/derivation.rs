@@ -7,9 +7,9 @@ use fraiseql_core::schema::{
 
 use super::{
     Diagnostic, DiagnosticLevel, HttpMethod, RestResource, RestRoute, RouteSource, UpdateCoverage,
+    naming::{derive_action_name, derive_resource_name},
+    validation::{validate_cqrs_mutation, validate_cqrs_query, validate_field_types},
 };
-use super::naming::{derive_action_name, derive_resource_name};
-use super::validation::{validate_cqrs_mutation, validate_cqrs_query, validate_field_types};
 
 /// Detect the ID argument for single-resource routes.
 ///

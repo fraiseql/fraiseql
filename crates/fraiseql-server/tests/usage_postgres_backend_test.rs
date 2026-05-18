@@ -15,8 +15,10 @@
 
 use std::sync::Arc;
 
-use fraiseql_server::usage::aggregator::{PostgresBackend, UsageAggregator};
-use fraiseql_server::usage::events::MutationAuditEvent;
+use fraiseql_server::usage::{
+    aggregator::{PostgresBackend, UsageAggregator},
+    events::MutationAuditEvent,
+};
 use sqlx::PgPool;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
@@ -35,13 +37,7 @@ async fn setup_pg() -> (PgPool, impl std::any::Any) {
 }
 
 fn event(tenant: &str, period: &str, entity: &str) -> MutationAuditEvent {
-    MutationAuditEvent::new(
-        format!("create_{entity}"),
-        entity,
-        "create",
-        tenant,
-        period,
-    )
+    MutationAuditEvent::new(format!("create_{entity}"), entity, "create", tenant, period)
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────

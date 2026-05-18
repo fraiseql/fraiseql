@@ -136,7 +136,11 @@ pub fn validate_input(value: &Value, field_path: &str, rules: &[ValidationRule])
 }
 
 /// Validate a string field against a validation rule.
-pub(crate) fn validate_string_field(value: &str, field_path: &str, rule: &ValidationRule) -> Result<()> {
+pub(crate) fn validate_string_field(
+    value: &str,
+    field_path: &str,
+    rule: &ValidationRule,
+) -> Result<()> {
     match rule {
         ValidationRule::Required => {
             if value.is_empty() {

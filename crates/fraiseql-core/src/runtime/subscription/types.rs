@@ -199,10 +199,7 @@ impl ActiveSubscription {
         connection_id: impl Into<String>,
     ) -> Self {
         // Extract tenant_id from user_context if present
-        let tenant_id = user_context
-            .get("tenant_id")
-            .and_then(|v| v.as_str())
-            .map(str::to_string);
+        let tenant_id = user_context.get("tenant_id").and_then(|v| v.as_str()).map(str::to_string);
 
         Self {
             id: SubscriptionId::new(),

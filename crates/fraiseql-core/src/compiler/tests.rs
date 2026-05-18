@@ -18,16 +18,16 @@ mod compiler_tests {
         let mut schema = CompiledSchema::new();
 
         let metadata = FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![],
-            dimensions:           DimensionColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -54,8 +54,8 @@ mod compiler_tests {
 #[cfg(test)]
 mod ir_tests {
     use super::super::ir::{
-        AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRScalar, IRType, MutationOperation,
-        AuthoringIR,
+        AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRScalar, IRType,
+        MutationOperation,
     };
     use crate::validation::rules::ValidationRule;
 
@@ -259,10 +259,8 @@ mod ir_tests {
 
 #[cfg(test)]
 mod parser_tests {
-    use super::super::ir::MutationOperation;
-    use super::super::parser::SchemaParser;
-    use crate::error::FraiseQLError;
-    use crate::schema::GraphQLValue;
+    use super::super::{ir::MutationOperation, parser::SchemaParser};
+    use crate::{error::FraiseQLError, schema::GraphQLValue};
 
     #[test]
     fn test_parse_empty_schema() {
@@ -795,12 +793,18 @@ mod parser_tests {
 
 #[cfg(test)]
 mod validator_tests {
-    use super::super::ir::{AutoParams, IRArgument, IRField, IRQuery, IRType};
-    use super::super::validator::SchemaValidator;
-    use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType};
-    use crate::compiler::ir::AuthoringIR;
-    use crate::compiler::validator::extract_base_type;
-    use crate::error::FraiseQLError;
+    use super::super::{
+        ir::{AutoParams, IRArgument, IRField, IRQuery, IRType},
+        validator::SchemaValidator,
+    };
+    use crate::{
+        compiler::{
+            fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
+            ir::AuthoringIR,
+            validator::extract_base_type,
+        },
+        error::FraiseQLError,
+    };
 
     #[test]
     fn test_validator_new() {
@@ -830,8 +834,8 @@ mod validator_tests {
             },
             denormalized_filters: vec![],
             calendar_dimensions: vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -1453,8 +1457,10 @@ mod validator_tests {
 
 #[cfg(test)]
 mod enum_validator_tests {
-    use super::super::enum_validator::EnumValidator;
-    use super::super::ir::{IREnum, IREnumValue};
+    use super::super::{
+        enum_validator::EnumValidator,
+        ir::{IREnum, IREnumValue},
+    };
     use crate::error::FraiseQLError;
 
     #[test]
@@ -1764,12 +1770,12 @@ mod aggregate_types_tests {
     use super::super::aggregate_types::{
         AggregateFieldKind, AggregateTypeGenerator, GroupByFieldKind, TemporalBucket,
     };
-    use crate::compiler::fact_table::{DimensionColumn, MeasureColumn, SqlType, FactTableMetadata};
+    use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType};
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
@@ -1781,14 +1787,14 @@ mod aggregate_types_tests {
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -1881,13 +1887,13 @@ mod aggregate_types_tests {
         use crate::compiler::fact_table::DimensionPath;
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![
                     DimensionPath {
@@ -1907,10 +1913,10 @@ mod aggregate_types_tests {
                     },
                 ],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -1961,18 +1967,18 @@ mod aggregate_types_tests {
         use crate::compiler::fact_table::{CalendarBucket, CalendarDimension, CalendarGranularity};
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![CalendarDimension {
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![CalendarDimension {
                 source_column: "occurred_at".to_string(),
                 granularities: vec![CalendarGranularity {
                     column_name: "date_info".to_string(),
@@ -1995,8 +2001,8 @@ mod aggregate_types_tests {
                     ],
                 }],
             }],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2045,24 +2051,24 @@ mod aggregate_types_tests {
         use crate::compiler::fact_table::FilterColumn;
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![FilterColumn {
+            denormalized_filters:     vec![FilterColumn {
                 name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
                 indexed:  true,
             }],
-            calendar_dimensions:  vec![], // No calendar dimensions
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![], // No calendar dimensions
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2136,13 +2142,13 @@ mod aggregate_types_tests {
         };
 
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![MeasureColumn {
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![DimensionPath {
                     name:      "category".to_string(),
@@ -2150,8 +2156,8 @@ mod aggregate_types_tests {
                     data_type: "string".to_string(),
                 }],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions:  vec![CalendarDimension {
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![CalendarDimension {
                 source_column: "occurred_at".to_string(),
                 granularities: vec![CalendarGranularity {
                     column_name: "date_info".to_string(),
@@ -2162,8 +2168,8 @@ mod aggregate_types_tests {
                     }],
                 }],
             }],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2190,15 +2196,17 @@ mod aggregate_types_tests {
 #[cfg(test)]
 mod window_allowlist_tests {
     use super::super::window_allowlist::WindowAllowlist;
-    use crate::compiler::fact_table::{
-        DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+    use crate::{
+        compiler::fact_table::{
+            DimensionColumn, DimensionPath, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+        },
+        error::FraiseQLError,
     };
-    use crate::error::FraiseQLError;
 
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
@@ -2210,7 +2218,7 @@ mod window_allowlist_tests {
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![DimensionPath {
                     name:      "category".to_string(),
@@ -2218,14 +2226,14 @@ mod window_allowlist_tests {
                     data_type: "text".to_string(),
                 }],
             },
-            denormalized_filters: vec![FilterColumn {
+            denormalized_filters:     vec![FilterColumn {
                 name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
                 indexed:  true,
             }],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2313,16 +2321,20 @@ mod aggregation_tests {
         AggregateExpression, AggregateSelection, AggregationPlanner, AggregationRequest,
         GroupByExpression, GroupBySelection, HavingCondition, OrderByClause, OrderDirection,
     };
-    use crate::compiler::aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket};
-    use crate::compiler::fact_table::{
-        DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+    use crate::{
+        compiler::{
+            aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
+            fact_table::{
+                DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+            },
+        },
+        error::FraiseQLError,
     };
-    use crate::error::FraiseQLError;
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:           "tf_sales".to_string(),
-            measures:             vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
@@ -2334,11 +2346,11 @@ mod aggregation_tests {
                     nullable: false,
                 },
             ],
-            dimensions:           DimensionColumn {
+            dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
                     name:     "customer_id".to_string(),
                     sql_type: SqlType::Uuid,
@@ -2350,9 +2362,9 @@ mod aggregation_tests {
                     indexed:  true,
                 },
             ],
-            calendar_dimensions:  vec![],
-            partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }

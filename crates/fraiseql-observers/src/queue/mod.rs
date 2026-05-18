@@ -354,6 +354,5 @@ impl RetryPolicy for FixedBackoffPolicy {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

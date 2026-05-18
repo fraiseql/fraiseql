@@ -570,7 +570,7 @@ impl PostgresAdapter {
     /// Execute query with SQL field projection optimization.
     ///
     /// Convenience wrapper for callers that don't need ORDER BY.
-    /// See [`execute_with_projection_impl`](Self::execute_with_projection_impl) for details.
+    /// See `execute_with_projection_impl` for details.
     ///
     /// # Errors
     ///

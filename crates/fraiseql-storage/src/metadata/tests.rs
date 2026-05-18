@@ -29,21 +29,18 @@ async fn setup_pg() -> (PgPool, impl std::any::Any) {
     let port = container.get_host_port_ipv4(5432).await.unwrap();
     let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
-    sqlx::query(CREATE_TABLE_DDL)
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(CREATE_TABLE_DDL).execute(&pool).await.unwrap();
     (pool, container)
 }
 
 fn sample_object(bucket: &str, key: &str) -> NewStorageObject {
     NewStorageObject {
-        bucket: bucket.to_string(),
-        key: key.to_string(),
+        bucket:       bucket.to_string(),
+        key:          key.to_string(),
         content_type: "image/png".to_string(),
-        size_bytes: 1024,
-        etag: Some("abc123".to_string()),
-        owner_id: Some("user-1".to_string()),
+        size_bytes:   1024,
+        etag:         Some("abc123".to_string()),
+        owner_id:     Some("user-1".to_string()),
     }
 }
 
@@ -97,7 +94,13 @@ async fn test_list_metadata_with_prefix() {
     let repo = StorageMetadataRepo::new(pool);
 
     // Insert 5 objects: 2 match prefix "docs/", 3 don't
-    for key in ["docs/readme.md", "docs/guide.pdf", "images/a.png", "images/b.png", "root.txt"] {
+    for key in [
+        "docs/readme.md",
+        "docs/guide.pdf",
+        "images/a.png",
+        "images/b.png",
+        "root.txt",
+    ] {
         repo.insert(&sample_object("bucket", key)).await.unwrap();
     }
 

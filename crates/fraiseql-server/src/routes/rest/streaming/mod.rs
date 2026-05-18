@@ -21,12 +21,12 @@ use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
 use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
 use futures::stream;
+use helpers::{StreamState, fetch_and_serialize_batch};
 
 use super::{
     handler::{PreferHeader, ResolvedGetQuery, RestError, RestHandler, set_request_id},
     params::PaginationParams,
 };
-use helpers::{fetch_and_serialize_batch, StreamState};
 
 /// Content type for NDJSON responses.
 pub const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";

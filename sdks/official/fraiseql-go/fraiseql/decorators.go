@@ -143,6 +143,28 @@ func (qb *QueryBuilder) SqlSource(source string) *QueryBuilder {
 	return qb
 }
 
+// SqlSourceDispatch sets dispatch configuration with an explicit parameter-to-source mapping.
+// The paramName is the GraphQL argument name whose value selects the SQL source.
+// The mapping maps enum values to SQL table/view names.
+func (qb *QueryBuilder) SqlSourceDispatch(paramName string, mapping map[string]string) *QueryBuilder {
+	qb.config["sql_source_dispatch"] = map[string]interface{}{
+		"param":   paramName,
+		"mapping": mapping,
+	}
+	return qb
+}
+
+// SqlSourceDispatchWithTemplate sets dispatch configuration using a template string.
+// The paramName is the GraphQL argument name whose value is substituted into the template.
+// Example: SqlSourceDispatchWithTemplate("env", "v_users_{env}")
+func (qb *QueryBuilder) SqlSourceDispatchWithTemplate(paramName string, template string) *QueryBuilder {
+	qb.config["sql_source_dispatch"] = map[string]interface{}{
+		"param":    paramName,
+		"template": template,
+	}
+	return qb
+}
+
 // Relay marks the query as a Relay connection query.
 // Requires ReturnsArray(true) and a sql_source set via Config or SqlSource.
 // The compiler derives the cursor column from the return type name (e.g. User -> pk_user).

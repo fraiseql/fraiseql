@@ -196,6 +196,5 @@ fn default_version() -> String {
     "2.0.0".to_string()
 }
 
-
 #[cfg(test)]
 mod tests;

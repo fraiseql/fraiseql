@@ -3,10 +3,15 @@
 //! The `TriggerRegistry` loads function definitions from a schema, parses trigger strings,
 //! builds internal structures (matchers, chains, schedulers), and manages startup/shutdown.
 
-use crate::FunctionDefinition;
-use crate::triggers::mutation::{AfterMutationTrigger, BeforeMutationTrigger, TriggerMatcher};
-use crate::triggers::http::{HttpTriggerRoute, HttpTriggerMatcher};
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    FunctionDefinition,
+    triggers::{
+        http::{HttpTriggerMatcher, HttpTriggerRoute},
+        mutation::{AfterMutationTrigger, BeforeMutationTrigger, TriggerMatcher},
+    },
+};
 
 /// Error type for trigger registry operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +36,7 @@ pub enum ParsedTrigger {
         /// Entity type name (e.g., "User", "Post").
         entity_type: String,
         /// Operation kind: "insert", "update", "delete", or None for all.
-        operation: Option<String>,
+        operation:   Option<String>,
     },
     /// Before mutation: `before:mutation:<mutation_name>`
     BeforeMutation {
@@ -41,7 +46,7 @@ pub enum ParsedTrigger {
     /// After storage: `after:storage:<bucket>:<operation>`
     AfterStorage {
         /// Bucket name.
-        bucket: String,
+        bucket:    String,
         /// Operation: "upload", "delete", or "all".
         operation: String,
     },
@@ -55,7 +60,7 @@ pub enum ParsedTrigger {
         /// HTTP method (GET, POST, etc.).
         method: String,
         /// URL path pattern.
-        path: String,
+        path:   String,
     },
 }
 
@@ -80,27 +85,27 @@ impl ParsedTrigger {
                     entity_type,
                     operation,
                 })
-            }
+            },
             Some("before") if parts.len() >= 3 && parts[1] == "mutation" => {
                 let mutation_name = parts[2].to_string();
                 Ok(ParsedTrigger::BeforeMutation { mutation_name })
-            }
+            },
             Some("after") if parts.len() >= 4 && parts[1] == "storage" => {
                 let bucket = parts[2].to_string();
                 let operation = parts[3].to_string();
                 Ok(ParsedTrigger::AfterStorage { bucket, operation })
-            }
+            },
             Some("cron") if parts.len() >= 2 => {
                 // Cron expressions can have colons in them (e.g., "cron:0 2 * * * :30")
                 // So we need to rejoin the remaining parts
                 let expression = parts[1..].join(":");
                 Ok(ParsedTrigger::Cron { expression })
-            }
+            },
             Some("http") if parts.len() >= 3 => {
                 let method = parts[1].to_string();
                 let path = parts[2..].join(":");
                 Ok(ParsedTrigger::Http { method, path })
-            }
+            },
             _ => Err(RegistryError {
                 message: format!("Invalid trigger format: {}", trigger),
             }),
@@ -148,15 +153,15 @@ impl ParsedTrigger {
 #[derive(Debug, Default)]
 pub struct TriggerRegistry {
     /// After-mutation triggers indexed by entity and operation.
-    pub after_mutation_triggers: TriggerMatcher,
+    pub after_mutation_triggers:  TriggerMatcher,
     /// Before-mutation triggers indexed by mutation name.
     pub before_mutation_triggers: Vec<BeforeMutationTrigger>,
     /// HTTP trigger routes indexed by method and path.
-    pub http_routes: HttpTriggerMatcher,
+    pub http_routes:              HttpTriggerMatcher,
     /// Cron-scheduled triggers.
-    pub cron_triggers: Vec<crate::triggers::cron::CronTrigger>,
+    pub cron_triggers:            Vec<crate::triggers::cron::CronTrigger>,
     /// Total function definitions loaded.
-    pub function_count: usize,
+    pub function_count:           usize,
 }
 
 impl TriggerRegistry {
@@ -169,7 +174,8 @@ impl TriggerRegistry {
     ///
     /// # Errors
     ///
-    /// Returns `RegistryError` if any function's trigger string is invalid or if loading a trigger type fails.
+    /// Returns `RegistryError` if any function's trigger string is invalid or if loading a trigger
+    /// type fails.
     pub fn load_from_definitions(functions: &[FunctionDefinition]) -> Result<Self, RegistryError> {
         let mut registry = Self::new();
         registry.function_count = functions.len();
@@ -185,24 +191,22 @@ impl TriggerRegistry {
                     let trigger = AfterMutationTrigger {
                         function_name: func.name.clone(),
                         entity_type,
-                        event_filter: operation.as_ref().and_then(|op| {
-                            match op.as_str() {
-                                "insert" => Some(crate::EventKind::Insert),
-                                "update" => Some(crate::EventKind::Update),
-                                "delete" => Some(crate::EventKind::Delete),
-                                _ => None,
-                            }
+                        event_filter: operation.as_ref().and_then(|op| match op.as_str() {
+                            "insert" => Some(crate::EventKind::Insert),
+                            "update" => Some(crate::EventKind::Update),
+                            "delete" => Some(crate::EventKind::Delete),
+                            _ => None,
                         }),
                     };
                     registry.after_mutation_triggers.add(trigger);
-                }
+                },
                 ParsedTrigger::BeforeMutation { mutation_name } => {
                     let trigger = BeforeMutationTrigger {
                         function_name: func.name.clone(),
                         mutation_name,
                     };
                     registry.before_mutation_triggers.push(trigger);
-                }
+                },
                 ParsedTrigger::Http { method, path } => {
                     let route = HttpTriggerRoute {
                         function_name: func.name.clone(),
@@ -211,7 +215,7 @@ impl TriggerRegistry {
                         requires_auth: false,
                     };
                     registry.http_routes.add(route);
-                }
+                },
                 ParsedTrigger::AfterStorage {
                     bucket: _,
                     operation: _,
@@ -219,15 +223,15 @@ impl TriggerRegistry {
                     return Err(RegistryError {
                         message: "after:storage triggers not yet implemented".to_string(),
                     });
-                }
+                },
                 ParsedTrigger::Cron { expression } => {
                     let trigger = crate::triggers::cron::CronTrigger {
                         function_name: func.name.clone(),
-                        schedule: expression,
-                        timezone: "UTC".to_string(),
+                        schedule:      expression,
+                        timezone:      "UTC".to_string(),
                     };
                     registry.cron_triggers.push(trigger);
-                }
+                },
             }
         }
 
@@ -261,9 +265,7 @@ impl TriggerRegistry {
         if self.cron_triggers.is_empty() {
             None
         } else {
-            Some(crate::triggers::cron::CronScheduler::new(
-                self.cron_triggers.clone(),
-            ))
+            Some(crate::triggers::cron::CronScheduler::new(self.cron_triggers.clone()))
         }
     }
 
@@ -292,12 +294,10 @@ impl TriggerRegistry {
 
     /// Check if there are any before:mutation triggers for a mutation.
     pub fn has_before_mutation_triggers(&self, mutation_name: &str) -> bool {
-        self.before_mutation_triggers
-            .iter()
-            .any(|t| t.mutation_name == mutation_name)
+        self.before_mutation_triggers.iter().any(|t| t.mutation_name == mutation_name)
     }
 
-    /// Build a [`BeforeMutationChain`] for the named mutation.
+    /// Build a [`BeforeMutationChain`](crate::BeforeMutationChain) for the named mutation.
     ///
     /// Returns `None` when no `before:mutation` triggers are registered for this mutation
     /// (the fast path — zero overhead when hooks are absent).
@@ -320,166 +320,4 @@ impl TriggerRegistry {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_after_mutation_trigger() {
-        let parsed = ParsedTrigger::parse("after:mutation:createUser").expect("parse");
-        match parsed {
-            ParsedTrigger::AfterMutation {
-                entity_type,
-                operation,
-            } => {
-                assert_eq!(entity_type, "createUser");
-                assert_eq!(operation, None);
-            }
-            _ => panic!("Wrong trigger type"),
-        }
-    }
-
-    #[test]
-    fn test_parse_before_mutation_trigger() {
-        let parsed = ParsedTrigger::parse("before:mutation:validateUser").expect("parse");
-        match parsed {
-            ParsedTrigger::BeforeMutation { mutation_name } => {
-                assert_eq!(mutation_name, "validateUser");
-            }
-            _ => panic!("Wrong trigger type"),
-        }
-    }
-
-    #[test]
-    fn test_parse_http_trigger() {
-        let parsed = ParsedTrigger::parse("http:GET:/users/:id").expect("parse");
-        match parsed {
-            ParsedTrigger::Http { method, path } => {
-                assert_eq!(method, "GET");
-                assert_eq!(path, "/users/:id");
-            }
-            _ => panic!("Wrong trigger type"),
-        }
-    }
-
-    #[test]
-    fn test_parse_cron_trigger() {
-        let parsed = ParsedTrigger::parse("cron:0 2 * * *").expect("parse");
-        match parsed {
-            ParsedTrigger::Cron { expression } => {
-                assert_eq!(expression, "0 2 * * *");
-            }
-            _ => panic!("Wrong trigger type"),
-        }
-    }
-
-    #[test]
-    fn test_parse_invalid_trigger() {
-        let result = ParsedTrigger::parse("invalid:format:here");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_registry_loads_multiple_triggers() {
-        use crate::{FunctionDefinition, RuntimeType};
-
-        let functions = vec![
-            FunctionDefinition::new("onUserCreated", "after:mutation:createUser", RuntimeType::Deno),
-            FunctionDefinition::new("validateInput", "before:mutation:createUser", RuntimeType::Deno),
-            FunctionDefinition::new("getUser", "http:GET:/users/:id", RuntimeType::Deno),
-        ];
-
-        let registry = TriggerRegistry::load_from_definitions(&functions)
-            .expect("load registry");
-
-        assert_eq!(registry.function_count, 3);
-        assert_eq!(registry.before_mutation_count(), 1);
-        assert_eq!(registry.http_route_count(), 1);
-    }
-
-    #[test]
-    fn test_registry_finds_http_route() {
-        use crate::{FunctionDefinition, RuntimeType};
-
-        let functions = vec![
-            FunctionDefinition::new("getUser", "http:GET:/users/:id", RuntimeType::Deno),
-            FunctionDefinition::new("listUsers", "http:GET:/users", RuntimeType::Deno),
-        ];
-
-        let registry = TriggerRegistry::load_from_definitions(&functions)
-            .expect("load registry");
-
-        let route = registry.http_routes.find("GET", "/users/123");
-        assert!(route.is_some());
-        assert_eq!(route.expect("route found").function_name, "getUser");
-    }
-
-    #[test]
-    fn test_parsed_trigger_type_detection() {
-        let after_mut = ParsedTrigger::parse("after:mutation:createUser").expect("parse");
-        assert!(after_mut.is_after_mutation());
-        assert_eq!(after_mut.trigger_type(), "after:mutation");
-
-        let http = ParsedTrigger::parse("http:POST:/data").expect("parse");
-        assert!(http.is_http());
-        assert_eq!(http.trigger_type(), "http");
-    }
-
-    #[test]
-    fn test_registry_before_mutation_lookup() {
-        use crate::{FunctionDefinition, RuntimeType};
-
-        let functions = vec![
-            FunctionDefinition::new("validate1", "before:mutation:createUser", RuntimeType::Deno),
-            FunctionDefinition::new("validate2", "before:mutation:createUser", RuntimeType::Deno),
-            FunctionDefinition::new("validate3", "before:mutation:deleteUser", RuntimeType::Deno),
-        ];
-
-        let registry = TriggerRegistry::load_from_definitions(&functions)
-            .expect("load registry");
-
-        assert_eq!(registry.before_mutation_count(), 3);
-        assert!(registry.has_before_mutation_triggers("createUser"));
-        assert!(registry.has_before_mutation_triggers("deleteUser"));
-        assert!(!registry.has_before_mutation_triggers("updateUser"));
-
-        let create_user_triggers = registry.before_mutation_triggers_for("createUser");
-        assert_eq!(create_user_triggers.len(), 2);
-    }
-
-    #[test]
-    fn test_registry_before_chain_returns_none_for_unknown_mutation() {
-        use crate::{FunctionDefinition, RuntimeType};
-
-        let functions = vec![FunctionDefinition::new(
-            "validate",
-            "before:mutation:createUser",
-            RuntimeType::Deno,
-        )];
-        let registry = TriggerRegistry::load_from_definitions(&functions).expect("load");
-
-        // Unknown mutation → None (zero overhead fast path)
-        assert!(registry.before_chain("updateUser").is_none());
-        assert!(registry.before_chain("deleteUser").is_none());
-    }
-
-    #[test]
-    fn test_registry_before_chain_returns_chain_for_known_mutation() {
-        use crate::{FunctionDefinition, RuntimeType};
-
-        let functions = vec![
-            FunctionDefinition::new("validate1", "before:mutation:createUser", RuntimeType::Deno),
-            FunctionDefinition::new("validate2", "before:mutation:createUser", RuntimeType::Deno),
-            FunctionDefinition::new("other", "before:mutation:deleteUser", RuntimeType::Deno),
-        ];
-        let registry = TriggerRegistry::load_from_definitions(&functions).expect("load");
-
-        let chain = registry.before_chain("createUser").expect("chain present");
-        assert_eq!(chain.triggers.len(), 2);
-        assert_eq!(chain.triggers[0].function_name, "validate1");
-        assert_eq!(chain.triggers[1].function_name, "validate2");
-
-        // deleteUser chain has only 1 trigger
-        let del_chain = registry.before_chain("deleteUser").expect("chain present");
-        assert_eq!(del_chain.triggers.len(), 1);
-    }
-}
+mod tests;

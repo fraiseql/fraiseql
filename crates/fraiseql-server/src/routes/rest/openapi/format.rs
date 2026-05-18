@@ -4,7 +4,7 @@
 //! and provides string transformation helpers used throughout `OpenAPI` spec building.
 
 use fraiseql_core::schema::FieldType;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::super::resource::{HttpMethod, RestRoute};
 

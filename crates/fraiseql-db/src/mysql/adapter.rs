@@ -677,26 +677,19 @@ impl DatabaseAdapter for MySqlAdapter {
                 let no_good_index: i64 = row.try_get("SUM_NO_GOOD_INDEX_USED").unwrap_or(0);
 
                 Ok(crate::types::QueryStatEntry {
-                    query_id: row
-                        .try_get::<String, _>("query_id")
-                        .unwrap_or_default(),
-                    query_text: row
-                        .try_get::<String, _>("query_text")
-                        .unwrap_or_default(),
-                    calls: row
-                        .try_get::<i64, _>("calls")
-                        .unwrap_or(0)
-                        .unsigned_abs(),
+                    query_id:           row.try_get::<String, _>("query_id").unwrap_or_default(),
+                    query_text:         row.try_get::<String, _>("query_text").unwrap_or_default(),
+                    calls:              row.try_get::<i64, _>("calls").unwrap_or(0).unsigned_abs(),
                     total_exec_time_ms: row.try_get("total_exec_time_ms").unwrap_or(0.0),
-                    mean_exec_time_ms: row.try_get("mean_exec_time_ms").unwrap_or(0.0),
-                    min_exec_time_ms: row.try_get("min_exec_time_ms").unwrap_or(0.0),
-                    max_exec_time_ms: row.try_get("max_exec_time_ms").unwrap_or(0.0),
-                    rows_returned: row
+                    mean_exec_time_ms:  row.try_get("mean_exec_time_ms").unwrap_or(0.0),
+                    min_exec_time_ms:   row.try_get("min_exec_time_ms").unwrap_or(0.0),
+                    max_exec_time_ms:   row.try_get("max_exec_time_ms").unwrap_or(0.0),
+                    rows_returned:      row
                         .try_get::<i64, _>("rows_returned")
                         .unwrap_or(0)
                         .unsigned_abs(),
-                    cache_hit_ratio: None,
-                    database_specific: serde_json::json!({
+                    cache_hit_ratio:    None,
+                    database_specific:  serde_json::json!({
                         "sum_rows_examined": rows_examined,
                         "sum_no_index_used": no_index,
                         "sum_no_good_index_used": no_good_index,

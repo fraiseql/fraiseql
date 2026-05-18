@@ -1,8 +1,7 @@
 mod aggregator_tests {
     use std::collections::HashMap;
 
-    use super::super::aggregator::*;
-    use super::super::events::MutationAuditEvent;
+    use super::super::{aggregator::*, events::MutationAuditEvent};
 
     fn event(tenant: &str, period: &str, entity: &str) -> MutationAuditEvent {
         MutationAuditEvent {
@@ -142,12 +141,12 @@ mod aggregator_tests {
 
     #[test]
     fn test_validate_period_invalid_format() {
-        assert!(!validate_period("2026"));        // missing month
-        assert!(!validate_period("26-04"));       // short year
-        assert!(!validate_period("2026/04"));     // wrong separator
-        assert!(!validate_period("2026-4"));      // single-digit month
-        assert!(!validate_period("2026-04-01"));  // too long
-        assert!(!validate_period(""));            // empty
+        assert!(!validate_period("2026")); // missing month
+        assert!(!validate_period("26-04")); // short year
+        assert!(!validate_period("2026/04")); // wrong separator
+        assert!(!validate_period("2026-4")); // single-digit month
+        assert!(!validate_period("2026-04-01")); // too long
+        assert!(!validate_period("")); // empty
     }
 
     // ── persistence backend ────────────────────────────────────────────────
@@ -174,7 +173,9 @@ mod aggregator_tests {
 
     impl InMemoryPersistenceBackend {
         fn new() -> Self {
-            Self { store: std::sync::Mutex::new(HashMap::new()) }
+            Self {
+                store: std::sync::Mutex::new(HashMap::new()),
+            }
         }
     }
 
@@ -278,7 +279,7 @@ mod layer_tests {
             "mutation.executed"
         );
 
-        let period  = current_period();
+        let period = current_period();
         let summary = aggregator.query("acme", &period);
         assert_eq!(summary.mutations.get("User"), Some(&1));
     }

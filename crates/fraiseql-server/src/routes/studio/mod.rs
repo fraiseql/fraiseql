@@ -169,5 +169,5 @@ pub(crate) fn mime_for_filename(name: &str) -> &'static str {
     }
 }
 
-
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;

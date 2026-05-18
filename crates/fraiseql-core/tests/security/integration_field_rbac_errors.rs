@@ -44,7 +44,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             FieldDefinition {
                 name:           "publicInfo".into(),
@@ -58,7 +58,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 requires_scope: None,
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             FieldDefinition {
                 name:           "email".into(),
@@ -72,7 +72,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 requires_scope: Some("read:User.email".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             FieldDefinition {
                 name:           "phone".into(),
@@ -86,7 +86,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 requires_scope: Some("read:User.phone".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             FieldDefinition {
                 name:           "ssn".into(),
@@ -100,7 +100,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
             FieldDefinition {
                 name:           "bankAccount".into(),
@@ -114,7 +114,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 requires_scope: Some("admin:*".to_string()),
                 on_deny:        FieldDenyPolicy::default(),
                 encryption:     None,
-                hierarchy:     None,
+                hierarchy:      None,
             },
         ],
         description:         Some("User with mixed access levels".to_string()),

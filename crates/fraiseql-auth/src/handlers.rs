@@ -81,8 +81,18 @@ pub struct AuthCallbackResponse {
 impl AuthCallbackResponse {
     /// Creates a new `AuthCallbackResponse`.
     #[must_use]
-    pub const fn new(access_token: String, refresh_token: Option<String>, token_type: String, expires_in: u64) -> Self {
-        Self { access_token, refresh_token, token_type, expires_in }
+    pub const fn new(
+        access_token: String,
+        refresh_token: Option<String>,
+        token_type: String,
+        expires_in: u64,
+    ) -> Self {
+        Self {
+            access_token,
+            refresh_token,
+            token_type,
+            expires_in,
+        }
     }
 }
 

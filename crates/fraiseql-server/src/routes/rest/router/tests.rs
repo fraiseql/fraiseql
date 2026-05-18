@@ -8,8 +8,10 @@ use axum::http::StatusCode;
 use fraiseql_core::schema::{FieldType, MutationDefinition, MutationOperation, RestConfig};
 use fraiseql_test_utils::schema_builder::{TestFieldBuilder, TestSchemaBuilder, TestTypeBuilder};
 
-use super::helpers::{error_response, parse_query_pairs, strip_base_path, to_axum_path};
-use super::*;
+use super::{
+    helpers::{error_response, parse_query_pairs, strip_base_path, to_axum_path},
+    *,
+};
 
 // ---------------------------------------------------------------------------
 // helpers tests
@@ -22,14 +24,14 @@ fn to_axum_path_simple() {
 
 #[test]
 fn to_axum_path_with_param() {
-    assert_eq!(to_axum_path("/rest/v1", "/users/{id}"), "/rest/v1/users/:id");
+    assert_eq!(to_axum_path("/rest/v1", "/users/{id}"), "/rest/v1/users/{id}");
 }
 
 #[test]
 fn to_axum_path_multiple_params() {
     assert_eq!(
         to_axum_path("/rest/v1", "/users/{uid}/posts/{pid}"),
-        "/rest/v1/users/:uid/posts/:pid"
+        "/rest/v1/users/{uid}/posts/{pid}"
     );
 }
 

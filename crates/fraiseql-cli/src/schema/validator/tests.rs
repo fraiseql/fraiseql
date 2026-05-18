@@ -37,7 +37,7 @@ fn test_validate_empty_schema() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -90,7 +90,7 @@ fn test_detect_unknown_return_type() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -173,7 +173,7 @@ fn test_detect_duplicate_query_names() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -235,7 +235,7 @@ fn test_warning_for_query_without_sql_source() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -300,7 +300,7 @@ fn test_valid_observer() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -353,7 +353,7 @@ fn test_observer_with_unknown_entity() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -414,7 +414,7 @@ fn test_observer_with_invalid_event() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -475,7 +475,7 @@ fn test_observer_with_invalid_action_type() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -536,7 +536,7 @@ fn test_observer_with_invalid_retry_config() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -598,7 +598,7 @@ fn test_query_injection_in_sql_source_rejected() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -660,7 +660,7 @@ fn test_query_schema_qualified_sql_source_passes() {
         query_defaults:       None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
-        hierarchies_config:    None,
+        hierarchies_config:   None,
     };
 
     let report = SchemaValidator::validate(&schema).unwrap();
@@ -677,7 +677,10 @@ mod schema_validator_tests {
             operations::{IntermediateArgument, IntermediateMutation, IntermediateQuery},
             types::{IntermediateField, IntermediateType},
         },
-        validator::{ErrorSeverity, schema_validator::{extract_base_type, SchemaValidator}},
+        validator::{
+            ErrorSeverity,
+            schema_validator::{SchemaValidator, extract_base_type},
+        },
     };
 
     fn field(name: &str, ty: &str) -> IntermediateField {
@@ -689,7 +692,7 @@ mod schema_validator_tests {
             directives:     None,
             requires_scope: None,
             on_deny:        None,
-            hierarchy:        None,
+            hierarchy:      None,
         }
     }
 
@@ -890,9 +893,7 @@ mod sql_identifier_tests {
 
     #[test]
     fn test_valid_three_part_identifier() {
-        assert!(
-            validate_sql_identifier("catalog.schema.table", "sql_source", "Query.x").is_ok()
-        );
+        assert!(validate_sql_identifier("catalog.schema.table", "sql_source", "Query.x").is_ok());
     }
 
     #[test]
@@ -921,9 +922,8 @@ mod sql_identifier_tests {
 
     #[test]
     fn test_injection_attempt_rejected() {
-        let err =
-            validate_sql_identifier("v_user; DROP TABLE users", "sql_source", "Query.users")
-                .unwrap_err();
+        let err = validate_sql_identifier("v_user; DROP TABLE users", "sql_source", "Query.users")
+            .unwrap_err();
         assert!(err.message.contains("is not a valid SQL identifier"));
     }
 }

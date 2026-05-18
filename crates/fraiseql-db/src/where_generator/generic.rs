@@ -218,20 +218,16 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 if clauses.is_empty() {
                     return Ok(self.dialect.always_true().to_string());
                 }
-                let parts: Result<Vec<_>> = clauses
-                    .iter()
-                    .map(|c| self.visit_impl(c, params, hierarchy_ctx))
-                    .collect();
+                let parts: Result<Vec<_>> =
+                    clauses.iter().map(|c| self.visit_impl(c, params, hierarchy_ctx)).collect();
                 Ok(format!("({})", parts?.join(" AND ")))
             },
             WhereClause::Or(clauses) => {
                 if clauses.is_empty() {
                     return Ok(self.dialect.always_false().to_string());
                 }
-                let parts: Result<Vec<_>> = clauses
-                    .iter()
-                    .map(|c| self.visit_impl(c, params, hierarchy_ctx))
-                    .collect();
+                let parts: Result<Vec<_>> =
+                    clauses.iter().map(|c| self.visit_impl(c, params, hierarchy_ctx)).collect();
                 Ok(format!("({})", parts?.join(" OR ")))
             },
             WhereClause::Not(inner) => {
@@ -611,35 +607,55 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             },
             WhereOperator::IsLoopback => {
                 let negate = value.as_bool().is_some_and(|v| !v);
-                let check_name = if negate { "IsNotLoopback" } else { "IsLoopback" };
+                let check_name = if negate {
+                    "IsNotLoopback"
+                } else {
+                    "IsLoopback"
+                };
                 self.dialect
                     .inet_check_sql(&field_expr, check_name)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::IsMulticast => {
                 let negate = value.as_bool().is_some_and(|v| !v);
-                let check_name = if negate { "IsNotMulticast" } else { "IsMulticast" };
+                let check_name = if negate {
+                    "IsNotMulticast"
+                } else {
+                    "IsMulticast"
+                };
                 self.dialect
                     .inet_check_sql(&field_expr, check_name)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::IsLinkLocal => {
                 let negate = value.as_bool().is_some_and(|v| !v);
-                let check_name = if negate { "IsNotLinkLocal" } else { "IsLinkLocal" };
+                let check_name = if negate {
+                    "IsNotLinkLocal"
+                } else {
+                    "IsLinkLocal"
+                };
                 self.dialect
                     .inet_check_sql(&field_expr, check_name)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::IsDocumentation => {
                 let negate = value.as_bool().is_some_and(|v| !v);
-                let check_name = if negate { "IsNotDocumentation" } else { "IsDocumentation" };
+                let check_name = if negate {
+                    "IsNotDocumentation"
+                } else {
+                    "IsDocumentation"
+                };
                 self.dialect
                     .inet_check_sql(&field_expr, check_name)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
             WhereOperator::IsCarrierGrade => {
                 let negate = value.as_bool().is_some_and(|v| !v);
-                let check_name = if negate { "IsNotCarrierGrade" } else { "IsCarrierGrade" };
+                let check_name = if negate {
+                    "IsNotCarrierGrade"
+                } else {
+                    "IsCarrierGrade"
+                };
                 self.dialect
                     .inet_check_sql(&field_expr, check_name)
                     .map_err(|e| FraiseQLError::validation(e.to_string()))

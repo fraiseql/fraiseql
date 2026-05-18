@@ -171,6 +171,5 @@ impl Default for DeduplicationStats {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

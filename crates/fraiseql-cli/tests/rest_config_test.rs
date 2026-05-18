@@ -8,8 +8,7 @@
 
 use std::io::Write;
 
-use fraiseql_cli::schema::converter::SchemaConverter;
-use fraiseql_cli::schema::merger::SchemaMerger;
+use fraiseql_cli::schema::{converter::SchemaConverter, merger::SchemaMerger};
 use tempfile::NamedTempFile;
 
 /// Helper: write TOML content to a temp file and return the path.
@@ -36,12 +35,9 @@ fn test_rest_config_flows_through_merger() {
         require_auth = true
     "#,
     );
-    let intermediate =
-        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
 
-    let rest = intermediate
-        .rest_config
-        .expect("rest_config should be Some");
+    let rest = intermediate.rest_config.expect("rest_config should be Some");
     assert!(rest.enabled);
     assert_eq!(rest.path, "/api/v1");
     assert_eq!(rest.max_page_size, 500);
@@ -59,8 +55,7 @@ fn test_rest_config_absent_when_disabled() {
         name = "test"
     "#,
     );
-    let intermediate =
-        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
 
     assert!(intermediate.rest_config.is_none());
 }
@@ -78,8 +73,7 @@ fn test_rest_config_absent_when_explicitly_disabled() {
         max_page_size = 500
     "#,
     );
-    let intermediate =
-        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
 
     // Explicit [rest] section with enabled=false should NOT embed rest_config
     assert!(intermediate.rest_config.is_none());
@@ -99,12 +93,7 @@ fn test_rest_config_rejects_invalid_path() {
     );
     let result = SchemaMerger::merge_toml_only(f.path().to_str().unwrap());
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("must start with '/'")
-    );
+    assert!(result.unwrap_err().to_string().contains("must start with '/'"));
 }
 
 #[test]
@@ -119,12 +108,9 @@ fn test_rest_config_accepts_root_path() {
         path = "/"
     "#,
     );
-    let intermediate =
-        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
 
-    let rest = intermediate
-        .rest_config
-        .expect("rest_config should be Some");
+    let rest = intermediate.rest_config.expect("rest_config should be Some");
     assert_eq!(rest.path, "/");
 }
 
@@ -140,12 +126,9 @@ fn test_rest_config_accepts_trailing_slash() {
         path = "/api/v1/"
     "#,
     );
-    let intermediate =
-        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
 
-    let rest = intermediate
-        .rest_config
-        .expect("rest_config should be Some");
+    let rest = intermediate.rest_config.expect("rest_config should be Some");
     assert_eq!(rest.path, "/api/v1/");
 }
 
@@ -163,12 +146,7 @@ fn test_rest_config_rejects_empty_path() {
     );
     let result = SchemaMerger::merge_toml_only(f.path().to_str().unwrap());
     assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("must start with '/'")
-    );
+    assert!(result.unwrap_err().to_string().contains("must start with '/'"));
 }
 
 // ---- Full round-trip: TOML → merger → converter → CompiledSchema ----
@@ -201,20 +179,14 @@ fn test_rest_config_round_trip_toml_to_compiled() {
         delete_response = "entity"
     "#,
     );
-    let intermediate =
-        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
     let compiled = SchemaConverter::convert(intermediate).unwrap();
 
-    let rest = compiled
-        .rest_config
-        .expect("rest_config should be Some");
+    let rest = compiled.rest_config.expect("rest_config should be Some");
     assert!(rest.enabled);
     assert_eq!(rest.path, "/api/v1");
     assert_eq!(rest.max_page_size, 250);
-    assert_eq!(
-        rest.delete_response,
-        fraiseql_core::schema::DeleteResponse::Entity
-    );
+    assert_eq!(rest.delete_response, fraiseql_core::schema::DeleteResponse::Entity);
     // Defaults preserved
     assert_eq!(rest.default_page_size, 100);
     assert_eq!(rest.sse_heartbeat_seconds, 30);
@@ -235,8 +207,7 @@ fn test_rest_config_absent_in_compiled_when_disabled() {
         type = "ID"
     "#,
     );
-    let intermediate =
-        SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
+    let intermediate = SchemaMerger::merge_toml_only(f.path().to_str().unwrap()).unwrap();
     let compiled = SchemaConverter::convert(intermediate).unwrap();
 
     assert!(compiled.rest_config.is_none());

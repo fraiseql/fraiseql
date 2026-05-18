@@ -26,11 +26,7 @@ mod broadcast_tests {
         let mut rx = manager.subscribe("chat:room1").await.unwrap();
 
         let receivers = manager
-            .publish(
-                "chat:room1",
-                "message".into(),
-                serde_json::json!({"text": "hello"}),
-            )
+            .publish("chat:room1", "message".into(), serde_json::json!({"text": "hello"}))
             .await
             .unwrap();
 
@@ -146,10 +142,12 @@ mod broadcast_tests {
 mod event_bridge_tests {
     use std::sync::Arc;
 
-    use fraiseql_core::schema::CompiledSchema;
+    use fraiseql_core::{
+        runtime::subscription::{SubscriptionManager, SubscriptionOperation},
+        schema::CompiledSchema,
+    };
 
     use super::super::event_bridge::*;
-    use fraiseql_core::runtime::subscription::{SubscriptionManager, SubscriptionOperation};
 
     #[test]
     fn test_event_bridge_creation() {
@@ -354,10 +352,7 @@ mod presence_tests {
         let mgr = default_manager();
 
         mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
-        let (state, diff) = mgr
-            .join("room1", "bob", serde_json::json!({}))
-            .await
-            .unwrap();
+        let (state, diff) = mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
 
         assert_eq!(state.members.len(), 2);
         assert_eq!(diff.joins.len(), 1);
@@ -497,10 +492,7 @@ mod presence_tests {
         let mgr = default_manager();
 
         mgr.join("room1", "alice", serde_json::json!({"v": 1})).await.unwrap();
-        let (state, _) = mgr
-            .join("room1", "alice", serde_json::json!({"v": 2}))
-            .await
-            .unwrap();
+        let (state, _) = mgr.join("room1", "alice", serde_json::json!({"v": 2})).await.unwrap();
 
         // Should still be 1 member, not 2
         assert_eq!(state.members.len(), 1);
@@ -735,7 +727,7 @@ mod webhook_lifecycle_tests {
 
     use std::time::Duration;
 
-    use super::super::webhook_lifecycle::{WebhookLifecycle, MAX_WEBHOOK_RESPONSE_BYTES};
+    use super::super::webhook_lifecycle::{MAX_WEBHOOK_RESPONSE_BYTES, WebhookLifecycle};
 
     #[test]
     fn from_schema_json_no_hooks() {

@@ -8,9 +8,7 @@ fn test_valid_transitions() {
         .unwrap_or_else(|e| panic!("expected Ok transitioning Initial->AwaitingAuth: {e}"));
     state
         .transition(ConnectionState::Authenticating)
-        .unwrap_or_else(|e| {
-            panic!("expected Ok transitioning AwaitingAuth->Authenticating: {e}")
-        });
+        .unwrap_or_else(|e| panic!("expected Ok transitioning AwaitingAuth->Authenticating: {e}"));
     state
         .transition(ConnectionState::Idle)
         .unwrap_or_else(|e| panic!("expected Ok transitioning Authenticating->Idle: {e}"));

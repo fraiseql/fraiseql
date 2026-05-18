@@ -1,15 +1,15 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use super::{query::QueryDefinition, schema::CompiledSchema};
+#[cfg(feature = "federation")]
+use crate::schema::config_types::FederationEntity;
 use crate::schema::{
+    CURRENT_SCHEMA_FORMAT_VERSION, MutationDefinition,
     config_types::{FederationConfig, NamingConvention},
     graphql_type_defs::TypeDefinition,
     observer_types::{ObserverDefinition, RetryConfig},
     security_config::{RoleDefinition, SecurityConfig},
-    MutationDefinition, CURRENT_SCHEMA_FORMAT_VERSION,
 };
-#[cfg(feature = "federation")]
-use crate::schema::config_types::FederationEntity;
 
 #[test]
 fn test_compiled_schema_with_observers() {
@@ -518,17 +518,17 @@ fn fact_table_add_and_get() {
     assert!(!schema.has_fact_tables());
 
     let meta = FactTableMetadata {
-        table_name:           "tf_sales".to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     };
     schema.add_fact_table("tf_sales".to_string(), meta);
 
@@ -542,17 +542,17 @@ fn list_fact_tables_returns_all_names() {
     use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
 
     let make_meta = |name: &str| FactTableMetadata {
-        table_name:           name.to_string(),
-        measures:             vec![],
-        dimensions:           DimensionColumn {
+        table_name:               name.to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions:  vec![],
-        partial_period:       None,
-            native_measures:      std::collections::HashMap::new(),
-            native_dimension_mapping: std::collections::HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
+        native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let mut schema = CompiledSchema::new();
@@ -1076,7 +1076,10 @@ fn schema_integrity_verification() {
     // Test mismatch: change hash in Value
     let mut mismatch_value: serde_json::Value = serde_json::from_str(&wrapped_json).unwrap();
     let mismatch_obj = mismatch_value.as_object_mut().unwrap();
-    mismatch_obj.insert("_content_hash".to_string(), serde_json::Value::String("0000000000000000".to_string()));
+    mismatch_obj.insert(
+        "_content_hash".to_string(),
+        serde_json::Value::String("0000000000000000".to_string()),
+    );
     let mismatch_json = serde_json::to_string_pretty(&mismatch_value).unwrap();
     let result = CompiledSchema::from_json(&mismatch_json, true);
     assert!(result.is_err(), "Expected validation error for hash mismatch");

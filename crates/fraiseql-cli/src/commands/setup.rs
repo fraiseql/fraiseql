@@ -45,14 +45,10 @@ pub async fn run(
     ));
 
     // Connect to database and get a pool
-    let pool = connect_to_database(&db_url)
-        .await
-        .context("Failed to connect to database")?;
+    let pool = connect_to_database(&db_url).await.context("Failed to connect to database")?;
 
     // Apply the SQL helpers
-    apply_helpers(&pool, formatter)
-        .await
-        .context("Failed to apply helpers")?;
+    apply_helpers(&pool, formatter).await.context("Failed to apply helpers")?;
 
     // Report success
     formatter.progress(&format!(
@@ -113,10 +109,7 @@ async fn connect_to_database(db_url: &str) -> Result<deadpool_postgres::Pool> {
         .context("Failed to create database pool")?;
 
     // Test connection
-    let _client = pool
-        .get()
-        .await
-        .context("Failed to acquire database connection")?;
+    let _client = pool.get().await.context("Failed to acquire database connection")?;
 
     info!("Connected to database");
 
@@ -124,41 +117,32 @@ async fn connect_to_database(db_url: &str) -> Result<deadpool_postgres::Pool> {
 }
 
 /// Apply the SQL helpers to the database
-async fn apply_helpers(
-    pool: &deadpool_postgres::Pool,
-    formatter: &OutputFormatter,
-) -> Result<()> {
+async fn apply_helpers(pool: &deadpool_postgres::Pool, formatter: &OutputFormatter) -> Result<()> {
     formatter.progress("📝 Applying SQL helpers...");
 
     // Get a client from the pool
-    let client = pool
-        .get()
-        .await
-        .context("Failed to acquire database connection")?;
+    let client = pool.get().await.context("Failed to acquire database connection")?;
 
     // Execute the SQL library
-    // Note: The SQL contains multiple statements, so we split on semicolons and execute individually
-    // This is a simplified approach; for production, use something like sqlparser-rs
+    // Note: The SQL contains multiple statements, so we split on semicolons and execute
+    // individually This is a simplified approach; for production, use something like
+    // sqlparser-rs
     for statement in MUTATION_RESPONSE_SQL.split(';') {
         let trimmed = statement.trim();
         if trimmed.is_empty() || trimmed.starts_with("--") {
             continue;
         }
 
-        client
-            .execute(trimmed, &[])
-            .await
-            .with_context(|| format!("Failed to execute SQL: {}", trimmed.lines().next().unwrap_or("")))?;
+        client.execute(trimmed, &[]).await.with_context(|| {
+            format!("Failed to execute SQL: {}", trimmed.lines().next().unwrap_or(""))
+        })?;
     }
 
     formatter.progress("✓ SQL helpers applied");
 
     // Verify installation
     let version: String = client
-        .query_one(
-            "SELECT fraiseql.library_version() AS version",
-            &[],
-        )
+        .query_one("SELECT fraiseql.library_version() AS version", &[])
         .await
         .context("Failed to verify helper installation")?
         .get("version");
@@ -177,33 +161,4 @@ async fn apply_helpers(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn mask_password_with_credentials() {
-        let url = "postgres://user:password@localhost:5432/db";
-        let masked = mask_password(url);
-        assert!(masked.contains("***"));
-        assert!(!masked.contains("password"));
-    }
-
-    #[test]
-    fn mask_password_without_credentials() {
-        let url = "postgres://localhost:5432/db";
-        let masked = mask_password(url);
-        assert_eq!(masked, url);
-    }
-
-    #[test]
-    fn helpers_version_constant_exists() {
-        assert_eq!(HELPERS_VERSION, "2.2.0");
-    }
-
-    #[test]
-    fn mutation_response_sql_content_exists() {
-        assert!(MUTATION_RESPONSE_SQL.contains("fraiseql.library_version"));
-        assert!(MUTATION_RESPONSE_SQL.contains("fraiseql.mutation_ok"));
-        assert!(MUTATION_RESPONSE_SQL.contains("fraiseql.mutation_err"));
-    }
-}
+mod tests;

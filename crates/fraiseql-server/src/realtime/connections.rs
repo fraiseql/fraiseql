@@ -16,7 +16,7 @@ pub type ConnectionId = String;
 #[derive(Debug, Clone)]
 pub struct CloseSignal {
     /// `WebSocket` close code (e.g., 4002 for "slow consumer").
-    pub code: u16,
+    pub code:   u16,
     /// Human-readable close reason.
     pub reason: String,
 }
@@ -27,11 +27,11 @@ pub struct ConnectionState {
     /// Unique connection identifier (UUID v4).
     pub connection_id: ConnectionId,
     /// User identifier (from JWT `sub` claim).
-    pub user_id: String,
+    pub user_id:       String,
     /// Security context hash for grouping connections with identical RLS context.
-    pub context_hash: u64,
+    pub context_hash:  u64,
     /// Token expiration (Unix timestamp in seconds).
-    pub expires_at: i64,
+    pub expires_at:    i64,
 }
 
 impl ConnectionState {
@@ -60,15 +60,15 @@ impl ConnectionState {
 /// (e.g., slow consumer policy).
 pub struct ConnectionManager {
     /// Active connections indexed by connection ID.
-    connections: DashMap<ConnectionId, ConnectionState>,
+    connections:               DashMap<ConnectionId, ConnectionState>,
     /// Per-connection event senders (bounded channel for change events).
-    event_senders: DashMap<ConnectionId, mpsc::Sender<String>>,
+    event_senders:             DashMap<ConnectionId, mpsc::Sender<String>>,
     /// Per-connection oneshot senders for server-initiated close signals.
-    close_senders: DashMap<ConnectionId, oneshot::Sender<CloseSignal>>,
+    close_senders:             DashMap<ConnectionId, oneshot::Sender<CloseSignal>>,
     /// Per-connection consecutive drop counters for slow-consumer detection.
-    drop_counts: DashMap<ConnectionId, AtomicUsize>,
+    drop_counts:               DashMap<ConnectionId, AtomicUsize>,
     /// Maximum consecutive delivery failures before a connection is kicked.
-    max_consecutive_drops: usize,
+    max_consecutive_drops:     usize,
     /// Capacity of per-connection event channels.
     connection_event_capacity: usize,
 }
@@ -98,12 +98,9 @@ impl ConnectionManager {
     ) -> (mpsc::Receiver<String>, oneshot::Receiver<CloseSignal>) {
         let (event_tx, event_rx) = mpsc::channel(self.connection_event_capacity);
         let (close_tx, close_rx) = oneshot::channel();
-        self.event_senders
-            .insert(state.connection_id.clone(), event_tx);
-        self.close_senders
-            .insert(state.connection_id.clone(), close_tx);
-        self.drop_counts
-            .insert(state.connection_id.clone(), AtomicUsize::new(0));
+        self.event_senders.insert(state.connection_id.clone(), event_tx);
+        self.close_senders.insert(state.connection_id.clone(), close_tx);
+        self.drop_counts.insert(state.connection_id.clone(), AtomicUsize::new(0));
         self.connections.insert(state.connection_id.clone(), state);
         (event_rx, close_rx)
     }
@@ -155,7 +152,7 @@ impl ConnectionManager {
                 // Slow consumer: signal the connection handler to close with 4002.
                 if let Some((_, close_tx)) = self.close_senders.remove(connection_id) {
                     let _ = close_tx.send(CloseSignal {
-                        code: 4002,
+                        code:   4002,
                         reason: "slow consumer".to_owned(),
                     });
                 }
@@ -168,9 +165,7 @@ impl ConnectionManager {
     /// Return the current consecutive drop count for a connection (for testing).
     #[must_use]
     pub fn drop_count(&self, connection_id: &str) -> usize {
-        self.drop_counts
-            .get(connection_id)
-            .map_or(0, |c| c.load(Ordering::Relaxed))
+        self.drop_counts.get(connection_id).map_or(0, |c| c.load(Ordering::Relaxed))
     }
 }
 

@@ -17,9 +17,11 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use tracing::{Event, Subscriber, field::{Field, Visit}};
-use tracing_subscriber::Layer;
-use tracing_subscriber::layer::Context;
+use tracing::{
+    Event, Subscriber,
+    field::{Field, Visit},
+};
+use tracing_subscriber::{Layer, layer::Context};
 
 use super::{aggregator::UsageAggregator, events::MutationAuditEvent};
 
@@ -52,10 +54,10 @@ impl Visit for AuditFieldVisitor {
     fn record_str(&mut self, field: &Field, value: &str) {
         match field.name() {
             "mutation_name" => value.clone_into(&mut self.mutation_name),
-            "entity_type"   => value.clone_into(&mut self.entity_type),
-            "operation"     => value.clone_into(&mut self.operation),
-            "tenant_id"     => value.clone_into(&mut self.tenant_id),
-            _               => {}
+            "entity_type" => value.clone_into(&mut self.entity_type),
+            "operation" => value.clone_into(&mut self.operation),
+            "tenant_id" => value.clone_into(&mut self.tenant_id),
+            _ => {},
         }
     }
 
@@ -68,10 +70,10 @@ impl Visit for AuditFieldVisitor {
         let s = format!("{value:?}");
         match field.name() {
             "mutation_name" => self.mutation_name = s,
-            "entity_type"   => self.entity_type   = s,
-            "operation"     => self.operation      = s,
-            "tenant_id"     => self.tenant_id      = s,
-            _               => {}
+            "entity_type" => self.entity_type = s,
+            "operation" => self.operation = s,
+            "tenant_id" => self.tenant_id = s,
+            _ => {},
         }
     }
 }
@@ -118,9 +120,9 @@ impl<S: Subscriber> Layer<S> for MutationAuditLayer {
 
         let audit_event = MutationAuditEvent {
             mutation_name: visitor.mutation_name,
-            entity_type:   visitor.entity_type,
-            operation:     visitor.operation,
-            tenant_id:     visitor.tenant_id,
+            entity_type: visitor.entity_type,
+            operation: visitor.operation,
+            tenant_id: visitor.tenant_id,
             period,
         };
 

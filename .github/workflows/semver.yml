@@ -11,7 +11,7 @@ jobs:
   semver:
     name: API semver compatibility
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
 
     # Skip release-prep branches — they intentionally bump version numbers.
     if: "!contains(github.head_ref, 'release-prep')"

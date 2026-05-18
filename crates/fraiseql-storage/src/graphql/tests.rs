@@ -1,15 +1,15 @@
 //! Tests for GraphQL schema type generation.
 
-use crate::config::{BucketAccess, BucketConfig};
 use super::StorageSchemaTypes;
+use crate::config::{BucketAccess, BucketConfig};
 
 fn sample_bucket() -> BucketConfig {
     BucketConfig {
-        name: "avatars".to_string(),
-        max_object_bytes: Some(5_000_000),
+        name:               "avatars".to_string(),
+        max_object_bytes:   Some(5_000_000),
         allowed_mime_types: Some(vec!["image/jpeg".to_string(), "image/png".to_string()]),
-        access: BucketAccess::PublicRead,
-        transform_presets: None,
+        access:             BucketAccess::PublicRead,
+        transform_presets:  None,
     }
 }
 
@@ -17,18 +17,12 @@ fn sample_bucket() -> BucketConfig {
 
 #[test]
 fn test_bucket_type_name_snake_case() {
-    assert_eq!(
-        StorageSchemaTypes::bucket_type_name("user_avatars"),
-        "UserAvatars"
-    );
+    assert_eq!(StorageSchemaTypes::bucket_type_name("user_avatars"), "UserAvatars");
 }
 
 #[test]
 fn test_bucket_type_name_kebab_case() {
-    assert_eq!(
-        StorageSchemaTypes::bucket_type_name("product-images"),
-        "ProductImages"
-    );
+    assert_eq!(StorageSchemaTypes::bucket_type_name("product-images"), "ProductImages");
 }
 
 #[test]
@@ -49,10 +43,7 @@ fn test_storage_object_type_definition() {
 
     let fields = type_def["fields"].as_array().unwrap();
     let field_names: Vec<_> = fields.iter().filter_map(|f| f["name"].as_str()).collect();
-    assert_eq!(
-        field_names,
-        &["key", "size", "content_type", "created_at", "updated_at"]
-    );
+    assert_eq!(field_names, &["key", "size", "content_type", "created_at", "updated_at"]);
 
     // Scalar field_type is a bare string, not a nested object
     assert_eq!(fields[0]["field_type"], "String");
@@ -123,11 +114,11 @@ fn test_generate_produces_entries_per_bucket() {
     let buckets = vec![
         sample_bucket(),
         BucketConfig {
-            name: "documents".to_string(),
-            max_object_bytes: None,
+            name:               "documents".to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: None,
-            access: BucketAccess::Private,
-            transform_presets: None,
+            access:             BucketAccess::Private,
+            transform_presets:  None,
         },
     ];
 
@@ -145,19 +136,19 @@ fn test_generate_produces_entries_per_bucket() {
 #[test]
 fn test_storage_object_type_with_multiple_buckets() {
     let bucket1 = BucketConfig {
-        name: "user_avatars".to_string(),
-        max_object_bytes: Some(5_000_000),
+        name:               "user_avatars".to_string(),
+        max_object_bytes:   Some(5_000_000),
         allowed_mime_types: Some(vec!["image/jpeg".to_string()]),
-        access: BucketAccess::PublicRead,
-        transform_presets: None,
+        access:             BucketAccess::PublicRead,
+        transform_presets:  None,
     };
 
     let bucket2 = BucketConfig {
-        name: "product-images".to_string(),
-        max_object_bytes: Some(10_000_000),
+        name:               "product-images".to_string(),
+        max_object_bytes:   Some(10_000_000),
         allowed_mime_types: Some(vec!["image/png".to_string()]),
-        access: BucketAccess::Private,
-        transform_presets: None,
+        access:             BucketAccess::Private,
+        transform_presets:  None,
     };
 
     let type1 = StorageSchemaTypes::storage_object_type(&bucket1);

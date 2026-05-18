@@ -18,6 +18,9 @@ func validateSchemaBeforeExport(schema Schema) error {
 	for _, t := range schema.Types {
 		registeredNames[t.Name] = struct{}{}
 	}
+	for _, e := range schema.Enums {
+		registeredNames[e.Name] = struct{}{}
+	}
 	for k, v := range builtinScalars {
 		registeredNames[k] = v
 	}

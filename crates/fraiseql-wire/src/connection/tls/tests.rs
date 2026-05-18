@@ -37,8 +37,7 @@ fn test_tls_config_builder_with_custom_ca() {
 
 #[test]
 fn test_parse_server_name_valid() {
-    let _name =
-        parse_server_name("localhost").expect("localhost should be a valid server name");
+    let _name = parse_server_name("localhost").expect("localhost should be a valid server name");
     let _name =
         parse_server_name("example.com").expect("example.com should be a valid server name");
     let _name = parse_server_name("db.internal.example.com")

@@ -12,10 +12,9 @@ mod tests;
 
 use std::{collections::HashMap, fmt};
 
+use derivation::derive_resource;
 use fraiseql_core::schema::{CompiledSchema, MutationDefinition, QueryDefinition};
 use tracing::debug;
-
-use derivation::derive_resource;
 use validation::{detect_conflicts, is_filtered_out, should_skip_query};
 
 // ---------------------------------------------------------------------------
