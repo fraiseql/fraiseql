@@ -284,8 +284,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .await?;
 
         // Detect whether there are more pages.
-        let has_extra = result.rows.len() > page_size as usize;
-        let rows: Vec<_> = result.rows.into_iter().take(page_size as usize).collect();
+        let has_extra = result.rows().len() > page_size as usize;
+        let result_total_count = result.total_count();
+        let rows: Vec<_> = result.into_rows().into_iter().take(page_size as usize).collect();
 
         let (has_next_page, has_previous_page) = if forward {
             (has_extra, had_after)
@@ -353,7 +354,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // Include totalCount when the client requested it and the adapter provided it.
         if include_total_count {
-            if let Some(count) = result.total_count {
+            if let Some(count) = result_total_count {
                 connection["totalCount"] = serde_json::json!(count);
             } else {
                 connection["totalCount"] = serde_json::Value::Null;

@@ -24,6 +24,24 @@ impl RelayPageResult {
     pub const fn new(rows: Vec<JsonbValue>, total_count: Option<u64>) -> Self {
         Self { rows, total_count }
     }
+
+    /// Returns a reference to the page of JSONB rows.
+    #[must_use]
+    pub fn rows(&self) -> &[JsonbValue] {
+        &self.rows
+    }
+
+    /// Consumes the result and returns the rows.
+    #[must_use]
+    pub fn into_rows(self) -> Vec<JsonbValue> {
+        self.rows
+    }
+
+    /// Returns the total count of matching rows, if requested.
+    #[must_use]
+    pub const fn total_count(&self) -> Option<u64> {
+        self.total_count
+    }
 }
 
 /// Database capabilities and feature support.
