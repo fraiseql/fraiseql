@@ -31,8 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
@@ -49,7 +49,7 @@ jobs:
             --file src/security/query_validator.rs \
             --timeout 60 \
             --output mutants-report-core/
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         if: always()
         with:
           name: mutants-report-core
@@ -62,8 +62,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
@@ -80,7 +80,7 @@ jobs:
             --file src/jwks.rs \
             --timeout 60 \
             --output mutants-report-auth/
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         if: always()
         with:
           name: mutants-report-auth
@@ -93,8 +93,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
@@ -110,7 +110,7 @@ jobs:
             --file src/where_sql_generator.rs \
             --timeout 60 \
             --output mutants-report-db/
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         if: always()
         with:
           name: mutants-report-db
@@ -123,8 +123,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
@@ -140,7 +140,7 @@ jobs:
             --file src/http_resolver.rs \
             --timeout 60 \
             --output mutants-report-federation/
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         if: always()
         with:
           name: mutants-report-federation

@@ -25,7 +25,7 @@ jobs:
           - toml_config
           - query_variables
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - uses: dtolnay/rust-toolchain@nightly
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
@@ -43,7 +43,7 @@ jobs:
                -rss_limit_mb=2048
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: fuzz-crash-core-${{ matrix.target }}
           path: crates/fraiseql-core/fuzz/artifacts/${{ matrix.target }}/
@@ -59,7 +59,7 @@ jobs:
           - protocol_decode
           - scram_parse
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - uses: dtolnay/rust-toolchain@nightly
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
@@ -77,7 +77,7 @@ jobs:
                -rss_limit_mb=2048
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: fuzz-crash-wire-${{ matrix.target }}
           path: crates/fraiseql-wire/fuzz/artifacts/${{ matrix.target }}/

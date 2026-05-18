@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Pull latest base images
         run: |
@@ -119,7 +119,7 @@ jobs:
 
       - name: Create GitHub Issue for HIGH/CRITICAL vulnerabilities
         if: steps.check-vulns.outputs.should_alert == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
             const fs = require('fs');
@@ -135,7 +135,7 @@ jobs:
             });
 
       - name: Upload scan results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: base-image-security-scans
           path: /tmp/*-scan.json
@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Check CVE-2025-14104 (util-linux)
         id: cve-14104
@@ -267,7 +267,7 @@ jobs:
 
       - name: Create GitHub Issue if patches available
         if: env.fixed_count > 0
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
             const fs = require('fs');
@@ -282,7 +282,7 @@ jobs:
             });
 
       - name: Upload CVE monitoring report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: cve-monitoring-report
           path: /tmp/cve-monitoring-report.md
@@ -294,7 +294,7 @@ jobs:
     needs: [scan-base-images, monitor-active-cves]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Generate compliance summary
         run: |
@@ -337,7 +337,7 @@ jobs:
           cat compliance-summary.md
 
       - name: Upload compliance summary
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: weekly-compliance-summary
           path: compliance-summary.md

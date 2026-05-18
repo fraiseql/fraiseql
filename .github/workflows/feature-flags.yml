@@ -37,8 +37,8 @@ jobs:
           - "functions,rest,testing"                                                        # empty features compile-only sanity check
           - "auth,observers,secrets,federation"                                         # kitchen sink
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: cargo check
@@ -70,8 +70,8 @@ jobs:
             features: "auth"
             test: tracing_integration_test
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: Run feature-gated integration tests
@@ -93,8 +93,8 @@ jobs:
           - "postgres,audit-webhook"                 # webhook audit backend
           - "postgres,jwt-replay"                    # JWT replay detection (requires redis)
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: cargo check
@@ -112,8 +112,8 @@ jobs:
           - "gcs"                                     # Google Cloud Storage
           - "azure-blob"                              # Azure Blob Storage
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
       - name: cargo check
