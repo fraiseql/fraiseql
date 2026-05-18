@@ -68,6 +68,7 @@ impl RoleDefinition {
     }
 
     /// Add a description to the role.
+    #[must_use] 
     pub fn with_description(mut self, description: String) -> Self {
         self.description = Some(description);
         self

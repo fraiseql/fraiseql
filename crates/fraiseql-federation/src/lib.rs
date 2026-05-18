@@ -161,6 +161,7 @@ async fn handle_service_query() -> Result<Value> {
 }
 
 /// Check if a query is a federation query
+#[must_use] 
 pub fn is_federation_query(query_name: &str) -> bool {
     matches!(query_name, "_service" | "_entities")
 }

@@ -101,7 +101,7 @@ fn test_platform_e2e_functions_subsystem_full_construction() {
     let module_registry: HashMap<String, FunctionModule> = HashMap::new();
     let config = fraiseql_server::schema::loader::FunctionsConfig {
         definitions: defs,
-        module_dir:  std::path::PathBuf::from("/tmp/functions"),
+        module_dir:  std::env::temp_dir().join("fraiseql_test_functions"),
     };
 
     let subsystem = FunctionsSubsystem {

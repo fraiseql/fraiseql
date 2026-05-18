@@ -44,6 +44,7 @@ pub struct AuthEvent {
 
 impl AuthEvent {
     /// Create a new event record in the `"started"` state.
+    #[must_use] 
     pub fn new(event: &str) -> Self {
         Self {
             event:       event.to_string(),
@@ -58,24 +59,28 @@ impl AuthEvent {
     }
 
     /// Set the user ID associated with this event.
+    #[must_use] 
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
     /// Set the OAuth provider name for this event.
+    #[must_use] 
     pub fn with_provider(mut self, provider: String) -> Self {
         self.provider = Some(provider);
         self
     }
 
     /// Set the request correlation ID for distributed tracing.
+    #[must_use] 
     pub fn with_request_id(mut self, request_id: String) -> Self {
         self.request_id = Some(request_id);
         self
     }
 
     /// Mark the event as successful and record its duration.
+    #[must_use] 
     pub fn success(mut self, duration_ms: f64) -> Self {
         self.status = "success".to_string();
         self.duration_ms = duration_ms;
@@ -83,6 +88,7 @@ impl AuthEvent {
     }
 
     /// Mark the event as failed, recording the error and duration.
+    #[must_use] 
     pub fn error(mut self, error: String, duration_ms: f64) -> Self {
         self.status = "error".to_string();
         self.error = Some(error);
@@ -142,6 +148,7 @@ pub struct AuthMetrics {
 
 impl AuthMetrics {
     /// Create a new `AuthMetrics` with all counters initialized to zero.
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             total_auth_attempts:        0,
@@ -186,6 +193,7 @@ impl AuthMetrics {
     /// Return the success rate as a percentage (0–100).
     ///
     /// Returns `0.0` when no attempts have been recorded yet.
+    #[must_use] 
     pub fn success_rate(&self) -> f64 {
         if self.total_auth_attempts == 0 {
             0.0
@@ -228,6 +236,7 @@ impl OperationTimer {
     }
 
     /// Return the elapsed time in milliseconds since this timer was started.
+    #[must_use] 
     pub fn elapsed_ms(&self) -> f64 {
         self.start.elapsed().as_secs_f64() * 1000.0
     }

@@ -52,6 +52,7 @@ pub struct GraphQLValidationResponse {
 
 impl GraphQLValidationResponse {
     /// Create a new empty error response.
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             errors:      Vec::new(),
@@ -90,6 +91,7 @@ impl GraphQLValidationResponse {
     }
 
     /// Convert from `FraiseQLError` to validation response.
+    #[must_use] 
     pub fn from_error(error: &FraiseQLError) -> Option<Self> {
         if let FraiseQLError::Validation { message, path } = error {
             let mut response = Self::new();
@@ -116,11 +118,13 @@ impl GraphQLValidationResponse {
     }
 
     /// Check if response has any errors.
+    #[must_use] 
     pub const fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
 
     /// Serialize to JSON suitable for GraphQL response.
+    #[must_use] 
     pub fn to_graphql_errors(&self) -> serde_json::Value {
         serde_json::json!({
             "errors": self.errors,

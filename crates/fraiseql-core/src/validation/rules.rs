@@ -171,11 +171,13 @@ pub enum ValidationRule {
 
 impl ValidationRule {
     /// Check if this is a required field validation.
+    #[must_use] 
     pub const fn is_required(&self) -> bool {
         matches!(self, Self::Required)
     }
 
     /// Get a human-readable description of this rule.
+    #[must_use] 
     pub fn description(&self) -> String {
         match self {
             Self::Required => "Field is required".to_string(),

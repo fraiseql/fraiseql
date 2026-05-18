@@ -158,6 +158,7 @@ impl BulkExporter {
     /// Get statistics about exported data.
     ///
     /// Useful for logging and monitoring export operations.
+    #[must_use] 
     pub fn batch_stats(batch: &RecordBatch) -> BatchStats {
         let num_rows = batch.num_rows();
         let num_cols = batch.num_columns();

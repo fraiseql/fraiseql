@@ -20,6 +20,7 @@
 /// assert!(!is_safe_sql_identifier("users; DROP TABLE users"));
 /// assert!(!is_safe_sql_identifier(""));
 /// ```
+#[must_use] 
 pub fn is_safe_sql_identifier(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 128

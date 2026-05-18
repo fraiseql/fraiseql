@@ -12,20 +12,24 @@ on:
 
 jobs:
   test:
-    name: Dart SDK
+    name: Dart ${{ matrix.dart-sdk }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
       run:
         working-directory: sdks/official/fraiseql-dart
 
+    strategy:
+      matrix:
+        dart-sdk: ['stable', '3.6.0']
+
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Dart
+      - name: Set up Dart ${{ matrix.dart-sdk }}
         uses: dart-lang/setup-dart@v1
         with:
-          sdk: stable
+          sdk: ${{ matrix.dart-sdk }}
 
       - name: Install dependencies
         run: dart pub get

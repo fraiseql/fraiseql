@@ -2,7 +2,7 @@
 #
 # Copy to fraiseql.toml in your project root and customize for your environment.
 # All fields support ${ENV_VAR} interpolation (expanded before parsing).
-# See docs/configuration.md for the full reference.
+# See docs/architecture/overview.md for the full architecture reference.
 
 # =============================================================================
 # PROJECT METADATA (required)

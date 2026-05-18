@@ -75,6 +75,7 @@ pub fn assert_no_graphql_errors(response: &serde_json::Value) {
 /// let data = assert_has_data(&response);
 /// assert_eq!(data["user"]["id"], 1);
 /// ```
+#[must_use] 
 pub fn assert_has_data(response: &serde_json::Value) -> &serde_json::Value {
     response.get("data").expect("Response should have 'data' field")
 }

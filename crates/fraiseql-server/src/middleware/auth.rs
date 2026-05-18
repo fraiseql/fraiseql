@@ -225,6 +225,7 @@ pub async fn bearer_auth_middleware(
 /// `None` for all other formats (Basic, Digest, missing prefix, etc.).
 ///
 /// Exposed as `pub` for property testing.
+#[must_use] 
 pub fn extract_bearer_token(header_value: &str) -> Option<&str> {
     header_value.strip_prefix("Bearer ")
 }

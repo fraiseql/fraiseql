@@ -43,18 +43,21 @@ impl OAuthAuditEvent {
     }
 
     /// Set user ID
+    #[must_use] 
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
     /// Set error message
+    #[must_use] 
     pub fn with_error(mut self, error: String) -> Self {
         self.error = Some(error);
         self
     }
 
     /// Add metadata
+    #[must_use] 
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
         self

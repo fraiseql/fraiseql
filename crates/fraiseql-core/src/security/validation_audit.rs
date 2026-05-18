@@ -84,6 +84,7 @@ pub struct ValidationAuditLogger {
 
 impl ValidationAuditLogger {
     /// Create a new validation audit logger with the given configuration
+    #[must_use] 
     pub fn new(config: ValidationAuditLoggerConfig) -> Self {
         Self {
             config:  Arc::new(config),
@@ -114,11 +115,13 @@ impl ValidationAuditLogger {
     }
 
     /// Check if audit logging is enabled
+    #[must_use] 
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
     }
 
     /// Get all logged entries (for testing/compliance export)
+    #[must_use] 
     pub fn get_entries(&self) -> Vec<ValidationAuditEntry> {
         if let Ok(entries) = self.entries.lock() {
             entries.clone()
@@ -135,6 +138,7 @@ impl ValidationAuditLogger {
     }
 
     /// Get count of logged entries
+    #[must_use] 
     pub fn entry_count(&self) -> usize {
         if let Ok(entries) = self.entries.lock() {
             entries.len()
@@ -144,6 +148,7 @@ impl ValidationAuditLogger {
     }
 
     /// Filter entries by user ID
+    #[must_use] 
     pub fn entries_by_user(&self, user_id: &str) -> Vec<ValidationAuditEntry> {
         if let Ok(entries) = self.entries.lock() {
             entries
@@ -157,6 +162,7 @@ impl ValidationAuditLogger {
     }
 
     /// Filter entries by tenant ID
+    #[must_use] 
     pub fn entries_by_tenant(&self, tenant_id: &str) -> Vec<ValidationAuditEntry> {
         if let Ok(entries) = self.entries.lock() {
             entries
@@ -170,6 +176,7 @@ impl ValidationAuditLogger {
     }
 
     /// Filter entries by field name
+    #[must_use] 
     pub fn entries_by_field(&self, field: &str) -> Vec<ValidationAuditEntry> {
         if let Ok(entries) = self.entries.lock() {
             entries.iter().filter(|e| e.field == field).cloned().collect()
@@ -179,6 +186,7 @@ impl ValidationAuditLogger {
     }
 
     /// Count validation failures
+    #[must_use] 
     pub fn failure_count(&self) -> usize {
         if let Ok(entries) = self.entries.lock() {
             entries.iter().filter(|e| !e.valid).count()
@@ -188,6 +196,7 @@ impl ValidationAuditLogger {
     }
 
     /// Get configuration reference
+    #[must_use] 
     pub fn config(&self) -> &ValidationAuditLoggerConfig {
         &self.config
     }

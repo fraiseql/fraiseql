@@ -14,6 +14,7 @@ pub struct LocalStorageBackend {
 
 impl LocalStorageBackend {
     /// Creates a new local storage backend rooted at `root`.
+    #[must_use] 
     pub fn new(root: &str) -> Self {
         Self {
             root: PathBuf::from(root),

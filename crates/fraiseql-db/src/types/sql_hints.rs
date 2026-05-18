@@ -244,6 +244,7 @@ pub struct SqlProjectionHint {
 
 impl SqlProjectionHint {
     /// Creates a new `SqlProjectionHint`.
+    #[must_use] 
     pub const fn new(
         database: DatabaseType,
         projection_template: String,

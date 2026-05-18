@@ -19,6 +19,7 @@ pub struct CustomScalarRegistry {
 
 impl CustomScalarRegistry {
     /// Create a new custom scalar registry.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             scalars: Arc::new(RwLock::new(HashMap::new())),

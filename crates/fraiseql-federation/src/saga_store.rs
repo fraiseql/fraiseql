@@ -122,6 +122,7 @@ pub enum SagaState {
 
 impl SagaState {
     /// Return a lowercase string identifier for this state.
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             SagaState::Pending => "pending",
@@ -137,6 +138,7 @@ impl SagaState {
     ///
     /// Returns `None` if `s` does not match a known state name.
     #[allow(clippy::should_implement_trait)] // Reason: infallible Option-returning conversion, not a full FromStr implementation
+    #[must_use] 
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(SagaState::Pending),
@@ -166,6 +168,7 @@ pub enum StepState {
 
 impl StepState {
     /// Return a lowercase string identifier for this step state.
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             StepState::Pending => "pending",
@@ -179,6 +182,7 @@ impl StepState {
     ///
     /// Returns `None` if `s` does not match a known state name.
     #[allow(clippy::should_implement_trait)] // Reason: infallible Option-returning conversion, not a full FromStr implementation
+    #[must_use] 
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(StepState::Pending),
@@ -204,6 +208,7 @@ pub enum MutationType {
 
 impl MutationType {
     /// Convert to string representation
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             MutationType::Create => "create",
@@ -214,6 +219,7 @@ impl MutationType {
 
     /// Parse from string representation
     #[allow(clippy::should_implement_trait)] // Reason: infallible Option-returning conversion, not a full FromStr implementation
+    #[must_use] 
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "create" => Some(MutationType::Create),

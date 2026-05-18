@@ -45,6 +45,7 @@ pub enum InheritanceMode {
 
 impl InheritanceMode {
     /// Get a human-readable description.
+    #[must_use] 
     pub const fn description(&self) -> &'static str {
         match self {
             Self::Override => "Child rules override parent rules completely",
@@ -80,12 +81,14 @@ impl RuleMetadata {
     }
 
     /// Mark this rule as non-overrideable.
+    #[must_use] 
     pub const fn non_overrideable(mut self) -> Self {
         self.overrideable = false;
         self
     }
 
     /// Mark this rule as inherited.
+    #[must_use] 
     pub const fn as_inherited(mut self) -> Self {
         self.inherited = true;
         self
@@ -103,6 +106,7 @@ pub struct ValidationRuleRegistry {
 
 impl ValidationRuleRegistry {
     /// Create a new validation rule registry.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             rules_by_type: HashMap::new(),
@@ -121,6 +125,7 @@ impl ValidationRuleRegistry {
     }
 
     /// Get rules for a type, including inherited rules.
+    #[must_use] 
     pub fn get_rules(&self, type_name: &str, mode: InheritanceMode) -> Vec<RuleMetadata> {
         let mut rules = Vec::new();
 
@@ -160,11 +165,13 @@ impl ValidationRuleRegistry {
     }
 
     /// Get the parent type name if one exists.
+    #[must_use] 
     pub fn get_parent(&self, type_name: &str) -> Option<&str> {
         self.parent_types.get(type_name).map(|s| s.as_str())
     }
 
     /// Check if a type has a parent.
+    #[must_use] 
     pub fn has_parent(&self, type_name: &str) -> bool {
         self.parent_types.contains_key(type_name)
     }
@@ -179,6 +186,7 @@ impl ValidationRuleRegistry {
 ///
 /// # Returns
 /// Combined rules based on the inheritance mode
+#[must_use] 
 pub fn inherit_validation_rules(
     parent_rules: &[ValidationRule],
     child_rules: &[ValidationRule],

@@ -100,6 +100,7 @@ impl TrustedDocumentStore {
     }
 
     /// Create an in-memory store from a pre-built document map (for testing).
+    #[must_use] 
     pub fn from_documents(documents: HashMap<String, String>, mode: TrustedDocumentMode) -> Self {
         let documents = normalize_keys(documents);
         Self {
@@ -109,6 +110,7 @@ impl TrustedDocumentStore {
     }
 
     /// A disabled store that passes all queries through (permissive, empty).
+    #[must_use] 
     pub fn disabled() -> Self {
         Self {
             documents: Arc::new(RwLock::new(HashMap::new())),
@@ -117,6 +119,7 @@ impl TrustedDocumentStore {
     }
 
     /// Returns the enforcement mode.
+    #[must_use] 
     pub const fn mode(&self) -> TrustedDocumentMode {
         self.mode
     }

@@ -188,6 +188,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     ///
     /// Returns a guard that keeps the executor alive for the duration of the
     /// request. This is wait-free (no lock).
+    #[must_use] 
     pub fn executor(&self) -> arc_swap::Guard<Arc<Executor<A>>> {
         self.executor.load()
     }
@@ -382,6 +383,64 @@ impl<A: DatabaseAdapter> AppState<A> {
         Ok(())
     }
 
+    /// Reload the compiled schema from already-validated JSON bytes.
+    ///
+    /// This avoids re-reading the schema file from disk after validation,
+    /// preventing TOCTOU race conditions where the file could change between
+    /// validation and reload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the JSON is invalid, schema validation fails, or
+    /// a reload is already in progress.  On error, the current executor is
+    /// unchanged.
+    pub async fn reload_schema_from_json(&self, json: &str) -> Result<(), String> {
+        // Serialize concurrent reloads
+        let _guard = self
+            .reload_lock
+            .try_lock()
+            .map_err(|_| "Reload already in progress".to_string())?;
+
+        let adapter = self
+            .reload_adapter
+            .as_ref()
+            .ok_or_else(|| "Reload not configured: no adapter available".to_string())?;
+
+        // 1. Parse and validate
+        let schema = CompiledSchema::from_json(json, false)
+            .map_err(|e| format!("Invalid schema JSON: {e}"))?;
+
+        // 2. Validate format version
+        schema
+            .validate_format_version()
+            .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
+
+        // 3. Check if schema actually changed
+        let current = self.executor.load();
+        if current.schema().content_hash() == schema.content_hash() {
+            return Ok(()); // Same schema, no-op
+        }
+
+        // 4. Notify adapter of schema change (clears query result cache if applicable)
+        adapter.on_schema_reload();
+
+        // 5. Construct new executor (reuses same adapter/connection pool)
+        let new_executor = Arc::new(Executor::new(schema, adapter.clone()));
+
+        // 6. Atomic swap
+        self.executor.store(new_executor);
+
+        // 7. Clear query plan caches (reference old schema)
+        #[cfg(feature = "arrow")]
+        if let Some(cache) = &self.cache {
+            cache.clear();
+        }
+
+        info!("Schema executor swapped successfully (from validated JSON)");
+
+        Ok(())
+    }
+
     /// Create new application state with custom metrics collector.
     #[must_use]
     pub fn with_metrics(executor: Arc<Executor<A>>, metrics: Arc<MetricsCollector>) -> Self {
@@ -433,11 +492,13 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get server configuration if configured.
+    #[must_use] 
     pub const fn server_config(&self) -> Option<&Arc<crate::config::HttpServerConfig>> {
         self.config.as_ref()
     }
 
     /// Get sanitized configuration for safe API exposure.
+    #[must_use] 
     pub fn sanitized_config(&self) -> Option<crate::routes::api::types::SanitizedConfig> {
         self.config
             .as_ref()
@@ -563,6 +624,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Sanitize a batch of errors before sending them to the client.
+    #[must_use] 
     pub fn sanitize_errors(&self, errors: Vec<GraphQLError>) -> Vec<GraphQLError> {
         self.error_sanitizer.sanitize_all(errors)
     }

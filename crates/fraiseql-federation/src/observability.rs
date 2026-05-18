@@ -101,6 +101,7 @@ pub struct SubgraphLatencyTracker {
 
 impl SubgraphLatencyTracker {
     /// Create a new empty tracker.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             histograms: DashMap::new(),
@@ -138,6 +139,7 @@ impl SubgraphLatencyTracker {
     /// Returns one entry per subgraph with aggregate `count`, total `duration`,
     /// and `success` reflecting whether all observations succeeded.
     #[allow(clippy::cast_possible_truncation)] // Reason: count fits in usize on any platform
+    #[must_use] 
     pub fn entries(&self) -> Vec<SubgraphLatencyEntry> {
         self.histograms
             .iter()
@@ -158,6 +160,7 @@ impl SubgraphLatencyTracker {
 
     /// Get per-subgraph latency summary as OTEL span attributes.
     #[allow(clippy::cast_precision_loss)] // Reason: u64→f64 precision loss is negligible for aggregate metrics
+    #[must_use] 
     pub fn to_span_attributes(&self) -> HashMap<String, String> {
         let mut attrs = HashMap::new();
 
@@ -184,6 +187,7 @@ impl SubgraphLatencyTracker {
     }
 
     /// Total latency across all subgraph fetches.
+    #[must_use] 
     pub fn total_latency(&self) -> Duration {
         let total_us: u64 = self
             .histograms
@@ -198,6 +202,7 @@ impl SubgraphLatencyTracker {
     /// Produces `fraiseql_federation_subgraph_latency_seconds_bucket`,
     /// `_sum`, and `_count` lines for each subgraph.
     #[allow(clippy::cast_precision_loss)] // Reason: u64→f64 precision loss is negligible for Prometheus sum
+    #[must_use] 
     pub fn to_prometheus_histogram(&self) -> String {
         let mut out = String::new();
         out.push_str(
@@ -283,6 +288,7 @@ pub struct EntityResolutionMetrics {
 
 impl EntityResolutionMetrics {
     /// Create new zero-initialized metrics.
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             success_total:           AtomicU64::new(0),

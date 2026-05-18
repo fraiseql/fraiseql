@@ -114,6 +114,7 @@ impl AuditEventType {
     ///
     /// These strings are written to log sinks and compliance systems and will not
     /// change between releases.
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             AuditEventType::JwtValidation => "jwt_validation",
@@ -162,6 +163,7 @@ impl SecretType {
     /// Return a stable, lowercase snake_case string representation of this secret type.
     ///
     /// Written to log sinks and compliance systems; will not change between releases.
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             SecretType::JwtToken => "jwt_token",
@@ -302,6 +304,7 @@ pub struct StructuredAuditLogger;
 
 impl StructuredAuditLogger {
     /// Create a new `StructuredAuditLogger`.
+    #[must_use] 
     pub const fn new() -> Self {
         Self
     }

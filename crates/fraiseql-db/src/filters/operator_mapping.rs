@@ -32,6 +32,7 @@ pub enum ParameterType {
 
 impl ParameterType {
     /// Get GraphQL type representation
+    #[must_use] 
     pub const fn graphql_type(self) -> &'static str {
         match self {
             ParameterType::String => "String",
@@ -44,6 +45,7 @@ impl ParameterType {
 }
 
 /// Get operators for a rich scalar type by name
+#[must_use] 
 pub fn get_operators_for_type(type_name: &str) -> Option<Vec<OperatorInfo>> {
     match type_name {
         // CONTACT/COMMUNICATION TYPES

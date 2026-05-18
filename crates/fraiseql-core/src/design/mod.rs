@@ -31,6 +31,7 @@ pub enum IssueSeverity {
 
 impl IssueSeverity {
     /// Get numeric weight for scoring (critical=3, warning=2, info=1)
+    #[must_use] 
     pub const fn weight(&self) -> u32 {
         match self {
             IssueSeverity::Critical => 3,
@@ -122,6 +123,7 @@ pub struct DesignAudit {
 
 impl DesignAudit {
     /// Create a new empty audit
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             federation_issues: Vec::new(),
@@ -155,6 +157,7 @@ impl DesignAudit {
     }
 
     /// Calculate overall design quality score (0-100)
+    #[must_use] 
     pub fn score(&self) -> u8 {
         // Base score
         let mut score: f64 = 100.0;
@@ -212,6 +215,7 @@ impl DesignAudit {
     }
 
     /// Count issues by severity level
+    #[must_use] 
     pub fn severity_count(&self, severity: IssueSeverity) -> usize {
         let fed_count = self.federation_issues.iter().filter(|i| i.severity == severity).count();
         let cost_count = self.cost_warnings.iter().filter(|w| w.severity == severity).count();
@@ -223,6 +227,7 @@ impl DesignAudit {
     }
 
     /// Get all issues as a flat list
+    #[must_use] 
     pub fn all_issues(&self) -> Vec<String> {
         let mut issues = Vec::new();
 

@@ -36,6 +36,13 @@ pub use select::{parse_select_entries, validate_embedding_depth};
 /// Maximum number of total extracted variables (path + query + body).
 const MAX_VARIABLES_COUNT: usize = 1_000;
 
+/// Maximum total byte length of all query-string values combined.
+///
+/// Prevents memory exhaustion from requests with many large parameter values
+/// (e.g., 1 000 field names each 1 MB long).  The HTTP body is capped
+/// separately; this limit covers URL-encoded query strings.
+const MAX_QUERY_STRING_BYTES: usize = 1_048_576; // 1 MiB
+
 /// Maximum nesting depth for `?filter=` JSON values.
 const MAX_FILTER_DEPTH: usize = 64;
 
@@ -203,11 +210,24 @@ impl<'a> RestParamExtractor<'a> {
     /// - The filter JSON exceeds `max_filter_bytes`
     /// - The filter JSON exceeds `MAX_FILTER_DEPTH`
     /// - Total parameter count exceeds `MAX_VARIABLES_COUNT`
+    /// - Total query-string byte length exceeds `MAX_QUERY_STRING_BYTES`
     pub fn extract(
         &self,
         path_pairs: &[(&str, &str)],
         query_pairs: &[(&str, &str)],
     ) -> Result<ExtractedParams, FraiseQLError> {
+        // 0. Enforce aggregate query-string size limit.
+        let total_query_bytes: usize = query_pairs
+            .iter()
+            .map(|(k, v)| k.len() + v.len())
+            .sum();
+        if total_query_bytes > MAX_QUERY_STRING_BYTES {
+            return Err(validation_error(format!(
+                "Total query string size ({total_query_bytes} bytes) exceeds maximum \
+                 allowed ({MAX_QUERY_STRING_BYTES} bytes)."
+            )));
+        }
+
         let is_relay = self.query_def.relay;
         let is_list = self.query_def.returns_list;
 

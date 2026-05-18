@@ -50,6 +50,7 @@ pub enum FieldType {
 
 impl FieldType {
     /// Check if two types are comparable
+    #[must_use] 
     pub fn is_comparable_with(&self, other: &FieldType) -> bool {
         match (self, other) {
             // Same types are always comparable
@@ -97,11 +98,13 @@ pub struct CompileTimeValidator {
 
 impl CompileTimeValidator {
     /// Create a new compile-time validator
+    #[must_use] 
     pub const fn new(context: SchemaContext) -> Self {
         Self { context }
     }
 
     /// Validate a cross-field rule
+    #[must_use] 
     pub fn validate_cross_field_rule(
         &self,
         type_name: &str,
@@ -192,6 +195,7 @@ impl CompileTimeValidator {
     }
 
     /// Validate an ELO expression at compile time
+    #[must_use] 
     pub fn validate_elo_expression(
         &self,
         type_name: &str,

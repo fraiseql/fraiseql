@@ -68,6 +68,7 @@ impl SecretsBackend for EnvBackend {
 
 impl EnvBackend {
     /// Create new `EnvBackend`
+    #[must_use] 
     pub const fn new() -> Self {
         EnvBackend
     }

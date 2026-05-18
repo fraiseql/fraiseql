@@ -175,11 +175,12 @@ impl ApiKeyAuthenticator {
             None => return ApiKeyResult::NotPresent,
         };
 
-        // Strip optional "ApiKey " prefix (for Authorization header usage).
-        let key = raw_key
-            .strip_prefix("ApiKey ")
-            .or_else(|| raw_key.strip_prefix("apikey "))
-            .unwrap_or(raw_key);
+        // Strip optional "ApiKey " prefix (case-insensitive, for Authorization header usage).
+        let key = if raw_key.len() > 7 && raw_key[..7].eq_ignore_ascii_case("apikey ") {
+            &raw_key[7..]
+        } else {
+            raw_key
+        };
 
         let key_hash = sha256_hash(key.as_bytes());
 

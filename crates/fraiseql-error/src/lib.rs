@@ -152,6 +152,7 @@ pub enum RuntimeError {
 
 impl RuntimeError {
     /// Get the error code for this error
+    #[must_use] 
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::Config(e) => e.error_code(),
@@ -170,6 +171,7 @@ impl RuntimeError {
     }
 
     /// Get documentation URL for this error
+    #[must_use] 
     pub fn docs_url(&self) -> String {
         format!("https://docs.fraiseql.dev/errors#{}", self.error_code())
     }

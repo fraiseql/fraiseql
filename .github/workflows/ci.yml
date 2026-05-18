@@ -1041,31 +1041,8 @@ jobs:
           path: target/criterion
 
 
-  # Feature flag compilation coverage for fraiseql-server
-  feature-flags:
-    name: Feature Flag Coverage
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-
-      - name: Test fraiseql-server no-default-features
-        run: cargo check -p fraiseql-server --no-default-features
-
-      - name: Test fraiseql-server feature arrow
-        run: cargo check -p fraiseql-server --no-default-features --features arrow
-
-      - name: Test fraiseql-server feature observers-nats
-        run: cargo check -p fraiseql-server --no-default-features --features observers-nats
-
-      - name: Test fraiseql-server feature redis-rate-limiting
-        run: cargo check -p fraiseql-server --no-default-features --features redis-rate-limiting
-
-      - name: Test fraiseql-server all features
-        run: cargo check -p fraiseql-server --all-features
+  # NOTE: Feature flag compilation tests are handled by the dedicated
+  # feature-flags.yml workflow (15 matrix entries) — no duplicate job here.
 
   # Cross-SDK schema parity
   sdk-parity:
@@ -1183,7 +1160,6 @@ jobs:
       - dependency-audit
       - integration-cross-db
       - docs
-      - feature-flags
       - sdk-parity
       - binary-size
       - bench

@@ -57,6 +57,7 @@ impl std::fmt::Debug for VaultConfig {
 
 impl VaultConfig {
     /// Create a new Vault configuration.
+    #[must_use] 
     pub fn new(vault_addr: String, token: String) -> Self {
         Self {
             vault_addr,

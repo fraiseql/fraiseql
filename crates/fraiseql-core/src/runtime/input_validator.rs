@@ -21,6 +21,7 @@ pub struct ValidationErrorCollection {
 
 impl ValidationErrorCollection {
     /// Create a new empty error collection.
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -31,16 +32,19 @@ impl ValidationErrorCollection {
     }
 
     /// Check if there are any errors.
+    #[must_use] 
     pub const fn is_empty(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Get the number of errors.
+    #[must_use] 
     pub const fn len(&self) -> usize {
         self.errors.len()
     }
 
     /// Convert to a FraiseQL error.
+    #[must_use] 
     pub fn to_error(&self) -> FraiseQLError {
         if self.errors.is_empty() {
             FraiseQLError::validation("No validation errors")

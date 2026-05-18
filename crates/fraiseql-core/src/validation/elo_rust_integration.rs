@@ -50,6 +50,7 @@ pub struct RustValidatorRegistry {
 
 impl RustValidatorRegistry {
     /// Create a new validator registry with the given configuration
+    #[must_use] 
     pub fn new(config: RustValidatorRegistryConfig) -> Self {
         Self {
             config:     Arc::new(config),
@@ -64,12 +65,14 @@ impl RustValidatorRegistry {
     }
 
     /// Get a registered validator by name
+    #[must_use] 
     pub fn get(&self, name: &str) -> Option<EloRustValidator> {
         let validators = self.validators.read();
         validators.get(name).cloned()
     }
 
     /// Check if a validator exists
+    #[must_use] 
     pub fn exists(&self, name: &str) -> bool {
         let validators = self.validators.read();
         validators.contains_key(name)
@@ -82,18 +85,21 @@ impl RustValidatorRegistry {
     }
 
     /// Get the number of registered validators
+    #[must_use] 
     pub fn count(&self) -> usize {
         let validators = self.validators.read();
         validators.len()
     }
 
     /// Check if registry is empty
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         let validators = self.validators.read();
         validators.is_empty()
     }
 
     /// List all validators
+    #[must_use] 
     pub fn list_all(&self) -> Vec<EloRustValidator> {
         let validators = self.validators.read();
         validators.values().cloned().collect()
@@ -106,11 +112,13 @@ impl RustValidatorRegistry {
     }
 
     /// Check if registry is enabled
+    #[must_use] 
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
     }
 
     /// Get configuration reference
+    #[must_use] 
     pub fn config(&self) -> &RustValidatorRegistryConfig {
         &self.config
     }

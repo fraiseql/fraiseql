@@ -28,6 +28,7 @@ impl ConstantTimeOps {
     /// let user_token = b"user_provided_token";
     /// assert!(!ConstantTimeOps::compare(stored_token, user_token));
     /// ```
+    #[must_use] 
     pub fn compare(expected: &[u8], actual: &[u8]) -> bool {
         expected.ct_eq(actual).into()
     }
@@ -40,6 +41,7 @@ impl ConstantTimeOps {
     /// # Arguments
     /// * `expected` - The expected (correct/known) string value
     /// * `actual` - The actual (untrusted) string value from the user/attacker
+    #[must_use] 
     pub fn compare_str(expected: &str, actual: &str) -> bool {
         Self::compare(expected.as_bytes(), actual.as_bytes())
     }
@@ -53,6 +55,7 @@ impl ConstantTimeOps {
     /// This function is vulnerable to timing attacks that measure comparison duration.
     /// For JWT tokens or other security-sensitive values, use `compare_padded()` instead
     /// which always compares at a fixed length to prevent length disclosure.
+    #[must_use] 
     pub fn compare_len_safe(expected: &[u8], actual: &[u8]) -> bool {
         // If lengths differ, still compare constant-time
         // First compare what we can, then check length
@@ -88,6 +91,7 @@ impl ConstantTimeOps {
     ///     512
     /// );
     /// ```
+    #[must_use] 
     pub fn compare_padded(expected: &[u8], actual: &[u8], fixed_len: usize) -> bool {
         // SECURITY: Pad both inputs to fixed_len before comparison.
         // Using Vec avoids the previous 1024-byte silent cap that produced incorrect
@@ -109,6 +113,7 @@ impl ConstantTimeOps {
     ///
     /// JWT tokens are typically 300-800 bytes. Using 512-byte fixed-length comparison
     /// prevents attackers from determining token length through timing analysis.
+    #[must_use] 
     pub fn compare_jwt_constant(expected: &str, actual: &str) -> bool {
         // Use 512-byte fixed length for JWT comparison (typical JWT size)
         Self::compare_padded(expected.as_bytes(), actual.as_bytes(), 512)

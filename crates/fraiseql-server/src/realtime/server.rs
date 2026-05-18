@@ -351,7 +351,7 @@ async fn handle_realtime_connection(
                                 }
                             }
                             Ok(ClientMessage::Unsubscribe { entity }) => {
-                                server.subscriptions.unsubscribe(&connection_id, &entity);
+                                let _ = server.subscriptions.unsubscribe(&connection_id, &entity);
                                 let reply = ServerMessage::Unsubscribed { entity };
                                 if let Ok(json) = reply.to_json() {
                                     if sender.send(Message::Text(json.into())).await.is_err() {

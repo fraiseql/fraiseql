@@ -59,6 +59,7 @@ pub struct StorageMetadataRepo {
 
 impl StorageMetadataRepo {
     /// Create a new repository wrapping the given connection pool.
+    #[must_use] 
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }

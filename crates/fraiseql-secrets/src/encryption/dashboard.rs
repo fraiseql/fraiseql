@@ -23,6 +23,7 @@ pub struct DashboardOverview {
 
 impl DashboardOverview {
     /// Create new dashboard overview
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             total_keys:      0,
@@ -119,6 +120,7 @@ pub struct RotationMetricsPoint {
 
 impl RotationMetricsPoint {
     /// Create new metrics point
+    #[must_use] 
     pub const fn new(timestamp: DateTime<Utc>) -> Self {
         Self {
             timestamp,
@@ -200,6 +202,7 @@ pub struct ComplianceDashboard {
 
 impl ComplianceDashboard {
     /// Create new compliance dashboard
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             hipaa:   ComplianceStatus::Compliant,
@@ -334,6 +337,7 @@ pub struct AlertsWidget {
 
 impl AlertsWidget {
     /// Create new alerts widget
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             active_alerts:        Vec::new(),
@@ -378,6 +382,7 @@ pub struct TrendAnalysis {
 
 impl TrendAnalysis {
     /// Create new trend analysis
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             rotation_frequency: "stable".to_string(),
@@ -433,6 +438,7 @@ pub struct DashboardSnapshot {
 
 impl DashboardSnapshot {
     /// Create new dashboard snapshot
+    #[must_use] 
     pub fn new(
         overview: DashboardOverview,
         key_cards: Vec<KeyStatusCard>,
@@ -449,6 +455,7 @@ impl DashboardSnapshot {
     }
 
     /// Get urgency summary (count of keys by status)
+    #[must_use] 
     pub fn urgency_summary(&self) -> (usize, usize, usize, usize) {
         let mut healthy = 0;
         let mut warning = 0;
@@ -469,6 +476,7 @@ impl DashboardSnapshot {
     }
 
     /// Calculate average urgency score across all keys
+    #[must_use] 
     pub fn average_urgency_score(&self) -> u32 {
         if self.key_cards.is_empty() {
             return 0;
@@ -497,6 +505,7 @@ pub struct AlertFilter {
 
 impl AlertFilter {
     /// Create new alert filter
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             severity:     None,
@@ -507,6 +516,7 @@ impl AlertFilter {
     }
 
     /// Filter alerts based on criteria
+    #[must_use] 
     pub fn apply(&self, alerts: &[Alert]) -> Vec<Alert> {
         alerts
             .iter()
@@ -557,6 +567,7 @@ pub struct ComplianceChecker {
 
 impl ComplianceChecker {
     /// Create checker for HIPAA compliance
+    #[must_use] 
     pub fn hipaa() -> Self {
         Self {
             framework:                     "HIPAA".to_string(),
@@ -566,6 +577,7 @@ impl ComplianceChecker {
     }
 
     /// Create checker for PCI-DSS compliance
+    #[must_use] 
     pub fn pci_dss() -> Self {
         Self {
             framework:                     "PCI-DSS".to_string(),
@@ -575,6 +587,7 @@ impl ComplianceChecker {
     }
 
     /// Create checker for GDPR compliance
+    #[must_use] 
     pub fn gdpr() -> Self {
         Self {
             framework:                     "GDPR".to_string(),
@@ -584,6 +597,7 @@ impl ComplianceChecker {
     }
 
     /// Create checker for SOC 2 compliance
+    #[must_use] 
     pub fn soc2() -> Self {
         Self {
             framework:                     "SOC 2".to_string(),
@@ -593,6 +607,7 @@ impl ComplianceChecker {
     }
 
     /// Check if card meets compliance requirements
+    #[must_use] 
     pub fn check_compliance(&self, card: &KeyStatusCard) -> bool {
         // For compliance, key should not be urgent or overdue
         !matches!(card.status.as_str(), "urgent" | "overdue")

@@ -31,6 +31,7 @@ use crate::{
 /// assert_eq!(view_name_to_entity_type("users"),         None);
 /// assert_eq!(view_name_to_entity_type("v_"),            None);
 /// ```
+#[must_use] 
 pub fn view_name_to_entity_type(view: &str) -> Option<String> {
     // Strip prefix: everything up to and including the first '_'.
     // Returns None if there is no '_' (not a typed view) or if the

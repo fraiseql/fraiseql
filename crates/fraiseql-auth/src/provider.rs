@@ -126,6 +126,7 @@ impl PkceChallenge {
     }
 
     /// Validate a verifier against a challenge
+    #[must_use] 
     pub fn validate(&self, verifier: &str) -> bool {
         use sha2::{Digest, Sha256};
 

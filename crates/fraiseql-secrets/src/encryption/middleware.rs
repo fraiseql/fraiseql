@@ -42,6 +42,7 @@ pub struct FieldEncryptionService {
 
 impl FieldEncryptionService {
     /// Create a new encryption service with explicit configuration.
+    #[must_use] 
     pub const fn new(
         encrypted_fields: HashMap<String, Vec<String>>,
         operation_types: HashMap<String, String>,
@@ -56,6 +57,7 @@ impl FieldEncryptionService {
     }
 
     /// Create a new encryption service with key rotation support.
+    #[must_use] 
     pub const fn with_rotation(
         encrypted_fields: HashMap<String, Vec<String>>,
         operation_types: HashMap<String, String>,
@@ -74,6 +76,7 @@ impl FieldEncryptionService {
     ///
     /// Scans all type definitions for fields with `encryption` config,
     /// and maps query/mutation names to their return types.
+    #[must_use] 
     pub fn from_schema(
         schema: &fraiseql_core::schema::CompiledSchema,
         adapter: Arc<DatabaseFieldAdapter>,
@@ -111,6 +114,7 @@ impl FieldEncryptionService {
     }
 
     /// Check if any fields in the schema require encryption.
+    #[must_use] 
     pub fn has_encrypted_fields(&self) -> bool {
         !self.encrypted_fields.is_empty()
     }
@@ -233,6 +237,7 @@ impl FieldEncryptionService {
     }
 
     /// Check if key rotation is needed (80% of TTL consumed).
+    #[must_use] 
     pub fn needs_rotation(&self) -> bool {
         self.rotation_manager
             .as_ref()
@@ -241,6 +246,7 @@ impl FieldEncryptionService {
     }
 
     /// Get the rotation manager if configured.
+    #[must_use] 
     pub fn rotation_manager(&self) -> Option<&CredentialRotationManager> {
         self.rotation_manager.as_deref()
     }

@@ -156,8 +156,9 @@ missing_panics_doc = "warn"
 module_name_repetitions = "allow"
 # Reason: transitive dependencies routinely pull in multiple versions; not actionable.
 multiple_crate_versions = "allow"
-# Reason: builder methods and fluent APIs generate noise; applied selectively per crate.
-must_use_candidate = "allow"
+# Reason: all public functions returning values must be annotated with #[must_use].
+# Enforced since AR-1 audit remediation (2026-05-18).
+must_use_candidate = "deny"
 # Reason: nursery lints are experimental and may have false positives; keep as warn
 # so they surface in CI without blocking builds.
 nursery = {level = "warn", priority = -1}

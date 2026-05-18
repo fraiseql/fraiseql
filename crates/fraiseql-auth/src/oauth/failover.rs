@@ -21,6 +21,7 @@ pub struct ProviderFailoverManager {
 
 impl ProviderFailoverManager {
     /// Create new failover manager
+    #[must_use] 
     pub fn new(primary: String, fallbacks: Vec<String>) -> Self {
         Self {
             primary_provider:   primary,

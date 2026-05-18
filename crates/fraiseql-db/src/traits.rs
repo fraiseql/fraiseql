@@ -23,6 +23,7 @@ pub struct RelayPageResult {
 
 impl RelayPageResult {
     /// Creates a new `RelayPageResult`.
+    #[must_use] 
     pub const fn new(rows: Vec<JsonbValue>, total_count: Option<u64>) -> Self {
         Self { rows, total_count }
     }

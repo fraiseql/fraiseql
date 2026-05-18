@@ -60,6 +60,9 @@ CI commands: `cargo clippy --workspace --all-targets -- -D warnings && cargo nex
 | `fraiseql-observers` | Event-driven observer system |
 | `fraiseql-arrow` | Apache Arrow Flight integration |
 | `fraiseql-wire` | Streaming JSON query engine |
+| `fraiseql-functions` | Serverless functions runtime (triggers, WASM, cron) |
+| `fraiseql-storage` | Object storage backends (S3, GCS, Azure Blob) |
+| `fraiseql-federation` | Apollo Federation v2 support |
 
 Ignore: `sdks/`, `fraisier/`, `examples/`, `k6/`
 

@@ -297,6 +297,7 @@ impl QueryMatcher {
 /// early-exit so cost stays proportional to the length of the candidates rather
 /// than `O(n * m)` for every comparison. At most three suggestions are returned,
 /// ordered by increasing edit distance.
+#[must_use] 
 pub fn suggest_similar<'a>(needle: &str, haystack: &[&'a str]) -> Vec<&'a str> {
     const MAX_DISTANCE: usize = 2;
     const MAX_SUGGESTIONS: usize = 3;

@@ -131,6 +131,7 @@ impl RateLimitConfig {
     /// The default 10× multiplier reflects that authenticated users are identifiable
     /// (abuse is traceable) and include service accounts with higher call rates.
     /// Operators can override with `requests_per_second_per_user` in `fraiseql.toml`.
+    #[must_use] 
     pub fn from_security_config(sec: &RateLimitingSecurityConfig) -> Self {
         let trusted_proxy_cidrs = sec
             .trusted_proxy_cidrs

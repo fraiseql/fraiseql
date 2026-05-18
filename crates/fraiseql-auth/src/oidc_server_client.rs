@@ -175,6 +175,7 @@ impl OidcServerClient {
     /// The `state`, `code_challenge`, and `redirect_uri` values are
     /// percent-encoded so that base64-url characters (+, /, =) do not
     /// break query string parsing on the provider side.
+    #[must_use] 
     pub fn authorization_url(
         &self,
         state: &str,

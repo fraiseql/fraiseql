@@ -23,6 +23,7 @@ pub struct ProxyConfig {
 
 impl ProxyConfig {
     /// Create a new proxy configuration
+    #[must_use] 
     pub const fn new(trusted_proxies: Vec<IpAddr>, require_trusted_proxy: bool) -> Self {
         Self {
             trusted_proxies,
@@ -35,6 +36,7 @@ impl ProxyConfig {
     /// # Panics
     ///
     /// Cannot panic — the IP literal `"127.0.0.1"` is always valid.
+    #[must_use] 
     pub fn localhost_only() -> Self {
         Self {
             trusted_proxies:       vec!["127.0.0.1".parse().expect("valid IP")], /* Reason: "127.0.0.1" is a compile-time literal and always parses successfully */
@@ -43,6 +45,7 @@ impl ProxyConfig {
     }
 
     /// Create a proxy config with no trusted proxies
+    #[must_use] 
     pub const fn none() -> Self {
         Self {
             trusted_proxies:       Vec::new(),
@@ -55,6 +58,7 @@ impl ProxyConfig {
     /// # SECURITY
     /// Validates IP format before checking against trusted list.
     /// Returns false for any invalid IP format, preventing bypass attempts.
+    #[must_use] 
     pub fn is_trusted_proxy(&self, ip: &str) -> bool {
         if self.trusted_proxies.is_empty() {
             return false;
@@ -76,6 +80,7 @@ impl ProxyConfig {
     ///
     /// This prevents IP spoofing attacks where an attacker sends a malicious
     /// X-Forwarded-For header to bypass rate limiting or access controls.
+    #[must_use] 
     pub fn extract_client_ip(
         &self,
         headers: &axum::http::HeaderMap,

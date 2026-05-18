@@ -41,6 +41,7 @@ jobs:
 
   publish:
     name: Publish to RubyGems
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: test

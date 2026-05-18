@@ -52,6 +52,7 @@ impl ApiError {
     }
 
     /// Create an unauthorized error.
+    #[must_use] 
     pub fn unauthorized() -> Self {
         Self::new("Unauthorized", "UNAUTHORIZED")
     }
@@ -132,6 +133,7 @@ impl SanitizedConfig {
     /// - TLS private keys and certificates (replaced with boolean flag)
     /// - Database connection strings (not included)
     /// - API keys and tokens (not included)
+    #[must_use] 
     pub fn from_config(config: &crate::config::HttpServerConfig) -> Self {
         Self {
             port:        config.port,
@@ -143,6 +145,7 @@ impl SanitizedConfig {
     }
 
     /// Verify configuration has been properly sanitized.
+    #[must_use] 
     pub const fn is_sanitized(&self) -> bool {
         self.sanitized
     }

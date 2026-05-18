@@ -24,6 +24,7 @@ pub struct FederationTraceContext {
 
 impl FederationTraceContext {
     /// Create new trace context with random IDs.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             trace_id:       format!("{:032x}", Uuid::new_v4().as_u128()),
@@ -37,6 +38,7 @@ impl FederationTraceContext {
     ///
     /// Format: version-trace_id-parent_span_id-trace_flags
     /// Example: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+    #[must_use] 
     pub fn from_traceparent(header: &str) -> Option<Self> {
         let parts: Vec<&str> = header.split('-').collect();
         if parts.len() != 4 {
@@ -57,11 +59,13 @@ impl FederationTraceContext {
     }
 
     /// Generate W3C traceparent header value.
+    #[must_use] 
     pub fn to_traceparent(&self) -> String {
         format!("00-{}-{}-{}", self.trace_id, self.parent_span_id, self.trace_flags)
     }
 
     /// Create child span ID for next hop.
+    #[must_use] 
     pub fn next_span_id(&self) -> String {
         format!("{:016x}", Uuid::new_v4().as_u64_pair().0)
     }
@@ -116,6 +120,7 @@ impl FederationSpan {
     }
 
     /// Get span duration in milliseconds.
+    #[must_use] 
     pub fn duration_ms(&self) -> f64 {
         self.start_time.elapsed().as_secs_f64() * 1000.0
     }

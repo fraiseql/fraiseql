@@ -65,6 +65,7 @@ impl MultiProviderAuthState {
     }
 
     /// List the names of all registered providers.
+    #[must_use] 
     pub fn provider_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self.providers.keys().cloned().collect();
         names.sort();
@@ -72,6 +73,7 @@ impl MultiProviderAuthState {
     }
 
     /// Look up a provider by name.
+    #[must_use] 
     pub fn get_provider(&self, name: &str) -> Option<&Arc<dyn OAuthProvider>> {
         self.providers.get(name)
     }
@@ -128,6 +130,7 @@ pub struct AuthTokenResponse {
 
 impl AuthTokenResponse {
     /// Returns a builder for `AuthTokenResponse`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> AuthTokenResponseBuilder {
         AuthTokenResponseBuilder::default()
     }
@@ -163,6 +166,7 @@ impl AuthTokenResponseBuilder {
     }
 
     /// Sets the number of seconds until the access token expires.
+    #[must_use = "builder method returns modified builder"]
     pub const fn expires_in(mut self, expires_in: u64) -> Self {
         self.expires_in = Some(expires_in);
         self

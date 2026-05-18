@@ -117,6 +117,7 @@ pub const RICH_SCALARS: &[&str] = &[
 /// assert!(!is_known_scalar("CustomType"));
 /// ```
 #[inline]
+#[must_use] 
 pub fn is_known_scalar(name: &str) -> bool {
     BUILTIN_SCALARS.contains(&name) || RICH_SCALARS.contains(&name)
 }

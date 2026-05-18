@@ -57,6 +57,7 @@ impl StreamStats {
     /// Create zero-valued stats
     ///
     /// Useful for testing and initialization.
+    #[must_use] 
     pub const fn zero() -> Self {
         Self {
             items_buffered: 0,

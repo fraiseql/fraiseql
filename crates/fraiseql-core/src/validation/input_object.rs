@@ -77,6 +77,7 @@ pub struct InputObjectValidationResult {
 
 impl InputObjectValidationResult {
     /// Create a new empty result.
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             errors:      Vec::new(),
@@ -97,6 +98,7 @@ impl InputObjectValidationResult {
     }
 
     /// Check if there are any errors.
+    #[must_use] 
     pub const fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }

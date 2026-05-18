@@ -180,6 +180,7 @@ impl ToSql for QueryParam {
 /// # }
 /// ```
 #[cfg(feature = "postgres")]
+#[must_use] 
 pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
     match param {
         QueryParam::Null => Box::new(None::<String>),

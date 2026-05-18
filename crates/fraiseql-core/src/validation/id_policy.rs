@@ -419,6 +419,7 @@ pub enum ValidationProfileType {
 
 impl ValidationProfileType {
     /// Get the validator as a trait object
+    #[must_use] 
     pub fn as_validator(&self) -> &dyn IdValidator {
         match self {
             Self::Uuid(v) => v,

@@ -83,6 +83,7 @@ pub struct CascadeEntities {
 
 impl CascadeEntities {
     /// Create new cascade entities with separate updated and deleted lists.
+    #[must_use] 
     pub const fn new(updated: Vec<EntityKey>, deleted: Vec<EntityKey>) -> Self {
         Self { updated, deleted }
     }

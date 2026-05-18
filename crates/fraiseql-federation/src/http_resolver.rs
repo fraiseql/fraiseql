@@ -166,6 +166,7 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
 /// Covers: loopback (`127/8`, `::1`), RFC 1918 (`10/8`, `172.16/12`, `192.168/16`),
 /// link-local (`169.254/16`, `fe80::/10`), CGNAT (`100.64/10`), unspecified (`0.0.0.0`),
 /// `IPv4`-mapped `IPv6` (`::ffff:0:0/96`), and ULA (`fc00::/7`).
+#[must_use] 
 pub fn is_ssrf_blocked_ip(ip: &std::net::IpAddr) -> bool {
     match ip {
         std::net::IpAddr::V4(v4) => {

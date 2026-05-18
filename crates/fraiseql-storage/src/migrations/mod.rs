@@ -31,6 +31,7 @@ mod tests;
 /// let sql = fraiseql_storage::migrations::storage_migration_sql();
 /// assert!(sql.contains("_fraiseql_storage_objects"));
 /// ```
+#[must_use] 
 pub fn storage_migration_sql() -> &'static str {
     "\
 CREATE TABLE IF NOT EXISTS _fraiseql_storage_objects (

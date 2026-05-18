@@ -47,6 +47,7 @@ pub enum AsyncValidatorProvider {
 
 impl AsyncValidatorProvider {
     /// Get provider name for logging/debugging
+    #[must_use] 
     pub fn name(&self) -> String {
         match self {
             Self::EmailFormatCheck => "email_format_check".to_string(),
@@ -78,6 +79,7 @@ pub struct AsyncValidatorConfig {
 
 impl AsyncValidatorConfig {
     /// Create a new async validator configuration.
+    #[must_use] 
     pub const fn new(provider: AsyncValidatorProvider, timeout_ms: u64) -> Self {
         Self {
             provider,
@@ -88,6 +90,7 @@ impl AsyncValidatorConfig {
     }
 
     /// Set cache TTL for this validator.
+    #[must_use] 
     pub const fn with_cache_ttl(mut self, secs: u64) -> Self {
         self.cache_ttl_secs = secs;
         self

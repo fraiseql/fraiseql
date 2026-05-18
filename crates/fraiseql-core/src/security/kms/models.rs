@@ -74,6 +74,7 @@ pub struct KeyReference {
 
 impl KeyReference {
     /// Create a new key reference.
+    #[must_use] 
     pub const fn new(
         provider: String,
         key_id: String,
@@ -120,6 +121,7 @@ pub struct EncryptedData {
 
 impl EncryptedData {
     /// Create new encrypted data.
+    #[must_use] 
     pub const fn new(
         ciphertext: String,
         key_reference: KeyReference,
@@ -150,6 +152,7 @@ pub struct DataKeyPair {
 
 impl DataKeyPair {
     /// Create a new data key pair.
+    #[must_use] 
     pub fn new(
         plaintext_key: Vec<u8>,
         encrypted_key: EncryptedData,
@@ -178,6 +181,7 @@ pub struct RotationPolicy {
 
 impl RotationPolicy {
     /// Create a new rotation policy.
+    #[must_use] 
     pub const fn new(enabled: bool, rotation_period_days: u32) -> Self {
         Self {
             enabled,

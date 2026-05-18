@@ -282,6 +282,7 @@ impl CascadeInvalidator {
     /// # Returns
     ///
     /// Set of views that directly depend on the given view
+    #[must_use] 
     pub fn get_direct_dependents(&self, view: &str) -> HashSet<String> {
         self.dependents.get(view).cloned().unwrap_or_default()
     }
@@ -295,6 +296,7 @@ impl CascadeInvalidator {
     /// # Returns
     ///
     /// Set of views that the given view depends on
+    #[must_use] 
     pub fn get_direct_dependencies(&self, view: &str) -> HashSet<String> {
         self.view_dependencies.get(view).cloned().unwrap_or_default()
     }
@@ -310,6 +312,7 @@ impl CascadeInvalidator {
     /// # Returns
     ///
     /// Set of all transitive dependents (including the view itself)
+    #[must_use] 
     pub fn get_transitive_dependents(&self, view: &str) -> HashSet<String> {
         let mut result = HashSet::new();
         let mut queue = VecDeque::new();
@@ -343,6 +346,7 @@ impl CascadeInvalidator {
     /// # Returns
     ///
     /// true if there's a transitive dependency
+    #[must_use] 
     pub fn has_dependency_path(&self, dependent: &str, dependency: &str) -> bool {
         let mut visited = HashSet::new();
         let mut queue = VecDeque::new();
@@ -369,6 +373,7 @@ impl CascadeInvalidator {
     }
 
     /// Get cascade invalidation statistics.
+    #[must_use] 
     pub fn stats(&self) -> InvalidationStats {
         self.stats.clone()
     }
@@ -381,6 +386,7 @@ impl CascadeInvalidator {
     }
 
     /// Get total number of views tracked.
+    #[must_use] 
     pub fn view_count(&self) -> usize {
         let mut views = HashSet::new();
         views.extend(self.dependents.keys().cloned());
@@ -389,6 +395,7 @@ impl CascadeInvalidator {
     }
 
     /// Get total number of dependency edges.
+    #[must_use] 
     pub fn dependency_count(&self) -> usize {
         self.view_dependencies.values().map(|deps| deps.len()).sum()
     }

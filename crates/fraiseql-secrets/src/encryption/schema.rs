@@ -74,12 +74,14 @@ impl SchemaFieldInfo {
     }
 
     /// Mark as nullable
+    #[must_use] 
     pub const fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }
 
     /// Set encryption mark
+    #[must_use] 
     pub const fn with_mark(mut self, mark: EncryptionMark) -> Self {
         self.mark = Some(mark);
         self
@@ -119,6 +121,7 @@ impl StructSchema {
     }
 
     /// Add multiple fields
+    #[must_use] 
     pub fn with_fields(mut self, fields: Vec<SchemaFieldInfo>) -> Self {
         for field in fields {
             self.add_field(field);
@@ -127,27 +130,32 @@ impl StructSchema {
     }
 
     /// Set schema version for evolution tracking
+    #[must_use] 
     pub const fn with_version(mut self, version: u32) -> Self {
         self.version = version;
         self
     }
 
     /// Get field by name
+    #[must_use] 
     pub fn get_field(&self, field_name: &str) -> Option<&SchemaFieldInfo> {
         self.all_fields.iter().find(|f| f.field_name == field_name)
     }
 
     /// Get encrypted field by name
+    #[must_use] 
     pub fn get_encrypted_field(&self, field_name: &str) -> Option<&SchemaFieldInfo> {
         self.encrypted_fields.iter().find(|f| f.field_name == field_name)
     }
 
     /// Check if field is encrypted
+    #[must_use] 
     pub fn is_field_encrypted(&self, field_name: &str) -> bool {
         self.encrypted_fields.iter().any(|f| f.field_name == field_name)
     }
 
     /// Get list of encrypted field names
+    #[must_use] 
     pub fn encrypted_field_names(&self) -> Vec<&str> {
         self.encrypted_fields.iter().map(|f| f.field_name.as_str()).collect()
     }
@@ -161,21 +169,25 @@ impl StructSchema {
     }
 
     /// Get fields that are marked as nullable
+    #[must_use] 
     pub fn nullable_encrypted_fields(&self) -> Vec<&SchemaFieldInfo> {
         self.filter_fields(|f| f.is_encrypted && f.nullable)
     }
 
     /// Get fields requiring specific encryption key
+    #[must_use] 
     pub fn fields_for_key(&self, key_ref: &str) -> Vec<&SchemaFieldInfo> {
         self.filter_fields(|f| f.key_reference == key_ref)
     }
 
     /// Count encrypted fields
+    #[must_use] 
     pub const fn encrypted_field_count(&self) -> usize {
         self.encrypted_fields.len()
     }
 
     /// Count total fields
+    #[must_use] 
     pub const fn total_field_count(&self) -> usize {
         self.all_fields.len()
     }
@@ -217,6 +229,7 @@ pub struct SchemaRegistry {
 
 impl SchemaRegistry {
     /// Create new schema registry
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             schemas:               HashMap::new(),
@@ -243,6 +256,7 @@ impl SchemaRegistry {
     }
 
     /// Get schema by type name
+    #[must_use] 
     pub fn get(&self, type_name: &str) -> Option<&StructSchema> {
         self.schemas.get(type_name)
     }
@@ -264,16 +278,19 @@ impl SchemaRegistry {
     }
 
     /// Check if type has encrypted fields
+    #[must_use] 
     pub fn has_encrypted_fields(&self, type_name: &str) -> bool {
         self.get(type_name).is_some_and(|schema| !schema.encrypted_fields.is_empty())
     }
 
     /// Get list of all registered types
+    #[must_use] 
     pub fn list_types(&self) -> Vec<&str> {
         self.schemas.keys().map(|s| s.as_str()).collect()
     }
 
     /// Get list of all types that have encrypted fields
+    #[must_use] 
     pub fn types_with_encryption(&self) -> Vec<&str> {
         self.schemas
             .iter()
@@ -283,6 +300,7 @@ impl SchemaRegistry {
     }
 
     /// Get all encryption keys used across all schemas
+    #[must_use] 
     pub fn all_encryption_keys(&self) -> Vec<String> {
         let mut keys = std::collections::HashSet::new();
         for schema in self.schemas.values() {
@@ -318,11 +336,13 @@ impl SchemaRegistry {
     }
 
     /// Count registered schemas
+    #[must_use] 
     pub fn count(&self) -> usize {
         self.schemas.len()
     }
 
     /// Count total encrypted fields across all schemas
+    #[must_use] 
     pub fn total_encrypted_fields(&self) -> usize {
         self.schemas.values().map(|schema| schema.encrypted_fields.len()).sum()
     }

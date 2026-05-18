@@ -37,6 +37,7 @@ pub struct TestServerConfig {
 
 impl TestServerConfig {
     /// Create with defaults
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             bind_addr:    "127.0.0.1:0".to_string(), // Random port
@@ -47,12 +48,14 @@ impl TestServerConfig {
     }
 
     /// Set database URL
+    #[must_use] 
     pub fn with_database_url(mut self, url: String) -> Self {
         self.database_url = url;
         self
     }
 
     /// Set schema path
+    #[must_use] 
     pub fn with_schema_path(mut self, path: String) -> Self {
         self.schema_path = path;
         self
@@ -77,21 +80,25 @@ pub struct TestServer {
 
 impl TestServer {
     /// Get GraphQL endpoint URL
+    #[must_use] 
     pub fn graphql_url(&self) -> String {
         format!("{}/graphql", self.base_url)
     }
 
     /// Get health endpoint URL
+    #[must_use] 
     pub fn health_url(&self) -> String {
         format!("{}/health", self.base_url)
     }
 
     /// Get metrics endpoint URL
+    #[must_use] 
     pub fn metrics_url(&self) -> String {
         format!("{}/metrics", self.base_url)
     }
 
     /// Get introspection endpoint URL
+    #[must_use] 
     pub fn introspection_url(&self) -> String {
         format!("{}/introspection", self.base_url)
     }
@@ -105,6 +112,7 @@ pub async fn find_available_port() -> u16 {
 }
 
 /// Get test HTTP client
+#[must_use] 
 pub fn create_test_client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
@@ -115,12 +123,14 @@ pub fn create_test_client() -> reqwest::Client {
 /// Get metrics token from environment or use default E2E test token.
 ///
 /// The token must match what's configured in docker-compose.e2e.yml.
+#[must_use] 
 pub fn get_metrics_token() -> String {
     std::env::var("FRAISEQL_METRICS_TOKEN")
         .unwrap_or_else(|_| "e2e-test-metrics-token-32chars!".to_string())
 }
 
 /// Create GraphQL request JSON
+#[must_use] 
 pub fn create_graphql_request(
     query: &str,
     variables: Option<serde_json::Value>,

@@ -37,6 +37,7 @@ pub struct OIDCProviderConfig {
 
 impl OIDCProviderConfig {
     /// Create new provider configuration
+    #[must_use] 
     pub fn new(
         issuer: String,
         authorization_endpoint: String,
@@ -174,12 +175,14 @@ impl OAuth2Client {
     }
 
     /// Set scopes for request.
+    #[must_use] 
     pub fn with_scopes(mut self, scopes: Vec<String>) -> Self {
         self.scopes = scopes;
         self
     }
 
     /// Enable PKCE protection.
+    #[must_use] 
     pub const fn with_pkce(mut self, enabled: bool) -> Self {
         self.use_pkce = enabled;
         self
@@ -191,6 +194,7 @@ impl OAuth2Client {
     /// value (must be stored and verified at callback), and an optional PKCE
     /// challenge (when `use_pkce = true`; the `code_verifier` must be stored
     /// and sent during token exchange).
+    #[must_use] 
     pub fn authorization_url(&self, redirect_uri: &str) -> AuthorizationRequest {
         // SECURITY: 32-byte OsRng → 43-char URL-safe base64 (~256-bit entropy, RFC 7636 §4.1)
         let state = gen_random_token();
@@ -452,6 +456,7 @@ impl OIDCClient {
     /// [`verify_id_token`](Self::verify_id_token) at callback time.
     ///
     /// PKCE is always enabled for OIDC flows started via this method.
+    #[must_use] 
     pub fn authorization_url(&self, redirect_uri: &str) -> AuthorizationRequest {
         // SECURITY: 32-byte OsRng → 43-char URL-safe base64 (~256-bit entropy, RFC 7636 §4.1)
         let state = gen_random_token();

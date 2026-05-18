@@ -113,6 +113,7 @@ impl ParsedTrigger {
     }
 
     /// Get the trigger type name (e.g., "after:mutation", "http").
+    #[must_use] 
     pub const fn trigger_type(&self) -> &'static str {
         match self {
             ParsedTrigger::AfterMutation { .. } => "after:mutation",
@@ -124,26 +125,31 @@ impl ParsedTrigger {
     }
 
     /// Check if this is an after:mutation trigger.
+    #[must_use] 
     pub const fn is_after_mutation(&self) -> bool {
         matches!(self, ParsedTrigger::AfterMutation { .. })
     }
 
     /// Check if this is a before:mutation trigger.
+    #[must_use] 
     pub const fn is_before_mutation(&self) -> bool {
         matches!(self, ParsedTrigger::BeforeMutation { .. })
     }
 
     /// Check if this is an HTTP trigger.
+    #[must_use] 
     pub const fn is_http(&self) -> bool {
         matches!(self, ParsedTrigger::Http { .. })
     }
 
     /// Check if this is a cron trigger.
+    #[must_use] 
     pub const fn is_cron(&self) -> bool {
         matches!(self, ParsedTrigger::Cron { .. })
     }
 
     /// Check if this is an after:storage trigger.
+    #[must_use] 
     pub const fn is_after_storage(&self) -> bool {
         matches!(self, ParsedTrigger::AfterStorage { .. })
     }
@@ -166,6 +172,7 @@ pub struct TriggerRegistry {
 
 impl TriggerRegistry {
     /// Create a new empty trigger registry.
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -239,17 +246,20 @@ impl TriggerRegistry {
     }
 
     /// Get the number of after:mutation triggers.
+    #[must_use] 
     pub const fn after_mutation_count(&self) -> usize {
         // This is approximate; TriggerMatcher doesn't expose count
         0
     }
 
     /// Get the number of before:mutation triggers.
+    #[must_use] 
     pub const fn before_mutation_count(&self) -> usize {
         self.before_mutation_triggers.len()
     }
 
     /// Get the number of cron triggers.
+    #[must_use] 
     pub const fn cron_trigger_count(&self) -> usize {
         self.cron_triggers.len()
     }
@@ -270,21 +280,25 @@ impl TriggerRegistry {
     }
 
     /// Get the number of HTTP routes.
+    #[must_use] 
     pub fn http_route_count(&self) -> usize {
         self.http_routes.routes().len()
     }
 
     /// Get all HTTP routes.
+    #[must_use] 
     pub fn http_routes(&self) -> &[HttpTriggerRoute] {
         self.http_routes.routes()
     }
 
     /// Find an HTTP route by method and path.
+    #[must_use] 
     pub fn find_http_route(&self, method: &str, path: &str) -> Option<HttpTriggerRoute> {
         self.http_routes.find(method, path)
     }
 
     /// Get all before:mutation triggers for a specific mutation.
+    #[must_use] 
     pub fn before_mutation_triggers_for(&self, mutation_name: &str) -> Vec<&BeforeMutationTrigger> {
         self.before_mutation_triggers
             .iter()
@@ -293,6 +307,7 @@ impl TriggerRegistry {
     }
 
     /// Check if there are any before:mutation triggers for a mutation.
+    #[must_use] 
     pub fn has_before_mutation_triggers(&self, mutation_name: &str) -> bool {
         self.before_mutation_triggers.iter().any(|t| t.mutation_name == mutation_name)
     }
@@ -301,6 +316,7 @@ impl TriggerRegistry {
     ///
     /// Returns `None` when no `before:mutation` triggers are registered for this mutation
     /// (the fast path — zero overhead when hooks are absent).
+    #[must_use] 
     pub fn before_chain(
         &self,
         mutation_name: &str,

@@ -113,6 +113,7 @@ pub type PoolTuningConfig = PoolPressureMonitorConfig;
 
 impl PoolPressureMonitorConfig {
     /// Returns a builder for `PoolPressureMonitorConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> PoolPressureMonitorConfigBuilder {
         PoolPressureMonitorConfigBuilder::default()
     }
@@ -163,60 +164,70 @@ pub struct PoolPressureMonitorConfigBuilder {
 
 impl PoolPressureMonitorConfigBuilder {
     /// Enables or disables adaptive pool sizing.
+    #[must_use = "builder method returns modified builder"]
     pub const fn enabled(mut self, enabled: bool) -> Self {
         self.inner.enabled = enabled;
         self
     }
 
     /// Sets the minimum pool size.
+    #[must_use = "builder method returns modified builder"]
     pub const fn min_pool_size(mut self, min_pool_size: u32) -> Self {
         self.inner.min_pool_size = min_pool_size;
         self
     }
 
     /// Sets the maximum pool size.
+    #[must_use = "builder method returns modified builder"]
     pub const fn max_pool_size(mut self, max_pool_size: u32) -> Self {
         self.inner.max_pool_size = max_pool_size;
         self
     }
 
     /// Sets the maximum queue depth before scaling up.
+    #[must_use = "builder method returns modified builder"]
     pub const fn target_queue_depth(mut self, target_queue_depth: u32) -> Self {
         self.inner.target_queue_depth = target_queue_depth;
         self
     }
 
     /// Sets the number of connections to add per scale-up step.
+    #[must_use = "builder method returns modified builder"]
     pub const fn scale_up_step(mut self, scale_up_step: u32) -> Self {
         self.inner.scale_up_step = scale_up_step;
         self
     }
 
     /// Sets the number of connections to remove per scale-down step.
+    #[must_use = "builder method returns modified builder"]
     pub const fn scale_down_step(mut self, scale_down_step: u32) -> Self {
         self.inner.scale_down_step = scale_down_step;
         self
     }
 
     /// Sets the minimum idle ratio before considering a scale-down.
+    #[must_use = "builder method returns modified builder"]
     pub const fn scale_down_idle_ratio(mut self, scale_down_idle_ratio: f64) -> Self {
         self.inner.scale_down_idle_ratio = scale_down_idle_ratio;
         self
     }
 
     /// Sets the polling interval in milliseconds.
+    #[must_use = "builder method returns modified builder"]
     pub const fn tuning_interval_ms(mut self, tuning_interval_ms: u64) -> Self {
         self.inner.tuning_interval_ms = tuning_interval_ms;
         self
     }
 
     /// Sets the number of consecutive samples above threshold before acting.
+    #[must_use = "builder method returns modified builder"]
     pub const fn samples_before_action(mut self, samples_before_action: u32) -> Self {
         self.inner.samples_before_action = samples_before_action;
         self
     }
 
     /// Builds the [`PoolPressureMonitorConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub const fn build(self) -> PoolPressureMonitorConfig {
         self.inner
     }

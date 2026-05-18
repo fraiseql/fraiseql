@@ -53,6 +53,7 @@ pub struct OAuthSession {
 
 impl OAuthSession {
     /// Create new OAuth session
+    #[must_use] 
     pub fn new(
         user_id: String,
         provider_type: ProviderType,
@@ -76,11 +77,13 @@ impl OAuthSession {
     }
 
     /// Check if session is expired
+    #[must_use] 
     pub fn is_expired(&self) -> bool {
         self.token_expiry <= Utc::now()
     }
 
     /// Check if session will be expired within grace period
+    #[must_use] 
     pub fn is_expiring_soon(&self, grace_seconds: i64) -> bool {
         self.token_expiry <= (Utc::now() + Duration::seconds(grace_seconds))
     }
@@ -174,6 +177,7 @@ pub struct ProviderRegistry {
 
 impl ProviderRegistry {
     /// Create new provider registry
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             providers: Arc::new(std::sync::Mutex::new(HashMap::new())),

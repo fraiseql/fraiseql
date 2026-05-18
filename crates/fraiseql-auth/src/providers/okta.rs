@@ -84,6 +84,7 @@ impl OktaOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from Okta token
+    #[must_use] 
     pub fn extract_groups(raw_claims: &serde_json::Value) -> Vec<String> {
         // Try standard Okta groups claim first
         if let Some(groups_val) = raw_claims.get("groups") {
@@ -109,6 +110,7 @@ impl OktaOAuth {
     ///
     /// # Arguments
     /// * `okta_groups` - List of Okta group names
+    #[must_use] 
     pub fn map_okta_groups_to_fraiseql(okta_groups: Vec<String>) -> Vec<String> {
         okta_groups
             .into_iter()
@@ -157,6 +159,7 @@ impl OktaOAuth {
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims
     /// * `email` - User email as fallback
+    #[must_use] 
     pub fn extract_org_id(raw_claims: &serde_json::Value, email: &str) -> Option<String> {
         // Check for explicit org_id claim
         if let Some(org_id_val) = raw_claims.get("org_id") {
@@ -183,6 +186,7 @@ impl OktaOAuth {
     /// Get user's Okta ID
     ///
     /// Okta provides the user ID in the 'sub' (subject) claim
+    #[must_use] 
     pub fn get_okta_id(raw_claims: &serde_json::Value) -> Option<String> {
         raw_claims.get("sub").and_then(|sub| sub.as_str()).map(|s| s.to_string())
     }

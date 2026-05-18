@@ -48,6 +48,7 @@ pub enum ComparisonOperator {
 impl ComparisonOperator {
     /// Parse operator from string representation.
     #[allow(clippy::should_implement_trait)] // Reason: returns Option<Self> (unrecognized operators yield None), not a FromStr-compatible Result
+    #[must_use] 
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "<" | "lt" => Some(Self::LessThan),
@@ -61,6 +62,7 @@ impl ComparisonOperator {
     }
 
     /// Get the symbol for display.
+    #[must_use] 
     pub const fn symbol(&self) -> &'static str {
         match self {
             Self::LessThan => "<",
@@ -73,6 +75,7 @@ impl ComparisonOperator {
     }
 
     /// Get the long name for error messages.
+    #[must_use] 
     pub const fn name(&self) -> &'static str {
         match self {
             Self::LessThan => "less than",

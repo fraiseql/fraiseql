@@ -75,16 +75,19 @@ impl FieldMapping {
     }
 
     /// Get field name
+    #[must_use] 
     pub fn field_name(&self) -> &str {
         &self.field_name
     }
 
     /// Check if field is encrypted
+    #[must_use] 
     pub const fn is_encrypted(&self) -> bool {
         self.is_encrypted
     }
 
     /// Get field value
+    #[must_use] 
     pub fn value(&self) -> &[u8] {
         &self.value
     }
@@ -121,6 +124,7 @@ impl FieldMapper {
     ///
     /// * `adapter` - Field adapter for encryption/decryption
     /// * `encrypted_fields` - List of fields that should be encrypted
+    #[must_use] 
     pub fn new(adapter: Arc<DatabaseFieldAdapter>, encrypted_fields: Vec<String>) -> Self {
         let mut field_encryption_map = HashMap::new();
         for field in encrypted_fields {
@@ -134,6 +138,7 @@ impl FieldMapper {
     }
 
     /// Check if field is marked for encryption
+    #[must_use] 
     pub fn is_field_encrypted(&self, field_name: &str) -> bool {
         self.field_encryption_map.get(field_name).copied().unwrap_or(false)
     }
@@ -257,11 +262,13 @@ impl FieldMapper {
     }
 
     /// Get list of encrypted fields
+    #[must_use] 
     pub fn encrypted_fields(&self) -> Vec<String> {
         self.field_encryption_map.keys().cloned().collect()
     }
 
     /// Check if any fields are encrypted
+    #[must_use] 
     pub fn has_encrypted_fields(&self) -> bool {
         !self.field_encryption_map.is_empty()
     }
@@ -279,6 +286,7 @@ impl FieldMapper {
     }
 
     /// Get count of encrypted fields
+    #[must_use] 
     pub fn encrypted_field_count(&self) -> usize {
         self.field_encryption_map.len()
     }

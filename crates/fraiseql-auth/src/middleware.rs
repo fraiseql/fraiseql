@@ -24,11 +24,13 @@ pub struct AuthenticatedUser {
 
 impl AuthenticatedUser {
     /// Get a custom claim from the JWT
+    #[must_use] 
     pub fn get_custom_claim(&self, key: &str) -> Option<&serde_json::Value> {
         self.claims.get_custom(key)
     }
 
     /// Check if user has a specific role
+    #[must_use] 
     pub fn has_role(&self, role: &str) -> bool {
         if let Some(serde_json::Value::String(user_role)) = self.claims.get_custom("role") {
             user_role == role

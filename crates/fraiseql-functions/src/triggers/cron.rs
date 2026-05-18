@@ -158,6 +158,7 @@ impl CronSchedule {
     }
 
     /// Check if a given datetime matches this cron schedule.
+    #[must_use] 
     pub fn matches(&self, datetime: &chrono::DateTime<chrono::Utc>) -> bool {
         let minute = datetime.minute();
         let hour = datetime.hour();
@@ -182,6 +183,7 @@ pub struct CronExecutionState {
 
 impl CronExecutionState {
     /// Create a new execution state with no prior executions.
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }
@@ -191,6 +193,7 @@ impl CronExecutionState {
     /// Returns true if:
     /// - Schedule matches the time
     /// - No execution has occurred in this schedule window
+    #[must_use] 
     pub fn should_execute(
         &self,
         schedule: &CronSchedule,
@@ -246,6 +249,7 @@ impl CronExecutionState {
     /// Find all missed execution times between two timestamps.
     ///
     /// Finds all times when the schedule would have executed after `since` and before `until`.
+    #[must_use] 
     pub fn find_missed_executions(
         &self,
         schedule: &CronSchedule,
@@ -283,6 +287,7 @@ pub struct CronTrigger {
 
 impl CronTrigger {
     /// Build an `EventPayload` from a cron execution.
+    #[must_use] 
     pub fn build_payload(&self, exec_time: &chrono::DateTime<chrono::Utc>) -> EventPayload {
         let trigger_type = format!("cron:{}", self.function_name);
 

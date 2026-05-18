@@ -65,6 +65,7 @@ pub mod tracing_utils {
 
     /// Stub trace context extraction when federation is disabled.
     #[allow(clippy::missing_const_for_fn)] // Reason: signature must match federation-enabled version which is not const
+    #[must_use] 
     pub fn extract_trace_context(_headers: &HeaderMap) -> Option<()> {
         None
     }

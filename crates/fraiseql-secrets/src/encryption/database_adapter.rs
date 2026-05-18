@@ -109,6 +109,7 @@ impl EncryptionContext {
     /// This value is bound into the AES-GCM authentication tag. It must be
     /// supplied unchanged to `decrypt_with_context`; any difference causes
     /// authentication failure.
+    #[must_use] 
     pub fn to_aad_string(&self) -> String {
         format!("user:{}:field:{}:op:{}", self.user_id, self.field_name, self.operation)
     }
@@ -160,6 +161,7 @@ impl DatabaseFieldAdapter {
     /// let adapter = DatabaseFieldAdapter::new(secrets_manager, field_keys);
     /// # }
     /// ```
+    #[must_use] 
     pub fn new(secrets_manager: Arc<SecretsManager>, field_keys: HashMap<String, String>) -> Self {
         Self {
             secrets_manager,

@@ -99,7 +99,7 @@ impl FraiseWireAdapter {
     /// let adapter = FraiseWireAdapter::new("postgres://localhost/fraiseql")
     ///     .with_chunk_size(512);
     /// ```
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn with_chunk_size(mut self, chunk_size: usize) -> Self {
         self.chunk_size = chunk_size;
         self

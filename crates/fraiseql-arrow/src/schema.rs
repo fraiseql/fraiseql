@@ -16,6 +16,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 ///
 /// - `id`: UTF-8 string (not nullable)
 /// - `data`: UTF-8 string containing JSON (not nullable)
+#[must_use] 
 pub fn graphql_result_schema() -> Arc<Schema> {
     Arc::new(Schema::new(vec![
         Field::new("id", DataType::Utf8, false),
@@ -37,6 +38,7 @@ pub fn graphql_result_schema() -> Arc<Schema> {
 /// - `data`: Event payload as JSON string
 /// - `user_id`: Optional user identifier
 /// - `org_id`: Optional organization identifier
+#[must_use] 
 pub fn observer_event_schema() -> Arc<Schema> {
     Arc::new(Schema::new(vec![
         Field::new("event_id", DataType::Utf8, false),
@@ -63,6 +65,7 @@ pub fn observer_event_schema() -> Arc<Schema> {
 ///
 /// - `id`: 64-bit integer (not nullable)
 /// - `data`: UTF-8 string containing JSON (not nullable)
+#[must_use] 
 pub fn bulk_export_schema() -> Arc<Schema> {
     Arc::new(Schema::new(vec![
         Field::new("id", DataType::Int64, false),

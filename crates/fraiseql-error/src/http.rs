@@ -57,12 +57,14 @@ impl ErrorResponse {
     }
 
     /// Attach arbitrary structured details to the response and return `self`.
+    #[must_use] 
     pub fn with_details(mut self, details: serde_json::Value) -> Self {
         self.details = Some(details);
         self
     }
 
     /// Set the `retry_after` field (in seconds) and return `self`.
+    #[must_use] 
     pub const fn with_retry_after(mut self, seconds: u64) -> Self {
         self.retry_after = Some(seconds);
         self

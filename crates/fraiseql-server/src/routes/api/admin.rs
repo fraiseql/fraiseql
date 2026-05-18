@@ -213,11 +213,12 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
             data:   response,
         }))
     } else {
-        // Step 3: Atomically swap the executor with the new schema
+        // Step 3: Atomically swap the executor with the validated schema.
+        // We pass the already-validated JSON bytes to avoid re-reading from disk
+        // (prevents TOCTOU: the file could change between validation and reload).
         let start = std::time::Instant::now();
-        let schema_path = std::path::Path::new(&req.schema_path);
 
-        match state.reload_schema(schema_path).await {
+        match state.reload_schema_from_json(&schema_json).await {
             Ok(()) => {
                 let duration_ms = start.elapsed().as_millis();
                 state

@@ -81,6 +81,7 @@ impl GoogleOAuth {
     ///
     /// # Arguments
     /// * `groups` - List of group email addresses
+    #[must_use] 
     pub fn map_groups_to_roles(groups: Vec<String>) -> Vec<String> {
         groups
             .into_iter()
@@ -122,6 +123,7 @@ impl GoogleOAuth {
     /// Check if user belongs to a specific group
     ///
     /// Simple email-based check without Directory API (for basic use cases)
+    #[must_use] 
     pub fn extract_roles_from_domain(email: &str) -> Vec<String> {
         // Default roles based on email domain
         // This is a fallback when Directory API is not available

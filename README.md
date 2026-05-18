@@ -109,7 +109,7 @@ See [docs/database-compatibility.md](docs/database-compatibility.md) for the ful
 
 ```toml
 [dependencies]
-fraiseql = { version = "2.0.0", features = ["server"] }
+fraiseql = { version = "2.3.0", features = ["server"] }
 ```
 
 **Schema authoring:**

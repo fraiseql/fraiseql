@@ -43,6 +43,7 @@ pub struct AuthRateLimitConfig {
 impl AuthRateLimitConfig {
     /// IP-based rate limiting for public endpoints
     /// 100 requests per 60 seconds (typical for auth/start, auth/callback)
+    #[must_use] 
     pub const fn per_ip_standard() -> Self {
         Self {
             enabled:      true,
@@ -53,6 +54,7 @@ impl AuthRateLimitConfig {
 
     /// Stricter IP-based rate limiting for sensitive endpoints
     /// 50 requests per 60 seconds
+    #[must_use] 
     pub const fn per_ip_strict() -> Self {
         Self {
             enabled:      true,
@@ -63,6 +65,7 @@ impl AuthRateLimitConfig {
 
     /// User-based rate limiting for authenticated endpoints
     /// 10 requests per 60 seconds
+    #[must_use] 
     pub const fn per_user_standard() -> Self {
         Self {
             enabled:      true,
@@ -73,6 +76,7 @@ impl AuthRateLimitConfig {
 
     /// Failed login attempt limiting
     /// 5 failed attempts per 3600 seconds (1 hour)
+    #[must_use] 
     pub const fn failed_login_attempts() -> Self {
         Self {
             enabled:      true,
@@ -394,6 +398,7 @@ pub struct RateLimiters {
 
 impl RateLimiters {
     /// Create default rate limiters for all endpoints
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             auth_start:    KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard()),
@@ -405,6 +410,7 @@ impl RateLimiters {
     }
 
     /// Create with custom configurations
+    #[must_use] 
     pub fn with_configs(
         start_cfg: AuthRateLimitConfig,
         callback_cfg: AuthRateLimitConfig,

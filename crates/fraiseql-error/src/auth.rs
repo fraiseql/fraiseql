@@ -72,6 +72,7 @@ pub enum AuthError {
 impl AuthError {
     /// Returns a short, stable error code string suitable for API responses and
     /// structured logging.
+    #[must_use] 
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::InvalidCredentials => "invalid_credentials",

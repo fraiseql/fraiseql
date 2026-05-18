@@ -157,6 +157,7 @@ impl SagaExecutor {
     /// Create a new saga executor without a saga store
     ///
     /// This is suitable for testing. For production, use `with_store()`.
+    #[must_use] 
     pub const fn new() -> Self {
         Self { store: None }
     }

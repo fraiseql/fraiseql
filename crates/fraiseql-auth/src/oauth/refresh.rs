@@ -17,6 +17,7 @@ pub struct TokenRefreshScheduler {
 
 impl TokenRefreshScheduler {
     /// Create new refresh scheduler
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             refresh_queue: Arc::new(std::sync::Mutex::new(Vec::new())),

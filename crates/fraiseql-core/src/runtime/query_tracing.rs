@@ -184,11 +184,13 @@ impl QueryTraceBuilder {
     }
 
     /// Get query ID for logging/correlation.
+    #[must_use] 
     pub fn query_id(&self) -> &str {
         &self.query_id
     }
 
     /// Get current elapsed time in microseconds.
+    #[must_use] 
     pub fn elapsed_us(&self) -> u64 {
         u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX)
     }
@@ -196,6 +198,7 @@ impl QueryTraceBuilder {
 
 impl QueryExecutionTrace {
     /// Get average phase duration in microseconds.
+    #[must_use] 
     pub fn average_phase_duration_us(&self) -> u64 {
         if self.phases.is_empty() {
             0
@@ -205,6 +208,7 @@ impl QueryExecutionTrace {
     }
 
     /// Get slowest phase.
+    #[must_use] 
     pub fn slowest_phase(&self) -> Option<&QueryPhaseSpan> {
         self.phases.iter().max_by_key(|p| p.duration_us)
     }
@@ -212,6 +216,7 @@ impl QueryExecutionTrace {
     /// Get trace as log-friendly string.
     ///
     /// Suitable for structured logging or monitoring dashboards.
+    #[must_use] 
     pub fn to_log_string(&self) -> String {
         let status = if self.success { "success" } else { "error" };
         let phases_str = self

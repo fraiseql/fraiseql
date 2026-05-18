@@ -62,6 +62,7 @@ impl StorageRouteState {
     }
 
     /// Override the maximum upload size.
+    #[must_use] 
     pub const fn with_max_upload_bytes(mut self, bytes: usize) -> Self {
         self.max_upload_bytes = bytes;
         self

@@ -17,6 +17,7 @@ pub enum RuntimeType {
 
 impl RuntimeType {
     /// Get supported file extensions for this runtime.
+    #[must_use] 
     pub const fn supported_extensions(&self) -> &[&str] {
         match self {
             RuntimeType::Wasm => &[".wasm"],
@@ -51,6 +52,7 @@ impl FunctionModule {
     }
 
     /// Create a new source-based module (JavaScript/TypeScript).
+    #[must_use] 
     pub fn from_source(name: String, source: String, runtime: RuntimeType) -> Self {
         let bytecode = bytes::Bytes::from(source);
         let source_hash = format!("{:x}", sha2::Sha256::digest(&bytecode));
@@ -96,6 +98,7 @@ pub struct FunctionDefinition {
 
 impl FunctionDefinition {
     /// Create a new function definition.
+    #[must_use] 
     pub fn new(name: &str, trigger: &str, runtime: RuntimeType) -> Self {
         Self {
             name: name.to_string(),
@@ -106,12 +109,14 @@ impl FunctionDefinition {
     }
 
     /// Set a custom timeout for this function.
+    #[must_use] 
     pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
     }
 
     /// Get the effective timeout for this function.
+    #[must_use] 
     pub fn effective_timeout(&self) -> Duration {
         match self.timeout_ms {
             Some(ms) => Duration::from_millis(ms),
@@ -127,26 +132,31 @@ impl FunctionDefinition {
     }
 
     /// Check if this function is a before:mutation trigger.
+    #[must_use] 
     pub fn is_before_mutation(&self) -> bool {
         self.trigger.starts_with("before:mutation:")
     }
 
     /// Check if this function is an after:mutation trigger.
+    #[must_use] 
     pub fn is_after_mutation(&self) -> bool {
         self.trigger.starts_with("after:mutation:")
     }
 
     /// Check if this function is an after:storage trigger.
+    #[must_use] 
     pub fn is_after_storage(&self) -> bool {
         self.trigger.starts_with("after:storage:")
     }
 
     /// Check if this function is a cron trigger.
+    #[must_use] 
     pub fn is_cron(&self) -> bool {
         self.trigger.starts_with("cron:")
     }
 
     /// Check if this function is an HTTP trigger.
+    #[must_use] 
     pub fn is_http(&self) -> bool {
         self.trigger.starts_with("http:")
     }

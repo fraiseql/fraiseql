@@ -21,6 +21,7 @@ jobs:
   # Validate release prerequisites
   validate-release:
     name: Validate Release Prerequisites
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -145,7 +146,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
 
       - name: Add Rust target (explicit, for cross-compilation)
         if: '!matrix.use_cross'
@@ -197,6 +198,7 @@ jobs:
   # Publish to crates.io
   publish-crates:
     name: Publish to crates.io
+    environment: release
     needs: create-github-release
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -207,7 +209,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@89e9040de88b577a6c461e13ecb57d8a2f0108ce  # v0.0.9
 
       - name: Verify all crates can be built
         run: |
@@ -518,6 +520,7 @@ jobs:
   # Build and publish Python package
   publish-python:
     name: Publish Python Package to PyPI
+    environment: release
     needs: create-github-release
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -572,6 +575,7 @@ jobs:
   # Build and publish TypeScript package
   publish-typescript:
     name: Publish TypeScript Package to npm
+    environment: release
     needs: create-github-release
     runs-on: ubuntu-latest
     timeout-minutes: 15

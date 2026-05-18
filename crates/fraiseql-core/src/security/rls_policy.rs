@@ -112,11 +112,13 @@ impl RlsWhereClause {
     }
 
     /// Borrow the underlying WHERE clause.
+    #[must_use] 
     pub const fn as_where_clause(&self) -> &WhereClause {
         &self.inner
     }
 
     /// Consume this wrapper and return the underlying WHERE clause.
+    #[must_use] 
     pub fn into_where_clause(self) -> WhereClause {
         self.inner
     }
@@ -212,6 +214,7 @@ pub struct DefaultRLSPolicy {
 
 impl DefaultRLSPolicy {
     /// Create a new default RLS policy.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             enable_tenant_isolation: true,
@@ -221,18 +224,21 @@ impl DefaultRLSPolicy {
     }
 
     /// Disable tenant isolation (single-tenant mode).
+    #[must_use] 
     pub const fn with_single_tenant(mut self) -> Self {
         self.enable_tenant_isolation = false;
         self
     }
 
     /// Set custom tenant field name.
+    #[must_use] 
     pub fn with_tenant_field(mut self, field: String) -> Self {
         self.tenant_field = field;
         self
     }
 
     /// Set custom owner field name.
+    #[must_use] 
     pub fn with_owner_field(mut self, field: String) -> Self {
         self.owner_field = field;
         self
@@ -341,6 +347,7 @@ impl std::fmt::Debug for CompiledRLSPolicy {
 
 impl CompiledRLSPolicy {
     /// Create a new compiled RLS policy with caching enabled.
+    #[must_use] 
     pub fn new(
         rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
         default_rule: Option<RLSRule>,

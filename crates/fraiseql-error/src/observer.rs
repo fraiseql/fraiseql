@@ -64,6 +64,7 @@ pub enum ObserverError {
 impl ObserverError {
     /// Returns a short, stable error code string suitable for API responses and
     /// structured logging.
+    #[must_use] 
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::InvalidCondition { .. } => "observer_invalid_condition",

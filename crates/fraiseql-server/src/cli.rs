@@ -152,6 +152,7 @@ impl ServerArgs {
     ///
     /// Unset env vars produce `None` fields — only explicitly set env vars
     /// generate overrides.
+    #[must_use] 
     pub fn from_env() -> Self {
         Self {
             config:                     std::env::var("FRAISEQL_CONFIG").ok(),
@@ -270,6 +271,7 @@ impl ServerArgs {
     }
 
     /// Whether the log format is JSON.
+    #[must_use] 
     pub fn is_json_log_format(&self) -> bool {
         self.log_format.as_deref().is_some_and(|v| v.eq_ignore_ascii_case("json"))
     }

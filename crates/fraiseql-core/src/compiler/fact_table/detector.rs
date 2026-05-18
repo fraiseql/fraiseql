@@ -41,6 +41,7 @@ impl FactTableDetector {
     /// assert!(!FactTableDetector::is_fact_table("TF_sales")); // uppercase prefix not recognized
     /// assert!(!FactTableDetector::is_fact_table("tf_")); // incomplete name
     /// ```
+    #[must_use] 
     pub fn is_fact_table(table_name: &str) -> bool {
         // Must start with "tf_" and have at least one more character
         table_name.len() > 3 && table_name.starts_with("tf_")
@@ -271,6 +272,7 @@ impl FactTableDetector {
     /// # Returns
     ///
     /// Vec of `DimensionPath` extracted from the sample data
+    #[must_use] 
     pub fn extract_dimension_paths(
         sample: &serde_json::Value,
         column_name: &str,

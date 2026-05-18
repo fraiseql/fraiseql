@@ -28,6 +28,7 @@ pub struct AdmissionController {
 
 impl AdmissionController {
     /// Create a new `AdmissionController` with the given concurrency and queue limits.
+    #[must_use] 
     pub fn new(max_concurrent: usize, max_queue_depth: u64) -> Self {
         Self {
             semaphore: Arc::new(Semaphore::new(max_concurrent)),

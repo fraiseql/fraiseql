@@ -85,6 +85,7 @@ impl Default for ValidationRateLimitingConfig {
 
 impl ValidationRateLimitingConfig {
     /// Returns a builder for `ValidationRateLimitingConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> ValidationRateLimitingConfigBuilder {
         ValidationRateLimitingConfigBuilder::default()
     }
@@ -98,12 +99,14 @@ pub struct ValidationRateLimitingConfigBuilder {
 
 impl ValidationRateLimitingConfigBuilder {
     /// Sets whether validation rate limiting is enabled.
+    #[must_use = "builder method returns modified builder"]
     pub const fn enabled(mut self, enabled: bool) -> Self {
         self.inner.enabled = enabled;
         self
     }
 
     /// Sets the max requests and window for validation errors.
+    #[must_use = "builder method returns modified builder"]
     pub const fn validation_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
         self.inner.validation_errors_max_requests = max_requests;
         self.inner.validation_errors_window_secs = window_secs;
@@ -111,6 +114,7 @@ impl ValidationRateLimitingConfigBuilder {
     }
 
     /// Sets the max requests and window for depth errors.
+    #[must_use = "builder method returns modified builder"]
     pub const fn depth_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
         self.inner.depth_errors_max_requests = max_requests;
         self.inner.depth_errors_window_secs = window_secs;
@@ -118,6 +122,7 @@ impl ValidationRateLimitingConfigBuilder {
     }
 
     /// Sets the max requests and window for complexity errors.
+    #[must_use = "builder method returns modified builder"]
     pub const fn complexity_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
         self.inner.complexity_errors_max_requests = max_requests;
         self.inner.complexity_errors_window_secs = window_secs;
@@ -125,6 +130,7 @@ impl ValidationRateLimitingConfigBuilder {
     }
 
     /// Sets the max requests and window for malformed errors.
+    #[must_use = "builder method returns modified builder"]
     pub const fn malformed_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
         self.inner.malformed_errors_max_requests = max_requests;
         self.inner.malformed_errors_window_secs = window_secs;
@@ -132,6 +138,7 @@ impl ValidationRateLimitingConfigBuilder {
     }
 
     /// Sets the max requests and window for async validation errors.
+    #[must_use = "builder method returns modified builder"]
     pub const fn async_validation_errors(mut self, max_requests: u32, window_secs: u64) -> Self {
         self.inner.async_validation_errors_max_requests = max_requests;
         self.inner.async_validation_errors_window_secs = window_secs;
@@ -139,6 +146,7 @@ impl ValidationRateLimitingConfigBuilder {
     }
 
     /// Builds the [`ValidationRateLimitingConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub const fn build(self) -> ValidationRateLimitingConfig {
         self.inner
     }
@@ -248,6 +256,7 @@ pub struct ValidationRateLimiter {
 
 impl ValidationRateLimiter {
     /// Create a new validation rate limiter with the given configuration.
+    #[must_use] 
     pub fn new(config: &ValidationRateLimitingConfig) -> Self {
         Self::new_with_clock(config, Arc::new(SystemClock))
     }

@@ -64,6 +64,7 @@ pub enum OperationPermission {
 
 impl OperationPermission {
     /// Human-readable name for the permission
+    #[must_use] 
     pub const fn name(&self) -> &'static str {
         match self {
             Self::CreateRule => "Create Observer Rule",
@@ -89,6 +90,7 @@ impl OperationPermission {
     }
 
     /// Convert to string for policy storage
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::CreateRule => "create_rule",
@@ -125,16 +127,19 @@ pub struct Role {
 
 impl Role {
     /// Create a new role with specified permissions
+    #[must_use] 
     pub const fn new(name: String, permissions: Vec<OperationPermission>) -> Self {
         Self { name, permissions }
     }
 
     /// Check if role has a specific permission
+    #[must_use] 
     pub fn has_permission(&self, permission: OperationPermission) -> bool {
         self.permissions.contains(&permission)
     }
 
     /// Get all permissions for this role
+    #[must_use] 
     pub fn get_permissions(&self) -> &[OperationPermission] {
         &self.permissions
     }
@@ -154,6 +159,7 @@ impl Default for RBACPolicy {
 
 impl RBACPolicy {
     /// Create a new RBAC policy with default roles
+    #[must_use] 
     pub fn new() -> Self {
         let mut roles = HashMap::new();
 
@@ -296,6 +302,7 @@ impl RBACPolicy {
     }
 
     /// Get all permissions for a user
+    #[must_use] 
     pub fn get_user_permissions(&self, user: &AuthenticatedUser) -> Vec<OperationPermission> {
         let user_roles = self.extract_user_roles(user);
         let mut permissions = Vec::new();

@@ -41,12 +41,14 @@ impl OperationMetrics {
     }
 
     /// Mark as failed
+    #[must_use] 
     pub const fn with_failure(mut self) -> Self {
         self.success = false;
         self
     }
 
     /// Get latency in milliseconds
+    #[must_use] 
     pub fn latency_ms(&self) -> f64 {
         #[allow(clippy::cast_precision_loss)]
         // Reason: microsecond latency will never exceed f64 mantissa range
@@ -93,11 +95,13 @@ impl EncryptionBatch {
     }
 
     /// Check if batch is full
+    #[must_use] 
     pub const fn is_full(&self) -> bool {
         self.fields.len() >= self.max_size
     }
 
     /// Get batch size
+    #[must_use] 
     pub const fn size(&self) -> usize {
         self.fields.len()
     }
@@ -127,6 +131,7 @@ pub struct KeyCache {
 
 impl KeyCache {
     /// Create new key cache
+    #[must_use] 
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: HashMap::new(),
@@ -176,11 +181,13 @@ impl KeyCache {
     }
 
     /// Get cache statistics
+    #[must_use] 
     pub fn stats(&self) -> (u64, u64) {
         (self.hits.load(Ordering::Relaxed), self.misses.load(Ordering::Relaxed))
     }
 
     /// Get hit rate
+    #[must_use] 
     pub fn hit_rate(&self) -> f64 {
         #[allow(clippy::cast_precision_loss)]
         // Reason: cache hit/miss counters won't exceed f64 mantissa range
@@ -193,6 +200,7 @@ impl KeyCache {
     }
 
     /// Get cache size
+    #[must_use] 
     pub fn size(&self) -> usize {
         self.cache.len()
     }
@@ -204,6 +212,7 @@ impl KeyCache {
     }
 
     /// Get cached entry count
+    #[must_use] 
     pub fn entry_count(&self) -> usize {
         self.cache.len()
     }
@@ -227,6 +236,7 @@ pub struct PerformanceMonitor {
 
 impl PerformanceMonitor {
     /// Create new performance monitor
+    #[must_use] 
     pub fn new(max_metrics: usize) -> Self {
         Self {
             metrics: Vec::new(),
@@ -258,21 +268,25 @@ impl PerformanceMonitor {
     }
 
     /// Get metrics for operation
+    #[must_use] 
     pub fn metrics_for_operation(&self, operation: &str) -> Vec<&OperationMetrics> {
         self.filter_metrics(|m| m.operation == operation)
     }
 
     /// Get successful metrics
+    #[must_use] 
     pub fn successful_metrics(&self) -> Vec<&OperationMetrics> {
         self.filter_metrics(|m| m.success)
     }
 
     /// Get failed metrics
+    #[must_use] 
     pub fn failed_metrics(&self) -> Vec<&OperationMetrics> {
         self.filter_metrics(|m| !m.success)
     }
 
     /// Get average latency
+    #[must_use] 
     pub fn average_latency_us(&self) -> u64 {
         if self.metrics.is_empty() {
             return 0;
@@ -282,6 +296,7 @@ impl PerformanceMonitor {
     }
 
     /// Get average latency for operation
+    #[must_use] 
     pub fn average_latency_for_operation_us(&self, operation: &str) -> u64 {
         let metrics = self.metrics_for_operation(operation);
         if metrics.is_empty() {
@@ -292,6 +307,7 @@ impl PerformanceMonitor {
     }
 
     /// Get p50 latency (median)
+    #[must_use] 
     pub fn p50_latency_us(&self) -> u64 {
         if self.metrics.is_empty() {
             return 0;
@@ -303,6 +319,7 @@ impl PerformanceMonitor {
     }
 
     /// Get p99 latency
+    #[must_use] 
     pub fn p99_latency_us(&self) -> u64 {
         if self.metrics.is_empty() {
             return 0;
@@ -314,16 +331,19 @@ impl PerformanceMonitor {
     }
 
     /// Get max latency
+    #[must_use] 
     pub fn max_latency_us(&self) -> u64 {
         self.metrics.iter().map(|m| m.latency_us).max().unwrap_or(0)
     }
 
     /// Get min latency
+    #[must_use] 
     pub fn min_latency_us(&self) -> u64 {
         self.metrics.iter().map(|m| m.latency_us).min().unwrap_or(0)
     }
 
     /// Get success rate
+    #[must_use] 
     pub fn success_rate(&self) -> f64 {
         if self.metrics.is_empty() {
             return 0.0;
@@ -338,16 +358,19 @@ impl PerformanceMonitor {
     }
 
     /// Get error rate
+    #[must_use] 
     pub fn error_rate(&self) -> f64 {
         1.0 - self.success_rate()
     }
 
     /// Get total fields processed
+    #[must_use] 
     pub fn total_fields_processed(&self) -> usize {
         self.metrics.iter().map(|m| m.field_count).sum()
     }
 
     /// Get operations per second
+    #[must_use] 
     pub const fn operations_per_second(&self) -> f64 {
         if self.metrics.is_empty() {
             return 0.0;
@@ -359,6 +382,7 @@ impl PerformanceMonitor {
     }
 
     /// Check if SLO violated
+    #[must_use] 
     pub fn check_slo(&self, operation: &str) -> bool {
         if let Some(slo) = self.slos.get(operation) {
             let avg_latency = self.average_latency_for_operation_us(operation);
@@ -369,16 +393,19 @@ impl PerformanceMonitor {
     }
 
     /// Get all SLO violations
+    #[must_use] 
     pub fn check_all_slos(&self) -> Vec<(String, bool)> {
         self.slos.keys().map(|op| (op.clone(), self.check_slo(op))).collect()
     }
 
     /// Get metric count
+    #[must_use] 
     pub const fn metric_count(&self) -> usize {
         self.metrics.len()
     }
 
     /// Get count by operation
+    #[must_use] 
     pub fn operation_count(&self, operation: &str) -> usize {
         self.metrics_for_operation(operation).len()
     }
@@ -402,6 +429,7 @@ pub struct OperationTimer {
 
 impl OperationTimer {
     /// Start operation timer
+    #[must_use] 
     pub fn start() -> Self {
         Self {
             start: Instant::now(),
@@ -409,6 +437,7 @@ impl OperationTimer {
     }
 
     /// Get elapsed microseconds
+    #[must_use] 
     pub fn elapsed_us(&self) -> u64 {
         #[allow(clippy::cast_possible_truncation)]
         // Reason: elapsed micros won't exceed u64::MAX in practice
@@ -417,6 +446,7 @@ impl OperationTimer {
     }
 
     /// Get elapsed milliseconds
+    #[must_use] 
     pub fn elapsed_ms(&self) -> f64 {
         #[allow(clippy::cast_precision_loss)]
         // Reason: microsecond latency will never exceed f64 mantissa range

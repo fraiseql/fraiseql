@@ -48,6 +48,7 @@ pub struct InMemoryFunctionStore {
 
 impl InMemoryFunctionStore {
     /// Create a new empty store.
+    #[must_use] 
     pub fn new() -> Self {
         Self::default()
     }

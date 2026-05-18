@@ -37,6 +37,7 @@ impl PresignedUrl {
     /// * `url` - The complete presigned URL
     /// * `expires_at` - When the URL expires
     /// * `method` - HTTP method (GET or PUT)
+    #[must_use] 
     pub fn new(url: String, expires_at: DateTime<Utc>, method: &str) -> Self {
         Self {
             url,

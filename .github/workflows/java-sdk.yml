@@ -21,7 +21,7 @@ jobs:
 
     strategy:
       matrix:
-        java-version: ['21']
+        java-version: ['17', '21']
 
     steps:
       - uses: actions/checkout@v6
@@ -43,6 +43,7 @@ jobs:
 
   publish:
     name: Publish to Maven Central
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: test

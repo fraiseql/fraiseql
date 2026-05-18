@@ -82,6 +82,7 @@ impl Auth0OAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from Auth0 token
+    #[must_use] 
     pub fn extract_roles(raw_claims: &serde_json::Value) -> Vec<String> {
         // Try standard Auth0 roles claim first
         if let Some(roles_val) = raw_claims.get("https://fraiseql.dev/roles") {
@@ -107,6 +108,7 @@ impl Auth0OAuth {
     ///
     /// # Arguments
     /// * `auth0_roles` - List of Auth0 role names
+    #[must_use] 
     pub fn map_auth0_roles_to_fraiseql(auth0_roles: Vec<String>) -> Vec<String> {
         auth0_roles
             .into_iter()
@@ -139,6 +141,7 @@ impl Auth0OAuth {
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims
     /// * `email` - User email as fallback
+    #[must_use] 
     pub fn extract_org_id(raw_claims: &serde_json::Value, email: &str) -> Option<String> {
         // Check for explicit org_id claim
         if let Some(org_id_val) = raw_claims.get("org_id") {

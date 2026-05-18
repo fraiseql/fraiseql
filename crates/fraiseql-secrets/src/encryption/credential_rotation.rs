@@ -84,6 +84,7 @@ pub struct KeyVersionMetadata {
 
 impl KeyVersionMetadata {
     /// Create new key version metadata
+    #[must_use] 
     pub fn new(version: KeyVersion, ttl_days: u32) -> Self {
         let now = Utc::now();
         Self {
@@ -97,22 +98,26 @@ impl KeyVersionMetadata {
     }
 
     /// Check if version is expired
+    #[must_use] 
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
 
     /// Check if version is expiring soon (< 14 days)
+    #[must_use] 
     pub fn is_expiring_soon(&self) -> bool {
         let remaining = self.expires_at - Utc::now();
         remaining < Duration::days(14) && !self.is_expired()
     }
 
     /// Get time until expiration
+    #[must_use] 
     pub fn time_until_expiry(&self) -> Duration {
         self.expires_at - Utc::now()
     }
 
     /// Get percentage of TTL consumed
+    #[must_use] 
     pub fn ttl_consumed_percent(&self) -> u32 {
         let total_ttl = self.expires_at - self.issued_at;
         let elapsed = Utc::now() - self.issued_at;
@@ -133,6 +138,7 @@ impl KeyVersionMetadata {
     }
 
     /// Check if refresh should trigger (80% of TTL consumed)
+    #[must_use] 
     pub fn should_refresh(&self) -> bool {
         self.status == KeyVersionStatus::Active && self.ttl_consumed_percent() >= 80
     }
@@ -201,6 +207,7 @@ pub struct RotationConfig {
 
 impl RotationConfig {
     /// Create default rotation config (annual rotation, 80% refresh)
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             ttl_days:                  365,
@@ -211,18 +218,21 @@ impl RotationConfig {
     }
 
     /// Set TTL in days
+    #[must_use] 
     pub const fn with_ttl_days(mut self, days: u32) -> Self {
         self.ttl_days = days;
         self
     }
 
     /// Set refresh threshold percentage
+    #[must_use] 
     pub fn with_refresh_threshold(mut self, percent: u32) -> Self {
         self.refresh_threshold_percent = percent.min(99);
         self
     }
 
     /// Set rotation schedule
+    #[must_use] 
     pub fn with_schedule(mut self, schedule: RotationSchedule) -> Self {
         self.schedule = schedule;
         self
@@ -250,6 +260,7 @@ pub struct RotationMetrics {
 
 impl RotationMetrics {
     /// Create new rotation metrics
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             total_rotations:           Arc::new(AtomicU64::new(0)),
@@ -274,16 +285,19 @@ impl RotationMetrics {
     }
 
     /// Get total rotations count
+    #[must_use] 
     pub fn total_rotations(&self) -> u64 {
         self.total_rotations.load(Ordering::Relaxed)
     }
 
     /// Get failed rotations count
+    #[must_use] 
     pub fn failed_rotations(&self) -> u64 {
         self.failed_rotations.load(Ordering::Relaxed)
     }
 
     /// Get success rate percentage
+    #[must_use] 
     pub fn success_rate_percent(&self) -> u32 {
         let total = self.total_rotations();
         if total == 0 {
@@ -305,6 +319,7 @@ impl RotationMetrics {
     }
 
     /// Get last rotation timestamp
+    #[must_use] 
     pub fn last_rotation(&self) -> Option<DateTime<Utc>> {
         if let Ok(last) = self.last_rotation.lock() {
             *last
@@ -314,6 +329,7 @@ impl RotationMetrics {
     }
 
     /// Get last rotation duration in milliseconds
+    #[must_use] 
     pub fn last_rotation_duration_ms(&self) -> u64 {
         self.last_rotation_duration_ms.load(Ordering::Relaxed)
     }
@@ -338,6 +354,7 @@ pub struct VersionedKeyStorage {
 
 impl VersionedKeyStorage {
     /// Create new versioned key storage
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             versions:        Arc::new(std::sync::Mutex::new(HashMap::new())),
@@ -432,6 +449,7 @@ impl VersionedKeyStorage {
     }
 
     /// Get next version number
+    #[must_use] 
     pub fn next_version_number(&self) -> KeyVersion {
         let next = self.next_version.fetch_add(1, Ordering::Relaxed);
         #[allow(clippy::cast_possible_truncation)]
@@ -462,6 +480,7 @@ pub struct CredentialRotationManager {
 
 impl CredentialRotationManager {
     /// Create new credential rotation manager
+    #[must_use] 
     pub fn new(config: RotationConfig) -> Self {
         Self {
             config:  Arc::new(config),
@@ -575,6 +594,7 @@ impl CredentialRotationManager {
     }
 
     /// Get rotation metrics
+    #[must_use] 
     pub fn metrics(&self) -> Arc<RotationMetrics> {
         Arc::clone(&self.metrics)
     }
@@ -661,11 +681,13 @@ impl CredentialRotationManager {
     }
 
     /// Get next scheduled rotation time (for manual schedule)
+    #[must_use] 
     pub fn last_rotation_time(&self) -> Option<DateTime<Utc>> {
         self.metrics.last_rotation()
     }
 
     /// Get time since last rotation
+    #[must_use] 
     pub fn time_since_last_rotation(&self) -> Option<Duration> {
         self.metrics.last_rotation().map(|last| Utc::now() - last)
     }

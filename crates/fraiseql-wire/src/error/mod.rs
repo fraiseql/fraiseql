@@ -105,6 +105,7 @@ impl WireError {
     }
 
     /// Create a connection refused error (helpful message for debugging)
+    #[must_use] 
     pub fn connection_refused(host: &str, port: u16) -> Self {
         WireError::Connection(format!(
             "failed to connect to {}:{}: connection refused. \
@@ -124,6 +125,7 @@ impl WireError {
     }
 
     /// Create a schema validation error (query returned wrong columns)
+    #[must_use] 
     pub fn invalid_schema_columns(num_columns: usize) -> Self {
         WireError::InvalidSchema(format!(
             "query returned {} columns instead of 1. \
@@ -139,6 +141,7 @@ impl WireError {
     }
 
     /// Create an authentication error with helpful message
+    #[must_use] 
     pub fn auth_failed(username: &str, reason: &str) -> Self {
         WireError::Authentication(format!(
             "authentication failed for user '{}': {}. \
@@ -166,6 +169,7 @@ impl WireError {
     /// - Invalid schema (won't change between attempts)
     /// - Invalid configuration (needs user intervention)
     /// - SQL errors (query is invalid)
+    #[must_use] 
     pub const fn is_retriable(&self) -> bool {
         matches!(self, WireError::Io(_) | WireError::ConnectionClosed)
     }
@@ -173,6 +177,7 @@ impl WireError {
     /// Get error category for observability and logging
     ///
     /// Used to categorize errors for metrics, tracing, and error handling decisions.
+    #[must_use] 
     pub const fn category(&self) -> &'static str {
         match self {
             WireError::Connection(_) => "connection",

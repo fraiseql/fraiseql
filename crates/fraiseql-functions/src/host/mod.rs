@@ -121,6 +121,7 @@ pub struct NoopHostContext {
 
 impl NoopHostContext {
     /// Create a new no-op host context for testing.
+    #[must_use] 
     pub fn new(event_payload: EventPayload) -> Self {
         Self {
             event_payload,
@@ -133,6 +134,7 @@ impl NoopHostContext {
     /// # Panics
     ///
     /// Panics if the Mutex is poisoned (should never happen in normal operation).
+    #[must_use] 
     pub fn captured_logs(&self) -> Vec<LogEntry> {
         self.logs.lock().expect("log mutex poisoned").clone()
     }

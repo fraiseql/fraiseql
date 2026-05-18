@@ -50,6 +50,7 @@ jobs:
 
   publish:
     name: Publish to npm
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: test

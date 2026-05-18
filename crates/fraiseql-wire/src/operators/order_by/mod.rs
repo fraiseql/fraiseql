@@ -86,6 +86,7 @@ impl OrderByClause {
     }
 
     /// Add NULLS handling to this clause
+    #[must_use] 
     pub const fn with_nulls(mut self, handling: NullsHandling) -> Self {
         self.nulls_handling = Some(handling);
         self
@@ -269,6 +270,7 @@ pub enum Collation {
 
 impl Collation {
     /// Get the PostgreSQL collation name as a string
+    #[must_use] 
     pub fn as_str(&self) -> &str {
         match self {
             Collation::C => "C",

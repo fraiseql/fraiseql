@@ -56,11 +56,13 @@ pub struct TenantContext {
 
 impl TenantContext {
     /// Check if tenant is explicitly set
+    #[must_use] 
     pub const fn is_tenant_scoped(&self) -> bool {
         self.org_id.is_some()
     }
 
     /// Get tenant ID if available
+    #[must_use] 
     pub fn get_org_id(&self) -> Option<&str> {
         self.org_id.as_deref()
     }

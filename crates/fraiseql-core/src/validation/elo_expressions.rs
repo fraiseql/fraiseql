@@ -33,6 +33,7 @@ pub struct EloValidationResult {
 
 impl EloExpressionEvaluator {
     /// Create a new ELO expression evaluator.
+    #[must_use] 
     pub const fn new(expression: String) -> Self {
         Self { expression }
     }

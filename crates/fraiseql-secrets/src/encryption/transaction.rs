@@ -120,12 +120,14 @@ impl TransactionContext {
     }
 
     /// Set isolation level
+    #[must_use] 
     pub const fn with_isolation(mut self, level: IsolationLevel) -> Self {
         self.isolation_level = level;
         self
     }
 
     /// Set key version
+    #[must_use] 
     pub const fn with_key_version(mut self, version: u32) -> Self {
         self.key_version = version;
         self
@@ -171,16 +173,19 @@ impl TransactionContext {
     }
 
     /// Get transaction duration
+    #[must_use] 
     pub fn duration(&self) -> chrono::Duration {
         Utc::now() - self.started_at
     }
 
     /// Check if transaction is still active
+    #[must_use] 
     pub fn is_active(&self) -> bool {
         self.state == TransactionState::Active
     }
 
     /// Get operation count
+    #[must_use] 
     pub const fn operation_count(&self) -> usize {
         self.operations.len()
     }
@@ -225,6 +230,7 @@ pub struct TransactionManager {
 
 impl TransactionManager {
     /// Create new transaction manager
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             active_transactions: HashMap::new(),
@@ -253,6 +259,7 @@ impl TransactionManager {
     }
 
     /// Get active transaction
+    #[must_use] 
     pub fn get_transaction(&self, txn_id: &str) -> Option<&TransactionContext> {
         self.active_transactions.get(txn_id)
     }
@@ -333,11 +340,13 @@ impl TransactionManager {
     }
 
     /// Get list of active transaction IDs
+    #[must_use] 
     pub fn active_transactions(&self) -> Vec<&str> {
         self.active_transactions.keys().map(|s| s.as_str()).collect()
     }
 
     /// Count active transactions
+    #[must_use] 
     pub fn active_count(&self) -> usize {
         self.active_transactions.len()
     }

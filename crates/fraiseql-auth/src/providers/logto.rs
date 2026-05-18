@@ -138,6 +138,7 @@ impl LogtoOAuth {
     ///
     /// # Arguments
     /// * `logto_roles` - List of Logto role names
+    #[must_use] 
     pub fn map_logto_roles_to_fraiseql(logto_roles: Vec<String>) -> Vec<String> {
         logto_roles
             .into_iter()

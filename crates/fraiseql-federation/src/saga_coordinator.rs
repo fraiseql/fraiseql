@@ -212,6 +212,7 @@ impl SagaCoordinator {
     /// # Arguments
     ///
     /// * `strategy` - How to handle compensation on failure
+    #[must_use] 
     pub fn new(strategy: CompensationStrategy) -> Self {
         Self {
             _store: Arc::new(()),
@@ -479,6 +480,7 @@ impl SagaCoordinator {
     }
 
     /// Get compensation strategy
+    #[must_use] 
     pub const fn strategy(&self) -> CompensationStrategy {
         self.strategy
     }

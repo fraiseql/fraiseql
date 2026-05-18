@@ -126,6 +126,7 @@ impl SecretsManager {
     }
 
     /// Returns the backend type name (e.g., `"vault"`, `"env"`, `"file"`).
+    #[must_use] 
     pub fn backend_name(&self) -> &'static str {
         self.backend.name()
     }
@@ -192,6 +193,7 @@ impl LeaseRenewalTask {
     /// Create a new lease renewal task.
     ///
     /// Returns the task and a sender to trigger cancellation (send `true` to stop).
+    #[must_use] 
     pub fn new(
         manager: Arc<SecretsManager>,
         tracked_keys: Vec<String>,

@@ -60,6 +60,7 @@ pub struct SagaStepResult {
 
 impl SagaStepResult {
     /// Create a successful step result
+    #[must_use] 
     pub const fn success(step_number: usize, data: Value) -> Self {
         Self {
             step_number,
@@ -70,6 +71,7 @@ impl SagaStepResult {
     }
 
     /// Create a failed step result
+    #[must_use] 
     pub fn failed(step_number: usize, error: &str) -> Self {
         Self {
             step_number,
@@ -97,6 +99,7 @@ pub struct SagaStepDef {
 
 impl SagaStepDef {
     /// Create a new saga step definition
+    #[must_use] 
     pub fn new(step_number: usize, service_name: &str, database: &str, input: Value) -> Self {
         Self {
             step_number,
@@ -108,6 +111,7 @@ impl SagaStepDef {
     }
 
     /// Set compensation step name
+    #[must_use] 
     pub fn with_compensation(mut self, compensation: &str) -> Self {
         self.compensation = Some(compensation.to_string());
         self
@@ -125,6 +129,7 @@ pub struct TestSagaExecutor {
 
 impl TestSagaExecutor {
     /// Create a new test saga executor
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             execution_history: HashMap::new(),
@@ -133,6 +138,7 @@ impl TestSagaExecutor {
     }
 
     /// Configure executor to fail at a specific step
+    #[must_use] 
     pub const fn fail_at_step(mut self, step_number: usize) -> Self {
         self.fail_step = Some(step_number);
         self
@@ -245,6 +251,7 @@ impl TestSagaExecutor {
     }
 
     /// Get execution history for a saga
+    #[must_use] 
     pub fn get_history(&self, saga_id: &str) -> Option<Vec<SagaStepResult>> {
         self.execution_history.get(saga_id).cloned()
     }

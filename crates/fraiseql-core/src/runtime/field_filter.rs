@@ -91,6 +91,7 @@ pub fn classify_field_access(
 /// # let all_fields: Vec<FieldDefinition> = panic!("example");
 /// let accessible = filter_fields(&context, &config, &all_fields);
 /// ```
+#[must_use] 
 pub fn filter_fields<'a>(
     context: &SecurityContext,
     security_config: &SecurityConfig,

@@ -24,6 +24,7 @@ pub struct FunctionObserver {
 
 impl FunctionObserver {
     /// Create a new function observer.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             runtimes: HashMap::new(),

@@ -19,6 +19,7 @@ impl PostgresSessionStore {
     ///
     /// # Errors
     /// Returns error if database connection fails
+    #[must_use] 
     pub const fn new(db: PgPool) -> Self {
         Self {
             db,
@@ -31,6 +32,7 @@ impl PostgresSessionStore {
     /// # Arguments
     /// * `db` - PostgreSQL connection pool
     /// * `private_key_pem` - RSA private key in PEM format
+    #[must_use] 
     pub const fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
         Self {
             db,

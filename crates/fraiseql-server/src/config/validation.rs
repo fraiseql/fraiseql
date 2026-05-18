@@ -21,6 +21,7 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     /// Create an empty validation result.
+    #[must_use] 
     pub const fn new() -> Self {
         Self {
             errors:   Vec::new(),
@@ -29,11 +30,13 @@ impl ValidationResult {
     }
 
     /// Return `true` if no errors were collected.
+    #[must_use] 
     pub const fn is_ok(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Return `true` if any errors were collected.
+    #[must_use] 
     pub const fn is_err(&self) -> bool {
         !self.errors.is_empty()
     }
@@ -87,6 +90,7 @@ pub struct ConfigValidator<'a> {
 
 impl<'a> ConfigValidator<'a> {
     /// Create a new validator bound to the given runtime configuration.
+    #[must_use] 
     pub fn new(config: &'a RuntimeConfig) -> Self {
         Self {
             config,
@@ -96,6 +100,7 @@ impl<'a> ConfigValidator<'a> {
     }
 
     /// Run all validations
+    #[must_use] 
     pub fn validate(mut self) -> ValidationResult {
         self.validate_server();
         self.validate_database();

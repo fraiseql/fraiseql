@@ -372,6 +372,7 @@ pub struct FactTableDeclarationMetadata {
 
 impl SqlType {
     /// Parse SQL type from string (database-specific)
+    #[must_use] 
     pub fn from_str_postgres(type_name: &str) -> Self {
         match type_name.to_lowercase().as_str() {
             "smallint" | "int" | "integer" | "int2" | "int4" => Self::Int,
@@ -393,6 +394,7 @@ impl SqlType {
     }
 
     /// Parse SQL type from string (MySQL)
+    #[must_use] 
     pub fn from_str_mysql(type_name: &str) -> Self {
         match type_name.to_lowercase().as_str() {
             "tinyint" | "smallint" | "mediumint" | "int" | "integer" => Self::Int,
@@ -409,6 +411,7 @@ impl SqlType {
     }
 
     /// Parse SQL type from string (SQLite)
+    #[must_use] 
     pub fn from_str_sqlite(type_name: &str) -> Self {
         match type_name.to_lowercase().as_str() {
             "integer" | "int" => Self::BigInt, // SQLite INTEGER is 64-bit
@@ -421,6 +424,7 @@ impl SqlType {
     }
 
     /// Parse SQL type from string (SQL Server)
+    #[must_use] 
     pub fn from_str_sqlserver(type_name: &str) -> Self {
         match type_name.to_lowercase().as_str() {
             "tinyint" | "smallint" | "int" => Self::Int,

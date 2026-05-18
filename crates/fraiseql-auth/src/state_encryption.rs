@@ -35,12 +35,14 @@ pub struct EncryptedState {
 
 impl EncryptedState {
     /// Create new encrypted state
+    #[must_use] 
     pub const fn new(ciphertext: Vec<u8>, nonce: [u8; 12]) -> Self {
         Self { ciphertext, nonce }
     }
 
     /// Serialize to bytes for storage
     /// Format: [12-byte nonce][ciphertext with auth tag]
+    #[must_use] 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(12 + self.ciphertext.len());
         bytes.extend_from_slice(&self.nonce);
@@ -182,6 +184,7 @@ impl StateEncryption {
 }
 
 /// Generate a cryptographically random encryption key
+#[must_use] 
 pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
     let mut key = [0u8; 32];
     rand::rng().fill_bytes(&mut key);
@@ -289,6 +292,7 @@ impl fmt::Debug for StateEncryptionService {
 
 impl StateEncryptionService {
     /// Construct from a raw 32-byte key slice.
+    #[must_use] 
     pub const fn from_raw_key(key: &[u8; 32], algorithm: EncryptionAlgorithm) -> Self {
         Self {
             algorithm,

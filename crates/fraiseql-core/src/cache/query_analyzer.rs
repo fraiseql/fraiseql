@@ -124,6 +124,7 @@ pub struct QueryEntityProfile {
 
 impl QueryEntityProfile {
     /// Create a new query profile.
+    #[must_use] 
     pub const fn new(
         query_name: String,
         entity_type: Option<String>,

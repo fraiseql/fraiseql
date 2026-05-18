@@ -30,6 +30,7 @@ use crate::error::ArrowFlightError;
 /// let arrow_type = graphql_type_to_arrow("String", false);
 /// assert_eq!(arrow_type, DataType::Utf8);
 /// ```
+#[must_use] 
 pub fn graphql_type_to_arrow(graphql_type: &str, _nullable: bool) -> DataType {
     match graphql_type {
         // GraphQL scalars
@@ -76,6 +77,7 @@ pub fn graphql_type_to_arrow(graphql_type: &str, _nullable: bool) -> DataType {
 /// let schema = generate_arrow_schema(&fields);
 /// assert_eq!(schema.fields().len(), 3);
 /// ```
+#[must_use] 
 pub fn generate_arrow_schema(fields: &[(String, String, bool)]) -> Arc<Schema> {
     let arrow_fields: Vec<Field> = fields
         .iter()

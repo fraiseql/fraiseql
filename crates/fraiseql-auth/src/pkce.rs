@@ -391,6 +391,7 @@ pub enum PkceStateStore {
 
 impl PkceStateStore {
     /// Create an in-memory PKCE state store (single-replica deployments).
+    #[must_use] 
     pub fn new(state_ttl_secs: u64, encryptor: Option<Arc<StateEncryptionService>>) -> Self {
         Self::InMemory(InMemoryPkceStateStore::new(state_ttl_secs, encryptor))
     }
@@ -429,6 +430,7 @@ impl PkceStateStore {
     /// Returns `true` when backed by the in-memory DashMap store.
     ///
     /// Used by the `FRAISEQL_REQUIRE_REDIS` startup check.
+    #[must_use] 
     pub const fn is_in_memory(&self) -> bool {
         matches!(self, Self::InMemory(_))
     }
@@ -486,6 +488,7 @@ impl PkceStateStore {
     /// Per RFC 7636 §4.2:
     /// `code_challenge = BASE64URL(SHA256(ASCII(code_verifier)))`
     /// (no padding).
+    #[must_use] 
     pub fn s256_challenge(verifier: &str) -> String {
         URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
     }
@@ -519,6 +522,7 @@ impl PkceStateStore {
     /// Number of entries currently in the store.
     ///
     /// Returns 0 for the Redis backend — Redis state is not enumerable locally.
+    #[must_use] 
     pub fn len(&self) -> usize {
         match self {
             Self::InMemory(s) => s.len_sync(),
@@ -530,6 +534,7 @@ impl PkceStateStore {
     /// Returns `true` when the in-memory store contains no entries.
     ///
     /// Always returns `true` for the Redis backend.
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

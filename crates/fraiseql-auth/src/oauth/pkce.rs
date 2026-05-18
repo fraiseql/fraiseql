@@ -35,6 +35,7 @@ impl PKCEChallenge {
     /// The `code_verifier` is generated using `OsRng` with 32 random bytes
     /// encoded as URL-safe base64 (no padding), yielding 43 characters and
     /// ~256 bits of entropy — compliant with RFC 7636 §4.1.
+    #[must_use] 
     pub fn new() -> Self {
         use sha2::{Digest, Sha256};
 
@@ -56,6 +57,7 @@ impl PKCEChallenge {
     ///
     /// Computes `BASE64URL(SHA256(verifier))` and compares it to the stored
     /// `code_challenge` using constant-time equality to prevent timing attacks.
+    #[must_use] 
     pub fn verify(&self, verifier: &str) -> bool {
         use sha2::{Digest, Sha256};
 
@@ -87,6 +89,7 @@ impl StateParameter {
     ///
     /// Uses `OsRng` with 32 random bytes encoded as URL-safe base64 (no
     /// padding), yielding 43 characters and ~256 bits of entropy.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             state:      gen_random_token(),
@@ -95,11 +98,13 @@ impl StateParameter {
     }
 
     /// Check if state is expired
+    #[must_use] 
     pub fn is_expired(&self) -> bool {
         self.expires_at <= Utc::now()
     }
 
     /// Verify state matches and is not expired
+    #[must_use] 
     pub fn verify(&self, provided_state: &str) -> bool {
         // SECURITY: Use constant-time comparison before checking expiry to prevent
         // timing oracles that could reveal information about the stored state value.
@@ -128,6 +133,7 @@ impl NonceParameter {
     ///
     /// Uses `OsRng` with 32 random bytes encoded as URL-safe base64 (no
     /// padding), yielding 43 characters and ~256 bits of entropy.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             nonce:      gen_random_token(),
@@ -136,11 +142,13 @@ impl NonceParameter {
     }
 
     /// Check if nonce is expired
+    #[must_use] 
     pub fn is_expired(&self) -> bool {
         self.expires_at <= Utc::now()
     }
 
     /// Verify nonce matches and is not expired
+    #[must_use] 
     pub fn verify(&self, provided_nonce: &str) -> bool {
         // SECURITY: Use constant-time comparison before checking expiry to prevent
         // timing oracles that could reveal information about the stored nonce value.

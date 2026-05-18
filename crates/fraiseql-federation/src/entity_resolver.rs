@@ -51,6 +51,7 @@ pub struct EntityResolutionMetrics {
 }
 
 /// Deduplicate entity representations while preserving order
+#[must_use] 
 pub fn deduplicate_representations(reps: &[EntityRepresentation]) -> Vec<EntityRepresentation> {
     let mut seen = HashSet::new();
     let mut result = Vec::with_capacity(reps.len());
@@ -70,6 +71,7 @@ pub fn deduplicate_representations(reps: &[EntityRepresentation]) -> Vec<EntityR
 }
 
 /// Group entities by typename and strategy
+#[must_use] 
 pub fn group_entities_by_typename(
     reps: &[EntityRepresentation],
 ) -> HashMap<String, Vec<EntityRepresentation>> {

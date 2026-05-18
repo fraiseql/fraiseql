@@ -78,6 +78,7 @@ pub struct ComplianceConfig {
 
 impl ComplianceConfig {
     /// Create new compliance config
+    #[must_use] 
     pub fn new(framework: ComplianceFramework) -> Self {
         let (retention, rotation, algorithm) = match framework {
             ComplianceFramework::HIPAA => (2190, 365, "aes256-gcm"), // 6 years, 1 year
@@ -98,18 +99,21 @@ impl ComplianceConfig {
     }
 
     /// Disable this framework
+    #[must_use] 
     pub const fn disabled(mut self) -> Self {
         self.enabled = false;
         self
     }
 
     /// Set audit retention
+    #[must_use] 
     pub const fn with_retention_days(mut self, days: i32) -> Self {
         self.audit_retention_days = days;
         self
     }
 
     /// Set key rotation
+    #[must_use] 
     pub const fn with_key_rotation_days(mut self, days: i32) -> Self {
         self.key_rotation_days = days;
         self
@@ -174,6 +178,7 @@ pub struct ComplianceValidator {
 
 impl ComplianceValidator {
     /// Create new validator
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             configs: HashMap::new(),
@@ -187,11 +192,13 @@ impl ComplianceValidator {
     }
 
     /// Check if framework enabled
+    #[must_use] 
     pub fn is_framework_enabled(&self, framework: ComplianceFramework) -> bool {
         self.configs.get(&framework).is_some_and(|c| c.enabled)
     }
 
     /// Get framework config
+    #[must_use] 
     pub fn get_framework_config(
         &self,
         framework: ComplianceFramework,
@@ -205,6 +212,7 @@ impl ComplianceValidator {
     }
 
     /// Get all results
+    #[must_use] 
     pub fn results(&self) -> &[ComplianceCheckResult] {
         &self.results
     }
@@ -218,6 +226,7 @@ impl ComplianceValidator {
     }
 
     /// Get results for framework
+    #[must_use] 
     pub fn results_for_framework(
         &self,
         framework: ComplianceFramework,
@@ -226,11 +235,13 @@ impl ComplianceValidator {
     }
 
     /// Get results with specific status
+    #[must_use] 
     pub fn results_by_status(&self, status: ComplianceStatus) -> Vec<&ComplianceCheckResult> {
         self.filter_results(|r| r.status == status)
     }
 
     /// Get results for framework and status
+    #[must_use] 
     pub fn results_for_framework_status(
         &self,
         framework: ComplianceFramework,
@@ -240,6 +251,7 @@ impl ComplianceValidator {
     }
 
     /// Check overall compliance status for framework
+    #[must_use] 
     pub fn check_framework_status(&self, framework: ComplianceFramework) -> ComplianceStatus {
         if !self.is_framework_enabled(framework) {
             return ComplianceStatus::Unknown;
@@ -264,11 +276,13 @@ impl ComplianceValidator {
     }
 
     /// Get enabled frameworks
+    #[must_use] 
     pub fn enabled_frameworks(&self) -> Vec<ComplianceFramework> {
         self.configs.iter().filter(|(_, c)| c.enabled).map(|(f, _)| *f).collect()
     }
 
     /// Get compliance status for all enabled frameworks
+    #[must_use] 
     pub fn overall_status(&self) -> ComplianceStatus {
         let enabled = self.enabled_frameworks();
         if enabled.is_empty() {
@@ -290,11 +304,13 @@ impl ComplianceValidator {
     }
 
     /// Count results by status
+    #[must_use] 
     pub fn count_by_status(&self, status: ComplianceStatus) -> usize {
         self.results_by_status(status).len()
     }
 
     /// Get compliance summary
+    #[must_use] 
     pub fn get_summary(&self) -> (usize, usize, usize) {
         (
             self.count_by_status(ComplianceStatus::Compliant),
@@ -337,6 +353,7 @@ pub struct ComplianceReport {
 
 impl ComplianceReport {
     /// Create new report
+    #[must_use] 
     pub fn new(framework: ComplianceFramework) -> Self {
         Self {
             generated_at: Utc::now(),
@@ -350,6 +367,7 @@ impl ComplianceReport {
     }
 
     /// Add results
+    #[must_use] 
     pub fn with_results(mut self, results: Vec<ComplianceCheckResult>) -> Self {
         self.compliant_count =
             results.iter().filter(|r| r.status == ComplianceStatus::Compliant).count();
@@ -373,6 +391,7 @@ impl ComplianceReport {
     }
 
     /// Export to JSON-like string
+    #[must_use] 
     pub fn to_json_like(&self) -> String {
         format!(
             r#"{{ "framework": "{}", "generated_at": "{}", "overall_status": "{}", "compliant": {}, "non_compliant": {}, "partial": {} }}"#,
@@ -386,11 +405,13 @@ impl ComplianceReport {
     }
 
     /// Export to CSV header
+    #[must_use] 
     pub fn to_csv_header() -> String {
         "Framework,Requirement,Status,Description,Details,CheckedAt".to_string()
     }
 
     /// Export to CSV row
+    #[must_use] 
     pub fn to_csv_rows(&self) -> Vec<String> {
         self.results
             .iter()

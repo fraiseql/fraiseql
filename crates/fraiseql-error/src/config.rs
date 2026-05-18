@@ -55,6 +55,7 @@ pub enum ConfigError {
 impl ConfigError {
     /// Returns a short, stable error code string suitable for API responses and
     /// structured logging.
+    #[must_use] 
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::NotFound => "config_not_found",

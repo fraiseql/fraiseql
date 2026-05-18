@@ -47,6 +47,7 @@ pub enum IntegrationError {
 impl IntegrationError {
     /// Returns a short, stable error code string suitable for API responses and
     /// structured logging.
+    #[must_use] 
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::Search { .. } => "integration_search_error",

@@ -254,7 +254,7 @@ impl RuntimeConfig {
     ///             .protect_field("User", "ssn")
     ///     );
     /// ```
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_field_filter(mut self, config: FieldFilterConfig) -> Self {
         self.field_filter = Some(FieldFilter::new(config));
         self
@@ -275,7 +275,7 @@ impl RuntimeConfig {
     /// let config = RuntimeConfig::default()
     ///     .with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
     /// ```
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_rls_policy(mut self, policy: Arc<dyn RLSPolicy>) -> Self {
         self.rls_policy = Some(policy);
         self

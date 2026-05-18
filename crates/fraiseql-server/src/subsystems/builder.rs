@@ -45,27 +45,27 @@ pub struct ServerSubsystemsBuilder {
 
 impl ServerSubsystemsBuilder {
     /// Create a new builder with no subsystems registered.
-    #[must_use]
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Register the storage subsystem.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_storage(mut self, subsystem: StorageSubsystem) -> Self {
         self.storage = Some(subsystem);
         self
     }
 
     /// Register the functions subsystem.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_functions(mut self, subsystem: FunctionsSubsystem) -> Self {
         self.functions = Some(subsystem);
         self
     }
 
     /// Register the realtime subsystem.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_realtime(mut self, subsystem: RealtimeSubsystem) -> Self {
         self.realtime = Some(subsystem);
         self

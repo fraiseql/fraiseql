@@ -63,28 +63,33 @@ impl RemoteDatabaseConfig {
     /// Kept private to prevent accidental exposure in `Debug` output or
     /// serialization; call this method only when the string is needed for
     /// an actual connection.
+    #[must_use] 
     pub fn connection_string(&self) -> &str {
         &self.connection_string
     }
 
     /// Set the connection pool size
+    #[must_use] 
     pub const fn with_pool_size(mut self, size: u32) -> Self {
         self.pool_size = Some(size);
         self
     }
 
     /// Set the connection timeout
+    #[must_use] 
     pub const fn with_timeout(mut self, seconds: u32) -> Self {
         self.timeout_seconds = Some(seconds);
         self
     }
 
     /// Get pool size (default 5)
+    #[must_use] 
     pub fn get_pool_size(&self) -> u32 {
         self.pool_size.unwrap_or(5)
     }
 
     /// Get timeout in seconds (default 5)
+    #[must_use] 
     pub fn get_timeout_seconds(&self) -> u32 {
         self.timeout_seconds.unwrap_or(5)
     }
@@ -129,6 +134,7 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     /// Create a new connection manager
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             adapters: Arc::new(Mutex::new(HashMap::new())),
@@ -195,6 +201,7 @@ impl ConnectionManager {
     }
 
     /// Get number of cached connections.
+    #[must_use] 
     pub fn connection_count(&self) -> usize {
         let adapters = self.adapters.lock().unwrap_or_else(|e| e.into_inner());
         adapters.len()

@@ -24,6 +24,7 @@ pub struct TokenResponse {
 
 impl TokenResponse {
     /// Create new token response
+    #[must_use] 
     pub const fn new(access_token: String, token_type: String, expires_in: u64) -> Self {
         Self {
             access_token,
@@ -36,11 +37,13 @@ impl TokenResponse {
     }
 
     /// Calculate expiry time
+    #[must_use] 
     pub fn expiry_time(&self) -> DateTime<Utc> {
         Utc::now() + Duration::seconds(self.expires_in.cast_signed())
     }
 
     /// Check if token is expired
+    #[must_use] 
     pub fn is_expired(&self) -> bool {
         self.expiry_time() <= Utc::now()
     }
@@ -83,6 +86,7 @@ pub struct IdTokenClaims {
 
 impl IdTokenClaims {
     /// Create new ID token claims
+    #[must_use] 
     pub const fn new(iss: String, sub: String, aud: String, exp: i64, iat: i64) -> Self {
         Self {
             iss,
@@ -142,11 +146,13 @@ impl IdTokenClaims {
     }
 
     /// Check if token is expired
+    #[must_use] 
     pub fn is_expired(&self) -> bool {
         self.exp <= Utc::now().timestamp()
     }
 
     /// Check if token will be expired within grace period
+    #[must_use] 
     pub fn is_expiring_soon(&self, grace_seconds: i64) -> bool {
         self.exp <= (Utc::now().timestamp() + grace_seconds)
     }
@@ -171,6 +177,7 @@ pub struct UserInfo {
 
 impl UserInfo {
     /// Create new userinfo
+    #[must_use] 
     pub const fn new(sub: String) -> Self {
         Self {
             sub,

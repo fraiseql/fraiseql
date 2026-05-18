@@ -200,6 +200,7 @@ impl RequiresProvidesValidator {
     /// let validator = RequiresProvidesValidator::new(metadata);
     /// validator.validate_all()?;
     /// ```
+    #[must_use] 
     pub const fn new(metadata: FederationMetadata) -> Self {
         Self { metadata }
     }

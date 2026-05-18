@@ -225,8 +225,9 @@ fn test_validate_tls_enabled_without_cert() {
 #[test]
 fn test_validate_tls_invalid_min_version() {
     // Create temp cert and key files that exist
-    let cert_path = PathBuf::from("/tmp/test_cert.pem");
-    let key_path = PathBuf::from("/tmp/test_key.pem");
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    let cert_path = dir.path().join("test_cert.pem");
+    let key_path = dir.path().join("test_key.pem");
     std::fs::write(&cert_path, "test").ok();
     std::fs::write(&key_path, "test").ok();
 
@@ -269,8 +270,9 @@ fn test_validate_database_tls_invalid_postgres_ssl_mode() {
 #[test]
 fn test_validate_tls_requires_client_ca() {
     // Create temp cert and key files that exist
-    let cert_path = PathBuf::from("/tmp/test_cert2.pem");
-    let key_path = PathBuf::from("/tmp/test_key2.pem");
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    let cert_path = dir.path().join("test_cert.pem");
+    let key_path = dir.path().join("test_key.pem");
     std::fs::write(&cert_path, "test").ok();
     std::fs::write(&key_path, "test").ok();
 

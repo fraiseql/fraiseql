@@ -27,11 +27,13 @@ impl SanitizedError {
     }
 
     /// Get the user-facing message (safe for API responses)
+    #[must_use] 
     pub fn user_facing(&self) -> &str {
         &self.user_message
     }
 
     /// Get the internal message (for logging only)
+    #[must_use] 
     pub fn internal(&self) -> &str {
         &self.internal_message
     }
@@ -97,31 +99,37 @@ pub struct AuthErrorSanitizer;
 
 impl AuthErrorSanitizer {
     /// Sanitize JWT validation error
+    #[must_use] 
     pub fn jwt_validation_error(internal_error: &str) -> SanitizedError {
         SanitizedError::new(messages::AUTH_FAILED, internal_error)
     }
 
     /// Sanitize OIDC provider error
+    #[must_use] 
     pub fn oidc_provider_error(internal_error: &str) -> SanitizedError {
         SanitizedError::new(messages::AUTH_FAILED, internal_error)
     }
 
     /// Sanitize session token error
+    #[must_use] 
     pub fn session_token_error(internal_error: &str) -> SanitizedError {
         SanitizedError::new(messages::AUTH_FAILED, internal_error)
     }
 
     /// Sanitize CSRF state error
+    #[must_use] 
     pub fn csrf_state_error(internal_error: &str) -> SanitizedError {
         SanitizedError::new(messages::INVALID_STATE, internal_error)
     }
 
     /// Sanitize permission/authorization error
+    #[must_use] 
     pub fn permission_error(internal_error: &str) -> SanitizedError {
         SanitizedError::new(messages::PERMISSION_DENIED, internal_error)
     }
 
     /// Sanitize database error
+    #[must_use] 
     pub fn database_error(internal_error: &str) -> SanitizedError {
         SanitizedError::new(messages::SERVICE_UNAVAILABLE, internal_error)
     }

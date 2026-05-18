@@ -62,6 +62,7 @@ pub struct Claims {
 
 impl Claims {
     /// Get a custom claim by name
+    #[must_use] 
     pub fn get_custom(&self, key: &str) -> Option<&serde_json::Value> {
         self.extra.get(key)
     }
@@ -409,6 +410,7 @@ fn trim_or_none(s: &str) -> Option<String> {
 ///   value in the object.
 /// - **Array**: returns the first element that is a string.
 /// - **Null / number / bool**: returns `None`.
+#[must_use] 
 pub fn extract_claim_string(value: &serde_json::Value) -> Option<String> {
     match value {
         serde_json::Value::String(s) => trim_or_none(s),

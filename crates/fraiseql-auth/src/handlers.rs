@@ -428,6 +428,7 @@ pub async fn auth_logout(
 
 /// Generate a cryptographically random state for CSRF protection
 /// Uses OsRng for cryptographically secure randomness
+#[must_use] 
 pub fn generate_secure_state() -> String {
     use rand::RngCore as _;
 

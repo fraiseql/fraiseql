@@ -48,6 +48,7 @@ jobs:
 
   publish:
     name: Publish to Packagist
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: test

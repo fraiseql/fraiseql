@@ -453,6 +453,7 @@ pub struct CustomEndpointsConfig {}
 
 impl HttpServerConfig {
     /// Returns a builder for `HttpServerConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> HttpServerConfigBuilder {
         HttpServerConfigBuilder::default()
     }
@@ -482,6 +483,7 @@ impl Default for HttpServerConfigBuilder {
 
 impl HttpServerConfigBuilder {
     /// Sets the TCP port to listen on.
+    #[must_use = "builder method returns modified builder"]
     pub const fn port(mut self, port: u16) -> Self {
         self.port = port;
         self
@@ -494,24 +496,28 @@ impl HttpServerConfigBuilder {
     }
 
     /// Sets the number of async worker threads.
+    #[must_use = "builder method returns modified builder"]
     pub const fn workers(mut self, workers: usize) -> Self {
         self.workers = Some(workers);
         self
     }
 
     /// Sets the TLS configuration.
+    #[must_use = "builder method returns modified builder"]
     pub fn tls(mut self, tls: TlsConfig) -> Self {
         self.tls = Some(tls);
         self
     }
 
     /// Sets the per-request and concurrency limits.
+    #[must_use = "builder method returns modified builder"]
     pub fn limits(mut self, limits: ServerLimitsConfig) -> Self {
         self.limits = Some(limits);
         self
     }
 
     /// Builds the [`HttpServerConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> HttpServerConfig {
         HttpServerConfig {
             port:    self.port,
@@ -525,6 +531,7 @@ impl HttpServerConfigBuilder {
 
 impl ServerLimitsConfig {
     /// Returns a builder for `ServerLimitsConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> ServerLimitsConfigBuilder {
         ServerLimitsConfigBuilder::default()
     }
@@ -564,18 +571,21 @@ impl ServerLimitsConfigBuilder {
     }
 
     /// Sets the maximum number of concurrent requests.
+    #[must_use = "builder method returns modified builder"]
     pub const fn max_concurrent_requests(mut self, max_concurrent_requests: usize) -> Self {
         self.max_concurrent_requests = max_concurrent_requests;
         self
     }
 
     /// Sets the maximum request queue depth.
+    #[must_use = "builder method returns modified builder"]
     pub const fn max_queue_depth(mut self, max_queue_depth: usize) -> Self {
         self.max_queue_depth = max_queue_depth;
         self
     }
 
     /// Builds the [`ServerLimitsConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> ServerLimitsConfig {
         ServerLimitsConfig {
             max_request_size:        self.max_request_size,
@@ -588,6 +598,7 @@ impl ServerLimitsConfigBuilder {
 
 impl DatabaseConfig {
     /// Returns a builder for `DatabaseConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> DatabaseConfigBuilder {
         DatabaseConfigBuilder::default()
     }
@@ -612,6 +623,7 @@ impl DatabaseConfigBuilder {
     }
 
     /// Sets the maximum number of connections in the pool.
+    #[must_use = "builder method returns modified builder"]
     pub const fn pool_size(mut self, pool_size: u32) -> Self {
         self.pool_size = pool_size;
         self
@@ -630,6 +642,7 @@ impl DatabaseConfigBuilder {
     }
 
     /// Adds a read replica.
+    #[must_use = "builder method returns modified builder"]
     pub fn replica(mut self, replica: ReplicaConfig) -> Self {
         self.replicas.push(replica);
         self
@@ -666,6 +679,7 @@ impl DatabaseConfigBuilder {
 
 impl LifecycleConfig {
     /// Returns a builder for `LifecycleConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> LifecycleConfigBuilder {
         LifecycleConfigBuilder::default()
     }
@@ -717,6 +731,7 @@ impl LifecycleConfigBuilder {
     }
 
     /// Builds the [`LifecycleConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> LifecycleConfig {
         LifecycleConfig {
             shutdown_timeout: self.shutdown_timeout,

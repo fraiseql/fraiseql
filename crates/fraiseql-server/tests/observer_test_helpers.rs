@@ -264,6 +264,7 @@ impl MockWebhookServer {
     }
 
     /// Get webhook URL
+    #[must_use] 
     pub fn webhook_url(&self) -> String {
         format!("{}/webhook", self.server.uri())
     }

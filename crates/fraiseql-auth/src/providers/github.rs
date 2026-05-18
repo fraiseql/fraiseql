@@ -109,6 +109,7 @@ impl GitHubOAuth {
     ///
     /// # Arguments
     /// * `teams` - List of "org:team" strings from GitHub
+    #[must_use] 
     pub fn map_teams_to_roles(teams: Vec<String>) -> Vec<String> {
         teams
             .into_iter()
@@ -213,6 +214,7 @@ impl GitHubOAuth {
     ///
     /// Returns the first organization the user belongs to as the org_id.
     /// In multi-org scenarios, this should be overridden with explicit org selection.
+    #[must_use] 
     pub fn extract_org_id_from_teams(teams: &[(GitHubUser, Vec<String>)]) -> Option<String> {
         teams
             .first()

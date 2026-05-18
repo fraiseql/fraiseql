@@ -92,6 +92,7 @@ impl ConnectionManager {
     /// The event receiver should be polled by the connection handler to forward
     /// change events to the `WebSocket`. The close-signal receiver fires when the
     /// delivery pipeline detects a slow consumer.
+    #[must_use] 
     pub fn insert(
         &self,
         state: ConnectionState,
@@ -136,6 +137,7 @@ impl ConnectionManager {
     /// consumer") is sent to the connection handler.
     ///
     /// Returns `true` if the event was sent, `false` otherwise.
+    #[must_use] 
     pub fn send_event(&self, connection_id: &str, json: String) -> bool {
         let sent = self
             .event_senders

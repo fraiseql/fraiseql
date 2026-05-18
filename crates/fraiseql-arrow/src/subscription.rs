@@ -47,6 +47,7 @@ pub struct SubscriptionManager {
 
 impl SubscriptionManager {
     /// Create a new subscription manager.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             subscriptions:           Arc::new(DashMap::new()),
@@ -194,6 +195,7 @@ impl SubscriptionManager {
     }
 
     /// Get reference to event storage if available.
+    #[must_use] 
     pub fn event_storage(&self) -> Option<&Arc<dyn ArrowEventStorage>> {
         self.event_storage.as_ref()
     }

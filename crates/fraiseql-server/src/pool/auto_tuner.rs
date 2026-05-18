@@ -71,6 +71,7 @@ pub struct PoolSizingAdvisor {
 
 impl PoolSizingAdvisor {
     /// Create a new pool pressure monitor with the given configuration.
+    #[must_use] 
     pub const fn new(config: PoolPressureMonitorConfig) -> Self {
         Self {
             config,

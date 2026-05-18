@@ -54,6 +54,7 @@ pub struct TypedJsonStream<T: DeserializeOwned> {
 
 impl<T: DeserializeOwned> TypedJsonStream<T> {
     /// Create a new typed stream from a raw JSON stream
+    #[must_use] 
     pub fn new(inner: Box<dyn Stream<Item = Result<Value>> + Send + Unpin>) -> Self {
         Self {
             inner,

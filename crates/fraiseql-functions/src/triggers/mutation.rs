@@ -37,6 +37,7 @@ pub enum EventKind {
 
 impl EventKind {
     /// Convert to string representation.
+    #[must_use] 
     pub const fn as_str(&self) -> &'static str {
         match self {
             EventKind::Insert => "insert",
@@ -108,11 +109,13 @@ pub struct AfterMutationTrigger {
 
 impl AfterMutationTrigger {
     /// Check if this trigger matches the given entity and event.
+    #[must_use] 
     pub fn matches(&self, entity: &str, event_kind: EventKind) -> bool {
         self.entity_type == entity && self.event_filter.is_none_or(|filter| filter == event_kind)
     }
 
     /// Build an `EventPayload` from an entity event.
+    #[must_use] 
     pub fn build_payload(&self, event: &EntityEvent) -> EventPayload {
         EventPayload {
             trigger_type: format!("after:mutation:{}", self.function_name),
@@ -169,6 +172,7 @@ pub struct BeforeMutationTrigger {
 
 impl BeforeMutationTrigger {
     /// Check if this trigger matches the given mutation.
+    #[must_use] 
     pub fn matches(&self, mutation: &str) -> bool {
         self.mutation_name == mutation
     }
@@ -320,6 +324,7 @@ pub struct TriggerMatcher {
 
 impl TriggerMatcher {
     /// Create a new empty trigger matcher.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             specific:  HashMap::new(),
@@ -345,6 +350,7 @@ impl TriggerMatcher {
     }
 
     /// Find all triggers matching the given entity and event kind.
+    #[must_use] 
     pub fn find(&self, entity: &str, event_kind: EventKind) -> Vec<AfterMutationTrigger> {
         let event_str = event_kind.as_str();
         let mut result = Vec::new();

@@ -116,6 +116,7 @@ impl CustomTypeRegistry {
     ///     let _ = def.description.unwrap_or_default();
     /// }
     /// ```
+    #[must_use] 
     pub fn get(&self, name: &str) -> Option<CustomTypeDef> {
         let types = self.types.read().unwrap_or_else(|e| {
             tracing::error!(
@@ -140,6 +141,7 @@ impl CustomTypeRegistry {
     /// assert!(!registry.exists("UnknownType"));
     /// ```
     #[inline]
+    #[must_use] 
     pub fn exists(&self, name: &str) -> bool {
         self.types
             .read()
@@ -159,6 +161,7 @@ impl CustomTypeRegistry {
     /// # Panics
     ///
     /// Panics if the internal `RwLock` is poisoned and cannot be recovered.
+    #[must_use] 
     pub fn remove(&self, name: &str) -> Option<CustomTypeDef> {
         self.types
             .write()
@@ -180,6 +183,7 @@ impl CustomTypeRegistry {
     /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string())).unwrap();
     /// assert_eq!(registry.count(), 1);
     /// ```
+    #[must_use] 
     pub fn count(&self) -> usize {
         self.types
             .read()
@@ -193,6 +197,7 @@ impl CustomTypeRegistry {
     /// List all registered custom scalars.
     ///
     /// Returns a vector of (name, definition) tuples.
+    #[must_use] 
     pub fn list_all(&self) -> Vec<(String, CustomTypeDef)> {
         self.types
             .read()

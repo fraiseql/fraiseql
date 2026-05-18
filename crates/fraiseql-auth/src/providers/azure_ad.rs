@@ -74,6 +74,7 @@ impl AzureADOAuth {
     /// Azure AD stores app roles assigned to the user in the `roles` claim.
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
+    #[must_use] 
     pub fn extract_app_roles(raw_claims: &serde_json::Value) -> Vec<String> {
         raw_claims
             .get("roles")
@@ -87,6 +88,7 @@ impl AzureADOAuth {
     /// Azure AD can include group membership in the `groups` claim if configured.
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
+    #[must_use] 
     pub fn extract_groups(raw_claims: &serde_json::Value) -> Vec<String> {
         raw_claims
             .get("groups")
@@ -100,6 +102,7 @@ impl AzureADOAuth {
     /// Azure AD group object IDs for use with Microsoft Graph API
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
+    #[must_use] 
     pub fn extract_group_ids(raw_claims: &serde_json::Value) -> Vec<String> {
         raw_claims
             .get("_claim_sources")
@@ -117,6 +120,7 @@ impl AzureADOAuth {
     ///
     /// # Arguments
     /// * `azure_roles` - List of Azure AD app roles
+    #[must_use] 
     pub fn map_azure_roles_to_fraiseql(azure_roles: Vec<String>) -> Vec<String> {
         azure_roles
             .into_iter()
@@ -146,6 +150,7 @@ impl AzureADOAuth {
     /// Extract user's email or principal name
     ///
     /// Azure AD typically provides either email or preferred_username
+    #[must_use] 
     pub fn get_user_identifier(raw_claims: &serde_json::Value) -> Option<String> {
         raw_claims
             .get("preferred_username")
@@ -155,6 +160,7 @@ impl AzureADOAuth {
     }
 
     /// Get user's display name
+    #[must_use] 
     pub fn get_user_display_name(raw_claims: &serde_json::Value) -> Option<String> {
         raw_claims.get("name").and_then(|n| n.as_str()).map(|s| s.to_string())
     }

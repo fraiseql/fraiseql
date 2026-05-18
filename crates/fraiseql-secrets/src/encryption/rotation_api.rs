@@ -59,6 +59,7 @@ pub struct RotationStatusResponse {
 
 impl RotationStatusResponse {
     /// Create new rotation status response
+    #[must_use] 
     pub const fn new(current_version: u16, ttl_days: u32) -> Self {
         Self {
             current_version,
@@ -76,18 +77,21 @@ impl RotationStatusResponse {
     }
 
     /// Set last rotation timestamp
+    #[must_use] 
     pub const fn with_last_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
         self.last_rotation = Some(timestamp);
         self
     }
 
     /// Set next rotation timestamp
+    #[must_use] 
     pub const fn with_next_rotation(mut self, timestamp: DateTime<Utc>) -> Self {
         self.next_rotation = Some(timestamp);
         self
     }
 
     /// Set status level
+    #[must_use] 
     pub const fn with_status(mut self, status: RotationStatus) -> Self {
         self.status = status;
         self
@@ -142,6 +146,7 @@ pub struct ManualRotationResponse {
 
 impl ManualRotationResponse {
     /// Create successful rotation response
+    #[must_use] 
     pub const fn success(old_version: u16, new_version: u16, duration_ms: u64) -> Self {
         Self {
             new_version,
@@ -198,6 +203,7 @@ pub struct RotationHistoryResponse {
 
 impl RotationHistoryResponse {
     /// Create new history response
+    #[must_use] 
     pub const fn new(offset: usize, limit: usize) -> Self {
         Self {
             total_count: 0,
@@ -208,12 +214,14 @@ impl RotationHistoryResponse {
     }
 
     /// Add record to history
+    #[must_use] 
     pub fn with_record(mut self, record: RotationHistoryRecord) -> Self {
         self.records.push(record);
         self
     }
 
     /// Set total count
+    #[must_use] 
     pub const fn with_total_count(mut self, count: usize) -> Self {
         self.total_count = count;
         self
@@ -338,6 +346,7 @@ pub struct RotationScheduleResponse {
 
 impl RotationScheduleResponse {
     /// Create manual schedule (default)
+    #[must_use] 
     pub fn manual() -> Self {
         Self {
             schedule_type:       ScheduleType::Manual,
@@ -358,6 +367,7 @@ impl RotationScheduleResponse {
     }
 
     /// Create interval schedule
+    #[must_use] 
     pub fn interval(days: u32, next_time: DateTime<Utc>) -> Self {
         Self {
             schedule_type:       ScheduleType::Interval,
@@ -390,6 +400,7 @@ pub struct TestScheduleResponse {
 
 impl TestScheduleResponse {
     /// Create valid schedule test
+    #[must_use] 
     pub const fn valid(next_times: Vec<DateTime<Utc>>) -> Self {
         Self {
             valid: true,
@@ -467,6 +478,7 @@ impl std::fmt::Display for ConfigPreset {
 
 impl ConfigPreset {
     /// Get default config for this preset
+    #[must_use] 
     pub fn get_config(&self) -> RotationConfigResponse {
         match self {
             Self::Gdpr => RotationConfigResponse {
@@ -572,11 +584,13 @@ pub struct RotationHistoryQuery {
 
 impl RotationHistoryQuery {
     /// Get effective limit (capped at 1000)
+    #[must_use] 
     pub fn effective_limit(&self) -> usize {
         self.limit.unwrap_or(100).min(1000)
     }
 
     /// Get effective offset
+    #[must_use] 
     pub fn effective_offset(&self) -> usize {
         self.offset.unwrap_or(0)
     }
@@ -595,6 +609,7 @@ pub struct RotationStatusDisplay {
 
 impl RotationStatusDisplay {
     /// Create new display from status
+    #[must_use] 
     pub fn from_status(status: RotationStatusResponse) -> Self {
         // Calculate urgency based on TTL consumed
         let urgency_score = match status.status {
@@ -621,6 +636,7 @@ impl RotationStatusDisplay {
 
 impl RotationStatusResponse {
     /// Convert to display with urgency
+    #[must_use] 
     pub fn to_display(&self) -> RotationStatusDisplay {
         RotationStatusDisplay::from_status(self.clone())
     }

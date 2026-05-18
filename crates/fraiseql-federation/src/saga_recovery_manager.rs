@@ -167,6 +167,7 @@ impl SagaRecoveryManager {
     /// let config = RecoveryConfig::default();
     /// let manager = SagaRecoveryManager::new(Arc::new(store), config);
     /// ```
+    #[must_use] 
     pub fn new(store: Arc<PostgresSagaStore>, config: RecoveryConfig) -> Self {
         Self {
             store,
@@ -190,6 +191,7 @@ impl SagaRecoveryManager {
     /// manager.start_background_loop().await?;
     /// assert!(manager.is_running());
     /// ```
+    #[must_use] 
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::Acquire)
     }
@@ -212,6 +214,7 @@ impl SagaRecoveryManager {
     ///
     /// Panics if the internal stats mutex is poisoned (a prior panic occurred
     /// while the lock was held).
+    #[must_use] 
     pub fn get_stats(&self) -> RecoveryStats {
         self.stats.lock().expect("stats mutex poisoned").clone()
     }

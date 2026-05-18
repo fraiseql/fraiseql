@@ -308,7 +308,7 @@ impl VaultBackend {
     /// # Panics
     ///
     /// Panics if the HTTP client cannot be rebuilt (should not happen in practice).
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_tls_verify(mut self, verify: bool) -> Self {
         self.tls_verify = verify;
         // Rebuild the shared client with the updated TLS setting.

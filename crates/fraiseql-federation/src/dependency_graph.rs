@@ -88,11 +88,13 @@ impl DependencyGraph {
     }
 
     /// Get the number of nodes in the graph
+    #[must_use] 
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
 
     /// Check if a node exists in the graph
+    #[must_use] 
     pub fn has_node(&self, node_id: &str) -> bool {
         self.nodes.contains_key(node_id)
     }
@@ -106,6 +108,7 @@ impl DependencyGraph {
     ///
     /// Returns a vector of cycles, where each cycle is a vector of node IDs
     /// that form a circular dependency.
+    #[must_use] 
     pub fn detect_cycles(&self) -> Vec<Vec<String>> {
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
