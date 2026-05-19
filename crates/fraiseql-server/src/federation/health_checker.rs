@@ -53,8 +53,8 @@ pub struct RollingErrorWindow {
 #[derive(Debug, Clone)]
 struct ErrorBucket {
     timestamp: Instant,
-    errors:    u32,
-    total:     u32,
+    errors: u32,
+    total: u32,
 }
 
 impl RollingErrorWindow {
@@ -77,8 +77,8 @@ impl RollingErrorWindow {
         } else {
             buckets.push_back(ErrorBucket {
                 timestamp: Instant::now(),
-                errors:    0,
-                total:     1,
+                errors: 0,
+                total: 1,
             });
         }
     }
@@ -96,8 +96,8 @@ impl RollingErrorWindow {
         } else {
             buckets.push_back(ErrorBucket {
                 timestamp: Instant::now(),
-                errors:    1,
-                total:     1,
+                errors: 1,
+                total: 1,
             });
         }
     }
@@ -167,9 +167,9 @@ impl Default for RollingErrorWindow {
 /// Subgraph health checker.
 pub struct SubgraphHealthChecker {
     pub(crate) subgraphs: Vec<SubgraphConfig>,
-    http_client:          reqwest::Client,
-    error_windows:        Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
-    status_cache:         Arc<Mutex<Vec<SubgraphHealthStatus>>>,
+    http_client: reqwest::Client,
+    error_windows: Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
+    status_cache: Arc<Mutex<Vec<SubgraphHealthStatus>>>,
 }
 
 /// Configuration for a single subgraph.

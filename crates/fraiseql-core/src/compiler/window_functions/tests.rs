@@ -4,42 +4,42 @@ use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, 
 
 fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![
+        table_name: "tf_sales".to_string(),
+        measures: vec![
             MeasureColumn {
-                name:     "revenue".to_string(),
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             },
             MeasureColumn {
-                name:     "quantity".to_string(),
+                name: "quantity".to_string(),
                 sql_type: SqlType::Int,
                 nullable: false,
             },
         ],
-        dimensions:               DimensionColumn {
-            name:  "dimensions".to_string(),
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![crate::compiler::fact_table::DimensionPath {
-                name:      "category".to_string(),
+                name: "category".to_string(),
                 json_path: "dimensions->>'category'".to_string(),
                 data_type: "text".to_string(),
             }],
         },
-        denormalized_filters:     vec![
+        denormalized_filters: vec![
             FilterColumn {
-                name:     "customer_id".to_string(),
+                name: "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed:  true,
+                indexed: true,
             },
             FilterColumn {
-                name:     "occurred_at".to_string(),
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             },
         ],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
@@ -152,24 +152,24 @@ fn test_validate_groups_frame_postgres_only() {
 
     let metadata = create_test_metadata();
     let plan = WindowExecutionPlan {
-        table:        "tf_sales".to_string(),
-        select:       vec![],
-        windows:      vec![WindowFunction {
-            function:     WindowFunctionType::RowNumber,
-            alias:        "rank".to_string(),
+        table: "tf_sales".to_string(),
+        select: vec![],
+        windows: vec![WindowFunction {
+            function: WindowFunctionType::RowNumber,
+            alias: "rank".to_string(),
             partition_by: vec![],
-            order_by:     vec![],
-            frame:        Some(WindowFrame {
+            order_by: vec![],
+            frame: Some(WindowFrame {
                 frame_type: FrameType::Groups,
-                start:      FrameBoundary::UnboundedPreceding,
-                end:        FrameBoundary::CurrentRow,
-                exclusion:  None,
+                start: FrameBoundary::UnboundedPreceding,
+                end: FrameBoundary::CurrentRow,
+                exclusion: None,
             }),
         }],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     // Should pass for PostgreSQL
@@ -191,33 +191,33 @@ fn test_validate_groups_frame_postgres_only() {
 fn test_window_planner_basic_request() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![
+        table_name: "tf_sales".to_string(),
+        select: vec![
             WindowSelectColumn::Measure {
-                name:  "revenue".to_string(),
+                name: "revenue".to_string(),
                 alias: "revenue".to_string(),
             },
             WindowSelectColumn::Dimension {
-                path:  "category".to_string(),
+                path: "category".to_string(),
                 alias: "category".to_string(),
             },
         ],
-        windows:      vec![WindowFunctionRequest {
-            function:     WindowFunctionSpec::RowNumber,
-            alias:        "rank".to_string(),
+        windows: vec![WindowFunctionRequest {
+            function: WindowFunctionSpec::RowNumber,
+            alias: "rank".to_string(),
             partition_by: vec![PartitionByColumn::Dimension {
                 path: "category".to_string(),
             }],
-            order_by:     vec![WindowOrderBy {
-                field:     "revenue".to_string(),
+            order_by: vec![WindowOrderBy {
+                field: "revenue".to_string(),
                 direction: OrderDirection::Desc,
             }],
-            frame:        None,
+            frame: None,
         }],
         where_clause: None,
-        order_by:     vec![],
-        limit:        Some(100),
-        offset:       None,
+        order_by: vec![],
+        limit: Some(100),
+        offset: None,
     };
 
     let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
@@ -244,32 +244,32 @@ fn test_window_planner_basic_request() {
 fn test_window_planner_running_sum() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![WindowSelectColumn::Measure {
-            name:  "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        select: vec![WindowSelectColumn::Measure {
+            name: "revenue".to_string(),
             alias: "revenue".to_string(),
         }],
-        windows:      vec![WindowFunctionRequest {
-            function:     WindowFunctionSpec::RunningSum {
+        windows: vec![WindowFunctionRequest {
+            function: WindowFunctionSpec::RunningSum {
                 measure: "revenue".to_string(),
             },
-            alias:        "running_total".to_string(),
+            alias: "running_total".to_string(),
             partition_by: vec![],
-            order_by:     vec![WindowOrderBy {
-                field:     "occurred_at".to_string(),
+            order_by: vec![WindowOrderBy {
+                field: "occurred_at".to_string(),
                 direction: OrderDirection::Asc,
             }],
-            frame:        Some(WindowFrame {
+            frame: Some(WindowFrame {
                 frame_type: FrameType::Rows,
-                start:      FrameBoundary::UnboundedPreceding,
-                end:        FrameBoundary::CurrentRow,
-                exclusion:  None,
+                start: FrameBoundary::UnboundedPreceding,
+                end: FrameBoundary::CurrentRow,
+                exclusion: None,
             }),
         }],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
@@ -289,16 +289,16 @@ fn test_window_planner_running_sum() {
 fn test_window_planner_filter_column() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![WindowSelectColumn::Filter {
-            name:  "occurred_at".to_string(),
+        table_name: "tf_sales".to_string(),
+        select: vec![WindowSelectColumn::Filter {
+            name: "occurred_at".to_string(),
             alias: "date".to_string(),
         }],
-        windows:      vec![],
+        windows: vec![],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
@@ -312,16 +312,16 @@ fn test_window_planner_filter_column() {
 fn test_window_planner_invalid_measure() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![WindowSelectColumn::Measure {
-            name:  "nonexistent".to_string(),
+        table_name: "tf_sales".to_string(),
+        select: vec![WindowSelectColumn::Measure {
+            name: "nonexistent".to_string(),
             alias: "alias".to_string(),
         }],
-        windows:      vec![],
+        windows: vec![],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let err =
@@ -333,16 +333,16 @@ fn test_window_planner_invalid_measure() {
 fn test_window_planner_invalid_filter() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![WindowSelectColumn::Filter {
-            name:  "nonexistent_filter".to_string(),
+        table_name: "tf_sales".to_string(),
+        select: vec![WindowSelectColumn::Filter {
+            name: "nonexistent_filter".to_string(),
             alias: "alias".to_string(),
         }],
-        windows:      vec![],
+        windows: vec![],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let err =
@@ -354,26 +354,26 @@ fn test_window_planner_invalid_filter() {
 fn test_window_planner_lag_function() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![],
-        windows:      vec![WindowFunctionRequest {
-            function:     WindowFunctionSpec::Lag {
-                field:   "revenue".to_string(),
-                offset:  1,
+        table_name: "tf_sales".to_string(),
+        select: vec![],
+        windows: vec![WindowFunctionRequest {
+            function: WindowFunctionSpec::Lag {
+                field: "revenue".to_string(),
+                offset: 1,
                 default: Some(serde_json::json!(0)),
             },
-            alias:        "prev_revenue".to_string(),
+            alias: "prev_revenue".to_string(),
             partition_by: vec![],
-            order_by:     vec![WindowOrderBy {
-                field:     "occurred_at".to_string(),
+            order_by: vec![WindowOrderBy {
+                field: "occurred_at".to_string(),
                 direction: OrderDirection::Asc,
             }],
-            frame:        None,
+            frame: None,
         }],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
@@ -396,26 +396,26 @@ fn test_window_planner_lag_function() {
 fn test_window_planner_dimension_field_in_lag() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![],
-        windows:      vec![WindowFunctionRequest {
-            function:     WindowFunctionSpec::Lag {
-                field:   "category".to_string(), // dimension path
-                offset:  1,
+        table_name: "tf_sales".to_string(),
+        select: vec![],
+        windows: vec![WindowFunctionRequest {
+            function: WindowFunctionSpec::Lag {
+                field: "category".to_string(), // dimension path
+                offset: 1,
                 default: None,
             },
-            alias:        "prev_category".to_string(),
+            alias: "prev_category".to_string(),
             partition_by: vec![],
-            order_by:     vec![WindowOrderBy {
-                field:     "occurred_at".to_string(),
+            order_by: vec![WindowOrderBy {
+                field: "occurred_at".to_string(),
                 direction: OrderDirection::Asc,
             }],
-            frame:        None,
+            frame: None,
         }],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
@@ -433,21 +433,21 @@ fn test_window_planner_dimension_field_in_lag() {
 fn test_window_planner_partition_by_filter() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![],
-        windows:      vec![WindowFunctionRequest {
-            function:     WindowFunctionSpec::RowNumber,
-            alias:        "rank".to_string(),
+        table_name: "tf_sales".to_string(),
+        select: vec![],
+        windows: vec![WindowFunctionRequest {
+            function: WindowFunctionSpec::RowNumber,
+            alias: "rank".to_string(),
             partition_by: vec![PartitionByColumn::Filter {
                 name: "customer_id".to_string(),
             }],
-            order_by:     vec![],
-            frame:        None,
+            order_by: vec![],
+            frame: None,
         }],
         where_clause: None,
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
@@ -459,22 +459,22 @@ fn test_window_planner_partition_by_filter() {
 fn test_window_planner_final_order_by() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![],
-        windows:      vec![],
+        table_name: "tf_sales".to_string(),
+        select: vec![],
+        windows: vec![],
         where_clause: None,
-        order_by:     vec![
+        order_by: vec![
             WindowOrderBy {
-                field:     "revenue".to_string(),
+                field: "revenue".to_string(),
                 direction: OrderDirection::Desc,
             },
             WindowOrderBy {
-                field:     "category".to_string(), // dimension
+                field: "category".to_string(), // dimension
                 direction: OrderDirection::Asc,
             },
         ],
-        limit:        None,
-        offset:       None,
+        limit: None,
+        offset: None,
     };
 
     let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
@@ -489,22 +489,22 @@ fn test_window_planner_final_order_by() {
 #[test]
 fn test_window_request_serialization() {
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![WindowSelectColumn::Measure {
-            name:  "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        select: vec![WindowSelectColumn::Measure {
+            name: "revenue".to_string(),
             alias: "revenue".to_string(),
         }],
-        windows:      vec![WindowFunctionRequest {
-            function:     WindowFunctionSpec::RowNumber,
-            alias:        "rank".to_string(),
+        windows: vec![WindowFunctionRequest {
+            function: WindowFunctionSpec::RowNumber,
+            alias: "rank".to_string(),
             partition_by: vec![],
-            order_by:     vec![],
-            frame:        None,
+            order_by: vec![],
+            frame: None,
         }],
         where_clause: None,
-        order_by:     vec![],
-        limit:        Some(10),
-        offset:       None,
+        order_by: vec![],
+        limit: Some(10),
+        offset: None,
     };
 
     // Should serialize without panic
@@ -541,17 +541,17 @@ fn test_window_function_spec_serialization() {
 fn test_resolve_field_rejects_injection_in_order_by() {
     let metadata = create_test_metadata();
     let request = WindowRequest {
-        table_name:   "tf_sales".to_string(),
-        select:       vec![],
-        windows:      vec![],
+        table_name: "tf_sales".to_string(),
+        select: vec![],
+        windows: vec![],
         where_clause: None,
-        order_by:     vec![WindowOrderBy {
+        order_by: vec![WindowOrderBy {
             // Contains a single quote — must be rejected.
-            field:     "x'; DROP TABLE t; --".to_string(),
+            field: "x'; DROP TABLE t; --".to_string(),
             direction: OrderDirection::Asc,
         }],
-        limit:        None,
-        offset:       None,
+        limit: None,
+        offset: None,
     };
 
     let result = WindowPlanner::plan(request, &metadata);

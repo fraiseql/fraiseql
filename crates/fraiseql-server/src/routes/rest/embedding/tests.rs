@@ -11,11 +11,11 @@ use super::executor::{
 #[test]
 fn extract_join_key_one_to_many() {
     let rel = Relationship {
-        name:           "posts".to_string(),
-        target_type:    "Post".to_string(),
-        foreign_key:    "fk_user".to_string(),
+        name: "posts".to_string(),
+        target_type: "Post".to_string(),
+        foreign_key: "fk_user".to_string(),
         referenced_key: "pk_user".to_string(),
-        cardinality:    Cardinality::OneToMany,
+        cardinality: Cardinality::OneToMany,
     };
     let row = serde_json::json!({"pk_user": 42, "name": "Alice"});
     let key = extract_join_key(&row, &rel);
@@ -25,11 +25,11 @@ fn extract_join_key_one_to_many() {
 #[test]
 fn extract_join_key_many_to_one() {
     let rel = Relationship {
-        name:           "author".to_string(),
-        target_type:    "User".to_string(),
-        foreign_key:    "fk_user".to_string(),
+        name: "author".to_string(),
+        target_type: "User".to_string(),
+        foreign_key: "fk_user".to_string(),
         referenced_key: "pk_user".to_string(),
-        cardinality:    Cardinality::ManyToOne,
+        cardinality: Cardinality::ManyToOne,
     };
     let row = serde_json::json!({"fk_user": 7, "title": "Hello"});
     let key = extract_join_key(&row, &rel);
@@ -39,11 +39,11 @@ fn extract_join_key_many_to_one() {
 #[test]
 fn extract_join_key_null_returns_none() {
     let rel = Relationship {
-        name:           "author".to_string(),
-        target_type:    "User".to_string(),
-        foreign_key:    "fk_user".to_string(),
+        name: "author".to_string(),
+        target_type: "User".to_string(),
+        foreign_key: "fk_user".to_string(),
         referenced_key: "pk_user".to_string(),
-        cardinality:    Cardinality::ManyToOne,
+        cardinality: Cardinality::ManyToOne,
     };
     let row = serde_json::json!({"fk_user": null, "title": "Hello"});
     assert!(extract_join_key(&row, &rel).is_none());
@@ -52,11 +52,11 @@ fn extract_join_key_null_returns_none() {
 #[test]
 fn extract_join_key_missing_field_returns_none() {
     let rel = Relationship {
-        name:           "posts".to_string(),
-        target_type:    "Post".to_string(),
-        foreign_key:    "fk_user".to_string(),
+        name: "posts".to_string(),
+        target_type: "Post".to_string(),
+        foreign_key: "fk_user".to_string(),
         referenced_key: "pk_user".to_string(),
-        cardinality:    Cardinality::OneToMany,
+        cardinality: Cardinality::OneToMany,
     };
     let row = serde_json::json!({"name": "Alice"});
     assert!(extract_join_key(&row, &rel).is_none());

@@ -106,21 +106,21 @@ fn field_type_to_proto(ft: &FieldType) -> ProtoFieldType {
 /// Intermediate representation of a protobuf field type.
 struct ProtoFieldType {
     type_name: String,
-    repeated:  bool,
+    repeated: bool,
 }
 
 impl ProtoFieldType {
     fn scalar(name: &str) -> Self {
         Self {
             type_name: name.to_string(),
-            repeated:  false,
+            repeated: false,
         }
     }
 
     fn repeated(name: &str) -> Self {
         Self {
             type_name: name.to_string(),
-            repeated:  true,
+            repeated: true,
         }
     }
 }

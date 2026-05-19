@@ -133,9 +133,9 @@ pub trait JobQueue: Send + Sync {
 
 /// Mock job queue for testing
 pub struct MockJobQueue {
-    jobs:    Arc<dashmap::DashMap<Uuid, Job>>,
+    jobs: Arc<dashmap::DashMap<Uuid, Job>>,
     pending: Arc<dashmap::DashMap<Uuid, ()>>,
-    dlq:     Arc<dashmap::DashMap<Uuid, Job>>,
+    dlq: Arc<dashmap::DashMap<Uuid, Job>>,
 }
 
 impl MockJobQueue {
@@ -143,9 +143,9 @@ impl MockJobQueue {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            jobs:    Arc::new(dashmap::DashMap::new()),
+            jobs: Arc::new(dashmap::DashMap::new()),
             pending: Arc::new(dashmap::DashMap::new()),
-            dlq:     Arc::new(dashmap::DashMap::new()),
+            dlq: Arc::new(dashmap::DashMap::new()),
         }
     }
 

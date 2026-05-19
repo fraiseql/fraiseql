@@ -203,17 +203,17 @@ async fn test_auth_me_reads_host_cookie() {
 
     // Required auth — will reject invalid tokens with 401
     let config = OidcConfig {
-        issuer:               "https://test.fraiseql.dev".to_string(),
-        audience:             Some("https://api.test.fraiseql.dev".to_string()),
-        required:             true,
+        issuer: "https://test.fraiseql.dev".to_string(),
+        audience: Some("https://api.test.fraiseql.dev".to_string()),
+        required: true,
         additional_audiences: vec![],
-        jwks_cache_ttl_secs:  3600,
-        allowed_algorithms:   vec!["RS256".to_string()],
-        clock_skew_secs:      60,
-        jwks_uri:             None,
-        scope_claim:          "scope".to_string(),
-        require_jti:          false,
-        me:                   None,
+        jwks_cache_ttl_secs: 3600,
+        allowed_algorithms: vec!["RS256".to_string()],
+        clock_skew_secs: 60,
+        jwks_uri: None,
+        scope_claim: "scope".to_string(),
+        require_jti: false,
+        me: None,
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
     let auth_state = OidcAuthState::new(Arc::new(validator));

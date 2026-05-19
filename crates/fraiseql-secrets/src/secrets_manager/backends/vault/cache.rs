@@ -18,11 +18,11 @@ pub(super) const DEFAULT_MAX_CACHE_ENTRIES: usize = 1_000;
 // completeness and potential future auditing.
 #[allow(dead_code)] // Reason: field kept for API completeness; may be used in future features
 pub(super) struct VaultResponse {
-    pub(super) request_id:     String,
-    pub(super) lease_id:       String,
+    pub(super) request_id: String,
+    pub(super) lease_id: String,
     pub(super) lease_duration: i64,
-    pub(super) renewable:      bool,
-    pub(super) data:           HashMap<String, serde_json::Value>,
+    pub(super) renewable: bool,
+    pub(super) data: HashMap<String, serde_json::Value>,
 }
 
 /// Cached secret with expiry metadata and LRU tracking.
@@ -31,8 +31,8 @@ pub(super) struct VaultResponse {
 /// on drop rather than lingering in heap until the allocator reuses the memory.
 #[derive(Debug, Clone)]
 struct CachedSecret {
-    value:         Zeroizing<String>,
-    expires_at:    chrono::DateTime<Utc>,
+    value: Zeroizing<String>,
+    expires_at: chrono::DateTime<Utc>,
     /// Last access time, used for LRU eviction ordering.
     last_accessed: chrono::DateTime<Utc>,
 }
@@ -40,7 +40,7 @@ struct CachedSecret {
 /// Secret cache with TTL management and LRU eviction for credential caching.
 #[derive(Debug)]
 pub(super) struct SecretCache {
-    entries:     Arc<RwLock<HashMap<String, CachedSecret>>>,
+    entries: Arc<RwLock<HashMap<String, CachedSecret>>>,
     max_entries: usize,
 }
 

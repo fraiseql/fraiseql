@@ -191,13 +191,13 @@ pub struct InitConfig {
     /// Name of the project (used as directory name)
     pub project_name: String,
     /// Authoring language for the schema skeleton
-    pub language:     Language,
+    pub language: Language,
     /// Target database engine
-    pub database:     Database,
+    pub database: Database,
     /// Project size (directory granularity)
-    pub size:         ProjectSize,
+    pub size: ProjectSize,
     /// Skip git initialization
-    pub no_git:       bool,
+    pub no_git: bool,
 }
 
 /// Run the init command

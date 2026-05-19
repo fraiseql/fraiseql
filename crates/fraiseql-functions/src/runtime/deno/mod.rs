@@ -95,14 +95,14 @@ pub struct DenoConfig {
     /// Enable `TypeScript` support (built-in transpiler).
     pub enable_typescript: bool,
     /// Additional V8 flags (e.g., "--expose-gc").
-    pub v8_flags:          Vec<String>,
+    pub v8_flags: Vec<String>,
 }
 
 impl Default for DenoConfig {
     fn default() -> Self {
         Self {
             enable_typescript: true,
-            v8_flags:          vec![],
+            v8_flags: vec![],
         }
     }
 }
@@ -183,7 +183,7 @@ impl FunctionRuntime for DenoRuntime {
 
             let exec_result = rx.await.map_err(|_| fraiseql_error::FraiseQLError::Internal {
                 message: "Deno executor thread crashed".to_string(),
-                source:  None,
+                source: None,
             })?;
 
             match exec_result {
@@ -196,7 +196,7 @@ impl FunctionRuntime for DenoRuntime {
                 Err(e) if e.starts_with("SyntaxError") => {
                     Err(fraiseql_error::FraiseQLError::Validation {
                         message: e,
-                        path:    None,
+                        path: None,
                     })
                 },
                 Err(e) => Err(fraiseql_error::FraiseQLError::Unsupported { message: e }),

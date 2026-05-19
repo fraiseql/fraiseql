@@ -49,7 +49,7 @@ impl CustomTypeRegistry {
     pub fn new(config: CustomTypeRegistryConfig) -> Self {
         Self {
             config: Arc::new(config),
-            types:  Arc::new(RwLock::new(HashMap::new())),
+            types: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -76,13 +76,13 @@ impl CustomTypeRegistry {
     pub fn register(&self, name: String, def: CustomTypeDef) -> Result<()> {
         let mut types = self.types.write().map_err(|_| FraiseQLError::Validation {
             message: "Failed to acquire write lock on custom type registry".to_string(),
-            path:    Some("custom_scalars".to_string()),
+            path: Some("custom_scalars".to_string()),
         })?;
 
         if types.contains_key(&name) {
             return Err(FraiseQLError::Validation {
                 message: format!("Custom scalar '{}' already registered", name),
-                path:    Some(format!("custom_scalars.{}", name)),
+                path: Some(format!("custom_scalars.{}", name)),
             });
         }
 
@@ -93,7 +93,7 @@ impl CustomTypeRegistry {
                         "Cannot register '{}': max scalars limit ({}) reached",
                         name, max
                     ),
-                    path:    Some("custom_scalars".to_string()),
+                    path: Some("custom_scalars".to_string()),
                 });
             }
         }
@@ -116,7 +116,7 @@ impl CustomTypeRegistry {
     ///     let _ = def.description.unwrap_or_default();
     /// }
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<CustomTypeDef> {
         let types = self.types.read().unwrap_or_else(|e| {
             tracing::error!(
@@ -141,7 +141,7 @@ impl CustomTypeRegistry {
     /// assert!(!registry.exists("UnknownType"));
     /// ```
     #[inline]
-    #[must_use] 
+    #[must_use]
     pub fn exists(&self, name: &str) -> bool {
         self.types
             .read()
@@ -161,7 +161,7 @@ impl CustomTypeRegistry {
     /// # Panics
     ///
     /// Panics if the internal `RwLock` is poisoned and cannot be recovered.
-    #[must_use] 
+    #[must_use]
     pub fn remove(&self, name: &str) -> Option<CustomTypeDef> {
         self.types
             .write()
@@ -183,7 +183,7 @@ impl CustomTypeRegistry {
     /// registry.register("Email".to_string(), CustomTypeDef::new("Email".to_string())).unwrap();
     /// assert_eq!(registry.count(), 1);
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn count(&self) -> usize {
         self.types
             .read()
@@ -197,7 +197,7 @@ impl CustomTypeRegistry {
     /// List all registered custom scalars.
     ///
     /// Returns a vector of (name, definition) tuples.
-    #[must_use] 
+    #[must_use]
     pub fn list_all(&self) -> Vec<(String, CustomTypeDef)> {
         self.types
             .read()
@@ -389,7 +389,7 @@ impl CustomTypeRegistry {
     pub fn validate(&self, type_name: &str, value: &serde_json::Value) -> Result<()> {
         let def = self.get(type_name).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Unknown custom scalar type '{}'", type_name),
-            path:    Some(format!("custom_scalars.{}", type_name)),
+            path: Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         // Execute validation rules
@@ -449,12 +449,12 @@ impl CustomTypeRegistry {
                 "Custom scalar '{}' pattern validation: value must be a string",
                 type_name
             ),
-            path:    Some(format!("custom_scalars.{}", type_name)),
+            path: Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         let re = regex::Regex::new(pattern).map_err(|e| FraiseQLError::Validation {
             message: format!("Custom scalar '{}' has invalid regex pattern: {}", type_name, e),
-            path:    Some(format!("custom_scalars.{}.validation_rules", type_name)),
+            path: Some(format!("custom_scalars.{}.validation_rules", type_name)),
         })?;
 
         if !re.is_match(str_val) {
@@ -465,7 +465,7 @@ impl CustomTypeRegistry {
                         type_name, str_val, pattern
                     )
                 }),
-                path:    Some(format!("custom_scalars.{}", type_name)),
+                path: Some(format!("custom_scalars.{}", type_name)),
             });
         }
 
@@ -485,7 +485,7 @@ impl CustomTypeRegistry {
                 "Custom scalar '{}' length validation: value must be a string",
                 type_name
             ),
-            path:    Some(format!("custom_scalars.{}", type_name)),
+            path: Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         let len = str_val.len();
@@ -497,7 +497,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at least {} characters, got {}",
                         type_name, min_len, len
                     ),
-                    path:    Some(format!("custom_scalars.{}", type_name)),
+                    path: Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -509,7 +509,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at most {} characters, got {}",
                         type_name, max_len, len
                     ),
-                    path:    Some(format!("custom_scalars.{}", type_name)),
+                    path: Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -530,7 +530,7 @@ impl CustomTypeRegistry {
                 "Custom scalar '{}' range validation: value must be an integer",
                 type_name
             ),
-            path:    Some(format!("custom_scalars.{}", type_name)),
+            path: Some(format!("custom_scalars.{}", type_name)),
         })?;
 
         if let Some(min_val) = min {
@@ -540,7 +540,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at least {}, got {}",
                         type_name, min_val, num_val
                     ),
-                    path:    Some(format!("custom_scalars.{}", type_name)),
+                    path: Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -552,7 +552,7 @@ impl CustomTypeRegistry {
                         "Custom scalar '{}' value must be at most {}, got {}",
                         type_name, max_val, num_val
                     ),
-                    path:    Some(format!("custom_scalars.{}", type_name)),
+                    path: Some(format!("custom_scalars.{}", type_name)),
                 });
             }
         }
@@ -579,7 +579,7 @@ impl CustomTypeRegistry {
                         type_name
                     )
                 }),
-                path:    Some(format!("custom_scalars.{}", type_name)),
+                path: Some(format!("custom_scalars.{}", type_name)),
             });
         }
 

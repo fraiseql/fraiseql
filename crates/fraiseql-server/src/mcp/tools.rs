@@ -48,15 +48,15 @@ fn query_to_tool(query: &QueryDefinition, display_name: &str) -> Tool {
     let description = query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
 
     Tool {
-        name:          Cow::Owned(display_name.to_string()),
-        title:         None,
-        description:   Some(Cow::Owned(description)),
-        input_schema:  Arc::new(arguments_to_json_schema(&query.arguments)),
-        annotations:   None,
+        name: Cow::Owned(display_name.to_string()),
+        title: None,
+        description: Some(Cow::Owned(description)),
+        input_schema: Arc::new(arguments_to_json_schema(&query.arguments)),
+        annotations: None,
         output_schema: None,
-        execution:     None,
-        icons:         None,
-        meta:          None,
+        execution: None,
+        icons: None,
+        meta: None,
     }
 }
 
@@ -68,15 +68,15 @@ fn mutation_to_tool(mutation: &MutationDefinition, display_name: &str) -> Tool {
         .unwrap_or_else(|| format!("Mutation: {display_name}"));
 
     Tool {
-        name:          Cow::Owned(display_name.to_string()),
-        title:         None,
-        description:   Some(Cow::Owned(description)),
-        input_schema:  Arc::new(arguments_to_json_schema(&mutation.arguments)),
-        annotations:   None,
+        name: Cow::Owned(display_name.to_string()),
+        title: None,
+        description: Some(Cow::Owned(description)),
+        input_schema: Arc::new(arguments_to_json_schema(&mutation.arguments)),
+        annotations: None,
         output_schema: None,
-        execution:     None,
-        icons:         None,
-        meta:          None,
+        execution: None,
+        icons: None,
+        meta: None,
     }
 }
 

@@ -19,18 +19,18 @@ use crate::{
 /// upload size and MIME type restrictions before delegating operations.
 pub struct BucketService {
     backend: StorageBackend,
-    config:  BucketConfig,
+    config: BucketConfig,
 }
 
 impl BucketService {
     /// Creates a new bucket service.
-    #[must_use] 
+    #[must_use]
     pub fn new(backend: StorageBackend, config: BucketConfig) -> Self {
         Self { backend, config }
     }
 
     /// Returns a reference to the bucket configuration.
-    #[must_use] 
+    #[must_use]
     pub fn config(&self) -> &BucketConfig {
         &self.config
     }
@@ -53,7 +53,7 @@ impl BucketService {
             if data.len() as u64 > max_bytes {
                 return Err(FraiseQLError::Storage {
                     message: format!("Upload exceeds maximum object size of {} bytes", max_bytes),
-                    code:    Some("size_limit_exceeded".to_string()),
+                    code: Some("size_limit_exceeded".to_string()),
                 });
             }
         }
@@ -67,7 +67,7 @@ impl BucketService {
                         "Content type '{}' is not allowed for this bucket",
                         content_type
                     ),
-                    code:    Some("mime_type_not_allowed".to_string()),
+                    code: Some("mime_type_not_allowed".to_string()),
                 });
             }
         }

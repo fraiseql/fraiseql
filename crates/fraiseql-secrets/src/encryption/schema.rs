@@ -33,19 +33,19 @@ impl std::fmt::Display for EncryptionMark {
 #[derive(Debug, Clone)]
 pub struct SchemaFieldInfo {
     /// Field name in struct
-    pub field_name:    String,
+    pub field_name: String,
     /// Field type (e.g., "String", "Uuid", "`DateTime<Utc>`")
-    pub field_type:    String,
+    pub field_type: String,
     /// Whether field is marked for encryption
-    pub is_encrypted:  bool,
+    pub is_encrypted: bool,
     /// Key reference path for encryption (e.g., "encryption/email")
     pub key_reference: String,
     /// Encryption algorithm hint
-    pub algorithm:     String,
+    pub algorithm: String,
     /// Whether field can be NULL
-    pub nullable:      bool,
+    pub nullable: bool,
     /// Which encryption mark was used
-    pub mark:          Option<EncryptionMark>,
+    pub mark: Option<EncryptionMark>,
 }
 
 impl SchemaFieldInfo {
@@ -74,14 +74,14 @@ impl SchemaFieldInfo {
     }
 
     /// Mark as nullable
-    #[must_use] 
+    #[must_use]
     pub const fn with_nullable(mut self, nullable: bool) -> Self {
         self.nullable = nullable;
         self
     }
 
     /// Set encryption mark
-    #[must_use] 
+    #[must_use]
     pub const fn with_mark(mut self, mark: EncryptionMark) -> Self {
         self.mark = Some(mark);
         self
@@ -92,23 +92,23 @@ impl SchemaFieldInfo {
 #[derive(Debug, Clone)]
 pub struct StructSchema {
     /// Type name (e.g., "User")
-    pub type_name:        String,
+    pub type_name: String,
     /// All fields in struct (including non-encrypted)
-    pub all_fields:       Vec<SchemaFieldInfo>,
+    pub all_fields: Vec<SchemaFieldInfo>,
     /// Only encrypted fields (subset of `all_fields`)
     pub encrypted_fields: Vec<SchemaFieldInfo>,
     /// Schema version for evolution tracking
-    pub version:          u32,
+    pub version: u32,
 }
 
 impl StructSchema {
     /// Create new struct schema
     pub fn new(type_name: impl Into<String>) -> Self {
         Self {
-            type_name:        type_name.into(),
-            all_fields:       Vec::new(),
+            type_name: type_name.into(),
+            all_fields: Vec::new(),
             encrypted_fields: Vec::new(),
-            version:          1,
+            version: 1,
         }
     }
 
@@ -121,7 +121,7 @@ impl StructSchema {
     }
 
     /// Add multiple fields
-    #[must_use] 
+    #[must_use]
     pub fn with_fields(mut self, fields: Vec<SchemaFieldInfo>) -> Self {
         for field in fields {
             self.add_field(field);
@@ -130,32 +130,32 @@ impl StructSchema {
     }
 
     /// Set schema version for evolution tracking
-    #[must_use] 
+    #[must_use]
     pub const fn with_version(mut self, version: u32) -> Self {
         self.version = version;
         self
     }
 
     /// Get field by name
-    #[must_use] 
+    #[must_use]
     pub fn get_field(&self, field_name: &str) -> Option<&SchemaFieldInfo> {
         self.all_fields.iter().find(|f| f.field_name == field_name)
     }
 
     /// Get encrypted field by name
-    #[must_use] 
+    #[must_use]
     pub fn get_encrypted_field(&self, field_name: &str) -> Option<&SchemaFieldInfo> {
         self.encrypted_fields.iter().find(|f| f.field_name == field_name)
     }
 
     /// Check if field is encrypted
-    #[must_use] 
+    #[must_use]
     pub fn is_field_encrypted(&self, field_name: &str) -> bool {
         self.encrypted_fields.iter().any(|f| f.field_name == field_name)
     }
 
     /// Get list of encrypted field names
-    #[must_use] 
+    #[must_use]
     pub fn encrypted_field_names(&self) -> Vec<&str> {
         self.encrypted_fields.iter().map(|f| f.field_name.as_str()).collect()
     }
@@ -169,25 +169,25 @@ impl StructSchema {
     }
 
     /// Get fields that are marked as nullable
-    #[must_use] 
+    #[must_use]
     pub fn nullable_encrypted_fields(&self) -> Vec<&SchemaFieldInfo> {
         self.filter_fields(|f| f.is_encrypted && f.nullable)
     }
 
     /// Get fields requiring specific encryption key
-    #[must_use] 
+    #[must_use]
     pub fn fields_for_key(&self, key_ref: &str) -> Vec<&SchemaFieldInfo> {
         self.filter_fields(|f| f.key_reference == key_ref)
     }
 
     /// Count encrypted fields
-    #[must_use] 
+    #[must_use]
     pub const fn encrypted_field_count(&self) -> usize {
         self.encrypted_fields.len()
     }
 
     /// Count total fields
-    #[must_use] 
+    #[must_use]
     pub const fn total_field_count(&self) -> usize {
         self.all_fields.len()
     }
@@ -222,17 +222,17 @@ impl StructSchema {
 /// Registry for managing schemas of different types
 pub struct SchemaRegistry {
     /// Map of type name to schema
-    schemas:               HashMap<String, StructSchema>,
+    schemas: HashMap<String, StructSchema>,
     /// Default key reference for fields without explicit key
     default_key_reference: String,
 }
 
 impl SchemaRegistry {
     /// Create new schema registry
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            schemas:               HashMap::new(),
+            schemas: HashMap::new(),
             default_key_reference: "encryption/default".to_string(),
         }
     }
@@ -256,7 +256,7 @@ impl SchemaRegistry {
     }
 
     /// Get schema by type name
-    #[must_use] 
+    #[must_use]
     pub fn get(&self, type_name: &str) -> Option<&StructSchema> {
         self.schemas.get(type_name)
     }
@@ -278,19 +278,19 @@ impl SchemaRegistry {
     }
 
     /// Check if type has encrypted fields
-    #[must_use] 
+    #[must_use]
     pub fn has_encrypted_fields(&self, type_name: &str) -> bool {
         self.get(type_name).is_some_and(|schema| !schema.encrypted_fields.is_empty())
     }
 
     /// Get list of all registered types
-    #[must_use] 
+    #[must_use]
     pub fn list_types(&self) -> Vec<&str> {
         self.schemas.keys().map(|s| s.as_str()).collect()
     }
 
     /// Get list of all types that have encrypted fields
-    #[must_use] 
+    #[must_use]
     pub fn types_with_encryption(&self) -> Vec<&str> {
         self.schemas
             .iter()
@@ -300,7 +300,7 @@ impl SchemaRegistry {
     }
 
     /// Get all encryption keys used across all schemas
-    #[must_use] 
+    #[must_use]
     pub fn all_encryption_keys(&self) -> Vec<String> {
         let mut keys = std::collections::HashSet::new();
         for schema in self.schemas.values() {
@@ -336,13 +336,13 @@ impl SchemaRegistry {
     }
 
     /// Count registered schemas
-    #[must_use] 
+    #[must_use]
     pub fn count(&self) -> usize {
         self.schemas.len()
     }
 
     /// Count total encrypted fields across all schemas
-    #[must_use] 
+    #[must_use]
     pub fn total_encrypted_fields(&self) -> usize {
         self.schemas.values().map(|schema| schema.encrypted_fields.len()).sum()
     }

@@ -90,14 +90,14 @@ const fn default_samples_before_action() -> u32 {
 impl Default for PoolPressureMonitorConfig {
     fn default() -> Self {
         Self {
-            enabled:               false,
-            min_pool_size:         default_min_pool_size(),
-            max_pool_size:         default_max_pool_size(),
-            target_queue_depth:    default_target_queue_depth(),
-            scale_up_step:         default_scale_up_step(),
-            scale_down_step:       default_scale_down_step(),
+            enabled: false,
+            min_pool_size: default_min_pool_size(),
+            max_pool_size: default_max_pool_size(),
+            target_queue_depth: default_target_queue_depth(),
+            scale_up_step: default_scale_up_step(),
+            scale_down_step: default_scale_down_step(),
             scale_down_idle_ratio: default_scale_down_idle_ratio(),
-            tuning_interval_ms:    default_tuning_interval_ms(),
+            tuning_interval_ms: default_tuning_interval_ms(),
             samples_before_action: default_samples_before_action(),
         }
     }

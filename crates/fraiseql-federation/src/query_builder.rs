@@ -78,7 +78,7 @@ fn extract_key_values(
                         "Key field '{}' missing in entity representation for {}",
                         key_field, rep.typename
                     ),
-                    path:    None,
+                    path: None,
                 })
                 .and_then(value_to_string)
         })
@@ -102,7 +102,7 @@ fn construct_composite_where_in(
         for field in key_fields {
             let value = rep.key_fields.get(field).ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Key field '{}' missing in representation", field),
-                path:    None,
+                path: None,
             })?;
             tuple_values.push(format!("'{}'", escape_sql_string(&value_to_string(value)?)));
         }

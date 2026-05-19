@@ -109,14 +109,14 @@ const fn default_max_buckets() -> usize {
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            enabled:               true,
-            rps_per_ip:            100,  // 100 req/sec per IP
-            rps_per_user:          1000, // 1000 req/sec per user
-            burst_size:            500,  // Allow bursts up to 500 requests
-            cleanup_interval_secs: 300,  // Clean up every 5 minutes
-            trust_proxy_headers:   false,
-            trusted_proxy_cidrs:   Vec::new(),
-            max_buckets:           100_000,
+            enabled: true,
+            rps_per_ip: 100,            // 100 req/sec per IP
+            rps_per_user: 1000,         // 1000 req/sec per user
+            burst_size: 500,            // Allow bursts up to 500 requests
+            cleanup_interval_secs: 300, // Clean up every 5 minutes
+            trust_proxy_headers: false,
+            trusted_proxy_cidrs: Vec::new(),
+            max_buckets: 100_000,
         }
     }
 }
@@ -131,7 +131,7 @@ impl RateLimitConfig {
     /// The default 10× multiplier reflects that authenticated users are identifiable
     /// (abuse is traceable) and include service accounts with higher call rates.
     /// Operators can override with `requests_per_second_per_user` in `fraiseql.toml`.
-    #[must_use] 
+    #[must_use]
     pub fn from_security_config(sec: &RateLimitingSecurityConfig) -> Self {
         let trusted_proxy_cidrs = sec
             .trusted_proxy_cidrs
@@ -171,9 +171,9 @@ impl RateLimitConfig {
 #[derive(Debug, Clone)]
 pub struct CheckResult {
     /// Whether the request should be allowed.
-    pub allowed:          bool,
+    pub allowed: bool,
     /// Tokens remaining in the bucket after this request (≥ 0).
-    pub remaining:        f64,
+    pub remaining: f64,
     /// Seconds the client should wait before retrying (0 when allowed).
     pub retry_after_secs: u32,
 }

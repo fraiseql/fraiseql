@@ -28,14 +28,14 @@ pub struct QueryStatsParams {
 #[derive(Debug, Serialize)]
 pub struct QueryStatsResponse {
     /// Which database backend produced this data.
-    pub database_type:   String,
+    pub database_type: String,
     /// Whether this backend supports query stats at all.
     pub stats_available: bool,
     /// The query statistics entries.
-    pub entries:         Vec<QueryStatEntry>,
+    pub entries: Vec<QueryStatEntry>,
     /// Optional informational message (e.g., extension not installed).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub message:         Option<String>,
+    pub message: Option<String>,
 }
 
 /// Response payload for a single query detail.
@@ -44,7 +44,7 @@ pub struct QueryStatsDetailResponse {
     /// Which database backend produced this data.
     pub database_type: String,
     /// The query statistics entry.
-    pub entry:         QueryStatEntry,
+    pub entry: QueryStatEntry,
 }
 
 /// Response payload for the reset endpoint.
@@ -90,7 +90,7 @@ pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   QueryStatsResponse {
+        data: QueryStatsResponse {
             database_type: db_type.to_string(),
             stats_available,
             entries,
@@ -123,7 +123,7 @@ pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
     match entry {
         Some(entry) => Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data:   QueryStatsDetailResponse {
+            data: QueryStatsDetailResponse {
                 database_type: db_type.to_string(),
                 entry,
             },
@@ -149,7 +149,7 @@ pub async fn query_stats_reset_handler<A: DatabaseAdapter + 'static>(
     match adapter.reset_query_stats().await {
         Ok(()) => Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data:   QueryStatsResetResponse {
+            data: QueryStatsResetResponse {
                 message: "Query statistics have been reset".to_string(),
             },
         })),

@@ -30,19 +30,19 @@ pub struct EncryptedState {
     /// Ciphertext with authentication tag appended
     pub ciphertext: Vec<u8>,
     /// 96-bit nonce used for encryption
-    pub nonce:      [u8; 12],
+    pub nonce: [u8; 12],
 }
 
 impl EncryptedState {
     /// Create new encrypted state
-    #[must_use] 
+    #[must_use]
     pub const fn new(ciphertext: Vec<u8>, nonce: [u8; 12]) -> Self {
         Self { ciphertext, nonce }
     }
 
     /// Serialize to bytes for storage
     /// Format: [12-byte nonce][ciphertext with auth tag]
-    #[must_use] 
+    #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(12 + self.ciphertext.len());
         bytes.extend_from_slice(&self.nonce);
@@ -184,7 +184,7 @@ impl StateEncryption {
 }
 
 /// Generate a cryptographically random encryption key
-#[must_use] 
+#[must_use]
 pub fn generate_state_encryption_key() -> Zeroizing<[u8; 32]> {
     let mut key = [0u8; 32];
     rand::rng().fill_bytes(&mut key);
@@ -254,19 +254,19 @@ impl fmt::Display for EncryptionAlgorithm {
 #[serde(default)]
 pub struct StateEncryptionConfig {
     /// Enable the service; when `false`, `from_compiled_schema` returns `None`.
-    pub enabled:   bool,
+    pub enabled: bool,
     /// AEAD algorithm to use.
     pub algorithm: EncryptionAlgorithm,
     /// Name of the environment variable holding the 64-char hex key.
-    pub key_env:   Option<String>,
+    pub key_env: Option<String>,
 }
 
 impl Default for StateEncryptionConfig {
     fn default() -> Self {
         Self {
-            enabled:   false,
+            enabled: false,
             algorithm: EncryptionAlgorithm::default(),
-            key_env:   Some("STATE_ENCRYPTION_KEY".to_string()),
+            key_env: Some("STATE_ENCRYPTION_KEY".to_string()),
         }
     }
 }
@@ -278,7 +278,7 @@ impl Default for StateEncryptionConfig {
 /// The 32-byte key is never printed in [`fmt::Debug`] output.
 pub struct StateEncryptionService {
     algorithm: EncryptionAlgorithm,
-    key:       [u8; 32],
+    key: [u8; 32],
 }
 
 impl fmt::Debug for StateEncryptionService {
@@ -292,7 +292,7 @@ impl fmt::Debug for StateEncryptionService {
 
 impl StateEncryptionService {
     /// Construct from a raw 32-byte key slice.
-    #[must_use] 
+    #[must_use]
     pub const fn from_raw_key(key: &[u8; 32], algorithm: EncryptionAlgorithm) -> Self {
         Self {
             algorithm,

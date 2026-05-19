@@ -74,11 +74,11 @@ const fn default_true() -> bool {
 impl Default for TransportConfig {
     fn default() -> Self {
         Self {
-            transport:     TransportKind::default(),
-            run_bridge:    false,
+            transport: TransportKind::default(),
+            run_bridge: false,
             run_executors: true,
-            nats:          NatsTransportConfig::default(),
-            bridge:        BridgeTransportConfig::default(),
+            nats: NatsTransportConfig::default(),
+            bridge: BridgeTransportConfig::default(),
         }
     }
 }
@@ -179,11 +179,11 @@ fn default_stream_name() -> String {
 impl Default for NatsTransportConfig {
     fn default() -> Self {
         Self {
-            url:            default_nats_url(),
+            url: default_nats_url(),
             subject_prefix: default_subject_prefix(),
-            consumer_name:  default_consumer_name(),
-            stream_name:    default_stream_name(),
-            jetstream:      JetStreamConfig::default(),
+            consumer_name: default_consumer_name(),
+            stream_name: default_stream_name(),
+            jetstream: JetStreamConfig::default(),
         }
     }
 }
@@ -290,11 +290,11 @@ impl Default for JetStreamConfig {
     fn default() -> Self {
         Self {
             dedup_window_minutes: default_dedup_window_minutes(),
-            max_age_days:         default_max_age_days(),
-            max_msgs:             default_max_msgs(),
-            max_bytes:            default_max_bytes(),
-            ack_wait_secs:        default_ack_wait_secs(),
-            max_deliver:          default_max_deliver(),
+            max_age_days: default_max_age_days(),
+            max_msgs: default_max_msgs(),
+            max_bytes: default_max_bytes(),
+            ack_wait_secs: default_ack_wait_secs(),
+            max_deliver: default_max_deliver(),
         }
     }
 }
@@ -405,10 +405,10 @@ fn default_bridge_notify_channel() -> String {
 impl Default for BridgeTransportConfig {
     fn default() -> Self {
         Self {
-            transport_name:     default_bridge_transport_name(),
-            batch_size:         default_bridge_batch_size(),
+            transport_name: default_bridge_transport_name(),
+            batch_size: default_bridge_batch_size(),
             poll_interval_secs: default_bridge_poll_interval_secs(),
-            notify_channel:     default_bridge_notify_channel(),
+            notify_channel: default_bridge_notify_channel(),
         }
     }
 }
@@ -466,10 +466,10 @@ impl BridgeTransportConfig {
     #[must_use]
     pub fn to_bridge_config(&self) -> crate::transport::BridgeConfig {
         crate::transport::BridgeConfig {
-            transport_name:     self.transport_name.clone(),
-            batch_size:         self.batch_size,
+            transport_name: self.transport_name.clone(),
+            batch_size: self.batch_size,
             poll_interval_secs: self.poll_interval_secs,
-            notify_channel:     self.notify_channel.clone(),
+            notify_channel: self.notify_channel.clone(),
         }
     }
 }

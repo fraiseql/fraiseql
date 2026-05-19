@@ -77,19 +77,19 @@ impl std::fmt::Display for ErrorCategory {
 #[derive(Debug, Clone)]
 pub struct RecoveryError {
     /// Error category
-    pub category:    ErrorCategory,
+    pub category: ErrorCategory,
     /// Human-readable message
-    pub message:     String,
+    pub message: String,
     /// Recovery strategy recommendation
-    pub strategy:    RecoveryStrategy,
+    pub strategy: RecoveryStrategy,
     /// Recovery suggestion for user
-    pub suggestion:  String,
+    pub suggestion: String,
     /// Timestamp of error
-    pub timestamp:   DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Retry count so far
     pub retry_count: u32,
     /// Can retry
-    pub retryable:   bool,
+    pub retryable: bool,
 }
 
 impl RecoveryError {
@@ -131,38 +131,38 @@ impl RecoveryError {
     }
 
     /// Increment retry count
-    #[must_use] 
+    #[must_use]
     pub const fn with_retry_count(mut self, count: u32) -> Self {
         self.retry_count = count;
         self
     }
 
     /// Get time since error
-    #[must_use] 
+    #[must_use]
     pub fn age(&self) -> Duration {
         Utc::now() - self.timestamp
     }
 
     /// Check if error is fresh (less than 1 minute old)
-    #[must_use] 
+    #[must_use]
     pub fn is_fresh(&self) -> bool {
         self.age() < Duration::minutes(1)
     }
 
     /// Check if this error suggests a transient issue (can retry)
-    #[must_use] 
+    #[must_use]
     pub const fn is_transient(&self) -> bool {
         self.retryable
     }
 
     /// Check if cache fallback is appropriate for this error
-    #[must_use] 
+    #[must_use]
     pub const fn should_use_cache(&self) -> bool {
         matches!(self.strategy, RecoveryStrategy::UseCache | RecoveryStrategy::ReadOnly)
     }
 
     /// Estimate milliseconds to wait before retry based on retry count
-    #[must_use] 
+    #[must_use]
     pub fn retry_delay_ms(&self, config: &RetryConfig) -> u64 {
         config.backoff_delay_ms(self.retry_count)
     }
@@ -172,36 +172,36 @@ impl RecoveryError {
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     /// Maximum number of retries
-    pub max_retries:        u32,
+    pub max_retries: u32,
     /// Initial backoff delay in milliseconds
     pub initial_backoff_ms: u64,
     /// Maximum backoff delay in milliseconds
-    pub max_backoff_ms:     u64,
+    pub max_backoff_ms: u64,
     /// Backoff multiplier for exponential growth
     pub backoff_multiplier: f64,
 }
 
 impl RetryConfig {
     /// Create new retry config
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            max_retries:        3,
+            max_retries: 3,
             initial_backoff_ms: 100,
-            max_backoff_ms:     5000,
+            max_backoff_ms: 5000,
             backoff_multiplier: 2.0,
         }
     }
 
     /// Set maximum retries
-    #[must_use] 
+    #[must_use]
     pub const fn with_max_retries(mut self, max: u32) -> Self {
         self.max_retries = max;
         self
     }
 
     /// Calculate backoff delay for retry attempt
-    #[must_use] 
+    #[must_use]
     pub fn backoff_delay_ms(&self, attempt: u32) -> u64 {
         #[allow(clippy::cast_precision_loss)]
         // Reason: backoff delay does not need sub-millisecond precision
@@ -214,13 +214,13 @@ impl RetryConfig {
     }
 
     /// Check if we should attempt retry based on attempt count
-    #[must_use] 
+    #[must_use]
     pub const fn should_retry(&self, attempt: u32) -> bool {
         attempt < self.max_retries
     }
 
     /// Add jitter to delay to prevent thundering herd
-    #[must_use] 
+    #[must_use]
     pub fn backoff_delay_with_jitter_ms(&self, attempt: u32) -> u64 {
         use rand::Rng;
         let base_delay = self.backoff_delay_ms(attempt);
@@ -251,11 +251,11 @@ pub struct CircuitBreaker {
     /// Success threshold to close
     success_threshold: u32,
     /// Current failure count
-    failure_count:     Arc<AtomicU64>,
+    failure_count: Arc<AtomicU64>,
     /// Current success count
-    success_count:     Arc<AtomicU64>,
+    success_count: Arc<AtomicU64>,
     /// Circuit state
-    state:             Arc<atomic::AtomicUsize>,
+    state: Arc<atomic::AtomicUsize>,
     /// Last state change time
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
@@ -269,8 +269,8 @@ mod atomic {
     #[repr(usize)]
     #[non_exhaustive]
     pub enum CircuitState {
-        Closed   = 0,
-        Open     = 1,
+        Closed = 0,
+        Open = 1,
         HalfOpen = 2,
     }
 
@@ -315,7 +315,7 @@ use atomic::{AtomicUsize, CircuitState};
 
 impl CircuitBreaker {
     /// Create new circuit breaker
-    #[must_use] 
+    #[must_use]
     pub fn new(failure_threshold: u32, success_threshold: u32) -> Self {
         Self {
             failure_threshold,
@@ -376,13 +376,13 @@ impl CircuitBreaker {
     }
 
     /// Check if operation allowed
-    #[must_use] 
+    #[must_use]
     pub fn is_allowed(&self) -> bool {
         matches!(self.state.load(), CircuitState::Closed | CircuitState::HalfOpen)
     }
 
     /// Get current state
-    #[must_use] 
+    #[must_use]
     pub fn state(&self) -> CircuitState {
         self.state.load()
     }
@@ -395,7 +395,7 @@ impl CircuitBreaker {
     }
 
     /// Get time since last state change
-    #[must_use] 
+    #[must_use]
     pub fn time_since_last_change(&self) -> Duration {
         if let Ok(last) = self.last_change.lock() {
             Utc::now() - *last
@@ -405,7 +405,7 @@ impl CircuitBreaker {
     }
 
     /// Check if circuit should attempt recovery from Open state
-    #[must_use] 
+    #[must_use]
     pub fn should_attempt_recovery(&self, recovery_timeout_ms: u64) -> bool {
         matches!(self.state.load(), CircuitState::Open)
             && self.time_since_last_change().num_milliseconds().cast_unsigned()
@@ -424,7 +424,7 @@ impl CircuitBreaker {
     }
 
     /// Get current failure and success counts
-    #[must_use] 
+    #[must_use]
     pub fn get_counts(&self) -> (u64, u64) {
         let failures = self.failure_count.load(Ordering::Relaxed);
         let successes = self.success_count.load(Ordering::Relaxed);
@@ -432,13 +432,13 @@ impl CircuitBreaker {
     }
 
     /// Check if circuit is fully open (no operations allowed)
-    #[must_use] 
+    #[must_use]
     pub fn is_open(&self) -> bool {
         matches!(self.state.load(), CircuitState::Open)
     }
 
     /// Check if circuit is half-open (limited operations for recovery)
-    #[must_use] 
+    #[must_use]
     pub fn is_half_open(&self) -> bool {
         matches!(self.state.load(), CircuitState::HalfOpen)
     }

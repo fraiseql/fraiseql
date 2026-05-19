@@ -46,7 +46,7 @@ fn test_inaccessible_field_conflict_detected() {
 
     let mut users_type = FederatedType::new("User".to_string());
     users_type.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     // Mark "ssn" as inaccessible in subgraph A
@@ -56,7 +56,7 @@ fn test_inaccessible_field_conflict_detected() {
     let mut users_type_b = FederatedType::new("User".to_string());
     users_type_b.is_extends = true;
     users_type_b.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     // "ssn" NOT inaccessible in subgraph B — should be a conflict
@@ -103,7 +103,7 @@ fn test_override_field_conflict_detected() {
 
     let mut products_type_a = FederatedType::new("Product".to_string());
     products_type_a.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     // Override "price" from "pricing" subgraph
@@ -114,7 +114,7 @@ fn test_override_field_conflict_detected() {
 
     let mut products_type_b = FederatedType::new("Product".to_string());
     products_type_b.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     // Also override "price" from a DIFFERENT subgraph — should conflict

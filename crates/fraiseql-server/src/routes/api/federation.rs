@@ -27,20 +27,20 @@ pub struct SubgraphsResponse {
 #[derive(Debug, Serialize, Clone)]
 pub struct SubgraphInfo {
     /// Name of the subgraph
-    pub name:     String,
+    pub name: String,
     /// GraphQL endpoint URL for the subgraph
-    pub url:      String,
+    pub url: String,
     /// Entity types managed by this subgraph
     pub entities: Vec<String>,
     /// Health status of the subgraph
-    pub healthy:  bool,
+    pub healthy: bool,
 }
 
 /// Federation graph in various formats.
 #[derive(Debug, Serialize)]
 pub struct GraphResponse {
     /// Format of the graph (json, dot, or mermaid)
-    pub format:  String,
+    pub format: String,
     /// Graph content in the specified format
     pub content: String,
 }
@@ -93,7 +93,7 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
     let response = SubgraphsResponse { subgraphs };
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   response,
+        data: response,
     }))
 }
 
@@ -133,7 +133,7 @@ pub async fn graph_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   response,
+        data: response,
     }))
 }
 
@@ -202,15 +202,15 @@ pub struct PlanQuery {
 #[derive(Debug, Serialize)]
 pub struct PlanResponse {
     /// Whether a cached plan was found.
-    pub cached:             bool,
+    pub cached: bool,
     /// Schema fingerprint at plan creation time (if cached).
     pub schema_fingerprint: String,
     /// The fetch operations in the plan (if cached).
     #[cfg(feature = "federation")]
-    pub fetches:            Option<Vec<fraiseql_core::federation::SubgraphFetch>>,
+    pub fetches: Option<Vec<fraiseql_core::federation::SubgraphFetch>>,
     /// The fetch operations in the plan (stub when federation disabled).
     #[cfg(not(feature = "federation"))]
-    pub fetches:            Option<serde_json::Value>,
+    pub fetches: Option<serde_json::Value>,
 }
 
 /// Get federation query plan for a given query.
@@ -238,13 +238,13 @@ pub async fn plan_handler<A: DatabaseAdapter>(
 
     let Some(ref plan_cache) = state.federation_plan_cache else {
         let response = PlanResponse {
-            cached:             false,
+            cached: false,
             schema_fingerprint: String::new(),
-            fetches:            None,
+            fetches: None,
         };
         return Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data:   response,
+            data: response,
         }));
     };
 
@@ -263,20 +263,20 @@ pub async fn plan_handler<A: DatabaseAdapter>(
 
     let response = match plan {
         Some(plan) => PlanResponse {
-            cached:             true,
+            cached: true,
             schema_fingerprint: plan.schema_fingerprint.clone(),
-            fetches:            Some(plan.fetches),
+            fetches: Some(plan.fetches),
         },
         None => PlanResponse {
-            cached:             false,
+            cached: false,
             schema_fingerprint: fingerprint,
-            fetches:            None,
+            fetches: None,
         },
     };
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   response,
+        data: response,
     }))
 }
 

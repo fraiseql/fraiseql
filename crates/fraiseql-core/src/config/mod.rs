@@ -281,7 +281,7 @@ impl FraiseQLConfig {
     }
 
     /// Create a test configuration.
-    #[must_use] 
+    #[must_use]
     pub fn test() -> Self {
         Self {
             server: CoreServerConfig {

@@ -30,14 +30,14 @@ use crate::error::{ObserverError, Result};
 /// `holder`, so a concurrent `release()` could clear `holder` while the caller
 /// still observed a non-zero remaining time.
 struct LeaseState {
-    holder:      Option<String>,
+    holder: Option<String>,
     acquired_at: Option<Instant>,
 }
 
 struct InProcessLease {
-    listener_id:       String,
-    checkpoint_id:     i64,
-    state:             Arc<Mutex<LeaseState>>,
+    listener_id: String,
+    checkpoint_id: i64,
+    state: Arc<Mutex<LeaseState>>,
     lease_duration_ms: u64,
 }
 
@@ -47,7 +47,7 @@ impl InProcessLease {
             listener_id,
             checkpoint_id,
             state: Arc::new(Mutex::new(LeaseState {
-                holder:      None,
+                holder: None,
                 acquired_at: None,
             })),
             lease_duration_ms,
@@ -144,11 +144,11 @@ impl InProcessLease {
 /// `true` while the lock is held, and `time_remaining_ms()` returns `u64::MAX`.
 #[cfg(feature = "postgres")]
 pub struct PostgresAdvisoryLease {
-    pool:          sqlx::PgPool,
-    listener_id:   String,
+    pool: sqlx::PgPool,
+    listener_id: String,
     checkpoint_id: i64,
     /// Holds the dedicated connection while the advisory lock is active.
-    conn:          Arc<Mutex<Option<sqlx::pool::PoolConnection<sqlx::Postgres>>>>,
+    conn: Arc<Mutex<Option<sqlx::pool::PoolConnection<sqlx::Postgres>>>>,
 }
 
 #[cfg(feature = "postgres")]
@@ -281,9 +281,9 @@ impl PostgresAdvisoryLease {
 /// Lua scripts guard `release()` and `renew()` for atomicity.
 #[cfg(feature = "redis-lease")]
 pub struct RedisAdvisoryLease {
-    conn:                redis::aio::ConnectionManager,
-    listener_id:         String,
-    checkpoint_id:       i64,
+    conn: redis::aio::ConnectionManager,
+    listener_id: String,
+    checkpoint_id: i64,
     lease_duration_secs: u64,
 }
 

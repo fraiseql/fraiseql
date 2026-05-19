@@ -25,10 +25,10 @@ fn test_jsonb_value() {
 #[test]
 fn test_pool_metrics_utilization() {
     let metrics = PoolMetrics {
-        total_connections:  10,
-        idle_connections:   5,
+        total_connections: 10,
+        idle_connections: 5,
         active_connections: 5,
-        waiting_requests:   0,
+        waiting_requests: 0,
     };
 
     assert!((metrics.utilization() - 0.5).abs() < f64::EPSILON);
@@ -38,10 +38,10 @@ fn test_pool_metrics_utilization() {
 #[test]
 fn test_pool_metrics_exhausted() {
     let metrics = PoolMetrics {
-        total_connections:  10,
-        idle_connections:   0,
+        total_connections: 10,
+        idle_connections: 0,
         active_connections: 10,
-        waiting_requests:   5,
+        waiting_requests: 5,
     };
 
     assert!((metrics.utilization() - 1.0).abs() < f64::EPSILON);

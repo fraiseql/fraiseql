@@ -8,10 +8,10 @@ use fraiseql_server::routes::studio::realtime_monitor::RealtimeStatsResponse;
 #[test]
 fn test_realtime_stats_response_shape() {
     let resp = RealtimeStatsResponse {
-        connections:    10,
-        channels:       vec!["users".to_string(), "posts".to_string()],
+        connections: 10,
+        channels: vec!["users".to_string(), "posts".to_string()],
         presence_rooms: vec![],
-        cdc_lag_ms:     Some(12),
+        cdc_lag_ms: Some(12),
     };
     let json = serde_json::to_string(&resp).unwrap();
     assert!(json.contains("\"connections\""));

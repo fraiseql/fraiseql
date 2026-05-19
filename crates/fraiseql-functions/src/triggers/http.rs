@@ -64,19 +64,19 @@ pub struct HttpMethod(pub String);
 
 impl HttpMethod {
     /// Create a new HTTP method.
-    #[must_use] 
+    #[must_use]
     pub fn new(method: &str) -> Self {
         Self(method.to_uppercase())
     }
 
     /// Check if this method matches another.
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, other: &str) -> bool {
         self.0.eq_ignore_ascii_case(other)
     }
 
     /// Get the method as a string.
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -96,21 +96,21 @@ pub struct HttpTriggerRoute {
     /// Name of the function to invoke.
     pub function_name: String,
     /// HTTP method (GET, POST, etc.).
-    pub method:        String,
+    pub method: String,
     /// Path pattern (e.g., "/users/:id").
-    pub path:          String,
+    pub path: String,
     /// Whether authentication is required.
     pub requires_auth: bool,
 }
 
 impl HttpTriggerRoute {
     /// Create a new HTTP trigger route.
-    #[must_use] 
+    #[must_use]
     pub fn new(function_name: &str, method: &str, path: &str) -> Self {
         Self {
             function_name: function_name.to_string(),
-            method:        method.to_string(),
-            path:          path.to_string(),
+            method: method.to_string(),
+            path: path.to_string(),
             requires_auth: false,
         }
     }
@@ -130,7 +130,7 @@ impl HttpTriggerRoute {
     }
 
     /// Check if this route matches the given method and path.
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, method: &str, path: &str) -> bool {
         self.method.eq_ignore_ascii_case(method) && self.path == path
     }
@@ -138,7 +138,7 @@ impl HttpTriggerRoute {
     /// Check if this route's path pattern matches a request path.
     ///
     /// Simple pattern matching: exact match or `*` for variable segments.
-    #[must_use] 
+    #[must_use]
     pub fn pattern_matches(&self, request_path: &str) -> bool {
         let route_parts: Vec<&str> = self.path.split('/').collect();
         let request_parts: Vec<&str> = request_path.split('/').collect();
@@ -156,7 +156,7 @@ impl HttpTriggerRoute {
     /// Extract path parameters from a request path.
     ///
     /// Returns a map of parameter names to values.
-    #[must_use] 
+    #[must_use]
     pub fn extract_params(&self, request_path: &str) -> HashMap<String, String> {
         let mut params = HashMap::new();
 
@@ -179,22 +179,22 @@ impl HttpTriggerRoute {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpTriggerPayload {
     /// HTTP method (GET, POST, etc.).
-    pub method:  String,
+    pub method: String,
     /// Request path.
-    pub path:    String,
+    pub path: String,
     /// Request headers.
     pub headers: serde_json::Value,
     /// Query parameters.
-    pub query:   serde_json::Value,
+    pub query: serde_json::Value,
     /// Path parameters (extracted from route pattern).
-    pub params:  serde_json::Value,
+    pub params: serde_json::Value,
     /// Request body (if any).
-    pub body:    Option<serde_json::Value>,
+    pub body: Option<serde_json::Value>,
 }
 
 impl HttpTriggerPayload {
     /// Create a new HTTP trigger payload.
-    #[must_use] 
+    #[must_use]
     pub fn new(
         method: &str,
         path: &str,
@@ -213,7 +213,7 @@ impl HttpTriggerPayload {
     }
 
     /// Get a header value by name (case-insensitive).
-    #[must_use] 
+    #[must_use]
     pub fn header(&self, name: &str) -> Option<String> {
         let name_lower = name.to_lowercase();
         if let serde_json::Value::Object(ref obj) = self.headers {
@@ -227,49 +227,49 @@ impl HttpTriggerPayload {
     }
 
     /// Get a query parameter value.
-    #[must_use] 
+    #[must_use]
     pub fn query_param(&self, name: &str) -> Option<String> {
         self.query.get(name).and_then(|v| v.as_str().map(|s| s.to_string()))
     }
 
     /// Get a path parameter value.
-    #[must_use] 
+    #[must_use]
     pub fn path_param(&self, name: &str) -> Option<String> {
         self.params.get(name).and_then(|v| v.as_str().map(|s| s.to_string()))
     }
 
     /// Get the request body as JSON.
-    #[must_use] 
+    #[must_use]
     pub const fn json_body(&self) -> Option<&serde_json::Value> {
         self.body.as_ref()
     }
 
     /// Check if this is a GET request.
-    #[must_use] 
+    #[must_use]
     pub fn is_get(&self) -> bool {
         self.method.eq_ignore_ascii_case("GET")
     }
 
     /// Check if this is a POST request.
-    #[must_use] 
+    #[must_use]
     pub fn is_post(&self) -> bool {
         self.method.eq_ignore_ascii_case("POST")
     }
 
     /// Check if this is a PUT request.
-    #[must_use] 
+    #[must_use]
     pub fn is_put(&self) -> bool {
         self.method.eq_ignore_ascii_case("PUT")
     }
 
     /// Check if this is a DELETE request.
-    #[must_use] 
+    #[must_use]
     pub fn is_delete(&self) -> bool {
         self.method.eq_ignore_ascii_case("DELETE")
     }
 
     /// Check if this is a PATCH request.
-    #[must_use] 
+    #[must_use]
     pub fn is_patch(&self) -> bool {
         self.method.eq_ignore_ascii_case("PATCH")
     }
@@ -281,16 +281,16 @@ impl HttpTriggerPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpTriggerResponse {
     /// HTTP status code (default 200).
-    pub status:  u16,
+    pub status: u16,
     /// Response headers.
     pub headers: serde_json::Value,
     /// Response body.
-    pub body:    serde_json::Value,
+    pub body: serde_json::Value,
 }
 
 impl HttpTriggerResponse {
     /// Create a successful response with the given body.
-    #[must_use] 
+    #[must_use]
     pub fn ok(body: serde_json::Value) -> Self {
         Self {
             status: 200,
@@ -300,7 +300,7 @@ impl HttpTriggerResponse {
     }
 
     /// Create a response with custom status and body.
-    #[must_use] 
+    #[must_use]
     pub fn with_status(status: u16, body: serde_json::Value) -> Self {
         Self {
             status,
@@ -310,47 +310,47 @@ impl HttpTriggerResponse {
     }
 
     /// Create a 201 Created response.
-    #[must_use] 
+    #[must_use]
     pub fn created(body: serde_json::Value) -> Self {
         Self::with_status(201, body)
     }
 
     /// Create a 204 No Content response.
-    #[must_use] 
+    #[must_use]
     pub fn no_content() -> Self {
         Self {
-            status:  204,
+            status: 204,
             headers: serde_json::json!({}),
-            body:    serde_json::json!({}),
+            body: serde_json::json!({}),
         }
     }
 
     /// Create a 400 Bad Request response.
-    #[must_use] 
+    #[must_use]
     pub fn bad_request(message: &str) -> Self {
         Self::with_status(400, serde_json::json!({"error": message}))
     }
 
     /// Create a 401 Unauthorized response.
-    #[must_use] 
+    #[must_use]
     pub fn unauthorized() -> Self {
         Self::with_status(401, serde_json::json!({"error": "Unauthorized"}))
     }
 
     /// Create a 403 Forbidden response.
-    #[must_use] 
+    #[must_use]
     pub fn forbidden() -> Self {
         Self::with_status(403, serde_json::json!({"error": "Forbidden"}))
     }
 
     /// Create a 404 Not Found response.
-    #[must_use] 
+    #[must_use]
     pub fn not_found() -> Self {
         Self::with_status(404, serde_json::json!({"error": "Not found"}))
     }
 
     /// Create a 500 Internal Server Error response.
-    #[must_use] 
+    #[must_use]
     pub fn internal_error(message: &str) -> Self {
         Self::with_status(500, serde_json::json!({"error": message}))
     }
@@ -376,7 +376,7 @@ pub struct HttpTriggerMatcher {
 
 impl HttpTriggerMatcher {
     /// Create a new empty HTTP trigger matcher.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self { routes: Vec::new() }
     }
@@ -387,7 +387,7 @@ impl HttpTriggerMatcher {
     }
 
     /// Find a matching route for the given method and path.
-    #[must_use] 
+    #[must_use]
     pub fn find(&self, method: &str, path: &str) -> Option<HttpTriggerRoute> {
         self.routes
             .iter()
@@ -396,7 +396,7 @@ impl HttpTriggerMatcher {
     }
 
     /// Get all routes.
-    #[must_use] 
+    #[must_use]
     pub fn routes(&self) -> &[HttpTriggerRoute] {
         &self.routes
     }

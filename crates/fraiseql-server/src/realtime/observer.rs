@@ -22,7 +22,7 @@ use super::delivery::EntityEvent;
 /// mutation path.
 pub struct RealtimeBroadcastObserver {
     /// Sender half of the observer-to-pipeline channel.
-    event_tx:       mpsc::Sender<EntityEvent>,
+    event_tx: mpsc::Sender<EntityEvent>,
     /// Count of events dropped due to backpressure (channel full).
     ///
     /// Maps to the `realtime_events_dropped_backpressure_total` metric.
@@ -40,7 +40,7 @@ impl RealtimeBroadcastObserver {
         let (tx, rx) = mpsc::channel(capacity);
         (
             Self {
-                event_tx:       tx,
+                event_tx: tx,
                 events_dropped: AtomicU64::new(0),
             },
             rx,

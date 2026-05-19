@@ -55,12 +55,12 @@ pub enum OrderByFieldType {
 #[non_exhaustive]
 pub struct OrderByClause {
     /// Field to order by (GraphQL camelCase name).
-    pub field:         String,
+    pub field: String,
     /// Sort direction.
-    pub direction:     OrderDirection,
+    pub direction: OrderDirection,
     /// Field type for SQL cast generation. `Text` (default) means no cast.
     #[serde(default)]
-    pub field_type:    OrderByFieldType,
+    pub field_type: OrderByFieldType,
     /// Native column name if the view exposes this field as a typed column.
     /// When set, ORDER BY uses this column directly instead of JSONB extraction,
     /// enabling index support and correct typing without casts.
@@ -138,7 +138,7 @@ impl OrderByClause {
                     "orderBy field name '{field}' contains invalid characters; \
                      only [_A-Za-z][_0-9A-Za-z]* is allowed"
                 ),
-                path:    None,
+                path: None,
             })
         }
     }
@@ -161,7 +161,7 @@ impl OrderByClause {
                 .map(|(field, dir_val)| {
                     let dir_str = dir_val.as_str().ok_or_else(|| FraiseQLError::Validation {
                         message: format!("orderBy direction for '{field}' must be a string"),
-                        path:    None,
+                        path: None,
                     })?;
                     let direction = match dir_str.to_ascii_uppercase().as_str() {
                         "ASC" => OrderDirection::Asc,
@@ -171,7 +171,7 @@ impl OrderByClause {
                                 message: format!(
                                     "orderBy direction '{dir_str}' must be ASC or DESC"
                                 ),
-                                path:    None,
+                                path: None,
                             });
                         },
                     };
@@ -185,14 +185,14 @@ impl OrderByClause {
                 .map(|item| {
                     let obj = item.as_object().ok_or_else(|| FraiseQLError::Validation {
                         message: "orderBy array items must be objects".to_string(),
-                        path:    None,
+                        path: None,
                     })?;
                     let field = obj
                         .get("field")
                         .and_then(|v| v.as_str())
                         .ok_or_else(|| FraiseQLError::Validation {
                             message: "orderBy item missing 'field' string".to_string(),
-                            path:    None,
+                            path: None,
                         })?
                         .to_string();
                     let dir_str = obj.get("direction").and_then(|v| v.as_str()).unwrap_or("ASC");
@@ -204,7 +204,7 @@ impl OrderByClause {
                                 message: format!(
                                     "orderBy direction '{dir_str}' must be ASC or DESC"
                                 ),
-                                path:    None,
+                                path: None,
                             });
                         },
                     };
@@ -215,7 +215,7 @@ impl OrderByClause {
         } else {
             Err(FraiseQLError::Validation {
                 message: "orderBy must be an object or array".to_string(),
-                path:    None,
+                path: None,
             })
         }
     }
@@ -244,7 +244,7 @@ pub struct SqlProjectionHint {
 
 impl SqlProjectionHint {
     /// Creates a new `SqlProjectionHint`.
-    #[must_use] 
+    #[must_use]
     pub const fn new(
         database: DatabaseType,
         projection_template: String,

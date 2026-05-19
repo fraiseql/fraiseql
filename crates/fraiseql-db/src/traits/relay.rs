@@ -8,10 +8,7 @@ use std::future::Future;
 use fraiseql_error::Result;
 
 use super::{CursorValue, DatabaseAdapter, RelayPageResult};
-use crate::{
-    types::sql_hints::OrderByClause,
-    where_clause::WhereClause,
-};
+use crate::{types::sql_hints::OrderByClause, where_clause::WhereClause};
 
 /// Database adapter supertrait for adapters that implement Relay cursor pagination.
 ///

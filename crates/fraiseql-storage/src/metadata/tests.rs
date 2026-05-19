@@ -35,12 +35,12 @@ async fn setup_pg() -> (PgPool, impl std::any::Any) {
 
 fn sample_object(bucket: &str, key: &str) -> NewStorageObject {
     NewStorageObject {
-        bucket:       bucket.to_string(),
-        key:          key.to_string(),
+        bucket: bucket.to_string(),
+        key: key.to_string(),
         content_type: "image/png".to_string(),
-        size_bytes:   1024,
-        etag:         Some("abc123".to_string()),
-        owner_id:     Some("user-1".to_string()),
+        size_bytes: 1024,
+        etag: Some("abc123".to_string()),
+        owner_id: Some("user-1".to_string()),
     }
 }
 

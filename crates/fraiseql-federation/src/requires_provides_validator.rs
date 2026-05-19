@@ -61,9 +61,9 @@ pub enum DirectiveValidationError {
     /// The field declared in `@requires()` was not found on the referenced type.
     RequiresNonexistentField {
         /// Name of the type declaring the field.
-        typename:       String,
+        typename: String,
         /// Name of the field annotated with @requires.
-        field:          String,
+        field: String,
         /// The field name listed in @requires that could not be found.
         required_field: String,
     },
@@ -72,9 +72,9 @@ pub enum DirectiveValidationError {
     /// The field declared in `@provides()` was not found on the return type.
     ProvidesNonexistentField {
         /// Name of the type declaring the field.
-        typename:       String,
+        typename: String,
         /// Name of the field annotated with @provides.
-        field:          String,
+        field: String,
         /// The field name listed in @provides that could not be found.
         provided_field: String,
     },
@@ -83,9 +83,9 @@ pub enum DirectiveValidationError {
     /// The required field is neither @external nor defined locally on this type.
     RequiresUnavailableField {
         /// Name of the type declaring the field.
-        typename:       String,
+        typename: String,
         /// Name of the field annotated with @requires.
-        field:          String,
+        field: String,
         /// The field name that is unavailable.
         required_field: String,
     },
@@ -97,9 +97,9 @@ pub enum DirectiveValidationError {
         /// Name of the type where the cycle starts.
         typename: String,
         /// Name of the field that closes the cycle.
-        field:    String,
+        field: String,
         /// Ordered list of fields forming the cycle.
-        cycle:    Vec<String>,
+        cycle: Vec<String>,
     },
     /// Field missing at runtime when @requires declares it must be present
     ///
@@ -107,9 +107,9 @@ pub enum DirectiveValidationError {
     /// present in the resolved entity data.
     MissingRequiredField {
         /// Name of the type being resolved.
-        typename:       String,
+        typename: String,
         /// Name of the field that declared the requirement.
-        field:          String,
+        field: String,
         /// The required field that was absent.
         required_field: String,
     },
@@ -200,7 +200,7 @@ impl RequiresProvidesValidator {
     /// let validator = RequiresProvidesValidator::new(metadata);
     /// validator.validate_all()?;
     /// ```
-    #[must_use] 
+    #[must_use]
     pub const fn new(metadata: FederationMetadata) -> Self {
         Self { metadata }
     }
@@ -334,8 +334,8 @@ impl RequiresProvidesValidator {
                 required_field, required_field_path.typename
             );
             return Err(DirectiveValidationError::RequiresNonexistentField {
-                typename:       typename.to_string(),
-                field:          field_name.to_string(),
+                typename: typename.to_string(),
+                field: field_name.to_string(),
                 required_field: required_field.clone(),
             });
         }
@@ -373,8 +373,8 @@ impl RequiresProvidesValidator {
                 provided_field, provided_field_path.typename
             );
             return Err(DirectiveValidationError::ProvidesNonexistentField {
-                typename:       typename.to_string(),
-                field:          field_name.to_string(),
+                typename: typename.to_string(),
+                field: field_name.to_string(),
                 provided_field: provided_field.clone(),
             });
         }
@@ -399,8 +399,8 @@ impl RequiresProvidesValidator {
             debug!("Circular dependency detected: {}", path.join(" -> "));
             return Err(DirectiveValidationError::CircularDependency {
                 typename: typename.to_string(),
-                field:    field_name.to_string(),
-                cycle:    path,
+                field: field_name.to_string(),
+                cycle: path,
             });
         }
 
@@ -530,8 +530,8 @@ impl RequiresProvidesRuntimeValidator {
                     required_field, typename, field_name
                 );
                 errors.push(DirectiveValidationError::MissingRequiredField {
-                    typename:       typename.to_string(),
-                    field:          field_name.to_string(),
+                    typename: typename.to_string(),
+                    field: field_name.to_string(),
                     required_field: required_field.clone(),
                 });
             }

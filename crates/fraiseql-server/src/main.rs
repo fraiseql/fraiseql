@@ -113,7 +113,7 @@ fn redact_endpoint_credentials(endpoint: &str) -> String {
                 let _ = parsed.set_password(None);
             }
             parsed.to_string()
-        }
+        },
         Err(_) => endpoint.to_string(),
     }
 }
@@ -248,8 +248,8 @@ async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdap
     let adapter = PostgresAdapter::with_pool_config(
         &config.database_url,
         fraiseql_core::db::postgres::PoolPrewarmConfig {
-            min_size:     config.pool_min_size,
-            max_size:     config.pool_max_size,
+            min_size: config.pool_min_size,
+            max_size: config.pool_max_size,
             timeout_secs: Some(config.pool_timeout_secs),
         },
     )

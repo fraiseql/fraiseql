@@ -25,20 +25,20 @@ use crate::routes::graphql::app_state::AppState;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectEntry {
     /// Object key (path within the bucket).
-    pub key:          String,
+    pub key: String,
     /// Object size in bytes.
-    pub size:         u64,
+    pub size: u64,
     /// MIME content type.
     pub content_type: String,
     /// Last-modified timestamp (RFC 3339).
-    pub updated_at:   String,
+    pub updated_at: String,
 }
 
 /// A storage bucket summary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BucketEntry {
     /// Bucket name.
-    pub name:         String,
+    pub name: String,
     /// Number of objects in the bucket.
     pub object_count: u64,
 }
@@ -51,11 +51,11 @@ pub struct BucketEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectListResponse {
     /// Objects on this page.
-    pub objects:   Vec<ObjectEntry>,
+    pub objects: Vec<ObjectEntry>,
     /// Total object count.
-    pub total:     u64,
+    pub total: u64,
     /// Current page number (1-indexed).
-    pub page:      u32,
+    pub page: u32,
     /// Objects per page.
     pub page_size: u32,
 }
@@ -75,12 +75,12 @@ pub struct BucketListResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ObjectListQuery {
     /// Bucket to list.
-    pub bucket:    String,
+    pub bucket: String,
     /// Key prefix filter (optional).
-    pub prefix:    Option<String>,
+    pub prefix: Option<String>,
     /// Page number (1-indexed, default 1).
     #[serde(default = "default_page")]
-    pub page:      u32,
+    pub page: u32,
     /// Objects per page (default 50).
     #[serde(default = "default_page_size")]
     pub page_size: u32,
@@ -98,9 +98,9 @@ const fn default_page_size() -> u32 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PresignRequest {
     /// Bucket containing the object.
-    pub bucket:          String,
+    pub bucket: String,
     /// Object key.
-    pub key:             String,
+    pub key: String,
     /// URL expiry in seconds.
     pub expires_in_secs: u32,
 }
@@ -111,7 +111,7 @@ pub struct DeleteObjectRequest {
     /// Bucket containing the object.
     pub bucket: String,
     /// Object key.
-    pub key:    String,
+    pub key: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -145,9 +145,9 @@ where
     A: DatabaseAdapter + Clone + Send + Sync + 'static,
 {
     Json(ObjectListResponse {
-        objects:   vec![],
-        total:     0,
-        page:      1,
+        objects: vec![],
+        total: 0,
+        page: 1,
         page_size: 50,
     })
 }

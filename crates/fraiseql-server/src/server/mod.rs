@@ -25,9 +25,9 @@ use crate::{
     },
     routes::{
         BroadcastState, PlaygroundState, SubscriptionState, api, broadcast_handler,
-        graphql_get_handler, graphql_handler, health_handler,
-        introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
-        readiness_handler, subscription_handler,
+        graphql_get_handler, graphql_handler, health_handler, introspection_handler,
+        metrics_handler, metrics_json_handler, playground_handler, readiness_handler,
+        subscription_handler,
     },
     server_config::ServerConfig,
     tls::TlsSetup,
@@ -162,7 +162,7 @@ pub struct Server<A: DatabaseAdapter> {
     /// Object storage backend for the `/storage/v1/` routes.
     ///
     /// Set via [`Server::with_storage`]. When `None`, storage routes are not mounted.
-    pub(super) storage_backend:          Option<Arc<dyn crate::storage::StorageBackend>>,
+    pub(super) storage_backend: Option<Arc<dyn crate::storage::StorageBackend>>,
     /// Maximum allowed upload size for the storage backend (bytes).
     ///
     /// Defaults to 100 `MiB`. Applied as a per-request body limit on upload routes.

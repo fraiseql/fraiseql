@@ -61,12 +61,12 @@ const fn default_cache_ttl_secs() -> u64 {
 impl Default for RedisConfig {
     fn default() -> Self {
         Self {
-            url:                  default_redis_url(),
-            pool_size:            default_redis_pool_size(),
+            url: default_redis_url(),
+            pool_size: default_redis_pool_size(),
             connect_timeout_secs: default_redis_connect_timeout_secs(),
             command_timeout_secs: default_redis_command_timeout_secs(),
-            dedup_window_secs:    default_dedup_window_secs(),
-            cache_ttl_secs:       default_cache_ttl_secs(),
+            dedup_window_secs: default_dedup_window_secs(),
+            cache_ttl_secs: default_cache_ttl_secs(),
         }
     }
 }

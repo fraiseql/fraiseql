@@ -101,10 +101,10 @@ mod auto_tuner_tests {
 
     fn metrics(total: u32, idle: u32, waiting: u32) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  total,
-            idle_connections:   idle,
+            total_connections: total,
+            idle_connections: idle,
             active_connections: total.saturating_sub(idle),
-            waiting_requests:   waiting,
+            waiting_requests: waiting,
         }
     }
 

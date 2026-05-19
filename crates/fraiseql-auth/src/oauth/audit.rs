@@ -11,17 +11,17 @@ pub struct OAuthAuditEvent {
     /// Event type: authorization, token_exchange, token_refresh, logout
     pub event_type: String,
     /// Provider name
-    pub provider:   String,
+    pub provider: String,
     /// User ID (if known)
-    pub user_id:    Option<String>,
+    pub user_id: Option<String>,
     /// Status: success, failed
-    pub status:     String,
+    pub status: String,
     /// Error message (if failed)
-    pub error:      Option<String>,
+    pub error: Option<String>,
     /// Timestamp
-    pub timestamp:  DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Additional metadata
-    pub metadata:   HashMap<String, String>,
+    pub metadata: HashMap<String, String>,
 }
 
 impl OAuthAuditEvent {
@@ -33,31 +33,31 @@ impl OAuthAuditEvent {
     ) -> Self {
         Self {
             event_type: event_type.into(),
-            provider:   provider.into(),
-            user_id:    None,
-            status:     status.into(),
-            error:      None,
-            timestamp:  Utc::now(),
-            metadata:   HashMap::new(),
+            provider: provider.into(),
+            user_id: None,
+            status: status.into(),
+            error: None,
+            timestamp: Utc::now(),
+            metadata: HashMap::new(),
         }
     }
 
     /// Set user ID
-    #[must_use] 
+    #[must_use]
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
     /// Set error message
-    #[must_use] 
+    #[must_use]
     pub fn with_error(mut self, error: String) -> Self {
         self.error = Some(error);
         self
     }
 
     /// Add metadata
-    #[must_use] 
+    #[must_use]
     pub fn with_metadata(mut self, key: String, value: String) -> Self {
         self.metadata.insert(key, value);
         self

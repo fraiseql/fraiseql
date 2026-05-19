@@ -38,17 +38,17 @@ const fn pg_gen() -> PostgresWhereGenerator {
 
 fn field(field_name: &str, op: WhereOperator, val: serde_json::Value) -> WhereClause {
     WhereClause::Field {
-        path:     vec![field_name.to_string()],
+        path: vec![field_name.to_string()],
         operator: op,
-        value:    val,
+        value: val,
     }
 }
 
 fn nested_field(path: &[&str], op: WhereOperator, val: serde_json::Value) -> WhereClause {
     WhereClause::Field {
-        path:     path.iter().map(|s| (*s).to_string()).collect(),
+        path: path.iter().map(|s| (*s).to_string()).collect(),
         operator: op,
-        value:    val,
+        value: val,
     }
 }
 

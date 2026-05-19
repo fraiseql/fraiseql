@@ -25,11 +25,11 @@ pub enum LogLevel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpResponse {
     /// HTTP status code.
-    pub status:  u16,
+    pub status: u16,
     /// Response headers.
     pub headers: Vec<(String, String)>,
     /// Response body bytes.
-    pub body:    Vec<u8>,
+    pub body: Vec<u8>,
 }
 
 /// Generated bindings module documentation.

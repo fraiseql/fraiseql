@@ -337,7 +337,7 @@ mod response_cache_tests {
 
     fn enabled_config() -> ResponseCacheConfig {
         ResponseCacheConfig {
-            enabled:     true,
+            enabled: true,
             max_entries: 100,
             ttl_seconds: 3600,
         }
@@ -700,19 +700,19 @@ mod response_cache_tests {
     ) -> SecurityContext {
         use chrono::Utc;
         SecurityContext {
-            user_id:          user_id.into(),
-            roles:            roles.iter().map(|s| (*s).to_string()).collect(),
-            tenant_id:        tenant_id.map(Into::into),
-            scopes:           scopes.iter().map(|s| (*s).to_string()).collect(),
-            attributes:       std::collections::HashMap::new(),
-            request_id:       "test-request".to_string(),
-            ip_address:       None,
+            user_id: user_id.into(),
+            roles: roles.iter().map(|s| (*s).to_string()).collect(),
+            tenant_id: tenant_id.map(Into::into),
+            scopes: scopes.iter().map(|s| (*s).to_string()).collect(),
+            attributes: std::collections::HashMap::new(),
+            request_id: "test-request".to_string(),
+            ip_address: None,
             authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         }
     }
 }
@@ -1464,15 +1464,15 @@ mod key_tests {
         let query = "query { users { id } }";
 
         let where1 = WhereClause::Field {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("alice@example.com"),
+            value: json!("alice@example.com"),
         };
 
         let where2 = WhereClause::Field {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("bob@example.com"),
+            value: json!("bob@example.com"),
         };
 
         let key1 = generate_cache_key(query, &json!({}), Some(&where1), "v1");
@@ -1486,15 +1486,15 @@ mod key_tests {
         let query = "query { users { id } }";
 
         let where_eq = WhereClause::Field {
-            path:     vec!["age".to_string()],
+            path: vec!["age".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(30),
+            value: json!(30),
         };
 
         let where_gt = WhereClause::Field {
-            path:     vec!["age".to_string()],
+            path: vec!["age".to_string()],
             operator: WhereOperator::Gt,
-            value:    json!(30),
+            value: json!(30),
         };
 
         let key_eq = generate_cache_key(query, &json!({}), Some(&where_eq), "v1");
@@ -1508,9 +1508,9 @@ mod key_tests {
         let query = "query { users { id } }";
 
         let where_clause = WhereClause::Field {
-            path:     vec!["active".to_string()],
+            path: vec!["active".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(true),
+            value: json!(true),
         };
 
         let key_without = generate_cache_key(query, &json!({}), None, "v1");
@@ -1525,14 +1525,14 @@ mod key_tests {
 
         let where_clause = WhereClause::And(vec![
             WhereClause::Field {
-                path:     vec!["age".to_string()],
+                path: vec!["age".to_string()],
                 operator: WhereOperator::Gte,
-                value:    json!(18),
+                value: json!(18),
             },
             WhereClause::Field {
-                path:     vec!["active".to_string()],
+                path: vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value:    json!(true),
+                value: json!(true),
             },
         ]);
 
@@ -1623,31 +1623,31 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:                "users".to_string(),
-            return_type:         "User".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          Some("v_user".to_string()),
-            description:         None,
-            auto_params:         AutoParams {
-                has_where:    true,
+            name: "users".to_string(),
+            return_type: "User".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams {
+                has_where: true,
                 has_order_by: false,
-                has_limit:    true,
-                has_offset:   false,
+                has_limit: true,
+                has_offset: false,
             },
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
-            native_columns:      HashMap::new(),
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
         };
 
         let views = extract_accessed_views(&query_def);
@@ -1659,31 +1659,31 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:                "customQuery".to_string(),
-            return_type:         "Custom".to_string(),
-            returns_list:        false,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          None, // No SQL source (custom resolver)
-            description:         None,
-            auto_params:         AutoParams {
-                has_where:    false,
+            name: "customQuery".to_string(),
+            return_type: "Custom".to_string(),
+            returns_list: false,
+            nullable: false,
+            arguments: vec![],
+            sql_source: None, // No SQL source (custom resolver)
+            description: None,
+            auto_params: AutoParams {
+                has_where: false,
                 has_order_by: false,
-                has_limit:    false,
-                has_offset:   false,
+                has_limit: false,
+                has_offset: false,
             },
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
-            native_columns:      HashMap::new(),
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
         };
 
         let views = extract_accessed_views(&query_def);
@@ -1695,26 +1695,26 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
-            name:                "usersWithPosts".to_string(),
-            return_type:         "UserWithPosts".to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          Some("v_user_with_posts".to_string()),
-            description:         None,
-            auto_params:         AutoParams::default(),
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            name: "usersWithPosts".to_string(),
+            return_type: "UserWithPosts".to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user_with_posts".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec!["v_post".to_string(), "v_tag".to_string()],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
-            native_columns:      HashMap::new(),
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec!["v_post".to_string(), "v_tag".to_string()],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
         };
 
         let views = extract_accessed_views(&query_def);
@@ -2504,12 +2504,12 @@ mod result_tests {
     #[test]
     fn test_metrics_hit_rate() {
         let metrics = CacheMetrics {
-            hits:          80,
-            misses:        20,
-            total_cached:  100,
+            hits: 80,
+            misses: 20,
+            total_cached: 100,
             invalidations: 5,
-            size:          95,
-            memory_bytes:  1_000_000,
+            size: 95,
+            memory_bytes: 1_000_000,
         };
 
         assert!((metrics.hit_rate() - 0.8).abs() < f64::EPSILON);
@@ -2519,12 +2519,12 @@ mod result_tests {
     #[test]
     fn test_metrics_hit_rate_zero_requests() {
         let metrics = CacheMetrics {
-            hits:          0,
-            misses:        0,
-            total_cached:  0,
+            hits: 0,
+            misses: 0,
+            total_cached: 0,
             invalidations: 0,
-            size:          0,
-            memory_bytes:  0,
+            size: 0,
+            memory_bytes: 0,
         };
 
         assert!((metrics.hit_rate() - 0.0).abs() < f64::EPSILON);
@@ -2534,22 +2534,22 @@ mod result_tests {
     #[test]
     fn test_metrics_is_healthy() {
         let good = CacheMetrics {
-            hits:          70,
-            misses:        30,
-            total_cached:  100,
+            hits: 70,
+            misses: 30,
+            total_cached: 100,
             invalidations: 5,
-            size:          95,
-            memory_bytes:  1_000_000,
+            size: 95,
+            memory_bytes: 1_000_000,
         };
         assert!(good.is_healthy()); // 70% > 60%
 
         let bad = CacheMetrics {
-            hits:          50,
-            misses:        50,
-            total_cached:  100,
+            hits: 50,
+            misses: 50,
+            total_cached: 100,
             invalidations: 5,
-            size:          95,
-            memory_bytes:  1_000_000,
+            size: 95,
+            memory_bytes: 1_000_000,
         };
         assert!(!bad.is_healthy()); // 50% < 60%
     }

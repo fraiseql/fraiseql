@@ -336,10 +336,10 @@ mod middleware_tests {
     #[test]
     fn test_user_has_scope() {
         let user = AuthenticatedUser {
-            user_id:      "user123".into(),
-            scopes:       vec!["read".to_string(), "write".to_string()],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
-            email:        None,
+            user_id: "user123".into(),
+            scopes: vec!["read".to_string(), "write".to_string()],
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            email: None,
             display_name: None,
             extra_claims: HashMap::new(),
         };
@@ -352,10 +352,10 @@ mod middleware_tests {
     #[test]
     fn test_user_is_not_expired() {
         let user = AuthenticatedUser {
-            user_id:      "user123".into(),
-            scopes:       vec![],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
-            email:        None,
+            user_id: "user123".into(),
+            scopes: vec![],
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            email: None,
             display_name: None,
             extra_claims: HashMap::new(),
         };
@@ -366,10 +366,10 @@ mod middleware_tests {
     #[test]
     fn test_user_is_expired() {
         let user = AuthenticatedUser {
-            user_id:      "user123".into(),
-            scopes:       vec![],
-            expires_at:   Utc::now() - chrono::Duration::hours(1),
-            email:        None,
+            user_id: "user123".into(),
+            scopes: vec![],
+            expires_at: Utc::now() - chrono::Duration::hours(1),
+            email: None,
             display_name: None,
             extra_claims: HashMap::new(),
         };
@@ -398,10 +398,10 @@ mod middleware_tests {
     #[test]
     fn test_user_display() {
         let user = AuthenticatedUser {
-            user_id:      "user123".into(),
-            scopes:       vec![],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
-            email:        None,
+            user_id: "user123".into(),
+            scopes: vec![],
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            email: None,
             display_name: None,
             extra_claims: HashMap::new(),
         };
@@ -489,9 +489,9 @@ mod middleware_tests {
 
         #[derive(serde::Serialize)]
         struct Claims {
-            sub:   String,
-            exp:   i64,
-            iat:   i64,
+            sub: String,
+            exp: i64,
+            iat: i64,
             #[serde(skip_serializing_if = "Option::is_none")]
             scope: Option<String>,
         }

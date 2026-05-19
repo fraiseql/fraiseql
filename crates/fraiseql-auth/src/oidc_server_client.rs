@@ -26,7 +26,7 @@ pub struct OidcEndpoints {
     /// The provider's `/authorize` URL.
     pub authorization_endpoint: String,
     /// The provider's `/token` URL.
-    pub token_endpoint:         String,
+    pub token_endpoint: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -37,11 +37,11 @@ pub struct OidcEndpoints {
 #[derive(Debug, Deserialize)]
 pub struct OidcTokenResponse {
     /// The access token.
-    pub access_token:  String,
+    pub access_token: String,
     /// The OpenID Connect identity token (if requested).
-    pub id_token:      Option<String>,
+    pub id_token: Option<String>,
     /// Seconds until the access token expires.
-    pub expires_in:    Option<u64>,
+    pub expires_in: Option<u64>,
     /// Refresh token (if the provider issued one).
     pub refresh_token: Option<String>,
 }
@@ -56,14 +56,14 @@ pub struct OidcTokenResponse {
 /// The client secret is read from the environment at that time and
 /// held in memory — it is never written to disk or emitted in logs.
 pub struct OidcServerClient {
-    client_id:                String,
+    client_id: String,
     /// Intentionally private: the secret must never be accessible via a field.
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
     pub(crate) client_secret: Zeroizing<String>,
-    server_redirect_uri:      String,
-    authorization_endpoint:   String,
-    token_endpoint:           String,
+    server_redirect_uri: String,
+    authorization_endpoint: String,
+    token_endpoint: String,
 }
 
 /// Custom `Debug` implementation that redacts the client secret.
@@ -110,11 +110,11 @@ impl OidcServerClient {
         token_endpoint: impl Into<String>,
     ) -> Self {
         Self {
-            client_id:              client_id.into(),
-            client_secret:          Zeroizing::new(client_secret.into()),
-            server_redirect_uri:    server_redirect_uri.into(),
+            client_id: client_id.into(),
+            client_secret: Zeroizing::new(client_secret.into()),
+            server_redirect_uri: server_redirect_uri.into(),
             authorization_endpoint: authorization_endpoint.into(),
-            token_endpoint:         token_endpoint.into(),
+            token_endpoint: token_endpoint.into(),
         }
     }
 
@@ -131,8 +131,8 @@ impl OidcServerClient {
         // ── Load [auth] config ────────────────────────────────────────────
         #[derive(Deserialize)]
         struct AuthCfg {
-            client_id:           String,
-            client_secret_env:   String,
+            client_id: String,
+            client_secret_env: String,
             server_redirect_uri: String,
         }
 
@@ -162,11 +162,11 @@ impl OidcServerClient {
         };
 
         Some(Arc::new(Self {
-            client_id:              auth_cfg.client_id,
-            client_secret:          Zeroizing::new(client_secret),
-            server_redirect_uri:    auth_cfg.server_redirect_uri,
+            client_id: auth_cfg.client_id,
+            client_secret: Zeroizing::new(client_secret),
+            server_redirect_uri: auth_cfg.server_redirect_uri,
             authorization_endpoint: endpoints.authorization_endpoint,
-            token_endpoint:         endpoints.token_endpoint,
+            token_endpoint: endpoints.token_endpoint,
         }))
     }
 
@@ -175,7 +175,7 @@ impl OidcServerClient {
     /// The `state`, `code_challenge`, and `redirect_uri` values are
     /// percent-encoded so that base64-url characters (+, /, =) do not
     /// break query string parsing on the provider side.
-    #[must_use] 
+    #[must_use]
     pub fn authorization_url(
         &self,
         state: &str,

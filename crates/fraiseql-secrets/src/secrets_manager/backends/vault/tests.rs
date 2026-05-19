@@ -141,11 +141,11 @@ fn test_secret_name_very_long_rejected_before_char_scan() {
 
 fn make_vault_response(data: serde_json::Value) -> VaultResponse {
     VaultResponse {
-        request_id:     "req-1234".to_string(),
-        lease_id:       "lease-5678".to_string(),
+        request_id: "req-1234".to_string(),
+        lease_id: "lease-5678".to_string(),
         lease_duration: 3600,
-        renewable:      true,
-        data:           serde_json::from_value(data).unwrap(),
+        renewable: true,
+        data: serde_json::from_value(data).unwrap(),
     }
 }
 

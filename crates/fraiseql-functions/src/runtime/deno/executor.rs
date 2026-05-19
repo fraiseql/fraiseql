@@ -24,7 +24,7 @@ use crate::types::{LogEntry, LogLevel, ResourceLimits};
 /// Shared log collector threaded into the `fraiseql_log` op via `OpState`.
 #[derive(Clone)]
 struct LogCollector {
-    logs:        Arc<Mutex<Vec<LogEntry>>>,
+    logs: Arc<Mutex<Vec<LogEntry>>>,
     max_entries: usize,
 }
 
@@ -113,7 +113,7 @@ pub struct ExecutionResult {
     /// The value returned by the function (serialised → deserialised).
     pub value: Value,
     /// Log entries captured during execution.
-    pub logs:  Vec<LogEntry>,
+    pub logs: Vec<LogEntry>,
 }
 
 // ── Core execution (runs on a dedicated thread with its own Tokio runtime) ─────
@@ -152,7 +152,7 @@ pub fn run_in_dedicated_thread(
     // Shared log storage
     let logs_arc: Arc<Mutex<Vec<LogEntry>>> = Arc::new(Mutex::new(Vec::new()));
     let collector = LogCollector {
-        logs:        Arc::clone(&logs_arc),
+        logs: Arc::clone(&logs_arc),
         max_entries: limits.max_log_entries,
     };
 

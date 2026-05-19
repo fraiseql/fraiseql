@@ -15,7 +15,7 @@ use crate::error::Result;
 /// Manages circuit breakers per endpoint
 #[derive(Clone)]
 pub struct PerEndpointCircuitBreaker {
-    breakers:       Arc<DashMap<String, Arc<CircuitBreaker>>>,
+    breakers: Arc<DashMap<String, Arc<CircuitBreaker>>>,
     default_config: CircuitBreakerConfig,
 }
 

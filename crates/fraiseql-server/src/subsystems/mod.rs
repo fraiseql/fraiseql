@@ -131,9 +131,9 @@ impl ServerSubsystems {
     #[must_use]
     pub const fn none() -> Self {
         Self {
-            storage:   None,
+            storage: None,
             functions: None,
-            realtime:  None,
+            realtime: None,
         }
     }
 
@@ -167,7 +167,7 @@ pub struct BeforeMutationHooks {
     /// Registry of all loaded triggers, keyed by trigger type and mutation name.
     pub trigger_registry: TriggerRegistry,
     /// Loaded function modules keyed by function name.
-    pub module_registry:  std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
+    pub module_registry: std::collections::HashMap<String, fraiseql_functions::FunctionModule>,
     /// Observer that dispatches events to the appropriate function runtime.
-    pub observer:         std::sync::Arc<FunctionObserver>,
+    pub observer: std::sync::Arc<FunctionObserver>,
 }

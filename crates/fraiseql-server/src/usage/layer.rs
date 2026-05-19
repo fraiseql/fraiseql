@@ -33,18 +33,18 @@ const MUTATION_AUDIT_TARGET: &str = "fraiseql::mutation_audit";
 /// Extracts the four string fields from a `fraiseql::mutation_audit` event.
 struct AuditFieldVisitor {
     mutation_name: String,
-    entity_type:   String,
-    operation:     String,
-    tenant_id:     String,
+    entity_type: String,
+    operation: String,
+    tenant_id: String,
 }
 
 impl AuditFieldVisitor {
     const fn new() -> Self {
         Self {
             mutation_name: String::new(),
-            entity_type:   String::new(),
-            operation:     String::new(),
-            tenant_id:     String::new(),
+            entity_type: String::new(),
+            operation: String::new(),
+            tenant_id: String::new(),
         }
     }
 }

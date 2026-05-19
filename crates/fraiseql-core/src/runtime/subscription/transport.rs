@@ -121,8 +121,8 @@ impl TransportManager {
         if self.adapters.is_empty() {
             return Ok(DeliveryResult {
                 successful: 0,
-                failed:     0,
-                errors:     Vec::new(),
+                failed: 0,
+                errors: Vec::new(),
             });
         }
 
@@ -199,9 +199,9 @@ pub struct DeliveryResult {
     /// Number of successful deliveries.
     pub successful: usize,
     /// Number of failed deliveries.
-    pub failed:     usize,
+    pub failed: usize,
     /// Errors from failed deliveries (adapter name, error message).
-    pub errors:     Vec<(String, String)>,
+    pub errors: Vec<(String, String)>,
 }
 
 impl DeliveryResult {

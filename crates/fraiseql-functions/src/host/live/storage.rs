@@ -90,7 +90,7 @@ impl StorageBackend for MockStorageBackend {
                 .cloned()
                 .ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
                     message: format!("object not found: {}/{}", bucket, key),
-                    code:    Some("not_found".to_string()),
+                    code: Some("not_found".to_string()),
                 })
         })
     }

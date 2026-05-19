@@ -35,7 +35,7 @@ pub const DEFAULT_MAX_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
 #[derive(Clone)]
 pub struct StorageRouteState {
     /// The configured storage backend (local, S3, GCS, Azure, …).
-    pub backend:          Arc<dyn StorageBackend>,
+    pub backend: Arc<dyn StorageBackend>,
     /// Maximum allowed upload body size in bytes.
     ///
     /// Requests that exceed this limit are rejected with HTTP 413 before the
@@ -47,7 +47,7 @@ pub struct StorageRouteState {
     /// Used for per-tenant isolation: set this to the tenant's ID so that
     /// tenant A's keys (`"tenantA/file.txt"`) are disjoint from tenant B's
     /// (`"tenantB/file.txt"`).  When `None`, keys are used as-is.
-    pub tenant_prefix:    Option<String>,
+    pub tenant_prefix: Option<String>,
 }
 
 impl StorageRouteState {
@@ -62,7 +62,7 @@ impl StorageRouteState {
     }
 
     /// Override the maximum upload size.
-    #[must_use] 
+    #[must_use]
     pub const fn with_max_upload_bytes(mut self, bytes: usize) -> Self {
         self.max_upload_bytes = bytes;
         self
@@ -93,7 +93,7 @@ struct UploadResponse {
 #[derive(Serialize)]
 struct PresignedUrlResponse {
     /// Time-limited URL that grants direct access to the object.
-    url:        String,
+    url: String,
     /// How long the URL remains valid, in seconds.
     expires_in: u64,
 }
@@ -104,7 +104,7 @@ struct ErrorBody {
     /// Human-readable error message.
     error: String,
     /// Stable machine-readable error code.
-    code:  &'static str,
+    code: &'static str,
 }
 
 // ── Error mapping ─────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ fn file_error_response(err: &FileError) -> Response {
     };
     let body = serde_json::to_string(&ErrorBody {
         error: err.to_string(),
-        code:  err.error_code(),
+        code: err.error_code(),
     })
     .unwrap_or_default();
     (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
@@ -164,7 +164,7 @@ pub async fn upload_handler(
     if body.len() > state.max_upload_bytes {
         return file_error_response(&FileError::TooLarge {
             size: body.len(),
-            max:  state.max_upload_bytes,
+            max: state.max_upload_bytes,
         });
     }
 

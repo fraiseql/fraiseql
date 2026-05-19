@@ -45,8 +45,8 @@ impl ObserverExecutor {
 
                 return Some(ActionResult {
                     action_type: cached.action_type,
-                    success:     cached.success,
-                    message:     cached.message,
+                    success: cached.success,
+                    message: cached.message,
                     duration_ms: cached.duration_ms,
                 });
             }

@@ -123,8 +123,8 @@ pub struct CycleInfo {
 impl From<&CyclePath> for CycleInfo {
     fn from(cycle: &CyclePath) -> Self {
         Self {
-            types:             cycle.nodes.clone(),
-            path:              cycle.path_string(),
+            types: cycle.nodes.clone(),
+            path: cycle.path_string(),
             is_self_reference: cycle.is_self_reference(),
         }
     }
@@ -232,10 +232,10 @@ fn build_output(
     let mut nodes: Vec<GraphNode> = all_types
         .iter()
         .map(|name| GraphNode {
-            name:             name.clone(),
+            name: name.clone(),
             dependency_count: graph.dependencies_of(name).len(),
-            dependent_count:  graph.dependents_of(name).len(),
-            is_root:          root_types.contains(&name.as_str()),
+            dependent_count: graph.dependents_of(name).len(),
+            is_root: root_types.contains(&name.as_str()),
         })
         .collect();
 
@@ -248,7 +248,7 @@ fn build_output(
         for dep in graph.dependencies_of(type_name) {
             edges.push(GraphEdge {
                 from: type_name.clone(),
-                to:   dep,
+                to: dep,
             });
         }
     }

@@ -6,11 +6,11 @@ use super::*;
 fn test_cache_put_and_get() {
     let cache = QueryPlanCache::new(100);
     let plan = QueryPlan {
-        fetches:            vec![SubgraphFetch {
-            subgraph:     "users".to_string(),
-            query:        "{ user(id: $id) { name } }".to_string(),
+        fetches: vec![SubgraphFetch {
+            subgraph: "users".to_string(),
+            query: "{ user(id: $id) { name } }".to_string(),
             entity_types: vec!["User".to_string()],
-            depends_on:   None,
+            depends_on: None,
         }],
         schema_fingerprint: "abc123".to_string(),
     };
@@ -25,7 +25,7 @@ fn test_cache_put_and_get() {
 fn test_cache_miss_on_different_fingerprint() {
     let cache = QueryPlanCache::new(100);
     let plan = QueryPlan {
-        fetches:            vec![],
+        fetches: vec![],
         schema_fingerprint: "abc123".to_string(),
     };
 
@@ -39,7 +39,7 @@ fn test_cache_eviction() {
     let cache = QueryPlanCache::new(2);
     for i in 0..3 {
         let plan = QueryPlan {
-            fetches:            vec![],
+            fetches: vec![],
             schema_fingerprint: "fp".to_string(),
         };
         cache.put(&format!("query{i}"), plan);
@@ -54,7 +54,7 @@ fn test_cache_eviction() {
 fn test_cache_clear() {
     let cache = QueryPlanCache::new(100);
     let plan = QueryPlan {
-        fetches:            vec![],
+        fetches: vec![],
         schema_fingerprint: "fp".to_string(),
     };
     cache.put("q1", plan);
@@ -96,18 +96,18 @@ fn test_schema_fingerprint_order_independent() {
 fn test_multi_fetch_plan() {
     let cache = QueryPlanCache::new(100);
     let plan = QueryPlan {
-        fetches:            vec![
+        fetches: vec![
             SubgraphFetch {
-                subgraph:     "users".to_string(),
-                query:        "{ user { id } }".to_string(),
+                subgraph: "users".to_string(),
+                query: "{ user { id } }".to_string(),
                 entity_types: vec!["User".to_string()],
-                depends_on:   None,
+                depends_on: None,
             },
             SubgraphFetch {
-                subgraph:     "orders".to_string(),
-                query:        "{ orders { id } }".to_string(),
+                subgraph: "orders".to_string(),
+                query: "{ orders { id } }".to_string(),
                 entity_types: vec!["Order".to_string()],
-                depends_on:   Some(0),
+                depends_on: Some(0),
             },
         ],
         schema_fingerprint: "fp".to_string(),

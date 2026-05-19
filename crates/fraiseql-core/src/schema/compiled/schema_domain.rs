@@ -124,17 +124,17 @@ impl CompiledSchema {
                 .entities
                 .iter()
                 .map(|e| crate::federation::types::FederatedType {
-                    name:                e.name.clone(),
-                    keys:                vec![crate::federation::types::KeyDirective {
-                        fields:     e.key_fields.clone(),
+                    name: e.name.clone(),
+                    keys: vec![crate::federation::types::KeyDirective {
+                        fields: e.key_fields.clone(),
                         resolvable: true,
                     }],
-                    is_extends:          false,
-                    external_fields:     Vec::new(),
-                    shareable_fields:    Vec::new(),
+                    is_extends: false,
+                    external_fields: Vec::new(),
+                    shareable_fields: Vec::new(),
                     inaccessible_fields: Vec::new(),
-                    field_directives:    std::collections::HashMap::new(),
-                    type_shareable:      false,
+                    field_directives: std::collections::HashMap::new(),
+                    type_shareable: false,
                 })
                 .collect();
 

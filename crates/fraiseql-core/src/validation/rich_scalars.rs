@@ -39,7 +39,7 @@ impl EmailValidator {
     }
 
     /// Return the standard validation error message for an invalid email.
-    #[must_use] 
+    #[must_use]
     pub const fn error_message() -> &'static str {
         "Invalid email format"
     }
@@ -62,7 +62,7 @@ impl PhoneNumberValidator {
     }
 
     /// Return the standard validation error message for an invalid phone number.
-    #[must_use] 
+    #[must_use]
     pub const fn error_message() -> &'static str {
         "Invalid phone number format"
     }
@@ -91,7 +91,7 @@ impl VinValidator {
     }
 
     /// Return the standard validation error message for an invalid VIN.
-    #[must_use] 
+    #[must_use]
     pub const fn error_message() -> &'static str {
         "Invalid VIN format (must be 17 alphanumeric characters, excluding I, O, Q)"
     }
@@ -104,7 +104,7 @@ pub struct CountryCodeValidator {
 
 impl CountryCodeValidator {
     /// Create a new country code validator with all valid ISO codes.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         let mut codes = std::collections::HashSet::new();
         // All ISO 3166-1 alpha-2 codes
@@ -367,7 +367,7 @@ impl CountryCodeValidator {
     }
 
     /// Return the standard validation error message for an invalid country code.
-    #[must_use] 
+    #[must_use]
     pub const fn error_message() -> &'static str {
         "Invalid country code (must be ISO 3166-1 alpha-2)"
     }

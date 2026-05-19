@@ -19,7 +19,7 @@ impl Default for DirectDatabaseResolver {
 
 impl DirectDatabaseResolver {
     /// Create a new direct database resolver
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             connection_manager: ConnectionManager::new(),
@@ -27,7 +27,7 @@ impl DirectDatabaseResolver {
     }
 
     /// Get the number of cached remote connections
-    #[must_use] 
+    #[must_use]
     pub fn connection_count(&self) -> usize {
         self.connection_manager.connection_count()
     }

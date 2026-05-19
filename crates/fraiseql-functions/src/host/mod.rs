@@ -16,11 +16,11 @@ pub mod factory;
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
     /// HTTP status code.
-    pub status:  u16,
+    pub status: u16,
     /// Response headers.
     pub headers: Vec<(String, String)>,
     /// Response body.
-    pub body:    Vec<u8>,
+    pub body: Vec<u8>,
 }
 
 /// Trait for providing host services to functions (queries, storage, HTTP, etc.).
@@ -116,12 +116,12 @@ pub trait HostContext: Send + Sync {
 /// All I/O methods return `Unsupported` errors. Logs are captured in-memory for test verification.
 pub struct NoopHostContext {
     event_payload: EventPayload,
-    logs:          std::sync::Arc<std::sync::Mutex<Vec<LogEntry>>>,
+    logs: std::sync::Arc<std::sync::Mutex<Vec<LogEntry>>>,
 }
 
 impl NoopHostContext {
     /// Create a new no-op host context for testing.
-    #[must_use] 
+    #[must_use]
     pub fn new(event_payload: EventPayload) -> Self {
         Self {
             event_payload,
@@ -134,7 +134,7 @@ impl NoopHostContext {
     /// # Panics
     ///
     /// Panics if the Mutex is poisoned (should never happen in normal operation).
-    #[must_use] 
+    #[must_use]
     pub fn captured_logs(&self) -> Vec<LogEntry> {
         self.logs.lock().expect("log mutex poisoned").clone()
     }

@@ -12,9 +12,9 @@ use crate::{
 fn test_simple_equality() {
     let gen = MySqlWhereGenerator::new(MySqlDialect);
     let clause = WhereClause::Field {
-        path:     vec!["email".to_string()],
+        path: vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("test@example.com"),
+        value: json!("test@example.com"),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -27,9 +27,9 @@ fn test_simple_equality() {
 fn test_icontains() {
     let gen = MySqlWhereGenerator::new(MySqlDialect);
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: WhereOperator::Icontains,
-        value:    json!("alice"),
+        value: json!("alice"),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -42,14 +42,14 @@ fn test_placeholders_are_question_marks() {
     let gen = MySqlWhereGenerator::new(MySqlDialect);
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["a".to_string()],
+            path: vec!["a".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("x"),
+            value: json!("x"),
         },
         WhereClause::Field {
-            path:     vec!["b".to_string()],
+            path: vec!["b".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("y"),
+            value: json!("y"),
         },
     ]);
 

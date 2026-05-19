@@ -18,7 +18,7 @@
 /// assert_eq!(escape_postgres_jsonb_segment("user'name"), "user''name");
 /// assert_eq!(escape_postgres_jsonb_segment("normal"), "normal");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn escape_postgres_jsonb_segment(segment: &str) -> String {
     segment.replace('\'', "''")
 }
@@ -32,7 +32,7 @@ pub fn escape_postgres_jsonb_segment(segment: &str) -> String {
 /// let result = escape_postgres_jsonb_path(&path);
 /// // Ensures each segment is properly escaped
 /// ```
-#[must_use] 
+#[must_use]
 pub fn escape_postgres_jsonb_path(path: &[String]) -> Vec<String> {
     path.iter().map(|segment| escape_postgres_jsonb_segment(segment)).collect()
 }
@@ -50,7 +50,7 @@ pub fn escape_postgres_jsonb_path(path: &[String]) -> Vec<String> {
 /// let result = escape_mysql_json_path(&path);
 /// assert_eq!(result, "$.user.name");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn escape_mysql_json_path(path: &[String]) -> String {
     let json_path = path.join(".");
     // Double single quotes for SQL string literal; safe under NO_BACKSLASH_ESCAPES.
@@ -62,7 +62,7 @@ pub fn escape_mysql_json_path(path: &[String]) -> String {
 /// SQLite JSON paths use dot notation: '$.field.subfield'
 /// Single quotes are doubled (`''`) rather than backslash-escaped so that the
 /// path is safe regardless of SQLite compile-time escape settings.
-#[must_use] 
+#[must_use]
 pub fn escape_sqlite_json_path(path: &[String]) -> String {
     let json_path = path.join(".");
     // Double single quotes for SQL string literal; backslash escaping is not
@@ -74,7 +74,7 @@ pub fn escape_sqlite_json_path(path: &[String]) -> String {
 ///
 /// SQL Server JSON paths use dot notation: '$.field.subfield'
 /// Single quotes must be escaped for SQL string literals.
-#[must_use] 
+#[must_use]
 pub fn escape_sqlserver_json_path(path: &[String]) -> String {
     let json_path = path.join(".");
     format!("$.{}", json_path.replace('\'', "''"))

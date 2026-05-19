@@ -71,56 +71,56 @@ impl FieldFederationDirectives {
     }
 
     /// Set the @requires directive
-    #[must_use] 
+    #[must_use]
     pub fn with_requires(mut self, requires: Vec<FieldPathSelection>) -> Self {
         self.requires = requires;
         self
     }
 
     /// Add a single @requires dependency
-    #[must_use] 
+    #[must_use]
     pub fn add_requires(mut self, field_path: FieldPathSelection) -> Self {
         self.requires.push(field_path);
         self
     }
 
     /// Set the @provides directive
-    #[must_use] 
+    #[must_use]
     pub fn with_provides(mut self, provides: Vec<FieldPathSelection>) -> Self {
         self.provides = provides;
         self
     }
 
     /// Add a single @provides dependency
-    #[must_use] 
+    #[must_use]
     pub fn add_provides(mut self, field_path: FieldPathSelection) -> Self {
         self.provides.push(field_path);
         self
     }
 
     /// Mark as @external
-    #[must_use] 
+    #[must_use]
     pub const fn external(mut self) -> Self {
         self.external = true;
         self
     }
 
     /// Mark as @shareable
-    #[must_use] 
+    #[must_use]
     pub const fn shareable(mut self) -> Self {
         self.shareable = true;
         self
     }
 
     /// Mark as @inaccessible
-    #[must_use] 
+    #[must_use]
     pub const fn inaccessible(mut self) -> Self {
         self.inaccessible = true;
         self
     }
 
     /// Set @override(from: "subgraph")
-    #[must_use] 
+    #[must_use]
     pub fn with_override_from(mut self, from: String) -> Self {
         self.override_from = Some(from);
         self
@@ -185,7 +185,7 @@ impl FederatedType {
     }
 
     /// Get field-level directives for a field, if they exist
-    #[must_use] 
+    #[must_use]
     pub fn get_field_directives(&self, field_name: &str) -> Option<&FieldFederationDirectives> {
         self.field_directives.get(field_name)
     }
@@ -200,37 +200,37 @@ impl FederatedType {
     }
 
     /// Check if a field has the @requires directive
-    #[must_use] 
+    #[must_use]
     pub fn field_has_requires(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name).is_some_and(|d| !d.requires.is_empty())
     }
 
     /// Check if a field has the @provides directive
-    #[must_use] 
+    #[must_use]
     pub fn field_has_provides(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name).is_some_and(|d| !d.provides.is_empty())
     }
 
     /// Check if a field is marked as @shareable
-    #[must_use] 
+    #[must_use]
     pub fn field_is_shareable(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name).is_some_and(|d| d.shareable)
     }
 
     /// Check if a field is marked as @external
-    #[must_use] 
+    #[must_use]
     pub fn field_is_external(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name).is_some_and(|d| d.external)
     }
 
     /// Check if a field is marked as @inaccessible
-    #[must_use] 
+    #[must_use]
     pub fn field_is_inaccessible(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name).is_some_and(|d| d.inaccessible)
     }
 
     /// Check if a field has the @override directive
-    #[must_use] 
+    #[must_use]
     pub fn field_has_override(&self, field_name: &str) -> bool {
         self.get_field_directives(field_name).is_some_and(|d| d.override_from.is_some())
     }
@@ -269,7 +269,7 @@ impl EntityRepresentation {
     pub fn from_any(value: &Value) -> Result<Self> {
         let obj = value.as_object().ok_or_else(|| FraiseQLError::Validation {
             message: "Entity representation must be a JSON object".to_string(),
-            path:    None,
+            path: None,
         })?;
 
         let typename = obj
@@ -277,7 +277,7 @@ impl EntityRepresentation {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "__typename field is required in entity representation".to_string(),
-                path:    None,
+                path: None,
             })?
             .to_string();
 
@@ -307,7 +307,7 @@ impl EntityRepresentation {
     ///
     /// Supports both simple field names (e.g., "email") and dot-notation paths (e.g.,
     /// "user.email"). For nested paths, checks if the first component exists.
-    #[must_use] 
+    #[must_use]
     pub fn has_field(&self, field_path: &str) -> bool {
         // Check direct field match first
         if self.all_fields.contains_key(field_path) {
@@ -331,7 +331,7 @@ pub enum ResolutionStrategy {
     /// Entity is owned by this subgraph, resolve locally
     Local {
         /// View or table name to query
-        view_name:   String,
+        view_name: String,
         /// Columns that form the key
         key_columns: Vec<String>,
     },
@@ -341,7 +341,7 @@ pub enum ResolutionStrategy {
         /// Connection string or identifier
         connection_string: String,
         /// Key columns for WHERE clause
-        key_columns:       Vec<String>,
+        key_columns: Vec<String>,
     },
 
     /// Resolve via HTTP to external subgraph
@@ -380,7 +380,7 @@ pub struct FederationResolver {
 
 impl FederationResolver {
     /// Create new federation resolver
-    #[must_use] 
+    #[must_use]
     pub fn new(metadata: FederationMetadata) -> Self {
         Self {
             metadata,
@@ -408,7 +408,7 @@ impl FederationResolver {
             self.metadata.types.iter().find(|t| t.name == typename).ok_or_else(|| {
                 FraiseQLError::Validation {
                     message: format!("Type {typename} not found in federation metadata"),
-                    path:    None,
+                    path: None,
                 }
             })?;
 
@@ -424,7 +424,7 @@ impl FederationResolver {
             let key_cols = fed_type.keys.first().map(|k| k.fields.clone()).unwrap_or_default();
 
             ResolutionStrategy::Local {
-                view_name:   format!("{}_federation_view", typename),
+                view_name: format!("{}_federation_view", typename),
                 key_columns: key_cols,
             }
         };

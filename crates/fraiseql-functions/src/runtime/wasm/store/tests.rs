@@ -4,10 +4,10 @@ use super::*;
 fn test_store_data_creation() {
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "Test".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "Test".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
     let limits = ResourceLimits::default();
 
@@ -22,15 +22,15 @@ fn test_store_data_creation() {
 fn test_store_data_log_respects_limit() {
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "Test".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "Test".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
-        max_duration:     std::time::Duration::from_secs(5),
-        max_log_entries:  3, // Only allow 3 logs
+        max_duration: std::time::Duration::from_secs(5),
+        max_log_entries: 3, // Only allow 3 logs
     };
 
     let mut store = StoreData::new(event, limits);
@@ -53,10 +53,10 @@ fn test_store_data_log_respects_limit() {
 fn test_store_data_get_event_payload() {
     let event = EventPayload {
         trigger_type: "mutation".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({"id": 42}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({"id": 42}),
+        timestamp: chrono::Utc::now(),
     };
     let store = StoreData::new(event, ResourceLimits::default());
 

@@ -81,9 +81,9 @@ impl Default for SocialProviderRegistry {
 #[derive(Clone)]
 pub struct SocialLoginState {
     /// Configured `OAuth` provider registry.
-    pub registry:      Arc<SocialProviderRegistry>,
+    pub registry: Arc<SocialProviderRegistry>,
     /// `OAuth` `CSRF` state store.
-    pub state_store:   Arc<dyn StateStore>,
+    pub state_store: Arc<dyn StateStore>,
     /// Rate limiters for auth endpoints (per-IP sliding-window).
     pub rate_limiters: Arc<RateLimiters>,
 }

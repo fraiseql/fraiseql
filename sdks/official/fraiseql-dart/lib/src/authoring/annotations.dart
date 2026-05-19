@@ -37,6 +37,29 @@ class FraiseQLType {
   });
 }
 
+/// SQL source dispatch configuration for dynamic source selection.
+///
+/// Allows a query/mutation to select different SQL sources based on an argument value.
+/// Either explicit mapping or template can be provided, but not both.
+class SqlSourceDispatch {
+  /// The argument name to dispatch on.
+  final String argument;
+
+  /// Explicit mapping of argument values to SQL source names.
+  /// Example: {"DAY": "tf_orders_day", "WEEK": "tf_orders_week"}
+  final Map<String, String>? mapping;
+
+  /// Template string for SQL source name generation.
+  /// Example: "tf_orders_{value}"
+  final String? template;
+
+  const SqlSourceDispatch({
+    required this.argument,
+    this.mapping,
+    this.template,
+  });
+}
+
 /// Marks a field on a [FraiseQLType] class.
 class FraiseQLField {
   /// Optional override for the GraphQL field name.

@@ -21,10 +21,10 @@ use serde_json::json;
 #[test]
 fn test_deeply_nested_query_rejected() {
     let validator = QueryValidator::from_config(QueryValidatorConfig {
-        max_depth:      10,
+        max_depth: 10,
         max_complexity: 10_000,
         max_size_bytes: 1_000_000,
-        max_aliases:    100,
+        max_aliases: 100,
     });
 
     // Build a 50-level nested query
@@ -44,10 +44,10 @@ fn test_deeply_nested_query_rejected() {
 #[test]
 fn test_very_high_complexity_query_rejected() {
     let validator = QueryValidator::from_config(QueryValidatorConfig {
-        max_depth:      100,
+        max_depth: 100,
         max_complexity: 100,
         max_size_bytes: 10_000_000,
-        max_aliases:    100,
+        max_aliases: 100,
     });
 
     // Build a wide query with 200 top-level fields — complexity = 200 > max 100
@@ -91,10 +91,10 @@ fn test_malformed_graphql_handled() {
 #[test]
 fn test_query_exceeding_size_limit_rejected() {
     let validator = QueryValidator::from_config(QueryValidatorConfig {
-        max_depth:      10,
+        max_depth: 10,
         max_complexity: 1000,
         max_size_bytes: 100,
-        max_aliases:    30,
+        max_aliases: 30,
     });
 
     let large_query = "{ ".to_string() + &"a ".repeat(100) + "}";
@@ -110,9 +110,9 @@ fn test_query_exceeding_size_limit_rejected() {
 fn test_where_clause_with_empty_path() {
     // WhereClause with empty path vec — should be constructible
     let clause = WhereClause::Field {
-        path:     vec![],
+        path: vec![],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
 
     // Verify it serializes without panic
@@ -124,9 +124,9 @@ fn test_where_clause_with_empty_path() {
 fn test_where_clause_with_very_long_field_name() {
     let long_name = "x".repeat(10_000);
     let clause = WhereClause::Field {
-        path:     vec![long_name],
+        path: vec![long_name],
         operator: WhereOperator::Eq,
-        value:    json!("test"),
+        value: json!("test"),
     };
 
     // Should serialize/deserialize without panic
@@ -141,9 +141,9 @@ fn test_where_clause_with_very_long_field_name() {
 #[test]
 fn test_where_clause_with_null_value() {
     let clause = WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(null),
+        value: json!(null),
     };
 
     let serialized = serde_json::to_string(&clause).unwrap();
@@ -158,9 +158,9 @@ fn test_where_clause_with_null_value() {
 fn test_where_clause_with_deeply_nested_and_or() {
     // Build 100 levels of nested And/Or
     let mut clause = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
 
     for i in 0..100 {
@@ -189,9 +189,9 @@ fn test_where_clause_with_deeply_nested_and_or() {
 fn test_where_clause_moderate_nesting_roundtrips() {
     // 20 levels of nesting should roundtrip fine
     let mut clause = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
 
     for i in 0..20 {
@@ -211,9 +211,9 @@ fn test_where_clause_moderate_nesting_roundtrips() {
 #[test]
 fn test_where_clause_not_wrapping() {
     let inner = WhereClause::Field {
-        path:     vec!["active".to_string()],
+        path: vec!["active".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(true),
+        value: json!(true),
     };
     let clause = WhereClause::Not(Box::new(inner));
 

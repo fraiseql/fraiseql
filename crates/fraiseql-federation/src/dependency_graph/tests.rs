@@ -5,9 +5,9 @@ use super::*;
 #[test]
 fn test_dependency_node_creation() {
     let node = DependencyNode {
-        id:       "User.orders".to_string(),
+        id: "User.orders".to_string(),
         requires: vec![FieldPathSelection {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             typename: "User".to_string(),
         }],
     };

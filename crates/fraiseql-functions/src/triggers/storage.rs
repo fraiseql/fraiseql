@@ -41,7 +41,7 @@ pub enum StorageOperation {
 
 impl StorageOperation {
     /// Convert to string for trigger type.
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &str {
         match self {
             StorageOperation::Upload => "upload",
@@ -55,17 +55,17 @@ impl StorageOperation {
 #[derive(Debug, Clone)]
 pub struct StorageEventPayload {
     /// Bucket name.
-    pub bucket:       String,
+    pub bucket: String,
     /// Object key/path.
-    pub key:          String,
+    pub key: String,
     /// Object size in bytes.
-    pub size_bytes:   i64,
+    pub size_bytes: i64,
     /// MIME type of the object.
     pub content_type: String,
     /// User ID of the owner (if applicable).
-    pub owner_id:     Option<String>,
+    pub owner_id: Option<String>,
     /// Operation that triggered the event.
-    pub operation:    StorageOperation,
+    pub operation: StorageOperation,
 }
 
 /// A trigger that fires after storage operations.
@@ -74,9 +74,9 @@ pub struct StorageTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Bucket name to listen on.
-    pub bucket:        String,
+    pub bucket: String,
     /// Operation filter (Upload, Delete, or Any).
-    pub operation:     StorageOperation,
+    pub operation: StorageOperation,
 }
 
 impl StorageTrigger {
@@ -86,7 +86,7 @@ impl StorageTrigger {
     /// - Bucket name matches exactly
     /// - Operation matches (Upload/Delete/Any)
     /// - Key doesn't have `_transforms/` prefix (internal cache operations)
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, event: &StorageEventPayload) -> bool {
         // Bucket must match
         if self.bucket != event.bucket {
@@ -115,13 +115,13 @@ impl StorageTrigger {
     ///
     /// This is an explicit check (same as `matches` but with a different name
     /// for clarity in tests).
-    #[must_use] 
+    #[must_use]
     pub fn should_fire(&self, event: &StorageEventPayload) -> bool {
         self.matches(event)
     }
 
     /// Build an `EventPayload` from a storage event.
-    #[must_use] 
+    #[must_use]
     pub fn build_payload(&self, event: &StorageEventPayload) -> EventPayload {
         let trigger_type = format!("after:storage:{}:{}", event.bucket, event.operation.as_str());
 

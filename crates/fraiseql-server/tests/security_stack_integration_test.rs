@@ -245,11 +245,11 @@ fn test_graphql_request_deserializes_from_json() {
 #[test]
 fn test_graphql_request_minimal() {
     let request = GraphQLRequest {
-        query:          Some("{ user { id } }".to_string()),
-        variables:      None,
+        query: Some("{ user { id } }".to_string()),
+        variables: None,
         operation_name: None,
-        extensions:     None,
-        document_id:    None,
+        extensions: None,
+        document_id: None,
     };
 
     let validator = RequestValidator::new();

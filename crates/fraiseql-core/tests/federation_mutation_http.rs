@@ -25,17 +25,17 @@ fn test_build_mutation_query_for_update() {
         enabled: true,
         version: "v2".to_string(),
         types: vec![FederatedType {
-            name:                "User".to_string(),
-            keys:                vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:          true,
-            external_fields:     vec!["email".to_string()],
-            shareable_fields:    vec![],
+            is_extends: true,
+            external_fields: vec!["email".to_string()],
+            shareable_fields: vec![],
             inaccessible_fields: vec![],
-            field_directives:    std::collections::HashMap::new(),
-            type_shareable:      false,
+            field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
@@ -64,17 +64,17 @@ fn test_mutation_query_excludes_external_fields() {
         enabled: true,
         version: "v2".to_string(),
         types: vec![FederatedType {
-            name:                "Order".to_string(),
-            keys:                vec![KeyDirective {
-                fields:     vec!["order_id".to_string()],
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["order_id".to_string()],
                 resolvable: true,
             }],
-            is_extends:          true,
-            external_fields:     vec!["customer_id".to_string()],
-            shareable_fields:    vec![],
+            is_extends: true,
+            external_fields: vec!["customer_id".to_string()],
+            shareable_fields: vec![],
             inaccessible_fields: vec![],
-            field_directives:    std::collections::HashMap::new(),
-            type_shareable:      false,
+            field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
@@ -100,7 +100,7 @@ fn test_graphql_response_parsing_with_mutation_result() {
     let client = HttpMutationClient::new(config).unwrap();
 
     let response = GraphQLResponse {
-        data:   Some(json!({
+        data: Some(json!({
             "updateUser": {
                 "__typename": "User",
                 "id": "user123",
@@ -125,7 +125,7 @@ fn test_graphql_response_with_mutation_error() {
     let client = HttpMutationClient::new(config).unwrap();
 
     let response = GraphQLResponse {
-        data:   None,
+        data: None,
         errors: Some(vec![
             fraiseql_core::federation::mutation_http_client::GraphQLError::new("User not found"),
         ]),
@@ -145,7 +145,7 @@ fn test_graphql_response_missing_mutation_field() {
     let client = HttpMutationClient::new(config).unwrap();
 
     let response = GraphQLResponse {
-        data:   Some(json!({
+        data: Some(json!({
             "otherMutation": {
                 "__typename": "User",
                 "id": "user123"
@@ -164,8 +164,8 @@ fn test_graphql_response_missing_mutation_field() {
 #[test]
 fn test_http_mutation_client_with_custom_config() {
     let config = HttpMutationConfig {
-        timeout_ms:     10000,
-        max_retries:    5,
+        timeout_ms: 10000,
+        max_retries: 5,
         retry_delay_ms: 200,
     };
 
@@ -323,7 +323,7 @@ fn test_extended_mutation_error_propagation() {
 #[test]
 fn test_graphql_request_with_variables() {
     let request = GraphQLRequest {
-        query:     "mutation($id: ID!, $name: String!) { updateUser(id: $id, name: $name) { id } }"
+        query: "mutation($id: ID!, $name: String!) { updateUser(id: $id, name: $name) { id } }"
             .to_string(),
         variables: json!({
             "id": "user123",
@@ -340,7 +340,7 @@ fn test_graphql_request_with_variables() {
 #[test]
 fn test_graphql_request_without_variables() {
     let request = GraphQLRequest {
-        query:     "mutation { deleteUser(id: \"user123\") { id } }".to_string(),
+        query: "mutation { deleteUser(id: \"user123\") { id } }".to_string(),
         variables: json!({}),
     };
 

@@ -18,7 +18,10 @@ use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
-    types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::{OrderByClause, SqlProjectionHint}},
+    types::{
+        DatabaseType, JsonbValue, PoolMetrics,
+        sql_hints::{OrderByClause, SqlProjectionHint},
+    },
     where_clause::WhereClause,
 };
 

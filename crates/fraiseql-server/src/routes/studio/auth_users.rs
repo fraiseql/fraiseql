@@ -25,13 +25,13 @@ use crate::routes::graphql::app_state::AppState;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminUser {
     /// OIDC subject identifier.
-    pub sub:          String,
+    pub sub: String,
     /// User email address.
-    pub email:        String,
+    pub email: String,
     /// Identity provider (e.g. `"google"`, `"email"`, `"github"`).
-    pub provider:     String,
+    pub provider: String,
     /// Account creation timestamp (RFC 3339).
-    pub created_at:   String,
+    pub created_at: String,
     /// Most recent sign-in timestamp (RFC 3339), or `None` if never signed in.
     pub last_sign_in: Option<String>,
     /// Whether the user has enrolled a TOTP or `WebAuthn` MFA factor.
@@ -46,11 +46,11 @@ pub struct AdminUser {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserListResponse {
     /// Users on this page.
-    pub users:     Vec<AdminUser>,
+    pub users: Vec<AdminUser>,
     /// Total user count across all pages.
-    pub total:     u64,
+    pub total: u64,
     /// Current page number (1-indexed).
-    pub page:      u32,
+    pub page: u32,
     /// Users per page.
     pub page_size: u32,
 }
@@ -90,9 +90,9 @@ where
 {
     // Placeholder — not yet wired to auth session tables.
     Json(UserListResponse {
-        users:     vec![],
-        total:     0,
-        page:      1,
+        users: vec![],
+        total: 0,
+        page: 1,
         page_size: 50,
     })
 }

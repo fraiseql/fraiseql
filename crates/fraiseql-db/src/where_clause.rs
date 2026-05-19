@@ -42,11 +42,11 @@ pub enum WhereClause {
     /// Single field condition.
     Field {
         /// JSONB path (e.g., `["email"]` or `["posts", "title"]`).
-        path:     Vec<String>,
+        path: Vec<String>,
         /// Comparison operator.
         operator: WhereOperator,
         /// Value to compare against.
-        value:    serde_json::Value,
+        value: serde_json::Value,
     },
 
     /// Logical AND of multiple conditions.
@@ -66,14 +66,14 @@ pub enum WhereClause {
     /// default `data->>'column' = $N`.
     NativeField {
         /// Native column name (e.g., `"id"`).
-        column:   String,
+        column: String,
         /// PostgreSQL parameter cast suffix (e.g., `"uuid"`, `"int4"`).
         /// Empty string means no cast is applied.
-        pg_cast:  String,
+        pg_cast: String,
         /// Comparison operator.
         operator: WhereOperator,
         /// Value to compare against.
-        value:    serde_json::Value,
+        value: serde_json::Value,
     },
 }
 
@@ -158,7 +158,7 @@ impl WhereClause {
         let Some(obj) = value.as_object() else {
             return Err(FraiseQLError::Validation {
                 message: "where clause must be a JSON object".to_string(),
-                path:    None,
+                path: None,
             });
         };
 
@@ -169,7 +169,7 @@ impl WhereClause {
                 "_and" => {
                     let arr = val.as_array().ok_or_else(|| FraiseQLError::Validation {
                         message: "_and must be an array".to_string(),
-                        path:    None,
+                        path: None,
                     })?;
                     let sub: Result<Vec<Self>> =
                         arr.iter().map(|v| Self::parse_where_object(v, path_prefix)).collect();
@@ -178,7 +178,7 @@ impl WhereClause {
                 "_or" => {
                     let arr = val.as_array().ok_or_else(|| FraiseQLError::Validation {
                         message: "_or must be an array".to_string(),
-                        path:    None,
+                        path: None,
                     })?;
                     let sub: Result<Vec<Self>> =
                         arr.iter().map(|v| Self::parse_where_object(v, path_prefix)).collect();
@@ -193,7 +193,7 @@ impl WhereClause {
                         message: format!(
                             "where field '{field_name}' must be an object of {{operator: value}}"
                         ),
-                        path:    None,
+                        path: None,
                     })?;
                     let mut field_path = path_prefix.to_vec();
                     field_path.push(to_snake_case(field_name));
@@ -622,9 +622,9 @@ pub enum HavingClause {
         /// Aggregate name: "count" or "field_function" (e.g., "revenue_sum").
         aggregate: String,
         /// Comparison operator.
-        operator:  WhereOperator,
+        operator: WhereOperator,
         /// Value to compare against.
-        value:     serde_json::Value,
+        value: serde_json::Value,
     },
 
     /// Logical AND of multiple conditions.

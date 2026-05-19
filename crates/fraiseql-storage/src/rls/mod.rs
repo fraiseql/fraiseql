@@ -26,7 +26,7 @@ pub struct StorageRlsEvaluator;
 
 impl StorageRlsEvaluator {
     /// Create a new evaluator.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -36,7 +36,7 @@ impl StorageRlsEvaluator {
     /// Rules:
     /// - Public bucket → always allowed (even anonymous)
     /// - Private bucket → owner match or admin role required
-    #[must_use] 
+    #[must_use]
     pub fn can_read(
         &self,
         user_id: Option<&str>,
@@ -55,7 +55,7 @@ impl StorageRlsEvaluator {
     /// Rules:
     /// - Must be authenticated (user_id present)
     /// - Admin role always allowed
-    #[must_use] 
+    #[must_use]
     pub fn can_write(
         &self,
         user_id: Option<&str>,
@@ -72,7 +72,7 @@ impl StorageRlsEvaluator {
     ///
     /// Rules:
     /// - Owner match or admin role required
-    #[must_use] 
+    #[must_use]
     pub fn can_delete(
         &self,
         user_id: Option<&str>,
@@ -87,7 +87,7 @@ impl StorageRlsEvaluator {
     ///
     /// For public buckets, all objects are visible.
     /// For private buckets, only owned objects (or all if admin).
-    #[must_use] 
+    #[must_use]
     pub fn filter_visible(
         &self,
         user_id: Option<&str>,

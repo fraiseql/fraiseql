@@ -411,19 +411,19 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     domain_reg.register("api.acme.com", "from-host");
 
     let ctx = SecurityContext {
-        user_id:          UserId("u1".to_string()),
-        roles:            vec![],
-        tenant_id:        Some(TenantId("from-jwt".to_string())),
-        scopes:           vec![],
-        attributes:       std::collections::HashMap::new(),
-        request_id:       "r1".to_string(),
-        ip_address:       None,
+        user_id: UserId("u1".to_string()),
+        roles: vec![],
+        tenant_id: Some(TenantId("from-jwt".to_string())),
+        scopes: vec![],
+        attributes: std::collections::HashMap::new(),
+        request_id: "r1".to_string(),
+        ip_address: None,
         authenticated_at: Utc::now(),
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        issuer:           None,
-        audience:         None,
-        email:            None,
-        display_name:     None,
+        expires_at: Utc::now() + chrono::Duration::hours(1),
+        issuer: None,
+        audience: None,
+        email: None,
+        display_name: None,
     };
 
     let mut headers = HeaderMap::new();
@@ -558,9 +558,9 @@ fn test_tenant_rate_limit_independence() {
     let registry = state.tenant_registry().unwrap();
 
     let quota = TenantQuota {
-        max_concurrent:       Some(1),
+        max_concurrent: Some(1),
         max_requests_per_sec: None,
-        max_storage_bytes:    None,
+        max_storage_bytes: None,
     };
     registry.upsert_with_quota("tenant-a", make_executor("a", "users"), quota.clone());
     registry.upsert_with_quota("tenant-b", make_executor("b", "orders"), quota);

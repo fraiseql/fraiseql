@@ -12,15 +12,15 @@ use crate::output::CommandResult;
 #[derive(Debug, Serialize)]
 pub struct CostResponse {
     /// The GraphQL query being analyzed
-    pub query:            String,
+    pub query: String,
     /// Complexity score based on query depth and breadth (pagination-aware)
     pub complexity_score: usize,
     /// Estimated execution cost
-    pub estimated_cost:   usize,
+    pub estimated_cost: usize,
     /// Maximum query depth
-    pub depth:            usize,
+    pub depth: usize,
     /// Number of aliased fields
-    pub alias_count:      usize,
+    pub alias_count: usize,
 }
 
 /// Run cost command (minimal complexity analysis)
@@ -38,11 +38,11 @@ pub fn run(query: &str) -> Result<CommandResult> {
     let metrics = validator.analyze(query)?;
 
     let response = CostResponse {
-        query:            query.to_string(),
+        query: query.to_string(),
         complexity_score: metrics.complexity,
-        estimated_cost:   metrics.depth * 25, // Rough cost estimation
-        depth:            metrics.depth,
-        alias_count:      metrics.alias_count,
+        estimated_cost: metrics.depth * 25, // Rough cost estimation
+        depth: metrics.depth,
+        alias_count: metrics.alias_count,
     };
 
     Ok(CommandResult::success("cost", serde_json::to_value(&response)?))

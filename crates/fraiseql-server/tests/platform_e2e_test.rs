@@ -101,7 +101,7 @@ fn test_platform_e2e_functions_subsystem_full_construction() {
     let module_registry: HashMap<String, FunctionModule> = HashMap::new();
     let config = fraiseql_server::schema::loader::FunctionsConfig {
         definitions: defs,
-        module_dir:  std::env::temp_dir().join("fraiseql_test_functions"),
+        module_dir: std::env::temp_dir().join("fraiseql_test_functions"),
     };
 
     let subsystem = FunctionsSubsystem {
@@ -248,11 +248,11 @@ fn test_platform_e2e_realtime_observer_hook_is_accessible() {
     // Simulate a mutation completing: non-blocking, returns immediately
     use fraiseql_server::realtime::delivery::{EntityEvent, EventKindSerde};
     let event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKindSerde::Insert,
-        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        old:        None,
-        timestamp:  chrono::Utc::now().to_rfc3339(),
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        old: None,
+        timestamp: chrono::Utc::now().to_rfc3339(),
     };
     observer.on_mutation_complete(event);
 
@@ -275,11 +275,11 @@ fn test_platform_e2e_realtime_observer_drops_events_on_backpressure() {
     let (observer, _rx) = RealtimeBroadcastObserver::new(1);
 
     let make_event = || EntityEvent {
-        entity:     "Post".to_string(),
+        entity: "Post".to_string(),
         event_kind: EventKindSerde::Insert,
-        new:        Some(serde_json::json!({ "id": 1 })),
-        old:        None,
-        timestamp:  chrono::Utc::now().to_rfc3339(),
+        new: Some(serde_json::json!({ "id": 1 })),
+        old: None,
+        timestamp: chrono::Utc::now().to_rfc3339(),
     };
 
     // First event fills the channel

@@ -145,7 +145,7 @@ pub struct UsageAggregator {
     /// (e.g. to upgrade from `NoopBackend` to `PostgresBackend` once the DB pool
     /// is available at server startup, after the tracing subscriber has already
     /// taken a reference via [`global_aggregator`]).
-    backend:  std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
+    backend: std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
 }
 
 impl std::fmt::Debug for UsageAggregator {
@@ -162,7 +162,7 @@ impl UsageAggregator {
     pub fn new() -> Self {
         Self {
             counters: DashMap::new(),
-            backend:  std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
+            backend: std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
         }
     }
 
@@ -171,7 +171,7 @@ impl UsageAggregator {
     pub fn new_with_backend(backend: std::sync::Arc<dyn UsageBackend>) -> Self {
         Self {
             counters: DashMap::new(),
-            backend:  std::sync::RwLock::new(backend),
+            backend: std::sync::RwLock::new(backend),
         }
     }
 

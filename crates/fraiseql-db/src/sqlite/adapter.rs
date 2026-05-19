@@ -137,7 +137,7 @@ impl SqliteAdapter {
             .fetch_one(&pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to connect to SQLite database: {e}"),
+                message: format!("Failed to connect to SQLite database: {e}"),
                 sql_state: None,
             })?;
 
@@ -184,7 +184,7 @@ impl SqliteAdapter {
 
         let rows: Vec<SqliteRow> =
             query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("SQLite query execution failed: {e}"),
+                message: format!("SQLite query execution failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -357,7 +357,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let rows: Vec<SqliteRow> =
             query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("SQLite direct mutation failed: {e}"),
+                message: format!("SQLite direct mutation failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -368,7 +368,7 @@ impl DatabaseAdapter for SqliteAdapter {
                      the target row may not exist or RLS filters rejected it",
                     ctx.table
                 ),
-                path:    None,
+                path: None,
             });
         }
 
@@ -410,7 +410,7 @@ impl DatabaseAdapter for SqliteAdapter {
     async fn health_check(&self) -> Result<()> {
         sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   format!("SQLite health check failed: {e}"),
+                message: format!("SQLite health check failed: {e}"),
                 sql_state: None,
             }
         })?;
@@ -424,10 +424,10 @@ impl DatabaseAdapter for SqliteAdapter {
         let idle = self.pool.num_idle();
 
         PoolMetrics {
-            total_connections:  size,
-            idle_connections:   idle as u32,
+            total_connections: size,
+            idle_connections: idle as u32,
             active_connections: size - idle as u32,
-            waiting_requests:   0, // sqlx doesn't expose waiting count
+            waiting_requests: 0, // sqlx doesn't expose waiting count
         }
     }
 
@@ -444,7 +444,7 @@ impl DatabaseAdapter for SqliteAdapter {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| FraiseQLError::Database {
-                    message:   format!("SQLite query execution failed: {e}"),
+                    message: format!("SQLite query execution failed: {e}"),
                     sql_state: None,
                 })?;
 
@@ -518,7 +518,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let rows: Vec<SqliteRow> =
             query.fetch_all(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("SQLite parameterized aggregate query failed: {e}"),
+                message: format!("SQLite parameterized aggregate query failed: {e}"),
                 sql_state: None,
             })?;
 
@@ -567,7 +567,7 @@ impl DatabaseAdapter for SqliteAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path:    None,
+                path: None,
             });
         }
         let explain_sql = format!("EXPLAIN QUERY PLAN {sql}");
@@ -575,7 +575,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .fetch_all(&self.pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("SQLite EXPLAIN failed: {e}"),
+                message: format!("SQLite EXPLAIN failed: {e}"),
                 sql_state: None,
             })?;
 

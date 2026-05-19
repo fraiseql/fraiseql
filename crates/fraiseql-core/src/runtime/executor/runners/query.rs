@@ -17,7 +17,9 @@ use crate::db::traits::DatabaseAdapter;
 // Re-export sub-module items so that `use super::*` in tests
 // continues to find them without import path changes.
 #[cfg(test)]
-pub use super::query_params::{combine_explicit_arg_where, compute_projection_reduction, pg_type_to_cast};
+pub use super::query_params::{
+    combine_explicit_arg_where, compute_projection_reduction, pg_type_to_cast,
+};
 #[cfg(test)]
 pub use super::query_projection::selections_contain_field;
 #[cfg(test)]

@@ -6,7 +6,7 @@
 /// `fraiseql:rl:{strategy}:{prefix}:{identifier}` when an optional path prefix is supplied.
 ///
 /// Exposed as `pub` for property testing.
-#[must_use] 
+#[must_use]
 pub fn build_rate_limit_key(strategy: &str, identifier: &str, prefix: Option<&str>) -> String {
     match prefix {
         Some(p) => format!("fraiseql:rl:{strategy}:{p}:{identifier}"),
@@ -46,9 +46,9 @@ pub(super) fn path_matches_rule(path: &str, prefix: &str) -> bool {
 #[derive(Debug, Clone)]
 pub(super) struct PathRateLimit {
     /// Path prefix to match (exact prefix, e.g., `/auth/start`).
-    pub(super) path_prefix:    String,
+    pub(super) path_prefix: String,
     /// Token refill rate (tokens per second = `max_requests` / `window_secs`).
     pub(super) tokens_per_sec: f64,
     /// Maximum burst (= `max_requests`).
-    pub(super) burst:          f64,
+    pub(super) burst: f64,
 }

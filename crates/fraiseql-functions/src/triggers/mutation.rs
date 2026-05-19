@@ -37,7 +37,7 @@ pub enum EventKind {
 
 impl EventKind {
     /// Convert to string representation.
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             EventKind::Insert => "insert",
@@ -67,15 +67,15 @@ impl std::fmt::Display for EventKind {
 #[derive(Debug, Clone)]
 pub struct EntityEvent {
     /// Entity type (e.g., "User", "Post").
-    pub entity:     String,
+    pub entity: String,
     /// Kind of mutation.
     pub event_kind: EventKind,
     /// Old row data (None for Insert).
-    pub old:        Option<serde_json::Value>,
+    pub old: Option<serde_json::Value>,
     /// New row data (None for Delete).
-    pub new:        Option<serde_json::Value>,
+    pub new: Option<serde_json::Value>,
     /// Timestamp of the event.
-    pub timestamp:  chrono::DateTime<chrono::Utc>,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 /// Trigger that fires after a mutation completes.
@@ -102,31 +102,31 @@ pub struct AfterMutationTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Entity type to trigger on (e.g., "User").
-    pub entity_type:   String,
+    pub entity_type: String,
     /// Optional filter on event kind (None = all).
-    pub event_filter:  Option<EventKind>,
+    pub event_filter: Option<EventKind>,
 }
 
 impl AfterMutationTrigger {
     /// Check if this trigger matches the given entity and event.
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, entity: &str, event_kind: EventKind) -> bool {
         self.entity_type == entity && self.event_filter.is_none_or(|filter| filter == event_kind)
     }
 
     /// Build an `EventPayload` from an entity event.
-    #[must_use] 
+    #[must_use]
     pub fn build_payload(&self, event: &EntityEvent) -> EventPayload {
         EventPayload {
             trigger_type: format!("after:mutation:{}", self.function_name),
-            entity:       event.entity.clone(),
-            event_kind:   event.event_kind.to_string(),
-            data:         serde_json::json!({
+            entity: event.entity.clone(),
+            event_kind: event.event_kind.to_string(),
+            data: serde_json::json!({
                 "event_kind": event.event_kind.as_str(),
                 "old": event.old,
                 "new": event.new,
             }),
-            timestamp:    event.timestamp,
+            timestamp: event.timestamp,
         }
     }
 }
@@ -172,7 +172,7 @@ pub struct BeforeMutationTrigger {
 
 impl BeforeMutationTrigger {
     /// Check if this trigger matches the given mutation.
-    #[must_use] 
+    #[must_use]
     pub fn matches(&self, mutation: &str) -> bool {
         self.mutation_name == mutation
     }
@@ -253,16 +253,16 @@ impl BeforeMutationChain {
                         "before:mutation function '{}' not found in module registry",
                         trigger.function_name,
                     ),
-                    path:    None,
+                    path: None,
                 }
             })?;
 
             let payload = crate::types::EventPayload {
                 trigger_type: format!("before:mutation:{}", trigger.mutation_name),
-                entity:       trigger.mutation_name.clone(),
-                event_kind:   "before".to_string(),
-                data:         current.clone(),
-                timestamp:    chrono::Utc::now(),
+                entity: trigger.mutation_name.clone(),
+                event_kind: "before".to_string(),
+                data: current.clone(),
+                timestamp: chrono::Utc::now(),
             };
 
             let result = observer.invoke(module, payload, host, limits.clone()).await?;
@@ -317,17 +317,17 @@ impl BeforeMutationChain {
 #[derive(Debug, Clone)]
 pub struct TriggerMatcher {
     /// Map of `entity_type` → `event_kind` → triggers
-    specific:  HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
+    specific: HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
     /// Map of `entity_type` → triggers that match all event kinds
     all_kinds: HashMap<String, Vec<AfterMutationTrigger>>,
 }
 
 impl TriggerMatcher {
     /// Create a new empty trigger matcher.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            specific:  HashMap::new(),
+            specific: HashMap::new(),
             all_kinds: HashMap::new(),
         }
     }
@@ -350,7 +350,7 @@ impl TriggerMatcher {
     }
 
     /// Find all triggers matching the given entity and event kind.
-    #[must_use] 
+    #[must_use]
     pub fn find(&self, entity: &str, event_kind: EventKind) -> Vec<AfterMutationTrigger> {
         let event_str = event_kind.as_str();
         let mut result = Vec::new();

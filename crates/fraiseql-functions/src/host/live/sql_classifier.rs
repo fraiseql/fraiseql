@@ -81,7 +81,7 @@ pub fn classify_sql(sql: &str) -> Result<SqlClassification> {
     let dialect = PostgreSqlDialect {};
     let statements = Parser::parse_sql(&dialect, sql).map_err(|e| FraiseQLError::Validation {
         message: format!("invalid SQL: {}", e),
-        path:    None,
+        path: None,
     })?;
 
     // Check each statement in the batch

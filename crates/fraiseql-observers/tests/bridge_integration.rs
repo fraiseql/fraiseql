@@ -468,10 +468,10 @@ mod bridge_tests {
 
         // Create bridge config
         let bridge_config = BridgeConfig {
-            transport_name:     transport_name.clone(),
-            batch_size:         10,
+            transport_name: transport_name.clone(),
+            batch_size: 10,
             poll_interval_secs: 1,
-            notify_channel:     format!("test_notify_{test_id}"),
+            notify_channel: format!("test_notify_{test_id}"),
         };
 
         // Create bridge
@@ -566,10 +566,10 @@ mod bridge_tests {
         };
 
         let bridge_config = BridgeConfig {
-            transport_name:     transport_name.clone(),
-            batch_size:         5,
+            transport_name: transport_name.clone(),
+            batch_size: 5,
             poll_interval_secs: 1,
-            notify_channel:     format!("test_crash_notify_{test_id}"),
+            notify_channel: format!("test_crash_notify_{test_id}"),
         };
 
         // First run: process some entries then "crash"

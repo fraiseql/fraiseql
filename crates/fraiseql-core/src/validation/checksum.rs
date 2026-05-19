@@ -52,7 +52,7 @@ impl LuhnValidator {
     ///
     /// Cannot panic in practice — the `expect` on `to_digit(10)` is guarded
     /// by a preceding `all(|c| c.is_ascii_digit())` check that returns `false` first.
-    #[must_use] 
+    #[must_use]
     pub fn validate(value: &str) -> bool {
         // Must have at least 1 digit and no more than MAX_LUHN_DIGITS.
         if value.is_empty() || value.len() > MAX_LUHN_DIGITS {
@@ -86,7 +86,7 @@ impl LuhnValidator {
     }
 
     /// Get a human-readable description of why validation failed.
-    #[must_use] 
+    #[must_use]
     pub const fn error_message() -> &'static str {
         "Invalid checksum (Luhn algorithm)"
     }
@@ -123,7 +123,7 @@ impl Mod97Validator {
     /// assert!(Mod97Validator::validate("GB82WEST12345698765432")); // Valid IBAN
     /// assert!(!Mod97Validator::validate("GB82WEST12345698765433")); // Invalid
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn validate(value: &str) -> bool {
         // Quick length pre-check: IBANs are 4–34 characters (ISO 13616).
         if value.len() < 4 || value.len() > MAX_MOD97_BYTES {
@@ -175,7 +175,7 @@ impl Mod97Validator {
     }
 
     /// Get a human-readable description of why validation failed.
-    #[must_use] 
+    #[must_use]
     pub const fn error_message() -> &'static str {
         "Invalid checksum (MOD-97 algorithm)"
     }

@@ -44,7 +44,7 @@ fn test_python_basic_federation_key() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -78,11 +78,11 @@ fn test_python_multiple_federation_keys() {
 
     let mut account_type = FederatedType::new("Account".to_string());
     account_type.keys.push(KeyDirective {
-        fields:     vec!["tenant_id".to_string()],
+        fields: vec!["tenant_id".to_string()],
         resolvable: true,
     });
     account_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -111,7 +111,7 @@ fn test_python_composite_key() {
 
     let mut team_member = FederatedType::new("TeamMember".to_string());
     team_member.keys.push(KeyDirective {
-        fields:     vec!["org_id".to_string(), "tenant_id".to_string()],
+        fields: vec!["org_id".to_string(), "tenant_id".to_string()],
         resolvable: true,
     });
 
@@ -150,7 +150,7 @@ fn test_python_extended_type() {
     user_type.is_extends = true;
     user_type.external_fields.push("id".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -185,20 +185,20 @@ fn test_python_requires_directive() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives {
-            requires:      vec![FieldPathSelection {
-                path:     vec!["weight".to_string()],
+            requires: vec![FieldPathSelection {
+                path: vec!["weight".to_string()],
                 typename: "Order".to_string(),
             }],
-            provides:      vec![],
-            external:      false,
-            shareable:     false,
-            inaccessible:  false,
+            provides: vec![],
+            external: false,
+            shareable: false,
+            inaccessible: false,
             override_from: None,
         },
     );
@@ -231,18 +231,18 @@ fn test_python_multiple_requires() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingCost".to_string(),
         FieldFederationDirectives::new()
             .add_requires(FieldPathSelection {
-                path:     vec!["weight".to_string()],
+                path: vec!["weight".to_string()],
                 typename: "Order".to_string(),
             })
             .add_requires(FieldPathSelection {
-                path:     vec!["dimensions".to_string()],
+                path: vec!["dimensions".to_string()],
                 typename: "Order".to_string(),
             }),
     );
@@ -277,13 +277,13 @@ fn test_python_provides_directive() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["userId".to_string()],
+            path: vec!["userId".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -313,7 +313,7 @@ fn test_python_entity_resolution_basic() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -330,7 +330,7 @@ fn test_python_entity_resolution_basic() {
     entity_fields.insert("email".to_string(), json!("alice@example.com"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -354,13 +354,13 @@ fn test_python_entity_resolution_with_requires() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "premiumContent".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["email".to_string()],
+            path: vec!["email".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -377,7 +377,7 @@ fn test_python_entity_resolution_with_requires() {
     entity_fields.insert("email".to_string(), json!("alice@example.com"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-123"));
@@ -411,13 +411,13 @@ fn test_python_cross_subgraph_reference() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -451,7 +451,7 @@ fn test_python_federation_query_types() {
 
     let mut query_type = FederatedType::new("Query".to_string());
     query_type.keys.push(KeyDirective {
-        fields:     vec!["__typename".to_string()],
+        fields: vec!["__typename".to_string()],
         resolvable: false,
     });
 
@@ -481,7 +481,7 @@ fn test_python_missing_key_validation() {
 
     // Empty key fields means representation is incomplete
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: HashMap::new(),
         all_fields: HashMap::new(),
     };
@@ -525,7 +525,7 @@ fn test_python_schema_compilation_roundtrip() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives("email".to_string(), FieldFederationDirectives::new());

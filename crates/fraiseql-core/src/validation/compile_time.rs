@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone)]
 pub struct SchemaContext {
     /// Type definitions: `type_name` -> fields
-    pub types:  HashMap<String, TypeDef>,
+    pub types: HashMap<String, TypeDef>,
     /// Field types: (`type_name`, `field_name`) -> `field_type`
     pub fields: HashMap<(String, String), FieldType>,
 }
@@ -23,7 +23,7 @@ pub struct SchemaContext {
 #[derive(Debug, Clone)]
 pub struct TypeDef {
     /// Name of the GraphQL type.
-    pub name:   String,
+    pub name: String,
     /// Names of the fields declared on this type.
     pub fields: Vec<String>,
 }
@@ -50,7 +50,7 @@ pub enum FieldType {
 
 impl FieldType {
     /// Check if two types are comparable
-    #[must_use] 
+    #[must_use]
     pub fn is_comparable_with(&self, other: &FieldType) -> bool {
         match (self, other) {
             // Same types are always comparable
@@ -70,11 +70,11 @@ impl FieldType {
 #[derive(Debug, Clone)]
 pub struct CompileTimeValidationResult {
     /// Whether the rule is valid.
-    pub valid:          bool,
+    pub valid: bool,
     /// All errors found during validation.
-    pub errors:         Vec<CompileTimeError>,
+    pub errors: Vec<CompileTimeError>,
     /// Non-fatal warnings from validation.
-    pub warnings:       Vec<String>,
+    pub warnings: Vec<String>,
     /// SQL constraint expression derived from the rule, if generation succeeded.
     pub sql_constraint: Option<String>,
 }
@@ -83,9 +83,9 @@ pub struct CompileTimeValidationResult {
 #[derive(Debug, Clone)]
 pub struct CompileTimeError {
     /// Field path where the error occurred.
-    pub field:      String,
+    pub field: String,
     /// Human-readable error description.
-    pub message:    String,
+    pub message: String,
     /// Optional suggestion for how to fix the error.
     pub suggestion: Option<String>,
 }
@@ -98,13 +98,13 @@ pub struct CompileTimeValidator {
 
 impl CompileTimeValidator {
     /// Create a new compile-time validator
-    #[must_use] 
+    #[must_use]
     pub const fn new(context: SchemaContext) -> Self {
         Self { context }
     }
 
     /// Validate a cross-field rule
-    #[must_use] 
+    #[must_use]
     pub fn validate_cross_field_rule(
         &self,
         type_name: &str,
@@ -120,8 +120,8 @@ impl CompileTimeValidator {
             return CompileTimeValidationResult {
                 valid: false,
                 errors: vec![CompileTimeError {
-                    field:      type_name.to_string(),
-                    message:    format!("Type '{}' not found in schema", type_name),
+                    field: type_name.to_string(),
+                    message: format!("Type '{}' not found in schema", type_name),
                     suggestion: Some("Check that the type is defined".to_string()),
                 }],
                 warnings,
@@ -133,8 +133,8 @@ impl CompileTimeValidator {
         let left_key = (type_name.to_string(), left_field.to_string());
         let Some(left_type) = self.context.fields.get(&left_key) else {
             errors.push(CompileTimeError {
-                field:      left_field.to_string(),
-                message:    format!("Field '{}' not found in type '{}'", left_field, type_name),
+                field: left_field.to_string(),
+                message: format!("Field '{}' not found in type '{}'", left_field, type_name),
                 suggestion: Some(self.suggest_field(type_name, left_field)),
             });
             return CompileTimeValidationResult {
@@ -149,8 +149,8 @@ impl CompileTimeValidator {
         let right_key = (type_name.to_string(), right_field.to_string());
         let Some(right_type) = self.context.fields.get(&right_key) else {
             errors.push(CompileTimeError {
-                field:      right_field.to_string(),
-                message:    format!("Field '{}' not found in type '{}'", right_field, type_name),
+                field: right_field.to_string(),
+                message: format!("Field '{}' not found in type '{}'", right_field, type_name),
                 suggestion: Some(self.suggest_field(type_name, right_field)),
             });
             return CompileTimeValidationResult {
@@ -164,8 +164,8 @@ impl CompileTimeValidator {
         // Check if types are comparable
         if !left_type.is_comparable_with(right_type) {
             errors.push(CompileTimeError {
-                field:      format!("{} {} {}", left_field, operator, right_field),
-                message:    format!("Cannot compare {:?} with {:?}", left_type, right_type),
+                field: format!("{} {} {}", left_field, operator, right_field),
+                message: format!("Cannot compare {:?} with {:?}", left_type, right_type),
                 suggestion: Some("Ensure both fields have comparable types".to_string()),
             });
             return CompileTimeValidationResult {
@@ -195,7 +195,7 @@ impl CompileTimeValidator {
     }
 
     /// Validate an ELO expression at compile time
-    #[must_use] 
+    #[must_use]
     pub fn validate_elo_expression(
         &self,
         type_name: &str,
@@ -209,8 +209,8 @@ impl CompileTimeValidator {
             return CompileTimeValidationResult {
                 valid: false,
                 errors: vec![CompileTimeError {
-                    field:      type_name.to_string(),
-                    message:    format!("Type '{}' not found in schema", type_name),
+                    field: type_name.to_string(),
+                    message: format!("Type '{}' not found in schema", type_name),
                     suggestion: None,
                 }],
                 warnings,
@@ -226,8 +226,8 @@ impl CompileTimeValidator {
             let field_key = (type_name.to_string(), field_name.clone());
             if !self.context.fields.contains_key(&field_key) {
                 errors.push(CompileTimeError {
-                    field:      field_name.clone(),
-                    message:    format!("Field '{}' not found in type '{}'", field_name, type_name),
+                    field: field_name.clone(),
+                    message: format!("Field '{}' not found in type '{}'", field_name, type_name),
                     suggestion: Some(self.suggest_field(type_name, &field_name)),
                 });
             }

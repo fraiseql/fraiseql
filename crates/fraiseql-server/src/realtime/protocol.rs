@@ -19,7 +19,7 @@ pub enum ClientMessage {
         entity: String,
         /// Event type filter: `"*"`, `"INSERT"`, `"UPDATE"`, or `"DELETE"`.
         #[serde(default = "default_event_filter")]
-        event:  String,
+        event: String,
         /// Optional field filter in `field=op.value` format (e.g., `"author_id=eq.123"`).
         #[serde(default)]
         filter: Option<String>,

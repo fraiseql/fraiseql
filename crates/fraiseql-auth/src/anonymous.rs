@@ -49,7 +49,7 @@ const ANON_RATE_MAX: u32 = 10;
 #[derive(Debug, Clone)]
 struct RateRecord {
     /// Count of signups in the current window.
-    count:        u32,
+    count: u32,
     /// Start of the current window (Unix seconds).
     window_start: u64,
 }
@@ -62,7 +62,7 @@ pub struct AnonSignupState {
     /// Session store used to issue the anonymous session.
     pub session_store: Arc<dyn SessionStore>,
     /// Per-IP signup rate-limit counters.
-    rate_counters:     Arc<DashMap<String, RateRecord>>,
+    rate_counters: Arc<DashMap<String, RateRecord>>,
 }
 
 impl AnonSignupState {
@@ -80,7 +80,7 @@ impl AnonSignupState {
     /// Increments the counter if allowed; returns `false` if the limit is exceeded.
     fn check_rate_limit(&self, ip: &str, now: u64) -> bool {
         let mut record = self.rate_counters.entry(ip.to_string()).or_insert(RateRecord {
-            count:        0,
+            count: 0,
             window_start: now,
         });
 
@@ -104,13 +104,13 @@ impl AnonSignupState {
 #[derive(Debug, Serialize)]
 pub struct AnonSignupResponse {
     /// Anonymous user identifier (`anon_<uuid>`).
-    pub user_id:       String,
+    pub user_id: String,
     /// Short-lived access token.
-    pub access_token:  String,
+    pub access_token: String,
     /// Long-lived refresh token.
     pub refresh_token: String,
     /// Seconds until the access token expires.
-    pub expires_in:    u64,
+    pub expires_in: u64,
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────

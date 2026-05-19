@@ -208,7 +208,7 @@ fn test_compose_detects_multiple_key_fields() {
     let mut auth_user = FederatedType::new("User".to_string());
     auth_user.is_extends = true;
     auth_user.keys.push(KeyDirective {
-        fields:     vec!["email".to_string()], // Different key!
+        fields: vec!["email".to_string()], // Different key!
         resolvable: true,
     });
 
@@ -361,7 +361,7 @@ fn test_compose_preserves_shareable_fields() {
 fn create_user_type() -> FederatedType {
     let mut user = FederatedType::new("User".to_string());
     user.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user.is_extends = false;
@@ -372,7 +372,7 @@ fn create_user_type() -> FederatedType {
 fn create_order_type() -> FederatedType {
     let mut order = FederatedType::new("Order".to_string());
     order.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order.is_extends = false;
@@ -383,7 +383,7 @@ fn create_order_type() -> FederatedType {
 fn create_product_type() -> FederatedType {
     let mut product = FederatedType::new("Product".to_string());
     product.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     product.is_extends = false;
@@ -398,7 +398,7 @@ struct ComposedSchema {
     /// Federation version
     pub version: String,
     /// Merged types from all subgraphs
-    pub types:   Vec<FederatedType>,
+    pub types: Vec<FederatedType>,
 }
 
 /// Compose multiple federation schemas into a single supergraph
@@ -438,7 +438,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
         return Ok(ComposedSchema {
             enabled: false,
             version: "v2".to_string(),
-            types:   Vec::new(),
+            types: Vec::new(),
         });
     }
 

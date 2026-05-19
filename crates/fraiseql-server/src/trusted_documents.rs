@@ -51,7 +51,7 @@ struct Manifest {
 pub struct TrustedDocumentStore {
     /// hash → query body (keys stored WITHOUT "sha256:" prefix).
     documents: Arc<RwLock<HashMap<String, String>>>,
-    mode:      TrustedDocumentMode,
+    mode: TrustedDocumentMode,
 }
 
 impl TrustedDocumentStore {
@@ -100,7 +100,7 @@ impl TrustedDocumentStore {
     }
 
     /// Create an in-memory store from a pre-built document map (for testing).
-    #[must_use] 
+    #[must_use]
     pub fn from_documents(documents: HashMap<String, String>, mode: TrustedDocumentMode) -> Self {
         let documents = normalize_keys(documents);
         Self {
@@ -110,16 +110,16 @@ impl TrustedDocumentStore {
     }
 
     /// A disabled store that passes all queries through (permissive, empty).
-    #[must_use] 
+    #[must_use]
     pub fn disabled() -> Self {
         Self {
             documents: Arc::new(RwLock::new(HashMap::new())),
-            mode:      TrustedDocumentMode::Permissive,
+            mode: TrustedDocumentMode::Permissive,
         }
     }
 
     /// Returns the enforcement mode.
-    #[must_use] 
+    #[must_use]
     pub const fn mode(&self) -> TrustedDocumentMode {
         self.mode
     }

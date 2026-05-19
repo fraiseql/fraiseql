@@ -14,11 +14,11 @@ use crate::types::RuntimeType;
 #[derive(Debug, Clone)]
 pub struct FunctionRecord {
     /// Unique name for this function.
-    pub name:     String,
+    pub name: String,
     /// Compiled bytecode or source text.
     pub bytecode: Bytes,
     /// Which runtime executes this module.
-    pub runtime:  RuntimeType,
+    pub runtime: RuntimeType,
 }
 
 /// Trait for function deployment storage.
@@ -48,7 +48,7 @@ pub struct InMemoryFunctionStore {
 
 impl InMemoryFunctionStore {
     /// Create a new empty store.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

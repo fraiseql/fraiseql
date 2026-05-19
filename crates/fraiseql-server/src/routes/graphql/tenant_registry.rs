@@ -23,7 +23,7 @@ use tokio::sync::Semaphore;
 #[repr(u8)]
 pub enum TenantStatus {
     /// Tenant is operational — requests are served normally.
-    Active    = 0,
+    Active = 0,
     /// Tenant is suspended — data requests return 503 with `Retry-After: 60`.
     Suspended = 1,
 }
@@ -56,32 +56,32 @@ pub struct TenantQuota {
     pub max_requests_per_sec: Option<u32>,
     /// Maximum concurrent in-flight requests (semaphore capacity).
     #[serde(default)]
-    pub max_concurrent:       Option<u32>,
+    pub max_concurrent: Option<u32>,
     /// Maximum storage in bytes (soft limit, checked periodically).
     #[serde(default)]
-    pub max_storage_bytes:    Option<u64>,
+    pub max_storage_bytes: Option<u64>,
 }
 
 /// A single tenant entry in the registry: executor + lifecycle status + quotas.
 struct TenantEntry<A: DatabaseAdapter> {
-    executor:       Arc<ArcSwap<Executor<A>>>,
-    status:         AtomicU8,
+    executor: Arc<ArcSwap<Executor<A>>>,
+    status: AtomicU8,
     /// Concurrency semaphore — `None` when `max_concurrent` is unset.
-    concurrency:    Option<Arc<Semaphore>>,
+    concurrency: Option<Arc<Semaphore>>,
     /// Soft quota exceeded flag (set by background task, blocks mutations).
     quota_exceeded: AtomicBool,
     /// Quota configuration (cloned from registration request).
-    quota:          TenantQuota,
+    quota: TenantQuota,
 }
 
 impl<A: DatabaseAdapter> TenantEntry<A> {
     fn new(executor: Arc<Executor<A>>) -> Self {
         Self {
-            executor:       Arc::new(ArcSwap::from(executor)),
-            status:         AtomicU8::new(TenantStatus::Active as u8),
-            concurrency:    None,
+            executor: Arc::new(ArcSwap::from(executor)),
+            status: AtomicU8::new(TenantStatus::Active as u8),
+            concurrency: None,
             quota_exceeded: AtomicBool::new(false),
-            quota:          TenantQuota::default(),
+            quota: TenantQuota::default(),
         }
     }
 
@@ -169,7 +169,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     fn require_active(&self, key: &str, entry: &TenantEntry<A>) -> fraiseql_error::Result<()> {
         if entry.status() == TenantStatus::Suspended {
             return Err(FraiseQLError::ServiceUnavailable {
-                message:     format!("Tenant '{key}' is suspended"),
+                message: format!("Tenant '{key}' is suspended"),
                 retry_after: Some(SUSPENDED_RETRY_AFTER_SECS),
             });
         }
@@ -259,7 +259,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
             match sem.clone().try_acquire_owned() {
                 Ok(permit) => Ok(Some(permit)),
                 Err(_) => Err(FraiseQLError::RateLimited {
-                    message:          format!(
+                    message: format!(
                         "Tenant '{key}' concurrency limit reached (max {})",
                         entry.value().quota.max_concurrent.unwrap_or(0)
                     ),

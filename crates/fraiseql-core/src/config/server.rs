@@ -25,10 +25,10 @@ pub struct CoreServerConfig {
 impl Default for CoreServerConfig {
     fn default() -> Self {
         Self {
-            host:            "0.0.0.0".to_string(),
-            port:            8000,
-            workers:         0,           // Auto-detect
-            max_body_size:   1024 * 1024, // 1MB
+            host: "0.0.0.0".to_string(),
+            port: 8000,
+            workers: 0,                 // Auto-detect
+            max_body_size: 1024 * 1024, // 1MB
             request_logging: true,
         }
     }

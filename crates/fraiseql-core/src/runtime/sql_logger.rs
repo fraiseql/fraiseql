@@ -64,7 +64,7 @@ pub enum SqlOperation {
 
 impl SqlOperation {
     /// Detect operation type from SQL string.
-    #[must_use] 
+    #[must_use]
     pub fn from_sql(sql: &str) -> Self {
         let trimmed = sql.trim_start().to_uppercase();
 
@@ -97,10 +97,10 @@ impl std::fmt::Display for SqlOperation {
 /// Builder for creating SQL query logs.
 #[must_use = "call .finish_success() or .finish_error() to construct the final value"]
 pub struct SqlQueryLogBuilder {
-    query_id:          String,
-    sql:               String,
-    param_count:       usize,
-    start:             Instant,
+    query_id: String,
+    sql: String,
+    param_count: usize,
+    start: Instant,
     slow_threshold_us: Option<u64>,
 }
 
@@ -203,7 +203,7 @@ impl SqlQueryLogBuilder {
 
 impl SqlQueryLog {
     /// Get log entry as a formatted string suitable for logging.
-    #[must_use] 
+    #[must_use]
     pub fn to_log_string(&self) -> String {
         if self.success {
             format!(
@@ -226,13 +226,13 @@ impl SqlQueryLog {
     }
 
     /// Check if query was slow based on threshold.
-    #[must_use] 
+    #[must_use]
     pub const fn is_slow(&self) -> bool {
         self.was_slow
     }
 
     /// Get execution time in milliseconds (for human-friendly display).
-    #[must_use] 
+    #[must_use]
     pub fn duration_ms(&self) -> f64 {
         #[allow(clippy::cast_precision_loss)]
         // Reason: duration_us is a microsecond counter used for display; f64 precision loss is

@@ -8,19 +8,19 @@ mod audit_tests {
     #[test]
     fn test_audit_entry_integrity_hash() {
         let entry = AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(100),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
             integrity_hash: None,
         };
 
@@ -32,19 +32,19 @@ mod audit_tests {
     #[test]
     fn test_audit_integrity_verification() {
         let mut entry = AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(100),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(100),
+            previous_hash: None,
             integrity_hash: None,
         };
 
@@ -177,19 +177,19 @@ mod audit_export_syslog_tests {
 
     fn test_entry() -> AuditEntry {
         AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(42),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(42),
+            previous_hash: None,
             integrity_hash: None,
         }
     }
@@ -198,7 +198,7 @@ mod audit_export_syslog_tests {
     fn test_format_message_rfc5424() {
         let exporter = SyslogAuditExporter {
             transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname:  "test-host".to_string(),
+            hostname: "test-host".to_string(),
         };
 
         let msg = exporter.format_message(&test_entry());
@@ -219,7 +219,7 @@ mod audit_export_syslog_tests {
     fn test_format_message_with_error() {
         let exporter = SyslogAuditExporter {
             transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname:  "test-host".to_string(),
+            hostname: "test-host".to_string(),
         };
 
         let mut entry = test_entry();
@@ -248,8 +248,8 @@ mod audit_export_syslog_tests {
         receiver.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
 
         let config = SyslogExportConfig {
-            address:  "127.0.0.1".to_string(),
-            port:     recv_addr.port(),
+            address: "127.0.0.1".to_string(),
+            port: recv_addr.port(),
             protocol: "udp".to_string(),
         };
 
@@ -271,8 +271,8 @@ mod audit_export_syslog_tests {
         let listen_addr = listener.local_addr().unwrap();
 
         let config = SyslogExportConfig {
-            address:  "127.0.0.1".to_string(),
-            port:     listen_addr.port(),
+            address: "127.0.0.1".to_string(),
+            port: listen_addr.port(),
             protocol: "tcp".to_string(),
         };
 
@@ -302,7 +302,7 @@ mod audit_export_syslog_tests {
     fn test_long_query_truncated() {
         let exporter = SyslogAuditExporter {
             transport: Mutex::new(Transport::Udp(UdpSocket::bind("0.0.0.0:0").unwrap())),
-            hostname:  "test-host".to_string(),
+            hostname: "test-host".to_string(),
         };
 
         let mut entry = test_entry();
@@ -328,19 +328,19 @@ mod audit_export_webhook_tests {
 
     fn test_entry() -> AuditEntry {
         AuditEntry {
-            id:             Some(1),
-            timestamp:      Utc::now(),
-            level:          AuditLevel::INFO,
-            user_id:        123,
-            tenant_id:      456,
-            operation:      "query".to_string(),
-            query:          "{ users { id name } }".to_string(),
-            variables:      serde_json::json!({}),
-            ip_address:     "192.168.1.1".to_string(),
-            user_agent:     "Mozilla/5.0".to_string(),
-            error:          None,
-            duration_ms:    Some(42),
-            previous_hash:  None,
+            id: Some(1),
+            timestamp: Utc::now(),
+            level: AuditLevel::INFO,
+            user_id: 123,
+            tenant_id: 456,
+            operation: "query".to_string(),
+            query: "{ users { id name } }".to_string(),
+            variables: serde_json::json!({}),
+            ip_address: "192.168.1.1".to_string(),
+            user_agent: "Mozilla/5.0".to_string(),
+            error: None,
+            duration_ms: Some(42),
+            previous_hash: None,
             integrity_hash: None,
         }
     }
@@ -348,9 +348,9 @@ mod audit_export_webhook_tests {
     #[test]
     fn test_buffer_accumulates_entries() {
         let config = WebhookExportConfig {
-            url:                 "https://example.com/audit".to_string(),
-            headers:             std::collections::HashMap::new(),
-            batch_size:          10,
+            url: "https://example.com/audit".to_string(),
+            headers: std::collections::HashMap::new(),
+            batch_size: 10,
             flush_interval_secs: 30,
         };
 
@@ -370,9 +370,9 @@ mod audit_export_webhook_tests {
     #[test]
     fn test_flush_empties_buffer() {
         let config = WebhookExportConfig {
-            url:                 "https://example.com/audit".to_string(),
-            headers:             std::collections::HashMap::new(),
-            batch_size:          100,
+            url: "https://example.com/audit".to_string(),
+            headers: std::collections::HashMap::new(),
+            batch_size: 100,
             flush_interval_secs: 30,
         };
 
@@ -547,7 +547,7 @@ mod error_formatter_tests {
     fn test_query_too_deep_error_production() {
         let formatter = ErrorFormatter::production();
         let error = SecurityError::QueryTooDeep {
-            depth:     20,
+            depth: 20,
             max_depth: 10,
         };
         let formatted = formatter.format_security_error(&error);
@@ -641,11 +641,11 @@ mod error_formatter_tests {
     fn test_custom_sanitization_config() {
         let config = SanitizationConfig {
             hide_database_urls: false,
-            hide_sql:           false,
-            hide_paths:         true,
-            hide_ips:           false,
-            hide_emails:        false,
-            hide_credentials:   false,
+            hide_sql: false,
+            hide_paths: true,
+            hide_ips: false,
+            hide_emails: false,
+            hide_credentials: false,
         };
 
         let formatter = ErrorFormatter::with_config(DetailLevel::Staging, config);
@@ -677,7 +677,7 @@ mod errors_tests {
     fn test_rate_limit_error_display() {
         let err = SecurityError::RateLimitExceeded {
             retry_after: 60,
-            limit:       100,
+            limit: 100,
             window_secs: 60,
         };
 
@@ -689,7 +689,7 @@ mod errors_tests {
     #[test]
     fn test_query_too_deep_display() {
         let err = SecurityError::QueryTooDeep {
-            depth:     20,
+            depth: 20,
             max_depth: 10,
         };
 
@@ -701,7 +701,7 @@ mod errors_tests {
     #[test]
     fn test_query_too_complex_display() {
         let err = SecurityError::QueryTooComplex {
-            complexity:     500,
+            complexity: 500,
             max_complexity: 100,
         };
 
@@ -713,7 +713,7 @@ mod errors_tests {
     #[test]
     fn test_query_too_large_display() {
         let err = SecurityError::QueryTooLarge {
-            size:     100_000,
+            size: 100_000,
             max_size: 10_000,
         };
 
@@ -758,17 +758,17 @@ mod errors_tests {
     #[test]
     fn test_error_equality() {
         let err1 = SecurityError::QueryTooDeep {
-            depth:     20,
+            depth: 20,
             max_depth: 10,
         };
         let err2 = SecurityError::QueryTooDeep {
-            depth:     20,
+            depth: 20,
             max_depth: 10,
         };
         assert_eq!(err1, err2);
 
         let err3 = SecurityError::QueryTooDeep {
-            depth:     30,
+            depth: 30,
             max_depth: 10,
         };
         assert_ne!(err1, err3);
@@ -778,12 +778,12 @@ mod errors_tests {
     fn test_rate_limit_equality() {
         let err1 = SecurityError::RateLimitExceeded {
             retry_after: 60,
-            limit:       100,
+            limit: 100,
             window_secs: 60,
         };
         let err2 = SecurityError::RateLimitExceeded {
             retry_after: 60,
-            limit:       100,
+            limit: 100,
             window_secs: 60,
         };
         assert_eq!(err1, err2);
@@ -808,7 +808,7 @@ mod errors_tests {
         use crate::security::tls_enforcer::TlsVersion;
 
         let err = SecurityError::TlsVersionTooOld {
-            current:  TlsVersion::V1_2,
+            current: TlsVersion::V1_2,
             required: TlsVersion::V1_3,
         };
 
@@ -914,17 +914,17 @@ mod errors_tests {
         use crate::security::tls_enforcer::TlsVersion;
 
         let err1 = SecurityError::TlsVersionTooOld {
-            current:  TlsVersion::V1_2,
+            current: TlsVersion::V1_2,
             required: TlsVersion::V1_3,
         };
         let err2 = SecurityError::TlsVersionTooOld {
-            current:  TlsVersion::V1_2,
+            current: TlsVersion::V1_2,
             required: TlsVersion::V1_3,
         };
         assert_eq!(err1, err2);
 
         let err3 = SecurityError::TlsVersionTooOld {
-            current:  TlsVersion::V1_1,
+            current: TlsVersion::V1_1,
             required: TlsVersion::V1_3,
         };
         assert_ne!(err1, err3);
@@ -2054,9 +2054,9 @@ mod introspection_enforcer_tests {
     #[test]
     fn test_custom_config_with_selective_detection() {
         let config = IntrospectionConfig {
-            detect_schema:    true,
-            detect_type:      false,
-            detect_typename:  false,
+            detect_schema: true,
+            detect_type: false,
+            detect_typename: false,
             detect_directive: false,
         };
 
@@ -2640,27 +2640,27 @@ mod rls_policy_tests {
 
     fn make_context(user_id: &str, roles: Vec<&str>, tenant_id: Option<&str>) -> SecurityContext {
         SecurityContext {
-            user_id:          user_id.into(),
-            roles:            roles.into_iter().map(String::from).collect(),
-            tenant_id:        tenant_id.map(Into::into),
-            scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "req1".to_string(),
-            ip_address:       None,
+            user_id: user_id.into(),
+            roles: roles.into_iter().map(String::from).collect(),
+            tenant_id: tenant_id.map(Into::into),
+            scopes: vec![],
+            attributes: HashMap::new(),
+            request_id: "req1".to_string(),
+            ip_address: None,
             authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         }
     }
 
     fn cacheable_owner_rule() -> RLSRule {
         RLSRule {
-            name:              "owner_only".to_string(),
-            expression:        "user.id == object.author_id".to_string(),
-            cacheable:         true,
+            name: "owner_only".to_string(),
+            expression: "user.id == object.author_id".to_string(),
+            cacheable: true,
             cache_ttl_seconds: Some(300),
         }
     }
@@ -2861,9 +2861,9 @@ mod rls_policy_tests {
             CompiledRLSPolicy::new_with_clock(std::collections::HashMap::new(), None, clock);
 
         let result = Some(WhereClause::Field {
-            path:     vec!["author_id".to_string()],
+            path: vec!["author_id".to_string()],
             operator: crate::db::WhereOperator::Eq,
-            value:    serde_json::json!("user_x"),
+            value: serde_json::json!("user_x"),
         });
 
         policy.cache_result("user_x:Post", &result);
@@ -2949,19 +2949,19 @@ mod rls_policy_tests {
         let mut attrs = HashMap::new();
         attrs.insert("department".to_string(), serde_json::json!("engineering"));
         let ctx = SecurityContext {
-            user_id:          "u1".into(),
-            roles:            vec![],
-            tenant_id:        None,
-            scopes:           vec![],
-            attributes:       attrs,
-            request_id:       "r1".to_string(),
-            ip_address:       None,
+            user_id: "u1".into(),
+            roles: vec![],
+            tenant_id: None,
+            scopes: vec![],
+            attributes: attrs,
+            request_id: "r1".to_string(),
+            ip_address: None,
             authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         };
         assert_eq!(
             extract_user_value("department", &ctx),
@@ -2987,9 +2987,9 @@ mod rls_policy_tests {
         // Ensures extract_user_value("id") result reaches the generated WhereClause.
         // Kills mutations → None and → Some(Default) on line 518.
         let policy = policy_with_rule(RLSRule {
-            name:              "owner_only".to_string(),
-            expression:        "user.id == object.author_id".to_string(),
-            cacheable:         false,
+            name: "owner_only".to_string(),
+            expression: "user.id == object.author_id".to_string(),
+            cacheable: false,
             cache_ttl_seconds: None,
         });
 
@@ -3020,19 +3020,19 @@ mod security_context_tests {
     #[test]
     fn test_has_role() {
         let context = SecurityContext {
-            user_id:          "user123".into(),
-            roles:            vec!["admin".to_string(), "moderator".to_string()],
-            tenant_id:        None,
-            scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "req-1".to_string(),
-            ip_address:       None,
+            user_id: "user123".into(),
+            roles: vec!["admin".to_string(), "moderator".to_string()],
+            tenant_id: None,
+            scopes: vec![],
+            attributes: HashMap::new(),
+            request_id: "req-1".to_string(),
+            ip_address: None,
             authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         };
 
         assert!(context.has_role("admin"));
@@ -3043,19 +3043,19 @@ mod security_context_tests {
     #[test]
     fn test_has_scope() {
         let context = SecurityContext {
-            user_id:          "user123".into(),
-            roles:            vec![],
-            tenant_id:        None,
-            scopes:           vec!["read:user".to_string(), "write:post".to_string()],
-            attributes:       HashMap::new(),
-            request_id:       "req-1".to_string(),
-            ip_address:       None,
+            user_id: "user123".into(),
+            roles: vec![],
+            tenant_id: None,
+            scopes: vec!["read:user".to_string(), "write:post".to_string()],
+            attributes: HashMap::new(),
+            request_id: "req-1".to_string(),
+            ip_address: None,
             authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         };
 
         assert!(context.has_scope("read:user"));
@@ -3066,19 +3066,19 @@ mod security_context_tests {
     #[test]
     fn test_wildcard_scopes() {
         let context = SecurityContext {
-            user_id:          "user123".into(),
-            roles:            vec![],
-            tenant_id:        None,
-            scopes:           vec!["admin:*".to_string()],
-            attributes:       HashMap::new(),
-            request_id:       "req-1".to_string(),
-            ip_address:       None,
+            user_id: "user123".into(),
+            roles: vec![],
+            tenant_id: None,
+            scopes: vec!["admin:*".to_string()],
+            attributes: HashMap::new(),
+            request_id: "req-1".to_string(),
+            ip_address: None,
             authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         };
 
         assert!(context.has_scope("admin:read"));
@@ -3091,19 +3091,19 @@ mod security_context_tests {
         use crate::types::TenantId;
         let now = Utc::now();
         let context = SecurityContext {
-            user_id:          "user123".into(),
-            roles:            vec![],
-            tenant_id:        None,
-            scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "req-1".to_string(),
-            ip_address:       None,
+            user_id: "user123".into(),
+            roles: vec![],
+            tenant_id: None,
+            scopes: vec![],
+            attributes: HashMap::new(),
+            request_id: "req-1".to_string(),
+            ip_address: None,
             authenticated_at: now,
-            expires_at:       now + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: now + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         }
         .with_role("admin".to_string())
         .with_scopes(vec!["read:user".to_string()])
@@ -3246,9 +3246,9 @@ mod tls_enforcer_tests {
     fn test_invalid_cert_rejected() {
         let enforcer = TlsEnforcer::strict();
         let conn = TlsConnection {
-            is_secure:         true,
-            version:           TlsVersion::V1_3,
-            has_client_cert:   true,
+            is_secure: true,
+            version: TlsVersion::V1_3,
+            has_client_cert: true,
             client_cert_valid: false, // Invalid!
         };
 
@@ -3411,9 +3411,9 @@ mod tls_enforcer_tests {
     #[test]
     fn test_custom_config_from_individual_settings() {
         let config = TlsConfig {
-            tls_required:  true,
+            tls_required: true,
             mtls_required: false,
-            min_version:   TlsVersion::V1_2,
+            min_version: TlsVersion::V1_2,
         };
 
         let enforcer = TlsEnforcer::from_config(config);
@@ -3444,9 +3444,9 @@ mod tls_enforcer_tests {
 
         // Even with client cert info, HTTP should fail
         let http_with_cert_info = TlsConnection {
-            is_secure:         false, // Still HTTP
-            version:           TlsVersion::V1_2,
-            has_client_cert:   true,
+            is_secure: false, // Still HTTP
+            version: TlsVersion::V1_2,
+            has_client_cert: true,
             client_cert_valid: true,
         };
 
@@ -3500,17 +3500,17 @@ mod validation_audit_tests {
         let logger = ValidationAuditLogger::new(config);
 
         let entry = ValidationAuditEntry {
-            timestamp:         Utc::now(),
-            user_id:           Some("user:1".to_string()),
-            tenant_id:         Some("tenant:1".to_string()),
-            ip_address:        "192.168.1.1".to_string(),
-            query_string:      "{ user { id } }".to_string(),
-            mutation_name:     None,
-            field:             "email".to_string(),
-            validation_rule:   "pattern".to_string(),
-            valid:             false,
-            failure_reason:    Some("Invalid format".to_string()),
-            duration_us:       100,
+            timestamp: Utc::now(),
+            user_id: Some("user:1".to_string()),
+            tenant_id: Some("tenant:1".to_string()),
+            ip_address: "192.168.1.1".to_string(),
+            query_string: "{ user { id } }".to_string(),
+            mutation_name: None,
+            field: "email".to_string(),
+            validation_rule: "pattern".to_string(),
+            valid: false,
+            failure_reason: Some("Invalid format".to_string()),
+            duration_us: 100,
             execution_context: "pattern_validator".to_string(),
         };
 
@@ -3524,17 +3524,17 @@ mod validation_audit_tests {
         let logger = ValidationAuditLogger::new(config);
 
         let entry1 = ValidationAuditEntry {
-            timestamp:         Utc::now(),
-            user_id:           Some("user:1".to_string()),
-            tenant_id:         None,
-            ip_address:        "192.168.1.1".to_string(),
-            query_string:      String::new(),
-            mutation_name:     None,
-            field:             "field1".to_string(),
-            validation_rule:   "required".to_string(),
-            valid:             false,
-            failure_reason:    None,
-            duration_us:       0,
+            timestamp: Utc::now(),
+            user_id: Some("user:1".to_string()),
+            tenant_id: None,
+            ip_address: "192.168.1.1".to_string(),
+            query_string: String::new(),
+            mutation_name: None,
+            field: "field1".to_string(),
+            validation_rule: "required".to_string(),
+            valid: false,
+            failure_reason: None,
+            duration_us: 0,
             execution_context: "validator".to_string(),
         };
 
@@ -3554,17 +3554,17 @@ mod validation_audit_tests {
         let logger = ValidationAuditLogger::new(config);
 
         let entry = ValidationAuditEntry {
-            timestamp:         Utc::now(),
-            user_id:           None,
-            tenant_id:         None,
-            ip_address:        "192.168.1.1".to_string(),
-            query_string:      String::new(),
-            mutation_name:     None,
-            field:             "field".to_string(),
-            validation_rule:   "pattern".to_string(),
-            valid:             false,
-            failure_reason:    Some("error".to_string()),
-            duration_us:       0,
+            timestamp: Utc::now(),
+            user_id: None,
+            tenant_id: None,
+            ip_address: "192.168.1.1".to_string(),
+            query_string: String::new(),
+            mutation_name: None,
+            field: "field".to_string(),
+            validation_rule: "pattern".to_string(),
+            valid: false,
+            failure_reason: Some("error".to_string()),
+            duration_us: 0,
             execution_context: "validator".to_string(),
         };
 

@@ -17,19 +17,19 @@ use crate::routes::graphql::app_state::AppState;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AdminHealthResponse {
     /// Server uptime in seconds since startup.
-    pub uptime_secs:    u64,
+    pub uptime_secs: u64,
     /// Binary version string (e.g. `"2.2.0"`).
-    pub version:        String,
+    pub version: String,
     /// Number of active database connections in the pool.
-    pub pool_active:    u32,
+    pub pool_active: u32,
     /// Number of idle database connections in the pool.
-    pub pool_idle:      u32,
+    pub pool_idle: u32,
     /// Maximum pool size.
-    pub pool_max:       u32,
+    pub pool_max: u32,
     /// Query cache hit rate (0–1), or `None` if cache is disabled.
     pub cache_hit_rate: Option<f64>,
     /// Current cache entry count, or `None` if cache is disabled.
-    pub cache_entries:  Option<u64>,
+    pub cache_entries: Option<u64>,
 }
 
 /// Response from `GET /admin/v1/schema`.

@@ -40,7 +40,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to list fact tables: {e}"),
+                message: format!("Failed to list fact tables: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -87,7 +87,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 .await
         }
         .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to query column information: {e}"),
+            message: format!("Failed to query column information: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -143,7 +143,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
                 .await
         }
         .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to query index information: {e}"),
+            message: format!("Failed to query index information: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -182,7 +182,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to list relations: {e}"),
+                message: format!("Failed to list relations: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -228,7 +228,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(&query, &[]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query sample JSONB: {e}"),
+                message: format!("Failed to query sample JSONB: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -240,7 +240,7 @@ impl DatabaseIntrospector for PostgresIntrospector {
         if let Some(text) = json_text {
             let value: serde_json::Value =
                 serde_json::from_str(&text).map_err(|e| FraiseQLError::Parse {
-                    message:  format!("Failed to parse JSONB sample: {e}"),
+                    message: format!("Failed to parse JSONB sample: {e}"),
                     location: format!("{table_name}.{column_name}"),
                 })?;
             Ok(Some(value))
@@ -309,7 +309,7 @@ impl PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(query, &[&view_name]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query view columns: {e}"),
+                message: format!("Failed to query view columns: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -408,7 +408,7 @@ impl PostgresIntrospector {
 
         let rows: Vec<Row> =
             client.query(query, &[&view_name]).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to query view columns: {e}"),
+                message: format!("Failed to query view columns: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 

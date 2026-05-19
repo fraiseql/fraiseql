@@ -207,7 +207,7 @@ class ChangelogConsumer:
         client: Injectable :class:`httpx.AsyncClient` for testing.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — constructor genuinely needs all connection/polling params
         self,
         base_url: str,
         listener_id: str,
@@ -373,7 +373,7 @@ class ChangelogConsumer:
             for handler in self._handlers.get(key, []):
                 try:
                     await handler(event)
-                except Exception:
+                except Exception:  # noqa: PERF203 — intentional per-handler isolation
                     logger.exception(
                         "Handler %s failed for event %s",
                         getattr(handler, "__name__", repr(handler)),

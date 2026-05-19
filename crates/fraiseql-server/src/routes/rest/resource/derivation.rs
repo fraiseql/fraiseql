@@ -39,7 +39,7 @@ pub(super) fn detect_id_arg(
     {
         let type_name = type_def.name.as_str();
         diagnostics.push(Diagnostic {
-            level:   DiagnosticLevel::Info,
+            level: DiagnosticLevel::Info,
             message: format!(
                 "No `id` field found on '{type_name}'; using `{}` as path parameter",
                 arg.name
@@ -55,7 +55,7 @@ pub(super) fn detect_id_arg(
     if let Some(pk) = type_def.fields.iter().find(|f| f.name.as_str().starts_with("pk_")) {
         let type_name = type_def.name.as_str();
         diagnostics.push(Diagnostic {
-            level:   DiagnosticLevel::Info,
+            level: DiagnosticLevel::Info,
             message: format!(
                 "No `id` field found on '{type_name}'; using `{}` as path parameter",
                 pk.name
@@ -127,19 +127,19 @@ pub(super) fn derive_mutation_routes(
     match &m.operation {
         MutationOperation::Insert { .. } => {
             routes.push(RestRoute {
-                method:          HttpMethod::Post,
-                path:            format!("/{resource_name}"),
-                source:          RouteSource::Mutation {
+                method: HttpMethod::Post,
+                path: format!("/{resource_name}"),
+                source: RouteSource::Mutation {
                     name: m.name.clone(),
                 },
                 update_coverage: None,
-                success_status:  201,
+                success_status: 201,
             });
         },
         MutationOperation::Update { .. } => {
             let coverage = classify_update_coverage(m, writable_names);
             diagnostics.push(Diagnostic {
-                level:   DiagnosticLevel::Info,
+                level: DiagnosticLevel::Info,
                 message: format!(
                     "Mutation '{}' classified as {:?} coverage update for type '{type_name}'",
                     m.name, coverage
@@ -150,22 +150,22 @@ pub(super) fn derive_mutation_routes(
                 UpdateCoverage::Full => {
                     if let Some(id) = id_arg {
                         routes.push(RestRoute {
-                            method:          HttpMethod::Put,
-                            path:            format!("/{resource_name}/{{{id}}}"),
-                            source:          RouteSource::Mutation {
+                            method: HttpMethod::Put,
+                            path: format!("/{resource_name}/{{{id}}}"),
+                            source: RouteSource::Mutation {
                                 name: m.name.clone(),
                             },
                             update_coverage: Some(UpdateCoverage::Full),
-                            success_status:  200,
+                            success_status: 200,
                         });
                         routes.push(RestRoute {
-                            method:          HttpMethod::Patch,
-                            path:            format!("/{resource_name}/{{{id}}}"),
-                            source:          RouteSource::Mutation {
+                            method: HttpMethod::Patch,
+                            path: format!("/{resource_name}/{{{id}}}"),
+                            source: RouteSource::Mutation {
                                 name: m.name.clone(),
                             },
                             update_coverage: Some(UpdateCoverage::Full),
-                            success_status:  200,
+                            success_status: 200,
                         });
                     }
                 },
@@ -173,13 +173,13 @@ pub(super) fn derive_mutation_routes(
                     let action = derive_action_name(&m.name, type_name);
                     if let Some(id) = id_arg {
                         routes.push(RestRoute {
-                            method:          HttpMethod::Patch,
-                            path:            format!("/{resource_name}/{{{id}}}/{action}"),
-                            source:          RouteSource::Mutation {
+                            method: HttpMethod::Patch,
+                            path: format!("/{resource_name}/{{{id}}}/{action}"),
+                            source: RouteSource::Mutation {
                                 name: m.name.clone(),
                             },
                             update_coverage: Some(UpdateCoverage::Partial),
-                            success_status:  200,
+                            success_status: 200,
                         });
                     }
                 },
@@ -193,13 +193,13 @@ pub(super) fn derive_mutation_routes(
             };
             if let Some(id) = id_arg {
                 routes.push(RestRoute {
-                    method:          HttpMethod::Delete,
-                    path:            format!("/{resource_name}/{{{id}}}"),
-                    source:          RouteSource::Mutation {
+                    method: HttpMethod::Delete,
+                    path: format!("/{resource_name}/{{{id}}}"),
+                    source: RouteSource::Mutation {
                         name: m.name.clone(),
                     },
                     update_coverage: None,
-                    success_status:  status,
+                    success_status: status,
                 });
             }
         },
@@ -207,23 +207,23 @@ pub(super) fn derive_mutation_routes(
             let action = derive_action_name(&m.name, type_name);
             if let Some(id) = id_arg {
                 routes.push(RestRoute {
-                    method:          HttpMethod::Post,
-                    path:            format!("/{resource_name}/{{{id}}}/{action}"),
-                    source:          RouteSource::Mutation {
+                    method: HttpMethod::Post,
+                    path: format!("/{resource_name}/{{{id}}}/{action}"),
+                    source: RouteSource::Mutation {
                         name: m.name.clone(),
                     },
                     update_coverage: None,
-                    success_status:  200,
+                    success_status: 200,
                 });
             } else {
                 routes.push(RestRoute {
-                    method:          HttpMethod::Post,
-                    path:            format!("/{resource_name}/{action}"),
-                    source:          RouteSource::Mutation {
+                    method: HttpMethod::Post,
+                    path: format!("/{resource_name}/{action}"),
+                    source: RouteSource::Mutation {
                         name: m.name.clone(),
                     },
                     update_coverage: None,
-                    success_status:  200,
+                    success_status: 200,
                 });
             }
         },
@@ -280,23 +280,23 @@ pub(super) fn derive_resource(
 
         if q.returns_list {
             routes.push(RestRoute {
-                method:          HttpMethod::Get,
-                path:            format!("/{resource_name}"),
-                source:          RouteSource::Query {
+                method: HttpMethod::Get,
+                path: format!("/{resource_name}"),
+                source: RouteSource::Query {
                     name: q.name.clone(),
                 },
                 update_coverage: None,
-                success_status:  200,
+                success_status: 200,
             });
         } else if let Some(ref id) = id_arg {
             routes.push(RestRoute {
-                method:          HttpMethod::Get,
-                path:            format!("/{resource_name}/{{{id}}}"),
-                source:          RouteSource::Query {
+                method: HttpMethod::Get,
+                path: format!("/{resource_name}/{{{id}}}"),
+                source: RouteSource::Query {
                     name: q.name.clone(),
                 },
                 update_coverage: None,
-                success_status:  200,
+                success_status: 200,
             });
         }
     }

@@ -67,9 +67,9 @@ pub struct StaticApiKeyConfig {
     pub key_hash: String,
     /// OAuth-style scopes granted by this key.
     #[serde(default)]
-    pub scopes:   Vec<String>,
+    pub scopes: Vec<String>,
     /// Human-readable key name (for audit logging).
-    pub name:     String,
+    pub name: String,
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -79,9 +79,9 @@ pub struct StaticApiKeyConfig {
 /// Resolved static key (with parsed hash bytes).
 #[derive(Debug, Clone)]
 pub(crate) struct ResolvedStaticKey {
-    hash:   [u8; 32],
+    hash: [u8; 32],
     scopes: Vec<String>,
-    name:   String,
+    name: String,
 }
 
 /// API key authentication result.
@@ -98,7 +98,7 @@ pub enum ApiKeyResult {
 
 /// API key authenticator.
 pub struct ApiKeyAuthenticator {
-    header_name:            HeaderName,
+    header_name: HeaderName,
     pub(crate) static_keys: Vec<ResolvedStaticKey>,
 }
 
@@ -224,10 +224,10 @@ pub(crate) fn sha256_hash(input: &[u8]) -> [u8; 32] {
 /// Build a `SecurityContext` for an API key identity.
 fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext {
     let user = AuthenticatedUser {
-        user_id:      fraiseql_core::types::UserId::new(format!("apikey:{key_name}")),
-        scopes:       scopes.to_vec(),
-        expires_at:   Utc::now() + chrono::Duration::hours(24),
-        email:        None,
+        user_id: fraiseql_core::types::UserId::new(format!("apikey:{key_name}")),
+        scopes: scopes.to_vec(),
+        expires_at: Utc::now() + chrono::Duration::hours(24),
+        email: None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
     };

@@ -30,7 +30,7 @@ pub enum ConnectionState {
 
 impl ConnectionState {
     /// Check if transition is valid
-    #[must_use] 
+    #[must_use]
     pub const fn can_transition_to(&self, next: ConnectionState) -> bool {
         use ConnectionState::{
             Authenticating, AwaitingAuth, Closed, Idle, Initial, QueryInProgress, ReadingResults,

@@ -213,15 +213,15 @@ impl QueuedExecutionSummary {
     pub fn to_execution_summary(&self) -> ExecutionSummary {
         ExecutionSummary {
             successful_actions: self.jobs_queued,
-            failed_actions:     self.queueing_errors,
+            failed_actions: self.queueing_errors,
             conditions_skipped: self.conditions_skipped,
-            total_duration_ms:  0.0,
-            dlq_errors:         0,
-            errors:             self.errors.clone(),
-            duplicate_skipped:  false,
-            tenant_rejected:    false,
-            cache_hits:         0,
-            cache_misses:       0,
+            total_duration_ms: 0.0,
+            dlq_errors: 0,
+            errors: self.errors.clone(),
+            duplicate_skipped: false,
+            tenant_rejected: false,
+            cache_hits: 0,
+            cache_misses: 0,
         }
     }
 }

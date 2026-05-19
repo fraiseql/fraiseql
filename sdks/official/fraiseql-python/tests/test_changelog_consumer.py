@@ -26,7 +26,7 @@ def _json_response(body, status_code=200):
     return httpx.Response(status_code, json=body)
 
 
-def _make_changelog_row(
+def _make_changelog_row(  # noqa: PLR0913 — test fixture factory with defaults
     *,
     cursor=1,
     obj_type="Order",

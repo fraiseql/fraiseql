@@ -68,7 +68,7 @@ pub struct ScramClient {
 
 impl ScramClient {
     /// Create a new SCRAM client
-    #[must_use] 
+    #[must_use]
     pub fn new(username: String, password: String) -> Self {
         // SECURITY: rand::rng() is backed by OS-level entropy for SCRAM nonces.
         let mut rng = rand::rng();
@@ -83,7 +83,7 @@ impl ScramClient {
     }
 
     /// Generate client first message (no proof)
-    #[must_use] 
+    #[must_use]
     pub fn client_first(&self) -> String {
         // RFC 5802 format: gs2-header client-first-message-bare
         // gs2-header = "n,," (n = no channel binding, empty authorization identity)

@@ -82,9 +82,9 @@ pub struct QueryExecutionTrace {
 #[must_use = "call .finish() to construct the final value"]
 pub struct QueryTraceBuilder {
     pub(crate) query_id: String,
-    pub(crate) query:    String,
-    pub(crate) phases:   Vec<QueryPhaseSpan>,
-    start:               Instant,
+    pub(crate) query: String,
+    pub(crate) phases: Vec<QueryPhaseSpan>,
+    start: Instant,
 }
 
 impl QueryTraceBuilder {
@@ -103,9 +103,9 @@ impl QueryTraceBuilder {
 
         Self {
             query_id: query_id.to_string(),
-            query:    query_str,
-            phases:   Vec::new(),
-            start:    Instant::now(),
+            query: query_str,
+            phases: Vec::new(),
+            start: Instant::now(),
         }
     }
 
@@ -184,13 +184,13 @@ impl QueryTraceBuilder {
     }
 
     /// Get query ID for logging/correlation.
-    #[must_use] 
+    #[must_use]
     pub fn query_id(&self) -> &str {
         &self.query_id
     }
 
     /// Get current elapsed time in microseconds.
-    #[must_use] 
+    #[must_use]
     pub fn elapsed_us(&self) -> u64 {
         u64::try_from(self.start.elapsed().as_micros()).unwrap_or(u64::MAX)
     }
@@ -198,7 +198,7 @@ impl QueryTraceBuilder {
 
 impl QueryExecutionTrace {
     /// Get average phase duration in microseconds.
-    #[must_use] 
+    #[must_use]
     pub fn average_phase_duration_us(&self) -> u64 {
         if self.phases.is_empty() {
             0
@@ -208,7 +208,7 @@ impl QueryExecutionTrace {
     }
 
     /// Get slowest phase.
-    #[must_use] 
+    #[must_use]
     pub fn slowest_phase(&self) -> Option<&QueryPhaseSpan> {
         self.phases.iter().max_by_key(|p| p.duration_us)
     }
@@ -216,7 +216,7 @@ impl QueryExecutionTrace {
     /// Get trace as log-friendly string.
     ///
     /// Suitable for structured logging or monitoring dashboards.
-    #[must_use] 
+    #[must_use]
     pub fn to_log_string(&self) -> String {
         let status = if self.success { "success" } else { "error" };
         let phases_str = self

@@ -89,10 +89,10 @@ mod mutation {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections:  1,
+                total_connections: 1,
                 active_connections: 0,
-                idle_connections:   1,
-                waiting_requests:   0,
+                idle_connections: 1,
+                waiting_requests: 0,
             }
         }
 
@@ -175,10 +175,10 @@ mod mutation {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections:  1,
+                total_connections: 1,
                 active_connections: 0,
-                idle_connections:   1,
-                waiting_requests:   0,
+                idle_connections: 1,
+                waiting_requests: 0,
             }
         }
 
@@ -488,10 +488,10 @@ mod mutation {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections:  1,
+                total_connections: 1,
                 active_connections: 0,
-                idle_connections:   1,
-                waiting_requests:   0,
+                idle_connections: 1,
+                waiting_requests: 0,
             }
         }
 
@@ -520,14 +520,14 @@ mod mutation {
         };
         let mut schema = CompiledSchema::new();
         schema.input_types.push(InputObjectDefinition {
-            name:        "UpdateUserInput".to_string(),
-            fields:      vec![
+            name: "UpdateUserInput".to_string(),
+            fields: vec![
                 InputFieldDefinition::new("id", "ID!"),
                 InputFieldDefinition::new("name", "String"),
                 InputFieldDefinition::new("email", "String"),
             ],
             description: None,
-            metadata:    None,
+            metadata: None,
         });
         schema.mutations.push(MutationDefinition {
             name: "update_user".to_string(),
@@ -537,12 +537,12 @@ mod mutation {
                 table: "update_user".to_string(),
             },
             arguments: vec![crate::schema::ArgumentDefinition {
-                name:          "input".to_string(),
-                arg_type:      FieldType::Input("UpdateUserInput".to_string()),
-                nullable:      false,
+                name: "input".to_string(),
+                arg_type: FieldType::Input("UpdateUserInput".to_string()),
+                nullable: false,
                 default_value: None,
-                description:   None,
-                deprecation:   None,
+                description: None,
+                deprecation: None,
             }],
             ..MutationDefinition::new("update_user", "User")
         });
@@ -556,13 +556,13 @@ mod mutation {
         };
         let mut schema = CompiledSchema::new();
         schema.input_types.push(InputObjectDefinition {
-            name:        "CreateUserInput".to_string(),
-            fields:      vec![
+            name: "CreateUserInput".to_string(),
+            fields: vec![
                 InputFieldDefinition::new("name", "String!"),
                 InputFieldDefinition::new("email", "String!"),
             ],
             description: None,
-            metadata:    None,
+            metadata: None,
         });
         schema.mutations.push(MutationDefinition {
             name: "create_user".to_string(),
@@ -572,12 +572,12 @@ mod mutation {
                 table: "create_user".to_string(),
             },
             arguments: vec![crate::schema::ArgumentDefinition {
-                name:          "input".to_string(),
-                arg_type:      FieldType::Input("CreateUserInput".to_string()),
-                nullable:      false,
+                name: "input".to_string(),
+                arg_type: FieldType::Input("CreateUserInput".to_string()),
+                nullable: false,
                 default_value: None,
-                description:   None,
-                deprecation:   None,
+                description: None,
+                deprecation: None,
             }],
             ..MutationDefinition::new("create_user", "User")
         });
@@ -755,10 +755,10 @@ mod mutation_audit {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections:  1,
+                total_connections: 1,
                 active_connections: 0,
-                idle_connections:   1,
-                waiting_requests:   0,
+                idle_connections: 1,
+                waiting_requests: 0,
             }
         }
 

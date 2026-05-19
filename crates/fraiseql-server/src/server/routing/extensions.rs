@@ -167,9 +167,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 token.clone(),
                 self.config.admin_auth_max_failures,
             );
-            let rbac_router = crate::api::rbac_management_router(rbac_state).route_layer(
-                middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
-            );
+            let rbac_router = crate::api::rbac_management_router(rbac_state)
+                .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
             app = app.merge(rbac_router);
         } else {
             tracing::error!(
@@ -217,11 +216,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     fn mount_functions(&self, mut app: Router) -> Router {
         use crate::routes::functions::{FunctionsRouteState, functions_router};
 
-        if let (Some(ref store), Some(ref runtime)) =
-            (&self.function_store, &self.function_runtime)
+        if let (Some(ref store), Some(ref runtime)) = (&self.function_store, &self.function_runtime)
         {
             let functions_state = FunctionsRouteState {
-                store:   store.clone(),
+                store: store.clone(),
                 runtime: runtime.clone(),
             };
             app = app.merge(functions_router(functions_state));

@@ -46,7 +46,7 @@ impl QueryPlanCache {
     /// # Panics
     ///
     /// Panics if `capacity` is 0.
-    #[must_use] 
+    #[must_use]
     pub fn new(capacity: usize) -> Self {
         Self {
             cache: Mutex::new(LruCache::new(
@@ -99,7 +99,7 @@ impl QueryPlanCache {
 ///
 /// Strips insignificant whitespace and operation names so that semantically
 /// identical queries share a cache entry.
-#[must_use] 
+#[must_use]
 pub fn normalize_query(query: &str) -> String {
     query.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -108,7 +108,7 @@ pub fn normalize_query(query: &str) -> String {
 ///
 /// The fingerprint changes when types, keys, or directives change,
 /// ensuring stale plans are not reused after schema updates.
-#[must_use] 
+#[must_use]
 pub fn schema_fingerprint(types: &[(&str, &[&str])]) -> String {
     let mut parts: Vec<String> = types
         .iter()

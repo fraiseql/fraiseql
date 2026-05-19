@@ -13,10 +13,10 @@ use crate::{
 fn test_event() -> EventPayload {
     EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "Test".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({"value": 42}),
-        timestamp:    Utc::now(),
+        entity: "Test".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({"value": 42}),
+        timestamp: Utc::now(),
     }
 }
 
@@ -155,11 +155,11 @@ fn test_dispatch_entity_event_no_triggers_returns_empty() {
     let modules: HashMap<String, FunctionModule> = HashMap::new();
 
     let event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: crate::triggers::mutation::EventKind::Insert,
-        old:        None,
-        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  Utc::now(),
+        old: None,
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        timestamp: Utc::now(),
     };
 
     let matching = observer.find_after_mutation_triggers(&registry, &event);
@@ -190,22 +190,22 @@ fn test_dispatch_entity_event_finds_matching_triggers() {
 
     // Insert event → trigger matches
     let insert_event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKind::Insert,
-        old:        None,
-        new:        Some(serde_json::json!({ "id": 1 })),
-        timestamp:  Utc::now(),
+        old: None,
+        new: Some(serde_json::json!({ "id": 1 })),
+        timestamp: Utc::now(),
     };
     let matching = observer.find_after_mutation_triggers(&registry, &insert_event);
     assert_eq!(matching.len(), 1, "should match 1 trigger for User insert");
 
     // Update event → no trigger (trigger is insert-only)
     let update_event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKind::Update,
-        old:        Some(serde_json::json!({ "id": 1, "name": "Old" })),
-        new:        Some(serde_json::json!({ "id": 1, "name": "New" })),
-        timestamp:  Utc::now(),
+        old: Some(serde_json::json!({ "id": 1, "name": "Old" })),
+        new: Some(serde_json::json!({ "id": 1, "name": "New" })),
+        timestamp: Utc::now(),
     };
     let matching = observer.find_after_mutation_triggers(&registry, &update_event);
     assert!(matching.is_empty(), "update event should not match insert-only trigger");

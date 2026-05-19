@@ -15,7 +15,7 @@ use crate::{
 /// Supports both Auth0 rules and custom claim mapping.
 #[derive(Debug)]
 pub struct Auth0OAuth {
-    oidc:   OidcProvider,
+    oidc: OidcProvider,
     domain: String,
 }
 
@@ -23,19 +23,19 @@ pub struct Auth0OAuth {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Auth0User {
     /// Subject — unique user identifier (`sub` claim)
-    pub sub:            String,
+    pub sub: String,
     /// User's primary email address
-    pub email:          String,
+    pub email: String,
     /// Whether the email address has been verified
     pub email_verified: Option<bool>,
     /// User's full display name
-    pub name:           Option<String>,
+    pub name: Option<String>,
     /// URL of the user's profile picture
-    pub picture:        Option<String>,
+    pub picture: Option<String>,
     /// User's locale (e.g., `"en-US"`)
-    pub locale:         Option<String>,
+    pub locale: Option<String>,
     /// Auth0 nickname (usually the part before `@` in the email)
-    pub nickname:       Option<String>,
+    pub nickname: Option<String>,
 }
 
 /// Auth0 roles claim
@@ -82,7 +82,7 @@ impl Auth0OAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from Auth0 token
-    #[must_use] 
+    #[must_use]
     pub fn extract_roles(raw_claims: &serde_json::Value) -> Vec<String> {
         // Try standard Auth0 roles claim first
         if let Some(roles_val) = raw_claims.get("https://fraiseql.dev/roles") {
@@ -108,7 +108,7 @@ impl Auth0OAuth {
     ///
     /// # Arguments
     /// * `auth0_roles` - List of Auth0 role names
-    #[must_use] 
+    #[must_use]
     pub fn map_auth0_roles_to_fraiseql(auth0_roles: Vec<String>) -> Vec<String> {
         auth0_roles
             .into_iter()
@@ -141,7 +141,7 @@ impl Auth0OAuth {
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims
     /// * `email` - User email as fallback
-    #[must_use] 
+    #[must_use]
     pub fn extract_org_id(raw_claims: &serde_json::Value, email: &str) -> Option<String> {
         // Check for explicit org_id claim
         if let Some(org_id_val) = raw_claims.get("org_id") {

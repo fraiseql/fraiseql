@@ -27,7 +27,7 @@ pub enum RateLimiter {
 
 impl RateLimiter {
     /// Create an in-memory rate limiter.
-    #[must_use] 
+    #[must_use]
     pub fn new(config: RateLimitConfig) -> Self {
         Self::InMemory(InMemoryRateLimiter::new(config))
     }
@@ -55,7 +55,7 @@ impl RateLimiter {
     }
 
     /// Return the active rate limit configuration.
-    #[must_use] 
+    #[must_use]
     pub const fn config(&self) -> &RateLimitConfig {
         match self {
             Self::InMemory(rl) => rl.config(),
@@ -65,7 +65,7 @@ impl RateLimiter {
     }
 
     /// Number of per-path rate limit rules registered.
-    #[must_use] 
+    #[must_use]
     pub const fn path_rule_count(&self) -> usize {
         match self {
             Self::InMemory(rl) => rl.path_rule_count(),
@@ -78,7 +78,7 @@ impl RateLimiter {
     ///
     /// Returns the window duration for the matching path rule (e.g. 60s for an
     /// auth/start rule with 5 req/60s), not the IP token-bucket interval.
-    #[must_use] 
+    #[must_use]
     pub fn retry_after_for_path(&self, path: &str) -> u32 {
         match self {
             Self::InMemory(rl) => rl.retry_after_for_path(path),

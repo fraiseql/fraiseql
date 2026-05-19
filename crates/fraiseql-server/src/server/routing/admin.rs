@@ -1,15 +1,17 @@
 //! Base, studio, admin, introspection, metrics, and design audit routes.
 
-use axum::{Router, middleware, routing::{get, post, put}};
+use axum::{
+    Router, middleware,
+    routing::{get, post, put},
+};
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::{info, warn};
 
 use super::super::{
-    BearerAuthState, OidcAuthState, PlaygroundState, Server, SubscriptionState,
-    api, bearer_auth_middleware, broadcast_handler, health_handler,
-    introspection_handler, metrics_handler, metrics_json_handler,
-    oidc_auth_middleware, playground_handler, readiness_handler,
-    subscription_handler, BroadcastState,
+    BearerAuthState, BroadcastState, OidcAuthState, PlaygroundState, Server, SubscriptionState,
+    api, bearer_auth_middleware, broadcast_handler, health_handler, introspection_handler,
+    metrics_handler, metrics_json_handler, oidc_auth_middleware, playground_handler,
+    readiness_handler, subscription_handler,
 };
 use crate::routes::graphql::AppState;
 
@@ -18,7 +20,11 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// security.txt, subscriptions, broadcast, introspection, metrics, and
     /// design audit endpoints.
     #[allow(clippy::cognitive_complexity)] // Reason: many optional subsystems with feature gates
-    pub(super) fn mount_base_and_admin_routes(&self, mut app: Router, state: &AppState<A>) -> Router {
+    pub(super) fn mount_base_and_admin_routes(
+        &self,
+        mut app: Router,
+        state: &AppState<A>,
+    ) -> Router {
         // Build base routes (always available without auth)
         let base_routes = Router::new()
             .route(&self.config.health_path, get(health_handler::<A>))
@@ -103,16 +109,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     fn mount_studio_admin_api(&self, app: Router, state: &AppState<A>, token: &str) -> Router {
         use crate::routes::studio::{
             admin::{
-                health_handler as studio_health_handler,
-                schema_handler as studio_schema_handler,
+                health_handler as studio_health_handler, schema_handler as studio_schema_handler,
             },
             auth_users::{
-                invite_user_handler, list_users_handler, mfa_status_handler,
-                revoke_user_handler,
+                invite_user_handler, list_users_handler, mfa_status_handler, revoke_user_handler,
             },
-            data::{
-                mutate_handler as data_mutate_handler, query_handler as data_query_handler,
-            },
+            data::{mutate_handler as data_mutate_handler, query_handler as data_query_handler},
             function_ops::{
                 delete_secret_handler, function_logs_handler, invoke_function_handler,
                 list_functions_handler, list_secrets_handler, set_secret_handler,
@@ -123,8 +125,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 stats_handler as realtime_stats_handler,
             },
             storage_browser::{
-                delete_object_handler, list_buckets_handler, list_objects_handler,
-                presign_handler,
+                delete_object_handler, list_buckets_handler, list_objects_handler, presign_handler,
             },
         };
         let auth = BearerAuthState::with_max_failures(
@@ -147,10 +148,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .route("/admin/v1/storage/buckets", get(list_buckets_handler::<A>))
             .route("/admin/v1/storage/objects", get(list_objects_handler::<A>))
             .route("/admin/v1/storage/objects/sign", post(presign_handler::<A>))
-            .route(
-                "/admin/v1/storage/objects",
-                axum::routing::delete(delete_object_handler::<A>),
-            )
+            .route("/admin/v1/storage/objects", axum::routing::delete(delete_object_handler::<A>))
             // Realtime monitor
             .route("/admin/v1/realtime/stats", get(realtime_stats_handler::<A>))
             .route("/admin/v1/realtime/broadcast", get(broadcast_channels_handler::<A>))
@@ -192,10 +190,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let auth_state = OidcAuthState::new(validator.clone());
                 let playground_router = Router::new()
                     .route(&self.config.playground_path, get(playground_handler))
-                    .route_layer(middleware::from_fn_with_state(
-                        auth_state,
-                        oidc_auth_middleware,
-                    ))
+                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(playground_state);
                 app = app.merge(playground_router);
             } else {
@@ -253,10 +248,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let auth_state = OidcAuthState::new(validator.clone());
                 let subscription_router = Router::new()
                     .route(&self.config.subscription_path, get(subscription_handler))
-                    .route_layer(middleware::from_fn_with_state(
-                        auth_state,
-                        oidc_auth_middleware,
-                    ))
+                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(subscription_state);
                 app = app.merge(subscription_router);
             } else {
@@ -297,10 +289,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let auth_state = OidcAuthState::new(validator.clone());
                 let introspection_router = Router::new()
                     .route(&self.config.introspection_path, get(introspection_handler::<A>))
-                    .route_layer(middleware::from_fn_with_state(
-                        auth_state,
-                        oidc_auth_middleware,
-                    ))
+                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(state.clone());
                 app = app.merge(introspection_router);
             } else {
@@ -327,10 +316,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let schema_router = Router::new()
                     .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler::<A>))
                     .route("/api/v1/schema.json", get(api::schema::export_json_handler::<A>))
-                    .route_layer(middleware::from_fn_with_state(
-                        auth_state,
-                        oidc_auth_middleware,
-                    ))
+                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(state.clone());
                 app = app.merge(schema_router);
             } else {
@@ -354,10 +340,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let auth_state = OidcAuthState::new(validator.clone());
                 let metadata_router = Router::new()
                     .route("/api/v1/schema/metadata", get(api::metadata::metadata_handler::<A>))
-                    .route_layer(middleware::from_fn_with_state(
-                        auth_state,
-                        oidc_auth_middleware,
-                    ))
+                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(state.clone());
                 app = app.merge(metadata_router);
             } else {
@@ -411,10 +394,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 self.config.admin_auth_max_failures,
             );
             let admin_write_router = Router::new()
-                .route(
-                    "/api/v1/admin/reload-schema",
-                    post(api::admin::reload_schema_handler::<A>),
-                )
+                .route("/api/v1/admin/reload-schema", post(api::admin::reload_schema_handler::<A>))
                 .route("/api/v1/admin/cache/clear", post(api::admin::cache_clear_handler::<A>))
                 .route(
                     "/api/v1/admin/query-stats/reset",
@@ -471,10 +451,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 .route("/api/v1/admin/config", get(api::admin::config_handler::<A>))
                 .route("/api/v1/admin/explain", post(api::admin::explain_handler::<A>))
                 // Tenant management read endpoints (multi-tenant mode)
-                .route(
-                    "/api/v1/admin/tenants",
-                    get(api::tenant_admin::list_tenants_handler::<A>),
-                )
+                .route("/api/v1/admin/tenants", get(api::tenant_admin::list_tenants_handler::<A>))
                 .route(
                     "/api/v1/admin/tenants/{key}",
                     get(api::tenant_admin::get_tenant_handler::<A>),
@@ -488,20 +465,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                     get(api::tenant_admin::tenant_events_handler::<A>),
                 )
                 // Domain management read endpoints (multi-tenant mode)
-                .route(
-                    "/api/v1/admin/domains",
-                    get(api::tenant_admin::list_domains_handler::<A>),
-                )
+                .route("/api/v1/admin/domains", get(api::tenant_admin::list_domains_handler::<A>))
                 .route("/api/v1/query/explain", post(api::query::explain_handler::<A>))
                 .route(
                     "/api/v1/admin/grafana-dashboard",
                     get(api::admin::grafana_dashboard_handler::<A>),
                 )
                 .route("/api/v1/admin/usage", get(api::usage::usage_handler::<A>))
-                .route(
-                    "/api/v1/admin/query-stats",
-                    get(api::query_stats::query_stats_handler::<A>),
-                )
+                .route("/api/v1/admin/query-stats", get(api::query_stats::query_stats_handler::<A>))
                 .route(
                     "/api/v1/admin/query-stats/{queryid}",
                     get(api::query_stats::query_stats_detail_handler::<A>),

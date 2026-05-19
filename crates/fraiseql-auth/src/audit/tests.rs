@@ -143,14 +143,14 @@ mod logger_tests {
     #[test]
     fn test_audit_entry_creation() {
         let entry = AuditEntry {
-            event_type:    AuditEventType::JwtValidation,
-            secret_type:   SecretType::JwtToken,
-            subject:       Some("user123".to_string()),
-            operation:     "validate".to_string(),
-            success:       true,
+            event_type: AuditEventType::JwtValidation,
+            secret_type: SecretType::JwtToken,
+            subject: Some("user123".to_string()),
+            operation: "validate".to_string(),
+            success: true,
             error_message: None,
-            context:       None,
-            chain_hash:    None,
+            context: None,
+            chain_hash: None,
         };
 
         assert_eq!(entry.event_type, AuditEventType::JwtValidation);
@@ -272,14 +272,14 @@ mod logger_tests {
         use crate::audit::logger::bounds;
 
         let entry = AuditEntry {
-            event_type:    AuditEventType::JwtValidation,
-            secret_type:   SecretType::JwtToken,
-            subject:       Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
-            operation:     "validate".to_string(),
-            success:       true,
+            event_type: AuditEventType::JwtValidation,
+            secret_type: SecretType::JwtToken,
+            subject: Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
+            operation: "validate".to_string(),
+            success: true,
             error_message: None,
-            context:       None,
-            chain_hash:    None,
+            context: None,
+            chain_hash: None,
         };
 
         // Verify subject fits within bounds
@@ -348,14 +348,14 @@ mod logger_tests {
 
         // Create a maximum-size entry
         let max_entry = AuditEntry {
-            event_type:    AuditEventType::JwtValidation,
-            secret_type:   SecretType::JwtToken,
-            subject:       Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
-            operation:     "validate".to_string(),
-            success:       false,
+            event_type: AuditEventType::JwtValidation,
+            secret_type: SecretType::JwtToken,
+            subject: Some("a".repeat(bounds::MAX_SUBJECT_LEN)),
+            operation: "validate".to_string(),
+            success: false,
             error_message: Some("e".repeat(bounds::MAX_ERROR_MESSAGE_LEN)),
-            context:       Some("c".repeat(bounds::MAX_CONTEXT_LEN)),
-            chain_hash:    None,
+            context: Some("c".repeat(bounds::MAX_CONTEXT_LEN)),
+            chain_hash: None,
         };
 
         // Serialize to JSON to estimate size

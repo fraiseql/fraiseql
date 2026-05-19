@@ -99,8 +99,8 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 },
                 IdempotencyCheck::Conflict => {
                     return Err(RestError {
-                        status:  StatusCode::UNPROCESSABLE_ENTITY,
-                        code:    "IDEMPOTENCY_CONFLICT",
+                        status: StatusCode::UNPROCESSABLE_ENTITY,
+                        code: "IDEMPOTENCY_CONFLICT",
                         message: "Idempotency-Key reused with different request body".to_string(),
                         details: None,
                     });
@@ -147,9 +147,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
         super::super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::super::cache_control::CacheContext {
-                is_get:      false,
-                has_auth:    headers.get("authorization").is_some(),
-                query_ttl:   None,
+                is_get: false,
+                has_auth: headers.get("authorization").is_some(),
+                query_ttl: None,
                 default_ttl: self.config.default_cache_ttl,
                 cdn_max_age: self.config.cdn_max_age,
             },
@@ -172,7 +172,7 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                     key,
                     body_hash,
                     StoredResponse {
-                        status:  rest_response.status.as_u16(),
+                        status: rest_response.status.as_u16(),
                         headers: rest_response
                             .headers
                             .iter()
@@ -180,7 +180,7 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                                 (k.as_str().to_string(), v.to_str().unwrap_or("").to_string())
                             })
                             .collect(),
-                        body:    rest_response.body.clone(),
+                        body: rest_response.body.clone(),
                     },
                 )
                 .await;
@@ -238,18 +238,18 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
         super::super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::super::cache_control::CacheContext {
-                is_get:      false,
-                has_auth:    headers.get("authorization").is_some(),
-                query_ttl:   None,
+                is_get: false,
+                has_auth: headers.get("authorization").is_some(),
+                query_ttl: None,
                 default_ttl: self.config.default_cache_ttl,
                 cdn_max_age: self.config.cdn_max_age,
             },
         );
 
         Ok(RestResponse {
-            status:  StatusCode::OK,
+            status: StatusCode::OK,
             headers: response_headers,
-            body:    Some(result),
+            body: Some(result),
         })
     }
 
@@ -312,18 +312,18 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 super::super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::super::cache_control::CacheContext {
-                        is_get:      false,
-                        has_auth:    headers.get("authorization").is_some(),
-                        query_ttl:   None,
+                        is_get: false,
+                        has_auth: headers.get("authorization").is_some(),
+                        query_ttl: None,
                         default_ttl: self.config.default_cache_ttl,
                         cdn_max_age: self.config.cdn_max_age,
                     },
                 );
 
                 Ok(RestResponse {
-                    status:  StatusCode::OK,
+                    status: StatusCode::OK,
                     headers: response_headers,
-                    body:    Some(result),
+                    body: Some(result),
                 })
             },
             _ => {
@@ -395,9 +395,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                 super::super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::super::cache_control::CacheContext {
-                        is_get:      false,
-                        has_auth:    headers.get("authorization").is_some(),
-                        query_ttl:   None,
+                        is_get: false,
+                        has_auth: headers.get("authorization").is_some(),
+                        query_ttl: None,
                         default_ttl: self.config.default_cache_ttl,
                         cdn_max_age: self.config.cdn_max_age,
                     },
@@ -422,9 +422,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                             );
                         }
                         Ok(RestResponse {
-                            status:  StatusCode::OK,
+                            status: StatusCode::OK,
                             headers: response_headers,
-                            body:    Some(entity_value),
+                            body: Some(entity_value),
                         })
                     } else {
                         if prefer.return_representation {
@@ -435,9 +435,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                             );
                         }
                         Ok(RestResponse {
-                            status:  StatusCode::NO_CONTENT,
+                            status: StatusCode::NO_CONTENT,
                             headers: response_headers,
-                            body:    None,
+                            body: None,
                         })
                     }
                 } else {
@@ -445,9 +445,9 @@ impl<A: DatabaseAdapter + SupportsMutations> RestHandler<'_, A> {
                         set_preference_applied(&mut response_headers, &["return=minimal"]);
                     }
                     Ok(RestResponse {
-                        status:  StatusCode::NO_CONTENT,
+                        status: StatusCode::NO_CONTENT,
                         headers: response_headers,
-                        body:    None,
+                        body: None,
                     })
                 }
             },

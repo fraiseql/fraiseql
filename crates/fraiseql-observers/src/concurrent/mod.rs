@@ -53,7 +53,7 @@ use crate::{
 /// Significantly reduces latency by eliminating sequential waiting.
 #[derive(Clone)]
 pub struct ConcurrentActionExecutor<E: ActionExecutor + Clone> {
-    inner:             E,
+    inner: E,
     action_timeout_ms: u64,
 }
 

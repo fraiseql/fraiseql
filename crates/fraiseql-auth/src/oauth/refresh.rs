@@ -17,7 +17,7 @@ pub struct TokenRefreshScheduler {
 
 impl TokenRefreshScheduler {
     /// Create new refresh scheduler
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             refresh_queue: Arc::new(std::sync::Mutex::new(Vec::new())),
@@ -99,9 +99,9 @@ pub trait TokenRefresher: Send + Sync {
 /// Background worker that polls the `TokenRefreshScheduler` and refreshes
 /// expiring OAuth tokens.
 pub struct TokenRefreshWorker {
-    scheduler:     Arc<TokenRefreshScheduler>,
-    refresher:     Arc<dyn TokenRefresher>,
-    cancel_rx:     tokio::sync::watch::Receiver<bool>,
+    scheduler: Arc<TokenRefreshScheduler>,
+    refresher: Arc<dyn TokenRefresher>,
+    cancel_rx: tokio::sync::watch::Receiver<bool>,
     poll_interval: StdDuration,
 }
 

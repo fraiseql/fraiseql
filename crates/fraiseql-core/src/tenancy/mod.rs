@@ -68,9 +68,9 @@ impl TenantContext {
     #[must_use]
     pub fn new(id: impl Into<String>) -> Self {
         Self {
-            id:         id.into(),
+            id: id.into(),
             created_at: Utc::now().to_rfc3339(),
-            metadata:   HashMap::new(),
+            metadata: HashMap::new(),
         }
     }
 
@@ -256,7 +256,7 @@ fn validate_tenant_id_for_interpolation(tenant_id: &str) {
 /// let clause = where_clause("acme-corp");  // "tenant_id = 'acme-corp'"
 /// assert_eq!(clause, "tenant_id = 'acme-corp'");
 /// ```
-#[must_use] 
+#[must_use]
 pub fn where_clause(tenant_id: &str) -> String {
     validate_tenant_id_for_interpolation(tenant_id);
     format!("tenant_id = '{}'", tenant_id)
@@ -265,7 +265,7 @@ pub fn where_clause(tenant_id: &str) -> String {
 /// Generates a parameterized WHERE clause for PostgreSQL.
 ///
 /// For use with parameterized queries to prevent SQL injection.
-#[must_use] 
+#[must_use]
 pub fn where_clause_postgresql(param_index: usize) -> String {
     format!("tenant_id = ${}", param_index)
 }
@@ -273,7 +273,7 @@ pub fn where_clause_postgresql(param_index: usize) -> String {
 /// Generates a parameterized WHERE clause for MySQL/SQLite.
 ///
 /// For use with parameterized queries to prevent SQL injection.
-#[must_use] 
+#[must_use]
 pub fn where_clause_parameterized() -> String {
     "tenant_id = ?".to_string()
 }

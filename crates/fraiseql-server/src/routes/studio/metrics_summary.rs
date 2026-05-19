@@ -31,9 +31,9 @@ pub struct LatencyStats {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorRates {
     /// Errors per request, averaged over the last 5 minutes.
-    pub rate_5m:  f64,
+    pub rate_5m: f64,
     /// Errors per request, averaged over the last 1 hour.
-    pub rate_1h:  f64,
+    pub rate_1h: f64,
     /// Errors per request, averaged over the last 24 hours.
     pub rate_24h: f64,
 }
@@ -42,11 +42,11 @@ pub struct ErrorRates {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PoolStats {
     /// Active (in-use) connections.
-    pub active:      u32,
+    pub active: u32,
     /// Idle connections.
-    pub idle:        u32,
+    pub idle: u32,
     /// Maximum pool size.
-    pub max:         u32,
+    pub max: u32,
     /// Utilization ratio (active / max).
     pub utilization: f64,
 }
@@ -57,7 +57,7 @@ pub struct CacheStats {
     /// Cache hit rate (0–1).
     pub hit_rate: f64,
     /// Current number of cached entries.
-    pub entries:  u64,
+    pub entries: u64,
 }
 
 /// Active subscription stats.
@@ -71,13 +71,13 @@ pub struct SubscriptionStats {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsSummary {
     /// Request latency percentiles.
-    pub latency:       LatencyStats,
+    pub latency: LatencyStats,
     /// Error rates over sliding windows.
-    pub errors:        ErrorRates,
+    pub errors: ErrorRates,
     /// Database pool health.
-    pub pool:          PoolStats,
+    pub pool: PoolStats,
     /// Query cache stats.
-    pub cache:         CacheStats,
+    pub cache: CacheStats,
     /// Subscription stats.
     pub subscriptions: SubscriptionStats,
 }
@@ -87,25 +87,25 @@ impl MetricsSummary {
     #[must_use]
     pub const fn zero() -> Self {
         Self {
-            latency:       LatencyStats {
+            latency: LatencyStats {
                 p50_ms: 0,
                 p95_ms: 0,
                 p99_ms: 0,
             },
-            errors:        ErrorRates {
-                rate_5m:  0.0,
-                rate_1h:  0.0,
+            errors: ErrorRates {
+                rate_5m: 0.0,
+                rate_1h: 0.0,
                 rate_24h: 0.0,
             },
-            pool:          PoolStats {
-                active:      0,
-                idle:        0,
-                max:         0,
+            pool: PoolStats {
+                active: 0,
+                idle: 0,
+                max: 0,
                 utilization: 0.0,
             },
-            cache:         CacheStats {
+            cache: CacheStats {
                 hit_rate: 0.0,
-                entries:  0,
+                entries: 0,
             },
             subscriptions: SubscriptionStats { active: 0 },
         }
@@ -149,8 +149,8 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
         0.0
     };
     let errors_stats = ErrorRates {
-        rate_5m:  error_rate,
-        rate_1h:  error_rate,
+        rate_5m: error_rate,
+        rate_1h: error_rate,
         rate_24h: error_rate,
     };
 
@@ -170,9 +170,9 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
 
     // Pool stats — not available from MetricsCollector (requires adapter-level access)
     let pool = PoolStats {
-        active:      0,
-        idle:        0,
-        max:         0,
+        active: 0,
+        idle: 0,
+        max: 0,
         utilization: 0.0,
     };
 

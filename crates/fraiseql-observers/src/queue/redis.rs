@@ -15,10 +15,10 @@ use crate::error::{ObserverError, Result};
 /// Redis-backed persistent job queue.
 #[derive(Clone)]
 pub struct RedisJobQueue {
-    conn:           ConnectionManager,
-    pending_key:    String,
+    conn: ConnectionManager,
+    pending_key: String,
     processing_key: String,
-    retry_key:      String,
+    retry_key: String,
     deadletter_key: String,
 }
 

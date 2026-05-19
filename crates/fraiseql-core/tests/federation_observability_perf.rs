@@ -114,10 +114,10 @@ impl DatabaseAdapter for PerfTestDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  10,
-            idle_connections:   9,
+            total_connections: 10,
+            idle_connections: 9,
             active_connections: 1,
-            waiting_requests:   0,
+            waiting_requests: 0,
         }
     }
 
@@ -161,30 +161,30 @@ fn create_test_metadata() -> FederationMetadata {
         version: "v2".to_string(),
         types: vec![
             FederatedType {
-                name:                "User".to_string(),
-                keys:                vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+                name: "User".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:          false,
-                external_fields:     vec![],
-                shareable_fields:    vec![],
+                is_extends: false,
+                external_fields: vec![],
+                shareable_fields: vec![],
                 inaccessible_fields: vec![],
-                field_directives:    std::collections::HashMap::new(),
-                type_shareable:      false,
+                field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
-                name:                "Order".to_string(),
-                keys:                vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+                name: "Order".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:          false,
-                external_fields:     vec![],
-                shareable_fields:    vec![],
+                is_extends: false,
+                external_fields: vec![],
+                shareable_fields: vec![],
                 inaccessible_fields: vec![],
-                field_directives:    std::collections::HashMap::new(),
-                type_shareable:      false,
+                field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
         ],
         remote_subscription_fields: std::collections::HashMap::new(),

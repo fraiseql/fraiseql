@@ -27,13 +27,13 @@ use serde_json::json;
 fn test_graphql_request_structure_for_mutation_attack() {
     // Demonstrate the structure of a mutation attack attempt
     let mutation_request = GraphQLRequest {
-        query:          Some(
+        query: Some(
             "mutation { updateUser(id: \"123\", role: \"admin\") { id role } }".to_string(),
         ),
-        variables:      None,
+        variables: None,
         operation_name: Some("UpdateRole".to_string()),
-        extensions:     None,
-        document_id:    None,
+        extensions: None,
+        document_id: None,
     };
 
     // Server should validate and reject attempts to set role through mutation
@@ -58,11 +58,11 @@ fn test_variable_injection_with_role_parameter() {
     });
 
     let request = GraphQLRequest {
-        query:          Some(query_with_role_var.to_string()),
-        variables:      Some(variables),
+        query: Some(query_with_role_var.to_string()),
+        variables: Some(variables),
         operation_name: Some("SetRole".to_string()),
-        extensions:     None,
-        document_id:    None,
+        extensions: None,
+        document_id: None,
     };
 
     // Server should reject this query structure - role field is not a variable, it's immutable

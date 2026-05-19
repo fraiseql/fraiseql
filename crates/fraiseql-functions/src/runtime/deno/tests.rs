@@ -13,10 +13,10 @@ use crate::{EventPayload, FunctionModule, FunctionRuntime, ResourceLimits, Runti
 fn test_event() -> EventPayload {
     EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "Test".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({"value": 42}),
-        timestamp:    Utc::now(),
+        entity: "Test".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({"value": 42}),
+        timestamp: Utc::now(),
     }
 }
 
@@ -225,8 +225,8 @@ export default async (event) => {
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 64 * 1024 * 1024, // 64MB hard limit
-        max_duration:     std::time::Duration::from_secs(5),
-        max_log_entries:  10_000,
+        max_duration: std::time::Duration::from_secs(5),
+        max_log_entries: 10_000,
     };
 
     let result = runtime
@@ -254,8 +254,8 @@ export default async (event) => {
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
-        max_duration:     std::time::Duration::from_millis(100), // 100ms timeout
-        max_log_entries:  10_000,
+        max_duration: std::time::Duration::from_millis(100), // 100ms timeout
+        max_log_entries: 10_000,
     };
 
     let result = runtime
@@ -285,9 +285,9 @@ export default async (event) => {
 
     let event = test_event();
     let limits = ResourceLimits {
-        max_memory_bytes: 256 * 1024 * 1024,                 // 256MB
-        max_duration:     std::time::Duration::from_secs(5), // 5 second timeout
-        max_log_entries:  10_000,
+        max_memory_bytes: 256 * 1024 * 1024,             // 256MB
+        max_duration: std::time::Duration::from_secs(5), // 5 second timeout
+        max_log_entries: 10_000,
     };
 
     let result = runtime
@@ -355,8 +355,8 @@ export default async (event) => {
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
-        max_duration:     std::time::Duration::from_millis(200), // 200ms timeout
-        max_log_entries:  10_000,
+        max_duration: std::time::Duration::from_millis(200), // 200ms timeout
+        max_log_entries: 10_000,
     };
 
     let result = runtime
@@ -512,8 +512,8 @@ async fn test_deno_guest_log_limit_enforced() {
     let event = test_event();
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
-        max_duration:     std::time::Duration::from_secs(5),
-        max_log_entries:  1000, // Only allow 1000 logs
+        max_duration: std::time::Duration::from_secs(5),
+        max_log_entries: 1000, // Only allow 1000 logs
     };
 
     let result = runtime

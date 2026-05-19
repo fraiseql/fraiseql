@@ -83,7 +83,7 @@ pub struct QueryBuilderIntegration {
 
 impl QueryBuilderIntegration {
     /// Create new query builder integration
-    #[must_use = "builder does nothing until .build() is called"] 
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn new(encrypted_fields: Vec<String>) -> Self {
         Self {
             encrypted_fields: encrypted_fields.into_iter().collect(),
@@ -218,19 +218,19 @@ impl QueryBuilderIntegration {
     }
 
     /// Get encrypted field names
-    #[must_use] 
+    #[must_use]
     pub fn encrypted_fields(&self) -> Vec<String> {
         self.encrypted_fields.iter().cloned().collect()
     }
 
     /// Check if field is encrypted
-    #[must_use] 
+    #[must_use]
     pub fn is_encrypted(&self, field: &str) -> bool {
         self.encrypted_fields.contains(field)
     }
 
     /// Get encrypted fields that appear in field list
-    #[must_use] 
+    #[must_use]
     pub fn get_encrypted_fields_in_list(&self, fields: &[&str]) -> Vec<String> {
         fields
             .iter()

@@ -72,6 +72,6 @@ pub async fn export_json_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   response,
+        data: response,
     }))
 }

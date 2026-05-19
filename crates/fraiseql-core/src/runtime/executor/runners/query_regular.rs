@@ -4,14 +4,12 @@ use std::sync::Arc;
 
 use super::super::{null_masked_fields, resolve_inject_value};
 use super::query::QueryRunner;
-use super::query_params::{combine_explicit_arg_where, compute_projection_reduction, inject_param_where_clause};
+use super::query_params::{
+    combine_explicit_arg_where, compute_projection_reduction, inject_param_where_clause,
+};
 use super::query_projection::{build_typed_projection_fields, enrich_order_by_clauses};
 use crate::{
-    db::{
-        WhereClause,
-        projection_generator::PostgresProjectionGenerator,
-        traits::DatabaseAdapter,
-    },
+    db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
     schema::SqlProjectionHint,
@@ -47,7 +45,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         if security_context.is_expired() {
             return Err(FraiseQLError::Validation {
                 message: "Security token has expired".to_string(),
-                path:    Some("request.authorization".to_string()),
+                path: Some("request.authorization".to_string()),
             });
         }
 
@@ -59,7 +57,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             if !security_context.roles.iter().any(|r| r == required_role) {
                 return Err(FraiseQLError::Validation {
                     message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                    path:    None,
+                    path: None,
                 });
             }
         }
@@ -130,7 +128,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 .as_ref()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path:    None,
+                    path: None,
                 })?;
 
         // 6. Generate SQL projection hint for requested fields (optimization). Build a recursive
@@ -363,7 +361,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         if query_match.query_def.requires_role.is_some() {
             return Err(FraiseQLError::Validation {
                 message: format!("Query '{}' not found in schema", query_match.query_def.name),
-                path:    None,
+                path: None,
             });
         }
 
@@ -374,7 +372,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_match.query_def.name
                 ),
-                path:    None,
+                path: None,
             });
         }
 
@@ -390,7 +388,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
             crate::error::FraiseQLError::Validation {
                 message: "Query has no SQL source".to_string(),
-                path:    None,
+                path: None,
             }
         })?;
 
@@ -543,7 +541,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 .as_ref()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path:    None,
+                    path: None,
                 })?;
 
         // Build execution plan.
@@ -684,7 +682,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 .as_ref()
                 .ok_or_else(|| FraiseQLError::Validation {
                     message: "Query has no SQL source".to_string(),
-                    path:    None,
+                    path: None,
                 })?;
 
         // 3. Build combined WHERE clause (RLS + inject)
@@ -697,7 +695,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     "Query '{}' has inject params but no security context is available",
                     query_match.query_def.name
                 ),
-                path:    None,
+                path: None,
             })?;
             let mut conditions: Vec<WhereClause> = query_match
                 .query_def

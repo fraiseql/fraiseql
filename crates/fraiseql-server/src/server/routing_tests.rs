@@ -51,9 +51,9 @@ impl TokenValidator for AlwaysOkValidator {
     fn validate<'a>(&'a self, _token: &'a str) -> BoxFuture<'a, Result<TokenInfo, String>> {
         Box::pin(async move {
             Ok(TokenInfo {
-                user_id:      "test-user".to_string(),
+                user_id: "test-user".to_string(),
                 context_hash: 0,
-                expires_at:   i64::MAX,
+                expires_at: i64::MAX,
             })
         })
     }
@@ -79,18 +79,18 @@ async fn storage_state(bucket: &str) -> StorageState {
     buckets.insert(
         bucket.to_string(),
         BucketConfig {
-            name:               bucket.to_string(),
-            max_object_bytes:   None,
+            name: bucket.to_string(),
+            max_object_bytes: None,
             allowed_mime_types: None,
-            access:             BucketAccess::PublicRead,
-            transform_presets:  None,
+            access: BucketAccess::PublicRead,
+            transform_presets: None,
         },
     );
     StorageState {
-        backend:  Arc::new(backend),
+        backend: Arc::new(backend),
         metadata: Arc::new(StorageMetadataRepo::new(lazy_pool())),
-        rls:      StorageRlsEvaluator::new(),
-        buckets:  Arc::new(buckets),
+        rls: StorageRlsEvaluator::new(),
+        buckets: Arc::new(buckets),
     }
 }
 

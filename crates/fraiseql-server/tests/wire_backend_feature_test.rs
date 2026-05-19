@@ -91,8 +91,8 @@ mod postgres_adapter_tests {
         let adapter = PostgresAdapter::with_pool_config(
             &db_url,
             fraiseql_core::db::postgres::PoolPrewarmConfig {
-                min_size:     5,
-                max_size:     20,
+                min_size: 5,
+                max_size: 20,
                 timeout_secs: None,
             },
         )
@@ -194,8 +194,8 @@ async fn test_feature_gated_main_initialization_postgres() {
     let adapter = PostgresAdapter::with_pool_config(
         &db_url,
         PoolPrewarmConfig {
-            min_size:     5,
-            max_size:     20,
+            min_size: 5,
+            max_size: 20,
             timeout_secs: None,
         },
     )

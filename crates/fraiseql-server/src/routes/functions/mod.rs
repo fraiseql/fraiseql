@@ -35,7 +35,7 @@ use sha2::Digest as _;
 #[derive(Clone)]
 pub struct FunctionsRouteState {
     /// Deployment store — provides bytecode lookup by function name.
-    pub store:   Arc<dyn FunctionStore>,
+    pub store: Arc<dyn FunctionStore>,
     /// Execution runtime — runs the bytecode and returns a result.
     pub runtime: Arc<dyn SendFunctionRuntime>,
 }
@@ -78,10 +78,10 @@ pub async fn invoke_function_handler(
 
     // Convert the stored record into an executable module.
     let module = FunctionModule {
-        name:        record.name.clone(),
+        name: record.name.clone(),
         source_hash: format!("{:x}", sha2::Sha256::digest(&record.bytecode)),
-        bytecode:    record.bytecode,
-        runtime:     record.runtime,
+        bytecode: record.bytecode,
+        runtime: record.runtime,
     };
 
     // Parse the request body as JSON event data, defaulting to null for empty bodies.

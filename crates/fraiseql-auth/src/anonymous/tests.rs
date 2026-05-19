@@ -15,9 +15,9 @@ impl SessionStore for MockSessionStore {
         expires_at: u64,
     ) -> crate::error::Result<TokenPair> {
         Ok(TokenPair {
-            access_token:  format!("access_{user_id}"),
+            access_token: format!("access_{user_id}"),
             refresh_token: format!("refresh_{user_id}"),
-            expires_in:    expires_at.saturating_sub(unix_now().unwrap_or(0)),
+            expires_in: expires_at.saturating_sub(unix_now().unwrap_or(0)),
         })
     }
 

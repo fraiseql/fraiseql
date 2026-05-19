@@ -271,7 +271,10 @@ async fn ws_e2e_complete_unsubscribes() {
 
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
     while manager.subscription_count() != 0 {
-        assert!(tokio::time::Instant::now() < deadline, "subscription should be removed after complete");
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "subscription should be removed after complete"
+        );
         tokio::task::yield_now().await;
     }
 }

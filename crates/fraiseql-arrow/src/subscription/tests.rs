@@ -44,14 +44,14 @@ fn test_broadcast_event_filters_by_entity_type() {
     let mut rx2 = manager.subscribe("sub-2".to_string(), "User".to_string(), None);
 
     let event = HistoricalEvent {
-        id:          Uuid::new_v4(),
-        event_type:  "INSERT".to_string(),
+        id: Uuid::new_v4(),
+        event_type: "INSERT".to_string(),
         entity_type: "Order".to_string(),
-        entity_id:   Uuid::new_v4(),
-        data:        serde_json::json!({"total": 100}),
-        user_id:     None,
-        tenant_id:   None,
-        timestamp:   Utc::now(),
+        entity_id: Uuid::new_v4(),
+        data: serde_json::json!({"total": 100}),
+        user_id: None,
+        tenant_id: None,
+        timestamp: Utc::now(),
     };
 
     manager.broadcast_event(&event);
@@ -73,14 +73,14 @@ fn test_multiple_subscriptions_same_type() {
     let mut rx2 = manager.subscribe("sub-2".to_string(), "Order".to_string(), None);
 
     let event = HistoricalEvent {
-        id:          Uuid::new_v4(),
-        event_type:  "INSERT".to_string(),
+        id: Uuid::new_v4(),
+        event_type: "INSERT".to_string(),
         entity_type: "Order".to_string(),
-        entity_id:   Uuid::new_v4(),
-        data:        serde_json::json!({"total": 100}),
-        user_id:     None,
-        tenant_id:   None,
-        timestamp:   Utc::now(),
+        entity_id: Uuid::new_v4(),
+        data: serde_json::json!({"total": 100}),
+        user_id: None,
+        tenant_id: None,
+        timestamp: Utc::now(),
     };
 
     manager.broadcast_event(&event);

@@ -212,13 +212,13 @@ impl EventBridge {
     }
 
     /// Get the sender for sending events to the bridge
-    #[must_use] 
+    #[must_use]
     pub fn get_sender(&self) -> mpsc::Sender<EntityEvent> {
         self.sender.clone()
     }
 
     /// Get the subscription manager (for testing)
-    #[must_use] 
+    #[must_use]
     pub fn manager(&self) -> Arc<SubscriptionManager> {
         Arc::clone(&self.manager)
     }

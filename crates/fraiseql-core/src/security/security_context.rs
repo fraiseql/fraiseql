@@ -144,7 +144,7 @@ impl SecurityContext {
     /// # let authenticated_user: AuthenticatedUser = panic!("example");
     /// let context = SecurityContext::from_user(&authenticated_user, "req-123".to_string());
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn from_user(user: &AuthenticatedUser, request_id: String) -> Self {
         SecurityContext {
             user_id: user.user_id.clone(),
@@ -261,14 +261,14 @@ impl SecurityContext {
     }
 
     /// Set or override a role (for testing or runtime role modification).
-    #[must_use] 
+    #[must_use]
     pub fn with_role(mut self, role: String) -> Self {
         self.roles.push(role);
         self
     }
 
     /// Set or override scopes (for testing or runtime permission modification).
-    #[must_use] 
+    #[must_use]
     pub fn with_scopes(mut self, scopes: Vec<String>) -> Self {
         self.scopes = scopes;
         self
@@ -281,7 +281,7 @@ impl SecurityContext {
     }
 
     /// Set a custom attribute (for testing or runtime attribute addition).
-    #[must_use] 
+    #[must_use]
     pub fn with_attribute(mut self, key: String, value: serde_json::Value) -> Self {
         self.attributes.insert(key, value);
         self

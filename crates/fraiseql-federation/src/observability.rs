@@ -32,23 +32,23 @@ pub const LATENCY_BUCKETS_SECS: [f64; 10] = [
 #[derive(Debug)]
 pub struct SubgraphHistogram {
     /// Cumulative bucket counts: `[0..9]` for `LATENCY_BUCKETS_SECS[i]`, `[10]` = +Inf.
-    bucket_counts:    [AtomicU64; 11],
+    bucket_counts: [AtomicU64; 11],
     /// Sum of all recorded durations in microseconds (integer to avoid f64 atomics).
     sum_microseconds: AtomicU64,
     /// Total number of observations.
-    count:            AtomicU64,
+    count: AtomicU64,
     /// Number of successful observations.
-    success_count:    AtomicU64,
+    success_count: AtomicU64,
 }
 
 impl SubgraphHistogram {
     /// Create a new zero-initialized histogram.
     fn new() -> Self {
         Self {
-            bucket_counts:    std::array::from_fn(|_| AtomicU64::new(0)),
+            bucket_counts: std::array::from_fn(|_| AtomicU64::new(0)),
             sum_microseconds: AtomicU64::new(0),
-            count:            AtomicU64::new(0),
-            success_count:    AtomicU64::new(0),
+            count: AtomicU64::new(0),
+            success_count: AtomicU64::new(0),
         }
     }
 
@@ -81,13 +81,13 @@ impl SubgraphHistogram {
 #[derive(Debug, Clone)]
 pub struct SubgraphLatencyEntry {
     /// Subgraph name or URL
-    pub subgraph:     String,
+    pub subgraph: String,
     /// Duration of the fetch
-    pub duration:     Duration,
+    pub duration: Duration,
     /// Number of entities resolved in this fetch
     pub entity_count: usize,
     /// Whether the fetch succeeded
-    pub success:      bool,
+    pub success: bool,
 }
 
 /// Per-subgraph latency tracker for federation queries.
@@ -101,7 +101,7 @@ pub struct SubgraphLatencyTracker {
 
 impl SubgraphLatencyTracker {
     /// Create a new empty tracker.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             histograms: DashMap::new(),
@@ -128,9 +128,9 @@ impl SubgraphLatencyTracker {
     /// Start timing a subgraph fetch. Returns a guard that records on drop.
     pub fn start(&self, subgraph: impl Into<String>) -> SubgraphTimer<'_> {
         SubgraphTimer {
-            tracker:  self,
+            tracker: self,
             subgraph: subgraph.into(),
-            start:    Instant::now(),
+            start: Instant::now(),
         }
     }
 
@@ -139,7 +139,7 @@ impl SubgraphLatencyTracker {
     /// Returns one entry per subgraph with aggregate `count`, total `duration`,
     /// and `success` reflecting whether all observations succeeded.
     #[allow(clippy::cast_possible_truncation)] // Reason: count fits in usize on any platform
-    #[must_use] 
+    #[must_use]
     pub fn entries(&self) -> Vec<SubgraphLatencyEntry> {
         self.histograms
             .iter()
@@ -149,10 +149,10 @@ impl SubgraphLatencyTracker {
                 let sum_us = h.sum_microseconds.load(Ordering::Relaxed);
                 let success_count = h.success_count.load(Ordering::Relaxed);
                 SubgraphLatencyEntry {
-                    subgraph:     entry.key().clone(),
-                    duration:     Duration::from_micros(sum_us),
+                    subgraph: entry.key().clone(),
+                    duration: Duration::from_micros(sum_us),
                     entity_count: count as usize,
-                    success:      success_count == count,
+                    success: success_count == count,
                 }
             })
             .collect()
@@ -160,7 +160,7 @@ impl SubgraphLatencyTracker {
 
     /// Get per-subgraph latency summary as OTEL span attributes.
     #[allow(clippy::cast_precision_loss)] // Reason: u64→f64 precision loss is negligible for aggregate metrics
-    #[must_use] 
+    #[must_use]
     pub fn to_span_attributes(&self) -> HashMap<String, String> {
         let mut attrs = HashMap::new();
 
@@ -187,7 +187,7 @@ impl SubgraphLatencyTracker {
     }
 
     /// Total latency across all subgraph fetches.
-    #[must_use] 
+    #[must_use]
     pub fn total_latency(&self) -> Duration {
         let total_us: u64 = self
             .histograms
@@ -202,7 +202,7 @@ impl SubgraphLatencyTracker {
     /// Produces `fraiseql_federation_subgraph_latency_seconds_bucket`,
     /// `_sum`, and `_count` lines for each subgraph.
     #[allow(clippy::cast_precision_loss)] // Reason: u64→f64 precision loss is negligible for Prometheus sum
-    #[must_use] 
+    #[must_use]
     pub fn to_prometheus_histogram(&self) -> String {
         let mut out = String::new();
         out.push_str(
@@ -259,9 +259,9 @@ impl SubgraphLatencyTracker {
 
 /// Timer guard that records latency on completion.
 pub struct SubgraphTimer<'a> {
-    tracker:  &'a SubgraphLatencyTracker,
+    tracker: &'a SubgraphLatencyTracker,
     subgraph: String,
-    start:    Instant,
+    start: Instant,
 }
 
 impl SubgraphTimer<'_> {
@@ -279,20 +279,20 @@ impl SubgraphTimer<'_> {
 #[derive(Debug)]
 pub struct EntityResolutionMetrics {
     /// Total successful entity resolutions
-    pub success_total:           AtomicU64,
+    pub success_total: AtomicU64,
     /// Total failed entity resolutions
-    pub failure_total:           AtomicU64,
+    pub failure_total: AtomicU64,
     /// Total entities resolved
     pub entities_resolved_total: AtomicU64,
 }
 
 impl EntityResolutionMetrics {
     /// Create new zero-initialized metrics.
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            success_total:           AtomicU64::new(0),
-            failure_total:           AtomicU64::new(0),
+            success_total: AtomicU64::new(0),
+            failure_total: AtomicU64::new(0),
             entities_resolved_total: AtomicU64::new(0),
         }
     }

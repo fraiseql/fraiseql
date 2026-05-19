@@ -42,7 +42,7 @@ fn invalid_token_display_interpolates_reason() {
 fn provider_error_code_and_display() {
     let err = AuthError::ProviderError {
         provider: "google".into(),
-        message:  "timeout".into(),
+        message: "timeout".into(),
     };
     assert_eq!(err.error_code(), "auth_provider_error");
     assert_eq!(err.to_string(), "Provider error: google - timeout");

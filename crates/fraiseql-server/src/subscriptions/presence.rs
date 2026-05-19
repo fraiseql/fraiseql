@@ -37,8 +37,8 @@ impl PresenceConfig {
     pub const fn new() -> Self {
         Self {
             max_members_per_room: 500,
-            max_rooms:            10_000,
-            heartbeat_timeout:    Duration::from_secs(30),
+            max_rooms: 10_000,
+            heartbeat_timeout: Duration::from_secs(30),
         }
     }
 }
@@ -131,10 +131,10 @@ pub struct PresenceStats {
 /// Thread-safe via `RwLock` for the room map and atomics for counters.
 #[derive(Debug)]
 pub struct PresenceManager {
-    rooms:           RwLock<HashMap<String, PresenceRoom>>,
-    config:          PresenceConfig,
-    joins_total:     AtomicU64,
-    leaves_total:    AtomicU64,
+    rooms: RwLock<HashMap<String, PresenceRoom>>,
+    config: PresenceConfig,
+    joins_total: AtomicU64,
+    leaves_total: AtomicU64,
     evictions_total: AtomicU64,
 }
 
@@ -190,7 +190,7 @@ impl PresenceManager {
         {
             return Err(PresenceError::RoomFull {
                 room: room.to_string(),
-                max:  self.config.max_members_per_room,
+                max: self.config.max_members_per_room,
             });
         }
 
@@ -204,13 +204,13 @@ impl PresenceManager {
         self.joins_total.fetch_add(1, Ordering::Relaxed);
 
         let presence_state = PresenceState {
-            room:    room.to_string(),
+            room: room.to_string(),
             members: presence_room.members.values().cloned().collect(),
         };
 
         let diff = PresenceDiff {
-            room:   room.to_string(),
-            joins:  vec![member],
+            room: room.to_string(),
+            joins: vec![member],
             leaves: vec![],
         };
 
@@ -237,8 +237,8 @@ impl PresenceManager {
         debug!(room, member_id, members = presence_room.members.len(), "presence: member left");
 
         let diff = PresenceDiff {
-            room:   room.to_string(),
-            joins:  vec![],
+            room: room.to_string(),
+            joins: vec![],
             leaves: vec![member_id.to_string()],
         };
 
@@ -285,8 +285,8 @@ impl PresenceManager {
         member.last_seen = Instant::now();
 
         Some(PresenceDiff {
-            room:   room.to_string(),
-            joins:  vec![member.clone()],
+            room: room.to_string(),
+            joins: vec![member.clone()],
             leaves: vec![],
         })
     }
@@ -318,8 +318,8 @@ impl PresenceManager {
                 debug!(room = %room_name, evicted = count, "presence: evicted stale members");
 
                 diffs.push(PresenceDiff {
-                    room:   room_name.clone(),
-                    joins:  vec![],
+                    room: room_name.clone(),
+                    joins: vec![],
                     leaves: evicted,
                 });
             }
@@ -342,7 +342,7 @@ impl PresenceManager {
         let presence_room = rooms.get(room)?;
 
         Some(PresenceState {
-            room:    room.to_string(),
+            room: room.to_string(),
             members: presence_room.members.values().cloned().collect(),
         })
     }
@@ -371,7 +371,7 @@ pub enum PresenceError {
         /// Room name.
         room: String,
         /// Maximum members.
-        max:  usize,
+        max: usize,
     },
 
     /// Too many rooms exist.

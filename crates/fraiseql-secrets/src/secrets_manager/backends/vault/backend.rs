@@ -122,26 +122,26 @@ fn build_http_client(tls_verify: bool) -> Result<reqwest::Client, SecretsError> 
 /// tls_verify = true              # Verify TLS certificates
 /// ```
 pub struct VaultBackend {
-    addr:              String,
-    token:             Zeroizing<String>,
-    namespace:         Option<String>,
-    tls_verify:        bool,
+    addr: String,
+    token: Zeroizing<String>,
+    namespace: Option<String>,
+    tls_verify: bool,
     /// Shared HTTP client — built once to reuse TLS sessions across requests.
-    client:            reqwest::Client,
-    cache:             Arc<RwLock<SecretCache>>,
+    client: reqwest::Client,
+    cache: Arc<RwLock<SecretCache>>,
     /// Per-secret rotation locks.
     ///
     /// Held during the invalidate→fetch sequence in `rotate_secret` and during
     /// cache-miss fetches in `get_secret_with_expiry`, preventing the classic
     /// thundering-herd / stale-cache race: a concurrent reader cannot load the
     /// pre-rotation value into cache while rotation is in progress.
-    rotation_locks:    Arc<DashMap<String, Arc<Mutex<()>>>>,
+    rotation_locks: Arc<DashMap<String, Arc<Mutex<()>>>>,
     /// When the current token was obtained (for renewal tracking).
     /// `None` when using a static long-lived token.
     token_obtained_at: Option<chrono::DateTime<Utc>>,
     /// Token TTL as reported by Vault at login time (seconds).
     /// `None` when using a static long-lived token.
-    token_ttl_secs:    Option<i64>,
+    token_ttl_secs: Option<i64>,
 }
 
 impl std::fmt::Debug for VaultBackend {
@@ -160,15 +160,15 @@ impl std::fmt::Debug for VaultBackend {
 impl Clone for VaultBackend {
     fn clone(&self) -> Self {
         VaultBackend {
-            addr:              self.addr.clone(),
-            token:             Zeroizing::new((*self.token).clone()),
-            namespace:         self.namespace.clone(),
-            tls_verify:        self.tls_verify,
-            client:            self.client.clone(),
-            cache:             Arc::clone(&self.cache),
-            rotation_locks:    Arc::clone(&self.rotation_locks),
+            addr: self.addr.clone(),
+            token: Zeroizing::new((*self.token).clone()),
+            namespace: self.namespace.clone(),
+            tls_verify: self.tls_verify,
+            client: self.client.clone(),
+            cache: Arc::clone(&self.cache),
+            rotation_locks: Arc::clone(&self.rotation_locks),
             token_obtained_at: self.token_obtained_at,
-            token_ttl_secs:    self.token_ttl_secs,
+            token_ttl_secs: self.token_ttl_secs,
         }
     }
 }

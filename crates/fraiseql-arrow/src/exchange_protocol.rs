@@ -28,7 +28,7 @@ pub enum ExchangeMessage {
         /// Unique identifier for this request (UUID recommended)
         correlation_id: String,
         /// The operation to perform
-        request_type:   RequestType,
+        request_type: RequestType,
     },
 
     /// Server response with correlation ID.
@@ -38,7 +38,7 @@ pub enum ExchangeMessage {
         /// Matches the `correlation_id` from the original request
         correlation_id: String,
         /// Result of the operation (error or Arrow-encoded data)
-        result:         Result<Vec<u8>, String>,
+        result: Result<Vec<u8>, String>,
     },
 
     /// Stream completion signal.
@@ -64,7 +64,7 @@ pub enum RequestType {
     /// Result is serialized as a `RecordBatch` in Arrow IPC format.
     Query {
         /// GraphQL query string
-        query:     String,
+        query: String,
         /// Optional GraphQL variables as JSON
         variables: Option<serde_json::Value>,
     },
@@ -90,7 +90,7 @@ pub enum RequestType {
         /// Entity type to subscribe to (e.g., "Order", "User")
         entity_type: String,
         /// Optional filter predicate (format TBD)
-        filter:      Option<String>,
+        filter: Option<String>,
     },
 }
 

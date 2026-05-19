@@ -181,7 +181,7 @@ impl WhereSqlGenerator {
             WhereOperator::IsNull => {
                 return Err(FraiseQLError::Internal {
                     message: "IsNull should be handled separately".to_string(),
-                    source:  None,
+                    source: None,
                 });
             },
             WhereOperator::LenEq
@@ -194,7 +194,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Array length operators not yet supported in fraiseql-wire: {operator:?}"
                     ),
-                    source:  None,
+                    source: None,
                 });
             },
 
@@ -209,7 +209,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Vector operations not supported in fraiseql-wire: {operator:?}"
                     ),
-                    source:  None,
+                    source: None,
                 });
             },
 
@@ -222,7 +222,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Full-text search operators not yet supported in fraiseql-wire: {operator:?}"
                     ),
-                    source:  None,
+                    source: None,
                 });
             },
 
@@ -259,7 +259,7 @@ impl WhereSqlGenerator {
                     message: format!(
                         "Advanced operators not yet supported in fraiseql-wire: {operator:?}"
                     ),
-                    source:  None,
+                    source: None,
                 });
             },
         })
@@ -305,7 +305,7 @@ impl WhereSqlGenerator {
                 let json_str =
                     serde_json::to_string(value).map_err(|e| FraiseQLError::Internal {
                         message: format!("Failed to serialize JSON for array operator: {e}"),
-                        source:  None,
+                        source: None,
                     })?;
                 if json_str.len() > MAX_SQL_VALUE_BYTES {
                     return Err(FraiseQLError::Validation {
@@ -315,7 +315,7 @@ impl WhereSqlGenerator {
                             json_str.len(),
                             MAX_SQL_VALUE_BYTES
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
                 let escaped = json_str.replace('\'', "''");
@@ -326,7 +326,7 @@ impl WhereSqlGenerator {
                 message: format!(
                     "Unsupported value type for operator: {value:?} with {operator:?}"
                 ),
-                source:  None,
+                source: None,
             }),
         }
     }
@@ -340,7 +340,7 @@ impl WhereSqlGenerator {
                     s.len(),
                     MAX_SQL_VALUE_BYTES
                 ),
-                path:    None,
+                path: None,
             });
         }
         Ok(s.replace('\'', "''"))

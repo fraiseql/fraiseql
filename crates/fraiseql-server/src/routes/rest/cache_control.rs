@@ -18,11 +18,11 @@ use axum::http::{HeaderMap, HeaderValue};
 /// Context for computing cache headers on a REST response.
 pub struct CacheContext {
     /// Whether this is a GET request.
-    pub is_get:      bool,
+    pub is_get: bool,
     /// Whether the request included an `Authorization` header.
-    pub has_auth:    bool,
+    pub has_auth: bool,
     /// Per-query cache TTL override (from `QueryDefinition.cache_ttl_seconds`).
-    pub query_ttl:   Option<u64>,
+    pub query_ttl: Option<u64>,
     /// Default TTL from `RestConfig.default_cache_ttl`.
     pub default_ttl: u64,
     /// CDN/shared-cache TTL (`s-maxage`). Only emitted on public GET responses.

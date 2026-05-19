@@ -132,7 +132,7 @@ fn offset_pagination_explicit() {
     assert_eq!(
         result.pagination,
         PaginationParams::Offset {
-            limit:  10,
+            limit: 10,
             offset: 5,
         }
     );
@@ -149,7 +149,7 @@ fn offset_pagination_defaults() {
     assert_eq!(
         result.pagination,
         PaginationParams::Offset {
-            limit:  20, // default_page_size
+            limit: 20, // default_page_size
             offset: 0,
         }
     );
@@ -166,7 +166,7 @@ fn limit_clamped_to_max_page_size() {
     assert_eq!(
         result.pagination,
         PaginationParams::Offset {
-            limit:  100,
+            limit: 100,
             offset: 0,
         }
     );
@@ -187,9 +187,9 @@ fn cursor_pagination_explicit() {
     assert_eq!(
         result.pagination,
         PaginationParams::Cursor {
-            first:  Some(10),
-            after:  Some("abc".to_string()),
-            last:   None,
+            first: Some(10),
+            after: Some("abc".to_string()),
+            last: None,
             before: None,
         }
     );
@@ -206,9 +206,9 @@ fn cursor_pagination_defaults() {
     assert_eq!(
         result.pagination,
         PaginationParams::Cursor {
-            first:  Some(20), // default_page_size
-            after:  None,
-            last:   None,
+            first: Some(20), // default_page_size
+            after: None,
+            last: None,
             before: None,
         }
     );
@@ -719,8 +719,8 @@ fn parse_select_entries_invalid_dot_suffix() {
 fn embedding_depth_within_limit() {
     let spec = EmbeddedSpec {
         relationship: "posts".to_string(),
-        rename:       None,
-        fields:       vec![SelectEntry::Field("id".to_string())],
+        rename: None,
+        fields: vec![SelectEntry::Field("id".to_string())],
     };
     assert!(validate_embedding_depth(&spec, 1, 3).is_ok());
 }
@@ -729,13 +729,13 @@ fn embedding_depth_within_limit() {
 fn embedding_depth_exceeds_limit() {
     let inner = EmbeddedSpec {
         relationship: "comments".to_string(),
-        rename:       None,
-        fields:       vec![SelectEntry::Field("id".to_string())],
+        rename: None,
+        fields: vec![SelectEntry::Field("id".to_string())],
     };
     let outer = EmbeddedSpec {
         relationship: "posts".to_string(),
-        rename:       None,
-        fields:       vec![SelectEntry::Embedded(inner)],
+        rename: None,
+        fields: vec![SelectEntry::Embedded(inner)],
     };
     // depth=1, max=1 -> inner at depth=2 should fail
     let err = validate_embedding_depth(&outer, 1, 1).unwrap_err();
@@ -749,11 +749,11 @@ fn embedding_depth_exceeds_limit() {
 fn user_type_with_relationships() -> TypeDefinition {
     let mut td = user_type_def();
     td.relationships = vec![Relationship {
-        name:           "posts".to_string(),
-        target_type:    "Post".to_string(),
-        foreign_key:    "fk_user".to_string(),
+        name: "posts".to_string(),
+        target_type: "Post".to_string(),
+        foreign_key: "fk_user".to_string(),
         referenced_key: "pk_user".to_string(),
-        cardinality:    Cardinality::OneToMany,
+        cardinality: Cardinality::OneToMany,
     }];
     td
 }

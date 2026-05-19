@@ -4,8 +4,8 @@
 //! hints and enrich ORDER BY clauses with schema-derived type information.
 
 use crate::{
-    db::{OrderByClause, OrderByFieldType, ProjectionField},
     db::projection_generator::FieldKind,
+    db::{OrderByClause, OrderByFieldType, ProjectionField},
     graphql::FieldSelection,
     schema::CompiledSchema,
 };
@@ -148,10 +148,7 @@ pub fn enrich_order_by_clauses(
 ///
 /// Named fragment spreads are already flattened by [`FragmentResolver`] before this
 /// is called, so we only need to recurse one level into inline fragments.
-pub fn selections_contain_field(
-    selections: &[FieldSelection],
-    field_name: &str,
-) -> bool {
+pub fn selections_contain_field(selections: &[FieldSelection], field_name: &str) -> bool {
     for sel in selections {
         if sel.name == field_name {
             return true;

@@ -35,8 +35,8 @@ impl ActionExecutor for TestExecutor {
         self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(ActionResult {
             action_type: "test".to_string(),
-            success:     true,
-            message:     "Test success".to_string(),
+            success: true,
+            message: "Test success".to_string(),
             duration_ms: 10.0,
         })
     }
@@ -45,14 +45,14 @@ impl ActionExecutor for TestExecutor {
 // Simple in-memory cache for testing
 #[derive(Clone)]
 struct InMemoryCache {
-    store:       Arc<dashmap::DashMap<String, CachedActionResult>>,
+    store: Arc<dashmap::DashMap<String, CachedActionResult>>,
     ttl_seconds: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl InMemoryCache {
     fn new() -> Self {
         Self {
-            store:       Arc::new(dashmap::DashMap::new()),
+            store: Arc::new(dashmap::DashMap::new()),
             ttl_seconds: Arc::new(std::sync::atomic::AtomicU64::new(60)),
         }
     }
@@ -102,12 +102,12 @@ async fn test_cache_hit_does_not_execute_action() {
     );
 
     let action = ActionConfig::Email {
-        to:               Some("test@example.com".to_string()),
-        to_template:      None,
-        subject:          Some("Test".to_string()),
+        to: Some("test@example.com".to_string()),
+        to_template: None,
+        subject: Some("Test".to_string()),
         subject_template: None,
-        body_template:    Some("Test body".to_string()),
-        reply_to:         None,
+        body_template: Some("Test body".to_string()),
+        reply_to: None,
     };
 
     let cache_key = CachedActionExecutor::<TestExecutor, InMemoryCache>::cache_key(&event, &action);
@@ -137,9 +137,9 @@ fn test_cache_key_generation() {
     );
 
     let action = ActionConfig::Webhook {
-        url:           Some("https://example.com".to_string()),
-        url_env:       None,
-        headers:       std::collections::HashMap::new(),
+        url: Some("https://example.com".to_string()),
+        url_env: None,
+        headers: std::collections::HashMap::new(),
         body_template: Some("{}".to_string()),
     };
 
@@ -170,12 +170,12 @@ async fn test_cache_miss_executes_and_caches() {
     );
 
     let action = ActionConfig::Email {
-        to:               Some("test@example.com".to_string()),
-        to_template:      None,
-        subject:          Some("Test".to_string()),
+        to: Some("test@example.com".to_string()),
+        to_template: None,
+        subject: Some("Test".to_string()),
         subject_template: None,
-        body_template:    Some("Test body".to_string()),
-        reply_to:         None,
+        body_template: Some("Test body".to_string()),
+        reply_to: None,
     };
 
     // First execution - cache miss

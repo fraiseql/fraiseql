@@ -28,12 +28,12 @@ pub struct RateLimitConfig {
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            enabled:             false,
+            enabled: false,
             requests_per_window: 100,
-            window_secs:         60,
-            key_by:              RateLimitKey::Ip,
-            exclude_paths:       vec!["/health".to_string()],
-            path_limits:         vec![],
+            window_secs: 60,
+            key_by: RateLimitKey::Ip,
+            exclude_paths: vec!["/health".to_string()],
+            path_limits: vec![],
         }
     }
 }
@@ -56,7 +56,7 @@ pub enum RateLimitKey {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathRateLimit {
     /// Path pattern (glob).
-    pub path:                String,
+    pub path: String,
     /// Maximum requests per window for this path.
     pub requests_per_window: u32,
 }

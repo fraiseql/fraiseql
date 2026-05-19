@@ -5,11 +5,11 @@ use crate::config::{BucketAccess, BucketConfig};
 
 fn sample_bucket() -> BucketConfig {
     BucketConfig {
-        name:               "avatars".to_string(),
-        max_object_bytes:   Some(5_000_000),
+        name: "avatars".to_string(),
+        max_object_bytes: Some(5_000_000),
         allowed_mime_types: Some(vec!["image/jpeg".to_string(), "image/png".to_string()]),
-        access:             BucketAccess::PublicRead,
-        transform_presets:  None,
+        access: BucketAccess::PublicRead,
+        transform_presets: None,
     }
 }
 
@@ -114,11 +114,11 @@ fn test_generate_produces_entries_per_bucket() {
     let buckets = vec![
         sample_bucket(),
         BucketConfig {
-            name:               "documents".to_string(),
-            max_object_bytes:   None,
+            name: "documents".to_string(),
+            max_object_bytes: None,
             allowed_mime_types: None,
-            access:             BucketAccess::Private,
-            transform_presets:  None,
+            access: BucketAccess::Private,
+            transform_presets: None,
         },
     ];
 
@@ -136,19 +136,19 @@ fn test_generate_produces_entries_per_bucket() {
 #[test]
 fn test_storage_object_type_with_multiple_buckets() {
     let bucket1 = BucketConfig {
-        name:               "user_avatars".to_string(),
-        max_object_bytes:   Some(5_000_000),
+        name: "user_avatars".to_string(),
+        max_object_bytes: Some(5_000_000),
         allowed_mime_types: Some(vec!["image/jpeg".to_string()]),
-        access:             BucketAccess::PublicRead,
-        transform_presets:  None,
+        access: BucketAccess::PublicRead,
+        transform_presets: None,
     };
 
     let bucket2 = BucketConfig {
-        name:               "product-images".to_string(),
-        max_object_bytes:   Some(10_000_000),
+        name: "product-images".to_string(),
+        max_object_bytes: Some(10_000_000),
         allowed_mime_types: Some(vec!["image/png".to_string()]),
-        access:             BucketAccess::Private,
-        transform_presets:  None,
+        access: BucketAccess::Private,
+        transform_presets: None,
     };
 
     let type1 = StorageSchemaTypes::storage_object_type(&bucket1);

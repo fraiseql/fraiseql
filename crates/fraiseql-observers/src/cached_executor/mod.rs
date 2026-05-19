@@ -109,9 +109,9 @@ use crate::{
 #[cfg(feature = "caching")]
 pub struct CachedActionExecutor<E: ActionExecutor, C: CacheBackend> {
     /// Inner action executor
-    inner:   E,
+    inner: E,
     /// Cache backend
-    cache:   Arc<C>,
+    cache: Arc<C>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
     metrics: MetricsRegistry,
@@ -172,8 +172,8 @@ impl<E: ActionExecutor + Send + Sync, C: CacheBackend + Send + Sync> ActionExecu
 
                 return Ok(ActionResult {
                     action_type: cached_result.action_type,
-                    success:     cached_result.success,
-                    message:     cached_result.message,
+                    success: cached_result.success,
+                    message: cached_result.message,
                     duration_ms: cached_result.duration_ms,
                 });
             },

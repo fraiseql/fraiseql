@@ -15,7 +15,7 @@ use crate::{
 /// Supports Okta custom claims and group-based authorization.
 #[derive(Debug)]
 pub struct OktaOAuth {
-    oidc:   OidcProvider,
+    oidc: OidcProvider,
     domain: String,
 }
 
@@ -23,21 +23,21 @@ pub struct OktaOAuth {
 #[derive(Debug, Clone, Deserialize)]
 pub struct OktaUser {
     /// Subject — Okta's stable user ID
-    pub sub:            String,
+    pub sub: String,
     /// User's email address
-    pub email:          String,
+    pub email: String,
     /// Whether Okta has verified the email address
     pub email_verified: Option<bool>,
     /// User's full display name
-    pub name:           Option<String>,
+    pub name: Option<String>,
     /// Given (first) name
-    pub given_name:     Option<String>,
+    pub given_name: Option<String>,
     /// Family (last) name
-    pub family_name:    Option<String>,
+    pub family_name: Option<String>,
     /// URL of the user's profile picture
-    pub picture:        Option<String>,
+    pub picture: Option<String>,
     /// User's locale (e.g., `"en_US"`)
-    pub locale:         Option<String>,
+    pub locale: Option<String>,
 }
 
 /// Okta groups claim
@@ -84,7 +84,7 @@ impl OktaOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from Okta token
-    #[must_use] 
+    #[must_use]
     pub fn extract_groups(raw_claims: &serde_json::Value) -> Vec<String> {
         // Try standard Okta groups claim first
         if let Some(groups_val) = raw_claims.get("groups") {
@@ -110,7 +110,7 @@ impl OktaOAuth {
     ///
     /// # Arguments
     /// * `okta_groups` - List of Okta group names
-    #[must_use] 
+    #[must_use]
     pub fn map_okta_groups_to_fraiseql(okta_groups: Vec<String>) -> Vec<String> {
         okta_groups
             .into_iter()
@@ -159,7 +159,7 @@ impl OktaOAuth {
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims
     /// * `email` - User email as fallback
-    #[must_use] 
+    #[must_use]
     pub fn extract_org_id(raw_claims: &serde_json::Value, email: &str) -> Option<String> {
         // Check for explicit org_id claim
         if let Some(org_id_val) = raw_claims.get("org_id") {
@@ -186,7 +186,7 @@ impl OktaOAuth {
     /// Get user's Okta ID
     ///
     /// Okta provides the user ID in the 'sub' (subject) claim
-    #[must_use] 
+    #[must_use]
     pub fn get_okta_id(raw_claims: &serde_json::Value) -> Option<String> {
         raw_claims.get("sub").and_then(|sub| sub.as_str()).map(|s| s.to_string())
     }

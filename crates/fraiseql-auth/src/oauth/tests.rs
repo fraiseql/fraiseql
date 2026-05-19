@@ -798,7 +798,7 @@ mod claims_validator_tests {
             matches!(
                 result,
                 Err(AuthError::SessionTooOld {
-                    age:          200,
+                    age: 200,
                     max_age_secs: 60,
                 })
             ),
@@ -1524,12 +1524,12 @@ mod client_tests {
     #[test]
     fn oidc_client_new_creates_instance() {
         let config = OIDCProviderConfig {
-            issuer:                   "https://example.com".to_string(),
-            authorization_endpoint:   "https://example.com/auth".to_string(),
-            token_endpoint:           "https://example.com/token".to_string(),
-            userinfo_endpoint:        None,
-            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
-            scopes_supported:         vec!["openid".to_string()],
+            issuer: "https://example.com".to_string(),
+            authorization_endpoint: "https://example.com/auth".to_string(),
+            token_endpoint: "https://example.com/token".to_string(),
+            userinfo_endpoint: None,
+            jwks_uri: "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported: vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
         let client = OIDCClient::new(config, "client_id", "client_secret").unwrap();
@@ -1560,12 +1560,12 @@ mod client_tests {
             .await;
 
         let config = OIDCProviderConfig {
-            issuer:                   mock_server.uri(),
-            authorization_endpoint:   format!("{}/auth", mock_server.uri()),
-            token_endpoint:           format!("{}/token", mock_server.uri()),
-            userinfo_endpoint:        Some(format!("{}/userinfo", mock_server.uri())),
-            jwks_uri:                 format!("{}/.well-known/jwks.json", mock_server.uri()),
-            scopes_supported:         vec!["openid".to_string()],
+            issuer: mock_server.uri(),
+            authorization_endpoint: format!("{}/auth", mock_server.uri()),
+            token_endpoint: format!("{}/token", mock_server.uri()),
+            userinfo_endpoint: Some(format!("{}/userinfo", mock_server.uri())),
+            jwks_uri: format!("{}/.well-known/jwks.json", mock_server.uri()),
+            scopes_supported: vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
         let client = OIDCClient::new(config, "client_id", "secret").unwrap();
@@ -1591,12 +1591,12 @@ mod client_tests {
             .await;
 
         let config = OIDCProviderConfig {
-            issuer:                   mock_server.uri(),
-            authorization_endpoint:   format!("{}/auth", mock_server.uri()),
-            token_endpoint:           format!("{}/token", mock_server.uri()),
-            userinfo_endpoint:        Some(format!("{}/userinfo", mock_server.uri())),
-            jwks_uri:                 format!("{}/.well-known/jwks.json", mock_server.uri()),
-            scopes_supported:         vec!["openid".to_string()],
+            issuer: mock_server.uri(),
+            authorization_endpoint: format!("{}/auth", mock_server.uri()),
+            token_endpoint: format!("{}/token", mock_server.uri()),
+            userinfo_endpoint: Some(format!("{}/userinfo", mock_server.uri())),
+            jwks_uri: format!("{}/.well-known/jwks.json", mock_server.uri()),
+            scopes_supported: vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
         let client = OIDCClient::new(config, "client_id", "secret").unwrap();
@@ -1652,12 +1652,12 @@ mod client_tests {
         assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
 
         let config = OIDCProviderConfig {
-            issuer:                   "https://example.com".to_string(),
-            authorization_endpoint:   "https://example.com/auth".to_string(),
-            token_endpoint:           "https://example.com/token".to_string(),
-            userinfo_endpoint:        None,
-            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
-            scopes_supported:         vec!["openid".to_string()],
+            issuer: "https://example.com".to_string(),
+            authorization_endpoint: "https://example.com/auth".to_string(),
+            token_endpoint: "https://example.com/token".to_string(),
+            userinfo_endpoint: None,
+            jwks_uri: "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported: vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
         let client = OIDCClient::new(config, "client_id", "oidc_secret_value").unwrap();
@@ -1667,12 +1667,12 @@ mod client_tests {
     #[test]
     fn oidc_client_debug_redacts_secret() {
         let config = OIDCProviderConfig {
-            issuer:                   "https://example.com".to_string(),
-            authorization_endpoint:   "https://example.com/auth".to_string(),
-            token_endpoint:           "https://example.com/token".to_string(),
-            userinfo_endpoint:        None,
-            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
-            scopes_supported:         vec!["openid".to_string()],
+            issuer: "https://example.com".to_string(),
+            authorization_endpoint: "https://example.com/auth".to_string(),
+            token_endpoint: "https://example.com/token".to_string(),
+            userinfo_endpoint: None,
+            jwks_uri: "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported: vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
         let client = OIDCClient::new(config, "client_id", "super_oidc_secret").unwrap();
@@ -1692,12 +1692,12 @@ mod client_tests {
 
     fn fake_oidc_client() -> OIDCClient {
         let config = OIDCProviderConfig {
-            issuer:                   "https://example.com".to_string(),
-            authorization_endpoint:   "https://example.com/auth".to_string(),
-            token_endpoint:           "https://example.com/token".to_string(),
-            userinfo_endpoint:        None,
-            jwks_uri:                 "https://example.com/.well-known/jwks.json".to_string(),
-            scopes_supported:         vec!["openid".to_string()],
+            issuer: "https://example.com".to_string(),
+            authorization_endpoint: "https://example.com/auth".to_string(),
+            token_endpoint: "https://example.com/token".to_string(),
+            userinfo_endpoint: None,
+            jwks_uri: "https://example.com/.well-known/jwks.json".to_string(),
+            scopes_supported: vec!["openid".to_string()],
             response_types_supported: vec!["code".to_string()],
         };
         OIDCClient::new(config, "client_id", "secret").unwrap()

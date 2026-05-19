@@ -94,16 +94,16 @@ impl AuthoringIR {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            types:         Vec::new(),
-            enums:         Vec::new(),
-            interfaces:    Vec::new(),
-            unions:        Vec::new(),
-            input_types:   Vec::new(),
-            scalars:       Vec::new(),
-            queries:       Vec::new(),
-            mutations:     Vec::new(),
+            types: Vec::new(),
+            enums: Vec::new(),
+            interfaces: Vec::new(),
+            unions: Vec::new(),
+            input_types: Vec::new(),
+            scalars: Vec::new(),
+            queries: Vec::new(),
+            mutations: Vec::new(),
             subscriptions: Vec::new(),
-            fact_tables:   HashMap::new(),
+            fact_tables: HashMap::new(),
         }
     }
 }

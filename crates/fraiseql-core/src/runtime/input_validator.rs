@@ -21,7 +21,7 @@ pub struct ValidationErrorCollection {
 
 impl ValidationErrorCollection {
     /// Create a new empty error collection.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -32,19 +32,19 @@ impl ValidationErrorCollection {
     }
 
     /// Check if there are any errors.
-    #[must_use] 
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Get the number of errors.
-    #[must_use] 
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.errors.len()
     }
 
     /// Convert to a FraiseQL error.
-    #[must_use] 
+    #[must_use]
     pub fn to_error(&self) -> FraiseQLError {
         if self.errors.is_empty() {
             FraiseQLError::validation("No validation errors")
@@ -52,13 +52,13 @@ impl ValidationErrorCollection {
             let err = &self.errors[0];
             FraiseQLError::Validation {
                 message: err.to_string(),
-                path:    Some(err.field.clone()),
+                path: Some(err.field.clone()),
             }
         } else {
             let messages: Vec<String> = self.errors.iter().map(|e| e.to_string()).collect();
             FraiseQLError::Validation {
                 message: format!("Multiple validation errors: {}", messages.join("; ")),
-                path:    None,
+                path: None,
             }
         }
     }
@@ -153,7 +153,7 @@ pub(crate) fn validate_string_field(
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "required", "Field is required")
                     ),
-                    path:    Some(field_path.to_string()),
+                    path: Some(field_path.to_string()),
                 });
             }
             Ok(())
@@ -170,7 +170,7 @@ pub(crate) fn validate_string_field(
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "pattern", msg)
                     ),
-                    path:    Some(field_path.to_string()),
+                    path: Some(field_path.to_string()),
                 })
             }
         },
@@ -193,7 +193,7 @@ pub(crate) fn validate_string_field(
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "length", msg)
                     ),
-                    path:    Some(field_path.to_string()),
+                    path: Some(field_path.to_string()),
                 })
             }
         },
@@ -210,7 +210,7 @@ pub(crate) fn validate_string_field(
                             format!("Must be one of: {}", values.join(", "))
                         )
                     ),
-                    path:    Some(field_path.to_string()),
+                    path: Some(field_path.to_string()),
                 })
             }
         },

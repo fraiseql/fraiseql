@@ -30,13 +30,13 @@ pub enum CheckStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DoctorCheck {
     /// Short display name shown in the report.
-    pub name:   &'static str,
+    pub name: &'static str,
     /// Outcome of the check.
     pub status: CheckStatus,
     /// One-line detail appended after the name.
     pub detail: String,
     /// Optional actionable hint shown on the next line when status is not Pass.
-    pub hint:   Option<String>,
+    pub hint: Option<String>,
 }
 
 impl DoctorCheck {

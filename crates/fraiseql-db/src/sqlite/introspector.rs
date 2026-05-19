@@ -32,7 +32,7 @@ impl DatabaseIntrospector for SqliteIntrospector {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to list fact tables: {e}"),
+            message: format!("Failed to list fact tables: {e}"),
             sql_state: None,
         })?;
 
@@ -46,7 +46,7 @@ impl DatabaseIntrospector for SqliteIntrospector {
 
         let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   format!("Failed to query column information: {e}"),
+                message: format!("Failed to query column information: {e}"),
                 sql_state: None,
             }
         })?;
@@ -54,15 +54,15 @@ impl DatabaseIntrospector for SqliteIntrospector {
         let mut columns = Vec::with_capacity(rows.len());
         for row in &rows {
             let name: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to read column name: {e}"),
+                message: format!("Failed to read column name: {e}"),
                 sql_state: None,
             })?;
             let data_type: String = row.try_get(1).map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to read column type: {e}"),
+                message: format!("Failed to read column type: {e}"),
                 sql_state: None,
             })?;
             let notnull: bool = row.try_get(2).map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to read notnull flag: {e}"),
+                message: format!("Failed to read notnull flag: {e}"),
                 sql_state: None,
             })?;
             columns.push((name, data_type, !notnull));
@@ -82,7 +82,7 @@ impl DatabaseIntrospector for SqliteIntrospector {
 
         let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   format!("Failed to query index information: {e}"),
+                message: format!("Failed to query index information: {e}"),
                 sql_state: None,
             }
         })?;
@@ -90,7 +90,7 @@ impl DatabaseIntrospector for SqliteIntrospector {
         let mut columns = Vec::with_capacity(rows.len());
         for row in &rows {
             let name: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to read index column name: {e}"),
+                message: format!("Failed to read index column name: {e}"),
                 sql_state: None,
             })?;
             columns.push(name);
@@ -113,7 +113,7 @@ impl DatabaseIntrospector for SqliteIntrospector {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to list relations: {e}"),
+            message: format!("Failed to list relations: {e}"),
             sql_state: None,
         })?;
 
@@ -148,7 +148,7 @@ impl DatabaseIntrospector for SqliteIntrospector {
 
         let rows = sqlx::query(&query).fetch_all(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message:   format!("Failed to query sample JSON rows: {e}"),
+                message: format!("Failed to query sample JSON rows: {e}"),
                 sql_state: None,
             }
         })?;
@@ -156,12 +156,12 @@ impl DatabaseIntrospector for SqliteIntrospector {
         let mut results = Vec::with_capacity(rows.len());
         for row in &rows {
             let text: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to read JSON column: {e}"),
+                message: format!("Failed to read JSON column: {e}"),
                 sql_state: None,
             })?;
             let value: serde_json::Value =
                 serde_json::from_str(&text).map_err(|e| FraiseQLError::Parse {
-                    message:  format!("Failed to parse JSON sample: {e}"),
+                    message: format!("Failed to parse JSON sample: {e}"),
                     location: format!("{table_name}.{column_name}"),
                 })?;
             results.push(value);

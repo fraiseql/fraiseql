@@ -22,9 +22,9 @@ pub(super) fn gen_random_token() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PKCEChallenge {
     /// Random code verifier (43-128 characters, RFC 7636 §4.1)
-    pub code_verifier:         String,
+    pub code_verifier: String,
     /// BASE64URL(SHA256(code_verifier))
-    pub code_challenge:        String,
+    pub code_challenge: String,
     /// Challenge method: "S256" (SHA256)
     pub code_challenge_method: String,
 }
@@ -35,7 +35,7 @@ impl PKCEChallenge {
     /// The `code_verifier` is generated using `OsRng` with 32 random bytes
     /// encoded as URL-safe base64 (no padding), yielding 43 characters and
     /// ~256 bits of entropy — compliant with RFC 7636 §4.1.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         use sha2::{Digest, Sha256};
 
@@ -47,8 +47,8 @@ impl PKCEChallenge {
         let challenge = URL_SAFE_NO_PAD.encode(digest);
 
         Self {
-            code_verifier:         verifier,
-            code_challenge:        challenge,
+            code_verifier: verifier,
+            code_challenge: challenge,
             code_challenge_method: "S256".to_string(),
         }
     }
@@ -57,7 +57,7 @@ impl PKCEChallenge {
     ///
     /// Computes `BASE64URL(SHA256(verifier))` and compares it to the stored
     /// `code_challenge` using constant-time equality to prevent timing attacks.
-    #[must_use] 
+    #[must_use]
     pub fn verify(&self, verifier: &str) -> bool {
         use sha2::{Digest, Sha256};
 
@@ -79,7 +79,7 @@ impl Default for PKCEChallenge {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateParameter {
     /// Random state value
-    pub state:      String,
+    pub state: String,
     /// When state expires
     pub expires_at: DateTime<Utc>,
 }
@@ -89,22 +89,22 @@ impl StateParameter {
     ///
     /// Uses `OsRng` with 32 random bytes encoded as URL-safe base64 (no
     /// padding), yielding 43 characters and ~256 bits of entropy.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            state:      gen_random_token(),
+            state: gen_random_token(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
 
     /// Check if state is expired
-    #[must_use] 
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         self.expires_at <= Utc::now()
     }
 
     /// Verify state matches and is not expired
-    #[must_use] 
+    #[must_use]
     pub fn verify(&self, provided_state: &str) -> bool {
         // SECURITY: Use constant-time comparison before checking expiry to prevent
         // timing oracles that could reveal information about the stored state value.
@@ -123,7 +123,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NonceParameter {
     /// Random nonce value
-    pub nonce:      String,
+    pub nonce: String,
     /// When nonce expires
     pub expires_at: DateTime<Utc>,
 }
@@ -133,22 +133,22 @@ impl NonceParameter {
     ///
     /// Uses `OsRng` with 32 random bytes encoded as URL-safe base64 (no
     /// padding), yielding 43 characters and ~256 bits of entropy.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            nonce:      gen_random_token(),
+            nonce: gen_random_token(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
 
     /// Check if nonce is expired
-    #[must_use] 
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         self.expires_at <= Utc::now()
     }
 
     /// Verify nonce matches and is not expired
-    #[must_use] 
+    #[must_use]
     pub fn verify(&self, provided_nonce: &str) -> bool {
         // SECURITY: Use constant-time comparison before checking expiry to prevent
         // timing oracles that could reveal information about the stored nonce value.

@@ -19,13 +19,13 @@ fn test_requires_with_numeric_field() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -38,7 +38,7 @@ fn test_requires_with_numeric_field() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
@@ -62,13 +62,13 @@ fn test_requires_with_boolean_field() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "premiumFeature".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["isActive".to_string()],
+            path: vec!["isActive".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -81,7 +81,7 @@ fn test_requires_with_boolean_field() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
@@ -105,13 +105,13 @@ fn test_requires_with_null_field() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "nickname".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["name".to_string()],
+            path: vec!["name".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -124,7 +124,7 @@ fn test_requires_with_null_field() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
@@ -148,13 +148,13 @@ fn test_provides_field_present() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["userId".to_string()],
+            path: vec!["userId".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -167,7 +167,7 @@ fn test_provides_field_present() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
@@ -191,13 +191,13 @@ fn test_requires_with_array_field() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "totalOrders".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["orderIds".to_string()],
+            path: vec!["orderIds".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -210,7 +210,7 @@ fn test_requires_with_array_field() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
@@ -234,13 +234,13 @@ fn test_requires_with_object_field() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "address".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["location".to_string()],
+            path: vec!["location".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -253,7 +253,7 @@ fn test_requires_with_object_field() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
@@ -277,13 +277,13 @@ fn test_requires_enforcement_string_values() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "profile".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["bio".to_string()],
+            path: vec!["bio".to_string()],
             typename: "User".to_string(),
         }),
     );
@@ -296,7 +296,7 @@ fn test_requires_enforcement_string_values() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),
@@ -320,18 +320,18 @@ fn test_requires_and_provides_on_same_field() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new()
             .add_requires(FieldPathSelection {
-                path:     vec!["email".to_string()],
+                path: vec!["email".to_string()],
                 typename: "User".to_string(),
             })
             .add_provides(FieldPathSelection {
-                path:     vec!["userId".to_string()],
+                path: vec!["userId".to_string()],
                 typename: "Order".to_string(),
             }),
     );
@@ -344,7 +344,7 @@ fn test_requires_and_provides_on_same_field() {
     };
 
     let repr = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: Default::default(),
         all_fields: [
             ("id".to_string(), json!("123")),

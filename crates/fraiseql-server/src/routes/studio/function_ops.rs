@@ -23,13 +23,13 @@ use crate::routes::graphql::app_state::AppState;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionEntry {
     /// Function name / identifier.
-    pub name:        String,
+    pub name: String,
     /// Deployment version number.
-    pub version:     u32,
+    pub version: u32,
     /// Runtime type (e.g. `"wasm"`, `"deno"`).
-    pub runtime:     String,
+    pub runtime: String,
     /// Deployment status (`"active"`, `"inactive"`, `"error"`).
-    pub status:      String,
+    pub status: String,
     /// Deployment timestamp (RFC 3339).
     pub deployed_at: String,
 }
@@ -49,9 +49,9 @@ pub struct FunctionListResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InvokeResponse {
     /// Return value from the function.
-    pub value:       serde_json::Value,
+    pub value: serde_json::Value,
     /// Captured log lines from the invocation.
-    pub logs:        Vec<String>,
+    pub logs: Vec<String>,
     /// Wall-clock duration of the invocation in milliseconds.
     pub duration_ms: u64,
 }
@@ -60,13 +60,13 @@ pub struct InvokeResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InvocationLogEntry {
     /// Invocation outcome (`"ok"` or `"error"`).
-    pub status:      String,
+    pub status: String,
     /// Duration of this invocation in milliseconds.
     pub duration_ms: u64,
     /// Error message, if `status == "error"`.
-    pub error:       Option<String>,
+    pub error: Option<String>,
     /// Invocation timestamp (RFC 3339).
-    pub timestamp:   String,
+    pub timestamp: String,
 }
 
 /// Secret keys list (values are never returned).

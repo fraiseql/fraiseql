@@ -183,7 +183,7 @@ impl TlsSetup {
     }
 
     /// Get database URL with TLS applied (for PostgreSQL).
-    #[must_use] 
+    #[must_use]
     pub fn apply_postgres_tls(&self, db_url: &str) -> String {
         let mut url = db_url.to_string();
 
@@ -202,7 +202,7 @@ impl TlsSetup {
     }
 
     /// Get Redis URL with TLS applied.
-    #[must_use] 
+    #[must_use]
     pub fn apply_redis_tls(&self, redis_url: &str) -> String {
         if self.redis_ssl_enabled() {
             // Replace redis:// with rediss://
@@ -213,7 +213,7 @@ impl TlsSetup {
     }
 
     /// Get `ClickHouse` URL with TLS applied.
-    #[must_use] 
+    #[must_use]
     pub fn apply_clickhouse_tls(&self, ch_url: &str) -> String {
         if self.clickhouse_https_enabled() {
             // Replace http:// with https://
@@ -224,7 +224,7 @@ impl TlsSetup {
     }
 
     /// Get Elasticsearch URL with TLS applied.
-    #[must_use] 
+    #[must_use]
     pub fn apply_elasticsearch_tls(&self, es_url: &str) -> String {
         if self.elasticsearch_https_enabled() {
             // Replace http:// with https://

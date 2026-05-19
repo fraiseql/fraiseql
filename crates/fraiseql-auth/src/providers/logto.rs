@@ -30,7 +30,7 @@ use crate::{
 /// ```
 #[derive(Debug)]
 pub struct LogtoOAuth {
-    oidc:     OidcProvider,
+    oidc: OidcProvider,
     endpoint: String,
 }
 
@@ -138,7 +138,7 @@ impl LogtoOAuth {
     ///
     /// # Arguments
     /// * `logto_roles` - List of Logto role names
-    #[must_use] 
+    #[must_use]
     pub fn map_logto_roles_to_fraiseql(logto_roles: Vec<String>) -> Vec<String> {
         logto_roles
             .into_iter()

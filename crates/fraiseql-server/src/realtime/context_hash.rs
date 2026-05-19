@@ -23,13 +23,13 @@ use ahash::AHasher;
 /// the same principal share the same hash.
 pub struct SecurityContextHashInput<'a> {
     /// User identifier (from JWT `sub` claim).
-    pub user_id:   &'a str,
+    pub user_id: &'a str,
     /// User's roles.
-    pub roles:     &'a [&'a str],
+    pub roles: &'a [&'a str],
     /// Tenant/organisation identifier.
     pub tenant_id: Option<&'a str>,
     /// OAuth/permission scopes.
-    pub scopes:    &'a [&'a str],
+    pub scopes: &'a [&'a str],
 }
 
 /// Compute a stable in-memory hash for a security context.

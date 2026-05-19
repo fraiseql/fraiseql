@@ -53,11 +53,11 @@ impl Default for ParsedQuery {
         Self {
             operation_type: "query".to_string(),
             operation_name: None,
-            root_field:     String::new(),
-            selections:     Vec::new(),
-            variables:      Vec::new(),
-            fragments:      Vec::new(),
-            source:         String::new(),
+            root_field: String::new(),
+            selections: Vec::new(),
+            variables: Vec::new(),
+            fragments: Vec::new(),
+            source: String::new(),
         }
     }
 }
@@ -131,11 +131,11 @@ impl PartialEq for GraphQLArgument {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphQLType {
     /// Type name (e.g., "String", "User")
-    pub name:          String,
+    pub name: String,
     /// Whether the type is nullable
-    pub nullable:      bool,
+    pub nullable: bool,
     /// Whether it's a list type
-    pub list:          bool,
+    pub list: bool,
     /// Whether list items are nullable
     pub list_nullable: bool,
 }

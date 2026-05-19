@@ -68,11 +68,11 @@ const BCRYPT_COST: u32 = 4;
 #[derive(Debug, Clone)]
 pub struct TotpEnrollment {
     /// Base32-encoded `TOTP` secret.
-    pub secret_base32:        String,
+    pub secret_base32: String,
     /// `bcrypt` hashes of the 8 recovery codes.
     pub recovery_code_hashes: Vec<String>,
     /// Whether enrollment has been confirmed (first `TOTP` code verified).
-    pub confirmed:            bool,
+    pub confirmed: bool,
 }
 
 /// Pending `MFA` challenge record.
@@ -146,9 +146,9 @@ pub trait MfaStore: Send + Sync {
 #[derive(Debug)]
 pub struct EnrollmentResponse {
     /// Base32-encoded `TOTP` secret (to display in QR code).
-    pub secret_base32:  String,
+    pub secret_base32: String,
     /// `otpauth://` `URI` for authenticator apps.
-    pub otpauth_uri:    String,
+    pub otpauth_uri: String,
     /// Plaintext recovery codes — show to the user **once**, never stored.
     pub recovery_codes: Vec<String>,
 }
@@ -160,7 +160,7 @@ pub struct InMemoryMfaStore {
     /// user_id → TotpEnrollment
     enrollments: DashMap<String, TotpEnrollment>,
     /// challenge_token → ChallengeRecord
-    challenges:  DashMap<String, ChallengeRecord>,
+    challenges: DashMap<String, ChallengeRecord>,
 }
 
 impl InMemoryMfaStore {
@@ -169,7 +169,7 @@ impl InMemoryMfaStore {
     pub fn new() -> Self {
         Self {
             enrollments: DashMap::new(),
-            challenges:  DashMap::new(),
+            challenges: DashMap::new(),
         }
     }
 
@@ -419,11 +419,11 @@ impl MfaStore for InMemoryMfaStore {
 #[derive(Clone)]
 pub struct MfaRouteState {
     /// `MFA` storage backend.
-    pub mfa_store:     Arc<dyn MfaStore>,
+    pub mfa_store: Arc<dyn MfaStore>,
     /// Session store (to issue full sessions after `MFA` verification).
     pub session_store: Arc<dyn SessionStore>,
     /// Service / issuer name shown in authenticator apps.
-    pub issuer:        String,
+    pub issuer: String,
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -432,7 +432,7 @@ pub struct MfaRouteState {
 #[derive(Debug, Deserialize)]
 pub struct MfaEnrollRequest {
     /// Authenticated user identifier.
-    pub user_id:      String,
+    pub user_id: String,
     /// Display name shown in the authenticator app.
     pub account_name: String,
 }
@@ -441,7 +441,7 @@ pub struct MfaEnrollRequest {
 #[derive(Debug, Serialize)]
 pub struct MfaEnrollResponse {
     /// `otpauth://` `URI` — encode as a `QR` code for the authenticator app.
-    pub otpauth_uri:    String,
+    pub otpauth_uri: String,
     /// 8 single-use recovery codes (shown **once**, store securely).
     pub recovery_codes: Vec<String>,
 }
@@ -466,7 +466,7 @@ pub struct MfaVerifyRequest {
     /// Challenge token from the `/challenge` step.
     pub challenge_token: String,
     /// 6-digit `TOTP` code or one of the 8-digit recovery codes.
-    pub code:            String,
+    pub code: String,
 }
 
 /// Request for `POST /auth/v1/mfa/unenroll`.
@@ -475,7 +475,7 @@ pub struct MfaUnenrollRequest {
     /// User to unenroll.
     pub user_id: String,
     /// Current `TOTP` code or a recovery code (re-authentication).
-    pub code:    String,
+    pub code: String,
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
@@ -499,7 +499,7 @@ pub async fn mfa_enroll(
         Ok(resp) => (
             StatusCode::OK,
             Json(MfaEnrollResponse {
-                otpauth_uri:    resp.otpauth_uri,
+                otpauth_uri: resp.otpauth_uri,
                 recovery_codes: resp.recovery_codes,
             }),
         )

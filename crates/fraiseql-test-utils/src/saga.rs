@@ -51,16 +51,16 @@ pub struct SagaStepResult {
     /// Step number (1-indexed)
     pub step_number: usize,
     /// Whether execution succeeded
-    pub success:     bool,
+    pub success: bool,
     /// Result data from the step
-    pub data:        Option<Value>,
+    pub data: Option<Value>,
     /// Error message if failed
-    pub error:       Option<String>,
+    pub error: Option<String>,
 }
 
 impl SagaStepResult {
     /// Create a successful step result
-    #[must_use] 
+    #[must_use]
     pub const fn success(step_number: usize, data: Value) -> Self {
         Self {
             step_number,
@@ -71,7 +71,7 @@ impl SagaStepResult {
     }
 
     /// Create a failed step result
-    #[must_use] 
+    #[must_use]
     pub fn failed(step_number: usize, error: &str) -> Self {
         Self {
             step_number,
@@ -86,20 +86,20 @@ impl SagaStepResult {
 #[derive(Debug, Clone)]
 pub struct SagaStepDef {
     /// Step number (1-indexed)
-    pub step_number:  usize,
+    pub step_number: usize,
     /// Name of the service executing this step
     pub service_name: String,
     /// Database for this step
-    pub database:     String,
+    pub database: String,
     /// Input data for the step
-    pub input:        Value,
+    pub input: Value,
     /// Compensation step name (reverse of this step)
     pub compensation: Option<String>,
 }
 
 impl SagaStepDef {
     /// Create a new saga step definition
-    #[must_use] 
+    #[must_use]
     pub fn new(step_number: usize, service_name: &str, database: &str, input: Value) -> Self {
         Self {
             step_number,
@@ -111,7 +111,7 @@ impl SagaStepDef {
     }
 
     /// Set compensation step name
-    #[must_use] 
+    #[must_use]
     pub fn with_compensation(mut self, compensation: &str) -> Self {
         self.compensation = Some(compensation.to_string());
         self
@@ -124,21 +124,21 @@ pub struct TestSagaExecutor {
     /// In-memory saga execution history
     execution_history: HashMap<String, Vec<SagaStepResult>>,
     /// Whether steps should succeed by default
-    fail_step:         Option<usize>,
+    fail_step: Option<usize>,
 }
 
 impl TestSagaExecutor {
     /// Create a new test saga executor
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             execution_history: HashMap::new(),
-            fail_step:         None,
+            fail_step: None,
         }
     }
 
     /// Configure executor to fail at a specific step
-    #[must_use] 
+    #[must_use]
     pub const fn fail_at_step(mut self, step_number: usize) -> Self {
         self.fail_step = Some(step_number);
         self
@@ -251,7 +251,7 @@ impl TestSagaExecutor {
     }
 
     /// Get execution history for a saga
-    #[must_use] 
+    #[must_use]
     pub fn get_history(&self, saga_id: &str) -> Option<Vec<SagaStepResult>> {
         self.execution_history.get(saga_id).cloned()
     }

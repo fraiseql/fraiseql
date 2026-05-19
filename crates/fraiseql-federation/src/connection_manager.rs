@@ -31,9 +31,9 @@ pub struct RemoteDatabaseConfig {
     /// Connection string (e.g., `<postgresql://user:pass@host:5432/dbname>`).
     ///
     /// Not included in `Debug` output to prevent credential leakage in logs.
-    connection_string:   String,
+    connection_string: String,
     /// Optional pool size (default: 5)
-    pub pool_size:       Option<u32>,
+    pub pool_size: Option<u32>,
     /// Optional connection timeout in seconds (default: 5)
     pub timeout_seconds: Option<u32>,
 }
@@ -53,8 +53,8 @@ impl RemoteDatabaseConfig {
     pub fn new(connection_string: impl Into<String>) -> Self {
         Self {
             connection_string: connection_string.into(),
-            pool_size:         None,
-            timeout_seconds:   None,
+            pool_size: None,
+            timeout_seconds: None,
         }
     }
 
@@ -63,33 +63,33 @@ impl RemoteDatabaseConfig {
     /// Kept private to prevent accidental exposure in `Debug` output or
     /// serialization; call this method only when the string is needed for
     /// an actual connection.
-    #[must_use] 
+    #[must_use]
     pub fn connection_string(&self) -> &str {
         &self.connection_string
     }
 
     /// Set the connection pool size
-    #[must_use] 
+    #[must_use]
     pub const fn with_pool_size(mut self, size: u32) -> Self {
         self.pool_size = Some(size);
         self
     }
 
     /// Set the connection timeout
-    #[must_use] 
+    #[must_use]
     pub const fn with_timeout(mut self, seconds: u32) -> Self {
         self.timeout_seconds = Some(seconds);
         self
     }
 
     /// Get pool size (default 5)
-    #[must_use] 
+    #[must_use]
     pub fn get_pool_size(&self) -> u32 {
         self.pool_size.unwrap_or(5)
     }
 
     /// Get timeout in seconds (default 5)
-    #[must_use] 
+    #[must_use]
     pub fn get_timeout_seconds(&self) -> u32 {
         self.timeout_seconds.unwrap_or(5)
     }
@@ -108,7 +108,7 @@ impl RemoteDatabaseConfig {
                     message: format!(
                         "pool_size {size} is out of range [{MIN_POOL_SIZE}, {MAX_POOL_SIZE}]"
                     ),
-                    path:    None,
+                    path: None,
                 });
             }
         }
@@ -118,7 +118,7 @@ impl RemoteDatabaseConfig {
                     message: format!(
                         "timeout_seconds {secs} is out of range [{MIN_TIMEOUT_SECS}, {MAX_TIMEOUT_SECS}]"
                     ),
-                    path:    None,
+                    path: None,
                 });
             }
         }
@@ -134,7 +134,7 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     /// Create a new connection manager
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             adapters: Arc::new(Mutex::new(HashMap::new())),
@@ -184,7 +184,7 @@ impl ConnectionManager {
                 "Direct database connection creation requires a database-specific implementation. \
                  This is an unstable API — contributions welcome."
                     .to_string(),
-            source:  None,
+            source: None,
         })
     }
 
@@ -201,7 +201,7 @@ impl ConnectionManager {
     }
 
     /// Get number of cached connections.
-    #[must_use] 
+    #[must_use]
     pub fn connection_count(&self) -> usize {
         let adapters = self.adapters.lock().unwrap_or_else(|e| e.into_inner());
         adapters.len()

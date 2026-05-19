@@ -15,8 +15,8 @@ use crate::{
 /// Supports both realm roles and client roles.
 #[derive(Debug)]
 pub struct KeycloakOAuth {
-    oidc:        OidcProvider,
-    realm:       String,
+    oidc: OidcProvider,
+    realm: String,
     client_name: String,
 }
 
@@ -24,21 +24,21 @@ pub struct KeycloakOAuth {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeycloakTokenClaims {
     /// Subject — Keycloak's stable user UUID
-    pub sub:                String,
+    pub sub: String,
     /// Username in Keycloak (login handle)
     pub preferred_username: Option<String>,
     /// User's email address
-    pub email:              Option<String>,
+    pub email: Option<String>,
     /// User's full display name
-    pub name:               Option<String>,
+    pub name: Option<String>,
     /// Given (first) name
-    pub given_name:         Option<String>,
+    pub given_name: Option<String>,
     /// Family (last) name
-    pub family_name:        Option<String>,
+    pub family_name: Option<String>,
     /// Realm-level role assignments (`realm_access.roles`)
-    pub realm_access:       Option<RealmAccess>,
+    pub realm_access: Option<RealmAccess>,
     /// Client-level role assignments keyed by client ID (`resource_access`)
-    pub resource_access:    Option<serde_json::Value>,
+    pub resource_access: Option<serde_json::Value>,
 }
 
 /// Keycloak realm access structure
@@ -92,7 +92,7 @@ impl KeycloakOAuth {
     ///
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
-    #[must_use] 
+    #[must_use]
     pub fn extract_realm_roles(raw_claims: &serde_json::Value) -> Vec<String> {
         raw_claims
             .get("realm_access")
@@ -107,7 +107,7 @@ impl KeycloakOAuth {
     /// # Arguments
     /// * `raw_claims` - Raw JWT claims from token
     /// * `client_name` - Client name to extract roles for
-    #[must_use] 
+    #[must_use]
     pub fn extract_client_roles(raw_claims: &serde_json::Value, client_name: &str) -> Vec<String> {
         raw_claims
             .get("resource_access")
@@ -125,7 +125,7 @@ impl KeycloakOAuth {
     ///
     /// # Arguments
     /// * `keycloak_roles` - List of Keycloak role names
-    #[must_use] 
+    #[must_use]
     pub fn map_keycloak_roles_to_fraiseql(keycloak_roles: Vec<String>) -> Vec<String> {
         keycloak_roles
             .into_iter()
@@ -148,7 +148,7 @@ impl KeycloakOAuth {
     }
 
     /// Get all roles (realm + client) from token
-    #[must_use] 
+    #[must_use]
     pub fn extract_all_roles(&self, raw_claims: &serde_json::Value) -> Vec<String> {
         let mut roles = Vec::new();
 

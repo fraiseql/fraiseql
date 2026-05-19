@@ -27,7 +27,7 @@ pub enum ObserverError {
     #[error("Action failed: {action} - {message}")]
     ActionFailed {
         /// Name or type of the action that failed.
-        action:  String,
+        action: String,
         /// Reason for the failure.
         message: String,
     },
@@ -64,7 +64,7 @@ pub enum ObserverError {
 impl ObserverError {
     /// Returns a short, stable error code string suitable for API responses and
     /// structured logging.
-    #[must_use] 
+    #[must_use]
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::InvalidCondition { .. } => "observer_invalid_condition",

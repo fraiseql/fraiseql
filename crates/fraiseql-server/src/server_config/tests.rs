@@ -170,12 +170,12 @@ fn test_tls_config_defaults() {
 #[test]
 fn test_database_tls_config_defaults() {
     let db_tls = DatabaseTlsConfig {
-        postgres_ssl_mode:   "prefer".to_string(),
-        redis_ssl:           false,
-        clickhouse_https:    false,
+        postgres_ssl_mode: "prefer".to_string(),
+        redis_ssl: false,
+        clickhouse_https: false,
         elasticsearch_https: false,
         verify_certificates: true,
-        ca_bundle_path:      None,
+        ca_bundle_path: None,
     };
 
     assert_eq!(db_tls.postgres_ssl_mode, "prefer");
@@ -188,12 +188,12 @@ fn test_database_tls_config_defaults() {
 #[test]
 fn test_tls_server_config_fields() {
     let tls = TlsServerConfig {
-        enabled:             true,
-        cert_path:           PathBuf::from("/etc/fraiseql/cert.pem"),
-        key_path:            PathBuf::from("/etc/fraiseql/key.pem"),
+        enabled: true,
+        cert_path: PathBuf::from("/etc/fraiseql/cert.pem"),
+        key_path: PathBuf::from("/etc/fraiseql/key.pem"),
         require_client_cert: false,
-        client_ca_path:      None,
-        min_version:         "1.3".to_string(),
+        client_ca_path: None,
+        min_version: "1.3".to_string(),
     };
 
     assert!(tls.enabled);
@@ -207,12 +207,12 @@ fn test_tls_server_config_fields() {
 fn test_validate_tls_enabled_without_cert() {
     let config = ServerConfig {
         tls: Some(TlsServerConfig {
-            enabled:             true,
-            cert_path:           PathBuf::from("/nonexistent/cert.pem"),
-            key_path:            PathBuf::from("/etc/fraiseql/key.pem"),
+            enabled: true,
+            cert_path: PathBuf::from("/nonexistent/cert.pem"),
+            key_path: PathBuf::from("/etc/fraiseql/key.pem"),
             require_client_cert: false,
-            client_ca_path:      None,
-            min_version:         "1.2".to_string(),
+            client_ca_path: None,
+            min_version: "1.2".to_string(),
         }),
         ..ServerConfig::default()
     };
@@ -252,12 +252,12 @@ fn test_validate_tls_invalid_min_version() {
 fn test_validate_database_tls_invalid_postgres_ssl_mode() {
     let config = ServerConfig {
         database_tls: Some(DatabaseTlsConfig {
-            postgres_ssl_mode:   "invalid_mode".to_string(),
-            redis_ssl:           false,
-            clickhouse_https:    false,
+            postgres_ssl_mode: "invalid_mode".to_string(),
+            redis_ssl: false,
+            clickhouse_https: false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path:      None,
+            ca_bundle_path: None,
         }),
         ..ServerConfig::default()
     };
@@ -296,12 +296,12 @@ fn test_validate_tls_requires_client_ca() {
 #[test]
 fn test_database_tls_serialization() {
     let db_tls = DatabaseTlsConfig {
-        postgres_ssl_mode:   "require".to_string(),
-        redis_ssl:           true,
-        clickhouse_https:    true,
+        postgres_ssl_mode: "require".to_string(),
+        redis_ssl: true,
+        clickhouse_https: true,
         elasticsearch_https: true,
         verify_certificates: true,
-        ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
+        ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
     };
 
     let json = serde_json::to_string(&db_tls).expect(
@@ -485,8 +485,8 @@ fn test_auth_and_auth_hs256_are_mutually_exclusive() {
             auth: Some(OidcConfig::auth0("tenant.auth0.com", "my-api")),
             auth_hs256: Some(super::Hs256Config {
                 secret_env: env_name.to_string(),
-                issuer:     Some("test".to_string()),
-                audience:   None,
+                issuer: Some("test".to_string()),
+                audience: None,
             }),
             ..ServerConfig::default()
         };
@@ -505,8 +505,8 @@ fn test_auth_hs256_fails_when_secret_env_unset() {
         let config = ServerConfig {
             auth_hs256: Some(super::Hs256Config {
                 secret_env: env_name.to_string(),
-                issuer:     None,
-                audience:   None,
+                issuer: None,
+                audience: None,
             }),
             ..ServerConfig::default()
         };

@@ -347,15 +347,15 @@ mod proto_gen_tests {
     fn test_generate_proto_with_enum() {
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name:        "OrderStatus".to_string(),
-            values:      vec![
+            name: "OrderStatus".to_string(),
+            values: vec![
                 EnumValueDefinition {
-                    name:        "PENDING".to_string(),
+                    name: "PENDING".to_string(),
                     description: None,
                     deprecation: None,
                 },
                 EnumValueDefinition {
-                    name:        "SHIPPED".to_string(),
+                    name: "SHIPPED".to_string(),
                     description: None,
                     deprecation: None,
                 },
@@ -465,22 +465,22 @@ mod row_views_tests {
 
     fn make_user_type() -> TypeDefinition {
         TypeDefinition {
-            name:                "user".into(),
-            sql_source:          "user".into(),
-            jsonb_column:        "data".to_string(),
-            fields:              vec![
+            name: "user".into(),
+            sql_source: "user".into(),
+            jsonb_column: "data".to_string(),
+            fields: vec![
                 make_field("id", FieldType::Id, false),
                 make_field("name", FieldType::String, false),
                 make_field("email", FieldType::String, true),
                 make_field("created_at", FieldType::DateTime, false),
             ],
-            description:         None,
+            description: None,
             sql_projection_hint: None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       Vec::new(),
+            implements: vec![],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: Vec::new(),
         }
     }
 
@@ -561,10 +561,10 @@ mod row_views_tests {
     #[test]
     fn test_non_scalar_fields_excluded() {
         let td = TypeDefinition {
-            name:                "post".into(),
-            sql_source:          "post".into(),
-            jsonb_column:        "data".to_string(),
-            fields:              vec![
+            name: "post".into(),
+            sql_source: "post".into(),
+            jsonb_column: "data".to_string(),
+            fields: vec![
                 make_field("id", FieldType::Id, false),
                 make_field("title", FieldType::String, false),
                 // Object reference — should be excluded from vr_* view
@@ -572,13 +572,13 @@ mod row_views_tests {
                 // List — should be excluded
                 make_field("tags", FieldType::List(Box::new(FieldType::String)), false),
             ],
-            description:         None,
+            description: None,
             sql_projection_hint: None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       Vec::new(),
+            implements: vec![],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: Vec::new(),
         };
 
         let ddl = generate_row_view_sql(&PostgresDialect, &td);
@@ -611,17 +611,17 @@ mod row_views_tests {
         let types = vec![
             make_user_type(),
             TypeDefinition {
-                name:                "secret".into(),
-                sql_source:          "secret".into(),
-                jsonb_column:        "data".to_string(),
-                fields:              vec![make_field("id", FieldType::Id, false)],
-                description:         None,
+                name: "secret".into(),
+                sql_source: "secret".into(),
+                jsonb_column: "data".to_string(),
+                fields: vec![make_field("id", FieldType::Id, false)],
+                description: None,
                 sql_projection_hint: None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       Vec::new(),
+                implements: vec![],
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: Vec::new(),
             },
         ];
 

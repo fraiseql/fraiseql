@@ -45,7 +45,7 @@ fn test_typescript_basic_federation_key() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -79,7 +79,7 @@ fn test_typescript_id_scalar_type() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -111,11 +111,11 @@ fn test_typescript_multiple_key_decorators() {
 
     let mut account_type = FederatedType::new("Account".to_string());
     account_type.keys.push(KeyDirective {
-        fields:     vec!["tenant_id".to_string()],
+        fields: vec!["tenant_id".to_string()],
         resolvable: true,
     });
     account_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -154,7 +154,7 @@ fn test_typescript_extends_decorator() {
     user_type.is_extends = true;
     user_type.external_fields.push("id".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -223,13 +223,13 @@ fn test_typescript_requires_decorator() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -264,13 +264,13 @@ fn test_typescript_requires_with_complex_field() {
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingInfo".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["customer".to_string()],
+            path: vec!["customer".to_string()],
             typename: "Customer".to_string(),
         }),
     );
@@ -307,13 +307,13 @@ fn test_typescript_provides_decorator() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["userId".to_string()],
+            path: vec!["userId".to_string()],
             typename: "Order".to_string(),
         }),
     );
@@ -348,7 +348,7 @@ fn test_typescript_entity_resolution_basic() {
     entity_fields.insert("name".to_string(), json!("Bob"));
 
     let representation = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: {
             let mut m = HashMap::new();
             m.insert("id".to_string(), json!("user-456"));
@@ -410,13 +410,13 @@ fn test_typescript_cross_subgraph_federation() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
 
@@ -480,17 +480,17 @@ fn test_typescript_shareable_directive() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "id".to_string(),
         FieldFederationDirectives {
-            requires:      vec![],
-            provides:      vec![],
-            external:      false,
-            shareable:     true,
-            inaccessible:  false,
+            requires: vec![],
+            provides: vec![],
+            external: false,
+            shareable: true,
+            inaccessible: false,
             override_from: None,
         },
     );
@@ -554,26 +554,26 @@ fn test_typescript_schema_roundtrip() {
 
     let mut user_type = FederatedType::new("User".to_string());
     user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     user_type.set_field_directives(
         "orders".to_string(),
         FieldFederationDirectives::new().add_provides(FieldPathSelection {
-            path:     vec!["userId".to_string()],
+            path: vec!["userId".to_string()],
             typename: "Order".to_string(),
         }),
     );
 
     let mut order_type = FederatedType::new("Order".to_string());
     order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     });
     order_type.set_field_directives(
         "shippingEstimate".to_string(),
         FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["weight".to_string()],
+            path: vec!["weight".to_string()],
             typename: "Order".to_string(),
         }),
     );

@@ -29,11 +29,11 @@ mod graph_tests {
     fn test_to_dot_format() {
         let graph = FederationGraph {
             subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
+                name: "a".to_string(),
+                url: "http://a".to_string(),
                 entities: vec!["A".to_string()],
             }],
-            edges:     vec![],
+            edges: vec![],
         };
 
         let dot = to_dot(&graph);
@@ -45,11 +45,11 @@ mod graph_tests {
     fn test_to_mermaid_format() {
         let graph = FederationGraph {
             subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
+                name: "a".to_string(),
+                url: "http://a".to_string(),
                 entities: vec!["A".to_string()],
             }],
-            edges:     vec![],
+            edges: vec![],
         };
 
         let mermaid = to_mermaid(&graph);

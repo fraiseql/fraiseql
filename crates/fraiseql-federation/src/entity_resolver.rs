@@ -41,17 +41,17 @@ pub struct EntityResolutionResult {
 #[derive(Debug)]
 pub struct EntityResolutionMetrics {
     /// Resolved entities in same order as input representations
-    pub entities:    Vec<Option<Value>>,
+    pub entities: Vec<Option<Value>>,
     /// Any errors encountered during resolution
-    pub errors:      Vec<String>,
+    pub errors: Vec<String>,
     /// Duration of resolution in microseconds
     pub duration_us: u64,
     /// Whether resolution succeeded (no errors)
-    pub success:     bool,
+    pub success: bool,
 }
 
 /// Deduplicate entity representations while preserving order
-#[must_use] 
+#[must_use]
 pub fn deduplicate_representations(reps: &[EntityRepresentation]) -> Vec<EntityRepresentation> {
     let mut seen = HashSet::new();
     let mut result = Vec::with_capacity(reps.len());
@@ -71,7 +71,7 @@ pub fn deduplicate_representations(reps: &[EntityRepresentation]) -> Vec<EntityR
 }
 
 /// Group entities by typename and strategy
-#[must_use] 
+#[must_use]
 pub fn group_entities_by_typename(
     reps: &[EntityRepresentation],
 ) -> HashMap<String, Vec<EntityRepresentation>> {
@@ -153,7 +153,7 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
     if representations.is_empty() {
         return EntityResolutionResult {
             entities: Vec::new(),
-            errors:   Vec::new(),
+            errors: Vec::new(),
         };
     }
 
@@ -171,7 +171,7 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
         },
         Err(e) => EntityResolutionResult {
             entities: vec![None; representations.len()],
-            errors:   vec![e.to_string()],
+            errors: vec![e.to_string()],
         },
     }
 }
@@ -239,7 +239,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
                 representations.len(),
                 MAX_ENTITIES_BATCH_SIZE
             ),
-            path:    Some("_entities".into()),
+            path: Some("_entities".into()),
         });
     }
 
@@ -251,10 +251,10 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
 
     if representations.is_empty() {
         return Ok(EntityResolutionMetrics {
-            entities:    Vec::new(),
-            errors:      Vec::new(),
+            entities: Vec::new(),
+            errors: Vec::new(),
             duration_us: 0,
-            success:     true,
+            success: true,
         });
     }
 

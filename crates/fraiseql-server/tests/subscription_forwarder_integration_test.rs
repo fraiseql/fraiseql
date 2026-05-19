@@ -30,11 +30,11 @@ fn allow_insecure() {
 #[derive(Clone)]
 struct MockSubgraphConfig {
     /// Events to emit after receiving a subscribe message.
-    events:        Vec<serde_json::Value>,
+    events: Vec<serde_json::Value>,
     /// Whether to send connection_ack on connection_init.
-    send_ack:      bool,
+    send_ack: bool,
     /// Delay before sending connection_ack (millis).
-    ack_delay_ms:  u64,
+    ack_delay_ms: u64,
     /// Whether to send `complete` after all events.
     send_complete: bool,
 }
@@ -42,9 +42,9 @@ struct MockSubgraphConfig {
 impl Default for MockSubgraphConfig {
     fn default() -> Self {
         Self {
-            events:        vec![],
-            send_ack:      true,
-            ack_delay_ms:  0,
+            events: vec![],
+            send_ack: true,
+            ack_delay_ms: 0,
             send_complete: true,
         }
     }

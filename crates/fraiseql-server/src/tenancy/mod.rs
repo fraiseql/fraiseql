@@ -37,7 +37,7 @@ pub type TenantExecutorFactory<A> = Arc<
 /// can be stored as a type-erased closure in `AppState`.
 ///
 /// The first argument is the tenant key, used for schema isolation naming.
-#[must_use] 
+#[must_use]
 pub fn make_executor_factory<A: FromPoolConfig + 'static>() -> TenantExecutorFactory<A> {
     Arc::new(|tenant_key, schema_json, pool_config| {
         Box::pin(async move {

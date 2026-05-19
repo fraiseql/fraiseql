@@ -180,7 +180,7 @@ impl ToSql for QueryParam {
 /// # }
 /// ```
 #[cfg(feature = "postgres")]
-#[must_use] 
+#[must_use]
 pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
     match param {
         QueryParam::Null => Box::new(None::<String>),
@@ -198,13 +198,13 @@ pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct PoolMetrics {
     /// Total number of connections in the pool.
-    pub total_connections:  u32,
+    pub total_connections: u32,
     /// Number of idle (available) connections.
-    pub idle_connections:   u32,
+    pub idle_connections: u32,
     /// Number of active (in-use) connections.
     pub active_connections: u32,
     /// Number of requests waiting for a connection.
-    pub waiting_requests:   u32,
+    pub waiting_requests: u32,
 }
 
 impl PoolMetrics {

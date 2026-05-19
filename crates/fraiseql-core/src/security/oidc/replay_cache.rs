@@ -109,7 +109,7 @@ pub fn jwt_replay_cache_errors_total() -> u64 {
 /// Prometheus-compatible counters.
 pub struct ReplayCache {
     backend: Box<dyn ReplayCacheBackend>,
-    policy:  FailurePolicy,
+    policy: FailurePolicy,
 }
 
 impl ReplayCache {
@@ -118,7 +118,7 @@ impl ReplayCache {
     pub fn new(backend: impl ReplayCacheBackend + 'static) -> Self {
         Self {
             backend: Box::new(backend),
-            policy:  FailurePolicy::FailOpen,
+            policy: FailurePolicy::FailOpen,
         }
     }
 
@@ -223,7 +223,7 @@ impl ReplayCacheBackend for MemoryReplayCache {
 /// the token is a replay.
 #[cfg(feature = "jwt-replay")]
 pub struct RedisReplayCache {
-    pool:       redis::aio::ConnectionManager,
+    pool: redis::aio::ConnectionManager,
     key_prefix: String,
 }
 

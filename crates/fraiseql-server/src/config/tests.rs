@@ -280,10 +280,10 @@ mod error_sanitization_tests {
 
     fn enabled_sanitizer() -> ErrorSanitizer {
         ErrorSanitizer::new(ErrorSanitizationConfig {
-            enabled:                     true,
+            enabled: true,
             hide_implementation_details: true,
-            sanitize_database_errors:    true,
-            custom_error_message:        None,
+            sanitize_database_errors: true,
+            custom_error_message: None,
         })
     }
 
@@ -343,11 +343,11 @@ mod error_sanitization_tests {
         let s = enabled_sanitizer();
         let mut err = GraphQLError::internal("internal");
         err.extensions = Some(ErrorExtensions {
-            category:         None,
-            status:           None,
-            request_id:       None,
+            category: None,
+            status: None,
+            request_id: None,
             retry_after_secs: None,
-            detail:           Some("panic at line 42".to_string()),
+            detail: Some("panic at line 42".to_string()),
         });
         let out = s.sanitize(err);
         assert!(
@@ -521,7 +521,7 @@ mod validation_tests {
     fn result_with_error_is_err() {
         let mut result = ValidationResult::new();
         result.add_error(ConfigError::ValidationError {
-            field:   "test".into(),
+            field: "test".into(),
             message: "bad".into(),
         });
         assert!(result.is_err());
@@ -539,7 +539,7 @@ mod validation_tests {
     fn into_result_single_error() {
         let mut result = ValidationResult::new();
         result.add_error(ConfigError::ValidationError {
-            field:   "port".into(),
+            field: "port".into(),
             message: "invalid".into(),
         });
         let err = result.into_result().unwrap_err();
@@ -553,11 +553,11 @@ mod validation_tests {
     fn into_result_multiple_errors() {
         let mut result = ValidationResult::new();
         result.add_error(ConfigError::ValidationError {
-            field:   "a".into(),
+            field: "a".into(),
             message: "bad a".into(),
         });
         result.add_error(ConfigError::ValidationError {
-            field:   "b".into(),
+            field: "b".into(),
             message: "bad b".into(),
         });
         let err = result.into_result().unwrap_err();

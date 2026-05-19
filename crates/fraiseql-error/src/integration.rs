@@ -9,7 +9,7 @@ pub enum IntegrationError {
         /// Name of the search provider.
         provider: String,
         /// Error message from the provider.
-        message:  String,
+        message: String,
     },
 
     /// An error occurred while reading from or writing to an external cache
@@ -47,7 +47,7 @@ pub enum IntegrationError {
 impl IntegrationError {
     /// Returns a short, stable error code string suitable for API responses and
     /// structured logging.
-    #[must_use] 
+    #[must_use]
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::Search { .. } => "integration_search_error",

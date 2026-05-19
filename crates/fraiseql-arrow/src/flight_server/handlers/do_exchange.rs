@@ -133,7 +133,7 @@ async fn handle_upload(
             let success_msg = format!("Inserted {} rows", rows_inserted).into_bytes();
             let response = ExchangeMessage::Response {
                 correlation_id: correlation_id.to_string(),
-                result:         Ok(success_msg),
+                result: Ok(success_msg),
             };
             if let Ok(bytes) = response.to_json_bytes() {
                 let _ = tx
@@ -167,7 +167,7 @@ async fn handle_subscribe(
     // Send subscription acknowledgment
     let ack_response = ExchangeMessage::Response {
         correlation_id: correlation_id.clone(),
-        result:         Ok(format!("Subscribed to {}", entity_type).into_bytes()),
+        result: Ok(format!("Subscribed to {}", entity_type).into_bytes()),
     };
     if let Ok(ack_bytes) = ack_response.to_json_bytes() {
         let _ = tx
@@ -211,7 +211,7 @@ async fn send_exchange_error(
 ) {
     let error_response = ExchangeMessage::Response {
         correlation_id: correlation_id.to_string(),
-        result:         Err(message.to_string()),
+        result: Err(message.to_string()),
     };
     if let Ok(err_bytes) = error_response.to_json_bytes() {
         let _ = tx

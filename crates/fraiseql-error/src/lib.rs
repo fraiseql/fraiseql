@@ -124,7 +124,7 @@ pub enum RuntimeError {
     #[error("Service unavailable: {reason}")]
     ServiceUnavailable {
         /// Human-readable reason for the outage (server-side logs only).
-        reason:      String,
+        reason: String,
         /// Number of seconds to wait before retrying, if known.
         retry_after: Option<u64>,
     },
@@ -146,13 +146,13 @@ pub enum RuntimeError {
         message: String,
         /// Optional chained error for structured logging.
         #[source]
-        source:  Option<Box<dyn std::error::Error + Send + Sync>>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 }
 
 impl RuntimeError {
     /// Get the error code for this error
-    #[must_use] 
+    #[must_use]
     pub const fn error_code(&self) -> &'static str {
         match self {
             Self::Config(e) => e.error_code(),
@@ -171,7 +171,7 @@ impl RuntimeError {
     }
 
     /// Get documentation URL for this error
-    #[must_use] 
+    #[must_use]
     pub fn docs_url(&self) -> String {
         format!("https://docs.fraiseql.dev/errors#{}", self.error_code())
     }

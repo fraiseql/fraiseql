@@ -27,7 +27,7 @@ impl UserId {
     }
 
     /// Returns the inner string value.
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -65,7 +65,7 @@ impl TenantId {
     }
 
     /// Returns the inner string value.
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -103,7 +103,7 @@ impl OrgId {
     }
 
     /// Returns the inner string value.
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -141,7 +141,7 @@ impl SubscriptionId {
     }
 
     /// Returns the inner string value.
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -179,7 +179,7 @@ impl ConnectionId {
     }
 
     /// Returns the inner string value.
-    #[must_use] 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }

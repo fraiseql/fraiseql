@@ -14,7 +14,7 @@ use crate::error::Result;
 /// Supports fast retrieval (<1ms) for cached results.
 #[derive(Clone)]
 pub struct RedisCacheBackend {
-    conn:        ConnectionManager,
+    conn: ConnectionManager,
     ttl_seconds: u64,
 }
 

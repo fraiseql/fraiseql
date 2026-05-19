@@ -16,7 +16,7 @@ pub type ConnectionId = String;
 #[derive(Debug, Clone)]
 pub struct CloseSignal {
     /// `WebSocket` close code (e.g., 4002 for "slow consumer").
-    pub code:   u16,
+    pub code: u16,
     /// Human-readable close reason.
     pub reason: String,
 }
@@ -27,11 +27,11 @@ pub struct ConnectionState {
     /// Unique connection identifier (UUID v4).
     pub connection_id: ConnectionId,
     /// User identifier (from JWT `sub` claim).
-    pub user_id:       String,
+    pub user_id: String,
     /// Security context hash for grouping connections with identical RLS context.
-    pub context_hash:  u64,
+    pub context_hash: u64,
     /// Token expiration (Unix timestamp in seconds).
-    pub expires_at:    i64,
+    pub expires_at: i64,
 }
 
 impl ConnectionState {
@@ -60,15 +60,15 @@ impl ConnectionState {
 /// (e.g., slow consumer policy).
 pub struct ConnectionManager {
     /// Active connections indexed by connection ID.
-    connections:               DashMap<ConnectionId, ConnectionState>,
+    connections: DashMap<ConnectionId, ConnectionState>,
     /// Per-connection event senders (bounded channel for change events).
-    event_senders:             DashMap<ConnectionId, mpsc::Sender<String>>,
+    event_senders: DashMap<ConnectionId, mpsc::Sender<String>>,
     /// Per-connection oneshot senders for server-initiated close signals.
-    close_senders:             DashMap<ConnectionId, oneshot::Sender<CloseSignal>>,
+    close_senders: DashMap<ConnectionId, oneshot::Sender<CloseSignal>>,
     /// Per-connection consecutive drop counters for slow-consumer detection.
-    drop_counts:               DashMap<ConnectionId, AtomicUsize>,
+    drop_counts: DashMap<ConnectionId, AtomicUsize>,
     /// Maximum consecutive delivery failures before a connection is kicked.
-    max_consecutive_drops:     usize,
+    max_consecutive_drops: usize,
     /// Capacity of per-connection event channels.
     connection_event_capacity: usize,
 }
@@ -92,7 +92,7 @@ impl ConnectionManager {
     /// The event receiver should be polled by the connection handler to forward
     /// change events to the `WebSocket`. The close-signal receiver fires when the
     /// delivery pipeline detects a slow consumer.
-    #[must_use] 
+    #[must_use]
     pub fn insert(
         &self,
         state: ConnectionState,
@@ -137,7 +137,7 @@ impl ConnectionManager {
     /// consumer") is sent to the connection handler.
     ///
     /// Returns `true` if the event was sent, `false` otherwise.
-    #[must_use] 
+    #[must_use]
     pub fn send_event(&self, connection_id: &str, json: String) -> bool {
         let sent = self
             .event_senders
@@ -154,7 +154,7 @@ impl ConnectionManager {
                 // Slow consumer: signal the connection handler to close with 4002.
                 if let Some((_, close_tx)) = self.close_senders.remove(connection_id) {
                     let _ = close_tx.send(CloseSignal {
-                        code:   4002,
+                        code: 4002,
                         reason: "slow consumer".to_owned(),
                     });
                 }

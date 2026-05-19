@@ -3,16 +3,13 @@
 //! All `find_*` methods, `build_indexes`, `display_name`, and `operation_count`.
 
 use super::{
-    directive::DirectiveDefinition,
-    mutation::MutationDefinition,
-    query::QueryDefinition,
+    directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition,
     schema::CompiledSchema,
 };
 use crate::schema::{
     config_types::NamingConvention,
     graphql_type_defs::{
-        EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition,
-        UnionDefinition,
+        EnumDefinition, InputObjectDefinition, InterfaceDefinition, TypeDefinition, UnionDefinition,
     },
     subscription_types::SubscriptionDefinition,
 };

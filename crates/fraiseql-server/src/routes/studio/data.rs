@@ -62,7 +62,7 @@ pub struct FilterClause {
     /// Entity field name to filter on.
     pub field: String,
     /// Comparison operator.
-    pub op:    FilterOp,
+    pub op: FilterOp,
     /// Value to compare against (JSON-typed).
     pub value: serde_json::Value,
 }
@@ -73,7 +73,7 @@ pub struct SortClause {
     /// Entity field name to sort by.
     pub field: String,
     /// Sort direction.
-    pub dir:   SortDir,
+    pub dir: SortDir,
 }
 
 const fn default_page() -> u32 {
@@ -89,16 +89,16 @@ const fn default_page_size() -> u32 {
 pub struct DataBrowserQuery {
     /// Page number (1-indexed, default 1).
     #[serde(default = "default_page")]
-    pub page:      u32,
+    pub page: u32,
     /// Rows per page (default 50).
     #[serde(default = "default_page_size")]
     pub page_size: u32,
     /// Optional filter predicates (AND-combined).
     #[serde(default)]
-    pub filter:    Vec<FilterClause>,
+    pub filter: Vec<FilterClause>,
     /// Optional sort directives (applied in order).
     #[serde(default)]
-    pub sort:      Vec<SortClause>,
+    pub sort: Vec<SortClause>,
 }
 
 /// Mutation operation type.
@@ -120,7 +120,7 @@ pub struct DataMutateRequest {
     /// Operation to perform.
     pub operation: MutateOperation,
     /// Row data (field values for insert/update; primary-key fields for delete).
-    pub data:      serde_json::Value,
+    pub data: serde_json::Value,
 }
 
 // ---------------------------------------------------------------------------
@@ -131,11 +131,11 @@ pub struct DataMutateRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataQueryResponse {
     /// Rows matching the query on this page.
-    pub rows:      Vec<serde_json::Value>,
+    pub rows: Vec<serde_json::Value>,
     /// Total matching rows across all pages.
-    pub total:     u64,
+    pub total: u64,
     /// Current page number (1-indexed).
-    pub page:      u32,
+    pub page: u32,
     /// Rows per page.
     pub page_size: u32,
 }
@@ -177,9 +177,9 @@ where
 
     // Return empty paginated result — real query execution not yet wired.
     Json(DataQueryResponse {
-        rows:      Vec::new(),
-        total:     0,
-        page:      req.page,
+        rows: Vec::new(),
+        total: 0,
+        page: req.page,
         page_size: req.page_size,
     })
     .into_response()

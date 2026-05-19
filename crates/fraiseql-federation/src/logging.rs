@@ -111,7 +111,7 @@ pub enum OperationStatus {
 
 impl FederationLogContext {
     /// Create new federation log context.
-    #[must_use] 
+    #[must_use]
     pub const fn new(
         operation_type: FederationOperationType,
         query_id: String,
@@ -136,63 +136,63 @@ impl FederationLogContext {
     }
 
     /// Set resolution strategy.
-    #[must_use] 
+    #[must_use]
     pub const fn with_strategy(mut self, strategy: ResolutionStrategy) -> Self {
         self.strategy = Some(strategy);
         self
     }
 
     /// Set typename.
-    #[must_use] 
+    #[must_use]
     pub fn with_typename(mut self, typename: String) -> Self {
         self.typename = Some(typename);
         self
     }
 
     /// Set subgraph name.
-    #[must_use] 
+    #[must_use]
     pub fn with_subgraph_name(mut self, subgraph_name: String) -> Self {
         self.subgraph_name = Some(subgraph_name);
         self
     }
 
     /// Set entity count after deduplication.
-    #[must_use] 
+    #[must_use]
     pub const fn with_entity_count_unique(mut self, count: usize) -> Self {
         self.entity_count_unique = Some(count);
         self
     }
 
     /// Set resolved entity count.
-    #[must_use] 
+    #[must_use]
     pub const fn with_resolved_count(mut self, count: usize) -> Self {
         self.resolved_count = Some(count);
         self
     }
 
     /// Set HTTP status code.
-    #[must_use] 
+    #[must_use]
     pub const fn with_http_status(mut self, status: u16) -> Self {
         self.http_status = Some(status);
         self
     }
 
     /// Set trace ID for correlation.
-    #[must_use] 
+    #[must_use]
     pub fn with_trace_id(mut self, trace_id: String) -> Self {
         self.trace_id = Some(trace_id);
         self
     }
 
     /// Set request ID for correlation.
-    #[must_use] 
+    #[must_use]
     pub fn with_request_id(mut self, request_id: String) -> Self {
         self.request_id = Some(request_id);
         self
     }
 
     /// Mark operation as completed successfully.
-    #[must_use] 
+    #[must_use]
     pub const fn complete(mut self, duration_ms: f64) -> Self {
         self.status = OperationStatus::Success;
         self.duration_ms = duration_ms;
@@ -200,7 +200,7 @@ impl FederationLogContext {
     }
 
     /// Mark operation as failed.
-    #[must_use] 
+    #[must_use]
     pub fn fail(mut self, duration_ms: f64, error_message: String) -> Self {
         self.status = OperationStatus::Error;
         self.duration_ms = duration_ms;
@@ -209,7 +209,7 @@ impl FederationLogContext {
     }
 
     /// Mark operation as timed out.
-    #[must_use] 
+    #[must_use]
     pub const fn timeout(mut self, duration_ms: f64) -> Self {
         self.status = OperationStatus::Timeout;
         self.duration_ms = duration_ms;
@@ -224,7 +224,7 @@ pub struct LogTimer {
 
 impl LogTimer {
     /// Create new timer.
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             start: Instant::now(),
@@ -232,7 +232,7 @@ impl LogTimer {
     }
 
     /// Get elapsed time in milliseconds.
-    #[must_use] 
+    #[must_use]
     pub fn elapsed_ms(&self) -> f64 {
         self.start.elapsed().as_secs_f64() * 1000.0
     }

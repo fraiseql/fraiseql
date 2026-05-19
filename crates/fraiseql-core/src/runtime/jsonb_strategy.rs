@@ -52,7 +52,7 @@ pub struct JsonbOptimizationOptions {
 impl Default for JsonbOptimizationOptions {
     fn default() -> Self {
         Self {
-            default_strategy:       JsonbStrategy::Project,
+            default_strategy: JsonbStrategy::Project,
             auto_threshold_percent: 80,
         }
     }
@@ -60,7 +60,7 @@ impl Default for JsonbOptimizationOptions {
 
 impl JsonbOptimizationOptions {
     /// Choose strategy based on field count and configuration
-    #[must_use] 
+    #[must_use]
     pub fn choose_strategy(&self, requested_fields: usize, total_fields: usize) -> JsonbStrategy {
         if total_fields == 0 {
             return self.default_strategy;

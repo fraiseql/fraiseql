@@ -21,15 +21,15 @@ use super::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityEvent {
     /// Entity name (e.g., `"Post"`).
-    pub entity:     String,
+    pub entity: String,
     /// Type of change.
     pub event_kind: EventKindSerde,
     /// New row data (present for INSERT and UPDATE).
-    pub new:        Option<Value>,
+    pub new: Option<Value>,
     /// Old row data (present for UPDATE and DELETE).
-    pub old:        Option<Value>,
+    pub old: Option<Value>,
     /// Event timestamp (ISO 8601).
-    pub timestamp:  String,
+    pub timestamp: String,
 }
 
 /// Serializable event kind for JSON wire format.
@@ -99,15 +99,15 @@ pub trait RlsEvaluator: Send + Sync + 'static {
 pub struct ChangeMessage {
     /// Always `"change"`.
     #[serde(rename = "type")]
-    pub msg_type:  &'static str,
+    pub msg_type: &'static str,
     /// Entity name.
-    pub entity:    String,
+    pub entity: String,
     /// Event type (`INSERT`, `UPDATE`, `DELETE`).
-    pub event:     EventKindSerde,
+    pub event: EventKindSerde,
     /// New row data.
-    pub new:       Option<Value>,
+    pub new: Option<Value>,
     /// Old row data.
-    pub old:       Option<Value>,
+    pub old: Option<Value>,
     /// Timestamp (ISO 8601).
     pub timestamp: String,
 }
@@ -117,11 +117,11 @@ impl ChangeMessage {
     #[must_use]
     pub fn from_event(event: &EntityEvent) -> Self {
         Self {
-            msg_type:  "change",
-            entity:    event.entity.clone(),
-            event:     event.event_kind,
-            new:       event.new.clone(),
-            old:       event.old.clone(),
+            msg_type: "change",
+            entity: event.entity.clone(),
+            event: event.event_kind,
+            new: event.new.clone(),
+            old: event.old.clone(),
             timestamp: event.timestamp.clone(),
         }
     }
@@ -132,11 +132,11 @@ pub struct EventDeliveryPipeline {
     /// Subscription manager for looking up who receives what.
     subscriptions: Arc<SubscriptionManager>,
     /// Connection manager for sending events to connections.
-    connections:   Arc<ConnectionManager>,
+    connections: Arc<ConnectionManager>,
     /// RLS evaluator for access control.
     rls_evaluator: Arc<dyn RlsEvaluator>,
     /// Receiver for incoming entity events.
-    event_rx:      mpsc::Receiver<EntityEvent>,
+    event_rx: mpsc::Receiver<EntityEvent>,
 }
 
 impl EventDeliveryPipeline {
@@ -230,7 +230,7 @@ impl EventDeliveryPipeline {
 /// Evaluate field filters against a row.
 ///
 /// Returns `true` if the row passes all filters (or if there are no filters).
-#[must_use] 
+#[must_use]
 pub fn evaluate_field_filters(filters: &[FieldFilter], row: Option<&Value>) -> bool {
     if filters.is_empty() {
         return true;

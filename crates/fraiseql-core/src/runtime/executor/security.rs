@@ -48,8 +48,8 @@ impl<A: DatabaseAdapter> Executor<A> {
             // Return the first error (could aggregate all errors if desired)
             let first_error = &errors[0];
             Err(FraiseQLError::Authorization {
-                message:  first_error.message.clone(),
-                action:   Some("read".to_string()),
+                message: first_error.message.clone(),
+                action: Some("read".to_string()),
                 resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
             })
         }
@@ -196,7 +196,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 };
                 FraiseQLError::Timeout {
                     timeout_ms: self.ctx.config.query_timeout_ms,
-                    query:      Some(query_snippet),
+                    query: Some(query_snippet),
                 }
             })?
         } else {
@@ -241,7 +241,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                 let _ = (query, variables);
                 Err(FraiseQLError::Validation {
                     message: "Federation is not enabled in this build".to_string(),
-                    path:    None,
+                    path: None,
                 })
             },
             QueryType::IntrospectionSchema => {
@@ -360,8 +360,8 @@ mod session_variable_tests {
     fn resolve_session_variables_jwt_claim() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables:         vec![SessionVariableMapping {
-                name:   "app.tenant_id".to_string(),
+            variables: vec![SessionVariableMapping {
+                name: "app.tenant_id".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "tenant_id".to_string(),
                 },
@@ -379,8 +379,8 @@ mod session_variable_tests {
     fn resolve_session_variables_jwt_well_known_sub() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables:         vec![SessionVariableMapping {
-                name:   "app.user_id".to_string(),
+            variables: vec![SessionVariableMapping {
+                name: "app.user_id".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "sub".to_string(),
                 },
@@ -397,8 +397,8 @@ mod session_variable_tests {
     fn resolve_session_variables_literal() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables:         vec![SessionVariableMapping {
-                name:   "app.locale".to_string(),
+            variables: vec![SessionVariableMapping {
+                name: "app.locale".to_string(),
                 source: SessionVariableSource::Literal {
                     value: "en".to_string(),
                 },
@@ -415,8 +415,8 @@ mod session_variable_tests {
     fn inject_started_at_prepended() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables:         vec![SessionVariableMapping {
-                name:   "app.locale".to_string(),
+            variables: vec![SessionVariableMapping {
+                name: "app.locale".to_string(),
                 source: SessionVariableSource::Literal {
                     value: "en".to_string(),
                 },
@@ -436,7 +436,7 @@ mod session_variable_tests {
     fn inject_started_at_disabled() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables:         vec![],
+            variables: vec![],
             inject_started_at: false,
         };
         let vars = resolve_session_variables(&config, &ctx);
@@ -448,8 +448,8 @@ mod session_variable_tests {
     fn resolve_session_variables_header() {
         let ctx = make_context();
         let config = SessionVariablesConfig {
-            variables:         vec![SessionVariableMapping {
-                name:   "app.tenant".to_string(),
+            variables: vec![SessionVariableMapping {
+                name: "app.tenant".to_string(),
                 source: SessionVariableSource::Header {
                     header: "x-tenant-id".to_string(),
                 },
@@ -467,8 +467,8 @@ mod session_variable_tests {
         let mut ctx = make_context();
         ctx.email = Some("user@corp.com".to_string());
         let config = SessionVariablesConfig {
-            variables:         vec![SessionVariableMapping {
-                name:   "app.email".to_string(),
+            variables: vec![SessionVariableMapping {
+                name: "app.email".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "email".to_string(),
                 },
@@ -486,15 +486,15 @@ mod session_variable_tests {
         let mut ctx = make_context();
         ctx.display_name = Some("Jane Doe".to_string());
         let config = SessionVariablesConfig {
-            variables:         vec![
+            variables: vec![
                 SessionVariableMapping {
-                    name:   "app.name".to_string(),
+                    name: "app.name".to_string(),
                     source: SessionVariableSource::Jwt {
                         claim: "name".to_string(),
                     },
                 },
                 SessionVariableMapping {
-                    name:   "app.display_name".to_string(),
+                    name: "app.display_name".to_string(),
                     source: SessionVariableSource::Jwt {
                         claim: "display_name".to_string(),
                     },
@@ -512,8 +512,8 @@ mod session_variable_tests {
     fn resolve_session_variables_missing_email_skipped() {
         let ctx = make_context(); // email is None
         let config = SessionVariablesConfig {
-            variables:         vec![SessionVariableMapping {
-                name:   "app.email".to_string(),
+            variables: vec![SessionVariableMapping {
+                name: "app.email".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "email".to_string(),
                 },

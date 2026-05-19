@@ -43,7 +43,7 @@ pub struct WasmConfig {
     /// Enable SIMD (Single Instruction, Multiple Data) support in WASM modules.
     ///
     /// SIMD can improve performance for data-parallel workloads but adds compilation overhead.
-    pub enable_simd:           bool,
+    pub enable_simd: bool,
     /// Optional directory for caching compiled components.
     ///
     /// If set, compiled modules are cached to disk to speed up subsequent loads.
@@ -53,7 +53,7 @@ pub struct WasmConfig {
 impl Default for WasmConfig {
     fn default() -> Self {
         Self {
-            enable_simd:           true,
+            enable_simd: true,
             compilation_cache_dir: None,
         }
     }
@@ -95,7 +95,7 @@ impl WasmRuntime {
         let engine = wasmtime::Engine::new(&wasm_config).map_err(|e| {
             fraiseql_error::FraiseQLError::Validation {
                 message: format!("Failed to create WASM engine: {}", e),
-                path:    None,
+                path: None,
             }
         })?;
 
@@ -152,7 +152,7 @@ impl FunctionRuntime for WasmRuntime {
                 Err(e) => {
                     return Err(fraiseql_error::FraiseQLError::Validation {
                         message: format!("Failed to load WASM component: {}", e),
-                        path:    None,
+                        path: None,
                     });
                 },
             };

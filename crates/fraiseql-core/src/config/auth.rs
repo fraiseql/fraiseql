@@ -40,15 +40,15 @@ pub struct AuthConfig {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
-            enabled:       false,
-            provider:      AuthProvider::None,
-            jwt_secret:    None,
+            enabled: false,
+            provider: AuthProvider::None,
+            jwt_secret: None,
             jwt_algorithm: "HS256".to_string(),
-            domain:        None,
-            audience:      None,
-            client_id:     None,
-            header_name:   "Authorization".to_string(),
-            token_prefix:  "Bearer ".to_string(),
+            domain: None,
+            audience: None,
+            client_id: None,
+            header_name: "Authorization".to_string(),
+            token_prefix: "Bearer ".to_string(),
             exclude_paths: vec!["/health".to_string()],
         }
     }

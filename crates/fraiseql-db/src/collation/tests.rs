@@ -8,10 +8,10 @@ use crate::collation_config::{
 
 fn test_config() -> CollationConfig {
     CollationConfig {
-        enabled:            true,
-        fallback_locale:    "en-US".to_string(),
-        allowed_locales:    vec!["en-US".into(), "fr-FR".into(), "ja-JP".into()],
-        on_invalid_locale:  InvalidLocaleStrategy::Fallback,
+        enabled: true,
+        fallback_locale: "en-US".to_string(),
+        allowed_locales: vec!["en-US".into(), "fr-FR".into(), "ja-JP".into()],
+        on_invalid_locale: InvalidLocaleStrategy::Fallback,
         database_overrides: None,
     }
 }
@@ -29,12 +29,12 @@ fn test_postgres_icu_collation() {
 fn test_postgres_libc_collation() {
     let mut config = test_config();
     config.database_overrides = Some(DatabaseCollationOverrides {
-        postgres:  Some(PostgresCollationConfig {
-            use_icu:  false,
+        postgres: Some(PostgresCollationConfig {
+            use_icu: false,
             provider: "libc".to_string(),
         }),
-        mysql:     None,
-        sqlite:    None,
+        mysql: None,
+        sqlite: None,
         sqlserver: None,
     });
 
@@ -58,12 +58,12 @@ fn test_mysql_collation() {
 fn test_mysql_custom_collation() {
     let mut config = test_config();
     config.database_overrides = Some(DatabaseCollationOverrides {
-        postgres:  None,
-        mysql:     Some(MySqlCollationConfig {
+        postgres: None,
+        mysql: Some(MySqlCollationConfig {
             charset: "utf8mb4".to_string(),
-            suffix:  "_0900_ai_ci".to_string(),
+            suffix: "_0900_ai_ci".to_string(),
         }),
-        sqlite:    None,
+        sqlite: None,
         sqlserver: None,
     });
 
@@ -84,9 +84,9 @@ fn test_sqlite_collation() {
 fn test_sqlite_disabled_nocase() {
     let mut config = test_config();
     config.database_overrides = Some(DatabaseCollationOverrides {
-        postgres:  None,
-        mysql:     None,
-        sqlite:    Some(SqliteCollationConfig { use_nocase: false }),
+        postgres: None,
+        mysql: None,
+        sqlite: Some(SqliteCollationConfig { use_nocase: false }),
         sqlserver: None,
     });
 

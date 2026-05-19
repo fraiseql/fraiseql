@@ -20,7 +20,7 @@ pub trait Validator {
 
 /// Pattern validator using regular expressions.
 pub struct PatternValidator {
-    regex:   Regex,
+    regex: Regex,
     message: String,
 }
 
@@ -50,7 +50,7 @@ impl PatternValidator {
     }
 
     /// Validate that a value matches the pattern.
-    #[must_use] 
+    #[must_use]
     pub fn validate_pattern(&self, value: &str) -> bool {
         self.regex.is_match(value)
     }
@@ -66,7 +66,7 @@ impl Validator for PatternValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "pattern", &self.message)
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -80,13 +80,13 @@ pub struct LengthValidator {
 
 impl LengthValidator {
     /// Create a new length validator.
-    #[must_use] 
+    #[must_use]
     pub const fn new(min: Option<usize>, max: Option<usize>) -> Self {
         Self { min, max }
     }
 
     /// Validate that a string is within the specified length bounds.
-    #[must_use] 
+    #[must_use]
     pub const fn validate_length(&self, value: &str) -> bool {
         let len = value.len();
         if let Some(min) = self.min {
@@ -103,7 +103,7 @@ impl LengthValidator {
     }
 
     /// Get a descriptive error message for length validation failure.
-    #[must_use] 
+    #[must_use]
     pub fn error_message(&self) -> String {
         match (self.min, self.max) {
             (Some(m), Some(x)) => format!("Length must be between {} and {}", m, x),
@@ -124,7 +124,7 @@ impl Validator for LengthValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "length", self.error_message())
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -138,13 +138,13 @@ pub struct RangeValidator {
 
 impl RangeValidator {
     /// Create a new range validator.
-    #[must_use] 
+    #[must_use]
     pub const fn new(min: Option<i64>, max: Option<i64>) -> Self {
         Self { min, max }
     }
 
     /// Validate that a number is within the specified range.
-    #[must_use] 
+    #[must_use]
     pub const fn validate_range(&self, value: i64) -> bool {
         if let Some(min) = self.min {
             if value < min {
@@ -160,7 +160,7 @@ impl RangeValidator {
     }
 
     /// Get a descriptive error message for range validation failure.
-    #[must_use] 
+    #[must_use]
     pub fn error_message(&self) -> String {
         match (self.min, self.max) {
             (Some(m), Some(x)) => format!("Value must be between {} and {}", m, x),
@@ -178,7 +178,7 @@ pub struct EnumValidator {
 
 impl EnumValidator {
     /// Create a new enum validator.
-    #[must_use] 
+    #[must_use]
     pub fn new(values: Vec<String>) -> Self {
         Self {
             allowed_values: values.into_iter().collect(),
@@ -186,13 +186,13 @@ impl EnumValidator {
     }
 
     /// Validate that a value is in the allowed set.
-    #[must_use] 
+    #[must_use]
     pub fn validate_enum(&self, value: &str) -> bool {
         self.allowed_values.contains(value)
     }
 
     /// Get the list of allowed values.
-    #[must_use] 
+    #[must_use]
     pub fn allowed_values(&self) -> Vec<&str> {
         self.allowed_values.iter().map(|s| s.as_str()).collect()
     }
@@ -215,7 +215,7 @@ impl Validator for EnumValidator {
                         format!("Must be one of: {}", allowed)
                     )
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         }
     }
@@ -232,7 +232,7 @@ impl Validator for RequiredValidator {
                     "Field validation failed: {}",
                     ValidationFieldError::new(field, "required", "Field is required")
                 ),
-                path:    Some(field.to_string()),
+                path: Some(field.to_string()),
             })
         } else {
             Ok(())

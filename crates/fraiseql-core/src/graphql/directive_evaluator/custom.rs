@@ -66,7 +66,7 @@ impl CustomDirectiveEvaluator {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            handlers:    HashMap::new(),
+            handlers: HashMap::new(),
             strict_mode: false,
         }
     }
