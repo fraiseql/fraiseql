@@ -21,7 +21,6 @@ jobs:
       - name: Pull latest base images
         run: |
           docker pull python:3.13-slim
-          docker pull gcr.io/distroless/python3-debian12:nonroot
 
       - name: Scan python:3.13-slim
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
@@ -34,17 +33,6 @@ jobs:
           exit-code: 0
         continue-on-error: true
 
-      - name: Scan gcr.io/distroless/python3-debian12:nonroot
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
-        with:
-          scan-type: 'image'
-          scan-ref: 'gcr.io/distroless/python3-debian12:nonroot'
-          severity: 'HIGH,CRITICAL'
-          format: 'json'
-          output: '/tmp/distroless-scan.json'
-          exit-code: 0
-        continue-on-error: true
-
       - name: Check for new HIGH/CRITICAL vulnerabilities
         id: check-vulns
         run: |
@@ -52,17 +40,12 @@ jobs:
           SLIM_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/slim-scan.json || echo 0)
           SLIM_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/slim-scan.json || echo 0)
 
-          DISTROLESS_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/distroless-scan.json || echo 0)
-          DISTROLESS_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/distroless-scan.json || echo 0)
-
           echo "slim_critical=$SLIM_CRITICAL" >> $GITHUB_OUTPUT
           echo "slim_high=$SLIM_HIGH" >> $GITHUB_OUTPUT
-          echo "distroless_critical=$DISTROLESS_CRITICAL" >> $GITHUB_OUTPUT
-          echo "distroless_high=$DISTROLESS_HIGH" >> $GITHUB_OUTPUT
 
           # Determine alert level
-          TOTAL_CRITICAL=$((SLIM_CRITICAL + DISTROLESS_CRITICAL))
-          TOTAL_HIGH=$((SLIM_HIGH + DISTROLESS_HIGH))
+          TOTAL_CRITICAL=$SLIM_CRITICAL
+          TOTAL_HIGH=$SLIM_HIGH
 
           if [ "$TOTAL_CRITICAL" -gt 0 ]; then
             echo "alert_level=CRITICAL" >> $GITHUB_OUTPUT
@@ -86,9 +69,9 @@ jobs:
           - 🔴 Critical: $SLIM_CRITICAL
           - 🟠 High: $SLIM_HIGH
 
-          ## gcr.io/distroless/python3-debian12:nonroot
-          - 🔴 Critical: $DISTROLESS_CRITICAL
-          - 🟠 High: $DISTROLESS_HIGH
+          > Note: distroless scan removed — no in-tree Dockerfile uses
+          > `gcr.io/distroless/python3-debian12:nonroot`. Re-enable when
+          > a `distroless-python:3.13` image is adopted.
 
           ## Action Required
           EOF
