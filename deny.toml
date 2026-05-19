@@ -33,7 +33,7 @@ ignore = [
   # rustls-webpki 0.101.7: CRL parsing panic; transitive via aws-smithy-http-client (rustls 0.21).
   # Affects optional aws-s3 feature only; same root cause as RUSTSEC-2026-0098/0099.
   # DEADLINE: 2026-06-15 — resolved when aws-sdk migrates to rustls 0.23.
-  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-06-15."},
+  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-06-15."}
 ]
 unmaintained = "workspace"
 

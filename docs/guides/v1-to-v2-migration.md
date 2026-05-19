@@ -24,6 +24,7 @@ fraiseql-server --schema schema.compiled.json
 
 **v1**: Single `fraiseql.toml` with schema + config mixed.
 **v2**: Separate concerns:
+
 - Schema authoring: Python/TypeScript decorators
 - Server config: `fraiseql.toml` (security, rate limiting, observability)
 - Compiled output: `schema.compiled.json` (types + config + SQL)
@@ -86,6 +87,7 @@ fraiseql-server --schema schema.compiled.json
 ### 5. Update Client Queries
 
 GraphQL query syntax is unchanged. However:
+
 - Relay cursor pagination is now available (if configured)
 - REST endpoints are available alongside GraphQL
 - Subscription support requires WebSocket configuration
