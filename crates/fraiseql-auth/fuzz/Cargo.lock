@@ -674,7 +674,7 @@ dependencies = [
  "hex",
  "hmac",
  "http",
- "jsonwebtoken 10.4.0",
+ "jsonwebtoken",
  "rand 0.9.4",
  "reqwest",
  "serde",
@@ -699,7 +699,7 @@ name = "fraiseql-auth-fuzz"
 version = "2.1.0"
 dependencies = [
  "fraiseql-auth",
- "jsonwebtoken 9.3.1",
+ "jsonwebtoken",
  "libfuzzer-sys",
 ]
 
@@ -1208,21 +1208,6 @@ dependencies = [
  "futures-util",
  "once_cell",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "jsonwebtoken"
-version = "9.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
-dependencies = [
- "base64",
- "js-sys",
- "pem",
- "ring",
- "serde",
- "serde_json",
- "simple_asn1",
 ]
 
 [[package]]
