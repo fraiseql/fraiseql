@@ -48,6 +48,7 @@ pub struct FraiseQLMcpService<A: DatabaseAdapter> {
 
 impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     /// Create a new MCP service.
+    #[must_use]
     pub fn new(schema: Arc<CompiledSchema>, executor: Arc<Executor<A>>, config: McpConfig) -> Self {
         let tools = super::tools::schema_to_tools(&schema, &config);
         Self {
@@ -61,11 +62,8 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for FraiseQLMcpService<A> {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some("FraiseQL GraphQL database — query and mutate via MCP tools".into()),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_instructions("FraiseQL GraphQL database — query and mutate via MCP tools")
     }
 
     fn list_tools(
