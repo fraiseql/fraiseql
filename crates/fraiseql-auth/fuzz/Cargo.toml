@@ -24,7 +24,7 @@ doc = false
 
 [dependencies]
 libfuzzer-sys = "0.4"
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 
 [dependencies.fraiseql-auth]
 path = ".."
