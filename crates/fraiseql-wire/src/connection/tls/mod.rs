@@ -74,21 +74,25 @@ impl TlsConfig {
     }
 
     /// Get the rustls `ClientConfig` for this TLS configuration.
+    #[must_use]
     pub fn client_config(&self) -> Arc<ClientConfig> {
         self.client_config.clone()
     }
 
     /// Check if hostname verification is enabled.
+    #[must_use]
     pub const fn verify_hostname(&self) -> bool {
         self.verify_hostname
     }
 
     /// Check if invalid certificates are accepted (development only).
+    #[must_use]
     pub const fn danger_accept_invalid_certs(&self) -> bool {
         self.danger_accept_invalid_certs
     }
 
     /// Check if invalid hostnames are accepted (development only).
+    #[must_use]
     pub const fn danger_accept_invalid_hostnames(&self) -> bool {
         self.danger_accept_invalid_hostnames
     }

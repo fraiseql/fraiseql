@@ -24,9 +24,9 @@ mod circuit_breaker_tests {
     #[test]
     fn test_state_for_health_returns_open_after_threshold() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 3600,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
         breaker.record_failure();
@@ -36,9 +36,9 @@ mod circuit_breaker_tests {
     #[test]
     fn test_state_for_health_returns_half_open_after_timeout() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0, // instant recovery for testing
-            success_threshold:     5,
+            success_threshold: 5,
         };
         let breaker = EntityCircuitBreaker::new(config);
         breaker.record_failure();
@@ -84,9 +84,9 @@ mod circuit_breaker_tests {
     #[test]
     fn test_circuit_opens_after_threshold() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     3,
+            failure_threshold: 3,
             recovery_timeout_secs: 60,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -105,9 +105,9 @@ mod circuit_breaker_tests {
     #[test]
     fn test_circuit_stays_open_before_timeout() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 3600, // very long timeout — should not auto-recover
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -119,9 +119,9 @@ mod circuit_breaker_tests {
     #[test]
     fn test_circuit_half_open_after_timeout() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0, // instant recovery for testing
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -134,9 +134,9 @@ mod circuit_breaker_tests {
     #[test]
     fn test_circuit_half_open_blocks_concurrent_probes() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0,
-            success_threshold:     5, // high threshold to stay in HalfOpen
+            success_threshold: 5, // high threshold to stay in HalfOpen
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -151,9 +151,9 @@ mod circuit_breaker_tests {
     #[test]
     fn test_circuit_closes_after_recovery() {
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -172,9 +172,9 @@ mod circuit_breaker_tests {
     fn test_circuit_half_open_probe_cleared_after_success() {
         // After a successful probe, probe_in_flight is cleared so the next probe can proceed.
         let config = CircuitBreakerConfig {
-            failure_threshold:     1,
+            failure_threshold: 1,
             recovery_timeout_secs: 0,
-            success_threshold:     3,
+            success_threshold: 3,
         };
         let breaker = EntityCircuitBreaker::new(config);
 
@@ -359,9 +359,9 @@ mod circuit_breaker_tests {
         // The merged counter+state mutex ensures no TOCTOU race between the old
         // AtomicU32 counter and the separate state mutex.
         let config = CircuitBreakerConfig {
-            failure_threshold:     10,
+            failure_threshold: 10,
             recovery_timeout_secs: 60,
-            success_threshold:     2,
+            success_threshold: 2,
         };
         let breaker = StdArc::new(EntityCircuitBreaker::new(config));
 
@@ -431,12 +431,12 @@ mod health_checker_tests {
     #[test]
     fn test_health_status_serialization() {
         let status = SubgraphHealthStatus {
-            name:                 "test-subgraph".to_string(),
-            available:            true,
-            latency_ms:           25.5,
-            last_check:           Utc::now().to_rfc3339(),
+            name: "test-subgraph".to_string(),
+            available: true,
+            latency_ms: 25.5,
+            last_check: Utc::now().to_rfc3339(),
             error_count_last_60s: 0,
-            error_rate_percent:   0.0,
+            error_rate_percent: 0.0,
         };
 
         let json = serde_json::to_string(&status).unwrap();
@@ -455,7 +455,7 @@ mod health_checker_tests {
     #[test]
     fn health_checker_new_creates_instance() {
         let checker = SubgraphHealthChecker::new(vec![SubgraphConfig {
-            name:     "test".to_string(),
+            name: "test".to_string(),
             endpoint: "https://test.example.com/graphql".to_string(),
         }]);
         assert_eq!(checker.subgraphs.len(), 1);

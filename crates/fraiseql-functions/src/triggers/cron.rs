@@ -117,15 +117,15 @@ pub struct CronSchedule {
     /// The raw cron expression (e.g., "0 2 * * *").
     pub expression: String,
     /// Parsed minute field (0-59)
-    minute:         CronField,
+    minute: CronField,
     /// Parsed hour field (0-23)
-    hour:           CronField,
+    hour: CronField,
     /// Parsed day-of-month field (1-31)
-    day:            CronField,
+    day: CronField,
     /// Parsed month field (1-12)
-    month:          CronField,
+    month: CronField,
     /// Parsed day-of-week field (0-6, 0=Sunday)
-    weekday:        CronField,
+    weekday: CronField,
 }
 
 impl CronSchedule {
@@ -158,6 +158,7 @@ impl CronSchedule {
     }
 
     /// Check if a given datetime matches this cron schedule.
+    #[must_use]
     pub fn matches(&self, datetime: &chrono::DateTime<chrono::Utc>) -> bool {
         let minute = datetime.minute();
         let hour = datetime.hour();
@@ -182,6 +183,7 @@ pub struct CronExecutionState {
 
 impl CronExecutionState {
     /// Create a new execution state with no prior executions.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -191,6 +193,7 @@ impl CronExecutionState {
     /// Returns true if:
     /// - Schedule matches the time
     /// - No execution has occurred in this schedule window
+    #[must_use]
     pub fn should_execute(
         &self,
         schedule: &CronSchedule,
@@ -246,6 +249,7 @@ impl CronExecutionState {
     /// Find all missed execution times between two timestamps.
     ///
     /// Finds all times when the schedule would have executed after `since` and before `until`.
+    #[must_use]
     pub fn find_missed_executions(
         &self,
         schedule: &CronSchedule,
@@ -276,13 +280,14 @@ pub struct CronTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Cron expression (e.g., `"0 2 * * *"`).
-    pub schedule:      String,
+    pub schedule: String,
     /// Timezone for schedule evaluation (e.g., `"UTC"`, `"America/New_York"`).
-    pub timezone:      String,
+    pub timezone: String,
 }
 
 impl CronTrigger {
     /// Build an `EventPayload` from a cron execution.
+    #[must_use]
     pub fn build_payload(&self, exec_time: &chrono::DateTime<chrono::Utc>) -> EventPayload {
         let trigger_type = format!("cron:{}", self.function_name);
 
@@ -309,7 +314,7 @@ impl CronTrigger {
 /// Each registered [`CronTrigger`] is checked once per minute. When a trigger's
 /// schedule matches the current time and it has not already fired in this
 /// scheduling window, the function is invoked via the provided
-/// [`FunctionObserver`](crate::observer::FunctionObserver).
+/// [`FunctionObserver`](crate::FunctionObserver).
 ///
 /// # Lifecycle
 ///

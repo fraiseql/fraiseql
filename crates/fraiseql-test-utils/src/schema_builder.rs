@@ -55,22 +55,22 @@ use fraiseql_core::schema::{
 /// ```
 #[derive(Default)]
 pub struct TestSchemaBuilder {
-    queries:    Vec<QueryDefinition>,
-    mutations:  Vec<MutationDefinition>,
-    types:      Vec<TypeDefinition>,
-    security:   Option<SecurityConfig>,
+    queries: Vec<QueryDefinition>,
+    mutations: Vec<MutationDefinition>,
+    types: Vec<TypeDefinition>,
+    security: Option<SecurityConfig>,
     federation: Option<serde_json::Value>,
 }
 
 impl TestSchemaBuilder {
     /// Create an empty builder.
-    #[must_use]
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Add a pre-built query definition.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_query(mut self, query: QueryDefinition) -> Self {
         self.queries.push(query);
         self
@@ -102,7 +102,7 @@ impl TestSchemaBuilder {
     }
 
     /// Add a pre-built mutation definition.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_mutation(mut self, mutation: MutationDefinition) -> Self {
         self.mutations.push(mutation);
         self
@@ -117,7 +117,7 @@ impl TestSchemaBuilder {
     }
 
     /// Add a pre-built type definition.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_type(mut self, type_def: TypeDefinition) -> Self {
         self.types.push(type_def);
         self
@@ -132,14 +132,14 @@ impl TestSchemaBuilder {
     }
 
     /// Set the security configuration.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_security(mut self, security: SecurityConfig) -> Self {
         self.security = Some(security);
         self
     }
 
     /// Set the federation configuration as raw JSON.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_federation(mut self, config: serde_json::Value) -> Self {
         self.federation = Some(config);
         self
@@ -148,7 +148,7 @@ impl TestSchemaBuilder {
     /// Build the schema and populate all lookup indexes.
     ///
     /// Equivalent to calling `CompiledSchema::from_json()` — always indexes.
-    #[must_use]
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> CompiledSchema {
         let mut schema = CompiledSchema {
             queries: self.queries,
@@ -187,81 +187,81 @@ impl TestSchemaBuilder {
 /// assert!(query.returns_list);
 /// ```
 pub struct TestQueryBuilder {
-    name:                String,
-    return_type:         String,
-    returns_list:        bool,
-    sql_source:          Option<String>,
-    requires_role:       Option<String>,
-    cache_ttl:           Option<u64>,
-    description:         Option<String>,
-    deprecated:          Option<String>,
-    additional_views:    Vec<String>,
-    no_source:           bool,
-    relay:               bool,
+    name: String,
+    return_type: String,
+    returns_list: bool,
+    sql_source: Option<String>,
+    requires_role: Option<String>,
+    cache_ttl: Option<u64>,
+    description: Option<String>,
+    deprecated: Option<String>,
+    additional_views: Vec<String>,
+    no_source: bool,
+    relay: bool,
     relay_cursor_column: Option<String>,
-    relay_cursor_type:   CursorType,
+    relay_cursor_type: CursorType,
 }
 
 impl TestQueryBuilder {
     /// Create a query builder with the given name and return type.
     ///
     /// Defaults: `sql_source = "v_{name}"`, single result, no role requirement.
-    #[must_use]
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn new(name: &str, return_type: &str) -> Self {
         Self {
-            name:                name.to_string(),
-            return_type:         return_type.to_string(),
-            returns_list:        false,
-            sql_source:          None,
-            requires_role:       None,
-            cache_ttl:           None,
-            description:         None,
-            deprecated:          None,
-            additional_views:    Vec::new(),
-            no_source:           false,
-            relay:               false,
+            name: name.to_string(),
+            return_type: return_type.to_string(),
+            returns_list: false,
+            sql_source: None,
+            requires_role: None,
+            cache_ttl: None,
+            description: None,
+            deprecated: None,
+            additional_views: Vec::new(),
+            no_source: false,
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
+            relay_cursor_type: CursorType::default(),
         }
     }
 
     /// Set whether the query returns a list.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn returns_list(mut self, flag: bool) -> Self {
         self.returns_list = flag;
         self
     }
 
     /// Override the default SQL source view name.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_sql_source(mut self, source: &str) -> Self {
         self.sql_source = Some(source.to_string());
         self
     }
 
     /// Require this role to execute the query.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn requires_role(mut self, role: &str) -> Self {
         self.requires_role = Some(role.to_string());
         self
     }
 
     /// Set a per-query cache TTL (in seconds).
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn with_cache_ttl(mut self, secs: u64) -> Self {
         self.cache_ttl = Some(secs);
         self
     }
 
     /// Set a human-readable description.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_description(mut self, desc: &str) -> Self {
         self.description = Some(desc.to_string());
         self
     }
 
     /// Mark the query as deprecated with the given reason.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn deprecated(mut self, reason: &str) -> Self {
         self.deprecated = Some(reason.to_string());
         self
@@ -270,14 +270,14 @@ impl TestQueryBuilder {
     /// Do not set a SQL source (custom resolver, no database view).
     ///
     /// Overrides the default `"v_{name}"` source with `None`.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn no_sql_source(mut self) -> Self {
         self.no_source = true;
         self
     }
 
     /// Enable Relay connection pagination for this query.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn relay(mut self, flag: bool) -> Self {
         self.relay = flag;
         self
@@ -286,7 +286,7 @@ impl TestQueryBuilder {
     /// Set the keyset cursor column for Relay pagination (e.g., `"pk_user"`).
     ///
     /// Implies `relay(true)`.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn relay_cursor_column(mut self, col: &str) -> Self {
         self.relay = true;
         self.relay_cursor_column = Some(col.to_string());
@@ -297,7 +297,7 @@ impl TestQueryBuilder {
     ///
     /// Defaults to `CursorType::Int64` (bigint). Use `CursorType::Uuid` when
     /// the cursor column holds a UUID.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn relay_cursor_type(mut self, cursor_type: CursorType) -> Self {
         self.relay_cursor_type = cursor_type;
         self
@@ -306,7 +306,7 @@ impl TestQueryBuilder {
     /// Add secondary views for cache invalidation.
     ///
     /// These are views that the query reads from in addition to the primary SQL source.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_additional_views(mut self, views: Vec<String>) -> Self {
         self.additional_views = views;
         self
@@ -315,7 +315,7 @@ impl TestQueryBuilder {
     /// Build the `QueryDefinition`.
     ///
     /// Uses `QueryDefinition::new()` so new fields are picked up automatically.
-    #[must_use]
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> QueryDefinition {
         let mut q = QueryDefinition::new(&self.name, &self.return_type);
 
@@ -380,44 +380,44 @@ impl TestQueryBuilder {
 /// assert_eq!(mutation.name, "createUser");
 /// ```
 pub struct TestMutationBuilder {
-    name:        String,
+    name: String,
     return_type: String,
-    sql_source:  Option<String>,
+    sql_source: Option<String>,
     description: Option<String>,
-    deprecated:  Option<String>,
+    deprecated: Option<String>,
 }
 
 impl TestMutationBuilder {
     /// Create a mutation builder with the given name and return type.
     ///
     /// Defaults: `sql_source = "fn_{name}"`, operation = `Custom`.
-    #[must_use]
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn new(name: &str, return_type: &str) -> Self {
         Self {
-            name:        name.to_string(),
+            name: name.to_string(),
             return_type: return_type.to_string(),
-            sql_source:  None,
+            sql_source: None,
             description: None,
-            deprecated:  None,
+            deprecated: None,
         }
     }
 
     /// Override the default SQL function name.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_sql_source(mut self, source: &str) -> Self {
         self.sql_source = Some(source.to_string());
         self
     }
 
     /// Set a human-readable description.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_description(mut self, desc: &str) -> Self {
         self.description = Some(desc.to_string());
         self
     }
 
     /// Mark the mutation as deprecated with the given reason.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn deprecated(mut self, reason: &str) -> Self {
         self.deprecated = Some(reason.to_string());
         self
@@ -426,7 +426,7 @@ impl TestMutationBuilder {
     /// Build the `MutationDefinition`.
     ///
     /// Uses `MutationDefinition::new()` so new fields are picked up automatically.
-    #[must_use]
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> MutationDefinition {
         let sql_source = self.sql_source.unwrap_or_else(|| format!("fn_{}", self.name));
 
@@ -465,32 +465,32 @@ impl TestMutationBuilder {
 /// assert_eq!(type_def.fields.len(), 2);
 /// ```
 pub struct TestTypeBuilder {
-    name:          String,
-    sql_source:    String,
-    fields:        Vec<FieldDefinition>,
+    name: String,
+    sql_source: String,
+    fields: Vec<FieldDefinition>,
     requires_role: Option<String>,
-    description:   Option<String>,
-    relay:         bool,
-    implements:    Vec<String>,
+    description: Option<String>,
+    relay: bool,
+    implements: Vec<String>,
 }
 
 impl TestTypeBuilder {
     /// Create a type builder with the given name and SQL source.
-    #[must_use]
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn new(name: &str, sql_source: &str) -> Self {
         Self {
-            name:          name.to_string(),
-            sql_source:    sql_source.to_string(),
-            fields:        Vec::new(),
+            name: name.to_string(),
+            sql_source: sql_source.to_string(),
+            fields: Vec::new(),
             requires_role: None,
-            description:   None,
-            relay:         false,
-            implements:    Vec::new(),
+            description: None,
+            relay: false,
+            implements: Vec::new(),
         }
     }
 
     /// Add a field to the type.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_field(mut self, field: FieldDefinition) -> Self {
         self.fields.push(field);
         self
@@ -517,14 +517,14 @@ impl TestTypeBuilder {
     }
 
     /// Require this role to see the type in introspection.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn requires_role(mut self, role: &str) -> Self {
         self.requires_role = Some(role.to_string());
         self
     }
 
     /// Set a human-readable description.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_description(mut self, desc: &str) -> Self {
         self.description = Some(desc.to_string());
         self
@@ -533,7 +533,7 @@ impl TestTypeBuilder {
     /// Mark the type as a Relay node (implements `Node` interface).
     ///
     /// Sets `relay = true` on the underlying `TypeDefinition`.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn relay_node(mut self) -> Self {
         self.relay = true;
         self
@@ -542,7 +542,7 @@ impl TestTypeBuilder {
     /// Declare that this type implements the given interfaces.
     ///
     /// Pass the interface names (e.g., `&["Node"]`).
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_implements(mut self, interfaces: &[&str]) -> Self {
         self.implements = interfaces.iter().map(|s| (*s).to_string()).collect();
         self
@@ -551,7 +551,7 @@ impl TestTypeBuilder {
     /// Build the `TypeDefinition`.
     ///
     /// Uses `TypeDefinition::new()` so new fields are picked up automatically.
-    #[must_use]
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> TypeDefinition {
         let mut t = TypeDefinition::new(&self.name, &self.sql_source);
         t.fields = self.fields;
@@ -594,7 +594,7 @@ pub struct TestFieldBuilder {
 
 impl TestFieldBuilder {
     /// Create a non-nullable, public field.
-    #[must_use]
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn new(name: &str, field_type: FieldType) -> Self {
         Self {
             inner: FieldDefinition::new(name, field_type),
@@ -614,28 +614,28 @@ impl TestFieldBuilder {
     }
 
     /// Require `scope` to access this field.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn requires_scope(mut self, scope: &str) -> Self {
         self.inner.requires_scope = Some(scope.to_string());
         self
     }
 
     /// Set the deny policy (what happens when the scope is missing).
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn on_deny(mut self, policy: FieldDenyPolicy) -> Self {
         self.inner.on_deny = policy;
         self
     }
 
     /// Set a human-readable description.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_description(mut self, desc: &str) -> Self {
         self.inner.description = Some(desc.to_string());
         self
     }
 
     /// Mark the field as deprecated with the given reason.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn deprecated(mut self, reason: &str) -> Self {
         self.inner.deprecation = Some(DeprecationInfo {
             reason: Some(reason.to_string()),
@@ -644,7 +644,7 @@ impl TestFieldBuilder {
     }
 
     /// Build the `FieldDefinition`.
-    #[must_use]
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> FieldDefinition {
         self.inner
     }

@@ -22,13 +22,13 @@ use serde_json::json;
 fn test_where_nested_path_3_levels() {
     // 3-level path: user.profile.address
     let clause = WhereClause::Field {
-        path:     vec![
+        path: vec![
             "user".to_string(),
             "profile".to_string(),
             "address".to_string(),
         ],
         operator: WhereOperator::Eq,
-        value:    json!("123 Main St"),
+        value: json!("123 Main St"),
     };
 
     match clause {
@@ -47,7 +47,7 @@ fn test_where_nested_path_3_levels() {
 fn test_where_nested_path_5_levels() {
     // 5-level path: user.profile.address.country.region
     let clause = WhereClause::Field {
-        path:     vec![
+        path: vec![
             "user".to_string(),
             "profile".to_string(),
             "address".to_string(),
@@ -55,7 +55,7 @@ fn test_where_nested_path_5_levels() {
             "region".to_string(),
         ],
         operator: WhereOperator::Eq,
-        value:    json!("California"),
+        value: json!("California"),
     };
 
     match clause {
@@ -136,9 +136,9 @@ fn test_where_nested_path_with_different_operators() {
 
     for (op, _desc) in operators {
         let clause = WhereClause::Field {
-            path:     path.clone(),
+            path: path.clone(),
             operator: op.clone(),
-            value:    json!("test"),
+            value: json!("test"),
         };
 
         match clause {
@@ -165,9 +165,9 @@ fn test_where_nested_path_special_characters() {
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path: path.clone(),
         operator: WhereOperator::Contains,
-        value:    json!("example.com"),
+        value: json!("example.com"),
     };
 
     match clause {
@@ -273,9 +273,9 @@ fn test_where_deeply_nested_unicode_paths() {
     ];
 
     let clause = WhereClause::Field {
-        path:     path.clone(),
+        path: path.clone(),
         operator: WhereOperator::Contains,
-        value:    json!("contact@example.fr"),
+        value: json!("contact@example.fr"),
     };
 
     match clause {
@@ -335,15 +335,15 @@ fn test_where_deeply_nested_case_sensitivity() {
     ];
 
     let clause_lower = WhereClause::Field {
-        path:     path_lower,
+        path: path_lower,
         operator: WhereOperator::Eq,
-        value:    json!("example.com"),
+        value: json!("example.com"),
     };
 
     let clause_upper = WhereClause::Field {
-        path:     path_upper,
+        path: path_upper,
         operator: WhereOperator::Eq,
-        value:    json!("example.com"),
+        value: json!("example.com"),
     };
 
     match (clause_lower, clause_upper) {
@@ -376,9 +376,9 @@ fn test_where_deeply_nested_with_ltree_operators() {
 
     for op in ltree_operators {
         let clause = WhereClause::Field {
-            path:     path.clone(),
+            path: path.clone(),
             operator: op.clone(),
-            value:    json!("a.b.c"),
+            value: json!("a.b.c"),
         };
 
         match clause {

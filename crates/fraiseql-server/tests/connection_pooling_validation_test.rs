@@ -257,7 +257,7 @@ mod connection_pooling_tests {
                 if get_pool_connection(&pool).await.is_ok() {
                     acquire.fetch_add(1, Ordering::Relaxed);
                     // Simulate some work
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    tokio::task::yield_now().await;
                     release.fetch_add(1, Ordering::Relaxed);
                 }
             });
@@ -514,7 +514,7 @@ async fn get_pool_connection(pool: &MockPool) -> Result<MockConnection, String> 
         // Simulate queue/wait for available connection
         // In real pool, tokio would yield and wait for available slot
         drop(conns);
-        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
         let mut conns = pool.connections.lock().await;
         conns.push(id);
         Ok(MockConnection { id })
@@ -544,7 +544,7 @@ async fn get_pool_connection_with_timeout(
             return Err("Timeout".to_string());
         }
 
-        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
     }
 }
 
@@ -558,7 +558,7 @@ async fn get_pool_connection_id(pool: &MockPool) -> Result<u64, String> {
         conns.push(id);
     } else {
         drop(conns);
-        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
         let mut conns = pool.connections.lock().await;
         conns.push(id);
     }
@@ -569,9 +569,9 @@ async fn get_pool_connection_id(pool: &MockPool) -> Result<u64, String> {
 // Mock pool types for testing
 #[derive(Clone)]
 struct MockPool {
-    max_size:    u32,
+    max_size: u32,
     connections: Arc<Mutex<Vec<u64>>>,
-    next_id:     Arc<AtomicU64>,
+    next_id: Arc<AtomicU64>,
 }
 
 #[allow(dead_code)] // Reason: fields read by pool tests that inspect connection identity
@@ -582,8 +582,8 @@ struct MockConnection {
 #[derive(Clone)]
 #[allow(dead_code)] // Reason: fields read by timeout-specific pool tests
 struct MockPoolWithTimeout {
-    max_size:    u32,
-    timeout:     std::time::Duration,
+    max_size: u32,
+    timeout: std::time::Duration,
     connections: Arc<Mutex<Vec<u64>>>,
-    next_id:     Arc<AtomicU64>,
+    next_id: Arc<AtomicU64>,
 }

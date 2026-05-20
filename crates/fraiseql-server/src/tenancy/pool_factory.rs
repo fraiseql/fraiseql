@@ -22,16 +22,16 @@ use super::schema_isolation;
 #[derive(Debug, Clone, Deserialize)]
 pub struct TenantPoolConfig {
     /// Database connection string (e.g. `postgres://user:pass@host:5432/db`).
-    pub connection_string:    String,
+    pub connection_string: String,
     /// Maximum number of connections in the pool.
     #[serde(default = "default_max_connections")]
-    pub max_connections:      u32,
+    pub max_connections: u32,
     /// Connection timeout in seconds.
     #[serde(default = "default_connect_timeout")]
     pub connect_timeout_secs: u64,
     /// Idle connection timeout in seconds.
     #[serde(default = "default_idle_timeout")]
-    pub idle_timeout_secs:    u64,
+    pub idle_timeout_secs: u64,
 }
 
 const fn default_max_connections() -> u32 {
@@ -91,7 +91,7 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
     // 1. Parse and validate schema
     let schema =
         CompiledSchema::from_json(schema_json, false).map_err(|e| FraiseQLError::Parse {
-            message:  format!("Invalid compiled schema JSON: {e}"),
+            message: format!("Invalid compiled schema JSON: {e}"),
             location: String::new(),
         })?;
 

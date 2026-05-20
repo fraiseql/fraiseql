@@ -85,6 +85,7 @@ pub struct SubgraphHealthAggregator {
 
 impl SubgraphHealthAggregator {
     /// Create a new health aggregator.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             subgraphs: Mutex::new(HashMap::new()),

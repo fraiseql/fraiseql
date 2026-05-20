@@ -654,10 +654,10 @@ mod sqlserver_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
             .await
             .expect("forward first page");
-        assert_eq!(result.rows.len(), 3);
-        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        assert_eq!(result.rows().len(), 3);
+        let labels: Vec<String> = result.rows().iter().map(extract_label).collect();
         assert_eq!(labels, vec!["item-1", "item-2", "item-3"]);
-        assert_eq!(result.total_count, None);
+        assert_eq!(result.total_count(), None);
     }
 
     #[tokio::test]
@@ -677,7 +677,7 @@ mod sqlserver_relay_tests {
             )
             .await
             .expect("forward with after cursor");
-        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        let labels: Vec<String> = result.rows().iter().map(extract_label).collect();
         assert_eq!(labels, vec!["item-4", "item-5", "item-6"]);
     }
 
@@ -698,7 +698,7 @@ mod sqlserver_relay_tests {
             )
             .await
             .expect("forward exhausted");
-        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        let labels: Vec<String> = result.rows().iter().map(extract_label).collect();
         assert_eq!(labels, vec!["item-9", "item-10"]);
     }
 
@@ -720,7 +720,7 @@ mod sqlserver_relay_tests {
             .await
             .expect("backward with before cursor");
         // Rows before UUID-5 (exclusive), last 3, re-sorted ASC → items 2,3,4
-        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        let labels: Vec<String> = result.rows().iter().map(extract_label).collect();
         assert_eq!(labels, vec!["item-2", "item-3", "item-4"]);
     }
 
@@ -732,7 +732,7 @@ mod sqlserver_relay_tests {
             .await
             .expect("backward first page no cursor");
         // Last 3 rows in ascending cursor order → items 8,9,10
-        let labels: Vec<String> = result.rows.iter().map(extract_label).collect();
+        let labels: Vec<String> = result.rows().iter().map(extract_label).collect();
         assert_eq!(labels, vec!["item-8", "item-9", "item-10"]);
     }
 
@@ -743,7 +743,7 @@ mod sqlserver_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, true)
             .await
             .expect("total count");
-        assert_eq!(result.total_count, Some(10));
+        assert_eq!(result.total_count(), Some(10));
     }
 
     #[tokio::test]
@@ -764,7 +764,7 @@ mod sqlserver_relay_tests {
             .await
             .expect("total count ignores cursor");
         // totalCount counts all matching rows, not just those after the cursor.
-        assert_eq!(result.total_count, Some(10));
+        assert_eq!(result.total_count(), Some(10));
     }
 
     #[tokio::test]
@@ -774,16 +774,16 @@ mod sqlserver_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
             .await
             .expect("no total count");
-        assert_eq!(result.total_count, None);
+        assert_eq!(result.total_count(), None);
     }
 
     #[tokio::test]
     async fn test_sqlserver_relay_forward_with_where_clause() {
         let a = adapter().await;
         let clause = WhereClause::Field {
-            path:     vec!["score".to_string()],
+            path: vec!["score".to_string()],
             operator: WhereOperator::Gte,
-            value:    serde_json::json!(50),
+            value: serde_json::json!(50),
         };
         let result = a
             .execute_relay_page(
@@ -800,8 +800,8 @@ mod sqlserver_relay_tests {
             .await
             .expect("forward with where clause");
         // Scores ≥ 50: items 1(50), 3(70), 5(90), 7(60), 9(80) → 5 rows
-        assert_eq!(result.rows.len(), 5);
-        for row in &result.rows {
+        assert_eq!(result.rows().len(), 5);
+        for row in result.rows() {
             let score = extract_score(row);
             assert!(score >= 50, "All rows must have score >= 50, got {score}");
         }
@@ -833,10 +833,10 @@ mod sqlserver_relay_tests {
             .await
             .expect("backward custom order_by score asc");
 
-        assert_eq!(result.rows.len(), 3, "Should return exactly 3 rows");
+        assert_eq!(result.rows().len(), 3, "Should return exactly 3 rows");
 
         // Verify scores are in ascending order (proves backward direction flip is correct).
-        let scores: Vec<i64> = result.rows.iter().map(extract_score).collect();
+        let scores: Vec<i64> = result.rows().iter().map(extract_score).collect();
         assert_eq!(scores, vec![30, 50, 70], "Rows must be in score ASC order");
     }
 
@@ -857,7 +857,7 @@ mod sqlserver_relay_tests {
             )
             .await
             .expect("forward empty result");
-        assert!(result.rows.is_empty(), "Should return 0 rows after the last UUID");
+        assert!(result.rows().is_empty(), "Should return 0 rows after the last UUID");
     }
 
     #[tokio::test]
@@ -939,9 +939,9 @@ mod mysql_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
             .await
             .expect("forward first page");
-        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.rows().len(), 3);
         // First page has no previous entries (cursor starts at beginning)
-        assert!(!result.rows.is_empty(), "first page must return rows");
+        assert!(!result.rows().is_empty(), "first page must return rows");
     }
 
     /// Forward pagination with an `after` cursor skips earlier rows.
@@ -953,7 +953,7 @@ mod mysql_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, false)
             .await
             .expect("first page");
-        assert_eq!(first.rows.len(), 3);
+        assert_eq!(first.rows().len(), 3);
 
         // Extract cursor from the last row's id field (MySQL relay_item uses CHAR(36) UUIDs)
         let last_id = first
@@ -977,7 +977,7 @@ mod mysql_relay_tests {
             )
             .await
             .expect("second page");
-        assert!(!second.rows.is_empty(), "second page must have rows after cursor");
+        assert!(!second.rows().is_empty(), "second page must have rows after cursor");
     }
 
     /// Requesting more rows than exist returns no further pages.
@@ -988,9 +988,9 @@ mod mysql_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 100, true, None, None, false)
             .await
             .expect("over-limit page");
-        assert_eq!(result.rows.len(), 10, "all 10 rows returned");
+        assert_eq!(result.rows().len(), 10, "all 10 rows returned");
         // Requesting more than total rows means no further pages
-        assert!(result.rows.len() <= 100, "rows must not exceed requested limit");
+        assert!(result.rows().len() <= 100, "rows must not exceed requested limit");
     }
 
     /// Backward pagination returns the last page.
@@ -1001,9 +1001,9 @@ mod mysql_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 3, false, None, None, false)
             .await
             .expect("backward last page");
-        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.rows().len(), 3);
         // Backward page of 3 from 10 rows returns exactly 3 rows
-        assert!(result.rows.len() <= 3, "must not exceed requested limit");
+        assert!(result.rows().len() <= 3, "must not exceed requested limit");
     }
 
     /// Total count is returned when requested.
@@ -1014,7 +1014,7 @@ mod mysql_relay_tests {
             .execute_relay_page("v_relay_item", "id", None, None, 3, true, None, None, true)
             .await
             .expect("total count query");
-        assert_eq!(result.total_count, Some(10), "must count all 10 rows");
+        assert_eq!(result.total_count(), Some(10), "must count all 10 rows");
     }
 
     /// WHERE filter reduces the result set.
@@ -1024,9 +1024,9 @@ mod mysql_relay_tests {
         let a = adapter().await;
         // Filter: only items whose label is "item-1"
         let where_clause = WhereClause::Field {
-            path:     vec!["label".to_string()],
+            path: vec!["label".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("item-1"),
+            value: json!("item-1"),
         };
         let result = a
             .execute_relay_page(
@@ -1042,9 +1042,9 @@ mod mysql_relay_tests {
             )
             .await
             .expect("filtered relay page");
-        assert_eq!(result.total_count, Some(1), "only item-1 matches");
-        assert_eq!(result.rows.len(), 1);
-        assert_eq!(extract_label(&result.rows[0]), "item-1");
+        assert_eq!(result.total_count(), Some(1), "only item-1 matches");
+        assert_eq!(result.rows().len(), 1);
+        assert_eq!(extract_label(&result.rows()[0]), "item-1");
     }
 
     /// Querying a non-existent view returns a database error.

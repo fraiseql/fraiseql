@@ -36,6 +36,13 @@ pub use select::{parse_select_entries, validate_embedding_depth};
 /// Maximum number of total extracted variables (path + query + body).
 const MAX_VARIABLES_COUNT: usize = 1_000;
 
+/// Maximum total byte length of all query-string values combined.
+///
+/// Prevents memory exhaustion from requests with many large parameter values
+/// (e.g., 1 000 field names each 1 MB long).  The HTTP body is capped
+/// separately; this limit covers URL-encoded query strings.
+const MAX_QUERY_STRING_BYTES: usize = 1_048_576; // 1 MiB
+
 /// Maximum nesting depth for `?filter=` JSON values.
 const MAX_FILTER_DEPTH: usize = 64;
 
@@ -77,23 +84,23 @@ const RESERVED_PARAMS: &[&str] = &[
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct ExtractedParams {
     /// Path parameters (e.g., `[("id", 123)]`).
-    pub path_params:       Vec<(String, serde_json::Value)>,
+    pub path_params: Vec<(String, serde_json::Value)>,
     /// WHERE clause for the query (merged from simple/bracket/filter/logical params).
-    pub where_clause:      Option<serde_json::Value>,
+    pub where_clause: Option<serde_json::Value>,
     /// ORDER BY clause (from `?sort=`).
-    pub order_by:          Option<serde_json::Value>,
+    pub order_by: Option<serde_json::Value>,
     /// Pagination parameters.
-    pub pagination:        PaginationParams,
+    pub pagination: PaginationParams,
     /// Field selection (from `?select=`).
-    pub field_selection:   RestFieldSpec,
+    pub field_selection: RestFieldSpec,
     /// Full-text search query (from `?search=`).
-    pub search_query:      Option<String>,
+    pub search_query: Option<String>,
     /// Embedded resource specifications (from parenthetical select syntax).
-    pub embeddings:        Vec<EmbeddedSpec>,
+    pub embeddings: Vec<EmbeddedSpec>,
     /// Embedded resource filters (from `?rel.field[op]=value` syntax).
     pub embedding_filters: HashMap<String, serde_json::Value>,
     /// Count-only embeddings (from `?select=id,posts.count`).
-    pub embedding_counts:  Vec<String>,
+    pub embedding_counts: Vec<String>,
 }
 
 /// Pagination mode and parameters.
@@ -103,18 +110,18 @@ pub enum PaginationParams {
     /// Offset-based pagination.
     Offset {
         /// Maximum number of rows to return.
-        limit:  u64,
+        limit: u64,
         /// Number of rows to skip.
         offset: u64,
     },
     /// Cursor-based (Relay) pagination.
     Cursor {
         /// Forward page size.
-        first:  Option<u64>,
+        first: Option<u64>,
         /// Cursor to start after.
-        after:  Option<String>,
+        after: Option<String>,
         /// Backward page size.
-        last:   Option<u64>,
+        last: Option<u64>,
         /// Cursor to start before.
         before: Option<String>,
     },
@@ -155,9 +162,9 @@ pub struct EmbeddedSpec {
     /// Relationship name (e.g., "posts") or FK column (e.g., "`fk_user`").
     pub relationship: String,
     /// Optional rename for the embedded field (e.g., `author` in `author:fk_user(...)`).
-    pub rename:       Option<String>,
+    pub rename: Option<String>,
     /// Sub-selected fields (may include nested `EmbeddedSpec`).
-    pub fields:       Vec<SelectEntry>,
+    pub fields: Vec<SelectEntry>,
 }
 
 // ---------------------------------------------------------------------------
@@ -166,9 +173,9 @@ pub struct EmbeddedSpec {
 
 /// Extracts and validates REST request parameters against schema metadata.
 pub struct RestParamExtractor<'a> {
-    config:    &'a RestConfig,
+    config: &'a RestConfig,
     query_def: &'a QueryDefinition,
-    type_def:  Option<&'a TypeDefinition>,
+    type_def: Option<&'a TypeDefinition>,
 }
 
 impl<'a> RestParamExtractor<'a> {
@@ -203,11 +210,21 @@ impl<'a> RestParamExtractor<'a> {
     /// - The filter JSON exceeds `max_filter_bytes`
     /// - The filter JSON exceeds `MAX_FILTER_DEPTH`
     /// - Total parameter count exceeds `MAX_VARIABLES_COUNT`
+    /// - Total query-string byte length exceeds `MAX_QUERY_STRING_BYTES`
     pub fn extract(
         &self,
         path_pairs: &[(&str, &str)],
         query_pairs: &[(&str, &str)],
     ) -> Result<ExtractedParams, FraiseQLError> {
+        // 0. Enforce aggregate query-string size limit.
+        let total_query_bytes: usize = query_pairs.iter().map(|(k, v)| k.len() + v.len()).sum();
+        if total_query_bytes > MAX_QUERY_STRING_BYTES {
+            return Err(validation_error(format!(
+                "Total query string size ({total_query_bytes} bytes) exceeds maximum \
+                 allowed ({MAX_QUERY_STRING_BYTES} bytes)."
+            )));
+        }
+
         let is_relay = self.query_def.relay;
         let is_list = self.query_def.returns_list;
 

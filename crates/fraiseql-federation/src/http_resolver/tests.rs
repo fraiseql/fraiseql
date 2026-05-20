@@ -224,7 +224,7 @@ fn test_response_parsing_success() {
     let representations = vec![mock_representation("User", "123")];
 
     let response = GraphQLResponse {
-        data:   Some(json!({
+        data: Some(json!({
             "_entities": [
                 { "id": "123", "email": "user@example.com" }
             ]
@@ -245,7 +245,7 @@ fn test_response_parsing_with_errors() {
     let representations = vec![mock_representation("User", "123")];
 
     let response = GraphQLResponse {
-        data:   None,
+        data: None,
         errors: Some(vec![GraphQLError::new("Entity not found")]),
     };
 
@@ -265,7 +265,7 @@ fn test_response_parsing_entity_count_mismatch() {
     ];
 
     let response = GraphQLResponse {
-        data:   Some(json!({
+        data: Some(json!({
             "_entities": [
                 { "id": "123" }
             ]
@@ -291,8 +291,8 @@ fn test_config_defaults() {
 #[test]
 fn test_config_custom() {
     let config = HttpClientConfig {
-        timeout_ms:     10000,
-        max_retries:    5,
+        timeout_ms: 10000,
+        max_retries: 5,
         retry_delay_ms: 200,
     };
     assert_eq!(config.timeout_ms, 10000);
@@ -360,15 +360,15 @@ async fn entity_resolver_oversized_response_is_rejected() {
         .await;
 
     let config = HttpClientConfig {
-        timeout_ms:     5000,
-        max_retries:    1,
+        timeout_ms: 5000,
+        max_retries: 1,
         retry_delay_ms: 0,
     };
     // new_for_test bypasses SSRF guard so we can reach the loopback mock server.
     let resolver = HttpEntityResolver::new_for_test(config).unwrap();
     let url = format!("{}/_entities", mock.uri());
     let repr = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
         all_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
     };
@@ -402,14 +402,14 @@ async fn entity_resolver_valid_response_is_parsed() {
         .await;
 
     let config = HttpClientConfig {
-        timeout_ms:     5000,
-        max_retries:    1,
+        timeout_ms: 5000,
+        max_retries: 1,
         retry_delay_ms: 0,
     };
     let resolver = HttpEntityResolver::new_for_test(config).unwrap();
     let url = format!("{}/_entities", mock.uri());
     let repr = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
         all_fields: HashMap::from([("id".to_string(), serde_json::json!("1"))]),
     };

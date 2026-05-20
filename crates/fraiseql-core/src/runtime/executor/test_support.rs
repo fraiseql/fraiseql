@@ -26,11 +26,11 @@ use crate::{
 /// Capturing mock that records the WHERE clause and limit/offset it receives.
 /// Used to verify parameter threading from executor to adapter.
 pub struct CapturingMockAdapter {
-    pub mock_results:              Vec<JsonbValue>,
-    pub captured_where:            std::sync::Mutex<Option<WhereClause>>,
-    pub captured_limit:            std::sync::Mutex<Option<u32>>,
-    pub captured_offset:           std::sync::Mutex<Option<u32>>,
-    pub captured_aggregate_sql:    std::sync::Mutex<Option<String>>,
+    pub mock_results: Vec<JsonbValue>,
+    pub captured_where: std::sync::Mutex<Option<WhereClause>>,
+    pub captured_limit: std::sync::Mutex<Option<u32>>,
+    pub captured_offset: std::sync::Mutex<Option<u32>>,
+    pub captured_aggregate_sql: std::sync::Mutex<Option<String>>,
     pub captured_aggregate_params: std::sync::Mutex<Option<Vec<serde_json::Value>>>,
 }
 
@@ -108,10 +108,10 @@ impl DatabaseAdapter for CapturingMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  1,
+            total_connections: 1,
             active_connections: 0,
-            idle_connections:   1,
-            waiting_requests:   0,
+            idle_connections: 1,
+            waiting_requests: 0,
         }
     }
 
@@ -149,7 +149,7 @@ impl SupportsMutations for CapturingMockAdapter {}
 /// (`with_view()` builder) so tests can verify correct query routing.
 pub struct MockAdapter {
     /// Default results returned for any view that has no specific override.
-    pub mock_results:   Vec<JsonbValue>,
+    pub mock_results: Vec<JsonbValue>,
     /// Per-view result overrides. When present, `execute_where_query` returns
     /// these instead of `mock_results`, enabling routing-correctness tests.
     pub view_responses: std::collections::HashMap<String, Vec<JsonbValue>>,
@@ -214,10 +214,10 @@ impl DatabaseAdapter for MockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  1,
+            total_connections: 1,
             active_connections: 0,
-            idle_connections:   1,
-            waiting_requests:   0,
+            idle_connections: 1,
+            waiting_requests: 0,
         }
     }
 
@@ -289,10 +289,10 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections:  1,
+            total_connections: 1,
             active_connections: 0,
-            idle_connections:   1,
-            waiting_requests:   0,
+            idle_connections: 1,
+            waiting_requests: 0,
         }
     }
 
@@ -319,26 +319,26 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
 pub fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.queries.push(QueryDefinition {
-        name:                "users".to_string(),
-        return_type:         "User".to_string(),
-        returns_list:        true,
-        nullable:            false,
-        arguments:           Vec::new(),
-        sql_source:          Some("v_user".to_string()),
-        description:         None,
-        auto_params:         AutoParams::default(),
-        deprecation:         None,
-        jsonb_column:        "data".to_string(),
-        relay:               false,
+        name: "users".to_string(),
+        return_type: "User".to_string(),
+        returns_list: true,
+        nullable: false,
+        arguments: Vec::new(),
+        sql_source: Some("v_user".to_string()),
+        description: None,
+        auto_params: AutoParams::default(),
+        deprecation: None,
+        jsonb_column: "data".to_string(),
+        relay: false,
         relay_cursor_column: None,
-        relay_cursor_type:   CursorType::default(),
-        inject_params:       IndexMap::default(),
-        cache_ttl_seconds:   None,
-        additional_views:    vec![],
-        requires_role:       None,
-        rest_path:           None,
-        rest_method:         None,
-        native_columns:      HashMap::new(),
+        relay_cursor_type: CursorType::default(),
+        inject_params: IndexMap::default(),
+        cache_ttl_seconds: None,
+        additional_views: vec![],
+        requires_role: None,
+        rest_path: None,
+        rest_method: None,
+        native_columns: HashMap::new(),
     });
     schema
 }

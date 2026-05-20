@@ -33,6 +33,7 @@ pub struct EloValidationResult {
 
 impl EloExpressionEvaluator {
     /// Create a new ELO expression evaluator.
+    #[must_use]
     pub const fn new(expression: String) -> Self {
         Self { expression }
     }
@@ -226,7 +227,7 @@ impl EloExpressionEvaluator {
                     if parts.len() != 2 {
                         return Err(FraiseQLError::Validation {
                             message: "matches() requires 2 arguments".to_string(),
-                            path:    None,
+                            path: None,
                         });
                     }
 
@@ -248,13 +249,13 @@ impl EloExpressionEvaluator {
                             },
                             Err(_) => Err(FraiseQLError::Validation {
                                 message: format!("Invalid regex pattern: {}", p),
-                                path:    None,
+                                path: None,
                             }),
                         }
                     } else {
                         Err(FraiseQLError::Validation {
                             message: "matches() requires string arguments".to_string(),
-                            path:    None,
+                            path: None,
                         })
                     }
                 },
@@ -263,7 +264,7 @@ impl EloExpressionEvaluator {
                     if parts.len() != 2 {
                         return Err(FraiseQLError::Validation {
                             message: "contains() requires 2 arguments".to_string(),
-                            path:    None,
+                            path: None,
                         });
                     }
 
@@ -283,7 +284,7 @@ impl EloExpressionEvaluator {
                     } else {
                         Err(FraiseQLError::Validation {
                             message: "contains() requires string arguments".to_string(),
-                            path:    None,
+                            path: None,
                         })
                     }
                 },
@@ -297,7 +298,7 @@ impl EloExpressionEvaluator {
                     } else {
                         Err(FraiseQLError::Validation {
                             message: "length() requires a string argument".to_string(),
-                            path:    None,
+                            path: None,
                         })
                     }
                 },
@@ -311,13 +312,13 @@ impl EloExpressionEvaluator {
                 },
                 _ => Err(FraiseQLError::Validation {
                     message: format!("Unknown function: {}", func_name),
-                    path:    None,
+                    path: None,
                 }),
             }
         } else {
             Err(FraiseQLError::Validation {
                 message: "Invalid function call".to_string(),
-                path:    None,
+                path: None,
             })
         }
     }
@@ -476,7 +477,7 @@ impl EloExpressionEvaluator {
 
         Err(FraiseQLError::Validation {
             message: format!("Cannot resolve value: {}", trimmed),
-            path:    None,
+            path: None,
         })
     }
 

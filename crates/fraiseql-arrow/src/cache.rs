@@ -14,7 +14,7 @@ use dashmap::DashMap;
 #[derive(Clone, Debug)]
 struct CacheEntry {
     /// Cached result as JSON rows
-    result:     Arc<Vec<std::collections::HashMap<String, serde_json::Value>>>,
+    result: Arc<Vec<std::collections::HashMap<String, serde_json::Value>>>,
     /// Unix timestamp when entry expires
     expires_at: u64,
 }
@@ -47,7 +47,7 @@ struct CacheEntry {
 /// ```
 pub struct QueryCache {
     /// Map from SQL query to cached result
-    entries:  DashMap<String, CacheEntry>,
+    entries: DashMap<String, CacheEntry>,
     /// Time-to-live in seconds for cache entries
     ttl_secs: u64,
 }
@@ -83,6 +83,7 @@ impl QueryCache {
     /// # Returns
     ///
     /// `Some(result)` if cache hit and not expired, `None` if miss or expired
+    #[must_use]
     pub fn get(
         &self,
         query: &str,
@@ -119,11 +120,13 @@ impl QueryCache {
     /// Get current cache size (entries count).
     ///
     /// Note: This includes expired entries that haven't been accessed yet.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
     /// Check if cache is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -140,6 +143,7 @@ impl QueryCache {
     /// # Returns
     ///
     /// Count of entries removed
+    #[must_use]
     pub fn invalidate_views(&self, view_names: &[&str]) -> usize {
         let mut removed = 0;
         let mut to_remove = Vec::new();
@@ -175,6 +179,7 @@ impl QueryCache {
     /// # Returns
     ///
     /// Count of entries removed
+    #[must_use]
     pub fn invalidate_pattern(&self, pattern: &str) -> usize {
         let mut removed = 0;
         let mut to_remove = Vec::new();

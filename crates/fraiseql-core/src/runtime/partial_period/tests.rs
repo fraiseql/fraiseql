@@ -230,9 +230,9 @@ fn test_lower_bound_equals_today() {
 #[test]
 fn test_extract_gte_simple() {
     let wc = WhereClause::Field {
-        path:     vec!["date".into()],
+        path: vec!["date".into()],
         operator: WhereOperator::Gte,
-        value:    json!("2024-01-15"),
+        value: json!("2024-01-15"),
     };
     assert_eq!(extract_lower_date_bound(&wc, "date"), Some(date(2024, 1, 15)));
 }
@@ -240,9 +240,9 @@ fn test_extract_gte_simple() {
 #[test]
 fn test_extract_gt_converts_to_next_day() {
     let wc = WhereClause::Field {
-        path:     vec!["date".into()],
+        path: vec!["date".into()],
         operator: WhereOperator::Gt,
-        value:    json!("2024-01-14"),
+        value: json!("2024-01-14"),
     };
     // gt 14th = gte 15th
     assert_eq!(extract_lower_date_bound(&wc, "date"), Some(date(2024, 1, 15)));
@@ -252,14 +252,14 @@ fn test_extract_gt_converts_to_next_day() {
 fn test_extract_from_and_chain() {
     let wc = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["tenant_id".into()],
+            path: vec!["tenant_id".into()],
             operator: WhereOperator::Eq,
-            value:    json!("t1"),
+            value: json!("t1"),
         },
         WhereClause::Field {
-            path:     vec!["date".into()],
+            path: vec!["date".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-01-15"),
+            value: json!("2024-01-15"),
         },
     ]);
     assert_eq!(extract_lower_date_bound(&wc, "date"), Some(date(2024, 1, 15)));
@@ -269,14 +269,14 @@ fn test_extract_from_and_chain() {
 fn test_extract_or_returns_none() {
     let wc = WhereClause::Or(vec![
         WhereClause::Field {
-            path:     vec!["date".into()],
+            path: vec!["date".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-01-15"),
+            value: json!("2024-01-15"),
         },
         WhereClause::Field {
-            path:     vec!["status".into()],
+            path: vec!["status".into()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         },
     ]);
     assert!(extract_lower_date_bound(&wc, "date").is_none());
@@ -285,9 +285,9 @@ fn test_extract_or_returns_none() {
 #[test]
 fn test_extract_not_returns_none() {
     let wc = WhereClause::Not(Box::new(WhereClause::Field {
-        path:     vec!["date".into()],
+        path: vec!["date".into()],
         operator: WhereOperator::Lt,
-        value:    json!("2024-01-15"),
+        value: json!("2024-01-15"),
     }));
     assert!(extract_lower_date_bound(&wc, "date").is_none());
 }
@@ -295,9 +295,9 @@ fn test_extract_not_returns_none() {
 #[test]
 fn test_extract_no_date_column_returns_none() {
     let wc = WhereClause::Field {
-        path:     vec!["status".into()],
+        path: vec!["status".into()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
     assert!(extract_lower_date_bound(&wc, "date").is_none());
 }
@@ -305,9 +305,9 @@ fn test_extract_no_date_column_returns_none() {
 #[test]
 fn test_extract_wrong_operator_returns_none() {
     let wc = WhereClause::Field {
-        path:     vec!["date".into()],
+        path: vec!["date".into()],
         operator: WhereOperator::Lt,
-        value:    json!("2024-01-15"),
+        value: json!("2024-01-15"),
     };
     assert!(extract_lower_date_bound(&wc, "date").is_none());
 }
@@ -315,10 +315,10 @@ fn test_extract_wrong_operator_returns_none() {
 #[test]
 fn test_extract_native_field_gte() {
     let wc = WhereClause::NativeField {
-        column:   "period_start".into(),
-        pg_cast:  "date".into(),
+        column: "period_start".into(),
+        pg_cast: "date".into(),
         operator: WhereOperator::Gte,
-        value:    json!("2024-03-01"),
+        value: json!("2024-03-01"),
     };
     assert_eq!(extract_lower_date_bound(&wc, "period_start"), Some(date(2024, 3, 1)));
 }
@@ -326,10 +326,10 @@ fn test_extract_native_field_gte() {
 #[test]
 fn test_extract_native_field_wrong_column() {
     let wc = WhereClause::NativeField {
-        column:   "created_at".into(),
-        pg_cast:  "date".into(),
+        column: "created_at".into(),
+        pg_cast: "date".into(),
         operator: WhereOperator::Gte,
-        value:    json!("2024-03-01"),
+        value: json!("2024-03-01"),
     };
     assert!(extract_lower_date_bound(&wc, "period_start").is_none());
 }
@@ -341,9 +341,9 @@ fn test_extract_native_field_wrong_column() {
 #[test]
 fn test_split_single_date_condition() {
     let wc = WhereClause::Field {
-        path:     vec!["date".into()],
+        path: vec!["date".into()],
         operator: WhereOperator::Gte,
-        value:    json!("2024-01-15"),
+        value: json!("2024-01-15"),
     };
     let result = split_where_clause(&wc, "date").unwrap();
     assert_eq!(result.lower_bound, date(2024, 1, 15));
@@ -354,19 +354,19 @@ fn test_split_single_date_condition() {
 fn test_split_and_chain_three_conditions() {
     let wc = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["tenant_id".into()],
+            path: vec!["tenant_id".into()],
             operator: WhereOperator::Eq,
-            value:    json!("t1"),
+            value: json!("t1"),
         },
         WhereClause::Field {
-            path:     vec!["date".into()],
+            path: vec!["date".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-01-15"),
+            value: json!("2024-01-15"),
         },
         WhereClause::Field {
-            path:     vec!["status".into()],
+            path: vec!["status".into()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         },
     ]);
     let result = split_where_clause(&wc, "date").unwrap();
@@ -375,14 +375,14 @@ fn test_split_and_chain_three_conditions() {
         result.remaining,
         Some(WhereClause::And(vec![
             WhereClause::Field {
-                path:     vec!["tenant_id".into()],
+                path: vec!["tenant_id".into()],
                 operator: WhereOperator::Eq,
-                value:    json!("t1"),
+                value: json!("t1"),
             },
             WhereClause::Field {
-                path:     vec!["status".into()],
+                path: vec!["status".into()],
                 operator: WhereOperator::Eq,
-                value:    json!("active"),
+                value: json!("active"),
             },
         ]))
     );
@@ -392,14 +392,14 @@ fn test_split_and_chain_three_conditions() {
 fn test_split_and_chain_two_conditions_unwraps() {
     let wc = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["tenant_id".into()],
+            path: vec!["tenant_id".into()],
             operator: WhereOperator::Eq,
-            value:    json!("t1"),
+            value: json!("t1"),
         },
         WhereClause::Field {
-            path:     vec!["date".into()],
+            path: vec!["date".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-01-15"),
+            value: json!("2024-01-15"),
         },
     ]);
     let result = split_where_clause(&wc, "date").unwrap();
@@ -408,9 +408,9 @@ fn test_split_and_chain_two_conditions_unwraps() {
     assert_eq!(
         result.remaining,
         Some(WhereClause::Field {
-            path:     vec!["tenant_id".into()],
+            path: vec!["tenant_id".into()],
             operator: WhereOperator::Eq,
-            value:    json!("t1"),
+            value: json!("t1"),
         })
     );
 }
@@ -418,9 +418,9 @@ fn test_split_and_chain_two_conditions_unwraps() {
 #[test]
 fn test_split_no_match_returns_none() {
     let wc = WhereClause::Field {
-        path:     vec!["status".into()],
+        path: vec!["status".into()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     };
     assert!(split_where_clause(&wc, "date").is_none());
 }
@@ -429,14 +429,14 @@ fn test_split_no_match_returns_none() {
 fn test_split_or_returns_none() {
     let wc = WhereClause::Or(vec![
         WhereClause::Field {
-            path:     vec!["date".into()],
+            path: vec!["date".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-01-15"),
+            value: json!("2024-01-15"),
         },
         WhereClause::Field {
-            path:     vec!["status".into()],
+            path: vec!["status".into()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         },
     ]);
     assert!(split_where_clause(&wc, "date").is_none());
@@ -445,10 +445,10 @@ fn test_split_or_returns_none() {
 #[test]
 fn test_split_native_field() {
     let wc = WhereClause::NativeField {
-        column:   "period_start".into(),
-        pg_cast:  "date".into(),
+        column: "period_start".into(),
+        pg_cast: "date".into(),
         operator: WhereOperator::Gte,
-        value:    json!("2024-03-01"),
+        value: json!("2024-03-01"),
     };
     let result = split_where_clause(&wc, "period_start").unwrap();
     assert_eq!(result.lower_bound, date(2024, 3, 1));
@@ -459,14 +459,14 @@ fn test_split_native_field() {
 fn test_split_gt_conversion() {
     let wc = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["date".into()],
+            path: vec!["date".into()],
             operator: WhereOperator::Gt,
-            value:    json!("2024-01-14"),
+            value: json!("2024-01-14"),
         },
         WhereClause::Field {
-            path:     vec!["status".into()],
+            path: vec!["status".into()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         },
     ]);
     let result = split_where_clause(&wc, "date").unwrap();
@@ -475,9 +475,9 @@ fn test_split_gt_conversion() {
     assert_eq!(
         result.remaining,
         Some(WhereClause::Field {
-            path:     vec!["status".into()],
+            path: vec!["status".into()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         })
     );
 }
@@ -495,24 +495,24 @@ mod should_use_tests {
 
     fn metadata_with_pp() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:               "v_events_month".into(),
-            measures:                 vec![MeasureColumn {
-                name:     "volume".into(),
+            table_name: "v_events_month".into(),
+            measures: vec![MeasureColumn {
+                name: "volume".into(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions:               DimensionColumn {
-                name:  "data".into(),
+            dimensions: DimensionColumn {
+                name: "data".into(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![],
-            calendar_dimensions:      vec![],
-            partial_period:           Some(PartialPeriodConfig {
-                fine_grain_view:   "v_events_day".into(),
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![],
+            partial_period: Some(PartialPeriodConfig {
+                fine_grain_view: "v_events_day".into(),
                 time_grain_column: "period_start".into(),
-                time_grain_trunc:  TemporalGrain::Month,
+                time_grain_trunc: TemporalGrain::Month,
             }),
-            native_measures:          std::collections::HashMap::new(),
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -527,9 +527,9 @@ mod should_use_tests {
     fn test_triggers_when_conditions_met() {
         let m = metadata_with_pp();
         let wc = WhereClause::Field {
-            path:     vec!["period_start".into()],
+            path: vec!["period_start".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-01-15"),
+            value: json!("2024-01-15"),
         };
         let today = date(2024, 3, 20);
         let result = should_use_partial_period(&m, Some(&wc), today);
@@ -543,9 +543,9 @@ mod should_use_tests {
     fn test_none_without_partial_period_config() {
         let m = metadata_without_pp();
         let wc = WhereClause::Field {
-            path:     vec!["period_start".into()],
+            path: vec!["period_start".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-01-15"),
+            value: json!("2024-01-15"),
         };
         assert!(should_use_partial_period(&m, Some(&wc), date(2024, 3, 20)).is_none());
     }
@@ -560,9 +560,9 @@ mod should_use_tests {
     fn test_none_when_no_date_condition() {
         let m = metadata_with_pp();
         let wc = WhereClause::Field {
-            path:     vec!["status".into()],
+            path: vec!["status".into()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         };
         assert!(should_use_partial_period(&m, Some(&wc), date(2024, 3, 20)).is_none());
     }
@@ -572,9 +572,9 @@ mod should_use_tests {
         // Period-aligned lower bound in current period → single branch → standard path
         let m = metadata_with_pp();
         let wc = WhereClause::Field {
-            path:     vec!["period_start".into()],
+            path: vec!["period_start".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-03-01"),
+            value: json!("2024-03-01"),
         };
         // today = Mar 20, lower bound = Mar 1 (aligned, same period) → only B3
         assert!(should_use_partial_period(&m, Some(&wc), date(2024, 3, 20)).is_none());
@@ -585,9 +585,9 @@ mod should_use_tests {
         // Aligned lower bound but in a previous period → B2 + B3
         let m = metadata_with_pp();
         let wc = WhereClause::Field {
-            path:     vec!["period_start".into()],
+            path: vec!["period_start".into()],
             operator: WhereOperator::Gte,
-            value:    json!("2024-02-01"),
+            value: json!("2024-02-01"),
         };
         // today = Mar 20, lower bound = Feb 1 (aligned, but different period) → B2 + B3
         let result = should_use_partial_period(&m, Some(&wc), date(2024, 3, 20));

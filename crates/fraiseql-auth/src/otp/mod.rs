@@ -54,9 +54,9 @@ const OTP_RATE_MAX: u32 = 3;
 #[derive(Debug, Clone)]
 struct OtpRecord {
     /// The 6-digit code.
-    code:     String,
+    code: String,
     /// Unix timestamp when this code expires.
-    expires:  u64,
+    expires: u64,
     /// How many verification attempts have been made against this code.
     attempts: u32,
 }
@@ -72,7 +72,7 @@ impl OtpRecord {
 #[derive(Debug, Clone)]
 struct RateRecord {
     /// Number of `OTP` sends in the current window.
-    count:        u32,
+    count: u32,
     /// Unix timestamp when the window started.
     window_start: u64,
 }
@@ -117,7 +117,7 @@ pub trait OtpStore: Send + Sync {
 /// use a Redis-backed store (not provided here).
 pub struct InMemoryOtpStore {
     /// email → pending OTP record
-    codes:       DashMap<String, OtpRecord>,
+    codes: DashMap<String, OtpRecord>,
     /// email → rate-limit record
     rate_limits: DashMap<String, RateRecord>,
 }
@@ -127,7 +127,7 @@ impl InMemoryOtpStore {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            codes:       DashMap::new(),
+            codes: DashMap::new(),
             rate_limits: DashMap::new(),
         }
     }
@@ -154,7 +154,7 @@ impl OtpStore for InMemoryOtpStore {
         // Per-email rate limiting: max OTP_RATE_MAX sends per OTP_RATE_WINDOW_SECS.
         {
             let mut entry = self.rate_limits.entry(email.to_string()).or_insert(RateRecord {
-                count:        0,
+                count: 0,
                 window_start: now,
             });
             // Reset window if it has expired.
@@ -267,11 +267,11 @@ impl EmailDelivery for NoopEmailDelivery {
 #[derive(Clone)]
 pub struct OtpRouteState {
     /// `OTP` code store.
-    pub otp_store:      Arc<dyn OtpStore>,
+    pub otp_store: Arc<dyn OtpStore>,
     /// Email delivery backend.
     pub email_delivery: Arc<dyn EmailDelivery>,
     /// Session store (to create sessions after successful verify).
-    pub session_store:  Arc<dyn SessionStore>,
+    pub session_store: Arc<dyn SessionStore>,
 }
 
 // ─── Request / Response types ─────────────────────────────────────────────────
@@ -296,7 +296,7 @@ pub struct VerifyRequest {
     /// Email address the `OTP` was sent to.
     pub email: String,
     /// The 6-digit code.
-    pub code:  String,
+    pub code: String,
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────

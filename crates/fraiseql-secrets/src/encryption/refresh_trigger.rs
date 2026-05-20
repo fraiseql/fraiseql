@@ -44,48 +44,53 @@ impl std::fmt::Display for RefreshJobStatus {
 #[derive(Debug, Clone)]
 pub struct RefreshConfig {
     /// Enable automatic refresh (default: true)
-    pub enabled:                   bool,
+    pub enabled: bool,
     /// Check interval in hours (default: 24)
-    pub check_interval_hours:      u32,
+    pub check_interval_hours: u32,
     /// TTL consumption threshold to trigger refresh (default: 80)
     pub refresh_threshold_percent: u32,
     /// Quiet hours start (0-23, None = disabled)
-    pub quiet_hours_start:         Option<u32>,
+    pub quiet_hours_start: Option<u32>,
     /// Quiet hours end (0-23)
-    pub quiet_hours_end:           Option<u32>,
+    pub quiet_hours_end: Option<u32>,
 }
 
 impl RefreshConfig {
     /// Create default refresh config (daily check, 80% threshold)
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            enabled:                   true,
-            check_interval_hours:      24,
+            enabled: true,
+            check_interval_hours: 24,
             refresh_threshold_percent: 80,
-            quiet_hours_start:         None,
-            quiet_hours_end:           None,
+            quiet_hours_start: None,
+            quiet_hours_end: None,
         }
     }
 
     /// Enable or disable automatic refresh
+    #[must_use]
     pub const fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
     /// Set check interval in hours
+    #[must_use]
     pub fn with_check_interval(mut self, hours: u32) -> Self {
         self.check_interval_hours = hours.max(1);
         self
     }
 
     /// Set refresh threshold percentage
+    #[must_use]
     pub fn with_refresh_threshold(mut self, percent: u32) -> Self {
         self.refresh_threshold_percent = percent.min(99);
         self
     }
 
     /// Set quiet hours (e.g., 2 for 2am-4am)
+    #[must_use]
     pub const fn with_quiet_hours(mut self, start_hour: u32, end_hour: u32) -> Self {
         if start_hour < 24 && end_hour < 24 {
             self.quiet_hours_start = Some(start_hour);
@@ -105,7 +110,7 @@ impl Default for RefreshConfig {
 #[derive(Debug, Clone)]
 pub struct RefreshTrigger {
     /// Refresh configuration
-    config:                   Arc<RefreshConfig>,
+    config: Arc<RefreshConfig>,
     /// Last refresh check time
     // std::sync::Mutex is intentional: this lock is never held across .await.
     // Switch to tokio::sync::Mutex if that constraint ever changes.
@@ -117,28 +122,30 @@ pub struct RefreshTrigger {
     /// Last refresh duration in milliseconds
     last_refresh_duration_ms: Arc<AtomicU64>,
     /// Total refreshes performed
-    total_refreshes:          Arc<AtomicU64>,
+    total_refreshes: Arc<AtomicU64>,
     /// Failed refreshes count
-    failed_refreshes:         Arc<AtomicU64>,
+    failed_refreshes: Arc<AtomicU64>,
     /// Refresh pending flag
-    refresh_pending:          Arc<AtomicBool>,
+    refresh_pending: Arc<AtomicBool>,
 }
 
 impl RefreshTrigger {
     /// Create new refresh trigger
+    #[must_use]
     pub fn new(config: RefreshConfig) -> Self {
         Self {
-            config:                   Arc::new(config),
-            last_check:               Arc::new(std::sync::Mutex::new(None)),
-            last_refresh:             Arc::new(std::sync::Mutex::new(None)),
+            config: Arc::new(config),
+            last_check: Arc::new(std::sync::Mutex::new(None)),
+            last_refresh: Arc::new(std::sync::Mutex::new(None)),
             last_refresh_duration_ms: Arc::new(AtomicU64::new(0)),
-            total_refreshes:          Arc::new(AtomicU64::new(0)),
-            failed_refreshes:         Arc::new(AtomicU64::new(0)),
-            refresh_pending:          Arc::new(AtomicBool::new(false)),
+            total_refreshes: Arc::new(AtomicU64::new(0)),
+            failed_refreshes: Arc::new(AtomicU64::new(0)),
+            refresh_pending: Arc::new(AtomicBool::new(false)),
         }
     }
 
     /// Check if refresh should be triggered
+    #[must_use]
     pub fn should_trigger(&self, ttl_consumed_percent: u32) -> bool {
         if !self.config.enabled {
             return false;
@@ -209,6 +216,7 @@ impl RefreshTrigger {
     }
 
     /// Get last check time
+    #[must_use]
     pub fn last_check_time(&self) -> Option<DateTime<Utc>> {
         if let Ok(last) = self.last_check.lock() {
             *last
@@ -218,6 +226,7 @@ impl RefreshTrigger {
     }
 
     /// Get last refresh time
+    #[must_use]
     pub fn last_refresh_time(&self) -> Option<DateTime<Utc>> {
         if let Ok(last) = self.last_refresh.lock() {
             *last
@@ -227,16 +236,19 @@ impl RefreshTrigger {
     }
 
     /// Get total refreshes count
+    #[must_use]
     pub fn total_refreshes(&self) -> u64 {
         self.total_refreshes.load(Ordering::Relaxed)
     }
 
     /// Get failed refreshes count
+    #[must_use]
     pub fn failed_refreshes(&self) -> u64 {
         self.failed_refreshes.load(Ordering::Relaxed)
     }
 
     /// Get success rate percentage
+    #[must_use]
     pub fn success_rate_percent(&self) -> u32 {
         let total = self.total_refreshes();
         if total == 0 {
@@ -258,11 +270,13 @@ impl RefreshTrigger {
     }
 
     /// Check if refresh is pending
+    #[must_use]
     pub fn is_pending(&self) -> bool {
         self.refresh_pending.load(Ordering::Relaxed)
     }
 
     /// Check if refresh enabled
+    #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.config.enabled
     }
@@ -295,11 +309,12 @@ pub struct RefreshJob {
 
 impl RefreshJob {
     /// Create new refresh job
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            status:             Arc::new(std::sync::Mutex::new(RefreshJobStatus::Idle)),
-            start_time:         Arc::new(std::sync::Mutex::new(None)),
-            last_error:         Arc::new(std::sync::Mutex::new(None)),
+            status: Arc::new(std::sync::Mutex::new(RefreshJobStatus::Idle)),
+            start_time: Arc::new(std::sync::Mutex::new(None)),
+            last_error: Arc::new(std::sync::Mutex::new(None)),
             shutdown_requested: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -358,6 +373,7 @@ impl RefreshJob {
     }
 
     /// Check if shutdown was requested
+    #[must_use]
     pub fn should_shutdown(&self) -> bool {
         self.shutdown_requested.load(Ordering::Relaxed)
     }
@@ -409,19 +425,21 @@ pub struct RefreshManager {
     /// Refresh trigger
     trigger: Arc<RefreshTrigger>,
     /// Refresh job
-    job:     Arc<RefreshJob>,
+    job: Arc<RefreshJob>,
 }
 
 impl RefreshManager {
     /// Create new refresh manager
+    #[must_use]
     pub fn new(config: RefreshConfig) -> Self {
         Self {
             trigger: Arc::new(RefreshTrigger::new(config)),
-            job:     Arc::new(RefreshJob::new()),
+            job: Arc::new(RefreshJob::new()),
         }
     }
 
     /// Check if refresh should trigger and mark pending
+    #[must_use]
     pub fn check_and_trigger(&self, ttl_consumed_percent: u32) -> bool {
         self.trigger.record_check();
         if self.trigger.should_trigger(ttl_consumed_percent) {
@@ -462,21 +480,25 @@ impl RefreshManager {
     }
 
     /// Get refresh trigger
+    #[must_use]
     pub fn trigger(&self) -> Arc<RefreshTrigger> {
         Arc::clone(&self.trigger)
     }
 
     /// Get refresh job
+    #[must_use]
     pub fn job(&self) -> Arc<RefreshJob> {
         Arc::clone(&self.job)
     }
 
     /// Check if refresh is needed and pending
+    #[must_use]
     pub fn refresh_pending(&self) -> bool {
         self.trigger.is_pending()
     }
 
     /// Check if automatic refresh enabled
+    #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.trigger.is_enabled()
     }
@@ -505,6 +527,7 @@ impl RefreshManager {
     /// Returns `None` if no check has occurred yet.  Returns `Duration::ZERO`
     /// and logs a warning if the system clock appears to have gone backwards,
     /// which would otherwise cause the refresh timer to stall indefinitely.
+    #[must_use]
     pub fn time_since_last_check(&self) -> Option<std::time::Duration> {
         self.trigger.last_check_time().map(|last| {
             let delta = Utc::now() - last;
@@ -524,6 +547,7 @@ impl RefreshManager {
     /// Returns `None` if no refresh has occurred yet.  Returns `Duration::ZERO`
     /// and logs a warning on clock regression (same rationale as
     /// [`Self::time_since_last_check`]).
+    #[must_use]
     pub fn time_since_last_refresh(&self) -> Option<std::time::Duration> {
         self.trigger.last_refresh_time().map(|last| {
             let delta = Utc::now() - last;
@@ -539,16 +563,19 @@ impl RefreshManager {
     }
 
     /// Check if job is currently running
+    #[must_use]
     pub fn job_running(&self) -> bool {
         self.job.status().map(|s| s == RefreshJobStatus::Running).unwrap_or(false)
     }
 
     /// Get job success rate percentage
+    #[must_use]
     pub fn job_success_rate_percent(&self) -> u32 {
         self.trigger.success_rate_percent()
     }
 
     /// Get health status of refresh system
+    #[must_use]
     pub fn health_status(&self) -> RefreshHealthStatus {
         let job_status = self.job.status().unwrap_or(RefreshJobStatus::Failed);
 
@@ -566,6 +593,7 @@ impl RefreshManager {
     }
 
     /// Check if should retry refresh (has pending but not max retries)
+    #[must_use]
     pub fn should_retry_refresh(&self) -> bool {
         self.refresh_pending() && self.trigger.failed_refreshes() < 5
     }

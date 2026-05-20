@@ -713,10 +713,10 @@ mod oidc_auth_tests {
         use fraiseql_core::security::AuthenticatedUser;
 
         let user = AuthenticatedUser {
-            user_id:      fraiseql_core::types::UserId::new("user123"),
-            scopes:       vec!["read".to_string()],
-            expires_at:   Utc::now(),
-            email:        None,
+            user_id: fraiseql_core::types::UserId::new("user123"),
+            scopes: vec!["read".to_string()],
+            expires_at: Utc::now(),
+            email: None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),
         };

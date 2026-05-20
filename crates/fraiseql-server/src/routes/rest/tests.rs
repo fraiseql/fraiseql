@@ -23,9 +23,9 @@ fn get_public_default_ttl() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      true,
-            has_auth:    false,
-            query_ttl:   None,
+            is_get: true,
+            has_auth: false,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: None,
         },
@@ -40,9 +40,9 @@ fn get_private_with_auth() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      true,
-            has_auth:    true,
-            query_ttl:   None,
+            is_get: true,
+            has_auth: true,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: None,
         },
@@ -56,9 +56,9 @@ fn get_custom_ttl_from_query() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      true,
-            has_auth:    false,
-            query_ttl:   Some(120),
+            is_get: true,
+            has_auth: false,
+            query_ttl: Some(120),
             default_ttl: 60,
             cdn_max_age: None,
         },
@@ -72,9 +72,9 @@ fn mutation_no_store() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      false,
-            has_auth:    false,
-            query_ttl:   None,
+            is_get: false,
+            has_auth: false,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: None,
         },
@@ -89,9 +89,9 @@ fn mutation_no_store_with_auth() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      false,
-            has_auth:    true,
-            query_ttl:   None,
+            is_get: false,
+            has_auth: true,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: None,
         },
@@ -105,9 +105,9 @@ fn zero_ttl_disables_caching() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      true,
-            has_auth:    false,
-            query_ttl:   Some(0),
+            is_get: true,
+            has_auth: false,
+            query_ttl: Some(0),
             default_ttl: 60,
             cdn_max_age: None,
         },
@@ -121,9 +121,9 @@ fn s_maxage_on_public_get() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      true,
-            has_auth:    false,
-            query_ttl:   None,
+            is_get: true,
+            has_auth: false,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: Some(300),
         },
@@ -140,9 +140,9 @@ fn no_s_maxage_on_private_get() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      true,
-            has_auth:    true,
-            query_ttl:   None,
+            is_get: true,
+            has_auth: true,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: Some(300),
         },
@@ -156,9 +156,9 @@ fn no_s_maxage_when_none() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      true,
-            has_auth:    false,
-            query_ttl:   None,
+            is_get: true,
+            has_auth: false,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: None,
         },
@@ -172,9 +172,9 @@ fn no_s_maxage_on_mutations() {
     apply_cache_headers(
         &mut headers,
         &CacheContext {
-            is_get:      false,
-            has_auth:    false,
-            query_ttl:   None,
+            is_get: false,
+            has_auth: false,
+            query_ttl: None,
             default_ttl: 60,
             cdn_max_age: Some(300),
         },

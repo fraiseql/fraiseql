@@ -29,11 +29,11 @@ use serde_json::json;
 #[test]
 fn test_simple_query_structure() {
     let request = GraphQLRequest {
-        query:          Some("{ user { id } }".to_string()),
-        variables:      None,
+        query: Some("{ user { id } }".to_string()),
+        variables: None,
         operation_name: None,
-        extensions:     None,
-        document_id:    None,
+        extensions: None,
+        document_id: None,
     };
 
     assert_eq!(request.query.as_deref(), Some("{ user { id } }"));
@@ -324,11 +324,11 @@ fn test_validation_pipeline() {
 
     // Step 1: Parse request
     let request = GraphQLRequest {
-        query:          Some("{ users { id name } }".to_string()),
-        variables:      Some(json!({"limit": 10})),
+        query: Some("{ users { id name } }".to_string()),
+        variables: Some(json!({"limit": 10})),
         operation_name: None,
-        extensions:     None,
-        document_id:    None,
+        extensions: None,
+        document_id: None,
     };
 
     // Step 2: Validate query structure

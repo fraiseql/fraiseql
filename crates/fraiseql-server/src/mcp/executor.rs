@@ -153,6 +153,7 @@ pub(crate) fn graphql_value(value: &serde_json::Value) -> String {
 ///
 /// Walks the `TypeDefinition.fields` and returns names of fields whose type
 /// is a scalar (not `Object`, not `List(Object)`).
+#[must_use]
 pub fn scalar_fields_for_type(type_name: &str, schema: &CompiledSchema) -> Vec<String> {
     let Some(type_def) = schema.types.iter().find(|t| t.name == type_name) else {
         return vec![];
@@ -194,10 +195,5 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
 }
 
 fn error_result(message: &str) -> CallToolResult {
-    CallToolResult {
-        content:            vec![Content::text(message.to_string())],
-        structured_content: None,
-        is_error:           Some(true),
-        meta:               None,
-    }
+    CallToolResult::error(vec![Content::text(message.to_string())])
 }

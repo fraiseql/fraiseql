@@ -209,6 +209,7 @@ impl SubscriptionManager {
     /// Unsubscribe a connection from an entity.
     ///
     /// Returns `true` if the subscription existed and was removed.
+    #[must_use]
     pub fn unsubscribe(&self, connection_id: &str, entity: &str) -> bool {
         // Remove from connection → subscriptions
         let had_sub = self

@@ -41,6 +41,7 @@ pub enum StorageOperation {
 
 impl StorageOperation {
     /// Convert to string for trigger type.
+    #[must_use]
     pub const fn as_str(&self) -> &str {
         match self {
             StorageOperation::Upload => "upload",
@@ -85,6 +86,7 @@ impl StorageTrigger {
     /// - Bucket name matches exactly
     /// - Operation matches (Upload/Delete/Any)
     /// - Key doesn't have `_transforms/` prefix (internal cache operations)
+    #[must_use]
     pub fn matches(&self, event: &StorageEventPayload) -> bool {
         // Bucket must match
         if self.bucket != event.bucket {
@@ -113,11 +115,13 @@ impl StorageTrigger {
     ///
     /// This is an explicit check (same as `matches` but with a different name
     /// for clarity in tests).
+    #[must_use]
     pub fn should_fire(&self, event: &StorageEventPayload) -> bool {
         self.matches(event)
     }
 
     /// Build an `EventPayload` from a storage event.
+    #[must_use]
     pub fn build_payload(&self, event: &StorageEventPayload) -> EventPayload {
         let trigger_type = format!("after:storage:{}:{}", event.bucket, event.operation.as_str());
 

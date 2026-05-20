@@ -71,11 +71,11 @@ use std::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldAccessError {
     /// The GraphQL type containing the field
-    pub type_name:  String,
+    pub type_name: String,
     /// The field that was denied
     pub field_name: String,
     /// Human-readable message
-    pub message:    String,
+    pub message: String,
 }
 
 impl fmt::Display for FieldAccessError {
@@ -108,9 +108,9 @@ impl FieldAccessError {
         message: impl Into<String>,
     ) -> Self {
         Self {
-            type_name:  type_name.into(),
+            type_name: type_name.into(),
             field_name: field_name.into(),
-            message:    message.into(),
+            message: message.into(),
         }
     }
 }
@@ -138,12 +138,13 @@ pub struct FieldFilterConfig {
 
 impl FieldFilterConfig {
     /// Create a new empty configuration
+    #[must_use]
     pub fn new() -> Self {
         Self {
             protected_fields: HashMap::new(),
-            explicit_scopes:  HashMap::new(),
-            admin_scopes:     HashSet::from(["admin".to_string()]),
-            default_action:   "read".to_string(),
+            explicit_scopes: HashMap::new(),
+            admin_scopes: HashSet::from(["admin".to_string()]),
+            default_action: "read".to_string(),
         }
     }
 
@@ -151,6 +152,7 @@ impl FieldFilterConfig {
     ///
     /// Protected fields require a scope matching `{action}:{Type}.{field}`
     /// or a wildcard scope like `{action}:{Type}.*` or `{action}:*`.
+    #[must_use = "builder method returns modified builder"]
     pub fn protect_field(mut self, type_name: &str, field_name: &str) -> Self {
         self.protected_fields
             .entry(type_name.to_string())
@@ -160,6 +162,7 @@ impl FieldFilterConfig {
     }
 
     /// Mark multiple fields on a type as protected
+    #[must_use = "builder method returns modified builder"]
     pub fn protect_fields(mut self, type_name: &str, field_names: &[&str]) -> Self {
         let fields = self.protected_fields.entry(type_name.to_string()).or_default();
         for field_name in field_names {
@@ -169,6 +172,7 @@ impl FieldFilterConfig {
     }
 
     /// Protect all fields on a type (require explicit scopes for any field)
+    #[must_use = "builder method returns modified builder"]
     pub fn protect_type(mut self, type_name: &str) -> Self {
         // Use special "*" marker to indicate all fields are protected
         self.protected_fields
@@ -192,6 +196,7 @@ impl FieldFilterConfig {
     ///     .protect_field("User", "salary")
     ///     .require_scope("User", "salary", "hr:view_compensation");
     /// ```
+    #[must_use = "builder method returns modified builder"]
     pub fn require_scope(mut self, type_name: &str, field_name: &str, scope: &str) -> Self {
         let key = format!("{type_name}.{field_name}");
         self.explicit_scopes.insert(key, scope.to_string());
@@ -204,12 +209,14 @@ impl FieldFilterConfig {
     }
 
     /// Add an admin scope that bypasses all checks
+    #[must_use = "builder method returns modified builder"]
     pub fn add_admin_scope(mut self, scope: &str) -> Self {
         self.admin_scopes.insert(scope.to_string());
         self
     }
 
     /// Set the default action for scope patterns (default: "read")
+    #[must_use = "builder method returns modified builder"]
     pub fn with_default_action(mut self, action: &str) -> Self {
         self.default_action = action.to_string();
         self
@@ -238,11 +245,13 @@ pub struct FieldFilter {
 
 impl FieldFilter {
     /// Create a new field filter with the given configuration
+    #[must_use]
     pub const fn new(config: FieldFilterConfig) -> Self {
         Self { config }
     }
 
     /// Create a permissive filter that allows all access (for testing)
+    #[must_use]
     pub fn permissive() -> Self {
         Self {
             config: FieldFilterConfig::new(),
@@ -318,6 +327,7 @@ impl FieldFilter {
     /// Validate all requested fields for a type
     ///
     /// Returns a list of errors for any denied fields.
+    #[must_use]
     pub fn validate_fields(
         &self,
         type_name: &str,
@@ -377,7 +387,7 @@ impl FieldFilterBuilder {
     }
 
     /// Build the filter
-    #[must_use]
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> FieldFilter {
         FieldFilter::new(self.config)
     }

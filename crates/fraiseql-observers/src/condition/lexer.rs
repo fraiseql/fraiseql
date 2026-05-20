@@ -21,7 +21,7 @@ const MAX_CONDITION_FUNCTION_ARGS: usize = 32;
 pub(super) enum Token {
     Comparison {
         field: String,
-        op:    String,
+        op: String,
         value: String,
     },
     Function {

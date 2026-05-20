@@ -269,13 +269,11 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
     /// Enable or disable the RLS unauthenticated-request cache bypass.
     ///
-    /// When `true`, any request without a [`SecurityContext`] will bypass both
+    /// When `true`, any request without a `SecurityContext` will bypass both
     /// cache read and write, preventing unauthenticated requests from being
     /// served stale data that belongs to an authenticated tenant.
     ///
     /// Set this to `schema.has_rls_configured()` at server startup.
-    ///
-    /// [`SecurityContext`]: crate::security::SecurityContext
     #[must_use]
     pub const fn with_rls(mut self, has_rls: bool) -> Self {
         self.has_rls = has_rls;
@@ -368,15 +366,15 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Construct a new adapter with updated schema version and TTL overrides,
         // reusing the same inner adapter and shared cache.
         let mut rebuilt = Self {
-            adapter:             self.adapter,
-            cache:               self.cache,
-            schema_version:      schema.content_hash(),
-            view_ttl_overrides:  HashMap::new(),
-            cacheable_views:     HashSet::new(),
-            opt_in_mode:         true,
-            has_rls:             self.has_rls,
-            fact_table_config:   self.fact_table_config,
-            version_provider:    self.version_provider,
+            adapter: self.adapter,
+            cache: self.cache,
+            schema_version: schema.content_hash(),
+            view_ttl_overrides: HashMap::new(),
+            cacheable_views: HashSet::new(),
+            opt_in_mode: true,
+            has_rls: self.has_rls,
+            fact_table_config: self.fact_table_config,
+            version_provider: self.version_provider,
             cascade_invalidator: self.cascade_invalidator,
         };
         for query in &schema.queries {
@@ -594,15 +592,15 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 impl<A: DatabaseAdapter + Clone> Clone for CachedDatabaseAdapter<A> {
     fn clone(&self) -> Self {
         Self {
-            adapter:             self.adapter.clone(),
-            cache:               Arc::clone(&self.cache),
-            schema_version:      self.schema_version.clone(),
-            view_ttl_overrides:  self.view_ttl_overrides.clone(),
-            cacheable_views:     self.cacheable_views.clone(),
-            opt_in_mode:         self.opt_in_mode,
-            has_rls:             self.has_rls,
-            fact_table_config:   self.fact_table_config.clone(),
-            version_provider:    Arc::clone(&self.version_provider),
+            adapter: self.adapter.clone(),
+            cache: Arc::clone(&self.cache),
+            schema_version: self.schema_version.clone(),
+            view_ttl_overrides: self.view_ttl_overrides.clone(),
+            cacheable_views: self.cacheable_views.clone(),
+            opt_in_mode: self.opt_in_mode,
+            has_rls: self.has_rls,
+            fact_table_config: self.fact_table_config.clone(),
+            version_provider: Arc::clone(&self.version_provider),
             cascade_invalidator: self.cascade_invalidator.clone(),
         }
     }

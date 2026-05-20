@@ -343,7 +343,7 @@ impl FraiseQLFlightService {
     /// # struct MyExecutor;
     /// # #[async_trait::async_trait]
     /// # impl QueryExecutor for MyExecutor {
-    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<String, String> { panic!("example stub") }
+    /// #     async fn execute_with_security(&self, _query: &str, _variables: Option<&serde_json::Value>, _ctx: &SecurityContext) -> Result<serde_json::Value, String> { panic!("example stub") }
     /// # }
     /// let executor: Arc<dyn QueryExecutor> = Arc::new(MyExecutor);
     /// service.set_executor(executor);
@@ -601,7 +601,7 @@ impl FraiseQLFlightService {
 
         let config = ConvertConfig {
             batch_size: 10_000,
-            max_rows:   None,
+            max_rows: None,
         };
         let converter = RowToArrowConverter::new(schema, config);
         arrow_rows
@@ -698,7 +698,7 @@ impl FraiseQLFlightService {
         // 5. Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: limit.unwrap_or(10_000).min(10_000),
-            max_rows:   limit,
+            max_rows: limit,
         };
         let converter = RowToArrowConverter::new(schema.clone(), config);
 
@@ -834,7 +834,7 @@ impl FraiseQLFlightService {
             // Convert to RecordBatches
             let config = ConvertConfig {
                 batch_size: 10_000,
-                max_rows:   None,
+                max_rows: None,
             };
             let converter = RowToArrowConverter::new(inferred_schema.clone(), config);
 
@@ -945,12 +945,17 @@ impl FraiseQLFlightService {
         format: Option<String>,
         security_context: &fraiseql_core::security::SecurityContext,
     ) -> std::result::Result<Response<FlightDataStream>, Status> {
-        // Parse export format (default to Parquet)
+        // Parse export format. Default is Parquet when the `parquet` feature is enabled,
+        // otherwise JSON Lines (Parquet pulls in the unmaintained thrift 0.17 crate;
+        // see deny.toml / security-vulnerabilities.md for context).
         let export_format = match format.as_deref() {
             Some(f) => f
                 .parse::<ExportFormat>()
                 .map_err(|e| Status::invalid_argument(format!("Invalid format: {}", e)))?,
+            #[cfg(feature = "parquet")]
             None => ExportFormat::Parquet,
+            #[cfg(not(feature = "parquet"))]
+            None => ExportFormat::Json,
         };
 
         info!(
@@ -1015,7 +1020,7 @@ impl FraiseQLFlightService {
         // Convert to RecordBatches
         let config = ConvertConfig {
             batch_size: 10_000,
-            max_rows:   None,
+            max_rows: None,
         };
         let converter = RowToArrowConverter::new(schema, config);
 

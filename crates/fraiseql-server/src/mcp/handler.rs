@@ -40,14 +40,15 @@ pub fn mcp_tool_errors_total() -> u64 {
 /// Holds the compiled schema, executor, and pre-computed tool list.
 /// One instance is created per MCP session via the service factory.
 pub struct FraiseQLMcpService<A: DatabaseAdapter> {
-    schema:   Arc<CompiledSchema>,
+    schema: Arc<CompiledSchema>,
     executor: Arc<Executor<A>>,
-    tools:    Vec<Tool>,
-    _config:  McpConfig,
+    tools: Vec<Tool>,
+    _config: McpConfig,
 }
 
 impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     /// Create a new MCP service.
+    #[must_use]
     pub fn new(schema: Arc<CompiledSchema>, executor: Arc<Executor<A>>, config: McpConfig) -> Self {
         let tools = super::tools::schema_to_tools(&schema, &config);
         Self {
@@ -61,11 +62,8 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for FraiseQLMcpService<A> {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some("FraiseQL GraphQL database — query and mutate via MCP tools".into()),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_instructions("FraiseQL GraphQL database — query and mutate via MCP tools")
     }
 
     fn list_tools(
@@ -75,9 +73,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for Frais
     ) -> impl std::future::Future<Output = Result<ListToolsResult, rmcp::ErrorData>> + Send + '_
     {
         let result = ListToolsResult {
-            tools:       self.tools.clone(),
+            tools: self.tools.clone(),
             next_cursor: None,
-            meta:        None,
+            meta: None,
         };
         std::future::ready(Ok(result))
     }

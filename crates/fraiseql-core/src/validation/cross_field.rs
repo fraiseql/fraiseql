@@ -47,7 +47,9 @@ pub enum ComparisonOperator {
 
 impl ComparisonOperator {
     /// Parse operator from string representation.
-    #[allow(clippy::should_implement_trait)] // Reason: returns Option<Self> (unrecognized operators yield None), not a FromStr-compatible Result
+    #[allow(clippy::should_implement_trait)]
+    // Reason: returns Option<Self> (unrecognized operators yield None), not a FromStr-compatible Result
+    #[must_use]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "<" | "lt" => Some(Self::LessThan),
@@ -61,6 +63,7 @@ impl ComparisonOperator {
     }
 
     /// Get the symbol for display.
+    #[must_use]
     pub const fn symbol(&self) -> &'static str {
         match self {
             Self::LessThan => "<",
@@ -73,6 +76,7 @@ impl ComparisonOperator {
     }
 
     /// Get the long name for error messages.
+    #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
             Self::LessThan => "less than",
@@ -115,12 +119,12 @@ pub fn validate_cross_field_comparison(
     if let Value::Object(obj) = input {
         let left_val = obj.get(left_field).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Field '{}' not found in input", left_field),
-            path:    Some(field_path.to_string()),
+            path: Some(field_path.to_string()),
         })?;
 
         let right_val = obj.get(right_field).ok_or_else(|| FraiseQLError::Validation {
             message: format!("Field '{}' not found in input", right_field),
-            path:    Some(field_path.to_string()),
+            path: Some(field_path.to_string()),
         })?;
 
         // Skip validation if either field is null
@@ -132,7 +136,7 @@ pub fn validate_cross_field_comparison(
     } else {
         Err(FraiseQLError::Validation {
             message: "Input is not an object".to_string(),
-            path:    Some(field_path.to_string()),
+            path: Some(field_path.to_string()),
         })
     }
 }
@@ -171,7 +175,7 @@ fn compare_values(
                     right_field,
                     value_type_name(right)
                 ),
-                path:    Some(context_path.to_string()),
+                path: Some(context_path.to_string()),
             });
         },
     };
@@ -195,7 +199,7 @@ fn compare_values(
                 right_field,
                 value_to_string(right)
             ),
-            path:    Some(context_path.to_string()),
+            path: Some(context_path.to_string()),
         });
     }
 

@@ -29,6 +29,7 @@ pub fn lookup_remote_subscription<'a, S: BuildHasher>(
 ///
 /// Given `subscription { myAlias: postCreated { body } }`, returns `"postCreated"`.
 /// Given `subscription { postCreated { body } }`, returns `"postCreated"`.
+#[must_use]
 pub fn extract_subscription_field_name(query: &str) -> Option<String> {
     let query = query.trim();
 

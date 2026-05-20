@@ -118,8 +118,8 @@ async fn test_entity_resolution_http_error_bubbles() {
 
     // Use a fast-retry config to keep tests quick.
     let config = HttpClientConfig {
-        timeout_ms:     5000,
-        max_retries:    2,
+        timeout_ms: 5000,
+        max_retries: 2,
         retry_delay_ms: 1,
     };
     let result = HttpEntityResolver::new_for_test(config)

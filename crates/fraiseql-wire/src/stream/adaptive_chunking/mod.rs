@@ -88,6 +88,7 @@ impl AdaptiveChunking {
     /// let adaptive = AdaptiveChunking::new();
     /// assert_eq!(adaptive.current_size(), 256);
     /// ```
+    #[must_use]
     pub fn new() -> Self {
         Self {
             current_size: 256,
@@ -165,6 +166,7 @@ impl AdaptiveChunking {
     /// let adaptive = AdaptiveChunking::new();
     /// assert_eq!(adaptive.current_size(), 256);
     /// ```
+    #[must_use]
     pub const fn current_size(&self) -> usize {
         self.current_size
     }
@@ -220,6 +222,7 @@ impl AdaptiveChunking {
     }
 
     /// Calculate average occupancy percentage over the measurement window
+    #[must_use]
     pub fn average_occupancy(&self) -> usize {
         if self.measurements.is_empty() {
             return 0;

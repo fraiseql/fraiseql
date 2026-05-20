@@ -25,9 +25,9 @@ use serde_json::json;
 fn test_custom_scalar_datetime_in_where() {
     // DateTime custom scalar in WHERE clause
     let clause = WhereClause::Field {
-        path:     vec!["created_at".to_string()],
+        path: vec!["created_at".to_string()],
         operator: WhereOperator::Gt,
-        value:    json!("2024-01-15T10:30:45Z"),
+        value: json!("2024-01-15T10:30:45Z"),
     };
 
     match clause {
@@ -48,9 +48,9 @@ fn test_custom_scalar_uuid_in_where() {
     // UUID custom scalar in WHERE clause
     let uuid_value = "550e8400-e29b-41d4-a716-446655440000";
     let clause = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(uuid_value),
+        value: json!(uuid_value),
     };
 
     match clause {
@@ -70,9 +70,9 @@ fn test_custom_scalar_json_in_where() {
     // JSON custom scalar in WHERE clause
     let json_value = json!({"nested": "data", "count": 42});
     let clause = WhereClause::Field {
-        path:     vec!["metadata".to_string()],
+        path: vec!["metadata".to_string()],
         operator: WhereOperator::Contains,
-        value:    json_value,
+        value: json_value,
     };
 
     match clause {
@@ -89,9 +89,9 @@ fn test_custom_scalar_json_in_where() {
 fn test_custom_scalar_date_in_where() {
     // Date custom scalar (date only, no time)
     let clause = WhereClause::Field {
-        path:     vec!["birth_date".to_string()],
+        path: vec!["birth_date".to_string()],
         operator: WhereOperator::Lt,
-        value:    json!("1990-05-20"),
+        value: json!("1990-05-20"),
     };
 
     match clause {
@@ -111,9 +111,9 @@ fn test_custom_scalar_date_in_where() {
 fn test_custom_scalar_time_in_where() {
     // Time custom scalar (time only)
     let clause = WhereClause::Field {
-        path:     vec!["shift_start".to_string()],
+        path: vec!["shift_start".to_string()],
         operator: WhereOperator::Gte,
-        value:    json!("09:00:00"),
+        value: json!("09:00:00"),
     };
 
     match clause {
@@ -133,9 +133,9 @@ fn test_custom_scalar_url_in_where() {
     // URL custom scalar
     let url = "https://example.com/path?query=value&other=123";
     let clause = WhereClause::Field {
-        path:     vec!["website".to_string()],
+        path: vec!["website".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(url),
+        value: json!(url),
     };
 
     match clause {
@@ -153,9 +153,9 @@ fn test_custom_scalar_email_in_where() {
     // Email custom scalar
     let email = "user@example.com";
     let clause = WhereClause::Field {
-        path:     vec!["email".to_string()],
+        path: vec!["email".to_string()],
         operator: WhereOperator::Contains,
-        value:    json!(email),
+        value: json!(email),
     };
 
     match clause {
@@ -173,9 +173,9 @@ fn test_custom_scalar_phone_in_where() {
     // Phone custom scalar
     let phone = "+1-555-123-4567";
     let clause = WhereClause::Field {
-        path:     vec!["phone".to_string()],
+        path: vec!["phone".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(phone),
+        value: json!(phone),
     };
 
     match clause {
@@ -194,9 +194,9 @@ fn test_custom_scalar_bigint_in_where() {
     // BigInt custom scalar (beyond JavaScript safe integer)
     let big_int = "9223372036854775807"; // i64::MAX
     let clause = WhereClause::Field {
-        path:     vec!["large_number".to_string()],
+        path: vec!["large_number".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(big_int),
+        value: json!(big_int),
     };
 
     match clause {
@@ -218,9 +218,9 @@ fn test_custom_scalar_decimal_in_where() {
     // Decimal custom scalar (high precision numbers)
     let decimal = "123.456789012345";
     let clause = WhereClause::Field {
-        path:     vec!["price".to_string()],
+        path: vec!["price".to_string()],
         operator: WhereOperator::Gt,
-        value:    json!(decimal),
+        value: json!(decimal),
     };
 
     match clause {
@@ -242,9 +242,9 @@ fn test_custom_scalar_color_in_where() {
     // Color custom scalar (hex or named)
     let color_hex = "#FF5733";
     let clause_hex = WhereClause::Field {
-        path:     vec!["color".to_string()],
+        path: vec!["color".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(color_hex),
+        value: json!(color_hex),
     };
 
     match clause_hex {
@@ -262,19 +262,19 @@ fn test_custom_scalar_mixed_in_where() {
     // Multiple custom scalar types in one query
     let query = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["created_at".to_string()],
+            path: vec!["created_at".to_string()],
             operator: WhereOperator::Gt,
-            value:    json!("2024-01-01T00:00:00Z"),
+            value: json!("2024-01-01T00:00:00Z"),
         },
         WhereClause::Field {
-            path:     vec!["user_id".to_string()],
+            path: vec!["user_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("550e8400-e29b-41d4-a716-446655440000"),
+            value: json!("550e8400-e29b-41d4-a716-446655440000"),
         },
         WhereClause::Field {
-            path:     vec!["price".to_string()],
+            path: vec!["price".to_string()],
             operator: WhereOperator::Gt,
-            value:    json!("99.99"),
+            value: json!("99.99"),
         },
     ]);
 
@@ -314,9 +314,9 @@ fn test_custom_scalar_mixed_in_where() {
 fn test_custom_scalar_nested_in_where() {
     // Custom scalars in nested JSON paths
     let clause = WhereClause::Field {
-        path:     vec!["metadata".to_string(), "created_at".to_string()],
+        path: vec!["metadata".to_string(), "created_at".to_string()],
         operator: WhereOperator::Lt,
-        value:    json!("2024-12-31T23:59:59Z"),
+        value: json!("2024-12-31T23:59:59Z"),
     };
 
     match clause {

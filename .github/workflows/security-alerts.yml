@@ -16,12 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Pull latest base images
         run: |
           docker pull python:3.13-slim
-          docker pull gcr.io/distroless/python3-debian12:nonroot
 
       - name: Scan python:3.13-slim
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
@@ -34,17 +33,6 @@ jobs:
           exit-code: 0
         continue-on-error: true
 
-      - name: Scan gcr.io/distroless/python3-debian12:nonroot
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
-        with:
-          scan-type: 'image'
-          scan-ref: 'gcr.io/distroless/python3-debian12:nonroot'
-          severity: 'HIGH,CRITICAL'
-          format: 'json'
-          output: '/tmp/distroless-scan.json'
-          exit-code: 0
-        continue-on-error: true
-
       - name: Check for new HIGH/CRITICAL vulnerabilities
         id: check-vulns
         run: |
@@ -52,17 +40,12 @@ jobs:
           SLIM_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/slim-scan.json || echo 0)
           SLIM_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/slim-scan.json || echo 0)
 
-          DISTROLESS_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' /tmp/distroless-scan.json || echo 0)
-          DISTROLESS_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' /tmp/distroless-scan.json || echo 0)
-
           echo "slim_critical=$SLIM_CRITICAL" >> $GITHUB_OUTPUT
           echo "slim_high=$SLIM_HIGH" >> $GITHUB_OUTPUT
-          echo "distroless_critical=$DISTROLESS_CRITICAL" >> $GITHUB_OUTPUT
-          echo "distroless_high=$DISTROLESS_HIGH" >> $GITHUB_OUTPUT
 
           # Determine alert level
-          TOTAL_CRITICAL=$((SLIM_CRITICAL + DISTROLESS_CRITICAL))
-          TOTAL_HIGH=$((SLIM_HIGH + DISTROLESS_HIGH))
+          TOTAL_CRITICAL=$SLIM_CRITICAL
+          TOTAL_HIGH=$SLIM_HIGH
 
           if [ "$TOTAL_CRITICAL" -gt 0 ]; then
             echo "alert_level=CRITICAL" >> $GITHUB_OUTPUT
@@ -86,9 +69,9 @@ jobs:
           - 🔴 Critical: $SLIM_CRITICAL
           - 🟠 High: $SLIM_HIGH
 
-          ## gcr.io/distroless/python3-debian12:nonroot
-          - 🔴 Critical: $DISTROLESS_CRITICAL
-          - 🟠 High: $DISTROLESS_HIGH
+          > Note: distroless scan removed — no in-tree Dockerfile uses
+          > `gcr.io/distroless/python3-debian12:nonroot`. Re-enable when
+          > a `distroless-python:3.13` image is adopted.
 
           ## Action Required
           EOF
@@ -119,7 +102,7 @@ jobs:
 
       - name: Create GitHub Issue for HIGH/CRITICAL vulnerabilities
         if: steps.check-vulns.outputs.should_alert == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
             const fs = require('fs');
@@ -135,7 +118,7 @@ jobs:
             });
 
       - name: Upload scan results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: base-image-security-scans
           path: /tmp/*-scan.json
@@ -145,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Check CVE-2025-14104 (util-linux)
         id: cve-14104
@@ -267,7 +250,7 @@ jobs:
 
       - name: Create GitHub Issue if patches available
         if: env.fixed_count > 0
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
             const fs = require('fs');
@@ -282,7 +265,7 @@ jobs:
             });
 
       - name: Upload CVE monitoring report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: cve-monitoring-report
           path: /tmp/cve-monitoring-report.md
@@ -294,7 +277,7 @@ jobs:
     needs: [scan-base-images, monitor-active-cves]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Generate compliance summary
         run: |
@@ -337,7 +320,7 @@ jobs:
           cat compliance-summary.md
 
       - name: Upload compliance summary
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: weekly-compliance-summary
           path: compliance-summary.md

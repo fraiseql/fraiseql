@@ -52,7 +52,7 @@ pub struct UsageQueryParams {
     /// Tenant identifier to query.
     pub tenant_id: String,
     /// Billing period in `YYYY-MM` format (e.g. `"2026-05"`).
-    pub period:    String,
+    pub period: String,
 }
 
 // ── Response types ─────────────────────────────────────────────────────────
@@ -64,9 +64,9 @@ pub struct UsageResponse {
     /// The queried tenant identifier.
     pub tenant_id: String,
     /// The queried period (`YYYY-MM`).
-    pub period:    String,
+    pub period: String,
     /// Mutation counts for the queried period.
-    pub usage:     UsageSummary,
+    pub usage: UsageSummary,
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────

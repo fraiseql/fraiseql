@@ -45,6 +45,7 @@ pub enum InheritanceMode {
 
 impl InheritanceMode {
     /// Get a human-readable description.
+    #[must_use]
     pub const fn description(&self) -> &'static str {
         match self {
             Self::Override => "Child rules override parent rules completely",
@@ -59,13 +60,13 @@ impl InheritanceMode {
 #[derive(Debug, Clone)]
 pub struct RuleMetadata {
     /// The validation rule
-    pub rule:         ValidationRule,
+    pub rule: ValidationRule,
     /// Whether this rule can be overridden by child types
     pub overrideable: bool,
     /// Whether this rule is inherited from a parent type
-    pub inherited:    bool,
+    pub inherited: bool,
     /// The source type name for tracking
-    pub source:       String,
+    pub source: String,
 }
 
 impl RuleMetadata {
@@ -80,12 +81,14 @@ impl RuleMetadata {
     }
 
     /// Mark this rule as non-overrideable.
+    #[must_use]
     pub const fn non_overrideable(mut self) -> Self {
         self.overrideable = false;
         self
     }
 
     /// Mark this rule as inherited.
+    #[must_use]
     pub const fn as_inherited(mut self) -> Self {
         self.inherited = true;
         self
@@ -98,15 +101,16 @@ pub struct ValidationRuleRegistry {
     /// Rules by type name
     pub(crate) rules_by_type: HashMap<String, Vec<RuleMetadata>>,
     /// Parent type references
-    parent_types:             HashMap<String, String>,
+    parent_types: HashMap<String, String>,
 }
 
 impl ValidationRuleRegistry {
     /// Create a new validation rule registry.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             rules_by_type: HashMap::new(),
-            parent_types:  HashMap::new(),
+            parent_types: HashMap::new(),
         }
     }
 
@@ -121,6 +125,7 @@ impl ValidationRuleRegistry {
     }
 
     /// Get rules for a type, including inherited rules.
+    #[must_use]
     pub fn get_rules(&self, type_name: &str, mode: InheritanceMode) -> Vec<RuleMetadata> {
         let mut rules = Vec::new();
 
@@ -160,11 +165,13 @@ impl ValidationRuleRegistry {
     }
 
     /// Get the parent type name if one exists.
+    #[must_use]
     pub fn get_parent(&self, type_name: &str) -> Option<&str> {
         self.parent_types.get(type_name).map(|s| s.as_str())
     }
 
     /// Check if a type has a parent.
+    #[must_use]
     pub fn has_parent(&self, type_name: &str) -> bool {
         self.parent_types.contains_key(type_name)
     }
@@ -179,6 +186,7 @@ impl ValidationRuleRegistry {
 ///
 /// # Returns
 /// Combined rules based on the inheritance mode
+#[must_use]
 pub fn inherit_validation_rules(
     parent_rules: &[ValidationRule],
     child_rules: &[ValidationRule],

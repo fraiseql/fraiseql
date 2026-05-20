@@ -1,5 +1,3 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,7 +22,7 @@ use crate::{
 /// Minimal mock `OAuth` provider for unit tests.
 #[derive(Debug, Clone)]
 struct MockOAuthProvider {
-    name:     &'static str,
+    name: &'static str,
     base_url: String,
 }
 
@@ -66,8 +64,8 @@ fn build_test_state(providers: Vec<(&'static str, &'static str)>) -> Arc<SocialL
         );
     }
     Arc::new(SocialLoginState {
-        registry:      Arc::new(registry),
-        state_store:   Arc::new(InMemoryStateStore::new()),
+        registry: Arc::new(registry),
+        state_store: Arc::new(InMemoryStateStore::new()),
         rate_limiters: Arc::new(RateLimiters::new()),
     })
 }
@@ -189,14 +187,14 @@ async fn test_authorize_state_token_stored_in_state_store() {
     registry.register(
         "github",
         Arc::new(MockOAuthProvider {
-            name:     "github",
+            name: "github",
             base_url: "https://github.com/login/oauth/authorize".to_string(),
         }) as Arc<dyn OAuthProvider>,
     );
 
     let login_state = Arc::new(SocialLoginState {
-        registry:      Arc::new(registry),
-        state_store:   Arc::clone(&state_store) as Arc<dyn StateStore>,
+        registry: Arc::new(registry),
+        state_store: Arc::clone(&state_store) as Arc<dyn StateStore>,
         rate_limiters: Arc::new(RateLimiters::new()),
     });
 
@@ -235,13 +233,13 @@ async fn test_authorize_produces_unique_state_tokens() {
     registry.register(
         "github",
         Arc::new(MockOAuthProvider {
-            name:     "github",
+            name: "github",
             base_url: "https://github.com/login/oauth/authorize".to_string(),
         }) as Arc<dyn OAuthProvider>,
     );
     let login_state = Arc::new(SocialLoginState {
-        registry:      Arc::new(registry),
-        state_store:   Arc::clone(&state_store) as Arc<dyn StateStore>,
+        registry: Arc::new(registry),
+        state_store: Arc::clone(&state_store) as Arc<dyn StateStore>,
         rate_limiters: Arc::new(RateLimiters::new()),
     });
 
@@ -258,7 +256,7 @@ fn test_social_provider_registry_register_and_get() {
     registry.register(
         "github",
         Arc::new(MockOAuthProvider {
-            name:     "github",
+            name: "github",
             base_url: "https://github.com/login/oauth/authorize".to_string(),
         }) as Arc<dyn OAuthProvider>,
     );
@@ -274,14 +272,14 @@ fn test_social_provider_registry_names() {
     registry.register(
         "github",
         Arc::new(MockOAuthProvider {
-            name:     "github",
+            name: "github",
             base_url: String::new(),
         }) as Arc<dyn OAuthProvider>,
     );
     registry.register(
         "google",
         Arc::new(MockOAuthProvider {
-            name:     "google",
+            name: "google",
             base_url: String::new(),
         }) as Arc<dyn OAuthProvider>,
     );

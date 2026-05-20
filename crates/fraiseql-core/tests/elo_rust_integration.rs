@@ -20,7 +20,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "test_validator".to_string(),
+            name: "test_validator".to_string(),
             elo_expression: "age >= 18".to_string(),
             generated_code: Some("fn validate(age: i32) -> bool { age >= 18 }".to_string()),
         };
@@ -50,7 +50,7 @@ mod tests {
 
         for i in 0..5 {
             let validator = EloRustValidator {
-                name:           format!("validator_{}", i),
+                name: format!("validator_{}", i),
                 elo_expression: format!("value > {}", i),
                 generated_code: None,
             };
@@ -67,7 +67,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "test".to_string(),
+            name: "test".to_string(),
             elo_expression: "true".to_string(),
             generated_code: None,
         };
@@ -100,7 +100,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "test".to_string(),
+            name: "test".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_creation() {
         let validator = EloRustValidator {
-            name:           "email_validator".to_string(),
+            name: "email_validator".to_string(),
             elo_expression: "contains(email, \"@\") && contains(email, \".\")".to_string(),
             generated_code: None,
         };
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_with_generated_code() {
         let validator = EloRustValidator {
-            name:           "range_validator".to_string(),
+            name: "range_validator".to_string(),
             elo_expression: "value >= 0 && value <= 100".to_string(),
             generated_code: Some(
                 "fn validate(value: i32) -> bool { value >= 0 && value <= 100 }".to_string(),
@@ -148,17 +148,17 @@ mod tests {
 
         let validators = vec![
             EloRustValidator {
-                name:           "age_validator".to_string(),
+                name: "age_validator".to_string(),
                 elo_expression: "age >= 18".to_string(),
                 generated_code: None,
             },
             EloRustValidator {
-                name:           "email_validator".to_string(),
+                name: "email_validator".to_string(),
                 elo_expression: "contains(email, \"@\")".to_string(),
                 generated_code: None,
             },
             EloRustValidator {
-                name:           "password_validator".to_string(),
+                name: "password_validator".to_string(),
                 elo_expression: "length(password) >= 8".to_string(),
                 generated_code: None,
             },
@@ -181,13 +181,13 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator1 = EloRustValidator {
-            name:           "validator_1".to_string(),
+            name: "validator_1".to_string(),
             elo_expression: "true".to_string(),
             generated_code: None,
         };
 
         let validator2 = EloRustValidator {
-            name:           "validator_2".to_string(),
+            name: "validator_2".to_string(),
             elo_expression: "false".to_string(),
             generated_code: None,
         };
@@ -206,7 +206,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator1 = EloRustValidator {
-            name:           "test_validator".to_string(),
+            name: "test_validator".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -214,7 +214,7 @@ mod tests {
         registry.register(validator1);
 
         let validator2 = EloRustValidator {
-            name:           "test_validator".to_string(),
+            name: "test_validator".to_string(),
             elo_expression: "x > 10".to_string(),
             generated_code: Some("updated".to_string()),
         };
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_complex_expression() {
         let validator = EloRustValidator {
-            name:           "complex_validator".to_string(),
+            name: "complex_validator".to_string(),
             elo_expression: "(age >= 18 && age <= 65) || (is_senior && age >= 65)".to_string(),
             generated_code: None,
         };
@@ -254,7 +254,7 @@ mod tests {
             let handle = std::thread::spawn(move || {
                 for i in 0..10 {
                     let validator = EloRustValidator {
-                        name:           format!("thread_{}_validator_{}", thread_id, i),
+                        name: format!("thread_{}_validator_{}", thread_id, i),
                         elo_expression: format!("value > {}", i),
                         generated_code: None,
                     };
@@ -287,7 +287,7 @@ mod tests {
         // Register more than max_cache_size
         for i in 0..10 {
             let validator = EloRustValidator {
-                name:           format!("validator_{}", i),
+                name: format!("validator_{}", i),
                 elo_expression: format!("value > {}", i),
                 generated_code: None,
             };
@@ -306,7 +306,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "test_validator".to_string(),
+            name: "test_validator".to_string(),
             elo_expression: "true".to_string(),
             generated_code: None,
         };
@@ -321,7 +321,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_empty_expression() {
         let validator = EloRustValidator {
-            name:           "empty_validator".to_string(),
+            name: "empty_validator".to_string(),
             elo_expression: String::new(),
             generated_code: None,
         };
@@ -333,9 +333,9 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_registry_custom_config() {
         let config = RustValidatorRegistryConfig {
-            enabled:          false,
+            enabled: false,
             cache_validators: false,
-            max_cache_size:   100,
+            max_cache_size: 100,
         };
 
         let registry = RustValidatorRegistry::new(config);
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_clone() {
         let validator = EloRustValidator {
-            name:           "cloneable".to_string(),
+            name: "cloneable".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: Some("code".to_string()),
         };
@@ -366,7 +366,7 @@ mod tests {
         let registry1 = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "shared_validator".to_string(),
+            name: "shared_validator".to_string(),
             elo_expression: "true".to_string(),
             generated_code: None,
         };
@@ -403,7 +403,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_metadata() {
         let validator = EloRustValidator {
-            name:           "documented_validator".to_string(),
+            name: "documented_validator".to_string(),
             elo_expression: "age >= 18 && age <= 65".to_string(),
             generated_code: Some("validation code".to_string()),
         };
@@ -419,7 +419,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let v1 = EloRustValidator {
-            name:           "v1".to_string(),
+            name: "v1".to_string(),
             elo_expression: "expr1".to_string(),
             generated_code: None,
         };
@@ -428,7 +428,7 @@ mod tests {
         assert!(registry.exists("v1"));
 
         let v2 = EloRustValidator {
-            name:           "v2".to_string(),
+            name: "v2".to_string(),
             elo_expression: "expr2".to_string(),
             generated_code: None,
         };
@@ -445,7 +445,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_special_chars() {
         let validator = EloRustValidator {
-            name:           "special_validator".to_string(),
+            name: "special_validator".to_string(),
             elo_expression: "field ~= /^[a-zA-Z0-9_]+$/ && length > 0".to_string(),
             generated_code: None,
         };
@@ -462,7 +462,7 @@ mod tests {
 
         for i in 0..5 {
             let validator = EloRustValidator {
-                name:           format!("v{}", i),
+                name: format!("v{}", i),
                 elo_expression: format!("expr{}", i),
                 generated_code: None,
             };
@@ -478,7 +478,7 @@ mod tests {
     #[test]
     fn test_elo_rust_validator_multitype_expression() {
         let validator = EloRustValidator {
-            name:           "multitype".to_string(),
+            name: "multitype".to_string(),
             elo_expression:
                 "(age >= 18) && (name ~= /^[A-Z]/) && (balance > 100.50) || (is_verified)"
                     .to_string(),
@@ -498,7 +498,7 @@ mod tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "to_remove".to_string(),
+            name: "to_remove".to_string(),
             elo_expression: "true".to_string(),
             generated_code: None,
         };
@@ -520,7 +520,7 @@ mod tests {
         assert!(registry.is_empty());
 
         let validator = EloRustValidator {
-            name:           "v1".to_string(),
+            name: "v1".to_string(),
             elo_expression: "expr".to_string(),
             generated_code: None,
         };

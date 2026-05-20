@@ -189,9 +189,9 @@ async fn where_eq_operator_returns_same_results_on_pg_and_mysql() {
     let (my, _my_c) = setup_mysql().await;
 
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("alice"),
+        value: json!("alice"),
     };
 
     let pg_rows = pg
@@ -229,9 +229,9 @@ async fn where_gte_operator_returns_same_count_on_pg_and_mysql() {
     let (my, _my_c) = setup_mysql().await;
 
     let clause = WhereClause::Field {
-        path:     vec!["age".to_string()],
+        path: vec!["age".to_string()],
         operator: WhereOperator::Gte,
-        value:    json!(30),
+        value: json!(30),
     };
 
     let pg_rows = pg
@@ -267,9 +267,9 @@ async fn null_fields_represented_identically_across_adapters() {
 
     // alice has "score": null
     let clause = WhereClause::Field {
-        path:     vec!["name".to_string()],
+        path: vec!["name".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("alice"),
+        value: json!("alice"),
     };
 
     let pg_rows = pg

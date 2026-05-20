@@ -23,13 +23,13 @@ mod admin_tests {
     #[test]
     fn test_admin_health_response_serializes() {
         let resp = AdminHealthResponse {
-            uptime_secs:    10,
-            version:        "test".to_string(),
-            pool_active:    1,
-            pool_idle:      4,
-            pool_max:       5,
+            uptime_secs: 10,
+            version: "test".to_string(),
+            pool_active: 1,
+            pool_idle: 4,
+            pool_max: 5,
             cache_hit_rate: Some(0.8),
-            cache_entries:  Some(100),
+            cache_entries: Some(100),
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("uptime_secs"));
@@ -53,9 +53,9 @@ mod auth_users_tests {
     #[test]
     fn test_user_list_response_serializes() {
         let resp = UserListResponse {
-            users:     vec![],
-            total:     0,
-            page:      1,
+            users: vec![],
+            total: 0,
+            page: 1,
             page_size: 50,
         };
         let json = serde_json::to_string(&resp).unwrap();
@@ -77,9 +77,9 @@ mod data_tests {
     #[test]
     fn test_data_query_response_serializes() {
         let resp = DataQueryResponse {
-            rows:      vec![serde_json::json!({"id": 1})],
-            total:     1,
-            page:      1,
+            rows: vec![serde_json::json!({"id": 1})],
+            total: 1,
+            page: 1,
             page_size: 50,
         };
         let json = serde_json::to_string(&resp).unwrap();
@@ -250,13 +250,13 @@ mod realtime_monitor_tests {
     #[test]
     fn test_realtime_stats_serializes() {
         let resp = RealtimeStatsResponse {
-            connections:    5,
-            channels:       vec!["users".to_string()],
+            connections: 5,
+            channels: vec!["users".to_string()],
             presence_rooms: vec![PresenceRoom {
-                room:    "lobby".to_string(),
+                room: "lobby".to_string(),
                 members: 3,
             }],
-            cdc_lag_ms:     Some(10),
+            cdc_lag_ms: Some(10),
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("\"connections\""));
@@ -273,9 +273,9 @@ mod storage_browser_tests {
     #[test]
     fn test_object_list_response_serializes() {
         let resp = ObjectListResponse {
-            objects:   vec![],
-            total:     0,
-            page:      1,
+            objects: vec![],
+            total: 0,
+            page: 1,
             page_size: 50,
         };
         let json = serde_json::to_string(&resp).unwrap();

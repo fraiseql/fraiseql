@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ApiError {
     /// Human-readable error message.
-    pub error:   String,
+    pub error: String,
     /// Machine-readable error code (e.g. `"NOT_FOUND"`, `"VALIDATION_ERROR"`).
-    pub code:    String,
+    pub code: String,
     /// Optional additional context about the error.
     pub details: Option<String>,
 }
@@ -24,8 +24,8 @@ impl ApiError {
     /// Create a new API error with error message and code.
     pub fn new(error: impl Into<String>, code: impl Into<String>) -> Self {
         Self {
-            error:   error.into(),
-            code:    code.into(),
+            error: error.into(),
+            code: code.into(),
             details: None,
         }
     }
@@ -52,6 +52,7 @@ impl ApiError {
     }
 
     /// Create an unauthorized error.
+    #[must_use]
     pub fn unauthorized() -> Self {
         Self::new("Unauthorized", "UNAUTHORIZED")
     }
@@ -90,7 +91,7 @@ pub struct ApiResponse<T> {
     /// Always `"success"` for successful responses.
     pub status: String,
     /// The response payload.
-    pub data:   T,
+    pub data: T,
 }
 
 impl<T: Serialize> ApiResponse<T> {
@@ -132,17 +133,19 @@ impl SanitizedConfig {
     /// - TLS private keys and certificates (replaced with boolean flag)
     /// - Database connection strings (not included)
     /// - API keys and tokens (not included)
+    #[must_use]
     pub fn from_config(config: &crate::config::HttpServerConfig) -> Self {
         Self {
-            port:        config.port,
-            host:        config.host.clone(),
-            workers:     config.workers,
+            port: config.port,
+            host: config.host.clone(),
+            workers: config.workers,
             tls_enabled: config.tls.is_some(),
-            sanitized:   true,
+            sanitized: true,
         }
     }
 
     /// Verify configuration has been properly sanitized.
+    #[must_use]
     pub const fn is_sanitized(&self) -> bool {
         self.sanitized
     }

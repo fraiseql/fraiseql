@@ -23,8 +23,8 @@ use tokio::task::JoinSet;
 
 /// Mock database adapter for concurrent testing
 struct ConcurrentMockDatabase {
-    query_count:   Arc<AtomicUsize>,
-    users_data:    Vec<JsonbValue>,
+    query_count: Arc<AtomicUsize>,
+    users_data: Vec<JsonbValue>,
     products_data: Vec<JsonbValue>,
 }
 
@@ -73,7 +73,7 @@ impl ConcurrentMockDatabase {
     /// Simulate a query execution with slight delay
     async fn query_users(&self, limit: Option<usize>) -> Vec<JsonbValue> {
         self.query_count.fetch_add(1, Ordering::SeqCst);
-        tokio::time::sleep(tokio::time::Duration::from_micros(100)).await;
+        tokio::task::yield_now().await;
 
         let limit = limit.unwrap_or(self.users_data.len());
         self.users_data.iter().take(limit).cloned().collect()
@@ -82,7 +82,7 @@ impl ConcurrentMockDatabase {
     /// Simulate a product query
     async fn query_products(&self, limit: Option<usize>) -> Vec<JsonbValue> {
         self.query_count.fetch_add(1, Ordering::SeqCst);
-        tokio::time::sleep(tokio::time::Duration::from_micros(100)).await;
+        tokio::task::yield_now().await;
 
         let limit = limit.unwrap_or(self.products_data.len());
         self.products_data.iter().take(limit).cloned().collect()
@@ -378,7 +378,7 @@ async fn test_concurrent_error_handling() {
             for i in 0..5 {
                 let error = FraiseQLError::Validation {
                     message: format!("Test error from task {} iteration {}", task_id, i),
-                    path:    Some(format!("query.field{}", i)),
+                    path: Some(format!("query.field{}", i)),
                 };
 
                 let wrapped = ResultProjector::wrap_error(&error);

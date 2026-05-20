@@ -25,9 +25,9 @@ use crate::{
     },
     routes::{
         BroadcastState, PlaygroundState, SubscriptionState, api, broadcast_handler,
-        graphql::AppState, graphql_get_handler, graphql_handler, health_handler,
-        introspection_handler, metrics_handler, metrics_json_handler, playground_handler,
-        readiness_handler, subscription_handler,
+        graphql_get_handler, graphql_handler, health_handler, introspection_handler,
+        metrics_handler, metrics_json_handler, playground_handler, readiness_handler,
+        subscription_handler,
     },
     server_config::ServerConfig,
     tls::TlsSetup,

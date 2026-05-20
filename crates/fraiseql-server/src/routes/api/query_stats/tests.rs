@@ -15,10 +15,10 @@ fn query_stats_params_deserializes_with_limit() {
 #[test]
 fn query_stats_response_serializes_correctly() {
     let resp = QueryStatsResponse {
-        database_type:   "PostgreSQL".to_string(),
+        database_type: "PostgreSQL".to_string(),
         stats_available: true,
-        entries:         vec![],
-        message:         None,
+        entries: vec![],
+        message: None,
     };
     let json = serde_json::to_value(&resp).unwrap();
     assert_eq!(json["database_type"], "PostgreSQL");
@@ -29,10 +29,10 @@ fn query_stats_response_serializes_correctly() {
 #[test]
 fn query_stats_response_includes_message_when_present() {
     let resp = QueryStatsResponse {
-        database_type:   "SQLite".to_string(),
+        database_type: "SQLite".to_string(),
         stats_available: false,
-        entries:         vec![],
-        message:         Some("not supported".to_string()),
+        entries: vec![],
+        message: Some("not supported".to_string()),
     };
     let json = serde_json::to_value(&resp).unwrap();
     assert_eq!(json["message"], "not supported");

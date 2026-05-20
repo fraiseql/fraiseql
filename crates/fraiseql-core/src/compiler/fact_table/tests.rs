@@ -17,20 +17,20 @@ fn test_is_fact_table() {
 #[test]
 fn test_validate_valid_fact_table() {
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "dimensions".to_string(),
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          HashMap::new(),
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -41,16 +41,16 @@ fn test_validate_valid_fact_table() {
 #[test]
 fn test_validate_missing_measures() {
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![],
-        dimensions:               DimensionColumn {
-            name:  "dimensions".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          HashMap::new(),
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -62,20 +62,20 @@ fn test_validate_missing_measures() {
 #[test]
 fn test_validate_non_numeric_measure() {
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "category".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "category".to_string(),
             sql_type: SqlType::Text, // Wrong type for measure!
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "dimensions".to_string(),
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          HashMap::new(),
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -587,9 +587,9 @@ fn test_partial_period_backward_compat_absent() {
 #[test]
 fn test_partial_period_config_roundtrip() {
     let config = PartialPeriodConfig {
-        fine_grain_view:   "v_events_day".to_string(),
+        fine_grain_view: "v_events_day".to_string(),
         time_grain_column: "date".to_string(),
-        time_grain_trunc:  TemporalGrain::Quarter,
+        time_grain_trunc: TemporalGrain::Quarter,
     };
 
     let json = serde_json::to_string(&config).unwrap();
@@ -641,11 +641,11 @@ fn test_aggregation_strategy_equality() {
 #[test]
 fn test_fact_table_declaration_basic() {
     let decl = FactTableDeclaration {
-        name:        "tf_sales".to_string(),
-        measures:    vec!["amount".to_string(), "quantity".to_string()],
-        dimensions:  vec!["product_id".to_string(), "region_id".to_string()],
+        name: "tf_sales".to_string(),
+        measures: vec!["amount".to_string(), "quantity".to_string()],
+        dimensions: vec!["product_id".to_string(), "region_id".to_string()],
         primary_key: "id".to_string(),
-        metadata:    None,
+        metadata: None,
     };
 
     assert_eq!(decl.name, "tf_sales");
@@ -665,11 +665,11 @@ fn test_fact_table_declaration_with_metadata() {
     };
 
     let decl = FactTableDeclaration {
-        name:        "tf_events".to_string(),
-        measures:    vec!["count".to_string()],
-        dimensions:  vec!["user_id".to_string(), "event_type".to_string()],
+        name: "tf_events".to_string(),
+        measures: vec!["count".to_string()],
+        dimensions: vec!["user_id".to_string(), "event_type".to_string()],
         primary_key: "id".to_string(),
-        metadata:    Some(metadata),
+        metadata: Some(metadata),
     };
 
     assert!(decl.metadata.is_some());
@@ -688,11 +688,11 @@ fn test_fact_table_declaration_periodic_snapshot() {
     };
 
     let decl = FactTableDeclaration {
-        name:        "tf_inventory".to_string(),
-        measures:    vec!["quantity_on_hand".to_string()],
-        dimensions:  vec!["warehouse_id".to_string()],
+        name: "tf_inventory".to_string(),
+        measures: vec!["quantity_on_hand".to_string()],
+        dimensions: vec!["warehouse_id".to_string()],
         primary_key: "id".to_string(),
-        metadata:    Some(metadata),
+        metadata: Some(metadata),
     };
 
     assert_eq!(decl.name, "tf_inventory");
@@ -728,11 +728,11 @@ fn test_fact_table_declaration_json_serialization() {
 #[test]
 fn test_fact_table_declaration_json_roundtrip() {
     let original = FactTableDeclaration {
-        name:        "tf_orders".to_string(),
-        measures:    vec!["amount".to_string()],
-        dimensions:  vec!["customer_id".to_string()],
+        name: "tf_orders".to_string(),
+        measures: vec!["amount".to_string()],
+        dimensions: vec!["customer_id".to_string()],
         primary_key: "id".to_string(),
-        metadata:    Some(FactTableDeclarationMetadata {
+        metadata: Some(FactTableDeclarationMetadata {
             aggregation_strategy: AggregationStrategy::AccumulatingSnapshot,
             grain: vec!["order_id".to_string()],
             snapshot_date_column: None,
@@ -773,18 +773,18 @@ fn test_fact_table_declaration_metadata_default_strategy() {
 fn test_multiple_fact_table_declarations() {
     let declarations = [
         FactTableDeclaration {
-            name:        "tf_sales".to_string(),
-            measures:    vec!["amount".to_string()],
-            dimensions:  vec!["product_id".to_string()],
+            name: "tf_sales".to_string(),
+            measures: vec!["amount".to_string()],
+            dimensions: vec!["product_id".to_string()],
             primary_key: "id".to_string(),
-            metadata:    None,
+            metadata: None,
         },
         FactTableDeclaration {
-            name:        "tf_events".to_string(),
-            measures:    vec!["count".to_string()],
-            dimensions:  vec!["user_id".to_string()],
+            name: "tf_events".to_string(),
+            measures: vec!["count".to_string()],
+            dimensions: vec!["user_id".to_string()],
             primary_key: "id".to_string(),
-            metadata:    None,
+            metadata: None,
         },
     ];
 
@@ -808,16 +808,16 @@ fn test_fact_table_declaration_large_grain() {
     };
 
     let decl = FactTableDeclaration {
-        name:        "tf_sales_detailed".to_string(),
-        measures:    vec!["amount".to_string(), "quantity".to_string()],
-        dimensions:  vec![
+        name: "tf_sales_detailed".to_string(),
+        measures: vec!["amount".to_string(), "quantity".to_string()],
+        dimensions: vec![
             "date_id".to_string(),
             "product_id".to_string(),
             "region_id".to_string(),
             "customer_id".to_string(),
         ],
         primary_key: "id".to_string(),
-        metadata:    Some(metadata),
+        metadata: Some(metadata),
     };
 
     let meta = decl.metadata.unwrap();
@@ -861,23 +861,20 @@ fn test_native_measures_backward_compat_absent() {
 #[test]
 fn test_native_measures_roundtrip() {
     let ft = FactTableMetadata {
-        table_name:               "mv_daily_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "volume".to_string(),
+        table_name: "mv_daily_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "volume".to_string(),
             sql_type: SqlType::BigInt,
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          HashMap::from([(
-            "measures.volume".to_string(),
-            "volume".to_string(),
-        )]),
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: HashMap::from([("measures.volume".to_string(), "volume".to_string())]),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -931,16 +928,16 @@ fn test_native_dimension_mapping_backward_compat_absent() {
 #[test]
 fn test_native_dimension_mapping_roundtrip() {
     let ft = FactTableMetadata {
-        table_name:               "mv_daily_sales".to_string(),
-        measures:                 vec![],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        table_name: "mv_daily_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          HashMap::new(),
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: HashMap::new(),
         native_dimension_mapping: HashMap::from([(
             "dimensions.category.id".to_string(),
             "category_id".to_string(),

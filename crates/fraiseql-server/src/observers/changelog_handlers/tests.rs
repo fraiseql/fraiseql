@@ -3,17 +3,17 @@ use super::*;
 #[test]
 fn changelog_entry_response_serializes() {
     let entry = ChangelogEntryResponse {
-        cursor:            42,
-        id:                "550e8400-e29b-41d4-a716-446655440000".to_string(),
-        org_id:            Some("acme".to_string()),
-        user_id:           None,
-        object_type:       "Order".to_string(),
-        object_id:         "123".to_string(),
+        cursor: 42,
+        id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        org_id: Some("acme".to_string()),
+        user_id: None,
+        object_type: "Order".to_string(),
+        object_id: "123".to_string(),
         modification_type: "INSERT".to_string(),
-        status:            None,
-        object_data:       serde_json::json!({"op": "c", "after": {"id": 1}}),
-        metadata:          None,
-        created_at:        None,
+        status: None,
+        object_data: serde_json::json!({"op": "c", "after": {"id": 1}}),
+        metadata: None,
+        created_at: None,
     };
     let json = serde_json::to_value(&entry).expect("serialize");
     assert_eq!(json["cursor"], 42);
@@ -23,7 +23,7 @@ fn changelog_entry_response_serializes() {
 #[test]
 fn changelog_list_response_serializes() {
     let response = ChangelogListResponse {
-        entries:     vec![],
+        entries: vec![],
         next_cursor: None,
     };
     let json = serde_json::to_value(&response).expect("serialize");
@@ -36,7 +36,7 @@ fn checkpoint_response_serializes() {
     let response = CheckpointResponse {
         listener_id: "my_app".to_string(),
         last_cursor: 100,
-        updated_at:  Some("2026-01-01T00:00:00Z".to_string()),
+        updated_at: Some("2026-01-01T00:00:00Z".to_string()),
     };
     let json = serde_json::to_value(&response).expect("serialize");
     assert_eq!(json["last_cursor"], 100);

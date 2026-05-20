@@ -152,35 +152,34 @@ impl ServerArgs {
     ///
     /// Unset env vars produce `None` fields — only explicitly set env vars
     /// generate overrides.
+    #[must_use]
     pub fn from_env() -> Self {
         Self {
-            config:                     std::env::var("FRAISEQL_CONFIG").ok(),
-            database_url:               std::env::var("DATABASE_URL").ok(),
-            bind_addr:                  std::env::var("FRAISEQL_BIND_ADDR")
-                .ok()
-                .and_then(|v| v.parse().ok()),
-            schema_path:                std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
-            metrics_enabled:            parse_bool_env_opt("FRAISEQL_METRICS_ENABLED"),
-            metrics_token:              std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
-            admin_api_enabled:          parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED"),
-            admin_token:                std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
-            introspection_enabled:      parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
+            config: std::env::var("FRAISEQL_CONFIG").ok(),
+            database_url: std::env::var("DATABASE_URL").ok(),
+            bind_addr: std::env::var("FRAISEQL_BIND_ADDR").ok().and_then(|v| v.parse().ok()),
+            schema_path: std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
+            metrics_enabled: parse_bool_env_opt("FRAISEQL_METRICS_ENABLED"),
+            metrics_token: std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
+            admin_api_enabled: parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED"),
+            admin_token: std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
+            introspection_enabled: parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED"),
             introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH"),
-            metadata_require_auth:      parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
+            metadata_require_auth: parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH"),
             schema_export_require_auth: parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"),
-            playground_require_auth:    parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH"),
-            subscription_require_auth:  parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH"),
-            rate_limiting_enabled:      parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
-            rate_limit_rps_per_ip:      std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
+            playground_require_auth: parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH"),
+            subscription_require_auth: parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH"),
+            rate_limiting_enabled: parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED"),
+            rate_limit_rps_per_ip: std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_IP")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            rate_limit_rps_per_user:    std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER")
+            rate_limit_rps_per_user: std::env::var("FRAISEQL_RATE_LIMIT_RPS_PER_USER")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            rate_limit_burst_size:      std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE")
+            rate_limit_burst_size: std::env::var("FRAISEQL_RATE_LIMIT_BURST_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            log_format:                 std::env::var("FRAISEQL_LOG_FORMAT").ok(),
+            log_format: std::env::var("FRAISEQL_LOG_FORMAT").ok(),
         }
     }
 
@@ -270,6 +269,7 @@ impl ServerArgs {
     }
 
     /// Whether the log format is JSON.
+    #[must_use]
     pub fn is_json_log_format(&self) -> bool {
         self.log_format.as_deref().is_some_and(|v| v.eq_ignore_ascii_case("json"))
     }

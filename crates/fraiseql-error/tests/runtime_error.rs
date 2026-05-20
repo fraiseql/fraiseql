@@ -81,7 +81,7 @@ fn rate_limited_error_code() {
 #[test]
 fn service_unavailable_error_code_and_display() {
     let err = RuntimeError::ServiceUnavailable {
-        reason:      "maintenance".into(),
+        reason: "maintenance".into(),
         retry_after: Some(300),
     };
     assert_eq!(err.error_code(), "service_unavailable");
@@ -101,7 +101,7 @@ fn not_found_error_code_and_display() {
 fn internal_error_without_source() {
     let err = RuntimeError::Internal {
         message: "unexpected state".into(),
-        source:  None,
+        source: None,
     };
     assert_eq!(err.error_code(), "internal_error");
     assert_eq!(err.to_string(), "Internal error: unexpected state");
@@ -113,7 +113,7 @@ fn internal_error_with_source() {
     let io_err = std::io::Error::other("disk failure");
     let err = RuntimeError::Internal {
         message: "storage failed".into(),
-        source:  Some(Box::new(io_err)),
+        source: Some(Box::new(io_err)),
     };
     assert_eq!(err.error_code(), "internal_error");
     assert!(std::error::Error::source(&err).is_some());

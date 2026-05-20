@@ -18,16 +18,16 @@ mod compiler_tests {
         let mut schema = CompiledSchema::new();
 
         let metadata = FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![],
-            dimensions:               DimensionColumn {
-                name:  "data".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![],
+            dimensions: DimensionColumn {
+                name: "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![],
-            calendar_dimensions:      vec![],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![],
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -84,15 +84,15 @@ mod ir_tests {
     #[test]
     fn test_ir_type() {
         let ir_type = IRType {
-            name:        "User".to_string(),
-            fields:      vec![IRField {
-                name:        "id".to_string(),
-                field_type:  "Int!".to_string(),
-                nullable:    false,
+            name: "User".to_string(),
+            fields: vec![IRField {
+                name: "id".to_string(),
+                field_type: "Int!".to_string(),
+                nullable: false,
                 description: None,
-                sql_column:  Some("id".to_string()),
+                sql_column: Some("id".to_string()),
             }],
-            sql_source:  Some("v_user".to_string()),
+            sql_source: Some("v_user".to_string()),
             description: Some("User type".to_string()),
         };
 
@@ -104,14 +104,14 @@ mod ir_tests {
     #[test]
     fn test_ir_query() {
         let query = IRQuery {
-            name:         "users".to_string(),
-            return_type:  "User".to_string(),
+            name: "users".to_string(),
+            return_type: "User".to_string(),
             returns_list: true,
-            nullable:     false,
-            arguments:    vec![],
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  AutoParams {
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams {
                 has_where: true,
                 has_limit: true,
                 ..Default::default()
@@ -127,18 +127,18 @@ mod ir_tests {
     #[test]
     fn test_ir_mutation() {
         let mutation = IRMutation {
-            name:        "createUser".to_string(),
+            name: "createUser".to_string(),
             return_type: "User".to_string(),
-            nullable:    false,
-            arguments:   vec![IRArgument {
-                name:          "input".to_string(),
-                arg_type:      "CreateUserInput!".to_string(),
-                nullable:      false,
+            nullable: false,
+            arguments: vec![IRArgument {
+                name: "input".to_string(),
+                arg_type: "CreateUserInput!".to_string(),
+                nullable: false,
                 default_value: None,
-                description:   None,
+                description: None,
             }],
             description: None,
-            operation:   MutationOperation::Create,
+            operation: MutationOperation::Create,
         };
 
         assert_eq!(mutation.name, "createUser");
@@ -175,14 +175,14 @@ mod ir_tests {
     #[test]
     fn test_ir_scalar_with_all_fields() {
         let scalar = IRScalar {
-            name:             "Email".to_string(),
-            description:      Some("Valid email address".to_string()),
+            name: "Email".to_string(),
+            description: Some("Valid email address".to_string()),
             specified_by_url: Some("https://html.spec.whatwg.org/".to_string()),
             validation_rules: vec![ValidationRule::Pattern {
                 pattern: r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
                 message: Some("Invalid email format".to_string()),
             }],
-            base_type:        Some("String".to_string()),
+            base_type: Some("String".to_string()),
         };
 
         assert_eq!(scalar.name, "Email");
@@ -195,11 +195,11 @@ mod ir_tests {
     #[test]
     fn test_ir_scalar_serialization() {
         let scalar = IRScalar {
-            name:             "ISBN".to_string(),
-            description:      Some("International Standard Book Number".to_string()),
+            name: "ISBN".to_string(),
+            description: Some("International Standard Book Number".to_string()),
             specified_by_url: Some("https://www.isbn-international.org/".to_string()),
             validation_rules: vec![],
-            base_type:        None,
+            base_type: None,
         };
 
         // Serialize to JSON
@@ -234,19 +234,19 @@ mod ir_tests {
     #[test]
     fn test_ir_scalar_equality() {
         let scalar1 = IRScalar {
-            name:             "UUID".to_string(),
-            description:      Some("Universal Unique Identifier".to_string()),
+            name: "UUID".to_string(),
+            description: Some("Universal Unique Identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type:        None,
+            base_type: None,
         };
 
         let scalar2 = IRScalar {
-            name:             "UUID".to_string(),
-            description:      Some("Universal Unique Identifier".to_string()),
+            name: "UUID".to_string(),
+            description: Some("Universal Unique Identifier".to_string()),
             specified_by_url: None,
             validation_rules: vec![],
-            base_type:        None,
+            base_type: None,
         };
 
         assert_eq!(scalar1, scalar2);
@@ -829,7 +829,7 @@ mod validator_tests {
             table_name: String::new(),
             measures,
             dimensions: DimensionColumn {
-                name:  dim_name.to_string(),
+                name: dim_name.to_string(),
                 paths: vec![],
             },
             denormalized_filters: vec![],
@@ -848,7 +848,7 @@ mod validator_tests {
             "tf_sales".to_string(),
             make_fact_table(
                 vec![MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 }],
@@ -868,7 +868,7 @@ mod validator_tests {
             "sales".to_string(),
             make_fact_table(
                 vec![MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 }],
@@ -902,7 +902,7 @@ mod validator_tests {
             "tf_sales".to_string(),
             make_fact_table(
                 vec![MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 }],
@@ -922,15 +922,15 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "SalesAggregate".to_string(),
-            fields:      vec![IRField {
-                name:        "revenue_sum".to_string(),
-                field_type:  "Float".to_string(),
-                nullable:    true,
+            name: "SalesAggregate".to_string(),
+            fields: vec![IRField {
+                name: "revenue_sum".to_string(),
+                field_type: "Float".to_string(),
+                nullable: true,
                 description: None,
-                sql_column:  None,
+                sql_column: None,
             }],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -947,24 +947,24 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "SalesAggregate".to_string(),
-            fields:      vec![
+            name: "SalesAggregate".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "count".to_string(),
-                    field_type:  "Int!".to_string(),
-                    nullable:    false,
+                    name: "count".to_string(),
+                    field_type: "Int!".to_string(),
+                    nullable: false,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "revenue_sum".to_string(),
-                    field_type:  "Float".to_string(),
-                    nullable:    true,
+                    name: "revenue_sum".to_string(),
+                    field_type: "Float".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -979,15 +979,15 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "SalesGroupByInput".to_string(),
-            fields:      vec![IRField {
-                name:        "category".to_string(),
-                field_type:  "String".to_string(), // Should be Boolean
-                nullable:    true,
+            name: "SalesGroupByInput".to_string(),
+            fields: vec![IRField {
+                name: "category".to_string(),
+                field_type: "String".to_string(), // Should be Boolean
+                nullable: true,
                 description: None,
-                sql_column:  None,
+                sql_column: None,
             }],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1004,15 +1004,15 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "SalesGroupByInput".to_string(),
-            fields:      vec![IRField {
-                name:        "category".to_string(),
-                field_type:  "Boolean".to_string(),
-                nullable:    true,
+            name: "SalesGroupByInput".to_string(),
+            fields: vec![IRField {
+                name: "category".to_string(),
+                field_type: "Boolean".to_string(),
+                nullable: true,
                 description: None,
-                sql_column:  None,
+                sql_column: None,
             }],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1027,15 +1027,15 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "SalesHavingInput".to_string(),
-            fields:      vec![IRField {
-                name:        "count".to_string(), // Missing operator suffix
-                field_type:  "Int".to_string(),
-                nullable:    true,
+            name: "SalesHavingInput".to_string(),
+            fields: vec![IRField {
+                name: "count".to_string(), // Missing operator suffix
+                field_type: "Int".to_string(),
+                nullable: true,
                 description: None,
-                sql_column:  None,
+                sql_column: None,
             }],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1052,24 +1052,24 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "SalesHavingInput".to_string(),
-            fields:      vec![
+            name: "SalesHavingInput".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "count_gt".to_string(),
-                    field_type:  "Int".to_string(),
-                    nullable:    true,
+                    name: "count_gt".to_string(),
+                    field_type: "Int".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "revenue_sum_gte".to_string(),
-                    field_type:  "Float".to_string(),
-                    nullable:    true,
+                    name: "revenue_sum_gte".to_string(),
+                    field_type: "Float".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1099,47 +1099,47 @@ mod validator_tests {
 
         // Define User type
         ir.types.push(IRType {
-            name:        "User".to_string(),
-            fields:      vec![
+            name: "User".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "id".to_string(),
-                    field_type:  "ID!".to_string(),
-                    nullable:    false,
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "name".to_string(),
-                    field_type:  "String!".to_string(),
-                    nullable:    false,
+                    name: "name".to_string(),
+                    field_type: "String!".to_string(),
+                    nullable: false,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  Some("v_user".to_string()),
+            sql_source: Some("v_user".to_string()),
             description: None,
         });
 
         // Define Post type that references User
         ir.types.push(IRType {
-            name:        "Post".to_string(),
-            fields:      vec![
+            name: "Post".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "id".to_string(),
-                    field_type:  "ID!".to_string(),
-                    nullable:    false,
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "author".to_string(),
-                    field_type:  "User".to_string(),
-                    nullable:    true,
+                    name: "author".to_string(),
+                    field_type: "User".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  Some("v_post".to_string()),
+            sql_source: Some("v_post".to_string()),
             description: None,
         });
 
@@ -1154,15 +1154,15 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        "Post".to_string(),
-            fields:      vec![IRField {
-                name:        "author".to_string(),
-                field_type:  "NonExistentType".to_string(),
-                nullable:    true,
+            name: "Post".to_string(),
+            fields: vec![IRField {
+                name: "author".to_string(),
+                field_type: "NonExistentType".to_string(),
+                nullable: true,
                 description: None,
-                sql_column:  None,
+                sql_column: None,
             }],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1179,9 +1179,9 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.types.push(IRType {
-            name:        String::new(),
-            fields:      vec![],
-            sql_source:  None,
+            name: String::new(),
+            fields: vec![],
+            sql_source: None,
             description: None,
         });
 
@@ -1199,34 +1199,34 @@ mod validator_tests {
 
         // Define User type
         ir.types.push(IRType {
-            name:        "User".to_string(),
-            fields:      vec![IRField {
-                name:        "id".to_string(),
-                field_type:  "ID!".to_string(),
-                nullable:    false,
+            name: "User".to_string(),
+            fields: vec![IRField {
+                name: "id".to_string(),
+                field_type: "ID!".to_string(),
+                nullable: false,
                 description: None,
-                sql_column:  None,
+                sql_column: None,
             }],
-            sql_source:  Some("v_user".to_string()),
+            sql_source: Some("v_user".to_string()),
             description: None,
         });
 
         // Define query that returns User
         ir.queries.push(IRQuery {
-            name:         "user".to_string(),
-            return_type:  "User".to_string(),
+            name: "user".to_string(),
+            return_type: "User".to_string(),
             returns_list: false,
-            nullable:     true,
-            arguments:    vec![IRArgument {
-                name:          "id".to_string(),
-                arg_type:      "ID!".to_string(),
-                nullable:      false,
+            nullable: true,
+            arguments: vec![IRArgument {
+                name: "id".to_string(),
+                arg_type: "ID!".to_string(),
+                nullable: false,
                 default_value: None,
-                description:   None,
+                description: None,
             }],
-            sql_source:   Some("v_user".to_string()),
-            description:  None,
-            auto_params:  AutoParams::default(),
+            sql_source: Some("v_user".to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
         });
 
         validator.validate(ir).unwrap_or_else(|e| {
@@ -1240,14 +1240,14 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.queries.push(IRQuery {
-            name:         "unknownQuery".to_string(),
-            return_type:  "NonExistentType".to_string(),
+            name: "unknownQuery".to_string(),
+            return_type: "NonExistentType".to_string(),
             returns_list: false,
-            nullable:     true,
-            arguments:    vec![],
-            sql_source:   None,
-            description:  None,
-            auto_params:  AutoParams::default(),
+            nullable: true,
+            arguments: vec![],
+            sql_source: None,
+            description: None,
+            auto_params: AutoParams::default(),
         });
 
         let result = validator.validate(ir);
@@ -1264,14 +1264,14 @@ mod validator_tests {
 
         // Query returning scalar type (no custom type needed)
         ir.queries.push(IRQuery {
-            name:         "serverTime".to_string(),
-            return_type:  "DateTime".to_string(),
+            name: "serverTime".to_string(),
+            return_type: "DateTime".to_string(),
             returns_list: false,
-            nullable:     false,
-            arguments:    vec![],
-            sql_source:   None,
-            description:  None,
-            auto_params:  AutoParams::default(),
+            nullable: false,
+            arguments: vec![],
+            sql_source: None,
+            description: None,
+            auto_params: AutoParams::default(),
         });
 
         validator.validate(ir).unwrap_or_else(|e| {
@@ -1285,14 +1285,14 @@ mod validator_tests {
         let mut ir = AuthoringIR::new();
 
         ir.queries.push(IRQuery {
-            name:         String::new(),
-            return_type:  "String".to_string(),
+            name: String::new(),
+            return_type: "String".to_string(),
             returns_list: false,
-            nullable:     true,
-            arguments:    vec![],
-            sql_source:   None,
-            description:  None,
-            auto_params:  AutoParams::default(),
+            nullable: true,
+            arguments: vec![],
+            sql_source: None,
+            description: None,
+            auto_params: AutoParams::default(),
         });
 
         let result = validator.validate(ir);
@@ -1309,24 +1309,24 @@ mod validator_tests {
 
         // Define User type
         ir.types.push(IRType {
-            name:        "User".to_string(),
-            fields:      vec![
+            name: "User".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "id".to_string(),
-                    field_type:  "ID!".to_string(),
-                    nullable:    false,
+                    name: "id".to_string(),
+                    field_type: "ID!".to_string(),
+                    nullable: false,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "friends".to_string(),
-                    field_type:  "[User!]".to_string(), // List of Users
-                    nullable:    true,
+                    name: "friends".to_string(),
+                    field_type: "[User!]".to_string(), // List of Users
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1342,59 +1342,59 @@ mod validator_tests {
 
         // Test all builtin scalars are recognized in type fields
         ir.types.push(IRType {
-            name:        "TestType".to_string(),
-            fields:      vec![
+            name: "TestType".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "id".to_string(),
-                    field_type:  "ID".to_string(),
-                    nullable:    true,
+                    name: "id".to_string(),
+                    field_type: "ID".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "name".to_string(),
-                    field_type:  "String".to_string(),
-                    nullable:    true,
+                    name: "name".to_string(),
+                    field_type: "String".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "age".to_string(),
-                    field_type:  "Int".to_string(),
-                    nullable:    true,
+                    name: "age".to_string(),
+                    field_type: "Int".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "rating".to_string(),
-                    field_type:  "Float".to_string(),
-                    nullable:    true,
+                    name: "rating".to_string(),
+                    field_type: "Float".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "active".to_string(),
-                    field_type:  "Boolean".to_string(),
-                    nullable:    true,
+                    name: "active".to_string(),
+                    field_type: "Boolean".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "created".to_string(),
-                    field_type:  "DateTime".to_string(),
-                    nullable:    true,
+                    name: "created".to_string(),
+                    field_type: "DateTime".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "uid".to_string(),
-                    field_type:  "UUID".to_string(),
-                    nullable:    true,
+                    name: "uid".to_string(),
+                    field_type: "UUID".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1410,38 +1410,38 @@ mod validator_tests {
 
         // Test some rich scalars are recognized
         ir.types.push(IRType {
-            name:        "Contact".to_string(),
-            fields:      vec![
+            name: "Contact".to_string(),
+            fields: vec![
                 IRField {
-                    name:        "email".to_string(),
-                    field_type:  "Email".to_string(),
-                    nullable:    true,
+                    name: "email".to_string(),
+                    field_type: "Email".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "phone".to_string(),
-                    field_type:  "PhoneNumber".to_string(),
-                    nullable:    true,
+                    name: "phone".to_string(),
+                    field_type: "PhoneNumber".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "url".to_string(),
-                    field_type:  "URL".to_string(),
-                    nullable:    true,
+                    name: "url".to_string(),
+                    field_type: "URL".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
                 IRField {
-                    name:        "ip".to_string(),
-                    field_type:  "IPAddress".to_string(),
-                    nullable:    true,
+                    name: "ip".to_string(),
+                    field_type: "IPAddress".to_string(),
+                    nullable: true,
                     description: None,
-                    sql_column:  None,
+                    sql_column: None,
                 },
             ],
-            sql_source:  None,
+            sql_source: None,
             description: None,
         });
 
@@ -1744,10 +1744,10 @@ mod enum_validator_tests {
     #[test]
     fn test_serialization_roundtrip() {
         let enum_val = IREnum {
-            name:        "Status".to_string(),
-            values:      vec![IREnumValue {
-                name:               "ACTIVE".to_string(),
-                description:        Some("Active status".to_string()),
+            name: "Status".to_string(),
+            values: vec![IREnumValue {
+                name: "ACTIVE".to_string(),
+                description: Some("Active status".to_string()),
                 deprecation_reason: None,
             }],
             description: Some("Status enum".to_string()),
@@ -1774,27 +1774,27 @@ mod aggregate_types_tests {
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:               DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![],
-            calendar_dimensions:      vec![],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![],
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -1887,36 +1887,36 @@ mod aggregate_types_tests {
         use crate::compiler::fact_table::DimensionPath;
 
         FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:               DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![
                     DimensionPath {
-                        name:      "category".to_string(),
+                        name: "category".to_string(),
                         json_path: "dimensions->>'category'".to_string(),
                         data_type: "string".to_string(),
                     },
                     DimensionPath {
-                        name:      "region".to_string(),
+                        name: "region".to_string(),
                         json_path: "dimensions->>'region'".to_string(),
                         data_type: "string".to_string(),
                     },
                     DimensionPath {
-                        name:      "priority".to_string(),
+                        name: "priority".to_string(),
                         json_path: "dimensions->>'priority'".to_string(),
                         data_type: "integer".to_string(),
                     },
                 ],
             },
-            denormalized_filters:     vec![],
-            calendar_dimensions:      vec![],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![],
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -1967,42 +1967,42 @@ mod aggregate_types_tests {
         use crate::compiler::fact_table::{CalendarBucket, CalendarDimension, CalendarGranularity};
 
         FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:               DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![],
-            calendar_dimensions:      vec![CalendarDimension {
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![CalendarDimension {
                 source_column: "occurred_at".to_string(),
                 granularities: vec![CalendarGranularity {
                     column_name: "date_info".to_string(),
-                    buckets:     vec![
+                    buckets: vec![
                         CalendarBucket {
-                            json_key:    "date".to_string(),
+                            json_key: "date".to_string(),
                             bucket_type: TemporalBucket::Day,
-                            data_type:   "date".to_string(),
+                            data_type: "date".to_string(),
                         },
                         CalendarBucket {
-                            json_key:    "month".to_string(),
+                            json_key: "month".to_string(),
                             bucket_type: TemporalBucket::Month,
-                            data_type:   "integer".to_string(),
+                            data_type: "integer".to_string(),
                         },
                         CalendarBucket {
-                            json_key:    "year".to_string(),
+                            json_key: "year".to_string(),
                             bucket_type: TemporalBucket::Year,
-                            data_type:   "integer".to_string(),
+                            data_type: "integer".to_string(),
                         },
                     ],
                 }],
             }],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2051,24 +2051,24 @@ mod aggregate_types_tests {
         use crate::compiler::fact_table::FilterColumn;
 
         FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:               DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![FilterColumn {
-                name:     "occurred_at".to_string(),
+            denormalized_filters: vec![FilterColumn {
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             }],
-            calendar_dimensions:      vec![], // No calendar dimensions
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            calendar_dimensions: vec![], // No calendar dimensions
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2142,34 +2142,34 @@ mod aggregate_types_tests {
         };
 
         FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
+            table_name: "tf_sales".to_string(),
+            measures: vec![MeasureColumn {
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions:               DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![DimensionPath {
-                    name:      "category".to_string(),
+                    name: "category".to_string(),
                     json_path: "dimensions->>'category'".to_string(),
                     data_type: "string".to_string(),
                 }],
             },
-            denormalized_filters:     vec![],
-            calendar_dimensions:      vec![CalendarDimension {
+            denormalized_filters: vec![],
+            calendar_dimensions: vec![CalendarDimension {
                 source_column: "occurred_at".to_string(),
                 granularities: vec![CalendarGranularity {
                     column_name: "date_info".to_string(),
-                    buckets:     vec![CalendarBucket {
-                        json_key:    "month".to_string(),
+                    buckets: vec![CalendarBucket {
+                        json_key: "month".to_string(),
                         bucket_type: TemporalBucket::Month,
-                        data_type:   "integer".to_string(),
+                        data_type: "integer".to_string(),
                     }],
                 }],
             }],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2205,35 +2205,35 @@ mod window_allowlist_tests {
 
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "units".to_string(),
+                    name: "units".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:               DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![DimensionPath {
-                    name:      "category".to_string(),
+                    name: "category".to_string(),
                     json_path: "dimensions->>'category'".to_string(),
                     data_type: "text".to_string(),
                 }],
             },
-            denormalized_filters:     vec![FilterColumn {
-                name:     "occurred_at".to_string(),
+            denormalized_filters: vec![FilterColumn {
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             }],
-            calendar_dimensions:      vec![],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            calendar_dimensions: vec![],
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2333,38 +2333,38 @@ mod aggregation_tests {
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:               DimensionColumn {
-                name:  "dimensions".to_string(),
+            dimensions: DimensionColumn {
+                name: "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![
+            denormalized_filters: vec![
                 FilterColumn {
-                    name:     "customer_id".to_string(),
+                    name: "customer_id".to_string(),
                     sql_type: SqlType::Uuid,
-                    indexed:  true,
+                    indexed: true,
                 },
                 FilterColumn {
-                    name:     "occurred_at".to_string(),
+                    name: "occurred_at".to_string(),
                     sql_type: SqlType::Timestamp,
-                    indexed:  true,
+                    indexed: true,
                 },
             ],
-            calendar_dimensions:      vec![],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            calendar_dimensions: vec![],
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -2373,23 +2373,23 @@ mod aggregation_tests {
     fn test_plan_simple_aggregation() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![],
-            aggregates:   vec![
+            group_by: vec![],
+            aggregates: vec![
                 AggregateSelection::Count {
                     alias: "count".to_string(),
                 },
                 AggregateSelection::MeasureAggregate {
-                    measure:  "revenue".to_string(),
+                    measure: "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias:    "revenue_sum".to_string(),
+                    alias: "revenue_sum".to_string(),
                 },
             ],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -2406,26 +2406,26 @@ mod aggregation_tests {
     fn test_plan_with_group_by() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![
+            group_by: vec![
                 GroupBySelection::Dimension {
-                    path:  "category".to_string(),
+                    path: "category".to_string(),
                     alias: "category".to_string(),
                 },
                 GroupBySelection::TemporalBucket {
                     column: "occurred_at".to_string(),
                     bucket: TemporalBucket::Day,
-                    alias:  "occurred_at_day".to_string(),
+                    alias: "occurred_at_day".to_string(),
                 },
             ],
-            aggregates:   vec![AggregateSelection::Count {
+            aggregates: vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -2439,29 +2439,29 @@ mod aggregation_tests {
     fn test_plan_with_having() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![GroupBySelection::Dimension {
-                path:  "category".to_string(),
+            group_by: vec![GroupBySelection::Dimension {
+                path: "category".to_string(),
                 alias: "category".to_string(),
             }],
-            aggregates:   vec![AggregateSelection::MeasureAggregate {
-                measure:  "revenue".to_string(),
+            aggregates: vec![AggregateSelection::MeasureAggregate {
+                measure: "revenue".to_string(),
                 function: AggregateFunction::Sum,
-                alias:    "revenue_sum".to_string(),
+                alias: "revenue_sum".to_string(),
             }],
-            having:       vec![HavingCondition {
+            having: vec![HavingCondition {
                 aggregate: AggregateSelection::MeasureAggregate {
-                    measure:  "revenue".to_string(),
+                    measure: "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias:    "revenue_sum".to_string(),
+                    alias: "revenue_sum".to_string(),
                 },
-                operator:  HavingOperator::Gt,
-                value:     serde_json::json!(1000),
+                operator: HavingOperator::Gt,
+                value: serde_json::json!(1000),
             }],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -2474,18 +2474,18 @@ mod aggregation_tests {
     fn test_validate_invalid_measure() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![],
-            aggregates:   vec![AggregateSelection::MeasureAggregate {
-                measure:  "nonexistent".to_string(),
+            group_by: vec![],
+            aggregates: vec![AggregateSelection::MeasureAggregate {
+                measure: "nonexistent".to_string(),
                 function: AggregateFunction::Sum,
-                alias:    "nonexistent_sum".to_string(),
+                alias: "nonexistent_sum".to_string(),
             }],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let result = AggregationPlanner::plan(request, metadata);
@@ -2499,20 +2499,20 @@ mod aggregation_tests {
     fn test_validate_invalid_temporal_column() {
         let metadata = create_test_metadata();
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![GroupBySelection::TemporalBucket {
+            group_by: vec![GroupBySelection::TemporalBucket {
                 column: "nonexistent".to_string(),
                 bucket: TemporalBucket::Day,
-                alias:  "day".to_string(),
+                alias: "day".to_string(),
             }],
-            aggregates:   vec![AggregateSelection::Count {
+            aggregates: vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         let result = AggregationPlanner::plan(request, metadata);
@@ -2611,7 +2611,7 @@ mod aggregation_tests {
         use crate::compiler::fact_table::DimensionPath;
         let mut meta = create_test_metadata();
         meta.dimensions.paths = vec![DimensionPath {
-            name:      "category".to_string(),
+            name: "category".to_string(),
             json_path: "dimensions->>'category'".to_string(),
             data_type: "text".to_string(),
         }];
@@ -2622,19 +2622,19 @@ mod aggregation_tests {
     fn test_dimension_allowlist_accepts_declared_path() {
         let metadata = create_metadata_with_paths();
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![GroupBySelection::Dimension {
-                path:  "category".to_string(),
+            group_by: vec![GroupBySelection::Dimension {
+                path: "category".to_string(),
                 alias: "category".to_string(),
             }],
-            aggregates:   vec![AggregateSelection::Count {
+            aggregates: vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
         AggregationPlanner::plan(request, metadata)
             .unwrap_or_else(|e| panic!("declared dimension path should be accepted: {e}"));
@@ -2644,19 +2644,19 @@ mod aggregation_tests {
     fn test_dimension_allowlist_rejects_unknown_path() {
         let metadata = create_metadata_with_paths();
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![GroupBySelection::Dimension {
-                path:  "undeclared_path".to_string(),
+            group_by: vec![GroupBySelection::Dimension {
+                path: "undeclared_path".to_string(),
                 alias: "x".to_string(),
             }],
-            aggregates:   vec![AggregateSelection::Count {
+            aggregates: vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
         let result = AggregationPlanner::plan(request, metadata);
         assert!(
@@ -2671,19 +2671,19 @@ mod aggregation_tests {
         // (schema did not declare a dimension allowlist).
         let metadata = create_test_metadata(); // paths: vec![]
         let request = AggregationRequest {
-            table_name:   "tf_sales".to_string(),
+            table_name: "tf_sales".to_string(),
             where_clause: None,
-            group_by:     vec![GroupBySelection::Dimension {
-                path:  "any_undeclared_path".to_string(),
+            group_by: vec![GroupBySelection::Dimension {
+                path: "any_undeclared_path".to_string(),
                 alias: "x".to_string(),
             }],
-            aggregates:   vec![AggregateSelection::Count {
+            aggregates: vec![AggregateSelection::Count {
                 alias: "count".to_string(),
             }],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
         AggregationPlanner::plan(request, metadata)
             .unwrap_or_else(|e| panic!("any path should be accepted when paths empty: {e}"));

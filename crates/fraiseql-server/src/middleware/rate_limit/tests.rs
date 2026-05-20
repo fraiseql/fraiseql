@@ -40,8 +40,8 @@ mod token_bucket_tests {
     #[test]
     fn token_count_never_exceeds_capacity() {
         let bucket = TokenBucket {
-            tokens:      50.0,
-            capacity:    100.0,
+            tokens: 50.0,
+            capacity: 100.0,
             refill_rate: 1000.0,
             last_refill: Instant::now().checked_sub(Duration::from_secs(1000)).unwrap(),
         };
@@ -51,8 +51,8 @@ mod token_bucket_tests {
     #[test]
     fn refill_restores_tokens_after_idle_period() {
         let mut bucket = TokenBucket {
-            tokens:      0.0,
-            capacity:    10.0,
+            tokens: 0.0,
+            capacity: 10.0,
             refill_rate: 100.0, // 100 tokens/sec
             last_refill: Instant::now().checked_sub(Duration::from_millis(100)).unwrap(),
         };
@@ -62,8 +62,8 @@ mod token_bucket_tests {
     #[test]
     fn zero_refill_rate_never_refills() {
         let mut bucket = TokenBucket {
-            tokens:      0.0,
-            capacity:    10.0,
+            tokens: 0.0,
+            capacity: 10.0,
             refill_rate: 0.0,
             last_refill: Instant::now().checked_sub(Duration::from_secs(60)).unwrap(),
         };
@@ -289,8 +289,8 @@ fn test_token_bucket_consume() {
 #[test]
 fn test_token_bucket_refill() {
     let mut bucket = token_bucket::TokenBucket {
-        tokens:      0.0,
-        capacity:    10.0,
+        tokens: 0.0,
+        capacity: 10.0,
         refill_rate: 5.0,
         last_refill: std::time::Instant::now()
             .checked_sub(std::time::Duration::from_millis(200))
@@ -847,14 +847,14 @@ async fn test_tenant_rate_limit_cleanup_does_not_panic() {
 async fn test_redis_rate_limiter_allows_up_to_capacity() {
     let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
     let config = RateLimitConfig {
-        enabled:               true,
-        rps_per_ip:            5,
-        rps_per_user:          5,
-        burst_size:            5,
+        enabled: true,
+        rps_per_ip: 5,
+        rps_per_user: 5,
+        burst_size: 5,
         cleanup_interval_secs: 300,
-        trust_proxy_headers:   false,
-        trusted_proxy_cidrs:   Vec::new(),
-        max_buckets:           100_000,
+        trust_proxy_headers: false,
+        trusted_proxy_cidrs: Vec::new(),
+        max_buckets: 100_000,
     };
     let rl = RateLimiter::new_redis(&url, config).await.expect("Redis connection failed");
     let ip = format!("test_allow:{}", uuid::Uuid::new_v4());
@@ -870,14 +870,14 @@ async fn test_redis_rate_limiter_allows_up_to_capacity() {
 async fn test_redis_two_instances_share_bucket() {
     let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
     let config = RateLimitConfig {
-        enabled:               true,
-        rps_per_ip:            3,
-        rps_per_user:          3,
-        burst_size:            3,
+        enabled: true,
+        rps_per_ip: 3,
+        rps_per_user: 3,
+        burst_size: 3,
         cleanup_interval_secs: 300,
-        trust_proxy_headers:   false,
-        trusted_proxy_cidrs:   Vec::new(),
-        max_buckets:           100_000,
+        trust_proxy_headers: false,
+        trusted_proxy_cidrs: Vec::new(),
+        max_buckets: 100_000,
     };
     let suffix = uuid::Uuid::new_v4();
     let a = RateLimiter::new_redis(&url, config.clone())

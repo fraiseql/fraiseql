@@ -102,21 +102,21 @@ impl EvaluationContext {
     }
 
     /// Add user context value.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_user_context(mut self, key: impl Into<String>, value: JsonValue) -> Self {
         self.user_context.insert(key.into(), value);
         self
     }
 
     /// Set field path.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub fn with_field_path(mut self, path: impl Into<String>) -> Self {
         self.field_path = Some(path.into());
         self
     }
 
     /// Set operation type.
-    #[must_use]
+    #[must_use = "builder method returns modified builder"]
     pub const fn with_operation_type(mut self, op_type: OperationType) -> Self {
         self.operation_type = Some(op_type);
         self

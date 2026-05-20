@@ -11,79 +11,79 @@ use crate::compiler::{
 fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableMetadata {
     use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
     crate::compiler::fact_table::FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![FilterColumn {
-            name:     "customer_id".to_string(),
+        denormalized_filters: vec![FilterColumn {
+            name: "customer_id".to_string(),
             sql_type: SqlType::BigInt,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
 
 fn create_test_plan() -> AggregationPlan {
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "dimensions".to_string(),
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![FilterColumn {
-            name:     "occurred_at".to_string(),
+        denormalized_filters: vec![FilterColumn {
+            name: "occurred_at".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: None,
-        group_by:     vec![
+        group_by: vec![
             GroupBySelection::Dimension {
-                path:  "category".to_string(),
+                path: "category".to_string(),
                 alias: "category".to_string(),
             },
             GroupBySelection::TemporalBucket {
                 column: "occurred_at".to_string(),
                 bucket: TemporalBucket::Day,
-                alias:  "day".to_string(),
+                alias: "day".to_string(),
             },
         ],
-        aggregates:   vec![
+        aggregates: vec![
             AggregateSelection::Count {
                 alias: "count".to_string(),
             },
             AggregateSelection::MeasureAggregate {
-                measure:  "revenue".to_string(),
+                measure: "revenue".to_string(),
                 function: AggregateFunction::Sum,
-                alias:    "revenue_sum".to_string(),
+                alias: "revenue_sum".to_string(),
             },
         ],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        Some(10),
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: Some(10),
+        offset: None,
     };
 
     crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
@@ -144,13 +144,13 @@ fn test_having_clause() {
     let mut plan = create_test_plan();
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "revenue".to_string(),
+            column: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "revenue_sum".to_string(),
-            native:   false,
+            alias: "revenue_sum".to_string(),
+            native: false,
         },
-        operator:  HavingOperator::Gt,
-        value:     serde_json::json!(1000),
+        operator: HavingOperator::Gt,
+        value: serde_json::json!(1000),
     }];
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -254,16 +254,16 @@ mod native_where {
         let mut plan = create_test_plan();
         plan.request.where_clause = Some(WhereClause::And(vec![
             WhereClause::NativeField {
-                column:   "customer_id".to_string(),
-                pg_cast:  "int8".to_string(),
+                column: "customer_id".to_string(),
+                pg_cast: "int8".to_string(),
                 operator: WhereOperator::Eq,
-                value:    serde_json::json!(1),
+                value: serde_json::json!(1),
             },
             WhereClause::NativeField {
-                column:   "status".to_string(),
-                pg_cast:  String::new(),
+                column: "status".to_string(),
+                pg_cast: String::new(),
                 operator: WhereOperator::Eq,
-                value:    serde_json::json!("active"),
+                value: serde_json::json!("active"),
             },
         ]));
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -284,9 +284,9 @@ mod native_groupby {
     fn plan_with_native_groupby() -> AggregationPlan {
         let mut plan = create_test_plan();
         plan.group_by_expressions = vec![GroupByExpression::NativeColumn {
-            column:  "customer_id".to_string(),
+            column: "customer_id".to_string(),
             pg_cast: "int8".to_string(),
-            alias:   "customer_id".to_string(),
+            alias: "customer_id".to_string(),
         }];
         plan
     }
@@ -314,14 +314,14 @@ mod native_groupby {
         let mut plan = create_test_plan();
         plan.group_by_expressions = vec![
             GroupByExpression::NativeColumn {
-                column:  "customer_id".to_string(),
+                column: "customer_id".to_string(),
                 pg_cast: "int8".to_string(),
-                alias:   "customer_id".to_string(),
+                alias: "customer_id".to_string(),
             },
             GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path:         "status".to_string(),
-                alias:        "status".to_string(),
+                path: "status".to_string(),
+                alias: "status".to_string(),
             },
         ];
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -472,9 +472,9 @@ mod native_orderby {
     fn order_by_native_column_uses_alias_not_jsonb() {
         let mut plan = create_test_plan();
         plan.group_by_expressions = vec![GroupByExpression::NativeColumn {
-            column:  "customer_id".to_string(),
+            column: "customer_id".to_string(),
             pg_cast: "int8".to_string(),
-            alias:   "customer_id".to_string(),
+            alias: "customer_id".to_string(),
         }];
         plan.request.order_by = vec![OrderByClause::new(
             "customer_id".to_string(),
@@ -507,14 +507,14 @@ mod native_orderby {
         let mut plan = create_test_plan();
         plan.group_by_expressions = vec![
             GroupByExpression::NativeColumn {
-                column:  "customer_id".to_string(),
+                column: "customer_id".to_string(),
                 pg_cast: "int8".to_string(),
-                alias:   "customer_id".to_string(),
+                alias: "customer_id".to_string(),
             },
             GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path:         "status".to_string(),
-                alias:        "status".to_string(),
+                path: "status".to_string(),
+                alias: "status".to_string(),
             },
         ];
 
@@ -667,11 +667,11 @@ fn test_advanced_aggregate_full_query() {
 
     // Add an ARRAY_AGG aggregate
     plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
-        column:    "product_id".to_string(),
-        function:  AggregateFunction::ArrayAgg,
-        alias:     "products".to_string(),
+        column: "product_id".to_string(),
+        function: AggregateFunction::ArrayAgg,
+        alias: "products".to_string(),
         delimiter: None,
-        order_by:  Some(vec![OrderByClause::new(
+        order_by: Some(vec![OrderByClause::new(
             "revenue".to_string(),
             OrderDirection::Desc,
         )]),
@@ -679,11 +679,11 @@ fn test_advanced_aggregate_full_query() {
 
     // Add a STRING_AGG aggregate
     plan.aggregate_expressions.push(AggregateExpression::AdvancedAggregate {
-        column:    "product_name".to_string(),
-        function:  AggregateFunction::StringAgg,
-        alias:     "product_names".to_string(),
+        column: "product_name".to_string(),
+        function: AggregateFunction::StringAgg,
+        alias: "product_names".to_string(),
         delimiter: Some(", ".to_string()),
-        order_by:  None,
+        order_by: None,
     });
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -704,13 +704,13 @@ fn test_having_string_value_is_bound_not_escaped() {
     let mut plan = create_test_plan();
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "label".to_string(),
+            column: "label".to_string(),
             function: AggregateFunction::Max,
-            alias:    "label_max".to_string(),
-            native:   false,
+            alias: "label_max".to_string(),
+            native: false,
         },
-        operator:  HavingOperator::Eq,
-        value:     serde_json::json!("O'Reilly"),
+        operator: HavingOperator::Eq,
+        value: serde_json::json!("O'Reilly"),
     }];
 
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -878,41 +878,41 @@ fn test_stringagg_delimiter_clean_value_unchanged() {
 
 fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![FilterColumn {
-            name:     "status".to_string(),
+        denormalized_filters: vec![FilterColumn {
+            name: "status".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: Some(WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value:    serde_json::json!("test_value"),
+            value: serde_json::json!("test_value"),
         }),
-        group_by:     vec![GroupBySelection::Dimension {
-            path:  "category".to_string(),
+        group_by: vec![GroupBySelection::Dimension {
+            path: "category".to_string(),
             alias: "category".to_string(),
         }],
-        aggregates:   vec![AggregateSelection::Count {
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
@@ -943,13 +943,13 @@ fn test_generate_parameterized_having_string_becomes_placeholder() {
     let mut plan = create_test_plan();
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "revenue".to_string(),
+            column: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "revenue_sum".to_string(),
-            native:   false,
+            alias: "revenue_sum".to_string(),
+            native: false,
         },
-        operator:  HavingOperator::Eq,
-        value:     serde_json::json!(injection),
+        operator: HavingOperator::Eq,
+        value: serde_json::json!(injection),
     }];
 
     let gen = AggregationSqlGenerator::new(DatabaseType::MySQL);
@@ -977,55 +977,55 @@ fn test_parameterized_postgres_placeholder_numbering() {
     // then inject a HAVING condition directly (like test_having_clause).
     let injection = "risky";
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "dimensions".to_string(),
+        dimensions: DimensionColumn {
+            name: "dimensions".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![
+        denormalized_filters: vec![
             FilterColumn {
-                name:     "occurred_at".to_string(),
+                name: "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             },
             FilterColumn {
-                name:     "channel".to_string(),
+                name: "channel".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed:  true,
+                indexed: true,
             },
         ],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: Some(WhereClause::Field {
-            path:     vec!["channel".to_string()],
+            path: vec!["channel".to_string()],
             operator: WhereOperator::Eq,
-            value:    serde_json::json!(injection),
+            value: serde_json::json!(injection),
         }),
-        group_by:     vec![GroupBySelection::TemporalBucket {
+        group_by: vec![GroupBySelection::TemporalBucket {
             column: "occurred_at".to_string(),
             bucket: TemporalBucket::Day,
-            alias:  "day".to_string(),
+            alias: "day".to_string(),
         }],
-        aggregates:   vec![AggregateSelection::MeasureAggregate {
-            measure:  "revenue".to_string(),
+        aggregates: vec![AggregateSelection::MeasureAggregate {
+            measure: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "total".to_string(),
+            alias: "total".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let mut plan =
@@ -1033,13 +1033,13 @@ fn test_parameterized_postgres_placeholder_numbering() {
     // Inject HAVING directly to avoid navigating the unvalidated HavingCondition type.
     plan.having_conditions = vec![ValidatedHavingCondition {
         aggregate: AggregateExpression::MeasureAggregate {
-            column:   "revenue".to_string(),
+            column: "revenue".to_string(),
             function: AggregateFunction::Sum,
-            alias:    "total".to_string(),
-            native:   false,
+            alias: "total".to_string(),
+            native: false,
         },
-        operator:  HavingOperator::Gt,
-        value:     serde_json::json!("threshold"),
+        operator: HavingOperator::Gt,
+        value: serde_json::json!("threshold"),
     }];
 
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -1078,37 +1078,37 @@ fn test_parameterized_sqlserver_uses_at_p_placeholder() {
 fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     // WHERE status IN ("a","b","c") → WHERE status IN ($1,$2,$3) with 3 params
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![FilterColumn {
-            name:     "status".to_string(),
+        denormalized_filters: vec![FilterColumn {
+            name: "status".to_string(),
             sql_type: SqlType::Timestamp,
-            indexed:  true,
+            indexed: true,
         }],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: Some(WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::In,
-            value:    serde_json::json!(["a", "b", "c"]),
+            value: serde_json::json!(["a", "b", "c"]),
         }),
-        group_by:     vec![],
-        aggregates:   vec![AggregateSelection::Count {
+        group_by: vec![],
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
     let plan = crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap();
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -1152,77 +1152,77 @@ mod partial_period_builder_tests {
 
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name:               "v_events_month".to_string(),
-            measures:                 vec![MeasureColumn {
-                name:     "volume".to_string(),
+            table_name: "v_events_month".to_string(),
+            measures: vec![MeasureColumn {
+                name: "volume".to_string(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions:               DimensionColumn {
-                name:  "data".to_string(),
+            dimensions: DimensionColumn {
+                name: "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![
+            denormalized_filters: vec![
                 FilterColumn {
-                    name:     "tenant_id".to_string(),
+                    name: "tenant_id".to_string(),
                     sql_type: SqlType::BigInt,
-                    indexed:  true,
+                    indexed: true,
                 },
                 FilterColumn {
-                    name:     "period_start".to_string(),
+                    name: "period_start".to_string(),
                     sql_type: SqlType::Date,
-                    indexed:  true,
+                    indexed: true,
                 },
             ],
-            calendar_dimensions:      vec![],
-            partial_period:           Some(PartialPeriodConfig {
-                fine_grain_view:   "v_events_day".to_string(),
+            calendar_dimensions: vec![],
+            partial_period: Some(PartialPeriodConfig {
+                fine_grain_view: "v_events_day".to_string(),
                 time_grain_column: "period_start".to_string(),
-                time_grain_trunc:  TemporalGrain::Month,
+                time_grain_trunc: TemporalGrain::Month,
             }),
-            native_measures:          std::collections::HashMap::new(),
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
 
     fn test_config() -> PartialPeriodConfig {
         PartialPeriodConfig {
-            fine_grain_view:   "v_events_day".to_string(),
+            fine_grain_view: "v_events_day".to_string(),
             time_grain_column: "period_start".to_string(),
-            time_grain_trunc:  TemporalGrain::Month,
+            time_grain_trunc: TemporalGrain::Month,
         }
     }
 
     fn test_plan() -> AggregationPlan {
         let metadata = test_metadata();
         let request = AggregationRequest {
-            table_name:   "v_events_month".to_string(),
+            table_name: "v_events_month".to_string(),
             where_clause: None,
-            group_by:     vec![
+            group_by: vec![
                 GroupBySelection::Dimension {
-                    path:  "category".to_string(),
+                    path: "category".to_string(),
                     alias: "category".to_string(),
                 },
                 GroupBySelection::TemporalBucket {
                     column: "period_start".to_string(),
                     bucket: TemporalBucket::Month,
-                    alias:  "period_start".to_string(),
+                    alias: "period_start".to_string(),
                 },
             ],
-            aggregates:   vec![
+            aggregates: vec![
                 AggregateSelection::Count {
                     alias: "count".to_string(),
                 },
                 AggregateSelection::MeasureAggregate {
-                    measure:  "volume".to_string(),
+                    measure: "volume".to_string(),
                     function: AggregateFunction::Sum,
-                    alias:    "volume_sum".to_string(),
+                    alias: "volume_sum".to_string(),
                 },
             ],
-            having:       vec![],
-            order_by:     vec![],
-            limit:        None,
-            offset:       None,
+            having: vec![],
+            order_by: vec![],
+            limit: None,
+            offset: None,
         };
 
         crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
@@ -1237,7 +1237,7 @@ mod partial_period_builder_tests {
         let branch_plan = BranchPlan {
             partial_leading: None,
             complete_middle: None,
-            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+            current_period: (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
         let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
@@ -1279,7 +1279,7 @@ mod partial_period_builder_tests {
         let branch_plan = BranchPlan {
             partial_leading: None,
             complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
-            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+            current_period: (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
         let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
@@ -1313,7 +1313,7 @@ mod partial_period_builder_tests {
         let branch_plan = BranchPlan {
             partial_leading: Some((date(2024, 1, 15), date(2024, 2, 1))),
             complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
-            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+            current_period: (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
         let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
@@ -1349,14 +1349,14 @@ mod partial_period_builder_tests {
         let branch_plan = BranchPlan {
             partial_leading: Some((date(2024, 1, 15), date(2024, 2, 1))),
             complete_middle: None,
-            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+            current_period: (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
         let extra = WhereClause::NativeField {
-            column:   "tenant_id".into(),
-            pg_cast:  "int8".into(),
+            column: "tenant_id".into(),
+            pg_cast: "int8".into(),
             operator: WhereOperator::Eq,
-            value:    json!(42),
+            value: json!(42),
         };
 
         let result =
@@ -1388,7 +1388,7 @@ mod partial_period_builder_tests {
         let branch_plan = BranchPlan {
             partial_leading: None,
             complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
-            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+            current_period: (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
         let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
@@ -1411,7 +1411,7 @@ mod partial_period_builder_tests {
         let branch_plan = BranchPlan {
             partial_leading: None,
             complete_middle: None,
-            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+            current_period: (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
         let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
@@ -1433,7 +1433,7 @@ mod partial_period_builder_tests {
         let branch_plan = BranchPlan {
             partial_leading: Some((date(2024, 1, 15), date(2024, 2, 1))),
             complete_middle: Some((date(2024, 2, 1), date(2024, 3, 1))),
-            current_period:  (date(2024, 3, 1), date(2024, 3, 21)),
+            current_period: (date(2024, 3, 1), date(2024, 3, 21)),
         };
 
         let result = gen.generate_partial_period(&plan, &config, &branch_plan, None).unwrap();
@@ -1461,20 +1461,20 @@ fn test_aggregation_plan_uses_native_measure() {
     use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
 
     let metadata = FactTableMetadata {
-        table_name:               "mv_daily_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "volume".to_string(),
+        table_name: "mv_daily_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "volume".to_string(),
             sql_type: SqlType::BigInt,
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::from([(
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::from([(
             "measures.volume".to_string(),
             "volume".to_string(),
         )]),
@@ -1482,18 +1482,18 @@ fn test_aggregation_plan_uses_native_measure() {
     };
 
     let request = AggregationRequest {
-        table_name:   "mv_daily_sales".to_string(),
+        table_name: "mv_daily_sales".to_string(),
         where_clause: None,
-        group_by:     vec![],
-        aggregates:   vec![AggregateSelection::MeasureAggregate {
-            measure:  "measures.volume".to_string(),
+        group_by: vec![],
+        aggregates: vec![AggregateSelection::MeasureAggregate {
+            measure: "measures.volume".to_string(),
             function: crate::compiler::aggregate_types::AggregateFunction::Sum,
-            alias:    "volume_sum".to_string(),
+            alias: "volume_sum".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -1511,16 +1511,16 @@ fn test_native_measure_sql_uses_quoted_identifier() {
     use crate::compiler::aggregation::AggregationPlanner;
 
     let metadata = FactTableMetadata {
-        table_name:               "mv_daily_sales".to_string(),
-        measures:                 vec![],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        table_name: "mv_daily_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::from([(
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::from([(
             "measures.volume".to_string(),
             "volume".to_string(),
         )]),
@@ -1528,18 +1528,18 @@ fn test_native_measure_sql_uses_quoted_identifier() {
     };
 
     let request = AggregationRequest {
-        table_name:   "mv_daily_sales".to_string(),
+        table_name: "mv_daily_sales".to_string(),
         where_clause: None,
-        group_by:     vec![],
-        aggregates:   vec![AggregateSelection::MeasureAggregate {
-            measure:  "measures.volume".to_string(),
+        group_by: vec![],
+        aggregates: vec![AggregateSelection::MeasureAggregate {
+            measure: "measures.volume".to_string(),
             function: crate::compiler::aggregate_types::AggregateFunction::Sum,
-            alias:    "volume_sum".to_string(),
+            alias: "volume_sum".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -1564,36 +1564,36 @@ fn test_non_native_measure_unchanged() {
     use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
 
     let metadata = FactTableMetadata {
-        table_name:               "tf_sales".to_string(),
-        measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
+        table_name: "tf_sales".to_string(),
+        measures: vec![MeasureColumn {
+            name: "revenue".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
     let request = AggregationRequest {
-        table_name:   "tf_sales".to_string(),
+        table_name: "tf_sales".to_string(),
         where_clause: None,
-        group_by:     vec![],
-        aggregates:   vec![AggregateSelection::MeasureAggregate {
-            measure:  "revenue".to_string(),
+        group_by: vec![],
+        aggregates: vec![AggregateSelection::MeasureAggregate {
+            measure: "revenue".to_string(),
             function: crate::compiler::aggregate_types::AggregateFunction::Sum,
-            alias:    "revenue_sum".to_string(),
+            alias: "revenue_sum".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = AggregationPlanner::plan(request, metadata).unwrap();
@@ -1619,16 +1619,16 @@ fn test_native_dimension_mapping_sql_output() {
     use crate::compiler::aggregation::{AggregationPlan, AggregationRequest, GroupByExpression};
 
     let metadata = FactTableMetadata {
-        table_name:               "mv_daily_sales".to_string(),
-        measures:                 vec![],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
+        table_name: "mv_daily_sales".to_string(),
+        measures: vec![],
+        dimensions: DimensionColumn {
+            name: "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        partial_period:           None,
-        native_measures:          std::collections::HashMap::new(),
+        denormalized_filters: vec![],
+        calendar_dimensions: vec![],
+        partial_period: None,
+        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::from([(
             "dimensions.category.id".to_string(),
             "category_id".to_string(),
@@ -1636,28 +1636,28 @@ fn test_native_dimension_mapping_sql_output() {
     };
 
     let request = AggregationRequest {
-        table_name:   "mv_daily_sales".to_string(),
+        table_name: "mv_daily_sales".to_string(),
         where_clause: None,
-        group_by:     vec![GroupBySelection::NativeDimension {
-            column:  "category_id".to_string(),
+        group_by: vec![GroupBySelection::NativeDimension {
+            column: "category_id".to_string(),
             pg_cast: String::new(),
         }],
-        aggregates:   vec![AggregateSelection::Count {
+        aggregates: vec![AggregateSelection::Count {
             alias: "count".to_string(),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
+        having: vec![],
+        order_by: vec![],
+        limit: None,
+        offset: None,
     };
 
     let plan = AggregationPlan {
         metadata,
         request,
         group_by_expressions: vec![GroupByExpression::NativeColumn {
-            column:  "category_id".to_string(),
+            column: "category_id".to_string(),
             pg_cast: String::new(),
-            alias:   "category_id".to_string(),
+            alias: "category_id".to_string(),
         }],
         aggregate_expressions: vec![AggregateExpression::Count {
             alias: "count".to_string(),

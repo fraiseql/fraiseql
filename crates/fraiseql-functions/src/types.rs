@@ -17,6 +17,7 @@ pub enum RuntimeType {
 
 impl RuntimeType {
     /// Get supported file extensions for this runtime.
+    #[must_use]
     pub const fn supported_extensions(&self) -> &[&str] {
         match self {
             RuntimeType::Wasm => &[".wasm"],
@@ -29,13 +30,13 @@ impl RuntimeType {
 #[derive(Debug, Clone)]
 pub struct FunctionModule {
     /// Unique name for this function.
-    pub name:        String,
+    pub name: String,
     /// Hash of the module source (for caching).
     pub source_hash: String,
     /// Compiled bytecode or source text.
-    pub bytecode:    bytes::Bytes,
+    pub bytecode: bytes::Bytes,
     /// Which runtime executes this module.
-    pub runtime:     RuntimeType,
+    pub runtime: RuntimeType,
 }
 
 impl FunctionModule {
@@ -51,6 +52,7 @@ impl FunctionModule {
     }
 
     /// Create a new source-based module (JavaScript/TypeScript).
+    #[must_use]
     pub fn from_source(name: String, source: String, runtime: RuntimeType) -> Self {
         let bytecode = bytes::Bytes::from(source);
         let source_hash = format!("{:x}", sha2::Sha256::digest(&bytecode));
@@ -69,25 +71,25 @@ pub struct EventPayload {
     /// Type of trigger: "mutation", "subscription", "cron", "webhook", etc.
     pub trigger_type: String,
     /// Entity name (e.g., "User", "Post").
-    pub entity:       String,
+    pub entity: String,
     /// Event kind (e.g., "created", "updated", "deleted").
-    pub event_kind:   String,
+    pub event_kind: String,
     /// Event data (JSON).
-    pub data:         serde_json::Value,
+    pub data: serde_json::Value,
     /// Timestamp when the event occurred.
-    pub timestamp:    chrono::DateTime<chrono::Utc>,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 /// Definition of a serverless function for deployment and execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionDefinition {
     /// Unique name for this function.
-    pub name:       String,
+    pub name: String,
     /// Trigger type and configuration (e.g., "after:mutation:createUser", "cron:0 * * * *",
     /// "<http:GET:/users/:id>").
-    pub trigger:    String,
+    pub trigger: String,
     /// Which runtime executes this function.
-    pub runtime:    RuntimeType,
+    pub runtime: RuntimeType,
     /// Optional timeout in milliseconds (overrides defaults).
     /// - For `before:mutation` triggers: defaults to 500ms
     /// - For other triggers: defaults to 5s
@@ -96,6 +98,7 @@ pub struct FunctionDefinition {
 
 impl FunctionDefinition {
     /// Create a new function definition.
+    #[must_use]
     pub fn new(name: &str, trigger: &str, runtime: RuntimeType) -> Self {
         Self {
             name: name.to_string(),
@@ -106,12 +109,14 @@ impl FunctionDefinition {
     }
 
     /// Set a custom timeout for this function.
+    #[must_use]
     pub const fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
     }
 
     /// Get the effective timeout for this function.
+    #[must_use]
     pub fn effective_timeout(&self) -> Duration {
         match self.timeout_ms {
             Some(ms) => Duration::from_millis(ms),
@@ -127,26 +132,31 @@ impl FunctionDefinition {
     }
 
     /// Check if this function is a before:mutation trigger.
+    #[must_use]
     pub fn is_before_mutation(&self) -> bool {
         self.trigger.starts_with("before:mutation:")
     }
 
     /// Check if this function is an after:mutation trigger.
+    #[must_use]
     pub fn is_after_mutation(&self) -> bool {
         self.trigger.starts_with("after:mutation:")
     }
 
     /// Check if this function is an after:storage trigger.
+    #[must_use]
     pub fn is_after_storage(&self) -> bool {
         self.trigger.starts_with("after:storage:")
     }
 
     /// Check if this function is a cron trigger.
+    #[must_use]
     pub fn is_cron(&self) -> bool {
         self.trigger.starts_with("cron:")
     }
 
     /// Check if this function is an HTTP trigger.
+    #[must_use]
     pub fn is_http(&self) -> bool {
         self.trigger.starts_with("http:")
     }
@@ -170,9 +180,9 @@ pub enum LogLevel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogEntry {
     /// Log level.
-    pub level:     LogLevel,
+    pub level: LogLevel,
     /// Log message.
-    pub message:   String,
+    pub message: String,
     /// When the log was written.
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
@@ -181,11 +191,11 @@ pub struct LogEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionResult {
     /// Return value from the function (may be None if function returns void).
-    pub value:             Option<serde_json::Value>,
+    pub value: Option<serde_json::Value>,
     /// All logs captured during execution.
-    pub logs:              Vec<LogEntry>,
+    pub logs: Vec<LogEntry>,
     /// Total execution duration.
-    pub duration:          Duration,
+    pub duration: Duration,
     /// Peak memory usage in bytes.
     pub memory_peak_bytes: u64,
 }
@@ -196,17 +206,17 @@ pub struct ResourceLimits {
     /// Maximum memory allocation in bytes.
     pub max_memory_bytes: u64,
     /// Maximum execution duration.
-    pub max_duration:     Duration,
+    pub max_duration: Duration,
     /// Maximum number of log entries to capture.
-    pub max_log_entries:  usize,
+    pub max_log_entries: usize,
 }
 
 impl Default for ResourceLimits {
     fn default() -> Self {
         Self {
-            max_memory_bytes: 128 * 1024 * 1024,      // 128 MB
-            max_duration:     Duration::from_secs(5), // 5 seconds
-            max_log_entries:  10_000,
+            max_memory_bytes: 128 * 1024 * 1024,  // 128 MB
+            max_duration: Duration::from_secs(5), // 5 seconds
+            max_log_entries: 10_000,
         }
     }
 }

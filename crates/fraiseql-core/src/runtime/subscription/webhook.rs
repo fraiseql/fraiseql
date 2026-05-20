@@ -30,12 +30,12 @@ impl WebhookTransportConfig {
     #[must_use]
     pub fn new(url: impl Into<String>) -> Self {
         Self {
-            url:            url.into(),
-            secret:         None,
-            timeout_ms:     30_000,
-            max_retries:    3,
+            url: url.into(),
+            secret: None,
+            timeout_ms: 30_000,
+            max_retries: 3,
             retry_delay_ms: 1000,
-            headers:        std::collections::HashMap::new(),
+            headers: std::collections::HashMap::new(),
         }
     }
 
@@ -112,15 +112,15 @@ impl WebhookPayload {
     #[must_use]
     pub fn from_event(event: &SubscriptionEvent, subscription_name: &str) -> Self {
         Self {
-            event_id:          event.event_id.clone(),
+            event_id: event.event_id.clone(),
             subscription_name: subscription_name.to_string(),
-            entity_type:       event.entity_type.clone(),
-            entity_id:         event.entity_id.clone(),
-            operation:         format!("{:?}", event.operation),
-            data:              event.data.clone(),
-            old_data:          event.old_data.clone(),
-            timestamp:         event.timestamp.to_rfc3339(),
-            sequence_number:   event.sequence_number,
+            entity_type: event.entity_type.clone(),
+            entity_id: event.entity_id.clone(),
+            operation: format!("{:?}", event.operation),
+            data: event.data.clone(),
+            old_data: event.old_data.clone(),
+            timestamp: event.timestamp.to_rfc3339(),
+            sequence_number: event.sequence_number,
         }
     }
 }

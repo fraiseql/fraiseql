@@ -50,7 +50,7 @@ pub struct ResponseCacheConfig {
 impl Default for ResponseCacheConfig {
     fn default() -> Self {
         Self {
-            enabled:     false, // opt-in
+            enabled: false, // opt-in
             max_entries: 10_000,
             ttl_seconds: 300,
         }
@@ -89,8 +89,8 @@ pub struct ResponseCache {
     view_index: Arc<DashMap<String, DashSet<(u64, u64)>>>,
 
     enabled: bool,
-    hits:    AtomicU64,
-    misses:  AtomicU64,
+    hits: AtomicU64,
+    misses: AtomicU64,
 }
 
 impl ResponseCache {

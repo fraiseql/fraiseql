@@ -14,12 +14,12 @@ fn test_dashboard_overview_creation() {
 #[test]
 fn test_dashboard_overview_health_critical() {
     let mut overview = DashboardOverview {
-        total_keys:      1,
-        healthy_keys:    0,
-        warning_keys:    0,
-        urgent_keys:     1,
+        total_keys: 1,
+        healthy_keys: 0,
+        warning_keys: 0,
+        urgent_keys: 1,
         avg_ttl_percent: 95,
-        system_health:   "healthy".to_string(),
+        system_health: "healthy".to_string(),
     };
     overview.recalculate_health();
     assert_eq!(overview.system_health, "critical");

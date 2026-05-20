@@ -155,7 +155,7 @@ pub enum ObserverError {
     #[error("OB020: Event deserialization failed: {reason}")]
     DeserializationError {
         /// Raw bytes of the unparseable message
-        raw:    Vec<u8>,
+        raw: Vec<u8>,
         /// Human-readable reason (e.g. the `serde_json` error message)
         reason: String,
     },
@@ -170,7 +170,7 @@ pub enum ObserverError {
     )]
     TenantViolation {
         /// The `tenant_id` carried by the event (`None` if absent)
-        event_tenant:   Option<String>,
+        event_tenant: Option<String>,
         /// Human-readable description of the configured scope (e.g. `"Single(acme)"`)
         required_scope: String,
     },

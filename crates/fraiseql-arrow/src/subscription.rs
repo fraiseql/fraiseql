@@ -16,11 +16,11 @@ pub struct EventSubscription {
     /// Subscription ID (correlation ID from request)
     pub subscription_id: String,
     /// Entity type filter
-    pub entity_type:     String,
+    pub entity_type: String,
     /// Optional filter expression (for future use)
-    pub filter:          Option<String>,
+    pub filter: Option<String>,
     /// Sender for pushing events to this subscriber (bounded channel).
-    pub tx:              mpsc::Sender<crate::HistoricalEvent>,
+    pub tx: mpsc::Sender<crate::HistoricalEvent>,
 }
 
 /// Default per-subscription channel buffer depth.
@@ -38,19 +38,20 @@ const DEFAULT_SUBSCRIPTION_BUFFER: usize = 256;
 /// can be extended to support persistent subscriptions.
 pub struct SubscriptionManager {
     /// Map of `subscription_id` -> `EventSubscription`
-    subscriptions:           Arc<DashMap<String, EventSubscription>>,
+    subscriptions: Arc<DashMap<String, EventSubscription>>,
     /// Reference to event storage for historical queries (optional)
-    event_storage:           Option<Arc<dyn ArrowEventStorage>>,
+    event_storage: Option<Arc<dyn ArrowEventStorage>>,
     /// Per-subscription channel buffer depth.
     per_subscription_buffer: usize,
 }
 
 impl SubscriptionManager {
     /// Create a new subscription manager.
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            subscriptions:           Arc::new(DashMap::new()),
-            event_storage:           None,
+            subscriptions: Arc::new(DashMap::new()),
+            event_storage: None,
             per_subscription_buffer: DEFAULT_SUBSCRIPTION_BUFFER,
         }
     }
@@ -58,8 +59,8 @@ impl SubscriptionManager {
     /// Create a new subscription manager with event storage.
     pub fn with_event_storage(event_storage: Arc<dyn ArrowEventStorage>) -> Self {
         Self {
-            subscriptions:           Arc::new(DashMap::new()),
-            event_storage:           Some(event_storage),
+            subscriptions: Arc::new(DashMap::new()),
+            event_storage: Some(event_storage),
             per_subscription_buffer: DEFAULT_SUBSCRIPTION_BUFFER,
         }
     }
@@ -194,6 +195,7 @@ impl SubscriptionManager {
     }
 
     /// Get reference to event storage if available.
+    #[must_use]
     pub fn event_storage(&self) -> Option<&Arc<dyn ArrowEventStorage>> {
         self.event_storage.as_ref()
     }

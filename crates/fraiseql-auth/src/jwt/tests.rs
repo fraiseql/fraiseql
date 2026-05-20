@@ -157,12 +157,12 @@ fn make_claims(extra: serde_json::Value) -> Claims {
         }
     }
     Claims {
-        sub:   "user-1".to_owned(),
-        iat:   1_000_000,
-        exp:   2_000_000,
-        nbf:   None,
-        iss:   "test-issuer".to_owned(),
-        aud:   vec!["test-aud".to_owned()],
+        sub: "user-1".to_owned(),
+        iat: 1_000_000,
+        exp: 2_000_000,
+        nbf: None,
+        iss: "test-issuer".to_owned(),
+        aud: vec!["test-aud".to_owned()],
         extra: extra_map,
     }
 }

@@ -62,7 +62,7 @@ impl CascadeMetadata {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            mutation_entity_map:  HashMap::new(),
+            mutation_entity_map: HashMap::new(),
             entity_mutations_map: HashMap::new(),
         }
     }

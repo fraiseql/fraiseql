@@ -50,11 +50,11 @@ impl OutputFormat {
 #[derive(Debug, Clone)]
 pub struct TransformParams {
     /// Target width in pixels (optional)
-    pub width:   Option<u32>,
+    pub width: Option<u32>,
     /// Target height in pixels (optional)
-    pub height:  Option<u32>,
+    pub height: Option<u32>,
     /// Output format (optional, defaults to input format)
-    pub format:  Option<OutputFormat>,
+    pub format: Option<OutputFormat>,
     /// Quality for lossy formats (1-100, default 80)
     pub quality: Option<u8>,
 }
@@ -63,16 +63,16 @@ pub struct TransformParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransformOutput {
     /// Transformed image bytes
-    pub body:          Vec<u8>,
+    pub body: Vec<u8>,
     /// MIME type of output
-    pub content_type:  String,
+    pub content_type: String,
     /// Actual output width in pixels
-    pub width:         u32,
+    pub width: u32,
     /// Actual output height in pixels
-    pub height:        u32,
+    pub height: u32,
     /// ETag for cache validation (SHA256 hash of transformed bytes)
     #[serde(default)]
-    pub etag:          Option<String>,
+    pub etag: Option<String>,
     /// Cache control header value for HTTP response
     #[serde(default)]
     pub cache_control: Option<String>,
@@ -101,7 +101,7 @@ impl ImageTransformer {
             if w == 0 {
                 return Err(FraiseQLError::Validation {
                     message: "Width must be greater than 0".to_string(),
-                    path:    Some("width".to_string()),
+                    path: Some("width".to_string()),
                 });
             }
         }
@@ -110,7 +110,7 @@ impl ImageTransformer {
             if h == 0 {
                 return Err(FraiseQLError::Validation {
                     message: "Height must be greater than 0".to_string(),
-                    path:    Some("height".to_string()),
+                    path: Some("height".to_string()),
                 });
             }
         }
@@ -120,13 +120,13 @@ impl ImageTransformer {
             if fmt == OutputFormat::Bmp {
                 return Err(FraiseQLError::Validation {
                     message: "BMP format is not supported for transforms".to_string(),
-                    path:    Some("format".to_string()),
+                    path: Some("format".to_string()),
                 });
             }
             if fmt.as_image_format().is_none() {
                 return Err(FraiseQLError::Validation {
                     message: format!("Format {:?} is not supported", fmt),
-                    path:    Some("format".to_string()),
+                    path: Some("format".to_string()),
                 });
             }
         }
@@ -139,14 +139,14 @@ impl ImageTransformer {
         if reader.format().is_none() {
             reader = reader.with_guessed_format().map_err(|_| FraiseQLError::Validation {
                 message: "Could not determine image format".to_string(),
-                path:    Some("input".to_string()),
+                path: Some("input".to_string()),
             })?;
         }
 
         let format = reader.format();
         let img = reader.decode().map_err(|_| FraiseQLError::Validation {
             message: "Failed to decode image".to_string(),
-            path:    Some("input".to_string()),
+            path: Some("input".to_string()),
         })?;
 
         // Calculate output dimensions
@@ -177,7 +177,7 @@ impl ImageTransformer {
                     .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::WebP)
                     .map_err(|_| FraiseQLError::Validation {
                         message: "Failed to encode WebP".to_string(),
-                        path:    Some("format".to_string()),
+                        path: Some("format".to_string()),
                     })?;
             },
             OutputFormat::Jpeg => {
@@ -185,7 +185,7 @@ impl ImageTransformer {
                     .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::Jpeg)
                     .map_err(|_| FraiseQLError::Validation {
                         message: "Failed to encode JPEG".to_string(),
-                        path:    Some("format".to_string()),
+                        path: Some("format".to_string()),
                     })?;
             },
             OutputFormat::Png => {
@@ -193,7 +193,7 @@ impl ImageTransformer {
                     .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::Png)
                     .map_err(|_| FraiseQLError::Validation {
                         message: "Failed to encode PNG".to_string(),
-                        path:    Some("format".to_string()),
+                        path: Some("format".to_string()),
                     })?;
             },
             OutputFormat::Avif => {
@@ -201,7 +201,7 @@ impl ImageTransformer {
                     .write_to(&mut Cursor::new(&mut output_bytes), image::ImageFormat::Avif)
                     .map_err(|_| FraiseQLError::Validation {
                         message: "Failed to encode AVIF".to_string(),
-                        path:    Some("format".to_string()),
+                        path: Some("format".to_string()),
                     })?;
             },
             OutputFormat::Bmp => {
@@ -218,11 +218,11 @@ impl ImageTransformer {
         };
 
         Ok(TransformOutput {
-            body:          output_bytes,
-            content_type:  output_format.mime_type().to_string(),
-            width:         output_width,
-            height:        output_height,
-            etag:          Some(etag),
+            body: output_bytes,
+            content_type: output_format.mime_type().to_string(),
+            width: output_width,
+            height: output_height,
+            etag: Some(etag),
             // Cache transformed images for 30 days (they're deterministic based on source +
             // params)
             cache_control: Some("public, max-age=2592000, immutable".to_string()),
@@ -269,7 +269,7 @@ impl ImageTransformer {
         if width == 0 || height == 0 {
             return Err(FraiseQLError::Validation {
                 message: "Calculated dimensions would be zero".to_string(),
-                path:    Some("dimensions".to_string()),
+                path: Some("dimensions".to_string()),
             });
         }
 

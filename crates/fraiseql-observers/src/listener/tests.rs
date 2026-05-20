@@ -34,21 +34,21 @@ mod change_log_tests {
     #[test]
     fn test_change_log_entry_debezium_operation() {
         let entry = ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           None,
-            object_type:          "Order".to_string(),
-            object_id:            "order-id".to_string(),
-            modification_type:    "INSERT".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: None,
+            object_type: "Order".to_string(),
+            object_id: "order-id".to_string(),
+            modification_type: "INSERT".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": "order-id" }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:00:00Z".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:00:00Z".to_string(),
         };
 
         assert_eq!(entry.debezium_operation().unwrap(), 'c');
@@ -57,21 +57,21 @@ mod change_log_tests {
     #[test]
     fn test_change_log_entry_after_values() {
         let entry = ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           None,
-            object_type:          "User".to_string(),
-            object_id:            "user-id".to_string(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: None,
+            object_type: "User".to_string(),
+            object_id: "user-id".to_string(),
+            modification_type: "UPDATE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "u",
                 "before": { "name": "old" },
                 "after": { "name": "new" }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:00:00Z".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:00:00Z".to_string(),
         };
 
         let after = entry.after_values().unwrap();
@@ -81,21 +81,21 @@ mod change_log_tests {
     #[test]
     fn test_change_log_entry_before_values() {
         let entry = ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: "uuid".to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           None,
-            object_type:          "Product".to_string(),
-            object_id:            "prod-id".to_string(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: None,
+            object_type: "Product".to_string(),
+            object_id: "prod-id".to_string(),
+            modification_type: "UPDATE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "u",
                 "before": { "price": 100 },
                 "after": { "price": 150 }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:00:00Z".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:00:00Z".to_string(),
         };
 
         let before = entry.before_values().unwrap();
@@ -134,21 +134,21 @@ mod change_log_tests {
     fn test_insert_to_entity_event() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id:                   1,
+            id: 1,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           Some("user-123".to_string()),
-            object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "INSERT".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: Some("user-123".to_string()),
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "INSERT".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string(), "total": 150.00, "status": "pending" }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:30:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:30:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -165,21 +165,21 @@ mod change_log_tests {
     fn test_update_to_entity_event() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id:                   2,
+            id: 2,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           Some("user-456".to_string()),
-            object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: Some("user-456".to_string()),
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "UPDATE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "u",
                 "before": { "status": "pending", "total": 100.00 },
                 "after": { "status": "shipped", "total": 100.00 }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:35:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:35:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -200,21 +200,21 @@ mod change_log_tests {
     fn test_delete_to_entity_event() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id:                   3,
+            id: 3,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           None,
-            object_type:          "User".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "DELETE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: None,
+            object_type: "User".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "DELETE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "d",
                 "before": { "id": entity_id.to_string(), "email": "user@example.com" },
                 "after": null
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:40:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:40:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -229,21 +229,21 @@ mod change_log_tests {
     fn test_field_changes_new_field() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id:                   4,
+            id: 4,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           None,
-            object_type:          "Product".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: None,
+            object_type: "Product".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "UPDATE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "u",
                 "before": { "name": "Widget" },
                 "after": { "name": "Widget", "description": "A useful widget" }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:45:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:45:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -259,21 +259,21 @@ mod change_log_tests {
     fn test_field_changes_deleted_field() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id:                   5,
+            id: 5,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           None,
-            object_type:          "User".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "UPDATE".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: None,
+            object_type: "User".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "UPDATE".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "u",
                 "before": { "name": "John", "temp_field": "value" },
                 "after": { "name": "John" }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T10:50:00+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T10:50:00+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -289,21 +289,21 @@ mod change_log_tests {
     fn test_timestamp_parsing() {
         let entity_id = Uuid::new_v4();
         let entry = ChangeLogEntry {
-            id:                   6,
+            id: 6,
             pk_entity_change_log: Uuid::new_v4().to_string(),
-            fk_customer_org:      "org".to_string(),
-            fk_contact:           None,
-            object_type:          "Order".to_string(),
-            object_id:            entity_id.to_string(),
-            modification_type:    "INSERT".to_string(),
-            change_status:        "success".to_string(),
-            object_data:          json!({
+            fk_customer_org: "org".to_string(),
+            fk_contact: None,
+            object_type: "Order".to_string(),
+            object_id: entity_id.to_string(),
+            modification_type: "INSERT".to_string(),
+            change_status: "success".to_string(),
+            object_data: json!({
                 "op": "c",
                 "before": null,
                 "after": { "id": entity_id.to_string() }
             }),
-            extra_metadata:       None,
-            created_at:           "2026-01-22T15:30:45.123456+00:00".to_string(),
+            extra_metadata: None,
+            created_at: "2026-01-22T15:30:45.123456+00:00".to_string(),
         };
 
         let event = entry.to_entity_event().unwrap();
@@ -510,13 +510,13 @@ mod lease_tests {
         assert_eq!(holder, None);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_lease_renewal() {
         let lease = CheckpointLease::in_process("listener-1".to_string(), 1000, 100);
 
         lease.acquire().await.unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        tokio::time::advance(std::time::Duration::from_millis(50)).await;
         let time_remaining_before = lease.time_remaining_ms().await.unwrap();
 
         lease.renew().await.unwrap();
@@ -526,14 +526,14 @@ mod lease_tests {
         assert!(time_remaining_after > time_remaining_before);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_lease_expiration() {
         let lease = CheckpointLease::in_process("listener-1".to_string(), 1000, 50);
 
         lease.acquire().await.unwrap();
         assert!(lease.is_valid().await.unwrap());
 
-        tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+        tokio::time::advance(std::time::Duration::from_millis(60)).await;
         assert!(!lease.is_valid().await.unwrap());
     }
 
@@ -567,7 +567,7 @@ mod lease_tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_lease_time_remaining() {
         let lease = CheckpointLease::in_process("listener-1".to_string(), 1000, 200);
 
@@ -576,7 +576,7 @@ mod lease_tests {
 
         lease.acquire().await.unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        tokio::time::advance(std::time::Duration::from_millis(50)).await;
         let remaining_after_50ms = lease.time_remaining_ms().await.unwrap();
 
         assert!(remaining_after_50ms < 200);
@@ -793,16 +793,16 @@ mod state_tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_listener_state_duration_tracking() {
         let state_machine = ListenerStateMachine::new("listener-1".to_string());
 
         let initial_duration = state_machine.get_state_duration().await;
         assert!(initial_duration.as_millis() < 100);
 
-        // Transition and wait
+        // Transition and advance frozen time
         state_machine.transition(ListenerState::Connecting).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::advance(Duration::from_millis(50)).await;
 
         let connecting_duration = state_machine.get_state_duration().await;
         assert!(connecting_duration.as_millis() >= 50);

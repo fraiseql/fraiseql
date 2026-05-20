@@ -50,28 +50,28 @@ public class SchemaRegistry {
     }
 
     /**
-     * Return a snapshot of the current schema.
+     * Returns a snapshot of the current schema state.
      *
-     * @return immutable Schema view
+     * @return schema containing all registered queries, mutations, and subscriptions
      */
     public static Schema getSchema() {
         return new Schema(INSTANCE);
     }
 
     /**
-     * Immutable snapshot of all registered schema elements.
+     * Snapshot of the schema registry state.
      */
     public static class Schema {
         private final List<QueryInfo> queries;
-        private final List<MutationInfo> mutations;
 
         Schema(SchemaRegistry registry) {
             this.queries = Collections.unmodifiableList(new ArrayList<>(registry.queries.values()));
-            this.mutations = Collections.unmodifiableList(new ArrayList<>(registry.mutations.values()));
         }
 
-        public List<QueryInfo> getQueries() { return queries; }
-        public List<MutationInfo> getMutations() { return mutations; }
+        /** Returns all registered queries. */
+        public List<QueryInfo> getQueries() {
+            return queries;
+        }
     }
 
     /**
@@ -697,10 +697,16 @@ public class SchemaRegistry {
                 ? Collections.unmodifiableMap(new LinkedHashMap<>(config)) : null;
         }
 
+        /** Returns the query name. */
         public String getName() { return name; }
-        public String getReturnType() { return returnType; }
-        public Map<String, String> getArguments() { return arguments; }
+
+        /** Returns the query description. */
         public String getDescription() { return description; }
+
+        /** Returns the query arguments map. */
+        public Map<String, String> getArguments() { return arguments; }
+
+        /** Returns the query config map (dispatch settings, etc.). */
         public Map<String, Object> getConfig() { return config; }
 
         @Override

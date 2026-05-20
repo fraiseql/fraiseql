@@ -26,13 +26,13 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
 
     - name: Cache cargo registry
-      uses: actions/cache@v5
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
       with:
         path: |
           ~/.cargo/registry
@@ -40,7 +40,7 @@ jobs:
         key: ${{ runner.os }}-cargo-sbom-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Install cargo-cyclonedx
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e  # v2
       with:
         tool: cargo-cyclonedx
 
@@ -74,7 +74,7 @@ jobs:
         echo "✅ SBOM is valid CycloneDX JSON"
 
     - name: Install Cosign
-      uses: sigstore/cosign-installer@v3
+      uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac  # v3
 
     - name: Sign SBOM with Cosign (keyless)
       run: |
@@ -168,7 +168,7 @@ jobs:
         EOF
 
     - name: Upload SBOM artifacts
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
       with:
         name: sbom-artifacts-${{ steps.version.outputs.version }}
         path: sbom-artifacts/
@@ -176,7 +176,7 @@ jobs:
 
     - name: Attach SBOM to Release
       if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
       with:
         files: |
           fraiseql-${{ steps.version.outputs.version }}-sbom.json

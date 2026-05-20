@@ -174,14 +174,14 @@ fn test_refresh_manager_health_status_healthy() {
 #[test]
 fn test_refresh_manager_health_status_pending() {
     let manager = RefreshManager::new(RefreshConfig::default());
-    manager.check_and_trigger(85);
+    let _ = manager.check_and_trigger(85);
     assert_eq!(manager.health_status(), RefreshHealthStatus::Pending);
 }
 
 #[test]
 fn test_refresh_manager_health_status_running() {
     let manager = RefreshManager::new(RefreshConfig::default());
-    manager.check_and_trigger(85);
+    let _ = manager.check_and_trigger(85);
     manager.start_job().unwrap();
     assert_eq!(manager.health_status(), RefreshHealthStatus::Running);
 }
@@ -189,7 +189,7 @@ fn test_refresh_manager_health_status_running() {
 #[test]
 fn test_refresh_manager_should_retry() {
     let manager = RefreshManager::new(RefreshConfig::default());
-    manager.check_and_trigger(85);
+    let _ = manager.check_and_trigger(85);
     assert!(manager.should_retry_refresh());
 
     // Simulate max failures
@@ -202,7 +202,7 @@ fn test_refresh_manager_should_retry() {
 #[test]
 fn test_refresh_manager_reset_for_retry() {
     let manager = RefreshManager::new(RefreshConfig::default());
-    manager.check_and_trigger(85);
+    let _ = manager.check_and_trigger(85);
     assert!(manager.refresh_pending());
 
     manager.reset_for_retry();

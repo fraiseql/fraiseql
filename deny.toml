@@ -1,6 +1,6 @@
 # FraiseQL dependency policy
 # Run: cargo deny check
-# Skip entries last reviewed: 2026-04-25
+# Skip entries last reviewed: 2026-05-19
 #
 # Pending resolution (tracked with deadlines in the [advisories] section):
 # - rustls 0.21  — aws-sdk-s3 (optional feature) transitively requires; EOL dependency.
@@ -30,33 +30,10 @@ ignore = [
   # DEADLINE: 2026-06-15 — if aws-sdk-s3 has not migrated to rustls 0.23, evaluate removal.
   {id = "RUSTSEC-2026-0098", reason = "rustls-webpki name-constraint URI bug; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-06-15."},
   {id = "RUSTSEC-2026-0099", reason = "rustls-webpki wildcard name-constraint bug; same cause as RUSTSEC-2026-0098. Deadline 2026-06-15."},
-  # wasmtime v18: multiple security advisories requiring upgrade to v36+.
-  # fraiseql-functions uses wasmtime for WASM function execution (runtime-wasm feature).
-  # Upgrading wasmtime is a breaking change requiring significant API updates.
-  # Mitigation: WASM sandbox in fraiseql-functions is NOT reachable from the network; it
-  # only executes pre-compiled, developer-supplied WASM modules — not untrusted input.
-  # DEADLINE: 2026-12-01 — upgrade wasmtime to v36+ in the next major iteration.
-  {id = "RUSTSEC-2024-0438", reason = "wasmtime v18 sandbox escape; mitigated — WASM only runs developer-supplied modules; deadline 2026-12-01"},
-  {id = "RUSTSEC-2025-0046", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2025-0118", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0020", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0021", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0085", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0086", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0087", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0088", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0089", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0091", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0092", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0093", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0094", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0095", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  {id = "RUSTSEC-2026-0096", reason = "wasmtime v18 vulnerability; same mitigation as RUSTSEC-2024-0438; deadline 2026-12-01"},
-  # astral-tokio-tar: dev-only dep via testcontainers; no production exploit path.
-  # DEADLINE: 2026-09-01 — check testcontainers for updated tokio-tar.
-  {id = "RUSTSEC-2026-0104", reason = "astral-tokio-tar path traversal; dev-only (testcontainers); no production path; deadline 2026-09-01"},
-  {id = "RUSTSEC-2026-0112", reason = "astral-tokio-tar vulnerability; dev-only (testcontainers); same mitigation; deadline 2026-09-01"},
-  {id = "RUSTSEC-2026-0113", reason = "astral-tokio-tar vulnerability; dev-only (testcontainers); same mitigation; deadline 2026-09-01"}
+  # rustls-webpki 0.101.7: CRL parsing panic; transitive via aws-smithy-http-client (rustls 0.21).
+  # Affects optional aws-s3 feature only; same root cause as RUSTSEC-2026-0098/0099.
+  # DEADLINE: 2026-06-15 — resolved when aws-sdk migrates to rustls 0.23.
+  {id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 CRL panic; transitive via aws-smithy-http-client (rustls 0.21); optional aws-s3 feature only. Deadline 2026-06-15."}
 ]
 unmaintained = "workspace"
 
@@ -96,11 +73,6 @@ version = "=0.15.5"
 
 [[bans.skip]]
 name = "getrandom"
-reason = "transitive via rand 0.7 (quickcheck dependency)"
-version = "=0.1.16"
-
-[[bans.skip]]
-name = "getrandom"
 reason = "transitive via rand 0.8 (many dependencies)"
 version = "=0.2.17"
 
@@ -110,24 +82,14 @@ reason = "transitive via rand 0.9"
 version = "=0.3.4"
 
 [[bans.skip]]
-name = "rand"
-reason = "transitive via quickcheck"
-version = "=0.7.3"
-
-[[bans.skip]]
-name = "rand_chacha"
-reason = "transitive via rand 0.7"
-version = "=0.2.2"
-
-[[bans.skip]]
 name = "rand_chacha"
 reason = "transitive via rand 0.8"
 version = "=0.3.1"
 
 [[bans.skip]]
-name = "rand_core"
-reason = "transitive via rand 0.7"
-version = "=0.5.1"
+name = "rand_chacha"
+reason = "transitive via rand 0.10"
+version = "=0.9.0"
 
 [[bans.skip]]
 name = "rand_core"
@@ -176,13 +138,13 @@ version = "=1.0.69"
 
 [[bans.skip]]
 name = "wasi"
-reason = "transitive via getrandom 0.1"
-version = "=0.9.0+wasi-snapshot-preview1"
+reason = "transitive via getrandom 0.2"
+version = "=0.11.1+wasi-snapshot-preview1"
 
 [[bans.skip]]
 name = "wasi"
-reason = "transitive via getrandom 0.2"
-version = "=0.11.1+wasi-snapshot-preview1"
+reason = "transitive via getrandom 0.3 (rand 0.10 chain)"
+version = "=0.14.7+wasi-0.2.4"
 
 [[bans.skip]]
 name = "metrics"
@@ -198,11 +160,6 @@ version = "=0.6.11"
 name = "toml_edit"
 reason = "transitive via cargo-manifest or similar"
 version = "=0.22.27"
-
-[[bans.skip]]
-name = "lru"
-reason = "transitive via older dependency"
-version = "=0.12.5"
 
 [[bans.skip]]
 name = "lz4_flex"
@@ -291,8 +248,8 @@ version = "=0.12.1"
 
 [[bans.skip]]
 name = "lru"
-reason = "transitive via newer dependency pulling lru 0.16"
-version = "=0.16.4"
+reason = "transitive via aws-sdk-s3 (pinned to lru 0.12.x); workspace direct on lru 0.18"
+version = "=0.12.5"
 
 [[bans.skip]]
 name = "outref"
@@ -318,16 +275,6 @@ version = "=0.9.4"
 name = "rand"
 reason = "transitive via newer dependency chain pulling rand 0.10"
 version = "=0.10.1"
-
-[[bans.skip]]
-name = "rand_chacha"
-reason = "transitive via rand 0.9"
-version = "=0.3.1"
-
-[[bans.skip]]
-name = "rand_core"
-reason = "transitive via rand 0.8"
-version = "=0.6.4"
 
 [[bans.skip]]
 name = "rustc_version"

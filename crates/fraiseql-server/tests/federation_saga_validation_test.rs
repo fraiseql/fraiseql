@@ -87,10 +87,10 @@ impl SagaStep {
     /// Create a new saga step
     fn new(name: &str, service: &str, database: &str) -> Self {
         Self {
-            name:              name.to_string(),
-            service:           service.to_string(),
-            database:          database.to_string(),
-            input:             HashMap::new(),
+            name: name.to_string(),
+            service: service.to_string(),
+            database: database.to_string(),
+            input: HashMap::new(),
             compensation_name: None,
         }
     }
@@ -129,11 +129,11 @@ struct StepResult {
     /// Step name
     step_name: String,
     /// Execution status
-    status:    StepStatus,
+    status: StepStatus,
     /// Result data (if successful)
-    result:    Option<HashMap<String, String>>,
+    result: Option<HashMap<String, String>>,
     /// Error message (if failed)
-    error:     Option<String>,
+    error: Option<String>,
 }
 
 impl StepResult {
@@ -141,9 +141,9 @@ impl StepResult {
     fn success(step_name: &str, result: HashMap<String, String>) -> Self {
         Self {
             step_name: step_name.to_string(),
-            status:    StepStatus::Completed,
-            result:    Some(result),
-            error:     None,
+            status: StepStatus::Completed,
+            result: Some(result),
+            error: None,
         }
     }
 
@@ -151,9 +151,9 @@ impl StepResult {
     fn failure(step_name: &str, error: &str) -> Self {
         Self {
             step_name: step_name.to_string(),
-            status:    StepStatus::Failed,
-            result:    None,
-            error:     Some(error.to_string()),
+            status: StepStatus::Failed,
+            result: None,
+            error: Some(error.to_string()),
         }
     }
 
@@ -161,9 +161,9 @@ impl StepResult {
     fn compensated(step_name: &str) -> Self {
         Self {
             step_name: step_name.to_string(),
-            status:    StepStatus::Compensated,
-            result:    None,
-            error:     None,
+            status: StepStatus::Compensated,
+            result: None,
+            error: None,
         }
     }
 }

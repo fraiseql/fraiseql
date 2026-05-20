@@ -32,9 +32,9 @@ fn test_where_operator_is_case_insensitive() {
 #[test]
 fn test_where_clause_simple() {
     let clause = WhereClause::Field {
-        path:     vec!["email".to_string()],
+        path: vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("test@example.com"),
+        value: json!("test@example.com"),
     };
 
     assert!(!clause.is_empty());
@@ -44,14 +44,14 @@ fn test_where_clause_simple() {
 fn test_where_clause_and() {
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["published".to_string()],
+            path: vec!["published".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!(true),
+            value: json!(true),
         },
         WhereClause::Field {
-            path:     vec!["views".to_string()],
+            path: vec!["views".to_string()],
             operator: WhereOperator::Gte,
-            value:    json!(100),
+            value: json!(100),
         },
     ]);
 
@@ -71,9 +71,9 @@ fn test_from_graphql_json_simple_field() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         }
     );
 }
@@ -85,9 +85,9 @@ fn test_from_graphql_json_camelcase_field_normalized_to_snake_case() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["ip_address".to_string()],
+            path: vec!["ip_address".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("10.0.0.1"),
+            value: json!("10.0.0.1"),
         }
     );
 }
@@ -99,9 +99,9 @@ fn test_from_graphql_json_snake_case_field_unchanged() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["ip_address".to_string()],
+            path: vec!["ip_address".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("10.0.0.1"),
+            value: json!("10.0.0.1"),
         }
     );
 }
@@ -160,9 +160,9 @@ fn test_nested_relation_where_builds_path() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["machine".to_string(), "id".to_string()],
+            path: vec!["machine".to_string(), "id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("abc"),
+            value: json!("abc"),
         }
     );
 }
@@ -174,9 +174,9 @@ fn test_nested_relation_where_camelcase_normalized() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["machine_group".to_string(), "ip_address".to_string()],
+            path: vec!["machine_group".to_string(), "ip_address".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("10.0.0.1"),
+            value: json!("10.0.0.1"),
         }
     );
 }
@@ -252,9 +252,9 @@ fn test_nested_relation_filter_builds_multi_segment_path() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["machine".to_string(), "id".to_string()],
+            path: vec!["machine".to_string(), "id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("some-uuid"),
+            value: json!("some-uuid"),
         }
     );
 }
@@ -284,13 +284,13 @@ fn test_deeply_nested_filter_builds_three_segment_path() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec![
+            path: vec![
                 "items".to_string(),
                 "product".to_string(),
                 "category".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value:    json!("electronics"),
+            value: json!("electronics"),
         }
     );
 }
@@ -428,9 +428,9 @@ fn test_where_clause_with_camel_case_operator() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["ip_address".to_string()],
+            path: vec!["ip_address".to_string()],
             operator: WhereOperator::DescendantOf,
-            value:    json!(42),
+            value: json!(42),
         }
     );
 }
@@ -444,9 +444,9 @@ fn test_where_clause_with_camel_case_network_operator() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["ip_address".to_string()],
+            path: vec!["ip_address".to_string()],
             operator: WhereOperator::IsPrivate,
-            value:    json!(true),
+            value: json!(true),
         }
     );
 }
@@ -488,9 +488,9 @@ fn test_descendant_of_id_graphql_json() {
     assert_eq!(
         clause,
         WhereClause::Field {
-            path:     vec!["category_path".to_string()],
+            path: vec!["category_path".to_string()],
             operator: WhereOperator::DescendantOfId,
-            value:    json!("abc-123"),
+            value: json!("abc-123"),
         }
     );
 }

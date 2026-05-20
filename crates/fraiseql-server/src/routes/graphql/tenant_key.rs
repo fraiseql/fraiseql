@@ -93,7 +93,7 @@ impl TenantKeyResolver {
                             "Conflicting tenant values from sources: {}",
                             conflicts.join(", ")
                         ),
-                        path:    None,
+                        path: None,
                     });
                 }
             }
@@ -145,6 +145,7 @@ impl DomainRegistry {
     }
 
     /// Remove a domain mapping. Returns `true` if the domain was registered.
+    #[must_use]
     pub fn remove(&self, domain: &str) -> bool {
         self.domains.remove(domain).is_some()
     }

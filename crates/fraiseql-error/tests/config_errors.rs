@@ -14,7 +14,7 @@ fn not_found_error_code_and_display() {
 #[test]
 fn read_error_code_and_display() {
     let err = ConfigError::ReadError {
-        path:   PathBuf::from("/etc/fraiseql.toml"),
+        path: PathBuf::from("/etc/fraiseql.toml"),
         source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
     };
     assert_eq!(err.error_code(), "config_read_error");
@@ -42,7 +42,7 @@ fn parse_error_from_toml_error() {
 #[test]
 fn validation_error_code_and_display() {
     let err = ConfigError::ValidationError {
-        field:   "port".into(),
+        field: "port".into(),
         message: "must be between 1 and 65535".into(),
     };
     assert_eq!(err.error_code(), "config_validation_error");

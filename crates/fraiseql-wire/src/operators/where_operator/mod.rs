@@ -525,6 +525,7 @@ pub enum WhereOperator {
 
 impl WhereOperator {
     /// Get a human-readable name for this operator
+    #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
             WhereOperator::Eq(_, _) => "Eq",

@@ -237,15 +237,15 @@ fn encode_row_sets_fields() {
 
     let columns = vec![
         ColumnSpec {
-            name:        "id".into(),
+            name: "id".into(),
             column_type: RowViewColumnType::Uuid,
         },
         ColumnSpec {
-            name:        "name".into(),
+            name: "name".into(),
             column_type: RowViewColumnType::Text,
         },
         ColumnSpec {
-            name:        "age".into(),
+            name: "age".into(),
             column_type: RowViewColumnType::Int32,
         },
     ];
@@ -274,15 +274,15 @@ fn encode_row_null_leaves_field_unset() {
 
     let columns = vec![
         ColumnSpec {
-            name:        "id".into(),
+            name: "id".into(),
             column_type: RowViewColumnType::Uuid,
         },
         ColumnSpec {
-            name:        "name".into(),
+            name: "name".into(),
             column_type: RowViewColumnType::Text,
         },
         ColumnSpec {
-            name:        "age".into(),
+            name: "age".into(),
             column_type: RowViewColumnType::Int32,
         },
     ];
@@ -307,11 +307,11 @@ fn encode_response_get_single_row() {
 
     let columns = vec![
         ColumnSpec {
-            name:        "id".into(),
+            name: "id".into(),
             column_type: RowViewColumnType::Uuid,
         },
         ColumnSpec {
-            name:        "name".into(),
+            name: "name".into(),
             column_type: RowViewColumnType::Text,
         },
     ];
@@ -333,7 +333,7 @@ fn encode_response_empty_rows() {
     let user_desc = pool.get_message_by_name("test.User").unwrap();
 
     let columns = vec![ColumnSpec {
-        name:        "id".into(),
+        name: "id".into(),
         column_type: RowViewColumnType::Uuid,
     }];
 

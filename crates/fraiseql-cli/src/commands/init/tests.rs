@@ -80,10 +80,10 @@ fn test_init_creates_project() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language:     Language::Python,
-        database:     Database::Postgres,
-        size:         ProjectSize::S,
-        no_git:       true,
+        language: Language::Python,
+        database: Database::Postgres,
+        size: ProjectSize::S,
+        no_git: true,
     };
 
     run(&config).expect("test");
@@ -111,10 +111,10 @@ fn test_init_xs_layout() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language:     Language::TypeScript,
-        database:     Database::Postgres,
-        size:         ProjectSize::Xs,
-        no_git:       true,
+        language: Language::TypeScript,
+        database: Database::Postgres,
+        size: ProjectSize::Xs,
+        no_git: true,
     };
 
     run(&config).expect("test");
@@ -133,10 +133,10 @@ fn test_init_m_layout() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language:     Language::Rust,
-        database:     Database::Postgres,
-        size:         ProjectSize::M,
-        no_git:       true,
+        language: Language::Rust,
+        database: Database::Postgres,
+        size: ProjectSize::M,
+        no_git: true,
     };
 
     run(&config).expect("test");
@@ -157,10 +157,10 @@ fn test_init_refuses_existing_dir() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language:     Language::Python,
-        database:     Database::Postgres,
-        size:         ProjectSize::S,
-        no_git:       true,
+        language: Language::Python,
+        database: Database::Postgres,
+        size: ProjectSize::S,
+        no_git: true,
     };
 
     let result = run(&config);
@@ -175,10 +175,10 @@ fn test_toml_config_is_valid() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language:     Language::Python,
-        database:     Database::Postgres,
-        size:         ProjectSize::S,
-        no_git:       true,
+        language: Language::Python,
+        database: Database::Postgres,
+        size: ProjectSize::S,
+        no_git: true,
     };
 
     run(&config).expect("test");
@@ -197,10 +197,10 @@ fn test_schema_json_is_valid() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language:     Language::Python,
-        database:     Database::Postgres,
-        size:         ProjectSize::Xs,
-        no_git:       true,
+        language: Language::Python,
+        database: Database::Postgres,
+        size: ProjectSize::Xs,
+        no_git: true,
     };
 
     run(&config).expect("test");

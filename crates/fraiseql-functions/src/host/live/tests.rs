@@ -38,7 +38,7 @@ impl QueryExecutor for MockQueryExecutor {
                 Some(value) => Ok(value.clone()),
                 None => Err(fraiseql_error::FraiseQLError::Validation {
                     message: "mock query failed".to_string(),
-                    path:    None,
+                    path: None,
                 }),
             }
         })
@@ -49,10 +49,10 @@ impl QueryExecutor for MockQueryExecutor {
 async fn test_host_query_executes_graphql() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let response = serde_json::json!({
@@ -77,10 +77,10 @@ async fn test_host_query_executes_graphql() {
 async fn test_host_query_passes_variables() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let response = serde_json::json!({
@@ -104,10 +104,10 @@ async fn test_host_query_passes_variables() {
 async fn test_host_query_rejects_mutations() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let executor = MockQueryExecutor::error();
@@ -126,10 +126,10 @@ async fn test_host_query_rejects_mutations() {
 async fn test_host_query_invalid_graphql_returns_validation_error() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let executor = MockQueryExecutor::error();
@@ -144,10 +144,10 @@ async fn test_host_query_invalid_graphql_returns_validation_error() {
 async fn test_host_query_without_executor_returns_unsupported() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -169,10 +169,10 @@ async fn test_host_query_without_executor_returns_unsupported() {
 async fn test_host_sql_query_returns_rows() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -189,10 +189,10 @@ async fn test_host_sql_query_returns_rows() {
 async fn test_host_sql_query_rejects_insert() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -214,10 +214,10 @@ async fn test_host_sql_query_rejects_insert() {
 async fn test_host_sql_query_rejects_update() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -240,10 +240,10 @@ async fn test_host_sql_query_rejects_update() {
 async fn test_host_sql_query_rejects_delete() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -257,10 +257,10 @@ async fn test_host_sql_query_rejects_delete() {
 async fn test_host_sql_query_rejects_ddl() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -280,10 +280,10 @@ async fn test_host_sql_query_rejects_ddl() {
 async fn test_host_sql_query_rejects_copy() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -297,10 +297,10 @@ async fn test_host_sql_query_rejects_copy() {
 async fn test_host_sql_query_rejects_create_extension() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -314,10 +314,10 @@ async fn test_host_sql_query_rejects_create_extension() {
 async fn test_host_sql_query_rejects_set_role() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -331,10 +331,10 @@ async fn test_host_sql_query_rejects_set_role() {
 async fn test_host_sql_query_rejects_call() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -348,10 +348,10 @@ async fn test_host_sql_query_rejects_call() {
 async fn test_host_sql_query_rejects_truncate() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -365,10 +365,10 @@ async fn test_host_sql_query_rejects_truncate() {
 async fn test_host_sql_query_allows_explain_without_analyze() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -382,10 +382,10 @@ async fn test_host_sql_query_allows_explain_without_analyze() {
 async fn test_host_sql_query_rejects_explain_analyze() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -405,10 +405,10 @@ async fn test_host_sql_query_rejects_explain_analyze() {
 async fn test_host_sql_query_invalid_returns_validation_error() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -428,10 +428,10 @@ async fn test_host_sql_query_invalid_returns_validation_error() {
 async fn test_host_http_valid_domain_passes_validation() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     // Configure to allow a specific domain
@@ -458,10 +458,10 @@ async fn test_host_http_valid_domain_passes_validation() {
 async fn test_host_http_subdomain_glob_pattern() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     // Configure with glob pattern
@@ -489,10 +489,10 @@ async fn test_host_http_subdomain_glob_pattern() {
 async fn test_host_http_blocks_disallowed_domain() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -512,10 +512,10 @@ async fn test_host_http_blocks_disallowed_domain() {
 async fn test_host_http_blocks_private_ipv4() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -537,10 +537,10 @@ async fn test_host_http_blocks_private_ipv4() {
 async fn test_host_http_blocks_ipv6_loopback() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -554,10 +554,10 @@ async fn test_host_http_blocks_ipv6_loopback() {
 async fn test_host_http_blocks_ipv6_link_local() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -571,10 +571,10 @@ async fn test_host_http_blocks_ipv6_link_local() {
 async fn test_host_http_allows_public_ipv4() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -596,10 +596,10 @@ async fn test_host_http_allows_public_ipv4() {
 async fn test_host_http_invalid_url() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "API".to_string(),
-        event_kind:   "called".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "API".to_string(),
+        event_kind: "called".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -615,10 +615,10 @@ async fn test_host_http_invalid_url() {
 async fn test_host_storage_get_returns_bytes() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "File".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -638,10 +638,10 @@ async fn test_host_storage_get_returns_bytes() {
 async fn test_host_storage_put_creates_object() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "File".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -660,10 +660,10 @@ async fn test_host_storage_put_creates_object() {
 async fn test_host_storage_get_nonexistent_returns_not_found() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "File".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -685,10 +685,10 @@ async fn test_host_storage_get_nonexistent_returns_not_found() {
 async fn test_host_storage_put_respects_size_limit() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "File".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "File".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -724,27 +724,27 @@ async fn test_host_auth_context_returns_claims() {
 
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
     ctx.security_context = SecurityContext {
-        user_id:          fraiseql_core::types::UserId("user123".to_string()),
-        roles:            vec!["admin".to_string(), "user".to_string()],
-        scopes:           vec!["read:users".to_string(), "write:users".to_string()],
-        tenant_id:        Some(fraiseql_core::types::TenantId("tenant456".to_string())),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        user_id: fraiseql_core::types::UserId("user123".to_string()),
+        roles: vec!["admin".to_string(), "user".to_string()],
+        scopes: vec!["read:users".to_string(), "write:users".to_string()],
+        tenant_id: Some(fraiseql_core::types::TenantId("tenant456".to_string())),
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
         authenticated_at: chrono::Utc::now(),
-        request_id:       "req-123".to_string(),
-        ip_address:       None,
-        attributes:       std::collections::HashMap::new(),
-        issuer:           None,
-        audience:         None,
-        email:            None,
-        display_name:     None,
+        request_id: "req-123".to_string(),
+        ip_address: None,
+        attributes: std::collections::HashMap::new(),
+        issuer: None,
+        audience: None,
+        email: None,
+        display_name: None,
     };
 
     let result = ctx.auth_context();
@@ -764,27 +764,27 @@ async fn test_host_auth_context_redacts_sensitive() {
 
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let mut ctx = LiveHostContext::new(payload, HostContextConfig::default());
     ctx.security_context = SecurityContext {
-        user_id:          fraiseql_core::types::UserId("user123".to_string()),
-        roles:            vec!["admin".to_string()],
-        scopes:           vec!["read:users".to_string()],
-        tenant_id:        Some(fraiseql_core::types::TenantId("tenant456".to_string())),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        user_id: fraiseql_core::types::UserId("user123".to_string()),
+        roles: vec!["admin".to_string()],
+        scopes: vec!["read:users".to_string()],
+        tenant_id: Some(fraiseql_core::types::TenantId("tenant456".to_string())),
+        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
         authenticated_at: chrono::Utc::now(),
-        request_id:       "req-123".to_string(),
-        ip_address:       Some("192.168.1.1".to_string()),
-        attributes:       std::collections::HashMap::new(),
-        issuer:           None,
-        audience:         None,
-        email:            None,
-        display_name:     None,
+        request_id: "req-123".to_string(),
+        ip_address: Some("192.168.1.1".to_string()),
+        attributes: std::collections::HashMap::new(),
+        issuer: None,
+        audience: None,
+        email: None,
+        display_name: None,
     };
 
     let result = ctx.auth_context();
@@ -801,10 +801,10 @@ async fn test_host_auth_context_redacts_sensitive() {
 async fn test_host_env_var_returns_allowed() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "Config".to_string(),
-        event_kind:   "accessed".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "Config".to_string(),
+        event_kind: "accessed".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -828,10 +828,10 @@ async fn test_host_env_var_returns_allowed() {
 async fn test_host_env_var_blocks_disallowed() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "Config".to_string(),
-        event_kind:   "accessed".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "Config".to_string(),
+        event_kind: "accessed".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -855,10 +855,10 @@ async fn test_host_env_var_blocks_disallowed() {
 async fn test_host_env_var_nonexistent_returns_none() {
     let payload = EventPayload {
         trigger_type: "test".to_string(),
-        entity:       "Config".to_string(),
-        event_kind:   "accessed".to_string(),
-        data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        entity: "Config".to_string(),
+        event_kind: "accessed".to_string(),
+        data: serde_json::json!({}),
+        timestamp: chrono::Utc::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -885,10 +885,10 @@ async fn test_host_event_payload_returns_trigger_data() {
 
     let payload = EventPayload {
         trigger_type: "user.created".to_string(),
-        entity:       "User".to_string(),
-        event_kind:   "created".to_string(),
-        data:         event_data.clone(),
-        timestamp:    chrono::Utc::now(),
+        entity: "User".to_string(),
+        event_kind: "created".to_string(),
+        data: event_data.clone(),
+        timestamp: chrono::Utc::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());

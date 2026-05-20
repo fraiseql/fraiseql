@@ -129,11 +129,11 @@ fn test_sanitized_config_from_server_config() {
     use crate::routes::api::types::SanitizedConfig;
 
     let config = crate::config::HttpServerConfig {
-        port:    8080,
-        host:    "0.0.0.0".to_string(),
+        port: 8080,
+        host: "0.0.0.0".to_string(),
         workers: Some(4),
-        tls:     None,
-        limits:  None,
+        tls: None,
+        limits: None,
     };
 
     let sanitized = SanitizedConfig::from_config(&config);
@@ -153,14 +153,14 @@ fn test_sanitized_config_indicates_tls_without_exposing_keys() {
     use crate::routes::api::types::SanitizedConfig;
 
     let config = crate::config::HttpServerConfig {
-        port:    8080,
-        host:    "localhost".to_string(),
+        port: 8080,
+        host: "localhost".to_string(),
         workers: None,
-        tls:     Some(crate::config::TlsConfig {
+        tls: Some(crate::config::TlsConfig {
             cert_file: PathBuf::from("/path/to/cert.pem"),
-            key_file:  PathBuf::from("/path/to/key.pem"),
+            key_file: PathBuf::from("/path/to/key.pem"),
         }),
-        limits:  None,
+        limits: None,
     };
 
     let sanitized = SanitizedConfig::from_config(&config);
@@ -178,22 +178,22 @@ fn test_sanitized_config_redaction() {
     use crate::routes::api::types::SanitizedConfig;
 
     let config1 = crate::config::HttpServerConfig {
-        port:    8000,
-        host:    "127.0.0.1".to_string(),
+        port: 8000,
+        host: "127.0.0.1".to_string(),
         workers: None,
-        tls:     None,
-        limits:  None,
+        tls: None,
+        limits: None,
     };
 
     let config2 = crate::config::HttpServerConfig {
-        port:    8000,
-        host:    "127.0.0.1".to_string(),
+        port: 8000,
+        host: "127.0.0.1".to_string(),
         workers: None,
-        tls:     Some(crate::config::TlsConfig {
+        tls: Some(crate::config::TlsConfig {
             cert_file: std::path::PathBuf::from("secret.cert"),
-            key_file:  std::path::PathBuf::from("secret.key"),
+            key_file: std::path::PathBuf::from("secret.key"),
         }),
-        limits:  None,
+        limits: None,
     };
 
     let san1 = SanitizedConfig::from_config(&config1);
@@ -266,9 +266,9 @@ fn test_extract_ip_ignores_all_spoofable_headers() {
 #[test]
 fn test_graphql_rate_limiter_is_per_ip() {
     let config = AuthRateLimitConfig {
-        enabled:      true,
+        enabled: true,
         max_requests: 3,
-        window_secs:  60,
+        window_secs: 60,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -305,9 +305,9 @@ fn test_graphql_rate_limiter_is_per_ip() {
 #[test]
 fn test_graphql_rate_limiter_enforces_limit() {
     let config = AuthRateLimitConfig {
-        enabled:      true,
+        enabled: true,
         max_requests: 2,
-        window_secs:  60,
+        window_secs: 60,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -330,9 +330,9 @@ fn test_graphql_rate_limiter_enforces_limit() {
 #[test]
 fn test_graphql_rate_limiter_disabled() {
     let config = AuthRateLimitConfig {
-        enabled:      false,
+        enabled: false,
         max_requests: 1,
-        window_secs:  60,
+        window_secs: 60,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -355,9 +355,9 @@ fn test_graphql_rate_limiter_disabled() {
 #[test]
 fn test_graphql_rate_limiter_window_reset() {
     let config = AuthRateLimitConfig {
-        enabled:      true,
+        enabled: true,
         max_requests: 1,
-        window_secs:  0, // Immediate window reset for testing
+        window_secs: 0, // Immediate window reset for testing
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -569,14 +569,14 @@ mod app_state_tests {
         let hash_before = schema.content_hash();
         let adapter = Arc::new(StubAdapter);
         let executor = Arc::new(Executor::new(schema, adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
-
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("schema.json");
-        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
-        std::fs::write(&path, &schema_json).unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
 
-        let result = state.reload_schema(&path).await;
+        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
+        std::fs::write(&schema_path, &schema_json).unwrap();
+
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_ok());
         assert_eq!(state.executor().schema().content_hash(), hash_before);
     }
@@ -585,11 +585,13 @@ mod app_state_tests {
     async fn test_concurrent_reload_serialized() {
         let adapter = Arc::new(StubAdapter);
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
+        let dir = tempfile::tempdir().unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
 
         let _guard = state.reload_lock.lock().await;
 
-        let result = state.reload_schema(std::path::Path::new("/tmp/test.json")).await;
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("already in progress"));
     }
@@ -671,20 +673,20 @@ mod app_state_tests {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
-
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("schema.json");
+        let schema_path = dir.path().join("schema.json");
+        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
+
         let mut new_schema = CompiledSchema::default();
         new_schema
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
         let schema_json = serde_json::to_string(&new_schema).unwrap();
-        std::fs::write(&path, &schema_json).unwrap();
+        std::fs::write(&schema_path, &schema_json).unwrap();
 
         assert!(!reload_called.load(std::sync::atomic::Ordering::Relaxed));
 
-        let result = state.reload_schema(&path).await;
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_ok());
         assert!(reload_called.load(std::sync::atomic::Ordering::Relaxed));
     }
@@ -694,14 +696,14 @@ mod app_state_tests {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
-        let state = AppState::new(executor).with_reload_config("/tmp/test.json".into(), adapter);
-
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("schema.json");
-        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
-        std::fs::write(&path, &schema_json).unwrap();
+        let schema_path = dir.path().join("schema.json");
+        let state = AppState::new(executor).with_reload_config(schema_path.clone(), adapter);
 
-        let result = state.reload_schema(&path).await;
+        let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
+        std::fs::write(&schema_path, &schema_json).unwrap();
+
+        let result = state.reload_schema(&schema_path).await;
         assert!(result.is_ok());
         assert!(!reload_called.load(std::sync::atomic::Ordering::Relaxed));
     }
@@ -787,19 +789,19 @@ mod tenant_key_tests {
         use chrono::Utc;
 
         SecurityContext {
-            user_id:          fraiseql_core::types::UserId::new("test-user"),
-            roles:            vec![],
-            tenant_id:        Some(fraiseql_core::types::TenantId::new(tenant_id)),
-            scopes:           vec![],
-            attributes:       HashMap::new(),
-            request_id:       "test-req".to_string(),
-            ip_address:       None,
+            user_id: fraiseql_core::types::UserId::new("test-user"),
+            roles: vec![],
+            tenant_id: Some(fraiseql_core::types::TenantId::new(tenant_id)),
+            scopes: vec![],
+            attributes: HashMap::new(),
+            request_id: "test-req".to_string(),
+            ip_address: None,
             authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
         }
     }
 
@@ -1244,9 +1246,9 @@ mod tenant_registry_tests {
     fn test_upsert_with_quota_sets_concurrency_limit() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:       Some(2),
+            max_concurrent: Some(2),
             max_requests_per_sec: None,
-            max_storage_bytes:    None,
+            max_storage_bytes: None,
         };
         let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
         assert!(was_insert);
@@ -1278,9 +1280,9 @@ mod tenant_registry_tests {
     fn test_concurrency_permit_released_on_drop() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:       Some(1),
+            max_concurrent: Some(1),
             max_requests_per_sec: None,
-            max_storage_bytes:    None,
+            max_storage_bytes: None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1320,8 +1322,8 @@ mod tenant_registry_tests {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
             max_requests_per_sec: Some(100),
-            max_concurrent:       Some(10),
-            max_storage_bytes:    Some(1_000_000),
+            max_concurrent: Some(10),
+            max_storage_bytes: Some(1_000_000),
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 

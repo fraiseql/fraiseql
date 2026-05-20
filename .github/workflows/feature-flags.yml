@@ -29,12 +29,18 @@ jobs:
           - "federation"                                                               # federation standalone
           - "secrets"                                                                   # secrets standalone
           - "wire-backend"                                                              # wire protocol standalone
+          - "azure-blob"                                                               # Azure Blob storage standalone
+          - "gcs"                                                                    # Google Cloud Storage standalone
+          - "metrics,observers"                                                          # metrics + observers combo
+          - "webhooks,auth"                                                                # webhooks triggered from auth events
+          - "tracing-opentelemetry"                                                        # OpenTelemetry standalone
+          - "functions,rest,testing"                                                        # empty features compile-only sanity check
           - "auth,observers,secrets,federation"                                         # kitchen sink
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
       - name: cargo check
         run: |
           if [ -z "${{ matrix.features }}" ]; then
@@ -64,10 +70,10 @@ jobs:
             features: "auth"
             test: tracing_integration_test
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
       - name: Run feature-gated integration tests
         run: cargo test --test "${{ matrix.test }}" -p fraiseql-server --features "${{ matrix.features }}"
 
@@ -83,10 +89,32 @@ jobs:
           - "mysql"                                 # secondary backend
           - "sqlite,sqlserver"                      # lightweight + enterprise, no postgres
           - "postgres,mysql,sqlite,sqlserver"        # all backends, no extras
+          - "postgres,audit-syslog"                  # syslog audit backend
+          - "postgres,audit-webhook"                 # webhook audit backend
+          - "postgres,jwt-replay"                    # JWT replay detection (requires redis)
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
       - name: cargo check
         run: cargo check -p fraiseql-core --no-default-features --features "${{ matrix.features }}"
+
+  storage-matrix:
+    name: "check storage (${{ matrix.features }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - "transforms"                              # image transforms
+          - "gcs"                                     # Google Cloud Storage
+          - "azure-blob"                              # Azure Blob Storage
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
+      - name: cargo check
+        run: cargo check -p fraiseql-storage --no-default-features --features "${{ matrix.features }}"

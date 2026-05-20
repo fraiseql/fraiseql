@@ -165,10 +165,10 @@ fn test_server_config_disabled_features() {
 /// Test schema loader path validation
 #[test]
 fn test_schema_loader_path() {
-    let path = "/tmp/test_schema.json";
-    let loader = CompiledSchemaLoader::new(path);
+    let tmp = tempfile::NamedTempFile::with_suffix(".json").unwrap();
+    let loader = CompiledSchemaLoader::new(tmp.path());
 
-    assert_eq!(loader.path(), PathBuf::from(path).as_path());
+    assert_eq!(loader.path(), tmp.path());
 }
 
 /// Test that multiple configurations can coexist

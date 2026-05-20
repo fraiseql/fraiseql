@@ -7,10 +7,12 @@
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
-    time::Instant,
 };
 
-use tokio::sync::{RwLock, broadcast};
+use tokio::{
+    sync::{RwLock, broadcast},
+    time::Instant,
+};
 use tracing::debug;
 
 /// Configuration for the broadcast subsystem.
@@ -31,8 +33,8 @@ impl BroadcastConfig {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            channel_capacity:  128,
-            max_channels:      1_000,
+            channel_capacity: 128,
+            max_channels: 1_000,
             max_message_bytes: 65_536,
         }
     }
@@ -60,7 +62,7 @@ pub struct BroadcastStats {
 /// A single named broadcast channel.
 #[derive(Debug)]
 struct BroadcastChannel {
-    sender:     broadcast::Sender<BroadcastMessage>,
+    sender: broadcast::Sender<BroadcastMessage>,
     created_at: Instant,
 }
 
@@ -82,8 +84,8 @@ pub struct BroadcastMessage {
 /// Thread-safe via interior mutability (`RwLock` for channel map, atomics for counters).
 #[derive(Debug)]
 pub struct BroadcastManager {
-    channels:           RwLock<HashMap<String, BroadcastChannel>>,
-    config:             BroadcastConfig,
+    channels: RwLock<HashMap<String, BroadcastChannel>>,
+    config: BroadcastConfig,
     messages_published: AtomicU64,
 }
 
@@ -118,7 +120,7 @@ impl BroadcastManager {
         if payload_str.len() > self.config.max_message_bytes {
             return Err(BroadcastError::PayloadTooLarge {
                 size: payload_str.len(),
-                max:  self.config.max_message_bytes,
+                max: self.config.max_message_bytes,
             });
         }
 
@@ -255,7 +257,7 @@ pub enum BroadcastError {
         /// Actual payload size.
         size: usize,
         /// Maximum allowed size.
-        max:  usize,
+        max: usize,
     },
 
     /// Too many named channels exist.

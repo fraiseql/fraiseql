@@ -35,9 +35,9 @@ fn make_test_state(store: Arc<dyn FunctionStore>) -> FunctionsRouteState {
         > {
             Box::pin(async {
                 Ok(FunctionResult {
-                    value:             Some(serde_json::json!({"ok": true})),
-                    logs:              Vec::<LogEntry>::new(),
-                    duration:          std::time::Duration::from_millis(1),
+                    value: Some(serde_json::json!({"ok": true})),
+                    logs: Vec::<LogEntry>::new(),
+                    duration: std::time::Duration::from_millis(1),
                     memory_peak_bytes: 0,
                 })
             })

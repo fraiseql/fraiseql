@@ -1,32 +1,29 @@
 //! Database adapter trait definitions.
+//!
+//! The main [`DatabaseAdapter`] trait lives in this file. Supporting types
+//! (`RelayPageResult`, `DatabaseCapabilities`, enums, type aliases) are in
+//! the [`adapter_types`] submodule.
 
-use std::{future::Future, sync::Arc};
+mod adapter_types;
+mod mutations;
+mod relay;
+
+pub use adapter_types::*;
+pub use mutations::SupportsMutations;
+pub use relay::RelayDatabaseAdapter;
+
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 
-use super::{
-    types::{DatabaseType, JsonbValue, PoolMetrics},
+use crate::{
+    types::{
+        DatabaseType, JsonbValue, PoolMetrics,
+        sql_hints::{OrderByClause, SqlProjectionHint},
+    },
     where_clause::WhereClause,
 };
-use crate::types::sql_hints::{OrderByClause, SqlProjectionHint};
-
-/// Result from a relay pagination query, containing rows and an optional total count.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct RelayPageResult {
-    /// The page of JSONB rows (already trimmed to the requested page size).
-    pub rows:        Vec<JsonbValue>,
-    /// Total count of matching rows (only populated when requested via `include_total_count`).
-    pub total_count: Option<u64>,
-}
-
-impl RelayPageResult {
-    /// Creates a new `RelayPageResult`.
-    pub const fn new(rows: Vec<JsonbValue>, total_count: Option<u64>) -> Self {
-        Self { rows, total_count }
-    }
-}
 
 /// Database adapter for executing queries against views.
 ///
@@ -905,231 +902,6 @@ pub trait DatabaseAdapter: Send + Sync {
     /// The default implementation is a no-op.
     fn on_schema_reload(&self) {}
 }
-
-/// Database capabilities and feature support.
-///
-/// Describes what features a database backend supports, allowing the runtime
-/// to adapt behavior based on database limitations.
-#[derive(Debug, Clone, Copy)]
-pub struct DatabaseCapabilities {
-    /// Database type.
-    pub database_type: DatabaseType,
-
-    /// Supports locale-specific collations.
-    pub supports_locale_collation: bool,
-
-    /// Requires custom collation registration.
-    pub requires_custom_collation: bool,
-
-    /// Recommended collation provider.
-    pub recommended_collation: Option<&'static str>,
-}
-
-impl DatabaseCapabilities {
-    /// Create capabilities from database type.
-    #[must_use]
-    pub const fn from_database_type(db_type: DatabaseType) -> Self {
-        match db_type {
-            DatabaseType::PostgreSQL => Self {
-                database_type:             db_type,
-                supports_locale_collation: true,
-                requires_custom_collation: false,
-                recommended_collation:     Some("icu"),
-            },
-            DatabaseType::MySQL => Self {
-                database_type:             db_type,
-                supports_locale_collation: false,
-                requires_custom_collation: false,
-                recommended_collation:     Some("utf8mb4_unicode_ci"),
-            },
-            DatabaseType::SQLite => Self {
-                database_type:             db_type,
-                supports_locale_collation: false,
-                requires_custom_collation: true,
-                recommended_collation:     Some("NOCASE"),
-            },
-            DatabaseType::SQLServer => Self {
-                database_type:             db_type,
-                supports_locale_collation: true,
-                requires_custom_collation: false,
-                recommended_collation:     Some("Latin1_General_100_CI_AI_SC_UTF8"),
-            },
-        }
-    }
-
-    /// Get collation strategy description.
-    #[must_use]
-    pub const fn collation_strategy(&self) -> &'static str {
-        match self.database_type {
-            DatabaseType::PostgreSQL => "ICU collations (locale-specific)",
-            DatabaseType::MySQL => "UTF8MB4 collations (general)",
-            DatabaseType::SQLite => "NOCASE (limited)",
-            DatabaseType::SQLServer => "Language-specific collations",
-        }
-    }
-}
-
-/// Strategy used by an adapter for executing mutations.
-///
-/// Adapters that use stored database functions (PostgreSQL, MySQL, SQL Server) use
-/// `FunctionCall`. Adapters that generate INSERT/UPDATE/DELETE SQL directly (SQLite)
-/// use `DirectSql`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum MutationStrategy {
-    /// Mutations execute via stored database functions (`SELECT * FROM fn_create_user($1, $2)`).
-    FunctionCall,
-    /// Mutations execute via direct SQL (`INSERT INTO ... RETURNING *`).
-    DirectSql,
-}
-
-/// The kind of direct mutation operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum DirectMutationOp {
-    /// `INSERT INTO ... RETURNING *`
-    Insert,
-    /// `UPDATE ... SET ... WHERE pk = ? RETURNING *`
-    Update,
-    /// `DELETE FROM ... WHERE pk = ? RETURNING *`
-    Delete,
-}
-
-/// Context for a direct SQL mutation (used by `DirectSql` strategy adapters).
-///
-/// All field references are borrowed from the caller to avoid allocation.
-#[derive(Debug)]
-pub struct DirectMutationContext<'a> {
-    /// The mutation operation to perform.
-    pub operation:      DirectMutationOp,
-    /// Target table name (e.g., `"users"`).
-    pub table:          &'a str,
-    /// Client-supplied column names (in bind order).
-    pub columns:        &'a [String],
-    /// All bind values: client values first, then injected values.
-    pub values:         &'a [serde_json::Value],
-    /// Server-injected column names (e.g., RLS tenant columns), appended after client columns.
-    pub inject_columns: &'a [String],
-    /// GraphQL return type name (e.g., `"User"`), used in the mutation response envelope.
-    pub return_type:    &'a str,
-}
-
-/// A typed cursor value for keyset (relay) pagination.
-///
-/// The cursor type is determined at compile time by `QueryDefinition::relay_cursor_type`
-/// and used at runtime to choose the correct SQL comparison and cursor
-/// encoding/decoding path.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum CursorValue {
-    /// BIGINT primary key cursor (default, backward-compatible).
-    Int64(i64),
-    /// UUID cursor — bound as text and cast to `uuid` in SQL.
-    Uuid(String),
-}
-
-/// Database adapter supertrait for adapters that implement Relay cursor pagination.
-///
-/// Only adapters that genuinely support keyset pagination need to implement this trait.
-/// Non-implementing adapters carry no relay code at all — no stubs, no flags.
-///
-/// # Implementors
-///
-/// - `PostgresAdapter` — full keyset pagination
-/// - `MySqlAdapter` — keyset pagination with `?` params
-/// - `CachedDatabaseAdapter<A>` — delegates to inner `A`
-///
-/// # Usage
-///
-/// Construct an `Executor` with `Executor::new_with_relay` to enable relay
-/// query execution. The bound `A: RelayDatabaseAdapter` is enforced at that call site.
-pub trait RelayDatabaseAdapter: DatabaseAdapter {
-    /// Execute keyset (cursor-based) pagination against a JSONB view.
-    ///
-    /// # Arguments
-    ///
-    /// * `view`                — SQL view name (will be quoted before use)
-    /// * `cursor_column`       — column used as the pagination key (e.g. `pk_user`, `id`)
-    /// * `after`               — forward cursor: return rows where `cursor_column > after`
-    /// * `before`              — backward cursor: return rows where `cursor_column < before`
-    /// * `limit`               — row fetch count (pass `page_size + 1` to detect `hasNextPage`)
-    /// * `forward`             — `true` → ASC order; `false` → DESC (re-sorted ASC via subquery)
-    /// * `where_clause`        — optional user-supplied filter applied after the cursor condition
-    /// * `order_by`            — optional custom sort; cursor column appended as tiebreaker
-    /// * `include_total_count` — when `true`, compute the matching row count before LIMIT
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Database` on SQL execution failure.
-    fn execute_relay_page<'a>(
-        &'a self,
-        view: &'a str,
-        cursor_column: &'a str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
-        limit: u32,
-        forward: bool,
-        where_clause: Option<&'a WhereClause>,
-        order_by: Option<&'a [OrderByClause]>,
-        include_total_count: bool,
-    ) -> impl Future<Output = Result<RelayPageResult>> + Send + 'a;
-}
-
-/// Marker trait for database adapters that support write operations via stored functions.
-///
-/// Adapters that implement this trait signal that they can execute GraphQL mutations by
-/// calling stored database functions (e.g. `fn_create_user`, `fn_update_order`).
-///
-/// Marker trait for database adapters that support stored-procedure mutations.
-///
-/// # Role: documentation, generic bound, and compile-time enforcement
-///
-/// This trait serves three purposes:
-/// 1. **Documentation**: it makes write-capable adapters self-describing at the type level.
-/// 2. **Generic bounds**: code that only accepts write-capable adapters can constrain on `A:
-///    SupportsMutations` (e.g., `CachedDatabaseAdapter<A: SupportsMutations>`).
-/// 3. **Compile-time enforcement**: `Executor<A>::execute_mutation()` is only available when `A:
-///    SupportsMutations`. Attempting to call it with `SqliteAdapter` produces a compiler error
-///    (`error[E0277]: SqliteAdapter does not implement SupportsMutations`).
-///
-/// The `execute()` method (which accepts raw GraphQL strings) still performs a runtime
-/// `supports_mutations()` check because it cannot know the operation type at compile time.
-/// For direct mutation dispatch, prefer `execute_mutation()` to get compile-time safety.
-///
-/// # Which adapters implement this?
-///
-/// | Adapter | Implements |
-/// |---------|-----------|
-/// | `PostgresAdapter` | ✅ Yes |
-/// | `MySqlAdapter` | ✅ Yes |
-/// | `SqlServerAdapter` | ✅ Yes |
-/// | `SqliteAdapter` | ❌ No — SQLite does not support stored-function mutations |
-/// | `FraiseWireAdapter` | ❌ No — read-only wire protocol |
-/// | `CachedDatabaseAdapter<A>` | ✅ When `A: SupportsMutations` |
-pub trait SupportsMutations: DatabaseAdapter {}
-
-/// Type alias for boxed dynamic database adapters.
-///
-/// Used to store database adapters without generic type parameters in collections
-/// or struct fields. The adapter type is determined at runtime.
-///
-/// # Example
-///
-/// ```ignore
-/// let adapter: BoxDatabaseAdapter = Box::new(postgres_adapter);
-/// ```
-pub type BoxDatabaseAdapter = Box<dyn DatabaseAdapter>;
-
-/// Type alias for arc-wrapped dynamic database adapters.
-///
-/// Used for thread-safe, reference-counted storage of adapters in shared state.
-///
-/// # Example
-///
-/// ```ignore
-/// let adapter: ArcDatabaseAdapter = Arc::new(postgres_adapter);
-/// ```
-pub type ArcDatabaseAdapter = std::sync::Arc<dyn DatabaseAdapter>;
 
 #[cfg(test)]
 mod tests;

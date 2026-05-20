@@ -15,10 +15,10 @@ use tonic::Request;
 /// Create a test authenticated user for testing.
 fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
     AuthenticatedUser {
-        user_id:      fraiseql_core::types::UserId::new(user_id),
-        scopes:       scopes.into_iter().map(|s| s.to_string()).collect(),
-        expires_at:   Utc::now() + chrono::Duration::hours(1),
-        email:        None,
+        user_id: fraiseql_core::types::UserId::new(user_id),
+        scopes: scopes.into_iter().map(|s| s.to_string()).collect(),
+        expires_at: Utc::now() + chrono::Duration::hours(1),
+        email: None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
     }
@@ -41,10 +41,10 @@ fn create_test_session_token(user: &AuthenticatedUser) -> String {
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestSessionTokenClaims {
-        sub:          String,
-        exp:          i64,
-        iat:          i64,
-        scopes:       Vec<String>,
+        sub: String,
+        exp: i64,
+        iat: i64,
+        scopes: Vec<String>,
         session_type: String,
     }
 
@@ -52,10 +52,10 @@ fn create_test_session_token(user: &AuthenticatedUser) -> String {
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = TestSessionTokenClaims {
-        sub:          user.user_id.0.clone(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
-        scopes:       user.scopes.clone(),
+        sub: user.user_id.0.clone(),
+        exp: exp.timestamp(),
+        iat: now.timestamp(),
+        scopes: user.scopes.clone(),
         session_type: "flight".to_string(),
     };
 
@@ -93,11 +93,11 @@ async fn test_do_get_without_authorization_header() {
 
     // Create a valid ticket
     let ticket = FlightTicket::OptimizedView {
-        view:     "va_orders".to_string(),
-        filter:   None,
+        view: "va_orders".to_string(),
+        filter: None,
         order_by: None,
-        limit:    None,
-        offset:   None,
+        limit: None,
+        offset: None,
     };
     let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
@@ -130,11 +130,11 @@ async fn test_do_get_with_invalid_session_token() {
 
         // Create a valid ticket
         let ticket = FlightTicket::OptimizedView {
-            view:     "va_orders".to_string(),
-            filter:   None,
+            view: "va_orders".to_string(),
+            filter: None,
             order_by: None,
-            limit:    None,
-            offset:   None,
+            limit: None,
+            offset: None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
@@ -175,10 +175,10 @@ async fn test_do_get_with_expired_session_token() {
         // Create an EXPIRED token
         #[derive(Debug, Clone, Serialize, Deserialize)]
         struct ExpiredTokenClaims {
-            sub:          String,
-            exp:          i64,
-            iat:          i64,
-            scopes:       Vec<String>,
+            sub: String,
+            exp: i64,
+            iat: i64,
+            scopes: Vec<String>,
             session_type: String,
         }
 
@@ -186,10 +186,10 @@ async fn test_do_get_with_expired_session_token() {
         let exp = now - chrono::Duration::minutes(5); // EXPIRED 5 minutes ago
 
         let claims = ExpiredTokenClaims {
-            sub:          "user-1".to_string(),
-            exp:          exp.timestamp(),
-            iat:          (now - chrono::Duration::hours(1)).timestamp(),
-            scopes:       vec!["user".to_string()],
+            sub: "user-1".to_string(),
+            exp: exp.timestamp(),
+            iat: (now - chrono::Duration::hours(1)).timestamp(),
+            scopes: vec!["user".to_string()],
             session_type: "flight".to_string(),
         };
 
@@ -199,11 +199,11 @@ async fn test_do_get_with_expired_session_token() {
 
         // Create a valid ticket
         let ticket = FlightTicket::OptimizedView {
-            view:     "va_orders".to_string(),
-            filter:   None,
+            view: "va_orders".to_string(),
+            filter: None,
             order_by: None,
-            limit:    None,
-            offset:   None,
+            limit: None,
+            offset: None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
 
@@ -247,7 +247,7 @@ async fn test_authenticated_do_get_with_valid_session_token() {
 
         // Create a GraphQL query ticket (simpler schema without timestamp conversion issues)
         let ticket = FlightTicket::GraphQLQuery {
-            query:     "query { users { id name } }".to_string(),
+            query: "query { users { id name } }".to_string(),
             variables: None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");
@@ -291,7 +291,7 @@ async fn test_do_action_health_check_without_auth() {
 
     let action = Action {
         r#type: "HealthCheck".to_string(),
-        body:   vec![].into(),
+        body: vec![].into(),
     };
     let request = Request::new(action);
 
@@ -317,7 +317,7 @@ async fn test_do_action_health_check_with_valid_token() {
 
         let action = Action {
             r#type: "HealthCheck".to_string(),
-            body:   vec![].into(),
+            body: vec![].into(),
         };
         let mut request = Request::new(action);
 
@@ -346,7 +346,7 @@ async fn test_do_action_clear_cache_without_admin_scope() {
 
         let action = Action {
             r#type: "ClearCache".to_string(),
-            body:   vec![].into(),
+            body: vec![].into(),
         };
         let mut request = Request::new(action);
 
@@ -379,7 +379,7 @@ async fn test_do_action_clear_cache_with_admin_scope() {
 
         let action = Action {
             r#type: "ClearCache".to_string(),
-            body:   vec![].into(),
+            body: vec![].into(),
         };
         let mut request = Request::new(action);
 
@@ -408,7 +408,7 @@ async fn test_do_action_refresh_schema_registry_without_admin_scope() {
 
         let action = Action {
             r#type: "RefreshSchemaRegistry".to_string(),
-            body:   vec![].into(),
+            body: vec![].into(),
         };
         let mut request = Request::new(action);
 
@@ -440,7 +440,7 @@ async fn test_do_action_refresh_schema_registry_with_admin_scope() {
 
         let action = Action {
             r#type: "RefreshSchemaRegistry".to_string(),
-            body:   vec![].into(),
+            body: vec![].into(),
         };
         let mut request = Request::new(action);
 
@@ -539,7 +539,7 @@ async fn test_multiple_users_have_separate_contexts() {
         let token2 = create_test_session_token(&user2);
 
         let ticket = FlightTicket::GraphQLQuery {
-            query:     "query { users { id } }".to_string(),
+            query: "query { users { id } }".to_string(),
             variables: None,
         };
         let ticket_bytes = ticket.encode().expect("Failed to encode ticket");

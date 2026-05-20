@@ -281,17 +281,17 @@ fn test_strategy_local_for_owned_entity() {
         enabled: true,
         version: "v2".to_string(),
         types: vec![FederatedType {
-            name:                "User".to_string(),
-            keys:                vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:          false, // Locally owned
-            external_fields:     vec![],
-            shareable_fields:    vec![],
+            is_extends: false, // Locally owned
+            external_fields: vec![],
+            shareable_fields: vec![],
             inaccessible_fields: vec![],
-            field_directives:    std::collections::HashMap::new(),
-            type_shareable:      false,
+            field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
@@ -310,17 +310,17 @@ fn test_strategy_direct_db_when_available() {
         enabled: true,
         version: "v2".to_string(),
         types: vec![FederatedType {
-            name:                "Order".to_string(),
-            keys:                vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+            name: "Order".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:          true, // Extended from another subgraph
-            external_fields:     vec!["id".to_string()],
-            shareable_fields:    vec![],
+            is_extends: true, // Extended from another subgraph
+            external_fields: vec!["id".to_string()],
+            shareable_fields: vec![],
             inaccessible_fields: vec![],
-            field_directives:    std::collections::HashMap::new(),
-            type_shareable:      false,
+            field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
@@ -340,30 +340,30 @@ fn test_strategy_http_fallback() {
         version: "v2".to_string(),
         types: vec![
             FederatedType {
-                name:                "User".to_string(),
-                keys:                vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+                name: "User".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:          false,
-                external_fields:     vec![],
-                shareable_fields:    vec![],
+                is_extends: false,
+                external_fields: vec![],
+                shareable_fields: vec![],
                 inaccessible_fields: vec![],
-                field_directives:    std::collections::HashMap::new(),
-                type_shareable:      false,
+                field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
             FederatedType {
-                name:                "Product".to_string(),
-                keys:                vec![KeyDirective {
-                    fields:     vec!["id".to_string()],
+                name: "Product".to_string(),
+                keys: vec![KeyDirective {
+                    fields: vec!["id".to_string()],
                     resolvable: true,
                 }],
-                is_extends:          true,
-                external_fields:     vec!["id".to_string()],
-                shareable_fields:    vec![],
+                is_extends: true,
+                external_fields: vec!["id".to_string()],
+                shareable_fields: vec![],
                 inaccessible_fields: vec![],
-                field_directives:    std::collections::HashMap::new(),
-                type_shareable:      false,
+                field_directives: std::collections::HashMap::new(),
+                type_shareable: false,
             },
         ],
         remote_subscription_fields: std::collections::HashMap::new(),
@@ -537,17 +537,17 @@ fn test_federation_directive_fields() {
         enabled: true,
         version: "v2".to_string(),
         types: vec![FederatedType {
-            name:                "User".to_string(),
-            keys:                vec![KeyDirective {
-                fields:     vec!["id".to_string()],
+            name: "User".to_string(),
+            keys: vec![KeyDirective {
+                fields: vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends:          false,
-            external_fields:     vec![],
-            shareable_fields:    vec![],
+            is_extends: false,
+            external_fields: vec![],
+            shareable_fields: vec![],
             inaccessible_fields: vec![],
-            field_directives:    std::collections::HashMap::new(),
-            type_shareable:      false,
+            field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };

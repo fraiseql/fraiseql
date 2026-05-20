@@ -23,6 +23,7 @@ pub enum ValidationContext {
 
 impl ValidationContext {
     /// Get the string representation of this context.
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Serialize => "serialize",
@@ -54,12 +55,13 @@ impl ScalarValidationError {
     ) -> Self {
         Self {
             scalar_name: scalar_name.into(),
-            context:     context.into(),
-            message:     message.into(),
+            context: context.into(),
+            message: message.into(),
         }
     }
 
     /// Convert to `FraiseQLError`.
+    #[must_use]
     pub fn into_fraiseql_error(self) -> FraiseQLError {
         FraiseQLError::validation(self.to_string())
     }

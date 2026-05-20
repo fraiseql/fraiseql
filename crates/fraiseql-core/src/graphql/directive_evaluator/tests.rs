@@ -23,9 +23,9 @@ mod directive_evaluator_tests {
 
     fn make_directive(name: &str, if_value: &str) -> Directive {
         Directive {
-            name:      name.to_string(),
+            name: name.to_string(),
             arguments: vec![GraphQLArgument {
-                name:       "if".to_string(),
+                name: "if".to_string(),
                 value_type: "boolean".to_string(),
                 value_json: if_value.to_string(),
             }],
@@ -149,14 +149,14 @@ mod directive_evaluator_tests {
     #[test]
     fn test_filter_nested_selections() {
         let selections = vec![FieldSelection {
-            name:          "user".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "user".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![
                 make_field("id", vec![]),
                 make_field("secret", vec![make_directive("skip", "true")]),
             ],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let variables = HashMap::new();
@@ -268,14 +268,14 @@ mod directive_evaluator_tests {
 
         // Create a field with @auth directive
         let field = FieldSelection {
-            name:          "sensitiveData".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "sensitiveData".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![Directive {
-                name:      "auth".to_string(),
+            directives: vec![Directive {
+                name: "auth".to_string(),
                 arguments: vec![GraphQLArgument {
-                    name:       "role".to_string(),
+                    name: "role".to_string(),
                     value_type: "String".to_string(),
                     value_json: "\"admin\"".to_string(),
                 }],
@@ -301,14 +301,14 @@ mod directive_evaluator_tests {
 
         // Create a field with @auth directive
         let field = FieldSelection {
-            name:          "sensitiveData".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "sensitiveData".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![Directive {
-                name:      "auth".to_string(),
+            directives: vec![Directive {
+                name: "auth".to_string(),
                 arguments: vec![GraphQLArgument {
-                    name:       "role".to_string(),
+                    name: "role".to_string(),
                     value_type: "String".to_string(),
                     value_json: "\"admin\"".to_string(),
                 }],
@@ -327,7 +327,7 @@ mod directive_evaluator_tests {
         let field = make_field(
             "email",
             vec![Directive {
-                name:      "unknown".to_string(),
+                name: "unknown".to_string(),
                 arguments: vec![],
             }],
         );
@@ -344,7 +344,7 @@ mod directive_evaluator_tests {
         let field = make_field(
             "email",
             vec![Directive {
-                name:      "unknown".to_string(),
+                name: "unknown".to_string(),
                 arguments: vec![],
             }],
         );
@@ -384,7 +384,7 @@ mod directive_evaluator_tests {
             make_field(
                 "secret",
                 vec![Directive {
-                    name:      "alwaysSkip".to_string(),
+                    name: "alwaysSkip".to_string(),
                     arguments: vec![],
                 }],
             ),
@@ -409,7 +409,7 @@ mod directive_evaluator_tests {
             make_field(
                 "broken",
                 vec![Directive {
-                    name:      "error".to_string(),
+                    name: "error".to_string(),
                     arguments: vec![],
                 }],
             ),
@@ -467,15 +467,15 @@ mod directive_evaluator_tests {
     #[test]
     fn test_parse_directive_args() {
         let directive = Directive {
-            name:      "test".to_string(),
+            name: "test".to_string(),
             arguments: vec![
                 GraphQLArgument {
-                    name:       "limit".to_string(),
+                    name: "limit".to_string(),
                     value_type: "Int".to_string(),
                     value_json: "10".to_string(),
                 },
                 GraphQLArgument {
-                    name:       "name".to_string(),
+                    name: "name".to_string(),
                     value_type: "String".to_string(),
                     value_json: "\"hello\"".to_string(),
                 },
@@ -492,9 +492,9 @@ mod directive_evaluator_tests {
     #[test]
     fn test_parse_directive_args_with_variable() {
         let directive = Directive {
-            name:      "test".to_string(),
+            name: "test".to_string(),
             arguments: vec![GraphQLArgument {
-                name:       "limit".to_string(),
+                name: "limit".to_string(),
                 value_type: "Int".to_string(),
                 value_json: "\"$myLimit\"".to_string(),
             }],

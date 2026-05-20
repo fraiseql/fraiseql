@@ -25,7 +25,8 @@ async fn start_test_server() -> Result<String, Box<dyn std::error::Error>> {
             .unwrap();
     });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Yield to let the spawned server task start accepting connections.
+    tokio::task::yield_now().await;
 
     Ok(format!("http://127.0.0.1:{}", addr.port()))
 }
@@ -44,7 +45,7 @@ async fn test_get_schema_versions_action() {
     // Call GetSchemaVersions action
     let action = Action {
         r#type: "GetSchemaVersions".to_string(),
-        body:   vec![].into(),
+        body: vec![].into(),
     };
 
     let request = tonic::Request::new(action);
@@ -180,8 +181,8 @@ async fn test_concurrent_schema_updates() {
                 let view_name = format!("view_{}", i);
                 reg.register(&view_name, schema);
 
-                // Small delay to allow interleaving
-                tokio::time::sleep(tokio::time::Duration::from_micros(1)).await;
+                // Yield to allow task interleaving
+                tokio::task::yield_now().await;
 
                 let (version, _) = reg.get_version_info(&view_name).unwrap();
                 assert!(version >= j);

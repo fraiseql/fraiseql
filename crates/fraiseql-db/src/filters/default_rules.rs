@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 ///
 /// These rules are embedded in the compiled schema and applied at runtime
 /// before SQL generation. They can be overridden per-application in fraiseql.toml.
+#[must_use]
 pub fn get_default_rules() -> HashMap<String, Value> {
     let mut rules = HashMap::new();
 

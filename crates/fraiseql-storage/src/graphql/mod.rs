@@ -57,6 +57,7 @@ impl StorageSchemaTypes {
     /// assert_eq!(entries.mutations.len(), 1);
     /// assert_eq!(entries.queries.len(), 1);
     /// ```
+    #[must_use]
     pub fn generate(buckets: &[BucketConfig]) -> StorageSchemaEntries {
         let mut entries = StorageSchemaEntries::default();
         for bucket in buckets {
@@ -89,6 +90,7 @@ impl StorageSchemaTypes {
     /// let type_def = StorageSchemaTypes::storage_object_type(&bucket);
     /// assert_eq!(type_def["name"], "AvatarsStorageObject");
     /// ```
+    #[must_use]
     pub fn storage_object_type(bucket: &BucketConfig) -> Value {
         let type_name = format!("{}StorageObject", Self::bucket_type_name(&bucket.name));
 
@@ -132,6 +134,7 @@ impl StorageSchemaTypes {
     ///
     /// Creates a `MutationDefinition` JSON object that generates presigned
     /// upload URLs for direct client-to-storage uploads.
+    #[must_use]
     pub fn upload_url_mutation(bucket: &BucketConfig) -> Value {
         let mutation_name = format!("generate{}UploadUrl", Self::bucket_type_name(&bucket.name));
 
@@ -159,6 +162,7 @@ impl StorageSchemaTypes {
     ///
     /// Creates a `QueryDefinition` JSON object that lists objects in the bucket
     /// with optional prefix filtering and cursor-based pagination.
+    #[must_use]
     pub fn list_query(bucket: &BucketConfig) -> Value {
         let query_name = format!("list{}Objects", Self::bucket_type_name(&bucket.name));
         let return_type_name = format!("{}StorageObject", Self::bucket_type_name(&bucket.name));
@@ -206,6 +210,7 @@ impl StorageSchemaTypes {
     /// assert_eq!(StorageSchemaTypes::bucket_type_name("user_avatars"), "UserAvatars");
     /// assert_eq!(StorageSchemaTypes::bucket_type_name("product-images"), "ProductImages");
     /// ```
+    #[must_use]
     pub fn bucket_type_name(bucket_name: &str) -> String {
         bucket_name
             .split(['_', '-'])

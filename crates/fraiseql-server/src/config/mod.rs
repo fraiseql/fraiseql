@@ -61,7 +61,7 @@ const fn default_flush_interval_secs() -> u64 {
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuntimeConfig {
     /// HTTP server binding, TLS, and connection-limit settings.
-    pub server:   HttpServerConfig,
+    pub server: HttpServerConfig,
     /// Primary database connection and pool settings.
     pub database: DatabaseConfig,
 
@@ -175,7 +175,7 @@ pub struct TlsConfig {
     /// Path to the PEM-encoded TLS certificate (or certificate chain).
     pub cert_file: PathBuf,
     /// Path to the PEM-encoded private key corresponding to `cert_file`.
-    pub key_file:  PathBuf,
+    pub key_file: PathBuf,
 }
 
 /// Per-request body size and concurrency limits for the HTTP server.
@@ -282,9 +282,9 @@ impl Default for LifecycleConfig {
     fn default() -> Self {
         Self {
             shutdown_timeout: default_shutdown_timeout(),
-            shutdown_delay:   default_shutdown_delay(),
-            health_path:      default_health_path(),
-            ready_path:       default_ready_path(),
+            shutdown_delay: default_shutdown_delay(),
+            health_path: default_health_path(),
+            ready_path: default_ready_path(),
         }
     }
 }
@@ -308,32 +308,32 @@ pub struct WebhookRouteConfig {
     /// Name of the environment variable that holds the webhook signing secret.
     pub secret_env: String,
     /// Webhook provider identifier (e.g. `"github"`, `"stripe"`).
-    pub provider:   String,
+    pub provider: String,
     /// URL path override; if absent, the route name is used as the path segment.
     #[serde(default)]
-    pub path:       Option<String>,
+    pub path: Option<String>,
 }
 
 /// Configuration for a file-upload route.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileConfig {
     /// Named storage backend (must match a key in `storage`).
-    pub storage:  String,
+    pub storage: String,
     /// Maximum upload size as a human-readable string (e.g. `"50MB"`).
     pub max_size: String,
     /// URL path prefix for upload and download endpoints.
     #[serde(default)]
-    pub path:     Option<String>,
+    pub path: Option<String>,
 }
 
 /// JWT authentication and OAuth provider configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AuthConfig {
     /// JWT signing secret configuration.
-    pub jwt:               JwtConfig,
+    pub jwt: JwtConfig,
     /// Named OAuth2/OIDC provider configurations.
     #[serde(default)]
-    pub providers:         HashMap<String, OAuthProviderConfig>,
+    pub providers: HashMap<String, OAuthProviderConfig>,
     /// Base URL for OAuth callback endpoints (e.g. `"https://api.example.com"`).
     #[serde(default)]
     pub callback_base_url: Option<String>,
@@ -350,14 +350,14 @@ pub struct JwtConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct OAuthProviderConfig {
     /// Well-known provider type identifier (e.g. `"auth0"`, `"github"`, `"google"`).
-    pub provider_type:     String,
+    pub provider_type: String,
     /// Name of the environment variable that holds the OAuth client ID.
-    pub client_id_env:     String,
+    pub client_id_env: String,
     /// Name of the environment variable that holds the OAuth client secret.
     pub client_secret_env: String,
     /// OIDC issuer URL (required for providers that support OIDC discovery).
     #[serde(default)]
-    pub issuer_url:        Option<String>,
+    pub issuer_url: Option<String>,
 }
 
 /// Reserved: placeholder for future notification system configuration.
@@ -368,9 +368,9 @@ pub struct NotificationsConfig {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct ObserverConfig {
     /// GraphQL entity type name to watch (e.g. `"User"`).
-    pub entity:  String,
+    pub entity: String,
     /// List of mutation operation names that trigger this observer.
-    pub events:  Vec<String>,
+    pub events: Vec<String>,
     /// Ordered list of actions to execute when an observed event fires.
     pub actions: Vec<ActionConfig>,
 }
@@ -383,7 +383,7 @@ pub struct ActionConfig {
     pub action_type: String,
     /// Optional Jinja2-style template used to render the action payload.
     #[serde(default)]
-    pub template:    Option<String>,
+    pub template: Option<String>,
 }
 
 // These types are now defined in their own modules and re-exported above
@@ -396,25 +396,25 @@ pub struct LoggingConfig {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
     /// Storage backend identifier (e.g. `"s3"`, `"gcs"`, `"local"`).
-    pub backend:          String,
+    pub backend: String,
     /// Bucket or container name (required for cloud backends).
     #[serde(default)]
-    pub bucket:           Option<String>,
+    pub bucket: Option<String>,
     /// Local filesystem path (used by the `"local"` backend).
     #[serde(default)]
-    pub path:             Option<String>,
+    pub path: Option<String>,
     /// Cloud region (e.g. `"eu-west-1"` for AWS, `"fr-par"` for Scaleway).
     #[serde(default)]
-    pub region:           Option<String>,
+    pub region: Option<String>,
     /// Custom endpoint URL (for S3-compatible providers or local development).
     #[serde(default)]
-    pub endpoint:         Option<String>,
+    pub endpoint: Option<String>,
     /// GCP project ID (used by the `"gcs"` backend).
     #[serde(default)]
-    pub project_id:       Option<String>,
+    pub project_id: Option<String>,
     /// Azure storage account name (used by the `"azure"` backend).
     #[serde(default)]
-    pub account_name:     Option<String>,
+    pub account_name: Option<String>,
     /// Maximum upload size in bytes for this storage backend.
     ///
     /// Defaults to `104_857_600` (100 `MiB`). Uploads exceeding this size are
@@ -453,6 +453,7 @@ pub struct CustomEndpointsConfig {}
 
 impl HttpServerConfig {
     /// Returns a builder for `HttpServerConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> HttpServerConfigBuilder {
         HttpServerConfigBuilder::default()
     }
@@ -461,27 +462,28 @@ impl HttpServerConfig {
 /// Builder for [`HttpServerConfig`].
 #[derive(Debug)]
 pub struct HttpServerConfigBuilder {
-    port:    u16,
-    host:    String,
+    port: u16,
+    host: String,
     workers: Option<usize>,
-    tls:     Option<TlsConfig>,
-    limits:  Option<ServerLimitsConfig>,
+    tls: Option<TlsConfig>,
+    limits: Option<ServerLimitsConfig>,
 }
 
 impl Default for HttpServerConfigBuilder {
     fn default() -> Self {
         Self {
-            port:    default_port(),
-            host:    default_host(),
+            port: default_port(),
+            host: default_host(),
             workers: None,
-            tls:     None,
-            limits:  None,
+            tls: None,
+            limits: None,
         }
     }
 }
 
 impl HttpServerConfigBuilder {
     /// Sets the TCP port to listen on.
+    #[must_use = "builder method returns modified builder"]
     pub const fn port(mut self, port: u16) -> Self {
         self.port = port;
         self
@@ -494,37 +496,42 @@ impl HttpServerConfigBuilder {
     }
 
     /// Sets the number of async worker threads.
+    #[must_use = "builder method returns modified builder"]
     pub const fn workers(mut self, workers: usize) -> Self {
         self.workers = Some(workers);
         self
     }
 
     /// Sets the TLS configuration.
+    #[must_use = "builder method returns modified builder"]
     pub fn tls(mut self, tls: TlsConfig) -> Self {
         self.tls = Some(tls);
         self
     }
 
     /// Sets the per-request and concurrency limits.
+    #[must_use = "builder method returns modified builder"]
     pub fn limits(mut self, limits: ServerLimitsConfig) -> Self {
         self.limits = Some(limits);
         self
     }
 
     /// Builds the [`HttpServerConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> HttpServerConfig {
         HttpServerConfig {
-            port:    self.port,
-            host:    self.host,
+            port: self.port,
+            host: self.host,
             workers: self.workers,
-            tls:     self.tls,
-            limits:  self.limits,
+            tls: self.tls,
+            limits: self.limits,
         }
     }
 }
 
 impl ServerLimitsConfig {
     /// Returns a builder for `ServerLimitsConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> ServerLimitsConfigBuilder {
         ServerLimitsConfigBuilder::default()
     }
@@ -533,19 +540,19 @@ impl ServerLimitsConfig {
 /// Builder for [`ServerLimitsConfig`].
 #[derive(Debug)]
 pub struct ServerLimitsConfigBuilder {
-    max_request_size:        String,
-    request_timeout:         String,
+    max_request_size: String,
+    request_timeout: String,
     max_concurrent_requests: usize,
-    max_queue_depth:         usize,
+    max_queue_depth: usize,
 }
 
 impl Default for ServerLimitsConfigBuilder {
     fn default() -> Self {
         Self {
-            max_request_size:        default_max_request_size(),
-            request_timeout:         default_request_timeout(),
+            max_request_size: default_max_request_size(),
+            request_timeout: default_request_timeout(),
             max_concurrent_requests: default_max_concurrent(),
-            max_queue_depth:         default_max_queue_depth(),
+            max_queue_depth: default_max_queue_depth(),
         }
     }
 }
@@ -564,30 +571,34 @@ impl ServerLimitsConfigBuilder {
     }
 
     /// Sets the maximum number of concurrent requests.
+    #[must_use = "builder method returns modified builder"]
     pub const fn max_concurrent_requests(mut self, max_concurrent_requests: usize) -> Self {
         self.max_concurrent_requests = max_concurrent_requests;
         self
     }
 
     /// Sets the maximum request queue depth.
+    #[must_use = "builder method returns modified builder"]
     pub const fn max_queue_depth(mut self, max_queue_depth: usize) -> Self {
         self.max_queue_depth = max_queue_depth;
         self
     }
 
     /// Builds the [`ServerLimitsConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> ServerLimitsConfig {
         ServerLimitsConfig {
-            max_request_size:        self.max_request_size,
-            request_timeout:         self.request_timeout,
+            max_request_size: self.max_request_size,
+            request_timeout: self.request_timeout,
             max_concurrent_requests: self.max_concurrent_requests,
-            max_queue_depth:         self.max_queue_depth,
+            max_queue_depth: self.max_queue_depth,
         }
     }
 }
 
 impl DatabaseConfig {
     /// Returns a builder for `DatabaseConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> DatabaseConfigBuilder {
         DatabaseConfigBuilder::default()
     }
@@ -596,11 +607,11 @@ impl DatabaseConfig {
 /// Builder for [`DatabaseConfig`].
 #[derive(Debug, Default)]
 pub struct DatabaseConfigBuilder {
-    url_env:               Option<String>,
-    pool_size:             u32,
-    pool_timeout:          Option<String>,
-    statement_timeout:     Option<String>,
-    replicas:              Vec<ReplicaConfig>,
+    url_env: Option<String>,
+    pool_size: u32,
+    pool_timeout: Option<String>,
+    statement_timeout: Option<String>,
+    replicas: Vec<ReplicaConfig>,
     health_check_interval: Option<String>,
 }
 
@@ -612,6 +623,7 @@ impl DatabaseConfigBuilder {
     }
 
     /// Sets the maximum number of connections in the pool.
+    #[must_use = "builder method returns modified builder"]
     pub const fn pool_size(mut self, pool_size: u32) -> Self {
         self.pool_size = pool_size;
         self
@@ -630,6 +642,7 @@ impl DatabaseConfigBuilder {
     }
 
     /// Adds a read replica.
+    #[must_use = "builder method returns modified builder"]
     pub fn replica(mut self, replica: ReplicaConfig) -> Self {
         self.replicas.push(replica);
         self
@@ -666,6 +679,7 @@ impl DatabaseConfigBuilder {
 
 impl LifecycleConfig {
     /// Returns a builder for `LifecycleConfig`.
+    #[must_use = "builder does nothing until .build() is called"]
     pub fn builder() -> LifecycleConfigBuilder {
         LifecycleConfigBuilder::default()
     }
@@ -675,18 +689,18 @@ impl LifecycleConfig {
 #[derive(Debug)]
 pub struct LifecycleConfigBuilder {
     shutdown_timeout: String,
-    shutdown_delay:   String,
-    health_path:      String,
-    ready_path:       String,
+    shutdown_delay: String,
+    health_path: String,
+    ready_path: String,
 }
 
 impl Default for LifecycleConfigBuilder {
     fn default() -> Self {
         Self {
             shutdown_timeout: default_shutdown_timeout(),
-            shutdown_delay:   default_shutdown_delay(),
-            health_path:      default_health_path(),
-            ready_path:       default_ready_path(),
+            shutdown_delay: default_shutdown_delay(),
+            health_path: default_health_path(),
+            ready_path: default_ready_path(),
         }
     }
 }
@@ -717,12 +731,13 @@ impl LifecycleConfigBuilder {
     }
 
     /// Builds the [`LifecycleConfig`].
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> LifecycleConfig {
         LifecycleConfig {
             shutdown_timeout: self.shutdown_timeout,
-            shutdown_delay:   self.shutdown_delay,
-            health_path:      self.health_path,
-            ready_path:       self.ready_path,
+            shutdown_delay: self.shutdown_delay,
+            health_path: self.health_path,
+            ready_path: self.ready_path,
         }
     }
 }

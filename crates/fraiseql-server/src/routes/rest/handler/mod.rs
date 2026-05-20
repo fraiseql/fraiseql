@@ -41,10 +41,10 @@ use super::{idempotency::IdempotencyStore, resource::RestRouteTable};
 /// This handler does NOT construct GraphQL strings. It builds typed
 /// `QueryMatch` or mutation calls and executes them directly.
 pub struct RestHandler<'a, A: DatabaseAdapter> {
-    pub(super) executor:          &'a Arc<Executor<A>>,
-    pub(super) schema:            &'a CompiledSchema,
-    pub(super) config:            &'a RestConfig,
-    pub(super) route_table:       &'a RestRouteTable,
+    pub(super) executor: &'a Arc<Executor<A>>,
+    pub(super) schema: &'a CompiledSchema,
+    pub(super) config: &'a RestConfig,
+    pub(super) route_table: &'a RestRouteTable,
     pub(super) idempotency_store: Option<&'a Arc<dyn IdempotencyStore>>,
 }
 

@@ -8,22 +8,22 @@ mod queue_tests {
     #[test]
     fn test_job_creation() {
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Webhook {
-                url:           Some("http://localhost:8000".to_string()),
-                url_env:       None,
-                headers:       std::collections::HashMap::new(),
+                url: Some("http://localhost:8000".to_string()),
+                url_env: None,
+                headers: std::collections::HashMap::new(),
                 body_template: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -44,10 +44,10 @@ mod queue_tests {
     #[test]
     fn test_exponential_backoff_calculation() {
         let policy = ExponentialBackoffPolicy {
-            max_attempts:     5,
+            max_attempts: 5,
             initial_delay_ms: 1000,
-            max_delay_ms:     60000,
-            multiplier:       2.0,
+            max_delay_ms: 60000,
+            multiplier: 2.0,
         };
 
         // Attempt 1: 1000ms
@@ -63,10 +63,10 @@ mod queue_tests {
     #[test]
     fn test_exponential_backoff_cap() {
         let policy = ExponentialBackoffPolicy {
-            max_attempts:     10,
+            max_attempts: 10,
             initial_delay_ms: 1000,
-            max_delay_ms:     10000,
-            multiplier:       2.0,
+            max_delay_ms: 10000,
+            multiplier: 2.0,
         };
 
         // Normally would be 32000ms (1000 * 2^5), but capped at 10000ms
@@ -77,10 +77,10 @@ mod queue_tests {
     #[test]
     fn test_exponential_backoff_should_retry() {
         let policy = ExponentialBackoffPolicy {
-            max_attempts:     3,
+            max_attempts: 3,
             initial_delay_ms: 1000,
-            max_delay_ms:     60000,
-            multiplier:       2.0,
+            max_delay_ms: 60000,
+            multiplier: 2.0,
         };
 
         // Attempts 1-2 should retry
@@ -94,9 +94,9 @@ mod queue_tests {
     #[test]
     fn test_linear_backoff_calculation() {
         let policy = LinearBackoffPolicy {
-            max_attempts:       5,
+            max_attempts: 5,
             delay_increment_ms: 5000,
-            max_delay_ms:       30000,
+            max_delay_ms: 30000,
         };
 
         // Attempt 1: 5000ms
@@ -110,9 +110,9 @@ mod queue_tests {
     #[test]
     fn test_linear_backoff_cap() {
         let policy = LinearBackoffPolicy {
-            max_attempts:       10,
+            max_attempts: 10,
             delay_increment_ms: 5000,
-            max_delay_ms:       30000,
+            max_delay_ms: 30000,
         };
 
         // Normally would be 35000ms (5000 * 7), but capped at 30000ms
@@ -124,7 +124,7 @@ mod queue_tests {
     fn test_fixed_backoff_calculation() {
         let policy = FixedBackoffPolicy {
             max_attempts: 5,
-            delay_ms:     5000,
+            delay_ms: 5000,
         };
 
         // All attempts have same delay
@@ -137,7 +137,7 @@ mod queue_tests {
     fn test_fixed_backoff_should_retry() {
         let policy = FixedBackoffPolicy {
             max_attempts: 3,
-            delay_ms:     5000,
+            delay_ms: 5000,
         };
 
         assert!(policy.should_retry(1));
@@ -184,24 +184,24 @@ mod redis_tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -215,24 +215,24 @@ mod redis_tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -253,40 +253,40 @@ mod redis_tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
         queue.enqueue(&job).await.expect("Failed to enqueue");
 
         let result = JobResult {
-            job_id:        "job-1".to_string(),
-            status:        JobStatus::Success,
+            job_id: "job-1".to_string(),
+            status: JobStatus::Success,
             action_result: ActionResult {
                 action_type: "send_email".to_string(),
-                success:     true,
-                message:     "Email sent".to_string(),
+                success: true,
+                message: "Email sent".to_string(),
                 duration_ms: 100.0,
             },
-            attempts:      1,
-            duration_ms:   100.0,
+            attempts: 1,
+            duration_ms: 100.0,
         };
 
         queue.mark_success("job-1", &result).await.expect("Failed to mark success");
@@ -301,24 +301,24 @@ mod redis_tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 
@@ -337,24 +337,24 @@ mod redis_tests {
         let queue = setup_test_queue().await;
 
         let job = Job {
-            id:            "job-1".to_string(),
-            action_id:     "send_email".to_string(),
-            event:         EntityEvent::new(
+            id: "job-1".to_string(),
+            action_id: "send_email".to_string(),
+            event: EntityEvent::new(
                 crate::event::EventKind::Created,
                 "Order".to_string(),
                 uuid::Uuid::new_v4(),
                 serde_json::json!({}),
             ),
             action_config: ActionConfig::Email {
-                to:               Some("test@example.com".to_string()),
-                to_template:      None,
-                subject:          Some("Test".to_string()),
+                to: Some("test@example.com".to_string()),
+                to_template: None,
+                subject: Some("Test".to_string()),
                 subject_template: None,
-                body_template:    None,
-                reply_to:         None,
+                body_template: None,
+                reply_to: None,
             },
-            attempt:       1,
-            created_at:    chrono::Utc::now().timestamp(),
+            attempt: 1,
+            created_at: chrono::Utc::now().timestamp(),
             next_retry_at: chrono::Utc::now().timestamp(),
         };
 

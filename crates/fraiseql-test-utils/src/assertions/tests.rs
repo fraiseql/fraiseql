@@ -34,7 +34,7 @@ fn test_has_data_success() {
 #[should_panic(expected = "should have 'data' field")]
 fn test_has_data_fails() {
     let response = json!({"errors": [{"message": "error"}]});
-    assert_has_data(&response);
+    let _ = assert_has_data(&response);
 }
 
 #[test]

@@ -54,7 +54,7 @@ impl S3Backend {
 fn storage_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
     FraiseQLError::Storage {
         message: format!("S3 {op} failed: {err}"),
-        code:    None,
+        code: None,
     }
 }
 
@@ -98,7 +98,7 @@ impl S3Backend {
                     if msg.contains("NoSuchKey") || msg.contains("404") {
                         FraiseQLError::Storage {
                             message: format!("File not found: {key}"),
-                            code:    Some("not_found".to_string()),
+                            code: Some("not_found".to_string()),
                         }
                     } else {
                         storage_err("get_object", e)

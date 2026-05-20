@@ -54,9 +54,9 @@ fn create_test_pdf() -> Vec<u8> {
 fn test_resize_jpeg_to_width() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  None,
+        width: Some(500),
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -74,9 +74,9 @@ fn test_resize_jpeg_to_width() {
 fn test_resize_with_height() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   None,
-        height:  Some(200),
-        format:  None,
+        width: None,
+        height: Some(200),
+        format: None,
         quality: None,
     };
 
@@ -94,9 +94,9 @@ fn test_resize_with_height() {
 fn test_resize_with_both_dimensions() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   Some(300),
-        height:  Some(300),
-        format:  None,
+        width: Some(300),
+        height: Some(300),
+        format: None,
         quality: None,
     };
 
@@ -113,9 +113,9 @@ fn test_resize_with_both_dimensions() {
 fn test_convert_jpeg_to_webp() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   None,
-        height:  None,
-        format:  Some(OutputFormat::Webp),
+        width: None,
+        height: None,
+        format: Some(OutputFormat::Webp),
         quality: None,
     };
 
@@ -132,9 +132,9 @@ fn test_convert_jpeg_to_webp() {
 fn test_convert_png_to_jpeg() {
     let input = create_test_png_with_alpha();
     let params = TransformParams {
-        width:   None,
-        height:  None,
-        format:  Some(OutputFormat::Jpeg),
+        width: None,
+        height: None,
+        format: Some(OutputFormat::Jpeg),
         quality: None,
     };
 
@@ -151,9 +151,9 @@ fn test_convert_png_to_jpeg() {
 fn test_unsupported_format_returns_error() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   None,
-        height:  None,
-        format:  Some(OutputFormat::Bmp), // BMP is intentionally unsupported
+        width: None,
+        height: None,
+        format: Some(OutputFormat::Bmp), // BMP is intentionally unsupported
         quality: None,
     };
 
@@ -165,9 +165,9 @@ fn test_unsupported_format_returns_error() {
 fn test_non_image_file_returns_error() {
     let input = create_test_pdf();
     let params = TransformParams {
-        width:   None,
-        height:  None,
-        format:  None,
+        width: None,
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -179,16 +179,16 @@ fn test_non_image_file_returns_error() {
 fn test_transform_with_quality_parameter() {
     let input = create_test_image_1000x800();
     let params_low_quality = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  Some(OutputFormat::Jpeg),
+        width: Some(500),
+        height: None,
+        format: Some(OutputFormat::Jpeg),
         quality: Some(50),
     };
 
     let params_high_quality = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  Some(OutputFormat::Jpeg),
+        width: Some(500),
+        height: None,
+        format: Some(OutputFormat::Jpeg),
         quality: Some(95),
     };
 
@@ -212,9 +212,9 @@ fn test_transform_with_quality_parameter() {
 fn test_transform_default_quality() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  Some(OutputFormat::Jpeg),
+        width: Some(500),
+        height: None,
+        format: Some(OutputFormat::Jpeg),
         quality: None,
     };
 
@@ -227,9 +227,9 @@ fn test_transform_default_quality() {
 fn test_invalid_dimensions_returns_error() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   Some(0), // Invalid: zero width
-        height:  None,
-        format:  None,
+        width: Some(0), // Invalid: zero width
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -241,9 +241,9 @@ fn test_invalid_dimensions_returns_error() {
 fn test_resize_maintains_aspect_ratio() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   Some(250),
-        height:  None,
-        format:  None,
+        width: Some(250),
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -263,9 +263,9 @@ fn test_resize_maintains_aspect_ratio() {
 fn test_transform_output_has_correct_dimensions() {
     let input = create_test_image_1000x800();
     let params = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  None,
+        width: Some(500),
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -281,9 +281,9 @@ fn test_transform_output_has_correct_dimensions() {
 fn test_transform_empty_input_returns_error() {
     let input = vec![];
     let params = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  None,
+        width: Some(500),
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -297,17 +297,17 @@ fn test_apply_preset_thumbnail() {
 
     let presets = vec![
         TransformPreset {
-            name:    "thumbnail".to_string(),
-            width:   Some(150),
-            height:  Some(150),
-            format:  Some("webp".to_string()),
+            name: "thumbnail".to_string(),
+            width: Some(150),
+            height: Some(150),
+            format: Some("webp".to_string()),
             quality: Some(80),
         },
         TransformPreset {
-            name:    "medium".to_string(),
-            width:   Some(800),
-            height:  Some(600),
-            format:  Some("jpeg".to_string()),
+            name: "medium".to_string(),
+            width: Some(800),
+            height: Some(600),
+            format: Some("jpeg".to_string()),
             quality: Some(85),
         },
     ];
@@ -327,10 +327,10 @@ fn test_apply_preset_not_found() {
     use crate::config::TransformPreset;
 
     let presets = vec![TransformPreset {
-        name:    "thumbnail".to_string(),
-        width:   Some(150),
-        height:  Some(150),
-        format:  Some("webp".to_string()),
+        name: "thumbnail".to_string(),
+        width: Some(150),
+        height: Some(150),
+        format: Some("webp".to_string()),
         quality: Some(80),
     }];
 
@@ -350,24 +350,24 @@ fn test_apply_preset_format_conversion() {
 
     let presets = vec![
         TransformPreset {
-            name:    "png".to_string(),
-            width:   None,
-            height:  None,
-            format:  Some("png".to_string()),
+            name: "png".to_string(),
+            width: None,
+            height: None,
+            format: Some("png".to_string()),
             quality: None,
         },
         TransformPreset {
-            name:    "jpg".to_string(),
-            width:   None,
-            height:  None,
-            format:  Some("jpg".to_string()),
+            name: "jpg".to_string(),
+            width: None,
+            height: None,
+            format: Some("jpg".to_string()),
             quality: None,
         },
         TransformPreset {
-            name:    "avif".to_string(),
-            width:   None,
-            height:  None,
-            format:  Some("avif".to_string()),
+            name: "avif".to_string(),
+            width: None,
+            height: None,
+            format: Some("avif".to_string()),
             quality: None,
         },
     ];
@@ -406,9 +406,9 @@ async fn test_render_cache_stores_and_retrieves_transform() {
 
     // First call should cache miss
     let params = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  None,
+        width: Some(500),
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -444,9 +444,9 @@ async fn test_render_cache_invalidated_on_source_change() {
     let cache = TransformCache::new(backend.clone());
 
     let params = TransformParams {
-        width:   Some(500),
-        height:  None,
-        format:  None,
+        width: Some(500),
+        height: None,
+        format: None,
         quality: None,
     };
 
@@ -468,9 +468,9 @@ fn test_render_cache_key_format() {
     use crate::transforms::cache::TransformCache;
 
     let params = TransformParams {
-        width:   Some(500),
-        height:  Some(400),
-        format:  Some(OutputFormat::Webp),
+        width: Some(500),
+        height: Some(400),
+        format: Some(OutputFormat::Webp),
         quality: Some(85),
     };
 
@@ -502,10 +502,10 @@ async fn test_render_cache_with_preset_lookup() {
     let cache = TransformCache::new(backend.clone());
 
     let presets = vec![TransformPreset {
-        name:    "thumbnail".to_string(),
-        width:   Some(150),
-        height:  Some(150),
-        format:  Some("webp".to_string()),
+        name: "thumbnail".to_string(),
+        width: Some(150),
+        height: Some(150),
+        format: Some("webp".to_string()),
         quality: Some(80),
     }];
 
@@ -523,3 +523,5 @@ async fn test_render_cache_with_preset_lookup() {
     assert_eq!(result.height, 120);
     assert_eq!(result.content_type, "image/webp");
 }
+
+// TODO: render_handler tests disabled — function not yet implemented in routes/mod.rs

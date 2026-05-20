@@ -27,11 +27,11 @@ use crate::output::OutputFormatter;
 #[derive(Debug)]
 pub struct ValidationIssue {
     /// Issue type (error or warning)
-    pub severity:   IssueSeverity,
+    pub severity: IssueSeverity,
     /// Fact table name
     pub table_name: String,
     /// Issue description
-    pub message:    String,
+    pub message: String,
 }
 
 /// Issue severity level.

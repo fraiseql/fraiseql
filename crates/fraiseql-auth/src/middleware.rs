@@ -19,16 +19,18 @@ pub struct AuthenticatedUser {
     /// User ID from token claims
     pub user_id: String,
     /// Full JWT claims
-    pub claims:  Claims,
+    pub claims: Claims,
 }
 
 impl AuthenticatedUser {
     /// Get a custom claim from the JWT
+    #[must_use]
     pub fn get_custom_claim(&self, key: &str) -> Option<&serde_json::Value> {
         self.claims.get_custom(key)
     }
 
     /// Check if user has a specific role
+    #[must_use]
     pub fn has_role(&self, role: &str) -> bool {
         if let Some(serde_json::Value::String(user_role)) = self.claims.get_custom("role") {
             user_role == role
@@ -48,10 +50,10 @@ impl AuthenticatedUser {
 
 /// Authentication middleware configuration
 pub struct AuthMiddleware {
-    validator:      Arc<JwtValidator>,
+    validator: Arc<JwtValidator>,
     _session_store: Arc<dyn SessionStore>,
-    public_key:     Vec<u8>,
-    _optional:      bool,
+    public_key: Vec<u8>,
+    _optional: bool,
 }
 
 impl AuthMiddleware {

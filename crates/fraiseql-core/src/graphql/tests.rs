@@ -17,11 +17,11 @@ mod fragment_resolver_tests {
 
     fn make_field(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
         FieldSelection {
-            name:          name.to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: name.to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: nested,
-            directives:    vec![],
+            directives: vec![],
         }
     }
 
@@ -40,11 +40,11 @@ mod fragment_resolver_tests {
             make_fragment("UserFields", vec![make_field("id", vec![]), make_field("name", vec![])]);
 
         let selections = vec![FieldSelection {
-            name:          "...UserFields".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...UserFields".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[fragment]);
@@ -58,11 +58,11 @@ mod fragment_resolver_tests {
     #[test]
     fn test_fragment_not_found() {
         let selections = vec![FieldSelection {
-            name:          "...NonexistentFragment".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...NonexistentFragment".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[]);
@@ -81,11 +81,11 @@ mod fragment_resolver_tests {
             "FragmentB",
             vec![
                 FieldSelection {
-                    name:          "...FragmentA".to_string(),
-                    alias:         None,
-                    arguments:     vec![],
+                    name: "...FragmentA".to_string(),
+                    alias: None,
+                    arguments: vec![],
                     nested_fields: vec![],
-                    directives:    vec![],
+                    directives: vec![],
                 },
                 make_field("name", vec![]),
             ],
@@ -93,11 +93,11 @@ mod fragment_resolver_tests {
 
         // Query spreads Fragment B
         let selections = vec![FieldSelection {
-            name:          "...FragmentB".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...FragmentB".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[fragment_a, fragment_b]);
@@ -154,19 +154,19 @@ mod fragment_resolver_tests {
     #[test]
     fn test_merge_conflicting_fields_with_alias() {
         let base = vec![FieldSelection {
-            name:          "user".to_string(),
-            alias:         Some("primaryUser".to_string()),
-            arguments:     vec![],
+            name: "user".to_string(),
+            alias: Some("primaryUser".to_string()),
+            arguments: vec![],
             nested_fields: vec![make_field("id", vec![])],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let additional = vec![FieldSelection {
-            name:          "user".to_string(),
-            alias:         Some("primaryUser".to_string()),
-            arguments:     vec![],
+            name: "user".to_string(),
+            alias: Some("primaryUser".to_string()),
+            arguments: vec![],
             nested_fields: vec![make_field("name", vec![])],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let merged = FragmentResolver::merge_selections(&base, additional);
@@ -183,11 +183,11 @@ mod fragment_resolver_tests {
             let name = format!("Fragment{i}");
             let next_spread = if i < 11 {
                 FieldSelection {
-                    name:          format!("...Fragment{}", i + 1),
-                    alias:         None,
-                    arguments:     vec![],
+                    name: format!("...Fragment{}", i + 1),
+                    alias: None,
+                    arguments: vec![],
                     nested_fields: vec![],
-                    directives:    vec![],
+                    directives: vec![],
                 }
             } else {
                 make_field("field", vec![])
@@ -202,11 +202,11 @@ mod fragment_resolver_tests {
         }
 
         let selections = vec![FieldSelection {
-            name:          "...Fragment0".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...Fragment0".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&fragments);
@@ -219,37 +219,37 @@ mod fragment_resolver_tests {
     fn test_circular_reference_detection() {
         // FragmentA -> FragmentB -> FragmentA (circular)
         let fragment_a = FragmentDefinition {
-            name:             "FragmentA".to_string(),
-            type_condition:   "User".to_string(),
-            selections:       vec![FieldSelection {
-                name:          "...FragmentB".to_string(),
-                alias:         None,
-                arguments:     vec![],
+            name: "FragmentA".to_string(),
+            type_condition: "User".to_string(),
+            selections: vec![FieldSelection {
+                name: "...FragmentB".to_string(),
+                alias: None,
+                arguments: vec![],
                 nested_fields: vec![],
-                directives:    vec![],
+                directives: vec![],
             }],
             fragment_spreads: vec!["FragmentB".to_string()],
         };
 
         let fragment_b = FragmentDefinition {
-            name:             "FragmentB".to_string(),
-            type_condition:   "User".to_string(),
-            selections:       vec![FieldSelection {
-                name:          "...FragmentA".to_string(),
-                alias:         None,
-                arguments:     vec![],
+            name: "FragmentB".to_string(),
+            type_condition: "User".to_string(),
+            selections: vec![FieldSelection {
+                name: "...FragmentA".to_string(),
+                alias: None,
+                arguments: vec![],
                 nested_fields: vec![],
-                directives:    vec![],
+                directives: vec![],
             }],
             fragment_spreads: vec!["FragmentA".to_string()],
         };
 
         let selections = vec![FieldSelection {
-            name:          "...FragmentA".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "...FragmentA".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         }];
 
         let resolver = FragmentResolver::new(&[fragment_a, fragment_b]);
@@ -621,11 +621,11 @@ mod types_tests {
         let query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: Some("GetUsers".to_string()),
-            root_field:     "users".to_string(),
-            selections:     vec![],
-            variables:      vec![],
-            fragments:      vec![],
-            source:         "{ users { id name } }".to_string(),
+            root_field: "users".to_string(),
+            selections: vec![],
+            variables: vec![],
+            fragments: vec![],
+            source: "{ users { id name } }".to_string(),
         };
 
         assert_eq!(query.signature(), "query::users");
@@ -636,11 +636,11 @@ mod types_tests {
         let query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: None,
-            root_field:     "users".to_string(),
-            selections:     vec![],
-            variables:      vec![], // No variables = cacheable
-            fragments:      vec![],
-            source:         "{ users { id } }".to_string(),
+            root_field: "users".to_string(),
+            selections: vec![],
+            variables: vec![], // No variables = cacheable
+            fragments: vec![],
+            source: "{ users { id } }".to_string(),
         };
 
         assert!(query.is_cacheable());
@@ -651,20 +651,20 @@ mod types_tests {
         let query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: None,
-            root_field:     "users".to_string(),
-            selections:     vec![],
-            variables:      vec![VariableDefinition {
-                name:          "limit".to_string(),
-                var_type:      GraphQLType {
-                    name:          "Int".to_string(),
-                    nullable:      false,
-                    list:          false,
+            root_field: "users".to_string(),
+            selections: vec![],
+            variables: vec![VariableDefinition {
+                name: "limit".to_string(),
+                var_type: GraphQLType {
+                    name: "Int".to_string(),
+                    nullable: false,
+                    list: false,
                     list_nullable: false,
                 },
                 default_value: None,
             }],
-            fragments:      vec![],
-            source:         "query($limit: Int) { users(limit: $limit) { id } }".to_string(),
+            fragments: vec![],
+            source: "query($limit: Int) { users(limit: $limit) { id } }".to_string(),
         };
 
         assert!(!query.is_cacheable());
@@ -673,20 +673,20 @@ mod types_tests {
     #[test]
     fn test_field_selection_response_key() {
         let field_no_alias = FieldSelection {
-            name:          "author".to_string(),
-            alias:         None,
-            arguments:     vec![],
+            name: "author".to_string(),
+            alias: None,
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         };
         assert_eq!(field_no_alias.response_key(), "author");
 
         let field_with_alias = FieldSelection {
-            name:          "author".to_string(),
-            alias:         Some("writer".to_string()),
-            arguments:     vec![],
+            name: "author".to_string(),
+            alias: Some("writer".to_string()),
+            arguments: vec![],
             nested_fields: vec![],
-            directives:    vec![],
+            directives: vec![],
         };
         assert_eq!(field_with_alias.response_key(), "writer");
     }
@@ -694,13 +694,13 @@ mod types_tests {
     #[test]
     fn test_graphql_argument_equality() {
         let arg1 = GraphQLArgument {
-            name:       "where".to_string(),
+            name: "where".to_string(),
             value_type: "object".to_string(),
             value_json: r#"{"id": 1}"#.to_string(),
         };
 
         let arg2 = GraphQLArgument {
-            name:       "where".to_string(),
+            name: "where".to_string(),
             value_type: "object".to_string(),
             value_json: r#"{"id": 1}"#.to_string(),
         };
@@ -711,9 +711,9 @@ mod types_tests {
     #[test]
     fn test_fragment_definition() {
         let fragment = FragmentDefinition {
-            name:             "UserFields".to_string(),
-            type_condition:   "User".to_string(),
-            selections:       vec![],
+            name: "UserFields".to_string(),
+            type_condition: "User".to_string(),
+            selections: vec![],
             fragment_spreads: vec![],
         };
 
@@ -1125,9 +1125,9 @@ mod complexity_tests {
     #[test]
     fn test_from_config() {
         let config = ComplexityConfig {
-            max_depth:      5,
+            max_depth: 5,
             max_complexity: 20,
-            max_aliases:    3,
+            max_aliases: 3,
         };
         let validator = RequestValidator::from_config(&config);
         // Depth-6 query should fail

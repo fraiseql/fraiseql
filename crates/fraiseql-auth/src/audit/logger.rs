@@ -114,6 +114,7 @@ impl AuditEventType {
     ///
     /// These strings are written to log sinks and compliance systems and will not
     /// change between releases.
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             AuditEventType::JwtValidation => "jwt_validation",
@@ -162,6 +163,7 @@ impl SecretType {
     /// Return a stable, lowercase snake_case string representation of this secret type.
     ///
     /// Written to log sinks and compliance systems; will not change between releases.
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             SecretType::JwtToken => "jwt_token",
@@ -196,29 +198,29 @@ impl SecretType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     /// Event type (jwt_validation, oauth_callback, etc.)
-    pub event_type:    AuditEventType,
+    pub event_type: AuditEventType,
     /// Type of secret accessed (jwt_token, session_token, etc.)
-    pub secret_type:   SecretType,
+    pub secret_type: SecretType,
     /// Subject (user ID, service account, etc.) - None for anonymous
     /// Max 256 bytes per `bounds::MAX_SUBJECT_LEN`
-    pub subject:       Option<String>,
+    pub subject: Option<String>,
     /// Operation performed (validate, create, revoke, etc.)
     /// Max 50 bytes per `bounds::MAX_OPERATION_LEN`
-    pub operation:     String,
+    pub operation: String,
     /// Whether the operation succeeded
-    pub success:       bool,
+    pub success: bool,
     /// Error message if operation failed (user-safe message)
     /// Max 1 KB per `bounds::MAX_ERROR_MESSAGE_LEN`
     pub error_message: Option<String>,
     /// Additional context
     /// Max 2 KB per `bounds::MAX_CONTEXT_LEN`
-    pub context:       Option<String>,
+    pub context: Option<String>,
     /// HMAC-SHA256 chain hash for tamper detection (64 hex chars).
     ///
     /// Each entry's hash depends on all previous entries, making retroactive
     /// tampering detectable. `None` when tamper-evident logging is disabled.
     /// Verify with [`crate::audit::chain::verify_chain`].
-    pub chain_hash:    Option<String>,
+    pub chain_hash: Option<String>,
 }
 
 /// Audit logger trait - allows different implementations (structured logs, database, syslog, etc.)
@@ -302,6 +304,7 @@ pub struct StructuredAuditLogger;
 
 impl StructuredAuditLogger {
     /// Create a new `StructuredAuditLogger`.
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }

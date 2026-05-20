@@ -65,11 +65,11 @@ impl Default for SmsAction {
 #[derive(Debug, Clone)]
 pub struct SmsResponse {
     /// Whether the SMS was sent successfully.
-    pub success:     bool,
+    pub success: bool,
     /// Duration of the operation in milliseconds.
     pub duration_ms: f64,
     /// Message ID from the SMS provider.
-    pub message_id:  Option<String>,
+    pub message_id: Option<String>,
 }
 
 // ============================================================================
@@ -128,9 +128,9 @@ impl Default for PushAction {
 #[derive(Debug, Clone)]
 pub struct PushResponse {
     /// Whether the push notification was sent successfully.
-    pub success:         bool,
+    pub success: bool,
     /// Duration of the operation in milliseconds.
-    pub duration_ms:     f64,
+    pub duration_ms: f64,
     /// Notification ID from the push provider.
     pub notification_id: Option<String>,
 }
@@ -196,11 +196,11 @@ impl Default for SearchAction {
 #[derive(Debug, Clone)]
 pub struct SearchResponse {
     /// Whether the operation was successful.
-    pub success:     bool,
+    pub success: bool,
     /// Duration of the operation in milliseconds.
     pub duration_ms: f64,
     /// Whether the document was indexed.
-    pub indexed:     bool,
+    pub indexed: bool,
 }
 
 // ============================================================================
@@ -257,9 +257,9 @@ impl Default for CacheAction {
 #[derive(Debug, Clone)]
 pub struct CacheResponse {
     /// Whether the operation was successful.
-    pub success:       bool,
+    pub success: bool,
     /// Duration of the operation in milliseconds.
-    pub duration_ms:   f64,
+    pub duration_ms: f64,
     /// Number of cache keys affected.
     pub keys_affected: usize,
 }

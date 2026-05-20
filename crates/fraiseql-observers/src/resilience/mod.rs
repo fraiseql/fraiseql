@@ -30,18 +30,15 @@ pub mod degradation;
 pub mod per_endpoint;
 pub mod strategies;
 
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
-    },
-    time::Instant,
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, AtomicUsize, Ordering},
 };
 
 pub use degradation::{DegradationLevel, GracefulDegradation};
 pub use per_endpoint::PerEndpointCircuitBreaker;
 pub use strategies::{ResilienceStrategy, ResilientExecutor};
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 
 use crate::error::{ObserverError, Result};
 
@@ -71,11 +68,11 @@ impl std::fmt::Display for CircuitState {
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerConfig {
     /// Failure rate threshold (0.0-1.0) to trigger open state
-    pub failure_threshold:      f64,
+    pub failure_threshold: f64,
     /// Number of requests to sample for failure rate calculation
-    pub sample_size:            usize,
+    pub sample_size: usize,
     /// Timeout from Open to `HalfOpen` transition (milliseconds)
-    pub open_timeout_ms:        u64,
+    pub open_timeout_ms: u64,
     /// Maximum requests allowed in `HalfOpen` state
     pub half_open_max_requests: usize,
 }
@@ -83,10 +80,10 @@ pub struct CircuitBreakerConfig {
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
-            failure_threshold:      0.5,   // 50% failure rate threshold
-            sample_size:            100,   // Sample last 100 requests
-            open_timeout_ms:        30000, // 30 seconds before HalfOpen
-            half_open_max_requests: 5,     // Test up to 5 requests
+            failure_threshold: 0.5,    // 50% failure rate threshold
+            sample_size: 100,          // Sample last 100 requests
+            open_timeout_ms: 30000,    // 30 seconds before HalfOpen
+            half_open_max_requests: 5, // Test up to 5 requests
         }
     }
 }
@@ -94,11 +91,11 @@ impl Default for CircuitBreakerConfig {
 /// Circuit breaker state machine implementation
 #[derive(Clone)]
 pub struct CircuitBreaker {
-    config:             CircuitBreakerConfig,
-    state:              Arc<Mutex<CircuitState>>,
-    failure_count:      Arc<AtomicU64>,
-    success_count:      Arc<AtomicU64>,
-    last_failure_time:  Arc<Mutex<Option<Instant>>>,
+    config: CircuitBreakerConfig,
+    state: Arc<Mutex<CircuitState>>,
+    failure_count: Arc<AtomicU64>,
+    success_count: Arc<AtomicU64>,
+    last_failure_time: Arc<Mutex<Option<Instant>>>,
     half_open_requests: Arc<AtomicUsize>,
 }
 

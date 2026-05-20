@@ -8,6 +8,9 @@ pub mod directive;
 pub mod mutation;
 pub mod query;
 pub mod schema;
+mod schema_domain;
+mod schema_lookup;
+mod schema_serde;
 pub mod validation;
 
 #[cfg(test)]
@@ -17,5 +20,6 @@ pub use argument::{ArgumentDefinition, AutoParams};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use mutation::{MutationDefinition, MutationOperation};
 pub use query::{CursorType, QueryDefinition};
-pub use schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, canonicalize_json};
+pub use schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema};
+pub use schema_serde::canonicalize_json;
 pub use validation::is_safe_sql_identifier;

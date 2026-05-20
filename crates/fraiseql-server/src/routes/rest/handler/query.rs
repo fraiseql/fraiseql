@@ -288,9 +288,9 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
         }
 
         Ok(RestResponse {
-            status:  axum::http::StatusCode::OK,
+            status: axum::http::StatusCode::OK,
             headers: response_headers,
-            body:    Some(body),
+            body: Some(body),
         })
     }
 }

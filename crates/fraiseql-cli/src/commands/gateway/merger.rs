@@ -76,7 +76,7 @@ pub fn merge_responses(responses: &[(String, SubgraphResponse)]) -> MergedRespon
     }
 
     MergedResponse {
-        data:   Value::Object(merged_data),
+        data: Value::Object(merged_data),
         errors: merged_errors,
     }
 }

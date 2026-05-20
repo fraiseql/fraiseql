@@ -64,7 +64,7 @@ impl CyclePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangeImpact {
     /// Types that would be affected by this change.
-    pub affected_types:   HashSet<String>,
+    pub affected_types: HashSet<String>,
     /// Human-readable descriptions of breaking changes.
     pub breaking_changes: Vec<String>,
 }

@@ -93,7 +93,7 @@ pub enum PkceError {
 pub struct ConsumedPkceState {
     /// The `code_verifier` generated during `create_state`, needed for the
     /// PKCE code exchange at `/token`.
-    pub verifier:     String,
+    pub verifier: String,
     /// The `redirect_uri` the client specified at `/auth/start`.
     pub redirect_uri: String,
 }
@@ -103,12 +103,12 @@ pub struct ConsumedPkceState {
 // ---------------------------------------------------------------------------
 
 struct PkceEntry {
-    verifier:     String,
+    verifier: String,
     redirect_uri: String,
     /// Creation time as a Tokio instant so `tokio::time::pause()` +
     /// `tokio::time::advance()` can control TTL expiry in tests.
-    created_at:   tokio::time::Instant,
-    ttl:          Duration,
+    created_at: tokio::time::Instant,
+    ttl: Duration,
 }
 
 /// In-memory PKCE state store backed by a [`DashMap`].
@@ -118,11 +118,11 @@ struct PkceEntry {
 /// (requires the `redis-pkce` Cargo feature).
 pub struct InMemoryPkceStateStore {
     state_ttl_secs: u64,
-    entries:        DashMap<String, PkceEntry>,
-    encryptor:      Option<Arc<StateEncryptionService>>,
-    /// Maximum number of in-flight entries; defaults to [`MAX_PKCE_ENTRIES`].
+    entries: DashMap<String, PkceEntry>,
+    encryptor: Option<Arc<StateEncryptionService>>,
+    /// Maximum number of in-flight entries; defaults to `MAX_PKCE_ENTRIES`.
     /// Overridable in tests via [`InMemoryPkceStateStore::with_max_entries`].
-    max_entries:    usize,
+    max_entries: usize,
 }
 
 impl InMemoryPkceStateStore {
@@ -171,10 +171,10 @@ impl InMemoryPkceStateStore {
         self.entries.insert(
             internal_key.clone(),
             PkceEntry {
-                verifier:     verifier.clone(),
+                verifier: verifier.clone(),
                 redirect_uri: redirect_uri.to_owned(),
-                created_at:   tokio::time::Instant::now(),
-                ttl:          Duration::from_secs(self.state_ttl_secs),
+                created_at: tokio::time::Instant::now(),
+                ttl: Duration::from_secs(self.state_ttl_secs),
             },
         );
 
@@ -209,7 +209,7 @@ impl InMemoryPkceStateStore {
         }
 
         Ok(ConsumedPkceState {
-            verifier:     entry.verifier,
+            verifier: entry.verifier,
             redirect_uri: entry.redirect_uri,
         })
     }
@@ -249,9 +249,9 @@ pub fn redis_pkce_error_count_total() -> u64 {
 /// Value format: `{"verifier":"...","redirect_uri":"..."}`
 #[cfg(feature = "redis-pkce")]
 pub struct RedisPkceStateStore {
-    pool:           redis::aio::ConnectionManager,
+    pool: redis::aio::ConnectionManager,
     state_ttl_secs: u64,
-    encryptor:      Option<Arc<StateEncryptionService>>,
+    encryptor: Option<Arc<StateEncryptionService>>,
 }
 
 #[cfg(feature = "redis-pkce")]
@@ -320,7 +320,7 @@ impl RedisPkceStateStore {
     ) -> Result<ConsumedPkceState, PkceError> {
         #[derive(serde::Deserialize)]
         struct StoredEntry {
-            verifier:     String,
+            verifier: String,
             redirect_uri: String,
         }
 
@@ -354,7 +354,7 @@ impl RedisPkceStateStore {
         // The Redis backend therefore never returns `PkceError::StateExpired`;
         // callers receive `StateNotFound` for both absent and expired tokens.
         Ok(ConsumedPkceState {
-            verifier:     entry.verifier,
+            verifier: entry.verifier,
             redirect_uri: entry.redirect_uri,
         })
     }
@@ -391,6 +391,7 @@ pub enum PkceStateStore {
 
 impl PkceStateStore {
     /// Create an in-memory PKCE state store (single-replica deployments).
+    #[must_use]
     pub fn new(state_ttl_secs: u64, encryptor: Option<Arc<StateEncryptionService>>) -> Self {
         Self::InMemory(InMemoryPkceStateStore::new(state_ttl_secs, encryptor))
     }
@@ -429,6 +430,7 @@ impl PkceStateStore {
     /// Returns `true` when backed by the in-memory DashMap store.
     ///
     /// Used by the `FRAISEQL_REQUIRE_REDIS` startup check.
+    #[must_use]
     pub const fn is_in_memory(&self) -> bool {
         matches!(self, Self::InMemory(_))
     }
@@ -486,6 +488,7 @@ impl PkceStateStore {
     /// Per RFC 7636 §4.2:
     /// `code_challenge = BASE64URL(SHA256(ASCII(code_verifier)))`
     /// (no padding).
+    #[must_use]
     pub fn s256_challenge(verifier: &str) -> String {
         URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
     }
@@ -519,6 +522,7 @@ impl PkceStateStore {
     /// Number of entries currently in the store.
     ///
     /// Returns 0 for the Redis backend — Redis state is not enumerable locally.
+    #[must_use]
     pub fn len(&self) -> usize {
         match self {
             Self::InMemory(s) => s.len_sync(),
@@ -530,6 +534,7 @@ impl PkceStateStore {
     /// Returns `true` when the in-memory store contains no entries.
     ///
     /// Always returns `true` for the Redis backend.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

@@ -24,7 +24,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct PartialPeriodSql {
     /// The complete UNION ALL SQL query.
-    pub sql:    String,
+    pub sql: String,
     /// All bind parameters in placeholder order across all branches.
     pub params: Vec<serde_json::Value>,
 }

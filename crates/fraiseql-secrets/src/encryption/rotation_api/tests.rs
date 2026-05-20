@@ -48,13 +48,13 @@ fn test_rotation_history_response_creation() {
 fn test_rotation_history_record_creation() {
     let now = Utc::now();
     let record = RotationHistoryRecord {
-        timestamp:    now,
-        old_version:  1,
-        new_version:  2,
-        reason:       Some("test".to_string()),
-        duration_ms:  50,
+        timestamp: now,
+        old_version: 1,
+        new_version: 2,
+        reason: Some("test".to_string()),
+        duration_ms: 50,
         triggered_by: "manual".to_string(),
-        user_id:      Some("user123".to_string()),
+        user_id: Some("user123".to_string()),
     };
     assert_eq!(record.old_version, 1);
     assert_eq!(record.new_version, 2);
@@ -63,12 +63,12 @@ fn test_rotation_history_record_creation() {
 #[test]
 fn test_rotation_config_update_validation() {
     let update = RotationConfigUpdateRequest {
-        auto_refresh_enabled:         Some(true),
+        auto_refresh_enabled: Some(true),
         refresh_check_interval_hours: Some(24),
-        refresh_threshold_percent:    Some(80),
-        ttl_days:                     Some(365),
-        quiet_hours_start:            None,
-        quiet_hours_end:              None,
+        refresh_threshold_percent: Some(80),
+        ttl_days: Some(365),
+        quiet_hours_start: None,
+        quiet_hours_end: None,
     };
     update.validate().unwrap_or_else(|e| panic!("expected Ok from validate: {e}"));
 }
@@ -76,12 +76,12 @@ fn test_rotation_config_update_validation() {
 #[test]
 fn test_rotation_config_update_invalid_threshold() {
     let update = RotationConfigUpdateRequest {
-        auto_refresh_enabled:         None,
+        auto_refresh_enabled: None,
         refresh_check_interval_hours: None,
-        refresh_threshold_percent:    Some(100), // Invalid
-        ttl_days:                     None,
-        quiet_hours_start:            None,
-        quiet_hours_end:              None,
+        refresh_threshold_percent: Some(100), // Invalid
+        ttl_days: None,
+        quiet_hours_start: None,
+        quiet_hours_end: None,
     };
     assert!(
         update.validate().is_err(),
@@ -93,12 +93,12 @@ fn test_rotation_config_update_invalid_threshold() {
 #[test]
 fn test_rotation_config_update_invalid_ttl() {
     let update = RotationConfigUpdateRequest {
-        auto_refresh_enabled:         None,
+        auto_refresh_enabled: None,
         refresh_check_interval_hours: None,
-        refresh_threshold_percent:    None,
-        ttl_days:                     Some(400), // Invalid
-        quiet_hours_start:            None,
-        quiet_hours_end:              None,
+        refresh_threshold_percent: None,
+        ttl_days: Some(400), // Invalid
+        quiet_hours_start: None,
+        quiet_hours_end: None,
     };
     assert!(
         update.validate().is_err(),
@@ -182,24 +182,24 @@ fn test_compliance_presets_response() {
 #[test]
 fn test_rotation_history_query_effective_limit() {
     let query1 = RotationHistoryQuery {
-        limit:        Some(50),
-        offset:       None,
-        from:         None,
-        to:           None,
-        reason:       None,
+        limit: Some(50),
+        offset: None,
+        from: None,
+        to: None,
+        reason: None,
         triggered_by: None,
-        format:       None,
+        format: None,
     };
     assert_eq!(query1.effective_limit(), 50);
 
     let query2 = RotationHistoryQuery {
-        limit:        Some(5000),
-        offset:       None,
-        from:         None,
-        to:           None,
-        reason:       None,
+        limit: Some(5000),
+        offset: None,
+        from: None,
+        to: None,
+        reason: None,
         triggered_by: None,
-        format:       None,
+        format: None,
     };
     assert_eq!(query2.effective_limit(), 1000); // Capped
 }
@@ -226,12 +226,12 @@ fn test_rotation_status_display_urgent() {
 fn test_rotation_config_update_validates_zero_threshold() {
     // Threshold of 0 is invalid (must be 1-99)
     let update = RotationConfigUpdateRequest {
-        auto_refresh_enabled:         None,
+        auto_refresh_enabled: None,
         refresh_check_interval_hours: None,
-        refresh_threshold_percent:    Some(0),
-        ttl_days:                     None,
-        quiet_hours_start:            None,
-        quiet_hours_end:              None,
+        refresh_threshold_percent: Some(0),
+        ttl_days: None,
+        quiet_hours_start: None,
+        quiet_hours_end: None,
     };
     assert!(
         update.validate().is_err(),
@@ -243,12 +243,12 @@ fn test_rotation_config_update_validates_zero_threshold() {
 #[test]
 fn test_rotation_config_update_validates_zero_ttl() {
     let update = RotationConfigUpdateRequest {
-        auto_refresh_enabled:         None,
+        auto_refresh_enabled: None,
         refresh_check_interval_hours: None,
-        refresh_threshold_percent:    None,
-        ttl_days:                     Some(0),
-        quiet_hours_start:            None,
-        quiet_hours_end:              None,
+        refresh_threshold_percent: None,
+        ttl_days: Some(0),
+        quiet_hours_start: None,
+        quiet_hours_end: None,
     };
     assert!(
         update.validate().is_err(),
@@ -260,12 +260,12 @@ fn test_rotation_config_update_validates_zero_ttl() {
 #[test]
 fn test_rotation_config_update_validates_zero_interval() {
     let update = RotationConfigUpdateRequest {
-        auto_refresh_enabled:         None,
+        auto_refresh_enabled: None,
         refresh_check_interval_hours: Some(0),
-        refresh_threshold_percent:    None,
-        ttl_days:                     None,
-        quiet_hours_start:            None,
-        quiet_hours_end:              None,
+        refresh_threshold_percent: None,
+        ttl_days: None,
+        quiet_hours_start: None,
+        quiet_hours_end: None,
     };
     assert!(
         update.validate().is_err(),
@@ -278,12 +278,12 @@ fn test_rotation_config_update_validates_zero_interval() {
 fn test_rotation_config_update_valid_boundary_values() {
     // Test the valid edges: threshold=1, ttl=1, interval=1
     let update = RotationConfigUpdateRequest {
-        auto_refresh_enabled:         None,
+        auto_refresh_enabled: None,
         refresh_check_interval_hours: Some(1),
-        refresh_threshold_percent:    Some(1),
-        ttl_days:                     Some(1),
-        quiet_hours_start:            None,
-        quiet_hours_end:              None,
+        refresh_threshold_percent: Some(1),
+        ttl_days: Some(1),
+        quiet_hours_start: None,
+        quiet_hours_end: None,
     };
     update
         .validate()
@@ -293,13 +293,13 @@ fn test_rotation_config_update_valid_boundary_values() {
 #[test]
 fn test_rotation_history_query_max_limit() {
     let query = RotationHistoryQuery {
-        limit:        Some(9999),
-        offset:       Some(0),
-        from:         None,
-        to:           None,
-        reason:       None,
+        limit: Some(9999),
+        offset: Some(0),
+        from: None,
+        to: None,
+        reason: None,
         triggered_by: None,
-        format:       None,
+        format: None,
     };
     // effective_limit caps at 1000
     assert_eq!(query.effective_limit(), 1000);
@@ -324,13 +324,13 @@ fn test_config_preset_hipaa_shorter_rotation_than_soc2() {
 #[test]
 fn test_rotation_history_query_default_offset() {
     let query = RotationHistoryQuery {
-        limit:        None,
-        offset:       None,
-        from:         None,
-        to:           None,
-        reason:       None,
+        limit: None,
+        offset: None,
+        from: None,
+        to: None,
+        reason: None,
         triggered_by: None,
-        format:       None,
+        format: None,
     };
     assert_eq!(query.effective_offset(), 0);
 }
@@ -338,13 +338,13 @@ fn test_rotation_history_query_default_offset() {
 #[test]
 fn test_rotation_history_query_effective_offset_with_value() {
     let query = RotationHistoryQuery {
-        limit:        None,
-        offset:       Some(42),
-        from:         None,
-        to:           None,
-        reason:       None,
+        limit: None,
+        offset: Some(42),
+        from: None,
+        to: None,
+        reason: None,
         triggered_by: None,
-        format:       None,
+        format: None,
     };
     assert_eq!(query.effective_offset(), 42);
 }

@@ -33,7 +33,7 @@ use super::{
 /// Formats raw execution results into HTTP responses with correct status codes,
 /// headers, and envelope structure.
 pub struct RestResponseFormatter<'a> {
-    config:    &'a RestConfig,
+    config: &'a RestConfig,
     base_path: &'a str,
 }
 
@@ -355,8 +355,8 @@ impl RestError {
     #[must_use]
     pub fn method_not_allowed() -> Self {
         Self {
-            status:  StatusCode::METHOD_NOT_ALLOWED,
-            code:    "METHOD_NOT_ALLOWED",
+            status: StatusCode::METHOD_NOT_ALLOWED,
+            code: "METHOD_NOT_ALLOWED",
             message: "Method not allowed".to_string(),
             details: None,
         }

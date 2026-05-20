@@ -12,16 +12,16 @@ use crate::{
 fn test_after_mutation_fires_on_insert() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
     };
 
     let event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKind::Insert,
-        old:        None,
-        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  chrono::Utc::now(),
+        old: None,
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        timestamp: chrono::Utc::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -38,16 +38,16 @@ fn test_after_mutation_fires_on_insert() {
 fn test_after_mutation_fires_on_update() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserUpdated".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Update),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Update),
     };
 
     let event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKind::Update,
-        old:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        new:        Some(serde_json::json!({ "id": 1, "name": "Alice Smith" })),
-        timestamp:  chrono::Utc::now(),
+        old: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice Smith" })),
+        timestamp: chrono::Utc::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -64,16 +64,16 @@ fn test_after_mutation_fires_on_update() {
 fn test_after_mutation_fires_on_delete() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserDeleted".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Delete),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Delete),
     };
 
     let event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKind::Delete,
-        old:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        new:        None,
-        timestamp:  chrono::Utc::now(),
+        old: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        new: None,
+        timestamp: chrono::Utc::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -90,16 +90,16 @@ fn test_after_mutation_fires_on_delete() {
 fn test_after_mutation_receives_entity_type() {
     let trigger = AfterMutationTrigger {
         function_name: "onPostCreated".to_string(),
-        entity_type:   "Post".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "Post".to_string(),
+        event_filter: Some(EventKind::Insert),
     };
 
     let event = EntityEvent {
-        entity:     "Post".to_string(),
+        entity: "Post".to_string(),
         event_kind: EventKind::Insert,
-        old:        None,
-        new:        Some(serde_json::json!({ "id": 1, "title": "Hello" })),
-        timestamp:  chrono::Utc::now(),
+        old: None,
+        new: Some(serde_json::json!({ "id": 1, "title": "Hello" })),
+        timestamp: chrono::Utc::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -113,14 +113,14 @@ fn test_after_mutation_receives_entity_type() {
 fn test_after_mutation_trigger_matching() {
     let trigger_insert = AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
     };
 
     let trigger_all = AfterMutationTrigger {
         function_name: "onUserChanged".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  None,
+        entity_type: "User".to_string(),
+        event_filter: None,
     };
 
     // Insert-only trigger matches insert
@@ -176,16 +176,16 @@ fn test_before_mutation_multiple_triggers() {
 fn test_after_mutation_payload_serialization() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
     };
 
     let event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKind::Insert,
-        old:        None,
-        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  chrono::Utc::now(),
+        old: None,
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        timestamp: chrono::Utc::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -205,14 +205,14 @@ fn test_trigger_dispatch_finds_matching_triggers() {
     // Add triggers for different scenarios
     matcher.add(AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onUserChanged".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  None, // Matches all events
+        entity_type: "User".to_string(),
+        event_filter: None, // Matches all events
     });
 
     // When User is inserted, both specific and all-kinds triggers match
@@ -233,16 +233,16 @@ fn test_trigger_dispatch_finds_matching_triggers() {
 async fn test_after_mutation_async_dispatch_nonblocking() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
     };
 
     let event = EntityEvent {
-        entity:     "User".to_string(),
+        entity: "User".to_string(),
         event_kind: EventKind::Insert,
-        old:        None,
-        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  chrono::Utc::now(),
+        old: None,
+        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        timestamp: chrono::Utc::now(),
     };
 
     // Building payload is synchronous (fast)
@@ -261,20 +261,20 @@ fn test_trigger_dispatch_multiple_mutations() {
 
     matcher.add(AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Insert),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onUserDeleted".to_string(),
-        entity_type:   "User".to_string(),
-        event_filter:  Some(EventKind::Delete),
+        entity_type: "User".to_string(),
+        event_filter: Some(EventKind::Delete),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onPostCreated".to_string(),
-        entity_type:   "Post".to_string(),
-        event_filter:  Some(EventKind::Insert),
+        entity_type: "Post".to_string(),
+        event_filter: Some(EventKind::Insert),
     });
 
     // User insert triggers only user create trigger
@@ -540,17 +540,17 @@ use crate::triggers::storage::{StorageEventPayload, StorageOperation, StorageTri
 fn test_after_storage_upload_fires() {
     let trigger = StorageTrigger {
         function_name: "onAvatarUpload".to_string(),
-        bucket:        "avatars".to_string(),
-        operation:     StorageOperation::Upload,
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
     };
 
     let storage_event = StorageEventPayload {
-        bucket:       "avatars".to_string(),
-        key:          "users/alice/avatar.jpg".to_string(),
-        size_bytes:   204_800,
+        bucket: "avatars".to_string(),
+        key: "users/alice/avatar.jpg".to_string(),
+        size_bytes: 204_800,
         content_type: "image/jpeg".to_string(),
-        owner_id:     Some("user123".to_string()),
-        operation:    StorageOperation::Upload,
+        owner_id: Some("user123".to_string()),
+        operation: StorageOperation::Upload,
     };
 
     let payload = trigger.build_payload(&storage_event);
@@ -570,17 +570,17 @@ fn test_after_storage_upload_fires() {
 fn test_after_storage_delete_fires() {
     let trigger = StorageTrigger {
         function_name: "onDocumentDelete".to_string(),
-        bucket:        "documents".to_string(),
-        operation:     StorageOperation::Delete,
+        bucket: "documents".to_string(),
+        operation: StorageOperation::Delete,
     };
 
     let storage_event = StorageEventPayload {
-        bucket:       "documents".to_string(),
-        key:          "reports/2024/report.pdf".to_string(),
-        size_bytes:   0,
+        bucket: "documents".to_string(),
+        key: "reports/2024/report.pdf".to_string(),
+        size_bytes: 0,
         content_type: "application/pdf".to_string(),
-        owner_id:     Some("user456".to_string()),
-        operation:    StorageOperation::Delete,
+        owner_id: Some("user456".to_string()),
+        operation: StorageOperation::Delete,
     };
 
     let payload = trigger.build_payload(&storage_event);
@@ -598,28 +598,28 @@ fn test_after_storage_delete_fires() {
 fn test_after_storage_matches_bucket() {
     let avatar_trigger = StorageTrigger {
         function_name: "onAvatarUpload".to_string(),
-        bucket:        "avatars".to_string(),
-        operation:     StorageOperation::Upload,
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
     };
 
     // Event for avatars bucket
     let avatar_event = StorageEventPayload {
-        bucket:       "avatars".to_string(),
-        key:          "user/avatar.jpg".to_string(),
-        size_bytes:   100_000,
+        bucket: "avatars".to_string(),
+        key: "user/avatar.jpg".to_string(),
+        size_bytes: 100_000,
         content_type: "image/jpeg".to_string(),
-        owner_id:     Some("user1".to_string()),
-        operation:    StorageOperation::Upload,
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
     };
 
     // Event for documents bucket
     let doc_event = StorageEventPayload {
-        bucket:       "documents".to_string(),
-        key:          "report.pdf".to_string(),
-        size_bytes:   500_000,
+        bucket: "documents".to_string(),
+        key: "report.pdf".to_string(),
+        size_bytes: 500_000,
         content_type: "application/pdf".to_string(),
-        owner_id:     Some("user1".to_string()),
-        operation:    StorageOperation::Upload,
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
     };
 
     assert!(avatar_trigger.matches(&avatar_event));
@@ -631,26 +631,26 @@ fn test_after_storage_matches_bucket() {
 fn test_after_storage_matches_operation() {
     let upload_trigger = StorageTrigger {
         function_name: "onAvatarUpload".to_string(),
-        bucket:        "avatars".to_string(),
-        operation:     StorageOperation::Upload,
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
     };
 
     let upload_event = StorageEventPayload {
-        bucket:       "avatars".to_string(),
-        key:          "avatar.jpg".to_string(),
-        size_bytes:   100_000,
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 100_000,
         content_type: "image/jpeg".to_string(),
-        owner_id:     Some("user1".to_string()),
-        operation:    StorageOperation::Upload,
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
     };
 
     let delete_event = StorageEventPayload {
-        bucket:       "avatars".to_string(),
-        key:          "avatar.jpg".to_string(),
-        size_bytes:   0,
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 0,
         content_type: "image/jpeg".to_string(),
-        owner_id:     Some("user1".to_string()),
-        operation:    StorageOperation::Delete,
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Delete,
     };
 
     assert!(upload_trigger.matches(&upload_event));
@@ -662,26 +662,26 @@ fn test_after_storage_matches_operation() {
 fn test_after_storage_matches_any_operation() {
     let any_trigger = StorageTrigger {
         function_name: "onStorageEvent".to_string(),
-        bucket:        "avatars".to_string(),
-        operation:     StorageOperation::Any,
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Any,
     };
 
     let upload_event = StorageEventPayload {
-        bucket:       "avatars".to_string(),
-        key:          "avatar.jpg".to_string(),
-        size_bytes:   100_000,
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 100_000,
         content_type: "image/jpeg".to_string(),
-        owner_id:     Some("user1".to_string()),
-        operation:    StorageOperation::Upload,
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Upload,
     };
 
     let delete_event = StorageEventPayload {
-        bucket:       "avatars".to_string(),
-        key:          "avatar.jpg".to_string(),
-        size_bytes:   0,
+        bucket: "avatars".to_string(),
+        key: "avatar.jpg".to_string(),
+        size_bytes: 0,
         content_type: "image/jpeg".to_string(),
-        owner_id:     Some("user1".to_string()),
-        operation:    StorageOperation::Delete,
+        owner_id: Some("user1".to_string()),
+        operation: StorageOperation::Delete,
     };
 
     assert!(any_trigger.matches(&upload_event));
@@ -693,18 +693,18 @@ fn test_after_storage_matches_any_operation() {
 fn test_after_storage_ignores_transform_cache() {
     let trigger = StorageTrigger {
         function_name: "onAvatarUpload".to_string(),
-        bucket:        "avatars".to_string(),
-        operation:     StorageOperation::Upload,
+        bucket: "avatars".to_string(),
+        operation: StorageOperation::Upload,
     };
 
     // Transform cache operations have _transforms/ prefix
     let transform_event = StorageEventPayload {
-        bucket:       "avatars".to_string(),
-        key:          "_transforms/avatar-thumb.jpg".to_string(),
-        size_bytes:   50000,
+        bucket: "avatars".to_string(),
+        key: "_transforms/avatar-thumb.jpg".to_string(),
+        size_bytes: 50000,
         content_type: "image/jpeg".to_string(),
-        owner_id:     None,
-        operation:    StorageOperation::Upload,
+        owner_id: None,
+        operation: StorageOperation::Upload,
     };
 
     assert!(!trigger.should_fire(&transform_event));
@@ -715,17 +715,17 @@ fn test_after_storage_ignores_transform_cache() {
 fn test_after_storage_payload_includes_metadata() {
     let trigger = StorageTrigger {
         function_name: "onUpload".to_string(),
-        bucket:        "documents".to_string(),
-        operation:     StorageOperation::Upload,
+        bucket: "documents".to_string(),
+        operation: StorageOperation::Upload,
     };
 
     let storage_event = StorageEventPayload {
-        bucket:       "documents".to_string(),
-        key:          "invoices/INV-001.pdf".to_string(),
-        size_bytes:   1_024_000,
+        bucket: "documents".to_string(),
+        key: "invoices/INV-001.pdf".to_string(),
+        size_bytes: 1_024_000,
         content_type: "application/pdf".to_string(),
-        owner_id:     Some("company_789".to_string()),
-        operation:    StorageOperation::Upload,
+        owner_id: Some("company_789".to_string()),
+        operation: StorageOperation::Upload,
     };
 
     let payload = trigger.build_payload(&storage_event);
@@ -749,8 +749,8 @@ use crate::triggers::cron::{CronExecutionState, CronSchedule, CronTrigger};
 fn test_cron_trigger_parses_daily_expression() {
     let trigger = CronTrigger {
         function_name: "dailyCleanup".to_string(),
-        schedule:      "0 2 * * *".to_string(), // 2 AM every day
-        timezone:      "UTC".to_string(),
+        schedule: "0 2 * * *".to_string(), // 2 AM every day
+        timezone: "UTC".to_string(),
     };
 
     assert_eq!(trigger.function_name, "dailyCleanup");
@@ -763,8 +763,8 @@ fn test_cron_trigger_parses_daily_expression() {
 fn test_cron_trigger_parses_hourly_expression() {
     let trigger = CronTrigger {
         function_name: "hourlySync".to_string(),
-        schedule:      "0 * * * *".to_string(), // Every hour at :00
-        timezone:      "UTC".to_string(),
+        schedule: "0 * * * *".to_string(), // Every hour at :00
+        timezone: "UTC".to_string(),
     };
 
     assert_eq!(trigger.function_name, "hourlySync");
@@ -776,8 +776,8 @@ fn test_cron_trigger_parses_hourly_expression() {
 fn test_cron_trigger_parses_every_5_minutes() {
     let trigger = CronTrigger {
         function_name: "frequentCheck".to_string(),
-        schedule:      "*/5 * * * *".to_string(), // Every 5 minutes
-        timezone:      "UTC".to_string(),
+        schedule: "*/5 * * * *".to_string(), // Every 5 minutes
+        timezone: "UTC".to_string(),
     };
 
     assert_eq!(trigger.schedule, "*/5 * * * *");
@@ -928,8 +928,8 @@ fn test_cron_trigger_catches_up_missed_executions() {
 fn test_cron_trigger_payload_includes_schedule_info() {
     let trigger = CronTrigger {
         function_name: "dailyCleanup".to_string(),
-        schedule:      "0 2 * * *".to_string(),
-        timezone:      "UTC".to_string(),
+        schedule: "0 2 * * *".to_string(),
+        timezone: "UTC".to_string(),
     };
 
     let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
@@ -950,8 +950,8 @@ fn test_cron_trigger_payload_includes_schedule_info() {
 fn test_cron_trigger_payload_includes_execution_time() {
     let trigger = CronTrigger {
         function_name: "hourlySync".to_string(),
-        schedule:      "0 * * * *".to_string(),
-        timezone:      "UTC".to_string(),
+        schedule: "0 * * * *".to_string(),
+        timezone: "UTC".to_string(),
     };
 
     let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T14:00:00+00:00")
@@ -970,8 +970,8 @@ fn test_cron_trigger_payload_includes_execution_time() {
 fn test_cron_trigger_with_specific_timezone() {
     let trigger = CronTrigger {
         function_name: "morningReport".to_string(),
-        schedule:      "0 9 * * *".to_string(), // 9 AM in specified timezone
-        timezone:      "America/New_York".to_string(),
+        schedule: "0 9 * * *".to_string(), // 9 AM in specified timezone
+        timezone: "America/New_York".to_string(),
     };
 
     assert_eq!(trigger.timezone, "America/New_York");
@@ -982,8 +982,8 @@ fn test_cron_trigger_with_specific_timezone() {
 fn test_cron_trigger_serialization() {
     let trigger = CronTrigger {
         function_name: "dailyCleanup".to_string(),
-        schedule:      "0 2 * * *".to_string(),
-        timezone:      "UTC".to_string(),
+        schedule: "0 2 * * *".to_string(),
+        timezone: "UTC".to_string(),
     };
 
     let json = serde_json::to_string(&trigger).expect("serialize");
@@ -1016,8 +1016,8 @@ fn test_http_trigger_get_route() {
 
     let route = HttpTriggerRoute {
         function_name: "helloWorld".to_string(),
-        method:        "GET".to_string(),
-        path:          "/functions/v1/hello".to_string(),
+        method: "GET".to_string(),
+        path: "/functions/v1/hello".to_string(),
         requires_auth: false,
     };
 
@@ -1034,8 +1034,8 @@ fn test_http_trigger_post_route_with_auth() {
 
     let route = HttpTriggerRoute {
         function_name: "processData".to_string(),
-        method:        "POST".to_string(),
-        path:          "/functions/v1/process".to_string(),
+        method: "POST".to_string(),
+        path: "/functions/v1/process".to_string(),
         requires_auth: true,
     };
 
@@ -1050,17 +1050,17 @@ fn test_http_trigger_request_payload() {
     use crate::triggers::http::HttpTriggerPayload;
 
     let payload = HttpTriggerPayload {
-        method:  "POST".to_string(),
-        path:    "/functions/v1/users".to_string(),
+        method: "POST".to_string(),
+        path: "/functions/v1/users".to_string(),
         headers: serde_json::json!({
             "content-type": "application/json",
             "x-user-id": "123"
         }),
-        query:   serde_json::json!({}),
-        params:  serde_json::json!({
+        query: serde_json::json!({}),
+        params: serde_json::json!({
             "id": "user-123"
         }),
-        body:    Some(serde_json::json!({
+        body: Some(serde_json::json!({
             "name": "Alice",
             "email": "alice@example.com"
         })),
@@ -1078,14 +1078,14 @@ fn test_http_trigger_path_params() {
     use crate::triggers::http::HttpTriggerPayload;
 
     let payload = HttpTriggerPayload {
-        method:  "GET".to_string(),
-        path:    "/functions/v1/users/123".to_string(),
+        method: "GET".to_string(),
+        path: "/functions/v1/users/123".to_string(),
         headers: serde_json::json!({}),
-        query:   serde_json::json!({}),
-        params:  serde_json::json!({
+        query: serde_json::json!({}),
+        params: serde_json::json!({
             "id": "123"
         }),
-        body:    None,
+        body: None,
     };
 
     assert_eq!(payload.params["id"], "123");
@@ -1097,11 +1097,11 @@ fn test_http_trigger_response_custom_status() {
     use crate::triggers::http::HttpTriggerResponse;
 
     let response = HttpTriggerResponse {
-        status:  201,
+        status: 201,
         headers: serde_json::json!({
             "x-custom-header": "value"
         }),
-        body:    serde_json::json!({
+        body: serde_json::json!({
             "id": "new-user-123",
             "created": true
         }),
@@ -1118,9 +1118,9 @@ fn test_http_trigger_response_default_status() {
     use crate::triggers::http::HttpTriggerResponse;
 
     let response = HttpTriggerResponse {
-        status:  200,
+        status: 200,
         headers: serde_json::json!({}),
-        body:    serde_json::json!({"message": "OK"}),
+        body: serde_json::json!({"message": "OK"}),
     };
 
     assert_eq!(response.status, 200);
@@ -1135,8 +1135,8 @@ fn test_http_trigger_method_parsing() {
     for method in &["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] {
         let route = HttpTriggerRoute {
             function_name: "test".to_string(),
-            method:        method.to_string(),
-            path:          "/test".to_string(),
+            method: method.to_string(),
+            path: "/test".to_string(),
             requires_auth: false,
         };
         assert_eq!(route.method, *method);
@@ -1151,15 +1151,15 @@ fn test_http_trigger_route_matching() {
     let mut matcher = HttpTriggerMatcher::new();
     matcher.add(HttpTriggerRoute {
         function_name: "getUser".to_string(),
-        method:        "GET".to_string(),
-        path:          "/users/:id".to_string(),
+        method: "GET".to_string(),
+        path: "/users/:id".to_string(),
         requires_auth: true,
     });
 
     matcher.add(HttpTriggerRoute {
         function_name: "createUser".to_string(),
-        method:        "POST".to_string(),
-        path:          "/users".to_string(),
+        method: "POST".to_string(),
+        path: "/users".to_string(),
         requires_auth: true,
     });
 
@@ -1184,15 +1184,15 @@ fn test_http_trigger_query_parameters() {
     use crate::triggers::http::HttpTriggerPayload;
 
     let payload = HttpTriggerPayload {
-        method:  "GET".to_string(),
-        path:    "/functions/v1/search".to_string(),
+        method: "GET".to_string(),
+        path: "/functions/v1/search".to_string(),
         headers: serde_json::json!({}),
-        query:   serde_json::json!({
+        query: serde_json::json!({
             "q": "alice",
             "limit": 10
         }),
-        params:  serde_json::json!({}),
-        body:    None,
+        params: serde_json::json!({}),
+        body: None,
     };
 
     assert_eq!(payload.query["q"], "alice");
@@ -1206,8 +1206,8 @@ fn test_http_trigger_event_payload() {
 
     let route = HttpTriggerRoute {
         function_name: "handleRequest".to_string(),
-        method:        "POST".to_string(),
-        path:          "/functions/v1/webhook".to_string(),
+        method: "POST".to_string(),
+        path: "/functions/v1/webhook".to_string(),
         requires_auth: false,
     };
 
@@ -1632,13 +1632,13 @@ fn test_cron_scheduler_new_creates_with_triggers() {
     let triggers = vec![
         CronTrigger {
             function_name: "dailyCleanup".to_string(),
-            schedule:      "0 2 * * *".to_string(),
-            timezone:      "UTC".to_string(),
+            schedule: "0 2 * * *".to_string(),
+            timezone: "UTC".to_string(),
         },
         CronTrigger {
             function_name: "hourlySync".to_string(),
-            schedule:      "0 * * * *".to_string(),
-            timezone:      "UTC".to_string(),
+            schedule: "0 * * * *".to_string(),
+            timezone: "UTC".to_string(),
         },
     ];
 
@@ -1658,8 +1658,8 @@ async fn test_cron_scheduler_starts_and_provides_handle() {
 
     let triggers = vec![CronTrigger {
         function_name: "dailyCleanup".to_string(),
-        schedule:      "0 2 * * *".to_string(), // 2 AM — won't fire during test
-        timezone:      "UTC".to_string(),
+        schedule: "0 2 * * *".to_string(), // 2 AM — won't fire during test
+        timezone: "UTC".to_string(),
     }];
 
     let observer = Arc::new(FunctionObserver::new());
@@ -1681,8 +1681,8 @@ async fn test_cron_scheduler_handle_stops_gracefully() {
 
     let triggers = vec![CronTrigger {
         function_name: "neverFires".to_string(),
-        schedule:      "0 0 31 2 *".to_string(), // Feb 31 — never matches
-        timezone:      "UTC".to_string(),
+        schedule: "0 0 31 2 *".to_string(), // Feb 31 — never matches
+        timezone: "UTC".to_string(),
     }];
 
     let observer = Arc::new(FunctionObserver::new());

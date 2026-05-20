@@ -49,23 +49,23 @@ pub struct FieldChanges {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityEvent {
     /// Unique event identifier
-    pub id:          Uuid,
+    pub id: Uuid,
     /// Type of event (INSERT, UPDATE, DELETE, CUSTOM)
-    pub event_type:  EventKind,
+    pub event_type: EventKind,
     /// Entity type name (e.g., "Order", "User", "Product")
     pub entity_type: String,
     /// Entity instance ID
-    pub entity_id:   Uuid,
+    pub entity_id: Uuid,
     /// Current entity data
-    pub data:        serde_json::Value,
+    pub data: serde_json::Value,
     /// Field changes (for UPDATE events)
-    pub changes:     Option<std::collections::HashMap<String, FieldChanges>>,
+    pub changes: Option<std::collections::HashMap<String, FieldChanges>>,
     /// User ID from auth context (if available)
-    pub user_id:     Option<String>,
+    pub user_id: Option<String>,
     /// Tenant ID for multi-tenant isolation (if applicable)
-    pub tenant_id:   Option<String>,
+    pub tenant_id: Option<String>,
     /// When the event occurred
-    pub timestamp:   DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
 }
 
 impl EntityEvent {

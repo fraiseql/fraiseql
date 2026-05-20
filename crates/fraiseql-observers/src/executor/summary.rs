@@ -14,23 +14,23 @@ pub struct ExecutionSummary {
     /// Number of successful action executions
     pub successful_actions: usize,
     /// Number of failed action executions
-    pub failed_actions:     usize,
+    pub failed_actions: usize,
     /// Number of observers skipped due to condition
     pub conditions_skipped: usize,
     /// Total execution time in milliseconds
-    pub total_duration_ms:  f64,
+    pub total_duration_ms: f64,
     /// DLQ push errors
-    pub dlq_errors:         usize,
+    pub dlq_errors: usize,
     /// Other errors encountered
-    pub errors:             Vec<String>,
+    pub errors: Vec<String>,
     /// Whether this event was skipped due to deduplication
-    pub duplicate_skipped:  bool,
+    pub duplicate_skipped: bool,
     /// Whether this event was rejected due to a tenant scope violation
-    pub tenant_rejected:    bool,
+    pub tenant_rejected: bool,
     /// Number of cache hits during action execution
-    pub cache_hits:         usize,
+    pub cache_hits: usize,
     /// Number of cache misses during action execution
-    pub cache_misses:       usize,
+    pub cache_misses: usize,
 }
 
 impl ExecutionSummary {

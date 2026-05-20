@@ -13,9 +13,9 @@ use crate::routes::rest::handler::RestError;
 
 /// Shared context for embedding execution, reducing argument count.
 pub(super) struct EmbedCtx<'a, A: DatabaseAdapter> {
-    pub executor:         &'a Arc<Executor<A>>,
-    pub schema:           &'a CompiledSchema,
-    pub config:           &'a RestConfig,
+    pub executor: &'a Arc<Executor<A>>,
+    pub schema: &'a CompiledSchema,
+    pub config: &'a RestConfig,
     pub security_context: Option<&'a SecurityContext>,
 }
 

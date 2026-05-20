@@ -85,7 +85,7 @@ fn test_link_directive_imports_all_directives() {
 fn test_composition_with_all_new_directives() {
     let mut users_type = FederatedType::new("User".to_string());
     users_type.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     users_type
@@ -96,7 +96,7 @@ fn test_composition_with_all_new_directives() {
     let mut users_type_b = FederatedType::new("User".to_string());
     users_type_b.is_extends = true;
     users_type_b.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     users_type_b
@@ -134,7 +134,7 @@ fn test_composition_with_all_new_directives() {
 fn test_inaccessible_conflict_blocks_composition() {
     let mut type_a = FederatedType::new("Product".to_string());
     type_a.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     type_a.set_field_directives(
@@ -145,7 +145,7 @@ fn test_inaccessible_conflict_blocks_composition() {
     let mut type_b = FederatedType::new("Product".to_string());
     type_b.is_extends = true;
     type_b.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
+        fields: vec!["id".to_string()],
         resolvable: true,
     }];
     // NOT inaccessible — should conflict
@@ -195,11 +195,11 @@ fn test_query_plan_cache_invalidated_on_schema_change() {
     let fp_v2 = schema_fingerprint(&[("User", &["id", "email"]), ("Order", &["id"])]);
 
     let plan = QueryPlan {
-        fetches:            vec![SubgraphFetch {
-            subgraph:     "users".to_string(),
-            query:        "{ user { name } }".to_string(),
+        fetches: vec![SubgraphFetch {
+            subgraph: "users".to_string(),
+            query: "{ user { name } }".to_string(),
             entity_types: vec!["User".to_string()],
-            depends_on:   None,
+            depends_on: None,
         }],
         schema_fingerprint: fp_v1.clone(),
     };
@@ -223,7 +223,7 @@ fn test_query_plan_cache_normalized_hit() {
     let fp = schema_fingerprint(&[("User", &["id"])]);
 
     let plan = QueryPlan {
-        fetches:            vec![],
+        fetches: vec![],
         schema_fingerprint: fp.clone(),
     };
 
@@ -318,7 +318,7 @@ fn test_multi_key_where_clause_for_compound_keys() {
     use serde_json::json;
 
     let mut rep = EntityRepresentation {
-        typename:   "OrderItem".to_string(),
+        typename: "OrderItem".to_string(),
         key_fields: HashMap::new(),
         all_fields: HashMap::new(),
     };

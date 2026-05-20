@@ -16,7 +16,7 @@ pub struct FieldAccessResult {
     /// Fields the user can access (returned as-is).
     pub allowed: Vec<String>,
     /// Fields the user cannot access but `on_deny = Mask` (nulled out).
-    pub masked:  Vec<String>,
+    pub masked: Vec<String>,
 }
 
 /// Classify requested projection fields into allowed, masked, or rejected.
@@ -91,6 +91,7 @@ pub fn classify_field_access(
 /// # let all_fields: Vec<FieldDefinition> = panic!("example");
 /// let accessible = filter_fields(&context, &config, &all_fields);
 /// ```
+#[must_use]
 pub fn filter_fields<'a>(
     context: &SecurityContext,
     security_config: &SecurityConfig,

@@ -20,13 +20,13 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       # -----------------------------------------------------------------------
       # Python SDK (reference)
       # -----------------------------------------------------------------------
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: '3.12'
 
@@ -45,12 +45,12 @@ jobs:
       # TypeScript SDK
       # -----------------------------------------------------------------------
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: '20'
 
       - name: Cache Node modules
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('sdks/official/fraiseql-typescript/package-lock.json') }}
@@ -68,9 +68,9 @@ jobs:
       # Go SDK
       # -----------------------------------------------------------------------
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
         with:
-          go-version: '1.22'
+          go-version: '1.23'
           cache-dependency-path: sdks/official/fraiseql-go/go.sum
 
       - name: Download Go modules
@@ -100,7 +100,7 @@ jobs:
       # Rust SDK (types-only — authoring SDK is RBAC-focused)
       # -----------------------------------------------------------------------
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
         continue-on-error: true
 
       - name: Generate schema via Rust SDK
@@ -114,7 +114,7 @@ jobs:
       # PHP SDK (full parity)
       # -----------------------------------------------------------------------
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc  # v2
         continue-on-error: true
         with:
           php-version: '8.2'
@@ -134,7 +134,7 @@ jobs:
       # Elixir SDK (full parity)
       # -----------------------------------------------------------------------
       - name: Set up Elixir
-        uses: erlef/setup-beam@v1
+        uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93  # v1
         continue-on-error: true
         with:
           otp-version: '26'
@@ -156,7 +156,7 @@ jobs:
       # Java SDK (full parity)
       # -----------------------------------------------------------------------
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
         continue-on-error: true
         with:
           distribution: 'temurin'
@@ -171,7 +171,7 @@ jobs:
       # Ruby SDK (full parity)
       # -----------------------------------------------------------------------
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@97ecb7b512899eb71ab1bf2310a624c6f1589ac6  # v1
         continue-on-error: true
         with:
           ruby-version: '3.3'
@@ -186,7 +186,7 @@ jobs:
       # Dart SDK (full parity)
       # -----------------------------------------------------------------------
       - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260  # v1
         continue-on-error: true
         with:
           sdk: stable
@@ -207,7 +207,7 @@ jobs:
       # C# + F# SDKs (full parity — shared dotnet toolchain)
       # -----------------------------------------------------------------------
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4
         continue-on-error: true
         with:
           dotnet-version: '9.0.x'
@@ -270,7 +270,7 @@ jobs:
 
       - name: Upload schema artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: parity-schemas
           path: |

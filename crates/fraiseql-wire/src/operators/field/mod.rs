@@ -84,6 +84,7 @@ impl Field {
     }
 
     /// Generate SQL for this field
+    #[must_use]
     pub fn to_sql(&self) -> String {
         match self {
             Field::JsonbField(name) => format!("(data->'{}')", name),
@@ -173,6 +174,7 @@ pub enum Value {
 
 impl Value {
     /// Check if value is NULL
+    #[must_use]
     pub const fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }
@@ -181,6 +183,7 @@ impl Value {
     ///
     /// For parameterized queries, prefer using parameter placeholders ($1, $2, etc.)
     /// This is primarily for documentation and debugging.
+    #[must_use]
     pub fn to_sql_literal(&self) -> String {
         match self {
             Value::String(s) => format!("'{}'", s.replace('\'', "''")),

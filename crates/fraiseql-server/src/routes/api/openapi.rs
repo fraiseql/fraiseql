@@ -4,6 +4,7 @@
 //! request/response schemas, and authentication requirements.
 
 /// Get complete `OpenAPI` 3.0.0 specification as JSON string.
+#[must_use]
 pub fn get_openapi_spec() -> String {
     serde_json::json!({
         "openapi": "3.0.0",

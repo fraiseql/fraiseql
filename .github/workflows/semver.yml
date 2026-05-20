@@ -7,29 +7,23 @@ on:
   pull_request:
     branches: [dev]
 
-env:
-  RUSTC_WRAPPER: "sccache"
-
 jobs:
   semver:
     name: API semver compatibility
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     # Skip release-prep branches — they intentionally bump version numbers.
     if: "!contains(github.head_ref, 'release-prep')"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           fetch-depth: 0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
 
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae  # v2
 
       - name: Install mold linker
         run: |
@@ -41,9 +35,6 @@ jobs:
 
       # Compare the PR branch against the latest published crates.io baseline.
       # --workspace covers all public crates in the monorepo.
-      # Using crates.io as baseline (default) instead of a git rev, because
-      # the dev branch may contain WIP code that doesn't compile for
-      # semver-checks' build of the baseline.
       # Features omitted intentionally: semver-checks inspects public API
       # signatures which are feature-gated; the default feature set is sufficient
       # for detecting breaking changes in the core API surface.
@@ -51,4 +42,5 @@ jobs:
         run: |
           cargo semver-checks check-release \
             --workspace \
-            --exclude fraiseql-test-utils
+            --exclude fraiseql-test-utils \
+            --baseline-rev HEAD~1

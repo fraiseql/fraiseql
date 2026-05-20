@@ -98,6 +98,11 @@ pub mod prelude {
     //!   [`ObserverExecutor`]
     //! - HTTP server (feature `server`): [`Server`], [`ServerConfig`]
 
+    // Error handling
+    // Database access
+    // GraphQL parsing
+    // Runtime executor
+    // Tenancy support
     pub use fraiseql_core::{
         db,
         graphql::{ParsedQuery, parse_query},

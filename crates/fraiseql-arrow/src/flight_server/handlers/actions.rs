@@ -80,19 +80,19 @@ pub(super) async fn list_actions(
 
     let actions = vec![
         Ok(ActionType {
-            r#type:      "ClearCache".to_string(),
+            r#type: "ClearCache".to_string(),
             description: "Clear all cached query results".to_string(),
         }),
         Ok(ActionType {
-            r#type:      "RefreshSchemaRegistry".to_string(),
+            r#type: "RefreshSchemaRegistry".to_string(),
             description: "Reload schema definitions from database".to_string(),
         }),
         Ok(ActionType {
-            r#type:      "GetSchemaVersions".to_string(),
+            r#type: "GetSchemaVersions".to_string(),
             description: "Get current schema versions and metadata".to_string(),
         }),
         Ok(ActionType {
-            r#type:      "HealthCheck".to_string(),
+            r#type: "HealthCheck".to_string(),
             description: "Return service health status".to_string(),
         }),
     ];

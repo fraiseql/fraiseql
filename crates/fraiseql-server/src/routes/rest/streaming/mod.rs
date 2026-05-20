@@ -155,7 +155,7 @@ pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
 
     Ok(NdjsonResponse {
         headers: response_headers,
-        body:    NdjsonBody::Stream(Box::pin(ndjson_stream)),
+        body: NdjsonBody::Stream(Box::pin(ndjson_stream)),
     })
 }
 
@@ -164,7 +164,7 @@ pub struct NdjsonResponse {
     /// Response headers.
     pub headers: HeaderMap,
     /// NDJSON body — either pre-buffered bytes or a streaming body.
-    pub body:    NdjsonBody,
+    pub body: NdjsonBody,
 }
 
 /// Body of an NDJSON response.

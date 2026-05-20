@@ -161,6 +161,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     ///
     /// Values are sampled live on each call — not cached — so callers (e.g., the
     /// `/metrics` endpoint) always observe up-to-date pool health.
+    #[must_use]
     pub fn pool_metrics(&self) -> PoolMetrics {
         self.ctx.pool_metrics()
     }

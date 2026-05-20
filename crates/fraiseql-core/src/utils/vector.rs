@@ -66,37 +66,37 @@ impl VectorParam {
 #[derive(Debug, Clone)]
 pub struct VectorSearchQuery {
     /// Table or view to query.
-    pub table:            String,
+    pub table: String,
     /// Column containing the vector embedding.
     pub embedding_column: String,
     /// Columns to select (empty = all).
-    pub select_columns:   Vec<String>,
+    pub select_columns: Vec<String>,
     /// Distance metric to use.
-    pub distance_metric:  DistanceMetric,
+    pub distance_metric: DistanceMetric,
     /// Maximum number of results.
-    pub limit:            u32,
+    pub limit: u32,
     /// Optional WHERE clause (without "WHERE" keyword).
-    pub where_clause:     Option<String>,
+    pub where_clause: Option<String>,
     /// Optional additional ORDER BY clause (applied after distance ordering).
-    pub order_by:         Option<String>,
+    pub order_by: Option<String>,
     /// Whether to include the distance score in results.
     pub include_distance: bool,
     /// Optional offset for pagination.
-    pub offset:           Option<u32>,
+    pub offset: Option<u32>,
 }
 
 impl Default for VectorSearchQuery {
     fn default() -> Self {
         Self {
-            table:            String::new(),
+            table: String::new(),
             embedding_column: "embedding".to_string(),
-            select_columns:   Vec::new(),
-            distance_metric:  DistanceMetric::Cosine,
-            limit:            10,
-            where_clause:     None,
-            order_by:         None,
+            select_columns: Vec::new(),
+            distance_metric: DistanceMetric::Cosine,
+            limit: 10,
+            where_clause: None,
+            order_by: None,
             include_distance: false,
-            offset:           None,
+            offset: None,
         }
     }
 }
@@ -117,18 +117,21 @@ impl VectorSearchQuery {
     }
 
     /// Set the columns to select.
+    #[must_use = "builder method returns modified builder"]
     pub fn with_select_columns(mut self, columns: Vec<String>) -> Self {
         self.select_columns = columns;
         self
     }
 
     /// Set the distance metric.
+    #[must_use = "builder method returns modified builder"]
     pub const fn with_distance_metric(mut self, metric: DistanceMetric) -> Self {
         self.distance_metric = metric;
         self
     }
 
     /// Set the result limit.
+    #[must_use = "builder method returns modified builder"]
     pub const fn with_limit(mut self, limit: u32) -> Self {
         self.limit = limit;
         self
@@ -141,12 +144,14 @@ impl VectorSearchQuery {
     }
 
     /// Include distance score in results.
+    #[must_use = "builder method returns modified builder"]
     pub const fn with_distance_score(mut self) -> Self {
         self.include_distance = true;
         self
     }
 
     /// Set pagination offset.
+    #[must_use = "builder method returns modified builder"]
     pub const fn with_offset(mut self, offset: u32) -> Self {
         self.offset = Some(offset);
         self
@@ -157,31 +162,31 @@ impl VectorSearchQuery {
 #[derive(Debug, Clone)]
 pub struct VectorInsertQuery {
     /// Table to insert into.
-    pub table:            String,
+    pub table: String,
     /// Columns to insert (in order).
-    pub columns:          Vec<String>,
+    pub columns: Vec<String>,
     /// Name of the vector column.
-    pub vector_column:    String,
+    pub vector_column: String,
     /// Whether to upsert (ON CONFLICT DO UPDATE).
-    pub upsert:           bool,
+    pub upsert: bool,
     /// Conflict column(s) for upsert.
     pub conflict_columns: Vec<String>,
     /// Columns to update on conflict (empty = all non-conflict columns).
-    pub update_columns:   Vec<String>,
+    pub update_columns: Vec<String>,
     /// Whether to return inserted IDs.
-    pub returning:        Option<String>,
+    pub returning: Option<String>,
 }
 
 impl Default for VectorInsertQuery {
     fn default() -> Self {
         Self {
-            table:            String::new(),
-            columns:          Vec::new(),
-            vector_column:    "embedding".to_string(),
-            upsert:           false,
+            table: String::new(),
+            columns: Vec::new(),
+            vector_column: "embedding".to_string(),
+            upsert: false,
             conflict_columns: vec!["id".to_string()],
-            update_columns:   Vec::new(),
-            returning:        Some("id".to_string()),
+            update_columns: Vec::new(),
+            returning: Some("id".to_string()),
         }
     }
 }
@@ -196,6 +201,7 @@ impl VectorInsertQuery {
     }
 
     /// Set the columns to insert.
+    #[must_use = "builder method returns modified builder"]
     pub fn with_columns(mut self, columns: Vec<String>) -> Self {
         self.columns = columns;
         self
@@ -208,6 +214,7 @@ impl VectorInsertQuery {
     }
 
     /// Enable upsert mode.
+    #[must_use = "builder method returns modified builder"]
     pub fn with_upsert(mut self, conflict_columns: Vec<String>) -> Self {
         self.upsert = true;
         self.conflict_columns = conflict_columns;
@@ -215,6 +222,7 @@ impl VectorInsertQuery {
     }
 
     /// Set columns to update on conflict.
+    #[must_use = "builder method returns modified builder"]
     pub fn with_update_columns(mut self, columns: Vec<String>) -> Self {
         self.update_columns = columns;
         self

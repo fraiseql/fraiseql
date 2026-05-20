@@ -55,6 +55,7 @@ pub struct InMemorySmsSender {
 
 impl InMemorySmsSender {
     /// Create a new in-memory SMS sender.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             messages: RwLock::new(Vec::new()),
@@ -102,6 +103,7 @@ impl SmsSender for InMemorySmsSender {
 /// # Errors
 ///
 /// Returns `None` if the input cannot be normalized to a valid E.164 number.
+#[must_use]
 pub fn normalize_e164(phone: &str) -> Option<String> {
     // Strip whitespace, dashes, dots, parens
     let cleaned: String = phone.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect();

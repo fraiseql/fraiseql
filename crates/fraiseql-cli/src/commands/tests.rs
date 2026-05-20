@@ -168,68 +168,68 @@ mod compile_tests {
     fn test_validate_schema_success() {
         let schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name:                "User".into(),
-                fields:              vec![
+                name: "User".into(),
+                fields: vec![
                     FieldDefinition {
-                        name:           "id".into(),
-                        field_type:     FieldType::Int,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
+                        name: "id".into(),
+                        field_type: FieldType::Int,
+                        nullable: false,
+                        default_value: None,
+                        description: None,
+                        vector_config: None,
+                        alias: None,
+                        deprecation: None,
                         requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        encryption:     None,
-                        hierarchy:      None,
+                        on_deny: FieldDenyPolicy::default(),
+                        encryption: None,
+                        hierarchy: None,
                     },
                     FieldDefinition {
-                        name:           "name".into(),
-                        field_type:     FieldType::String,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
+                        name: "name".into(),
+                        field_type: FieldType::String,
+                        nullable: false,
+                        default_value: None,
+                        description: None,
+                        vector_config: None,
+                        alias: None,
+                        deprecation: None,
                         requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        encryption:     None,
-                        hierarchy:      None,
+                        on_deny: FieldDenyPolicy::default(),
+                        encryption: None,
+                        hierarchy: None,
                     },
                 ],
-                description:         Some("User type".to_string()),
-                sql_source:          String::new().into(),
-                jsonb_column:        String::new(),
+                description: Some("User type".to_string()),
+                sql_source: String::new().into(),
+                jsonb_column: String::new(),
                 sql_projection_hint: None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       Vec::new(),
+                implements: vec![],
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: Vec::new(),
             }],
             queries: vec![QueryDefinition {
-                name:                "users".to_string(),
-                return_type:         "User".to_string(),
-                returns_list:        true,
-                nullable:            false,
-                arguments:           vec![],
-                sql_source:          Some("v_user".to_string()),
-                description:         Some("Get users".to_string()),
-                auto_params:         AutoParams::default(),
-                deprecation:         None,
-                jsonb_column:        "data".to_string(),
-                relay:               false,
+                name: "users".to_string(),
+                return_type: "User".to_string(),
+                returns_list: true,
+                nullable: false,
+                arguments: vec![],
+                sql_source: Some("v_user".to_string()),
+                description: Some("Get users".to_string()),
+                auto_params: AutoParams::default(),
+                deprecation: None,
+                jsonb_column: "data".to_string(),
+                relay: false,
                 relay_cursor_column: None,
-                relay_cursor_type:   CursorType::default(),
-                inject_params:       IndexMap::default(),
-                cache_ttl_seconds:   None,
-                additional_views:    vec![],
-                requires_role:       None,
-                rest_path:           None,
-                rest_method:         None,
-                native_columns:      HashMap::new(),
+                relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views: vec![],
+                requires_role: None,
+                rest_path: None,
+                rest_method: None,
+                native_columns: HashMap::new(),
             }],
             enums: vec![],
             input_types: vec![],
@@ -270,26 +270,26 @@ mod compile_tests {
             interfaces: vec![],
             unions: vec![],
             queries: vec![QueryDefinition {
-                name:                "users".to_string(),
-                return_type:         "UnknownType".to_string(),
-                returns_list:        true,
-                nullable:            false,
-                arguments:           vec![],
-                sql_source:          Some("v_user".to_string()),
-                description:         Some("Get users".to_string()),
-                auto_params:         AutoParams::default(),
-                deprecation:         None,
-                jsonb_column:        "data".to_string(),
-                relay:               false,
+                name: "users".to_string(),
+                return_type: "UnknownType".to_string(),
+                returns_list: true,
+                nullable: false,
+                arguments: vec![],
+                sql_source: Some("v_user".to_string()),
+                description: Some("Get users".to_string()),
+                auto_params: AutoParams::default(),
+                deprecation: None,
+                jsonb_column: "data".to_string(),
+                relay: false,
                 relay_cursor_column: None,
-                relay_cursor_type:   CursorType::default(),
-                inject_params:       IndexMap::default(),
-                cache_ttl_seconds:   None,
-                additional_views:    vec![],
-                requires_role:       None,
-                rest_path:           None,
-                rest_method:         None,
-                native_columns:      HashMap::new(),
+                relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views: vec![],
+                requires_role: None,
+                rest_path: None,
+                rest_method: None,
+                native_columns: HashMap::new(),
             }],
             mutations: vec![],
             subscriptions: vec![],
@@ -524,46 +524,46 @@ mod compile_tests {
         let tmp = tempfile::tempdir().unwrap();
         let schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name:                "UserProfile".into(),
-                fields:              vec![
+                name: "UserProfile".into(),
+                fields: vec![
                     FieldDefinition {
-                        name:           "id".into(),
-                        field_type:     FieldType::Id,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
+                        name: "id".into(),
+                        field_type: FieldType::Id,
+                        nullable: false,
+                        default_value: None,
+                        description: None,
+                        vector_config: None,
+                        alias: None,
+                        deprecation: None,
                         requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        encryption:     None,
-                        hierarchy:      None,
+                        on_deny: FieldDenyPolicy::default(),
+                        encryption: None,
+                        hierarchy: None,
                     },
                     FieldDefinition {
-                        name:           "email".into(),
-                        field_type:     FieldType::String,
-                        nullable:       true,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
+                        name: "email".into(),
+                        field_type: FieldType::String,
+                        nullable: true,
+                        default_value: None,
+                        description: None,
+                        vector_config: None,
+                        alias: None,
+                        deprecation: None,
                         requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        encryption:     None,
-                        hierarchy:      None,
+                        on_deny: FieldDenyPolicy::default(),
+                        encryption: None,
+                        hierarchy: None,
                     },
                 ],
-                description:         Some("Test type".to_string()),
-                sql_source:          "tv_user_profile".into(),
-                jsonb_column:        "data".to_string(),
+                description: Some("Test type".to_string()),
+                sql_source: "tv_user_profile".into(),
+                jsonb_column: "data".to_string(),
                 sql_projection_hint: None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       vec![],
+                implements: vec![],
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: vec![],
             }],
             ..Default::default()
         };
@@ -638,34 +638,34 @@ mod dependency_graph_tests {
 
     fn make_two_node_output() -> DependencyGraphOutput {
         DependencyGraphOutput {
-            type_count:   2,
-            nodes:        vec![
+            type_count: 2,
+            nodes: vec![
                 GraphNode {
-                    name:             "Query".to_string(),
+                    name: "Query".to_string(),
                     dependency_count: 1,
-                    dependent_count:  0,
-                    is_root:          true,
+                    dependent_count: 0,
+                    is_root: true,
                 },
                 GraphNode {
-                    name:             "User".to_string(),
+                    name: "User".to_string(),
                     dependency_count: 0,
-                    dependent_count:  1,
-                    is_root:          false,
+                    dependent_count: 1,
+                    is_root: false,
                 },
             ],
-            edges:        vec![GraphEdge {
+            edges: vec![GraphEdge {
                 from: "Query".to_string(),
-                to:   "User".to_string(),
+                to: "User".to_string(),
             }],
-            cycles:       vec![],
+            cycles: vec![],
             unused_types: vec![],
-            stats:        GraphStats {
-                total_types:      2,
-                total_edges:      1,
-                cycle_count:      0,
-                unused_count:     0,
+            stats: GraphStats {
+                total_types: 2,
+                total_edges: 1,
+                cycle_count: 0,
+                unused_count: 0,
                 avg_dependencies: 0.5,
-                max_depth:        1,
+                max_depth: 1,
                 most_depended_on: vec!["User".to_string()],
             },
         }
@@ -704,23 +704,23 @@ mod dependency_graph_tests {
     #[test]
     fn test_to_d2_shows_unused() {
         let output = DependencyGraphOutput {
-            type_count:   1,
-            nodes:        vec![GraphNode {
-                name:             "Orphan".to_string(),
+            type_count: 1,
+            nodes: vec![GraphNode {
+                name: "Orphan".to_string(),
                 dependency_count: 0,
-                dependent_count:  0,
-                is_root:          false,
+                dependent_count: 0,
+                is_root: false,
             }],
-            edges:        vec![],
-            cycles:       vec![],
+            edges: vec![],
+            cycles: vec![],
             unused_types: vec!["Orphan".to_string()],
-            stats:        GraphStats {
-                total_types:      1,
-                total_edges:      0,
-                cycle_count:      0,
-                unused_count:     1,
+            stats: GraphStats {
+                total_types: 1,
+                total_edges: 0,
+                cycle_count: 0,
+                unused_count: 1,
                 avg_dependencies: 0.0,
-                max_depth:        0,
+                max_depth: 0,
                 most_depended_on: vec![],
             },
         };
@@ -735,44 +735,44 @@ mod dependency_graph_tests {
     #[test]
     fn test_to_d2_shows_cycles() {
         let output = DependencyGraphOutput {
-            type_count:   2,
-            nodes:        vec![
+            type_count: 2,
+            nodes: vec![
                 GraphNode {
-                    name:             "A".to_string(),
+                    name: "A".to_string(),
                     dependency_count: 1,
-                    dependent_count:  1,
-                    is_root:          false,
+                    dependent_count: 1,
+                    is_root: false,
                 },
                 GraphNode {
-                    name:             "B".to_string(),
+                    name: "B".to_string(),
                     dependency_count: 1,
-                    dependent_count:  1,
-                    is_root:          false,
+                    dependent_count: 1,
+                    is_root: false,
                 },
             ],
-            edges:        vec![
+            edges: vec![
                 GraphEdge {
                     from: "A".to_string(),
-                    to:   "B".to_string(),
+                    to: "B".to_string(),
                 },
                 GraphEdge {
                     from: "B".to_string(),
-                    to:   "A".to_string(),
+                    to: "A".to_string(),
                 },
             ],
-            cycles:       vec![CycleInfo {
-                types:             vec!["A".to_string(), "B".to_string()],
-                path:              "A -> B -> A".to_string(),
+            cycles: vec![CycleInfo {
+                types: vec!["A".to_string(), "B".to_string()],
+                path: "A -> B -> A".to_string(),
                 is_self_reference: false,
             }],
             unused_types: vec![],
-            stats:        GraphStats {
-                total_types:      2,
-                total_edges:      2,
-                cycle_count:      1,
-                unused_count:     0,
+            stats: GraphStats {
+                total_types: 2,
+                total_edges: 2,
+                cycle_count: 1,
+                unused_count: 0,
                 avg_dependencies: 1.0,
-                max_depth:        0,
+                max_depth: 0,
                 most_depended_on: vec![],
             },
         };
@@ -795,44 +795,44 @@ mod dependency_graph_tests {
     #[test]
     fn test_to_console_shows_cycles() {
         let output = DependencyGraphOutput {
-            type_count:   2,
-            nodes:        vec![
+            type_count: 2,
+            nodes: vec![
                 GraphNode {
-                    name:             "A".to_string(),
+                    name: "A".to_string(),
                     dependency_count: 1,
-                    dependent_count:  1,
-                    is_root:          false,
+                    dependent_count: 1,
+                    is_root: false,
                 },
                 GraphNode {
-                    name:             "B".to_string(),
+                    name: "B".to_string(),
                     dependency_count: 1,
-                    dependent_count:  1,
-                    is_root:          false,
+                    dependent_count: 1,
+                    is_root: false,
                 },
             ],
-            edges:        vec![
+            edges: vec![
                 GraphEdge {
                     from: "A".to_string(),
-                    to:   "B".to_string(),
+                    to: "B".to_string(),
                 },
                 GraphEdge {
                     from: "B".to_string(),
-                    to:   "A".to_string(),
+                    to: "A".to_string(),
                 },
             ],
-            cycles:       vec![CycleInfo {
-                types:             vec!["A".to_string(), "B".to_string()],
-                path:              "A -> B -> A".to_string(),
+            cycles: vec![CycleInfo {
+                types: vec!["A".to_string(), "B".to_string()],
+                path: "A -> B -> A".to_string(),
                 is_self_reference: false,
             }],
             unused_types: vec![],
-            stats:        GraphStats {
-                total_types:      2,
-                total_edges:      2,
-                cycle_count:      1,
-                unused_count:     0,
+            stats: GraphStats {
+                total_types: 2,
+                total_edges: 2,
+                cycle_count: 1,
+                unused_count: 0,
                 avg_dependencies: 1.0,
-                max_depth:        0,
+                max_depth: 0,
                 most_depended_on: vec![],
             },
         };
@@ -845,23 +845,23 @@ mod dependency_graph_tests {
     #[test]
     fn test_to_console_shows_unused() {
         let output = DependencyGraphOutput {
-            type_count:   1,
-            nodes:        vec![GraphNode {
-                name:             "Orphan".to_string(),
+            type_count: 1,
+            nodes: vec![GraphNode {
+                name: "Orphan".to_string(),
                 dependency_count: 0,
-                dependent_count:  0,
-                is_root:          false,
+                dependent_count: 0,
+                is_root: false,
             }],
-            edges:        vec![],
-            cycles:       vec![],
+            edges: vec![],
+            cycles: vec![],
             unused_types: vec!["Orphan".to_string()],
-            stats:        GraphStats {
-                total_types:      1,
-                total_edges:      0,
-                cycle_count:      0,
-                unused_count:     1,
+            stats: GraphStats {
+                total_types: 1,
+                total_edges: 0,
+                cycle_count: 0,
+                unused_count: 1,
                 avg_dependencies: 0.0,
-                max_depth:        0,
+                max_depth: 0,
                 most_depended_on: vec![],
             },
         };
@@ -1341,9 +1341,9 @@ mod generate_proto_tests {
         let tmp = TempDir::new().expect("temp dir");
         let mut schema = CompiledSchema::new();
         schema.enums.push(EnumDefinition {
-            name:        "Status".to_string(),
-            values:      vec![EnumValueDefinition {
-                name:        "ACTIVE".to_string(),
+            name: "Status".to_string(),
+            values: vec![EnumValueDefinition {
+                name: "ACTIVE".to_string(),
                 description: None,
                 deprecation: None,
             }],
@@ -1621,31 +1621,31 @@ mod introspect_facts_tests {
         };
 
         let metadata = FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            measures:                 vec![
+            table_name: "tf_sales".to_string(),
+            measures: vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions:               DimensionColumn {
-                name:  "data".to_string(),
+            dimensions: DimensionColumn {
+                name: "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters:     vec![FilterColumn {
-                name:     "customer_id".to_string(),
+            denormalized_filters: vec![FilterColumn {
+                name: "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed:  true,
+                indexed: true,
             }],
-            calendar_dimensions:      vec![],
-            partial_period:           None,
-            native_measures:          std::collections::HashMap::new(),
+            calendar_dimensions: vec![],
+            partial_period: None,
+            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -1668,8 +1668,8 @@ mod lint_tests {
     fn default_opts() -> LintOptions {
         LintOptions {
             fail_on_critical: false,
-            fail_on_warning:  false,
-            filter:           LintCategoryFilter::default(),
+            fail_on_warning: false,
+            filter: LintCategoryFilter::default(),
         }
     }
 
@@ -2000,7 +2000,7 @@ mod run_tests {
         let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
         let server_cfg = ServerRuntimeConfig {
             cors: crate::config::runtime::CorsRuntimeConfig {
-                origins:     vec!["https://example.com".to_string()],
+                origins: vec!["https://example.com".to_string()],
                 credentials: false,
             },
             ..Default::default()
@@ -2267,14 +2267,14 @@ mod sbom_tests {
     fn test_generate_cyclonedx() {
         let packages = vec![
             CargoLockPackage {
-                name:    "serde".to_string(),
+                name: "serde".to_string(),
                 version: "1.0.200".to_string(),
-                source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
+                source: Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
             },
             CargoLockPackage {
-                name:    "tokio".to_string(),
+                name: "tokio".to_string(),
                 version: "1.42.0".to_string(),
-                source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
+                source: Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
             },
         ];
 
@@ -2297,9 +2297,9 @@ mod sbom_tests {
     #[test]
     fn test_generate_spdx() {
         let packages = vec![CargoLockPackage {
-            name:    "anyhow".to_string(),
+            name: "anyhow".to_string(),
             version: "1.0.0".to_string(),
-            source:  Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
+            source: Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
         }];
 
         let result = generate_spdx("test-app", "0.1.0", &packages).unwrap();
@@ -2500,7 +2500,7 @@ mod validate_tests {
         let opts = ValidateOptions {
             check_cycles: true,
             check_unused: true,
-            strict:       false,
+            strict: false,
             filter_types: vec![],
         };
 
@@ -2517,7 +2517,7 @@ mod validate_tests {
         let opts = ValidateOptions {
             check_cycles: true,
             check_unused: false,
-            strict:       false,
+            strict: false,
             filter_types: vec![],
         };
 
@@ -2535,7 +2535,7 @@ mod validate_tests {
         let opts = ValidateOptions {
             check_cycles: false,
             check_unused: false,
-            strict:       false,
+            strict: false,
             filter_types: vec![],
         };
 
@@ -2552,7 +2552,7 @@ mod validate_tests {
         let opts = ValidateOptions {
             check_cycles: true,
             check_unused: true,
-            strict:       false,
+            strict: false,
             filter_types: vec![],
         };
 
@@ -2571,7 +2571,7 @@ mod validate_tests {
         let opts = ValidateOptions {
             check_cycles: true,
             check_unused: true,
-            strict:       true,
+            strict: true,
             filter_types: vec![],
         };
 
@@ -2589,7 +2589,7 @@ mod validate_tests {
         let opts = ValidateOptions {
             check_cycles: true,
             check_unused: false,
-            strict:       false,
+            strict: false,
             filter_types: vec!["User".to_string()],
         };
 
@@ -2610,7 +2610,7 @@ mod validate_tests {
         let opts = ValidateOptions {
             check_cycles: true,
             check_unused: false,
-            strict:       false,
+            strict: false,
             filter_types: vec!["NonExistent".to_string()],
         };
 
@@ -2765,7 +2765,7 @@ mod validate_facts_tests {
             table_name: "tf_sales".to_string(),
             measures,
             dimensions: DimensionColumn {
-                name:  dim_name.to_string(),
+                name: dim_name.to_string(),
                 paths: vec![],
             },
             denormalized_filters: filters,
@@ -2781,21 +2781,21 @@ mod validate_facts_tests {
         let declared = make_metadata(
             vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
+                    name: "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
             "data",
             vec![FilterColumn {
-                name:     "customer_id".to_string(),
+                name: "customer_id".to_string(),
                 sql_type: SqlType::Uuid,
-                indexed:  true,
+                indexed: true,
             }],
         );
         let actual = declared.clone();
@@ -2810,12 +2810,12 @@ mod validate_facts_tests {
         let declared = make_metadata(
             vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
+                    name: "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name:     "profit".to_string(),
+                    name: "profit".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
@@ -2825,7 +2825,7 @@ mod validate_facts_tests {
         );
         let actual = make_metadata(
             vec![MeasureColumn {
-                name:     "revenue".to_string(),
+                name: "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],

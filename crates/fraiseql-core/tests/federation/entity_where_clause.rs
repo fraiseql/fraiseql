@@ -26,7 +26,7 @@ fn test_where_clause_single_key_field() {
     let mut rep1_all = HashMap::new();
     rep1_all.insert("id".to_string(), json!("123"));
     let rep1 = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep1_keys,
         all_fields: rep1_all,
     };
@@ -36,7 +36,7 @@ fn test_where_clause_single_key_field() {
     let mut rep2_all = HashMap::new();
     rep2_all.insert("id".to_string(), json!("456"));
     let rep2 = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep2_keys,
         all_fields: rep2_all,
     };
@@ -56,7 +56,7 @@ fn test_where_clause_composite_keys() {
     rep1_all.insert("user_id".to_string(), json!("user1"));
     rep1_all.insert("order_id".to_string(), json!("order1"));
     let rep1 = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: rep1_keys,
         all_fields: rep1_all,
     };
@@ -74,7 +74,7 @@ fn test_where_clause_string_escaping() {
     let mut rep_all = HashMap::new();
     rep_all.insert("name".to_string(), json!("O'Brien"));
     let rep = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -92,7 +92,7 @@ fn test_where_clause_sql_injection_prevention() {
     let mut rep_all = HashMap::new();
     rep_all.insert("id".to_string(), json!("'; DROP TABLE users; --"));
     let rep = EntityRepresentation {
-        typename:   "User".to_string(),
+        typename: "User".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };
@@ -110,7 +110,7 @@ fn test_where_clause_type_coercion() {
     let mut rep_all = HashMap::new();
     rep_all.insert("order_id".to_string(), json!(789));
     let rep = EntityRepresentation {
-        typename:   "Order".to_string(),
+        typename: "Order".to_string(),
         key_fields: rep_keys,
         all_fields: rep_all,
     };

@@ -31,8 +31,8 @@ async fn test_cdc_event_bridge_end_to_end() {
         EntityEvent::new("Order", "order_1", "INSERT", serde_json::json!({"id": "order_1"}));
     sender.send(event).await.unwrap();
 
-    // Allow processing
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    // Yield to let the bridge process the event.
+    tokio::task::yield_now().await;
     assert!(!handle.is_finished(), "bridge should remain running");
 
     handle.abort();
@@ -58,7 +58,7 @@ async fn test_cdc_event_bridge_multiple_events() {
         sender.send(event).await.unwrap();
     }
 
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    tokio::task::yield_now().await;
     assert!(!handle.is_finished(), "bridge should handle batch without errors");
 
     handle.abort();
@@ -81,7 +81,7 @@ async fn test_cdc_event_bridge_tenant_propagation() {
         .with_tenant_id("org_42");
     sender.send(event).await.unwrap();
 
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    tokio::task::yield_now().await;
 
     // The event was published (even though no subscription matches,
     // the bridge should not error)
@@ -228,7 +228,7 @@ async fn test_presence_leave_and_cleanup() {
     assert!(mgr.get_room("room1").await.is_none(), "empty room should be cleaned up");
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn test_presence_heartbeat_eviction() {
     let config = PresenceConfig {
         heartbeat_timeout: Duration::from_millis(5),
@@ -239,8 +239,8 @@ async fn test_presence_heartbeat_eviction() {
     mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
     mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
 
-    // Wait for heartbeat to expire
-    tokio::time::sleep(Duration::from_millis(20)).await;
+    // Advance past heartbeat timeout
+    tokio::time::advance(Duration::from_millis(20)).await;
 
     let diffs = mgr.evict_stale().await;
     assert_eq!(diffs.len(), 1);
@@ -248,7 +248,7 @@ async fn test_presence_heartbeat_eviction() {
     assert!(mgr.get_room("room1").await.is_none(), "room should be cleaned up");
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn test_presence_heartbeat_keeps_member_alive() {
     let config = PresenceConfig {
         heartbeat_timeout: Duration::from_millis(50),
@@ -259,12 +259,12 @@ async fn test_presence_heartbeat_keeps_member_alive() {
     mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
     mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
 
-    // Wait a bit, then heartbeat only alice
-    tokio::time::sleep(Duration::from_millis(30)).await;
+    // Advance 30ms, then heartbeat only alice
+    tokio::time::advance(Duration::from_millis(30)).await;
     mgr.heartbeat("room1", "alice").await;
 
-    // Wait for bob's heartbeat to expire but not alice's
-    tokio::time::sleep(Duration::from_millis(30)).await;
+    // Advance another 30ms — bob's heartbeat (60ms total) exceeds 50ms timeout, alice's (30ms) does not
+    tokio::time::advance(Duration::from_millis(30)).await;
 
     let diffs = mgr.evict_stale().await;
     assert_eq!(diffs.len(), 1);

@@ -12,17 +12,18 @@ use crate::error::{AuthError, Result};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionData {
     /// User ID (unique per user)
-    pub user_id:            String,
+    pub user_id: String,
     /// Session issued timestamp (Unix seconds)
-    pub issued_at:          u64,
+    pub issued_at: u64,
     /// Session expiration timestamp (Unix seconds)
-    pub expires_at:         u64,
+    pub expires_at: u64,
     /// Hash of the refresh token (stored securely)
     pub refresh_token_hash: String,
 }
 
 impl SessionData {
     /// Check if session is expired
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -36,11 +37,11 @@ impl SessionData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenPair {
     /// JWT access token (short-lived, typically 15 min - 1 hour)
-    pub access_token:  String,
+    pub access_token: String,
     /// Refresh token (long-lived, typically 7-30 days)
     pub refresh_token: String,
     /// Time in seconds until access token expires
-    pub expires_in:    u64,
+    pub expires_in: u64,
 }
 
 /// SessionStore trait - implement this for your storage backend
@@ -174,6 +175,7 @@ pub fn unix_now() -> Result<u64> {
 /// Refresh tokens are stored only as their SHA-256 hash so that a database
 /// breach cannot be used to replay sessions.  The original token is returned
 /// to the client and never persisted.
+#[must_use]
 pub fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
@@ -184,6 +186,7 @@ pub fn hash_token(token: &str) -> String {
 ///
 /// Returns 32 random bytes from [`rand::rng`] encoded as standard Base64.
 /// The resulting token is 44 characters long and has approximately 256 bits of entropy.
+#[must_use]
 pub fn generate_refresh_token() -> String {
     use base64::Engine;
     use rand::Rng;
@@ -201,6 +204,7 @@ pub struct InMemorySessionStore {
 #[cfg(test)]
 impl InMemorySessionStore {
     /// Create a new in-memory session store
+    #[must_use]
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(dashmap::DashMap::new()),
@@ -213,11 +217,13 @@ impl InMemorySessionStore {
     }
 
     /// Get number of sessions (useful for tests)
+    #[must_use]
     pub fn len(&self) -> usize {
         self.sessions.len()
     }
 
     /// Check if there are no sessions
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.sessions.is_empty()
     }

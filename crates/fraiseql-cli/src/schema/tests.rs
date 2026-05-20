@@ -21,10 +21,10 @@ mod database_validator_tests {
 
     /// Mock introspector for unit tests.
     struct MockIntrospector {
-        relations:    Vec<RelationInfo>,
-        columns:      HashMap<String, Vec<(String, String, bool)>>,
+        relations: Vec<RelationInfo>,
+        columns: HashMap<String, Vec<(String, String, bool)>>,
         json_samples: HashMap<(String, String), Vec<serde_json::Value>>,
-        db_type:      DatabaseType,
+        db_type: DatabaseType,
     }
 
     impl MockIntrospector {
@@ -115,45 +115,42 @@ mod database_validator_tests {
 
     fn make_query(name: &str, return_type: &str, sql_source: &str) -> QueryDefinition {
         QueryDefinition {
-            name:                name.to_string(),
-            return_type:         return_type.to_string(),
-            returns_list:        true,
-            nullable:            false,
-            arguments:           vec![],
-            sql_source:          Some(sql_source.to_string()),
-            description:         None,
-            auto_params:         AutoParams::default(),
-            deprecation:         None,
-            jsonb_column:        "data".to_string(),
-            relay:               false,
+            name: name.to_string(),
+            return_type: return_type.to_string(),
+            returns_list: true,
+            nullable: false,
+            arguments: vec![],
+            sql_source: Some(sql_source.to_string()),
+            description: None,
+            auto_params: AutoParams::default(),
+            deprecation: None,
+            jsonb_column: "data".to_string(),
+            relay: false,
             relay_cursor_column: None,
-            relay_cursor_type:   CursorType::default(),
-            inject_params:       IndexMap::default(),
-            cache_ttl_seconds:   None,
-            additional_views:    vec![],
-            requires_role:       None,
-            rest_path:           None,
-            rest_method:         None,
-            native_columns:      HashMap::new(),
+            relay_cursor_type: CursorType::default(),
+            inject_params: IndexMap::default(),
+            cache_ttl_seconds: None,
+            additional_views: vec![],
+            requires_role: None,
+            rest_path: None,
+            rest_method: None,
+            native_columns: HashMap::new(),
         }
     }
 
     fn make_type(name: &str, fields: Vec<(&str, FieldType)>) -> TypeDefinition {
         TypeDefinition {
-            name:                name.into(),
-            fields:              fields
-                .into_iter()
-                .map(|(n, ft)| FieldDefinition::new(n, ft))
-                .collect(),
-            description:         None,
-            sql_source:          "".into(),
-            jsonb_column:        "data".to_string(),
+            name: name.into(),
+            fields: fields.into_iter().map(|(n, ft)| FieldDefinition::new(n, ft)).collect(),
+            description: None,
+            sql_source: "".into(),
+            jsonb_column: "data".to_string(),
             sql_projection_hint: None,
-            implements:          vec![],
-            requires_role:       None,
-            is_error:            false,
-            relay:               false,
-            relationships:       Vec::new(),
+            implements: vec![],
+            requires_role: None,
+            is_error: false,
+            relay: false,
+            relationships: Vec::new(),
         }
     }
 
@@ -604,15 +601,12 @@ sql_source = "v_user"
 "#;
 
         // Write temp file
-        let temp_path = "/tmp/test_fraiseql.toml";
-        std::fs::write(temp_path, toml_content).unwrap();
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_content).unwrap();
 
         // Merge
-        let result = SchemaMerger::merge_toml_only(temp_path);
+        let result = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap());
         result.unwrap_or_else(|e| panic!("expected Ok from merge_toml_only: {e}"));
-
-        // Clean up
-        let _ = std::fs::remove_file(temp_path);
     }
 
     #[test]
@@ -828,18 +822,16 @@ max_query_depth = 3
 max_query_complexity = 25
 "#;
 
-        let temp_path = "/tmp/test_fraiseql_validation.toml";
-        std::fs::write(temp_path, toml_content).unwrap();
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_content).unwrap();
 
-        let schema = SchemaMerger::merge_toml_only(temp_path)
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap())
             .unwrap_or_else(|e| panic!("expected Ok from merge_toml_only (with validation): {e}"));
 
         // validation_config should be populated
         let vc = schema.validation_config.as_ref().expect("validation_config should be set");
         assert_eq!(vc.max_query_depth, Some(3));
         assert_eq!(vc.max_query_complexity, Some(25));
-
-        let _ = std::fs::remove_file(temp_path);
     }
 
     #[test]
@@ -860,16 +852,14 @@ sql_source = "v_user"
 type = "ID"
 "#;
 
-        let temp_path = "/tmp/test_fraiseql_no_validation.toml";
-        std::fs::write(temp_path, toml_content).unwrap();
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), toml_content).unwrap();
 
-        let schema = SchemaMerger::merge_toml_only(temp_path)
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap())
             .unwrap_or_else(|e| panic!("expected Ok from merge_toml_only (no validation): {e}"));
 
         // validation_config should be None when no [validation] section
         assert!(schema.validation_config.is_none());
-
-        let _ = std::fs::remove_file(temp_path);
     }
 
     // ── CRUD naming config ─────────────────────────────────────────────────────
@@ -894,16 +884,10 @@ type = "ID"
         assert_eq!(pascal_to_snake("DnsServerConfig"), "dns_server_config");
     }
 
-    fn write_temp_toml(content: &str) -> String {
-        let path = format!(
-            "/tmp/test_crud_merger_{}.toml",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .subsec_nanos()
-        );
-        std::fs::write(&path, content).unwrap();
-        path
+    fn write_temp_toml(content: &str) -> tempfile::NamedTempFile {
+        let tmp = tempfile::NamedTempFile::with_suffix(".toml").unwrap();
+        std::fs::write(tmp.path(), content).unwrap();
+        tmp
     }
 
     #[test]
@@ -927,12 +911,11 @@ type = "ID"
 return_type = "User"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema =
-            SchemaMerger::merge_toml_only(&temp_path).expect("should merge with crud naming");
+        let tmp = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap())
+            .expect("should merge with crud naming");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_user").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("app.create_user"));
-        let _ = std::fs::remove_file(&temp_path);
     }
 
     #[test]
@@ -955,11 +938,11 @@ type = "ID"
 return_type = "UserProfile"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema =
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_user_profile").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("create_user_profile"));
-        let _ = std::fs::remove_file(&temp_path);
     }
 
     #[test]
@@ -984,11 +967,11 @@ return_type = "User"
 operation = "CREATE"
 sql_source = "custom_create_user_fn"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema =
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_user").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("custom_create_user_fn"));
-        let _ = std::fs::remove_file(&temp_path);
     }
 
     #[test]
@@ -1008,13 +991,12 @@ type = "ID"
 return_type = "User"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let err = SchemaMerger::merge_toml_only(&temp_path)
+        let tmp = write_temp_toml(toml);
+        let err = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap())
             .expect_err("should fail without sql_source and no crud config");
         let msg = format!("{err}");
         assert!(msg.contains("create_user"), "error should name the mutation, got: {msg}");
         assert!(msg.contains("sql_source") || msg.contains("crud"), "got: {msg}");
-        let _ = std::fs::remove_file(&temp_path);
     }
 
     #[test]
@@ -1038,11 +1020,11 @@ type = "ID"
 return_type = "Order"
 operation = "CREATE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema =
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let mutation = schema.mutations.iter().find(|m| m.name == "create_order").unwrap();
         assert_eq!(mutation.sql_source.as_deref(), Some("app.insert_order"));
-        let _ = std::fs::remove_file(&temp_path);
     }
 
     #[test]
@@ -1070,13 +1052,13 @@ operation = "UPDATE"
 return_type = "User"
 operation = "DELETE"
 "#;
-        let temp_path = write_temp_toml(toml);
-        let schema = SchemaMerger::merge_toml_only(&temp_path).expect("should merge");
+        let tmp = write_temp_toml(toml);
+        let schema =
+            SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).expect("should merge");
         let update = schema.mutations.iter().find(|m| m.name == "update_user").unwrap();
         let delete = schema.mutations.iter().find(|m| m.name == "delete_user").unwrap();
         assert_eq!(update.sql_source.as_deref(), Some("app.update_user"));
         assert_eq!(delete.sql_source.as_deref(), Some("app.delete_user"));
-        let _ = std::fs::remove_file(&temp_path);
     }
 }
 
@@ -1452,33 +1434,33 @@ mod optimizer_tests {
             interfaces: vec![],
             unions: vec![],
             queries: vec![QueryDefinition {
-                name:                "users".to_string(),
-                return_type:         "User".to_string(),
-                returns_list:        true,
-                nullable:            false,
-                arguments:           vec![ArgumentDefinition {
-                    name:          "status".to_string(),
-                    arg_type:      FieldType::String,
-                    nullable:      false,
+                name: "users".to_string(),
+                return_type: "User".to_string(),
+                returns_list: true,
+                nullable: false,
+                arguments: vec![ArgumentDefinition {
+                    name: "status".to_string(),
+                    arg_type: FieldType::String,
+                    nullable: false,
                     default_value: None,
-                    description:   None,
-                    deprecation:   None,
+                    description: None,
+                    deprecation: None,
                 }],
-                sql_source:          Some("users".to_string()),
-                description:         None,
-                auto_params:         AutoParams::default(),
-                deprecation:         None,
-                jsonb_column:        "data".to_string(),
-                relay:               false,
+                sql_source: Some("users".to_string()),
+                description: None,
+                auto_params: AutoParams::default(),
+                deprecation: None,
+                jsonb_column: "data".to_string(),
+                relay: false,
                 relay_cursor_column: None,
-                relay_cursor_type:   CursorType::default(),
-                inject_params:       IndexMap::default(),
-                cache_ttl_seconds:   None,
-                additional_views:    vec![],
-                requires_role:       None,
-                rest_path:           None,
-                rest_method:         None,
-                native_columns:      HashMap::new(),
+                relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views: vec![],
+                requires_role: None,
+                rest_path: None,
+                rest_method: None,
+                native_columns: HashMap::new(),
             }],
             mutations: vec![],
             subscriptions: vec![],
@@ -1513,31 +1495,31 @@ mod optimizer_tests {
             interfaces: vec![],
             unions: vec![],
             queries: vec![QueryDefinition {
-                name:                "products".to_string(),
-                return_type:         "Product".to_string(),
-                returns_list:        true,
-                nullable:            false,
-                arguments:           vec![],
-                sql_source:          Some("products".to_string()),
-                description:         None,
-                auto_params:         AutoParams {
-                    has_where:    false,
+                name: "products".to_string(),
+                return_type: "Product".to_string(),
+                returns_list: true,
+                nullable: false,
+                arguments: vec![],
+                sql_source: Some("products".to_string()),
+                description: None,
+                auto_params: AutoParams {
+                    has_where: false,
                     has_order_by: false,
-                    has_limit:    true,
-                    has_offset:   true,
+                    has_limit: true,
+                    has_offset: true,
                 },
-                deprecation:         None,
-                jsonb_column:        "data".to_string(),
-                relay:               false,
+                deprecation: None,
+                jsonb_column: "data".to_string(),
+                relay: false,
                 relay_cursor_column: None,
-                relay_cursor_type:   CursorType::default(),
-                inject_params:       IndexMap::default(),
-                cache_ttl_seconds:   None,
-                additional_views:    vec![],
-                requires_role:       None,
-                rest_path:           None,
-                rest_method:         None,
-                native_columns:      HashMap::new(),
+                relay_cursor_type: CursorType::default(),
+                inject_params: IndexMap::default(),
+                cache_ttl_seconds: None,
+                additional_views: vec![],
+                requires_role: None,
+                rest_path: None,
+                rest_method: None,
+                native_columns: HashMap::new(),
             }],
             mutations: vec![],
             subscriptions: vec![],
@@ -1565,32 +1547,32 @@ mod optimizer_tests {
     fn test_large_type_warning() {
         let mut schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name:                "BigType".into(),
-                sql_source:          String::new().into(),
-                jsonb_column:        String::new(),
-                fields:              (0..25)
+                name: "BigType".into(),
+                sql_source: String::new().into(),
+                jsonb_column: String::new(),
+                fields: (0..25)
                     .map(|i| FieldDefinition {
-                        name:           format!("field{i}").into(),
-                        field_type:     FieldType::String,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
+                        name: format!("field{i}").into(),
+                        field_type: FieldType::String,
+                        nullable: false,
+                        default_value: None,
+                        description: None,
+                        vector_config: None,
+                        alias: None,
+                        deprecation: None,
                         requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        encryption:     None,
-                        hierarchy:      None,
+                        on_deny: FieldDenyPolicy::default(),
+                        encryption: None,
+                        hierarchy: None,
                     })
                     .collect(),
-                description:         None,
+                description: None,
                 sql_projection_hint: None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       Vec::new(),
+                implements: vec![],
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: Vec::new(),
             }],
             enums: vec![],
             input_types: vec![],
@@ -1623,32 +1605,32 @@ mod optimizer_tests {
     fn test_projection_hint_for_large_type() {
         let mut schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name:                "User".into(),
-                sql_source:          "users".into(),
-                jsonb_column:        "data".to_string(),
-                fields:              (0..15)
+                name: "User".into(),
+                sql_source: "users".into(),
+                jsonb_column: "data".to_string(),
+                fields: (0..15)
                     .map(|i| FieldDefinition {
-                        name:           format!("field{i}").into(),
-                        field_type:     FieldType::String,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
+                        name: format!("field{i}").into(),
+                        field_type: FieldType::String,
+                        nullable: false,
+                        default_value: None,
+                        description: None,
+                        vector_config: None,
+                        alias: None,
+                        deprecation: None,
                         requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        encryption:     None,
-                        hierarchy:      None,
+                        on_deny: FieldDenyPolicy::default(),
+                        encryption: None,
+                        hierarchy: None,
                     })
                     .collect(),
-                description:         None,
+                description: None,
                 sql_projection_hint: None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       Vec::new(),
+                implements: vec![],
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: Vec::new(),
             }],
             enums: vec![],
             input_types: vec![],
@@ -1691,32 +1673,32 @@ mod optimizer_tests {
     fn test_projection_not_applied_without_jsonb() {
         let mut schema = CompiledSchema {
             types: vec![TypeDefinition {
-                name:                "SmallType".into(),
-                sql_source:          "small_table".into(),
-                jsonb_column:        String::new(), // No JSONB column
-                fields:              (0..15)
+                name: "SmallType".into(),
+                sql_source: "small_table".into(),
+                jsonb_column: String::new(), // No JSONB column
+                fields: (0..15)
                     .map(|i| FieldDefinition {
-                        name:           format!("field{i}").into(),
-                        field_type:     FieldType::String,
-                        nullable:       false,
-                        default_value:  None,
-                        description:    None,
-                        vector_config:  None,
-                        alias:          None,
-                        deprecation:    None,
+                        name: format!("field{i}").into(),
+                        field_type: FieldType::String,
+                        nullable: false,
+                        default_value: None,
+                        description: None,
+                        vector_config: None,
+                        alias: None,
+                        deprecation: None,
                         requires_scope: None,
-                        on_deny:        FieldDenyPolicy::default(),
-                        encryption:     None,
-                        hierarchy:      None,
+                        on_deny: FieldDenyPolicy::default(),
+                        encryption: None,
+                        hierarchy: None,
                     })
                     .collect(),
-                description:         None,
+                description: None,
                 sql_projection_hint: None,
-                implements:          vec![],
-                requires_role:       None,
-                is_error:            false,
-                relay:               false,
-                relationships:       Vec::new(),
+                implements: vec![],
+                requires_role: None,
+                is_error: false,
+                relay: false,
+                relationships: Vec::new(),
             }],
             enums: vec![],
             input_types: vec![],

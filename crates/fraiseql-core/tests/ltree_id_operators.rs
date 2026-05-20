@@ -101,14 +101,14 @@ fn sql_descendant_of_id_self_referencing() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
+        table: "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column:   None,
+        fk_column: None,
     };
     let clause = WhereClause::Field {
-        path:     vec!["category_path".to_string()],
+        path: vec!["category_path".to_string()],
         operator: WhereOperator::DescendantOfId,
-        value:    json!("550e8400-e29b-41d4-a716-446655440000"),
+        value: json!("550e8400-e29b-41d4-a716-446655440000"),
     };
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
@@ -124,14 +124,14 @@ fn sql_ancestor_of_id_self_referencing() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
+        table: "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column:   None,
+        fk_column: None,
     };
     let clause = WhereClause::Field {
-        path:     vec!["category_path".to_string()],
+        path: vec!["category_path".to_string()],
         operator: WhereOperator::AncestorOfId,
-        value:    json!("550e8400-e29b-41d4-a716-446655440000"),
+        value: json!("550e8400-e29b-41d4-a716-446655440000"),
     };
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
@@ -148,14 +148,14 @@ fn sql_descendant_of_id_cross_table() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_location".to_string(),
+        table: "tb_location".to_string(),
         path_column: "location_path".to_string(),
-        fk_column:   Some("fk_location".to_string()),
+        fk_column: Some("fk_location".to_string()),
     };
     let clause = WhereClause::Field {
-        path:     vec!["location".to_string()],
+        path: vec!["location".to_string()],
         operator: WhereOperator::DescendantOfId,
-        value:    json!("550e8400-e29b-41d4-a716-446655440000"),
+        value: json!("550e8400-e29b-41d4-a716-446655440000"),
     };
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
@@ -170,14 +170,14 @@ fn sql_ancestor_of_id_cross_table() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_location".to_string(),
+        table: "tb_location".to_string(),
         path_column: "location_path".to_string(),
-        fk_column:   Some("fk_location".to_string()),
+        fk_column: Some("fk_location".to_string()),
     };
     let clause = WhereClause::Field {
-        path:     vec!["location".to_string()],
+        path: vec!["location".to_string()],
         operator: WhereOperator::AncestorOfId,
-        value:    json!("550e8400-e29b-41d4-a716-446655440000"),
+        value: json!("550e8400-e29b-41d4-a716-446655440000"),
     };
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert_eq!(
@@ -194,9 +194,9 @@ fn descendant_of_id_without_hierarchy_context_errors() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path:     vec!["category_path".to_string()],
+        path: vec!["category_path".to_string()],
         operator: WhereOperator::DescendantOfId,
-        value:    json!("some-uuid"),
+        value: json!("some-uuid"),
     };
     let err = gen.generate(&clause).unwrap_err();
     let msg = err.to_string();
@@ -211,20 +211,20 @@ fn id_operators_combined_with_and() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
+        table: "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column:   None,
+        fk_column: None,
     };
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         },
         WhereClause::Field {
-            path:     vec!["category_path".to_string()],
+            path: vec!["category_path".to_string()],
             operator: WhereOperator::DescendantOfId,
-            value:    json!("parent-uuid"),
+            value: json!("parent-uuid"),
         },
     ]);
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
@@ -238,21 +238,21 @@ fn id_operators_preserve_param_ordering() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
+        table: "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column:   None,
+        fk_column: None,
     };
     // status = $1 AND category_path <@ (... WHERE id = $2)
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["status".to_string()],
+            path: vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("active"),
+            value: json!("active"),
         },
         WhereClause::Field {
-            path:     vec!["category_path".to_string()],
+            path: vec!["category_path".to_string()],
             operator: WhereOperator::DescendantOfId,
-            value:    json!("parent-uuid"),
+            value: json!("parent-uuid"),
         },
     ]);
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
@@ -267,28 +267,28 @@ fn hierarchy_context_propagates_through_nested_or_and() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
+        table: "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column:   None,
+        fk_column: None,
     };
     // Or(And(Eq, DescendantOfId), AncestorOfId)
     let clause = WhereClause::Or(vec![
         WhereClause::And(vec![
             WhereClause::Field {
-                path:     vec!["status".to_string()],
+                path: vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value:    json!("active"),
+                value: json!("active"),
             },
             WhereClause::Field {
-                path:     vec!["category_path".to_string()],
+                path: vec!["category_path".to_string()],
                 operator: WhereOperator::DescendantOfId,
-                value:    json!("uuid-parent"),
+                value: json!("uuid-parent"),
             },
         ]),
         WhereClause::Field {
-            path:     vec!["category_path".to_string()],
+            path: vec!["category_path".to_string()],
             operator: WhereOperator::AncestorOfId,
-            value:    json!("uuid-child"),
+            value: json!("uuid-child"),
         },
     ]);
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
@@ -302,14 +302,14 @@ fn descendant_of_id_empty_uuid_generates_valid_sql() {
     use fraiseql_core::db::dialect::PostgresDialect;
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table:       "tb_category".to_string(),
+        table: "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column:   None,
+        fk_column: None,
     };
     let clause = WhereClause::Field {
-        path:     vec!["category_path".to_string()],
+        path: vec!["category_path".to_string()],
         operator: WhereOperator::DescendantOfId,
-        value:    json!(""),
+        value: json!(""),
     };
     let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
     assert!(sql.contains("$1"), "Expected $1 placeholder, got: {sql}");

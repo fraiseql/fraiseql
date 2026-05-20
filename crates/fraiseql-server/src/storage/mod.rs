@@ -96,13 +96,13 @@ pub fn validate_key(key: &str) -> StorageResult<()> {
     if key.is_empty() {
         return Err(FileError::Storage {
             message: "Storage key must not be empty".to_string(),
-            source:  None,
+            source: None,
         });
     }
     if key.contains("..") || key.starts_with('/') || key.starts_with('\\') {
         return Err(FileError::Storage {
             message: "Invalid storage key: must be a relative path without '..'".to_string(),
-            source:  None,
+            source: None,
         });
     }
     Ok(())
@@ -174,7 +174,7 @@ pub async fn create_backend(
         "local" => {
             let path = config.path.as_deref().ok_or_else(|| FileError::Storage {
                 message: "Local storage backend requires 'path' configuration".to_string(),
-                source:  None,
+                source: None,
             })?;
             Ok(Box::new(LocalStorageBackend::new(path)))
         },
@@ -182,7 +182,7 @@ pub async fn create_backend(
         b if S3_COMPAT_BACKENDS.contains(&b) => {
             let bucket = config.bucket.as_deref().ok_or_else(|| FileError::Storage {
                 message: format!("{b} storage backend requires 'bucket' configuration"),
-                source:  None,
+                source: None,
             })?;
             let endpoint = config
                 .endpoint
@@ -197,7 +197,7 @@ pub async fn create_backend(
         "gcs" => {
             let bucket = config.bucket.as_deref().ok_or_else(|| FileError::Storage {
                 message: "GCS storage backend requires 'bucket' configuration".to_string(),
-                source:  None,
+                source: None,
             })?;
             let backend = GcsStorageBackend::new(bucket)?;
             Ok(Box::new(backend))
@@ -207,11 +207,11 @@ pub async fn create_backend(
             let container = config.bucket.as_deref().ok_or_else(|| FileError::Storage {
                 message: "Azure Blob storage requires 'bucket' (container) configuration"
                     .to_string(),
-                source:  None,
+                source: None,
             })?;
             let account = config.account_name.as_deref().ok_or_else(|| FileError::Storage {
                 message: "Azure Blob storage requires 'account_name' configuration".to_string(),
-                source:  None,
+                source: None,
             })?;
             let backend = AzureBlobStorageBackend::new(account, container)?;
             Ok(Box::new(backend))
@@ -219,21 +219,21 @@ pub async fn create_backend(
         #[cfg(not(feature = "aws-s3"))]
         b if S3_COMPAT_BACKENDS.contains(&b) => Err(FileError::Storage {
             message: format!("{b} storage backend requires the 'aws-s3' feature"),
-            source:  None,
+            source: None,
         }),
         #[cfg(not(feature = "gcs"))]
         "gcs" => Err(FileError::Storage {
             message: "GCS storage backend requires the 'gcs' feature".to_string(),
-            source:  None,
+            source: None,
         }),
         #[cfg(not(feature = "azure-blob"))]
         "azure" => Err(FileError::Storage {
             message: "Azure Blob storage backend requires the 'azure-blob' feature".to_string(),
-            source:  None,
+            source: None,
         }),
         other => Err(FileError::Storage {
             message: format!("Unknown storage backend: {other}"),
-            source:  None,
+            source: None,
         }),
     }
 }

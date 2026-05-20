@@ -25,13 +25,13 @@ fn test_rest_toml_deserialize_minimal() {
 #[test]
 fn test_rest_toml_deserialize_full() {
     let toml_str = r#"
-            enabled = true
-            path = "/api/v2"
-            max_page_size = 500
-            delete_response = "entity"
-            require_auth = true
-            etag = false
-        "#;
+        enabled = true
+        path = "/api/v2"
+        max_page_size = 500
+        delete_response = "entity"
+        require_auth = true
+        etag = false
+    "#;
     let config: RestTomlConfig = toml::from_str(toml_str).unwrap();
     assert!(config.enabled);
     assert_eq!(config.path, "/api/v2");

@@ -39,17 +39,17 @@ fn fixed_vars() -> serde_json::Value {
 
 fn simple_where() -> WhereClause {
     WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("active"),
+        value: json!("active"),
     }
 }
 
 fn other_where() -> WhereClause {
     WhereClause::Field {
-        path:     vec!["status".to_string()],
+        path: vec!["status".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("inactive"),
+        value: json!("inactive"),
     }
 }
 
@@ -177,14 +177,14 @@ fn key_is_fully_deterministic_with_all_components() {
 #[test]
 fn single_char_difference_in_where_value_changes_entire_key() {
     let w1 = WhereClause::Field {
-        path:     vec!["email".to_string()],
+        path: vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("alice@example.com"),
+        value: json!("alice@example.com"),
     };
     let w2 = WhereClause::Field {
-        path:     vec!["email".to_string()],
+        path: vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("blice@example.com"), // one char changed
+        value: json!("blice@example.com"), // one char changed
     };
 
     let k1 = generate_cache_key(FIXED_QUERY, &json!({}), Some(&w1), FIXED_VERSION);

@@ -6,10 +6,10 @@ mod aggregator_tests {
     fn event(tenant: &str, period: &str, entity: &str) -> MutationAuditEvent {
         MutationAuditEvent {
             mutation_name: format!("create_{entity}"),
-            entity_type:   entity.to_owned(),
-            operation:     "create".to_owned(),
-            tenant_id:     tenant.to_owned(),
-            period:        period.to_owned(),
+            entity_type: entity.to_owned(),
+            operation: "create".to_owned(),
+            tenant_id: tenant.to_owned(),
+            period: period.to_owned(),
         }
     }
 

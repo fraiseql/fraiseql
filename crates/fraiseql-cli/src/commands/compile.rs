@@ -22,21 +22,21 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct CompileOptions<'a> {
     /// Path to `fraiseql.toml` (TOML workflow) or `schema.json` (legacy).
-    pub input:          &'a str,
+    pub input: &'a str,
     /// Optional path to `types.json` (TOML workflow, backward compat).
-    pub types:          Option<&'a str>,
+    pub types: Option<&'a str>,
     /// Optional directory for schema file auto-discovery.
-    pub schema_dir:     Option<&'a str>,
+    pub schema_dir: Option<&'a str>,
     /// Explicit type file paths (highest priority).
-    pub type_files:     Vec<String>,
+    pub type_files: Vec<String>,
     /// Explicit query file paths.
-    pub query_files:    Vec<String>,
+    pub query_files: Vec<String>,
     /// Explicit mutation file paths.
     pub mutation_files: Vec<String>,
     /// Optional database URL for indexed column validation.
-    pub database:       Option<&'a str>,
+    pub database: Option<&'a str>,
     /// Skip embedding content hash in compiled schema (for test fixtures).
-    pub skip_hash:      bool,
+    pub skip_hash: bool,
 }
 
 impl<'a> CompileOptions<'a> {
@@ -394,17 +394,14 @@ pub async fn run(
         let body =
             serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
         let value: serde_json::Value = serde_json::from_str(&body)?;
-        // Canonicalize key order before hashing — required because serde_json may
-        // use IndexMap (preserve_order feature) and HashMap fields produce
-        // nondeterministic iteration order.
-        let sorted = canonicalize_json(value);
-        let canonical = serde_json::to_string_pretty(&sorted)?;
+        // Canonicalize (recursively sort keys) before hashing — matches from_json verifier
+        let canonical = serde_json::to_string_pretty(&canonicalize_json(&value))?;
         let hash = Sha256::digest(canonical.as_bytes());
         let hash_hex = hex::encode(&hash[..16]);
 
-        let obj = sorted.as_object().context("schema must serialise as JSON object")?;
+        let obj = value.as_object().context("schema must serialise as JSON object")?;
 
-        // Insert _content_hash as the first field
+        // Insert _content_hash as the first field (serde_json::Map preserves insertion order)
         let mut new_obj = serde_json::Map::new();
         new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
         for (k, v) in obj {

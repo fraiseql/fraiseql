@@ -90,7 +90,7 @@ pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data:   QueryStatsResponse {
+        data: QueryStatsResponse {
             database_type: db_type.to_string(),
             stats_available,
             entries,
@@ -123,7 +123,7 @@ pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
     match entry {
         Some(entry) => Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data:   QueryStatsDetailResponse {
+            data: QueryStatsDetailResponse {
                 database_type: db_type.to_string(),
                 entry,
             },
@@ -149,7 +149,7 @@ pub async fn query_stats_reset_handler<A: DatabaseAdapter + 'static>(
     match adapter.reset_query_stats().await {
         Ok(()) => Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data:   QueryStatsResetResponse {
+            data: QueryStatsResetResponse {
                 message: "Query statistics have been reset".to_string(),
             },
         })),

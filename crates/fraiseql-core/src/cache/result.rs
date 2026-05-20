@@ -172,9 +172,9 @@ pub struct QueryResultCache {
 
     // Metrics counters — `Relaxed` ordering is sufficient: these counters are
     // used only for monitoring, not for correctness or synchronisation.
-    hits:          AtomicU64,
-    misses:        AtomicU64,
-    total_cached:  AtomicU64,
+    hits: AtomicU64,
+    misses: AtomicU64,
+    total_cached: AtomicU64,
     invalidations: AtomicU64,
 
     /// Estimated total memory in use.

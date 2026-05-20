@@ -11,9 +11,9 @@ use crate::routes::rest::{
 #[derive(Debug)]
 pub struct ResolvedRoute<'a> {
     /// The matched REST resource.
-    pub resource:    &'a RestResource,
+    pub resource: &'a RestResource,
     /// The matched REST route.
-    pub route:       &'a RestRoute,
+    pub route: &'a RestRoute,
     /// Path parameters extracted from the URL (e.g., `[("id", "123")]`).
     pub path_params: Vec<(String, String)>,
 }
@@ -24,13 +24,13 @@ pub struct ResolvedRoute<'a> {
 /// `handle_get` (JSON envelope) and NDJSON streaming.
 pub struct ResolvedGetQuery {
     /// Name of the matched query.
-    pub query_name:  String,
+    pub query_name: String,
     /// Pre-built query match with field selection and arguments.
     pub query_match: QueryMatch,
     /// Variables for relay pagination.
-    pub variables:   serde_json::Value,
+    pub variables: serde_json::Value,
     /// Extracted request parameters (pagination, embeddings, etc.).
-    pub params:      ExtractedParams,
+    pub params: ExtractedParams,
 }
 
 impl RestRouteTable {

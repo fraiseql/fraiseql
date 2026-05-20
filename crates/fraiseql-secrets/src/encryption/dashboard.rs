@@ -8,29 +8,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardOverview {
     /// Total number of encryption keys
-    pub total_keys:      usize,
+    pub total_keys: usize,
     /// Keys with <70% TTL consumed
-    pub healthy_keys:    usize,
+    pub healthy_keys: usize,
     /// Keys with 70-85% TTL consumed
-    pub warning_keys:    usize,
+    pub warning_keys: usize,
     /// Keys with 85%+ TTL consumed
-    pub urgent_keys:     usize,
+    pub urgent_keys: usize,
     /// Average TTL consumption percentage across all keys
     pub avg_ttl_percent: u32,
     /// Overall system health status
-    pub system_health:   String,
+    pub system_health: String,
 }
 
 impl DashboardOverview {
     /// Create new dashboard overview
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            total_keys:      0,
-            healthy_keys:    0,
-            warning_keys:    0,
-            urgent_keys:     0,
+            total_keys: 0,
+            healthy_keys: 0,
+            warning_keys: 0,
+            urgent_keys: 0,
             avg_ttl_percent: 0,
-            system_health:   "healthy".to_string(),
+            system_health: "healthy".to_string(),
         }
     }
 
@@ -56,21 +57,21 @@ impl Default for DashboardOverview {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyStatusCard {
     /// Key identifier
-    pub key_id:             String,
+    pub key_id: String,
     /// Current active version
-    pub current_version:    u16,
+    pub current_version: u16,
     /// TTL consumption percentage (0-100)
-    pub ttl_percent:        u32,
+    pub ttl_percent: u32,
     /// Status level: "healthy", "warning", "urgent", "overdue"
-    pub status:             String,
+    pub status: String,
     /// Last rotation timestamp
-    pub last_rotation:      Option<DateTime<Utc>>,
+    pub last_rotation: Option<DateTime<Utc>>,
     /// Estimated next rotation time
-    pub next_rotation:      Option<DateTime<Utc>>,
+    pub next_rotation: Option<DateTime<Utc>>,
     /// Total versions count
-    pub versions_count:     usize,
+    pub versions_count: usize,
     /// Urgency score (0-100)
-    pub urgency_score:      u32,
+    pub urgency_score: u32,
     /// Recommended action
     pub recommended_action: String,
 }
@@ -104,21 +105,22 @@ impl KeyStatusCard {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotationMetricsPoint {
     /// Timestamp for this data point
-    pub timestamp:                DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Total rotations count
-    pub rotations_total:          u64,
+    pub rotations_total: u64,
     /// Manual rotations count
-    pub rotations_manual:         u64,
+    pub rotations_manual: u64,
     /// Auto-refresh rotations count
-    pub rotations_auto:           u64,
+    pub rotations_auto: u64,
     /// Average rotation duration in milliseconds
     pub rotation_duration_avg_ms: u64,
     /// Rotation success rate percentage
-    pub success_rate_percent:     u32,
+    pub success_rate_percent: u32,
 }
 
 impl RotationMetricsPoint {
     /// Create new metrics point
+    #[must_use]
     pub const fn new(timestamp: DateTime<Utc>) -> Self {
         Self {
             timestamp,
@@ -135,7 +137,7 @@ impl RotationMetricsPoint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsTimeSeries {
     /// Period: "1d", "7d", "30d", "90d"
-    pub period:      String,
+    pub period: String,
     /// Data points
     pub data_points: Vec<RotationMetricsPoint>,
 }
@@ -144,7 +146,7 @@ impl MetricsTimeSeries {
     /// Create new time series
     pub fn new(period: impl Into<String>) -> Self {
         Self {
-            period:      period.into(),
+            period: period.into(),
             data_points: Vec::new(),
         }
     }
@@ -176,9 +178,9 @@ impl std::fmt::Display for ComplianceStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplianceRequirement {
     /// Requirement name
-    pub name:    String,
+    pub name: String,
     /// Is requirement met
-    pub met:     bool,
+    pub met: bool,
     /// Details about requirement
     pub details: String,
 }
@@ -187,25 +189,26 @@ pub struct ComplianceRequirement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplianceDashboard {
     /// HIPAA compliance status
-    pub hipaa:   ComplianceStatus,
+    pub hipaa: ComplianceStatus,
     /// PCI-DSS compliance status
     pub pci_dss: ComplianceStatus,
     /// GDPR compliance status
-    pub gdpr:    ComplianceStatus,
+    pub gdpr: ComplianceStatus,
     /// SOC 2 compliance status
-    pub soc2:    ComplianceStatus,
+    pub soc2: ComplianceStatus,
     /// Overall compliance status
     pub overall: ComplianceStatus,
 }
 
 impl ComplianceDashboard {
     /// Create new compliance dashboard
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            hipaa:   ComplianceStatus::Compliant,
+            hipaa: ComplianceStatus::Compliant,
             pci_dss: ComplianceStatus::Compliant,
-            gdpr:    ComplianceStatus::Compliant,
-            soc2:    ComplianceStatus::Compliant,
+            gdpr: ComplianceStatus::Compliant,
+            soc2: ComplianceStatus::Compliant,
             overall: ComplianceStatus::Compliant,
         }
     }
@@ -267,19 +270,19 @@ impl std::fmt::Display for AlertSeverity {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
     /// Unique alert ID
-    pub id:           String,
+    pub id: String,
     /// Alert type
-    pub alert_type:   String,
+    pub alert_type: String,
     /// Severity level
-    pub severity:     AlertSeverity,
+    pub severity: AlertSeverity,
     /// Affected key ID
-    pub key_id:       Option<String>,
+    pub key_id: Option<String>,
     /// Alert timestamp
-    pub timestamp:    DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// Alert message
-    pub message:      String,
+    pub message: String,
     /// Recommended action
-    pub action:       Option<String>,
+    pub action: Option<String>,
     /// Is alert read/acknowledged
     pub acknowledged: bool,
 }
@@ -325,19 +328,20 @@ impl Alert {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertsWidget {
     /// Active (unacknowledged) alerts
-    pub active_alerts:        Vec<Alert>,
+    pub active_alerts: Vec<Alert>,
     /// Historical alerts
-    pub historical_alerts:    Vec<Alert>,
+    pub historical_alerts: Vec<Alert>,
     /// Total unacknowledged count
     pub unacknowledged_count: usize,
 }
 
 impl AlertsWidget {
     /// Create new alerts widget
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            active_alerts:        Vec::new(),
-            historical_alerts:    Vec::new(),
+            active_alerts: Vec::new(),
+            historical_alerts: Vec::new(),
             unacknowledged_count: 0,
         }
     }
@@ -369,21 +373,22 @@ pub struct TrendAnalysis {
     /// Rotation frequency trend: "increasing", "stable", "decreasing"
     pub rotation_frequency: String,
     /// Duration trend: "increasing", "stable", "decreasing"
-    pub rotation_duration:  String,
+    pub rotation_duration: String,
     /// Failure rate trend: "increasing", "stable", "decreasing"
-    pub failure_rate:       String,
+    pub failure_rate: String,
     /// Compliance trend: "improving", "stable", "degrading"
-    pub compliance_status:  String,
+    pub compliance_status: String,
 }
 
 impl TrendAnalysis {
     /// Create new trend analysis
+    #[must_use]
     pub fn new() -> Self {
         Self {
             rotation_frequency: "stable".to_string(),
-            rotation_duration:  "stable".to_string(),
-            failure_rate:       "stable".to_string(),
-            compliance_status:  "stable".to_string(),
+            rotation_duration: "stable".to_string(),
+            failure_rate: "stable".to_string(),
+            compliance_status: "stable".to_string(),
         }
     }
 }
@@ -420,19 +425,20 @@ impl std::fmt::Display for ExportFormat {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardSnapshot {
     /// Snapshot timestamp
-    pub snapshot_time:       DateTime<Utc>,
+    pub snapshot_time: DateTime<Utc>,
     /// Dashboard overview at this time
-    pub overview:            DashboardOverview,
+    pub overview: DashboardOverview,
     /// Key status cards
-    pub key_cards:           Vec<KeyStatusCard>,
+    pub key_cards: Vec<KeyStatusCard>,
     /// Alert summary
     pub active_alerts_count: usize,
     /// Compliance status
-    pub compliance:          ComplianceDashboard,
+    pub compliance: ComplianceDashboard,
 }
 
 impl DashboardSnapshot {
     /// Create new dashboard snapshot
+    #[must_use]
     pub fn new(
         overview: DashboardOverview,
         key_cards: Vec<KeyStatusCard>,
@@ -449,6 +455,7 @@ impl DashboardSnapshot {
     }
 
     /// Get urgency summary (count of keys by status)
+    #[must_use]
     pub fn urgency_summary(&self) -> (usize, usize, usize, usize) {
         let mut healthy = 0;
         let mut warning = 0;
@@ -469,6 +476,7 @@ impl DashboardSnapshot {
     }
 
     /// Calculate average urgency score across all keys
+    #[must_use]
     pub fn average_urgency_score(&self) -> u32 {
         if self.key_cards.is_empty() {
             return 0;
@@ -486,27 +494,29 @@ impl DashboardSnapshot {
 #[derive(Debug, Clone)]
 pub struct AlertFilter {
     /// Filter by severity
-    pub severity:     Option<AlertSeverity>,
+    pub severity: Option<AlertSeverity>,
     /// Filter by alert type
-    pub alert_type:   Option<String>,
+    pub alert_type: Option<String>,
     /// Filter by key ID
-    pub key_id:       Option<String>,
+    pub key_id: Option<String>,
     /// Filter acknowledged status
     pub acknowledged: Option<bool>,
 }
 
 impl AlertFilter {
     /// Create new alert filter
+    #[must_use]
     pub const fn new() -> Self {
         Self {
-            severity:     None,
-            alert_type:   None,
-            key_id:       None,
+            severity: None,
+            alert_type: None,
+            key_id: None,
             acknowledged: None,
         }
     }
 
     /// Filter alerts based on criteria
+    #[must_use]
     pub fn apply(&self, alerts: &[Alert]) -> Vec<Alert> {
         alerts
             .iter()
@@ -548,51 +558,56 @@ impl Default for AlertFilter {
 #[derive(Debug, Clone)]
 pub struct ComplianceChecker {
     /// Framework name
-    pub framework:                     String,
+    pub framework: String,
     /// Required TTL in days
-    pub required_ttl_days:             u32,
+    pub required_ttl_days: u32,
     /// Required check interval in hours
     pub required_check_interval_hours: u32,
 }
 
 impl ComplianceChecker {
     /// Create checker for HIPAA compliance
+    #[must_use]
     pub fn hipaa() -> Self {
         Self {
-            framework:                     "HIPAA".to_string(),
-            required_ttl_days:             365,
+            framework: "HIPAA".to_string(),
+            required_ttl_days: 365,
             required_check_interval_hours: 24,
         }
     }
 
     /// Create checker for PCI-DSS compliance
+    #[must_use]
     pub fn pci_dss() -> Self {
         Self {
-            framework:                     "PCI-DSS".to_string(),
-            required_ttl_days:             365,
+            framework: "PCI-DSS".to_string(),
+            required_ttl_days: 365,
             required_check_interval_hours: 24,
         }
     }
 
     /// Create checker for GDPR compliance
+    #[must_use]
     pub fn gdpr() -> Self {
         Self {
-            framework:                     "GDPR".to_string(),
-            required_ttl_days:             90,
+            framework: "GDPR".to_string(),
+            required_ttl_days: 90,
             required_check_interval_hours: 24,
         }
     }
 
     /// Create checker for SOC 2 compliance
+    #[must_use]
     pub fn soc2() -> Self {
         Self {
-            framework:                     "SOC 2".to_string(),
-            required_ttl_days:             365,
+            framework: "SOC 2".to_string(),
+            required_ttl_days: 365,
             required_check_interval_hours: 24,
         }
     }
 
     /// Check if card meets compliance requirements
+    #[must_use]
     pub fn check_compliance(&self, card: &KeyStatusCard) -> bool {
         // For compliance, key should not be urgent or overdue
         !matches!(card.status.as_str(), "urgent" | "overdue")

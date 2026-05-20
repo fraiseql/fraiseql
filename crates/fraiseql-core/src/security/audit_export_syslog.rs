@@ -53,7 +53,7 @@ impl Transport {
 /// RFC 5424 syslog audit exporter for GraphQL operation audit entries.
 pub struct SyslogAuditExporter {
     pub(crate) transport: Mutex<Transport>,
-    pub(crate) hostname:  String,
+    pub(crate) hostname: String,
 }
 
 impl SyslogAuditExporter {

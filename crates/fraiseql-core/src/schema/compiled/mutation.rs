@@ -116,19 +116,19 @@ impl MutationDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, return_type: impl Into<String>) -> Self {
         Self {
-            name:                    name.into(),
-            return_type:             return_type.into(),
-            arguments:               Vec::new(),
-            description:             None,
-            operation:               MutationOperation::default(),
-            deprecation:             None,
-            sql_source:              None,
-            inject_params:           IndexMap::new(),
+            name: name.into(),
+            return_type: return_type.into(),
+            arguments: Vec::new(),
+            description: None,
+            operation: MutationOperation::default(),
+            deprecation: None,
+            sql_source: None,
+            inject_params: IndexMap::new(),
             invalidates_fact_tables: Vec::new(),
-            invalidates_views:       Vec::new(),
-            rest_path:               None,
-            rest_method:             None,
-            upsert_function:         None,
+            invalidates_views: Vec::new(),
+            rest_path: None,
+            rest_method: None,
+            upsert_function: None,
         }
     }
 

@@ -75,37 +75,37 @@ fn test_all_admin_types_importable() {
     // Instantiate each type to ensure they're fully wired
     let _ = extract_bearer_token(Some("Bearer test"));
     let _ = AdminHealthResponse {
-        uptime_secs:    0,
-        version:        String::new(),
-        pool_active:    0,
-        pool_idle:      0,
-        pool_max:       0,
+        uptime_secs: 0,
+        version: String::new(),
+        pool_active: 0,
+        pool_idle: 0,
+        pool_max: 0,
         cache_hit_rate: None,
-        cache_entries:  None,
+        cache_entries: None,
     };
     let _ = AdminSchemaResponse {
         schema: serde_json::Value::Null,
     };
     let _ = UserListResponse {
-        users:     vec![],
-        total:     0,
-        page:      1,
+        users: vec![],
+        total: 0,
+        page: 1,
         page_size: 50,
     };
     let _ = UserInviteRequest {
         email: String::new(),
     };
     let _ = DataQueryResponse {
-        rows:      vec![],
-        total:     0,
-        page:      1,
+        rows: vec![],
+        total: 0,
+        page: 1,
         page_size: 50,
     };
     let _ = DataBrowserQuery {
-        page:      1,
+        page: 1,
         page_size: 50,
-        filter:    vec![],
-        sort:      vec![],
+        filter: vec![],
+        sort: vec![],
     };
     let _ = FunctionListResponse { functions: vec![] };
     let _ = SecretSetRequest {
@@ -113,20 +113,20 @@ fn test_all_admin_types_importable() {
     };
     let _ = MetricsSummary::zero();
     let _ = RealtimeStatsResponse {
-        connections:    0,
-        channels:       vec![],
+        connections: 0,
+        channels: vec![],
         presence_rooms: vec![],
-        cdc_lag_ms:     None,
+        cdc_lag_ms: None,
     };
     let _ = ObjectListResponse {
-        objects:   vec![],
-        total:     0,
-        page:      1,
+        objects: vec![],
+        total: 0,
+        page: 1,
         page_size: 50,
     };
     let _ = PresignRequest {
-        bucket:          String::new(),
-        key:             String::new(),
+        bucket: String::new(),
+        key: String::new(),
         expires_in_secs: 0,
     };
 }

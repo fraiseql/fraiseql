@@ -35,7 +35,7 @@ pub enum FlightTicket {
     /// ```
     GraphQLQuery {
         /// GraphQL query string
-        query:     String,
+        query: String,
         /// Optional query variables
         variables: Option<serde_json::Value>,
     },
@@ -56,11 +56,11 @@ pub enum FlightTicket {
         /// Entity type to filter (e.g., "Order", "User")
         entity_type: String,
         /// Start date filter (ISO 8601 format)
-        start_date:  Option<String>,
+        start_date: Option<String>,
         /// End date filter (ISO 8601 format)
-        end_date:    Option<String>,
+        end_date: Option<String>,
         /// Maximum number of events to return
-        limit:       Option<usize>,
+        limit: Option<usize>,
     },
 
     /// Optimized pre-compiled Arrow view.
@@ -80,15 +80,15 @@ pub enum FlightTicket {
     /// ```
     OptimizedView {
         /// View name (e.g., "`va_orders`", "`va_users`")
-        view:     String,
+        view: String,
         /// Optional WHERE clause filter
-        filter:   Option<String>,
+        filter: Option<String>,
         /// Optional ORDER BY clause
         order_by: Option<String>,
         /// Maximum number of rows
-        limit:    Option<usize>,
+        limit: Option<usize>,
         /// Offset for pagination
-        offset:   Option<usize>,
+        offset: Option<usize>,
     },
 
     /// Bulk data export.
@@ -105,11 +105,11 @@ pub enum FlightTicket {
     /// ```
     BulkExport {
         /// Table name to export
-        table:  String,
+        table: String,
         /// Optional filter condition
         filter: Option<String>,
         /// Maximum number of rows
-        limit:  Option<usize>,
+        limit: Option<usize>,
         /// Export format: "parquet", "csv", or "json" (default: "parquet")
         format: Option<String>,
     },

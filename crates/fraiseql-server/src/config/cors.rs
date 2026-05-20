@@ -41,13 +41,13 @@ pub struct CorsConfig {
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
-            enabled:         default_enabled(),
-            origins:         default_origins(),
-            methods:         default_methods(),
-            headers:         default_headers(),
-            credentials:     false,
-            max_age:         default_max_age(),
-            expose_headers:  Vec::new(),
+            enabled: default_enabled(),
+            origins: default_origins(),
+            methods: default_methods(),
+            headers: default_headers(),
+            credentials: false,
+            max_age: default_max_age(),
+            expose_headers: Vec::new(),
             private_network: false,
         }
     }

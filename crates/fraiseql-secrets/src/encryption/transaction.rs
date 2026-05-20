@@ -63,29 +63,29 @@ impl std::fmt::Display for TransactionState {
 #[derive(Debug, Clone)]
 pub struct TransactionContext {
     /// Unique transaction ID
-    pub transaction_id:  String,
+    pub transaction_id: String,
     /// User initiating transaction
-    pub user_id:         String,
+    pub user_id: String,
     /// User session ID
-    pub session_id:      String,
+    pub session_id: String,
     /// HTTP request ID for correlation
-    pub request_id:      String,
+    pub request_id: String,
     /// Transaction start time
-    pub started_at:      DateTime<Utc>,
+    pub started_at: DateTime<Utc>,
     /// Isolation level
     pub isolation_level: IsolationLevel,
     /// Current state
-    pub state:           TransactionState,
+    pub state: TransactionState,
     /// Encryption key version used in transaction
-    pub key_version:     u32,
+    pub key_version: u32,
     /// List of operations in transaction
-    pub operations:      Vec<String>,
+    pub operations: Vec<String>,
     /// Additional context data
-    pub metadata:        HashMap<String, String>,
+    pub metadata: HashMap<String, String>,
     /// User role for access control
-    pub user_role:       Option<String>,
+    pub user_role: Option<String>,
     /// Client IP address for audit
-    pub client_ip:       Option<String>,
+    pub client_ip: Option<String>,
 }
 
 impl TransactionContext {
@@ -120,12 +120,14 @@ impl TransactionContext {
     }
 
     /// Set isolation level
+    #[must_use]
     pub const fn with_isolation(mut self, level: IsolationLevel) -> Self {
         self.isolation_level = level;
         self
     }
 
     /// Set key version
+    #[must_use]
     pub const fn with_key_version(mut self, version: u32) -> Self {
         self.key_version = version;
         self
@@ -171,16 +173,19 @@ impl TransactionContext {
     }
 
     /// Get transaction duration
+    #[must_use]
     pub fn duration(&self) -> chrono::Duration {
         Utc::now() - self.started_at
     }
 
     /// Check if transaction is still active
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.state == TransactionState::Active
     }
 
     /// Get operation count
+    #[must_use]
     pub const fn operation_count(&self) -> usize {
         self.operations.len()
     }
@@ -190,11 +195,11 @@ impl TransactionContext {
 #[derive(Debug, Clone)]
 pub struct Savepoint {
     /// Savepoint name
-    pub name:              String,
+    pub name: String,
     /// Transaction ID this savepoint belongs to
-    pub transaction_id:    String,
+    pub transaction_id: String,
     /// Created at timestamp
-    pub created_at:        DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
     /// Operations before savepoint
     pub operations_before: usize,
 }
@@ -207,9 +212,9 @@ impl Savepoint {
         operations_count: usize,
     ) -> Self {
         Self {
-            name:              name.into(),
-            transaction_id:    transaction_id.into(),
-            created_at:        Utc::now(),
+            name: name.into(),
+            transaction_id: transaction_id.into(),
+            created_at: Utc::now(),
             operations_before: operations_count,
         }
     }
@@ -220,15 +225,16 @@ pub struct TransactionManager {
     /// Active transactions by ID
     active_transactions: HashMap<String, TransactionContext>,
     /// Savepoints by transaction ID
-    savepoints:          HashMap<String, Vec<Savepoint>>,
+    savepoints: HashMap<String, Vec<Savepoint>>,
 }
 
 impl TransactionManager {
     /// Create new transaction manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_transactions: HashMap::new(),
-            savepoints:          HashMap::new(),
+            savepoints: HashMap::new(),
         }
     }
 
@@ -253,6 +259,7 @@ impl TransactionManager {
     }
 
     /// Get active transaction
+    #[must_use]
     pub fn get_transaction(&self, txn_id: &str) -> Option<&TransactionContext> {
         self.active_transactions.get(txn_id)
     }
@@ -333,11 +340,13 @@ impl TransactionManager {
     }
 
     /// Get list of active transaction IDs
+    #[must_use]
     pub fn active_transactions(&self) -> Vec<&str> {
         self.active_transactions.keys().map(|s| s.as_str()).collect()
     }
 
     /// Count active transactions
+    #[must_use]
     pub fn active_count(&self) -> usize {
         self.active_transactions.len()
     }

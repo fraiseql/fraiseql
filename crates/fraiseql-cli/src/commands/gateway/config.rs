@@ -125,7 +125,7 @@ impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
             subgraph_request_ms: default_subgraph_timeout(),
-            total_request_ms:    default_total_timeout(),
+            total_request_ms: default_total_timeout(),
         }
     }
 }
@@ -133,7 +133,7 @@ impl Default for TimeoutConfig {
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
-            failure_threshold:   default_failure_threshold(),
+            failure_threshold: default_failure_threshold(),
             recovery_timeout_ms: default_recovery_timeout(),
         }
     }
@@ -149,14 +149,14 @@ pub enum ConfigError {
         /// Number of subgraphs found.
         count: usize,
         /// Maximum allowed.
-        max:   usize,
+        max: usize,
     },
     /// Invalid subgraph URL.
     InvalidUrl {
         /// Subgraph name.
-        name:   String,
+        name: String,
         /// The invalid URL.
-        url:    String,
+        url: String,
         /// Parse error reason.
         reason: String,
     },
@@ -172,7 +172,7 @@ pub enum ConfigError {
     /// Total timeout exceeds maximum.
     TotalTimeoutTooLarge {
         /// Configured value.
-        ms:  u64,
+        ms: u64,
         /// Maximum allowed.
         max: u64,
     },
@@ -231,7 +231,7 @@ pub fn validate_config(config: &GatewayConfig, base_dir: &Path) -> Result<(), Ve
     if config.subgraphs.len() > MAX_SUBGRAPHS {
         errors.push(ConfigError::TooManySubgraphs {
             count: config.subgraphs.len(),
-            max:   MAX_SUBGRAPHS,
+            max: MAX_SUBGRAPHS,
         });
     }
 
@@ -240,8 +240,8 @@ pub fn validate_config(config: &GatewayConfig, base_dir: &Path) -> Result<(), Ve
         // URL must be parseable
         if let Err(e) = reqwest::Url::parse(&sg.url) {
             errors.push(ConfigError::InvalidUrl {
-                name:   name.clone(),
-                url:    sg.url.clone(),
+                name: name.clone(),
+                url: sg.url.clone(),
                 reason: e.to_string(),
             });
         }
@@ -268,7 +268,7 @@ pub fn validate_config(config: &GatewayConfig, base_dir: &Path) -> Result<(), Ve
     }
     if config.timeouts.total_request_ms > MAX_TOTAL_REQUEST_MS {
         errors.push(ConfigError::TotalTimeoutTooLarge {
-            ms:  config.timeouts.total_request_ms,
+            ms: config.timeouts.total_request_ms,
             max: MAX_TOTAL_REQUEST_MS,
         });
     }

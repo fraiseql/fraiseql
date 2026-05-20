@@ -7,6 +7,12 @@ use fraiseql_error::FraiseQLError;
 use super::EmbeddedSpec;
 use crate::routes::rest::params::{SelectEntry, helpers::validation_error};
 
+/// Maximum parenthetical nesting depth allowed during parsing.
+///
+/// Prevents stack overflow from deeply nested `?select=a(b(c(...)))` before
+/// the post-parse [`validate_embedding_depth`] check runs.
+const MAX_PARSE_DEPTH: usize = 32;
+
 /// Parse a `?select=` value into a list of [`SelectEntry`] items.
 ///
 /// Supports:
@@ -18,8 +24,23 @@ use crate::routes::rest::params::{SelectEntry, helpers::validation_error};
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Validation` on unbalanced parentheses or empty field names.
+/// Returns `FraiseQLError::Validation` on unbalanced parentheses, empty field
+/// names, or nesting exceeding [`MAX_PARSE_DEPTH`] levels.
 pub fn parse_select_entries(input: &str) -> Result<Vec<SelectEntry>, FraiseQLError> {
+    parse_select_entries_inner(input, 0)
+}
+
+/// Inner recursive parser with depth tracking.
+fn parse_select_entries_inner(
+    input: &str,
+    depth: usize,
+) -> Result<Vec<SelectEntry>, FraiseQLError> {
+    if depth > MAX_PARSE_DEPTH {
+        return Err(validation_error(format!(
+            "Select nesting depth exceeds maximum of {MAX_PARSE_DEPTH}. \
+             Reduce parenthetical nesting in `select` parameter."
+        )));
+    }
     let mut entries = Vec::new();
     let chars: Vec<char> = input.chars().collect();
     let len = chars.len();
@@ -96,8 +117,8 @@ pub fn parse_select_entries(input: &str) -> Result<Vec<SelectEntry>, FraiseQLErr
             let inner = &input[inner_start..i];
             i += 1; // skip ')'
 
-            // Recursively parse the inner fields.
-            let sub_entries = parse_select_entries(inner)?;
+            // Recursively parse the inner fields with depth tracking.
+            let sub_entries = parse_select_entries_inner(inner, depth + 1)?;
 
             entries.push(SelectEntry::Embedded(EmbeddedSpec {
                 relationship,

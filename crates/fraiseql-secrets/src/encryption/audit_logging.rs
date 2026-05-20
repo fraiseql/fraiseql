@@ -73,23 +73,23 @@ impl std::fmt::Display for EventStatus {
 #[derive(Debug, Clone)]
 pub struct AuditLogEntry {
     /// Timestamp of operation
-    timestamp:     DateTime<Utc>,
+    timestamp: DateTime<Utc>,
     /// User performing operation
-    user_id:       String,
+    user_id: String,
     /// Field name being encrypted/decrypted
-    field_name:    String,
+    field_name: String,
     /// Operation type
-    operation:     OperationType,
+    operation: OperationType,
     /// Success or failure
-    status:        EventStatus,
+    status: EventStatus,
     /// Error message if failed
     error_message: Option<String>,
     /// Request ID for correlation
-    request_id:    String,
+    request_id: String,
     /// Session ID for tracking
-    session_id:    String,
+    session_id: String,
     /// Additional context data
-    context:       HashMap<String, String>,
+    context: HashMap<String, String>,
 }
 
 impl AuditLogEntry {
@@ -128,6 +128,7 @@ impl AuditLogEntry {
     }
 
     /// Add common security context data
+    #[must_use]
     pub fn with_security_context(self, ip_address: Option<&str>, user_role: Option<&str>) -> Self {
         let mut entry = self;
         if let Some(ip) = ip_address {
@@ -140,46 +141,55 @@ impl AuditLogEntry {
     }
 
     /// Get timestamp
+    #[must_use]
     pub const fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp
     }
 
     /// Get user ID
+    #[must_use]
     pub fn user_id(&self) -> &str {
         &self.user_id
     }
 
     /// Get field name
+    #[must_use]
     pub fn field_name(&self) -> &str {
         &self.field_name
     }
 
     /// Get operation type
+    #[must_use]
     pub const fn operation(&self) -> OperationType {
         self.operation
     }
 
     /// Get status
+    #[must_use]
     pub const fn status(&self) -> EventStatus {
         self.status
     }
 
     /// Get error message
+    #[must_use]
     pub fn error_message(&self) -> Option<&str> {
         self.error_message.as_deref()
     }
 
     /// Get request ID
+    #[must_use]
     pub fn request_id(&self) -> &str {
         &self.request_id
     }
 
     /// Get session ID
+    #[must_use]
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
 
     /// Get context data
+    #[must_use]
     pub const fn context(&self) -> &HashMap<String, String> {
         &self.context
     }
@@ -187,6 +197,7 @@ impl AuditLogEntry {
     /// Convert to CSV for logging.
     ///
     /// All user-controlled fields are RFC 4180 quoted to prevent CSV injection.
+    #[must_use]
     pub fn to_csv(&self) -> String {
         let error = self.error_message.as_deref().unwrap_or("");
         format!(
@@ -206,6 +217,7 @@ impl AuditLogEntry {
     ///
     /// Uses `serde_json` to produce well-formed JSON with correct escaping,
     /// preventing injection via user-controlled `user_id` or `field_name` values.
+    #[must_use]
     pub fn to_json_like(&self) -> String {
         serde_json::json!({
             "timestamp":  self.timestamp.to_rfc3339(),
@@ -226,13 +238,14 @@ impl AuditLogEntry {
 /// Handles logging of all encryption/decryption events for compliance.
 pub struct AuditLogger {
     /// In-memory log entries (for testing)
-    entries:     Vec<AuditLogEntry>,
+    entries: Vec<AuditLogEntry>,
     /// Maximum entries to keep in memory
     max_entries: usize,
 }
 
 impl AuditLogger {
     /// Create new audit logger
+    #[must_use]
     pub const fn new(max_entries: usize) -> Self {
         Self {
             entries: Vec::new(),
@@ -265,6 +278,7 @@ impl AuditLogger {
     }
 
     /// Get recent entries
+    #[must_use]
     pub fn recent_entries(&self, count: usize) -> Vec<AuditLogEntry> {
         let start = if self.entries.len() > count {
             self.entries.len() - count
@@ -275,31 +289,37 @@ impl AuditLogger {
     }
 
     /// Get entries for specific user
+    #[must_use]
     pub fn entries_for_user(&self, user_id: &str) -> Vec<AuditLogEntry> {
         self.filter_entries(|e| e.user_id == user_id)
     }
 
     /// Get entries for specific field
+    #[must_use]
     pub fn entries_for_field(&self, field_name: &str) -> Vec<AuditLogEntry> {
         self.filter_entries(|e| e.field_name == field_name)
     }
 
     /// Get entries for specific operation type
+    #[must_use]
     pub fn entries_for_operation(&self, operation: OperationType) -> Vec<AuditLogEntry> {
         self.filter_entries(|e| e.operation == operation)
     }
 
     /// Get failed operations
+    #[must_use]
     pub fn failed_entries(&self) -> Vec<AuditLogEntry> {
         self.filter_entries(|e| e.status == EventStatus::Failure)
     }
 
     /// Get successful operations
+    #[must_use]
     pub fn successful_entries(&self) -> Vec<AuditLogEntry> {
         self.filter_entries(|e| e.status == EventStatus::Success)
     }
 
     /// Get entries for specific user and operation
+    #[must_use]
     pub fn entries_for_user_operation(
         &self,
         user_id: &str,
@@ -309,6 +329,7 @@ impl AuditLogger {
     }
 
     /// Get entry count
+    #[must_use]
     pub const fn entry_count(&self) -> usize {
         self.entries.len()
     }

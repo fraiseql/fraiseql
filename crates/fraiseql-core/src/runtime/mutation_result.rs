@@ -26,7 +26,7 @@ pub enum MutationOutcome {
     /// The mutation succeeded; the result entity is available.
     Success {
         /// The entity JSONB returned by the function.
-        entity:      JsonValue,
+        entity: JsonValue,
         /// GraphQL type name for the entity (from the `entity_type` column).
         entity_type: Option<String>,
         /// UUID string of the mutated entity (from the `entity_id` column).
@@ -34,18 +34,18 @@ pub enum MutationOutcome {
         /// Present for UPDATE and DELETE mutations. Used for entity-aware cache
         /// invalidation: only cache entries containing this UUID are evicted,
         /// leaving unrelated entries warm.
-        entity_id:   Option<String>,
+        entity_id: Option<String>,
         /// Cascade operations associated with this mutation.
-        cascade:     Option<JsonValue>,
+        cascade: Option<JsonValue>,
     },
     /// The mutation failed; error metadata is available.
     Error {
         /// Typed classification of the failure (mirrors `app.mutation_error_class`).
         error_class: MutationErrorClass,
         /// Human-readable error message.
-        message:     String,
+        message: String,
         /// Structured metadata JSONB containing error-type field values.
-        metadata:    JsonValue,
+        metadata: JsonValue,
     },
 }
 
@@ -57,42 +57,42 @@ pub enum MutationOutcome {
 #[non_exhaustive]
 pub struct MutationResponse {
     /// Terminal outcome. `true` means the operation completed (including noops).
-    pub succeeded:      bool,
+    pub succeeded: bool,
     /// Did the database actually change? Independent of `succeeded`.
-    pub state_changed:  bool,
+    pub state_changed: bool,
     /// `NULL` iff `succeeded`. Drives the cascade error code 1:1.
     #[serde(default)]
-    pub error_class:    Option<MutationErrorClass>,
+    pub error_class: Option<MutationErrorClass>,
     /// Human-readable subtype (e.g. `"duplicate_email"`); not parsed.
     #[serde(default)]
-    pub status_detail:  Option<String>,
+    pub status_detail: Option<String>,
     /// HTTP status, first-class. Validated to 100..=599 on ingest.
     #[serde(default)]
-    pub http_status:    Option<i16>,
+    pub http_status: Option<i16>,
     /// Human-readable summary safe to show to end users.
     #[serde(default)]
-    pub message:        Option<String>,
+    pub message: Option<String>,
     /// Primary key of the affected entity. Present for updates/deletes.
     #[serde(default)]
-    pub entity_id:      Option<Uuid>,
+    pub entity_id: Option<Uuid>,
     /// GraphQL type name (e.g. `"User"`). Used for cache invalidation.
     #[serde(default)]
-    pub entity_type:    Option<String>,
+    pub entity_type: Option<String>,
     /// Full entity payload. Populated even for noops.
     #[serde(default)]
-    pub entity:         JsonValue,
+    pub entity: JsonValue,
     /// GraphQL field names that changed. Empty on noop.
     #[serde(default)]
     pub updated_fields: Vec<String>,
     /// Cascade operations (see the graphql-cascade specification).
     #[serde(default)]
-    pub cascade:        JsonValue,
+    pub cascade: JsonValue,
     /// Structured error payload only (field / constraint / severity).
     #[serde(default)]
-    pub error_detail:   JsonValue,
+    pub error_detail: JsonValue,
     /// Observability only (trace IDs, timings, audit extras).
     #[serde(default)]
-    pub metadata:       JsonValue,
+    pub metadata: JsonValue,
 }
 
 /// Parse a `mutation_response` row into a [`MutationOutcome`].
@@ -121,7 +121,7 @@ pub fn parse_mutation_row<S: ::std::hash::BuildHasher>(
     let parsed: MutationResponse =
         serde_json::from_value(JsonValue::Object(obj)).map_err(|e| FraiseQLError::Validation {
             message: format!("mutation_response row failed to deserialize: {e}"),
-            path:    None,
+            path: None,
         })?;
     to_outcome(parsed)
 }
@@ -135,7 +135,7 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
                     "mutation_response 'http_status' out of range: {status} \
                      (expected {HTTP_STATUS_MIN}..={HTTP_STATUS_MAX})"
                 ),
-                path:    None,
+                path: None,
             });
         }
     }
@@ -144,14 +144,14 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
         if row.error_class.is_some() {
             return Err(FraiseQLError::Validation {
                 message: "mutation_response: succeeded=true but error_class is set".to_string(),
-                path:    None,
+                path: None,
             });
         }
         Ok(MutationOutcome::Success {
-            entity:      row.entity,
+            entity: row.entity,
             entity_type: row.entity_type,
-            entity_id:   row.entity_id.map(|u| u.to_string()),
-            cascade:     filter_null(row.cascade),
+            entity_id: row.entity_id.map(|u| u.to_string()),
+            cascade: filter_null(row.cascade),
         })
     } else {
         if row.state_changed {
@@ -159,19 +159,19 @@ fn to_outcome(row: MutationResponse) -> Result<MutationOutcome> {
                 message: "mutation_response: succeeded=false with state_changed=true is illegal \
                           (partial-failure rows are builder-rejected)"
                     .to_string(),
-                path:    None,
+                path: None,
             });
         }
         let Some(class) = row.error_class else {
             return Err(FraiseQLError::Validation {
                 message: "mutation_response: succeeded=false requires error_class".to_string(),
-                path:    None,
+                path: None,
             });
         };
         Ok(MutationOutcome::Error {
             error_class: class,
-            message:     row.message.unwrap_or_default(),
-            metadata:    row.error_detail,
+            message: row.message.unwrap_or_default(),
+            metadata: row.error_detail,
         })
     }
 }

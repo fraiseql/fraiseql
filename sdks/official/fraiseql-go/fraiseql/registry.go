@@ -115,15 +115,13 @@ type SubscriptionDefinition struct {
 
 // EnumValueDefinition represents a single value in a GraphQL enum.
 type EnumValueDefinition struct {
-	Name  string `json:"name"`
-	Value string `json:"value,omitempty"`
+	Name string `json:"name"`
 }
 
 // EnumDefinition represents a GraphQL enum type.
 type EnumDefinition struct {
-	Name        string                `json:"name"`
-	Values      []EnumValueDefinition `json:"values"`
-	Description string                `json:"description,omitempty"`
+	Name   string                `json:"name"`
+	Values []EnumValueDefinition `json:"values"`
 }
 
 // Schema represents the complete GraphQL schema
@@ -220,30 +218,6 @@ func RegisterType(name string, fields []FieldInfo, description string, relay ...
 		Description: description,
 		Relay:       isRelay,
 		SqlSource:   "v_" + toSnakeCase(name),
-	}
-	return nil
-}
-
-// Enum registers a GraphQL enum type with the schema registry.
-// The values map maps GraphQL enum value names to their internal/SQL values.
-// Returns an error if an enum with the same name is already registered.
-func Enum(name string, values map[string]string) error {
-	reg := getInstance()
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	if _, exists := reg.enums[name]; exists {
-		return fmt.Errorf("enum %q is already registered; each name must be unique within a schema", name)
-	}
-
-	var enumValues []EnumValueDefinition
-	for k, v := range values {
-		enumValues = append(enumValues, EnumValueDefinition{Name: k, Value: v})
-	}
-
-	reg.enums[name] = EnumDefinition{
-		Name:   name,
-		Values: enumValues,
 	}
 	return nil
 }
@@ -451,11 +425,27 @@ func Reset() {
 	ClearCustomScalars()
 }
 
-// ClearRegistry resets the global schema registry, removing all registered
-// types, enums, queries, mutations, subscriptions, and other definitions.
-// This is an alias for Reset(), provided for readability in test code.
+// ClearRegistry clears the registry (alias for Reset, used in tests)
 func ClearRegistry() {
 	Reset()
+}
+
+// Enum registers a GraphQL enum type with the schema registry.
+// The values map keys are the enum member names (e.g., "DAY", "WEEK").
+func Enum(name string, values map[string]string) {
+	reg := getInstance()
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	enumValues := make([]EnumValueDefinition, 0, len(values))
+	for memberName := range values {
+		enumValues = append(enumValues, EnumValueDefinition{Name: memberName})
+	}
+
+	reg.enums[name] = EnumDefinition{
+		Name:   name,
+		Values: enumValues,
+	}
 }
 
 // RegisterTypes extracts fields from Go struct types and registers them

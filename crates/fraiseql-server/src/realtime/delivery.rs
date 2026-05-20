@@ -230,6 +230,7 @@ impl EventDeliveryPipeline {
 /// Evaluate field filters against a row.
 ///
 /// Returns `true` if the row passes all filters (or if there are no filters).
+#[must_use]
 pub fn evaluate_field_filters(filters: &[FieldFilter], row: Option<&Value>) -> bool {
     if filters.is_empty() {
         return true;

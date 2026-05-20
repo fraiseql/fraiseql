@@ -13,7 +13,7 @@ use crate::types::{FederationMetadata, FieldPathSelection};
 #[derive(Debug, Clone)]
 struct DependencyNode {
     /// Node ID: "TypeName.fieldName"
-    id:       String,
+    id: String,
     /// Fields this node requires
     requires: Vec<FieldPathSelection>,
 }
@@ -24,7 +24,7 @@ struct DependencyEdge {
     /// Source node (from)
     from: String,
     /// Target node (to)
-    to:   String,
+    to: String,
 }
 
 /// Dependency graph for federation @requires directives
@@ -62,7 +62,7 @@ impl DependencyGraph {
                     nodes.insert(
                         node_id.clone(),
                         DependencyNode {
-                            id:       node_id,
+                            id: node_id,
                             requires: directives.requires.clone(),
                         },
                     );
@@ -79,7 +79,7 @@ impl DependencyGraph {
 
                 edges.push(DependencyEdge {
                     from: node.id.clone(),
-                    to:   target_id,
+                    to: target_id,
                 });
             }
         }
@@ -88,11 +88,13 @@ impl DependencyGraph {
     }
 
     /// Get the number of nodes in the graph
+    #[must_use]
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
 
     /// Check if a node exists in the graph
+    #[must_use]
     pub fn has_node(&self, node_id: &str) -> bool {
         self.nodes.contains_key(node_id)
     }
@@ -106,6 +108,7 @@ impl DependencyGraph {
     ///
     /// Returns a vector of cycles, where each cycle is a vector of node IDs
     /// that form a circular dependency.
+    #[must_use]
     pub fn detect_cycles(&self) -> Vec<Vec<String>> {
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
@@ -174,7 +177,7 @@ impl DependencyGraph {
         if !cycles.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!("Circular dependencies detected: {:?}", cycles),
-                path:    None,
+                path: None,
             });
         }
 

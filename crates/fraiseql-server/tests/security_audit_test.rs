@@ -128,28 +128,28 @@ mod tests {
     fn test_authentication_required() {
         // Test cases for auth
         struct TestCase {
-            _token:          Option<String>,
+            _token: Option<String>,
             expected_status: u16,
-            description:     &'static str,
+            description: &'static str,
         }
 
         let cases = vec![
             TestCase {
-                _token:          None,
+                _token: None,
                 expected_status: 401,
-                description:     "Missing token",
+                description: "Missing token",
             },
             TestCase {
-                _token:          Some("invalid_token".to_string()),
+                _token: Some("invalid_token".to_string()),
                 expected_status: 401,
-                description:     "Invalid token",
+                description: "Invalid token",
             },
             TestCase {
-                _token:          Some(
+                _token: Some(
                     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MDAwMDAwMDB9.x".to_string(),
                 ),
                 expected_status: 401,
-                description:     "Expired token",
+                description: "Expired token",
             },
         ];
 
@@ -170,17 +170,17 @@ mod tests {
     #[test]
     fn test_authorization_enforcement() {
         struct User {
-            id:   String,
+            id: String,
             role: String,
         }
 
         let user1 = User {
-            id:   "user-1".to_string(),
+            id: "user-1".to_string(),
             role: "user".to_string(),
         };
 
         let user2 = User {
-            id:   "user-2".to_string(),
+            id: "user-2".to_string(),
             role: "admin".to_string(),
         };
 
@@ -351,20 +351,20 @@ mod tests {
     fn test_sensitive_operation_verification() {
         // Sensitive operations should require additional verification
         struct SensitiveOp {
-            operation:             String,
-            requires_mfa:          bool,
+            operation: String,
+            requires_mfa: bool,
             requires_confirmation: bool,
         }
 
         let sensitive_ops = vec![
             SensitiveOp {
-                operation:             "delete_user".to_string(),
-                requires_mfa:          true,
+                operation: "delete_user".to_string(),
+                requires_mfa: true,
                 requires_confirmation: true,
             },
             SensitiveOp {
-                operation:             "change_password".to_string(),
-                requires_mfa:          false,
+                operation: "change_password".to_string(),
+                requires_mfa: false,
                 requires_confirmation: true,
             },
         ];

@@ -159,7 +159,7 @@ fn test_config_defaults() {
 fn test_custom_config() {
     let config = ConvertConfig {
         batch_size: 5_000,
-        max_rows:   Some(100_000),
+        max_rows: Some(100_000),
     };
 
     assert_eq!(config.batch_size, 5_000);

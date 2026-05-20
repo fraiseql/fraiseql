@@ -12,6 +12,7 @@ use rmcp::model::{JsonObject, Tool};
 use super::McpConfig;
 
 /// Convert the compiled schema into a list of MCP tools.
+#[must_use]
 pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool> {
     let mut tools = Vec::new();
 
@@ -33,6 +34,7 @@ pub fn schema_to_tools(schema: &CompiledSchema, config: &McpConfig) -> Vec<Tool>
 }
 
 /// Check whether a given operation name should be included based on config filters.
+#[must_use]
 pub fn should_include(name: &str, config: &McpConfig) -> bool {
     if !config.include.is_empty() && !config.include.iter().any(|i| i == name) {
         return false;
@@ -47,17 +49,11 @@ pub fn should_include(name: &str, config: &McpConfig) -> bool {
 fn query_to_tool(query: &QueryDefinition, display_name: &str) -> Tool {
     let description = query.description.clone().unwrap_or_else(|| format!("Query: {display_name}"));
 
-    Tool {
-        name:          Cow::Owned(display_name.to_string()),
-        title:         None,
-        description:   Some(Cow::Owned(description)),
-        input_schema:  Arc::new(arguments_to_json_schema(&query.arguments)),
-        annotations:   None,
-        output_schema: None,
-        execution:     None,
-        icons:         None,
-        meta:          None,
-    }
+    Tool::new(
+        Cow::Owned(display_name.to_string()),
+        Cow::Owned(description),
+        Arc::new(arguments_to_json_schema(&query.arguments)),
+    )
 }
 
 /// Convert a mutation definition into an MCP tool.
@@ -67,17 +63,11 @@ fn mutation_to_tool(mutation: &MutationDefinition, display_name: &str) -> Tool {
         .clone()
         .unwrap_or_else(|| format!("Mutation: {display_name}"));
 
-    Tool {
-        name:          Cow::Owned(display_name.to_string()),
-        title:         None,
-        description:   Some(Cow::Owned(description)),
-        input_schema:  Arc::new(arguments_to_json_schema(&mutation.arguments)),
-        annotations:   None,
-        output_schema: None,
-        execution:     None,
-        icons:         None,
-        meta:          None,
-    }
+    Tool::new(
+        Cow::Owned(display_name.to_string()),
+        Cow::Owned(description),
+        Arc::new(arguments_to_json_schema(&mutation.arguments)),
+    )
 }
 
 /// Convert argument definitions into a JSON Schema object for MCP tool input.

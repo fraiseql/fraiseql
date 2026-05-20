@@ -283,7 +283,7 @@ lint-expect:
 # async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425).
 # Phase 0 baseline: 128 (crates/*/src/ only, matching the convention used by lint-unwrap/lint-expect).
 # Run `make lint-async-trait` to detect regressions (e.g. a new dyn-dispatch trait added without tracking comment).
-ASYNC_TRAIT_LIMIT := 179
+ASYNC_TRAIT_LIMIT := 175
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \
@@ -798,9 +798,8 @@ parity-generate:
 	@cd sdks/official/fraiseql-typescript && PATH="$$PATH:$$HOME/.bun/bin:$$HOME/.local/bin" \
 	    bun run tests/generate-parity-schema.ts > /tmp/parity-typescript.json
 	@echo "  [2/5] TypeScript done"
-	@cd sdks/official/fraiseql-go && go test -run TestGenerateParitySchema -v ./fraiseql/ 2>&1 | \
-	    python3 -c "import sys; d=sys.stdin.read(); s=d.find('{'); print(d[s:d.rfind('}')+1])" \
-	    > /tmp/parity-go.json
+	@cd sdks/official/fraiseql-go && SCHEMA_OUTPUT_FILE=/tmp/parity-go.json \
+	    go test -run TestGenerateParitySchema -v ./fraiseql/
 	@echo "  [3/5] Go done"
 	@cd sdks/official/fraiseql-java && \
 	    JAVA_HOME="$${JAVA_HOME:-$$(ls -d /usr/lib/jvm/java-*-openjdk 2>/dev/null | grep -v runtime | head -1)}" \

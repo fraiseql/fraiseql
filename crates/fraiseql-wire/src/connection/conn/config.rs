@@ -210,6 +210,7 @@ impl ConnectionConfigBuilder {
     }
 
     /// Build the configuration
+    #[must_use = "building a config that is not used has no effect"]
     pub fn build(self) -> ConnectionConfig {
         ConnectionConfig {
             database: self.database,

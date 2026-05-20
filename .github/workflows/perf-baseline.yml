@@ -48,13 +48,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
 
       - name: Build release binary
         run: cargo build --release -p fraiseql-cli --features run-server
@@ -111,7 +111,7 @@ jobs:
           exit 1
 
       - name: Set up k6
-        uses: grafana/setup-k6-action@v1
+        uses: grafana/setup-k6-action@c00053c996b4061198c9c24a00474b748abdf8b7  # v1
 
       - name: Run basic load test
         # On pushes to main/dev, threshold failures block the build to prevent regressions.
@@ -125,7 +125,7 @@ jobs:
 
       - name: Download baseline
         if: github.event_name == 'pull_request'
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11  # v6
         with:
           name: perf-baseline-${{ github.base_ref }}
           path: /tmp/baseline
@@ -180,7 +180,7 @@ jobs:
 
       - name: Save baseline artifact
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: perf-baseline-${{ github.ref_name }}
           path: |
@@ -190,7 +190,7 @@ jobs:
 
       - name: Archive load test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: perf-results-${{ github.sha }}
           path: |

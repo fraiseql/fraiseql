@@ -27,9 +27,9 @@ fn write_temp_pem(content: &str) -> tempfile::NamedTempFile {
 #[test]
 fn disabled_config_loads_nothing() {
     let config = MtlsConfig {
-        enabled:         false,
+        enabled: false,
         client_cert_pem: Some("/does/not/exist.pem".to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     // Must not touch the filesystem
     let material = MtlsMaterial::load(&config).unwrap();
@@ -40,9 +40,9 @@ fn disabled_config_loads_nothing() {
 #[test]
 fn enabled_true_no_cert_path_returns_error() {
     let config = MtlsConfig {
-        enabled:         true,
+        enabled: true,
         client_cert_pem: None,
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     let err = MtlsMaterial::load(&config).unwrap_err();
     let msg = format!("{err}");
@@ -55,9 +55,9 @@ fn enabled_true_no_cert_path_returns_error() {
 #[test]
 fn enabled_true_missing_file_returns_error() {
     let config = MtlsConfig {
-        enabled:         true,
+        enabled: true,
         client_cert_pem: Some("/nonexistent/path/cert.pem".to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     let err = MtlsMaterial::load(&config).unwrap_err();
     let msg = format!("{err}");
@@ -73,9 +73,9 @@ fn enabled_true_missing_key_marker_returns_error() {
     let cert_only = FAKE_CERT_PEM;
     let f = write_temp_pem(cert_only);
     let config = MtlsConfig {
-        enabled:         true,
+        enabled: true,
         client_cert_pem: Some(f.path().to_str().unwrap().to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     let err = MtlsMaterial::load(&config).unwrap_err();
     let msg = format!("{err}");
@@ -91,9 +91,9 @@ fn enabled_true_missing_cert_marker_returns_error() {
     let key_only = FAKE_KEY_PEM;
     let f = write_temp_pem(key_only);
     let config = MtlsConfig {
-        enabled:         true,
+        enabled: true,
         client_cert_pem: Some(f.path().to_str().unwrap().to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     let err = MtlsMaterial::load(&config).unwrap_err();
     let msg = format!("{err}");
@@ -110,9 +110,9 @@ fn load_valid_markers_returns_some_identity() {
     let combined = format!("{FAKE_CERT_PEM}{FAKE_KEY_PEM}");
     let f = write_temp_pem(&combined);
     let config = MtlsConfig {
-        enabled:         true,
+        enabled: true,
         client_cert_pem: Some(f.path().to_str().unwrap().to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     let material = MtlsMaterial::load(&config).unwrap();
     assert!(material.identity_pem.is_some(), "identity_pem must be Some for valid markers");
@@ -129,9 +129,9 @@ fn load_with_ec_key_marker_succeeds() {
     );
     let f = write_temp_pem(&ec_combined);
     let config = MtlsConfig {
-        enabled:         true,
+        enabled: true,
         client_cert_pem: Some(f.path().to_str().unwrap().to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     let material = MtlsMaterial::load(&config).unwrap();
     assert!(material.identity_pem.is_some());
@@ -144,7 +144,7 @@ fn identity_pem_is_zeroized_on_drop() {
     // We verify by constructing the type directly and inspecting the field.
     let material = MtlsMaterial {
         identity_pem: Some(Zeroizing::new(b"secret_key_bytes".to_vec())),
-        ca_cert:      None,
+        ca_cert: None,
     };
     assert!(material.identity_pem.is_some());
     // Dropping `material` here triggers Zeroizing's Drop impl, which
@@ -158,7 +158,7 @@ fn identity_pem_is_zeroized_on_drop() {
 fn apply_with_garbage_identity_returns_error() {
     let material = MtlsMaterial {
         identity_pem: Some(Zeroizing::new(b"not-a-real-pem".to_vec())),
-        ca_cert:      None,
+        ca_cert: None,
     };
     let builder = reqwest::Client::builder();
     let err = material.apply(builder).unwrap_err();
@@ -183,9 +183,9 @@ fn http_resolver_accepts_disabled_mtls() {
     use crate::http_resolver::{HttpClientConfig, HttpEntityResolver};
     let config = HttpClientConfig::default();
     let mtls = MtlsConfig {
-        enabled:         false,
+        enabled: false,
         client_cert_pem: Some("/does/not/exist.pem".to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     // disabled mTLS: no file I/O, resolver builds fine
     HttpEntityResolver::new(config, Some(&mtls)).unwrap();
@@ -196,9 +196,9 @@ fn http_resolver_enabled_mtls_missing_file_returns_error() {
     use crate::http_resolver::{HttpClientConfig, HttpEntityResolver};
     let config = HttpClientConfig::default();
     let mtls = MtlsConfig {
-        enabled:         true,
+        enabled: true,
         client_cert_pem: Some("/nonexistent/path.pem".to_string()),
-        root_ca_pem:     None,
+        root_ca_pem: None,
     };
     match HttpEntityResolver::new(config, Some(&mtls)) {
         Ok(_) => panic!("expected error for missing cert file"),

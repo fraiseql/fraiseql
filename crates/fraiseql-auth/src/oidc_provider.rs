@@ -28,13 +28,13 @@ use crate::{
 /// OIDC Discovery document
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct OidcDiscovery {
-    pub(crate) issuer:                 String,
+    pub(crate) issuer: String,
     pub(crate) authorization_endpoint: String,
-    pub(crate) token_endpoint:         String,
-    pub(crate) userinfo_endpoint:      String,
-    pub(crate) jwks_uri:               Option<String>,
+    pub(crate) token_endpoint: String,
+    pub(crate) userinfo_endpoint: String,
+    pub(crate) jwks_uri: Option<String>,
     #[serde(default)]
-    pub(crate) revocation_endpoint:    Option<String>,
+    pub(crate) revocation_endpoint: Option<String>,
 }
 
 /// Generic OIDC provider that works with any OIDC-compliant service
@@ -56,46 +56,46 @@ pub(crate) struct OidcDiscovery {
 /// # }
 /// ```
 pub struct OidcProvider {
-    pub(crate) name:          String,
-    pub(crate) issuer_url:    String,
-    pub(crate) client_id:     String,
+    pub(crate) name: String,
+    pub(crate) issuer_url: String,
+    pub(crate) client_id: String,
     /// Stored as `Zeroizing<String>` so the key material is wiped from memory
     /// when this struct is dropped.
     pub(crate) client_secret: Zeroizing<String>,
-    pub(crate) redirect_uri:  String,
-    pub(crate) discovery:     OidcDiscovery,
-    pub(crate) client:        reqwest::Client,
+    pub(crate) redirect_uri: String,
+    pub(crate) discovery: OidcDiscovery,
+    pub(crate) client: reqwest::Client,
 }
 
 #[derive(Debug, Serialize)]
 struct TokenRequest {
-    grant_type:    String,
-    code:          String,
-    client_id:     String,
+    grant_type: String,
+    code: String,
+    client_id: String,
     client_secret: String,
-    redirect_uri:  String,
+    redirect_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     code_verifier: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct TokenResponseRaw {
-    access_token:  String,
+    access_token: String,
     #[serde(default)]
     refresh_token: Option<String>,
-    expires_in:    u64,
+    expires_in: u64,
     #[serde(default)]
-    token_type:    Option<String>,
+    token_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct UserInfoRaw {
-    sub:     String,
-    email:   Option<String>,
-    name:    Option<String>,
+    sub: String,
+    email: Option<String>,
+    name: Option<String>,
     picture: Option<String>,
     #[serde(flatten)]
-    extra:   serde_json::Map<String, serde_json::Value>,
+    extra: serde_json::Map<String, serde_json::Value>,
 }
 
 /// Validate an OIDC issuer URL against SSRF-prone destinations.
@@ -291,11 +291,11 @@ impl OAuthProvider for OidcProvider {
 
     async fn exchange_code(&self, code: &str) -> Result<TokenResponse> {
         let request = TokenRequest {
-            grant_type:    "authorization_code".to_string(),
-            code:          code.to_string(),
-            client_id:     self.client_id.clone(),
+            grant_type: "authorization_code".to_string(),
+            code: code.to_string(),
+            client_id: self.client_id.clone(),
             client_secret: (*self.client_secret).clone(),
-            redirect_uri:  self.redirect_uri.clone(),
+            redirect_uri: self.redirect_uri.clone(),
             code_verifier: None,
         };
 
@@ -327,10 +327,10 @@ impl OAuthProvider for OidcProvider {
             })?;
 
         Ok(TokenResponse {
-            access_token:  response.access_token,
+            access_token: response.access_token,
             refresh_token: response.refresh_token,
-            expires_in:    response.expires_in,
-            token_type:    response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            expires_in: response.expires_in,
+            token_type: response.token_type.unwrap_or_else(|| "Bearer".to_string()),
         })
     }
 
@@ -379,10 +379,10 @@ impl OAuthProvider for OidcProvider {
         }
 
         Ok(UserInfo {
-            id:         response.sub,
-            email:      response.email.unwrap_or_default(),
-            name:       response.name,
-            picture:    response.picture,
+            id: response.sub,
+            email: response.email.unwrap_or_default(),
+            name: response.name,
+            picture: response.picture,
             raw_claims: serde_json::Value::Object(raw_claims),
         })
     }
@@ -423,10 +423,10 @@ impl OAuthProvider for OidcProvider {
             })?;
 
         Ok(TokenResponse {
-            access_token:  response.access_token,
+            access_token: response.access_token,
             refresh_token: response.refresh_token,
-            expires_in:    response.expires_in,
-            token_type:    response.token_type.unwrap_or_else(|| "Bearer".to_string()),
+            expires_in: response.expires_in,
+            token_type: response.token_type.unwrap_or_else(|| "Bearer".to_string()),
         })
     }
 

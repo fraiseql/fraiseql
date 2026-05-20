@@ -16,21 +16,21 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoricalEvent {
     /// Unique event ID
-    pub id:          Uuid,
+    pub id: Uuid,
     /// Event type: "INSERT", "UPDATE", "DELETE", or "CUSTOM"
-    pub event_type:  String,
+    pub event_type: String,
     /// Entity type (e.g., "Order", "User")
     pub entity_type: String,
     /// Entity instance ID
-    pub entity_id:   Uuid,
+    pub entity_id: Uuid,
     /// Event data as JSON
-    pub data:        serde_json::Value,
+    pub data: serde_json::Value,
     /// User who triggered the event (if available)
-    pub user_id:     Option<String>,
+    pub user_id: Option<String>,
     /// Tenant ID for multi-tenant systems (if applicable)
-    pub tenant_id:   Option<String>,
+    pub tenant_id: Option<String>,
     /// When the event occurred
-    pub timestamp:   DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
 }
 
 /// Arrow Flight-specific trait for querying historical observer events from storage.

@@ -384,7 +384,7 @@ mod memory_storage_tests {
         assert_eq!(result, None);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn ttl_expiry() {
         let store = InMemoryApqStorage::with_ttl(100, Duration::from_millis(50));
         store.set("h1".to_string(), "query1".to_string()).await.unwrap();
@@ -392,8 +392,8 @@ mod memory_storage_tests {
         // Should be present immediately.
         assert!(store.get("h1").await.unwrap().is_some());
 
-        // Wait for TTL to expire.
-        tokio::time::sleep(Duration::from_millis(60)).await;
+        // Advance frozen time past the TTL.
+        tokio::time::advance(Duration::from_millis(60)).await;
 
         // Should be gone.
         assert!(store.get("h1").await.unwrap().is_none());
@@ -404,11 +404,9 @@ mod memory_storage_tests {
         let store = InMemoryApqStorage::new(2);
 
         store.set("h1".to_string(), "q1".to_string()).await.unwrap();
-        // Touch h1 first, then add h2 — h1 is older in access time.
-        tokio::time::sleep(Duration::from_millis(5)).await;
         store.set("h2".to_string(), "q2".to_string()).await.unwrap();
 
-        // Access h1 to make it more recently used.
+        // Access h1 to make it more recently used than h2.
         store.get("h1").await.unwrap();
 
         // Adding h3 should evict h2 (least recently accessed).

@@ -97,6 +97,27 @@ fn init_tracing(config: &ServerConfig, is_json: bool) {
     }
 }
 
+/// Redact credentials from an endpoint URL before logging.
+///
+/// If the URL contains userinfo (`user:pass@host`), the credentials are replaced
+/// with `[REDACTED]`.  Non-URL strings and parse failures are returned as-is with
+/// no credential risk (they don't contain structured userinfo).
+#[cfg(feature = "tracing-opentelemetry")]
+fn redact_endpoint_credentials(endpoint: &str) -> String {
+    match url::Url::parse(endpoint) {
+        Ok(mut parsed) => {
+            if !parsed.username().is_empty() || parsed.password().is_some() {
+                // Reason: infallible for valid URLs — set_username / set_password
+                // only fail on `cannot-be-a-base` URLs which have a scheme.
+                let _ = parsed.set_username("[REDACTED]");
+                let _ = parsed.set_password(None);
+            }
+            parsed.to_string()
+        },
+        Err(_) => endpoint.to_string(),
+    }
+}
+
 /// Resolve the OTLP endpoint from config or environment, returning `None` if
 /// neither is set (meaning OTLP export should be skipped entirely).
 #[cfg(feature = "tracing-opentelemetry")]
@@ -130,7 +151,12 @@ where
         .with_endpoint(&endpoint)
         .with_timeout(std::time::Duration::from_secs(config.otlp_export_timeout_secs))
         .build()
-        .map_err(|e| eprintln!("Failed to build OTLP exporter for {endpoint}: {e}"))
+        .map_err(|e| {
+            eprintln!(
+                "Failed to build OTLP exporter for {}: {e}",
+                redact_endpoint_credentials(&endpoint)
+            );
+        })
         .ok()?;
 
     let provider = SdkTracerProvider::builder()
@@ -144,7 +170,8 @@ where
 
     let tracer = provider.tracer("fraiseql");
     eprintln!(
-        "OTLP tracing export enabled: endpoint={endpoint}, service_name={}",
+        "OTLP tracing export enabled: endpoint={}, service_name={}",
+        redact_endpoint_credentials(&endpoint),
         config.tracing_service_name
     );
 
@@ -221,8 +248,8 @@ async fn build_adapter(config: &ServerConfig) -> anyhow::Result<Arc<PostgresAdap
     let adapter = PostgresAdapter::with_pool_config(
         &config.database_url,
         fraiseql_core::db::postgres::PoolPrewarmConfig {
-            min_size:     config.pool_min_size,
-            max_size:     config.pool_max_size,
+            min_size: config.pool_min_size,
+            max_size: config.pool_max_size,
             timeout_secs: Some(config.pool_timeout_secs),
         },
     )

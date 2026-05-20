@@ -79,6 +79,7 @@ pub enum Audience {
 
 impl Audience {
     /// Check if the audience contains a specific value.
+    #[must_use]
     pub fn contains(&self, value: &str) -> bool {
         match self {
             Self::None => false,
@@ -88,6 +89,7 @@ impl Audience {
     }
 
     /// Get all audience values as a vector.
+    #[must_use]
     pub fn to_vec(&self) -> Vec<String> {
         match self {
             Self::None => Vec::new(),

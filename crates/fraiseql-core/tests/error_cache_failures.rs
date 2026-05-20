@@ -53,15 +53,15 @@ async fn test_cache_miss_with_different_where_clause() {
     let cached = CachedDatabaseAdapter::new(adapter, cache, "1.0.0".to_string());
 
     let where1 = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(1),
+        value: json!(1),
     };
 
     let where2 = WhereClause::Field {
-        path:     vec!["id".to_string()],
+        path: vec!["id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!(2),
+        value: json!(2),
     };
 
     let _ = cached

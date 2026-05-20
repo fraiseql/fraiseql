@@ -178,16 +178,16 @@ fn test_resolve_conflict_strategy_error() {
 
     let config = ComposeConfig {
         conflict_resolution: "error".to_string(),
-        validation:          true,
-        subgraph_priority:   vec![],
+        validation: true,
+        subgraph_priority: vec![],
     };
 
     // Simulate conflict detection
     let conflict = FieldTypeConflict {
         field_name: "email".to_string(),
-        type_name:  "User".to_string(),
-        subgraph1:  ("users".to_string(), "String".to_string()),
-        subgraph2:  ("auth".to_string(), "Int".to_string()),
+        type_name: "User".to_string(),
+        subgraph1: ("users".to_string(), "String".to_string()),
+        subgraph2: ("auth".to_string(), "Int".to_string()),
     };
 
     let result = resolve_conflict(&conflict, &config);
@@ -203,15 +203,15 @@ fn test_resolve_conflict_strategy_first_wins() {
 
     let config = ComposeConfig {
         conflict_resolution: "first_wins".to_string(),
-        validation:          true,
-        subgraph_priority:   vec!["users".to_string(), "auth".to_string()],
+        validation: true,
+        subgraph_priority: vec!["users".to_string(), "auth".to_string()],
     };
 
     let conflict = FieldTypeConflict {
         field_name: "email".to_string(),
-        type_name:  "User".to_string(),
-        subgraph1:  ("users".to_string(), "String".to_string()),
-        subgraph2:  ("auth".to_string(), "Int".to_string()),
+        type_name: "User".to_string(),
+        subgraph1: ("users".to_string(), "String".to_string()),
+        subgraph2: ("auth".to_string(), "Int".to_string()),
     };
 
     let result = resolve_conflict(&conflict, &config);
@@ -231,15 +231,15 @@ fn test_resolve_conflict_strategy_shareable() {
 
     let config = ComposeConfig {
         conflict_resolution: "shareable".to_string(),
-        validation:          true,
-        subgraph_priority:   vec![],
+        validation: true,
+        subgraph_priority: vec![],
     };
 
     let conflict = FieldTypeConflict {
         field_name: "email".to_string(),
-        type_name:  "User".to_string(),
-        subgraph1:  ("users".to_string(), "String".to_string()),
-        subgraph2:  ("auth".to_string(), "Int".to_string()),
+        type_name: "User".to_string(),
+        subgraph1: ("users".to_string(), "String".to_string()),
+        subgraph2: ("auth".to_string(), "Int".to_string()),
     };
 
     let _result = resolve_conflict(&conflict, &config);
@@ -265,7 +265,7 @@ fn test_compose_workflow_basic() {
         types: vec![{
             let mut t = FederatedType::new("User".to_string());
             t.keys.push(KeyDirective {
-                fields:     vec!["id".to_string()],
+                fields: vec!["id".to_string()],
                 resolvable: true,
             });
             t
@@ -279,7 +279,7 @@ fn test_compose_workflow_basic() {
         types: vec![{
             let mut t = FederatedType::new("Order".to_string());
             t.keys.push(KeyDirective {
-                fields:     vec!["id".to_string()],
+                fields: vec!["id".to_string()],
                 resolvable: true,
             });
             t
@@ -289,19 +289,19 @@ fn test_compose_workflow_basic() {
 
     let subgraphs = vec![
         SubgraphInput {
-            name:   "users".to_string(),
+            name: "users".to_string(),
             schema: users_schema,
         },
         SubgraphInput {
-            name:   "orders".to_string(),
+            name: "orders".to_string(),
             schema: orders_schema,
         },
     ];
 
     let config = ComposeConfig {
         conflict_resolution: "error".to_string(),
-        validation:          true,
-        subgraph_priority:   vec![],
+        validation: true,
+        subgraph_priority: vec![],
     };
 
     let result = execute_compose_workflow(&subgraphs, &config);
@@ -326,14 +326,14 @@ fn test_compose_workflow_with_validation_errors() {
     };
 
     let subgraphs = vec![SubgraphInput {
-        name:   "users".to_string(),
+        name: "users".to_string(),
         schema: invalid_schema,
     }];
 
     let config = ComposeConfig {
         conflict_resolution: "error".to_string(),
-        validation:          true,
-        subgraph_priority:   vec![],
+        validation: true,
+        subgraph_priority: vec![],
     };
 
     let _result = execute_compose_workflow(&subgraphs, &config);
@@ -395,7 +395,7 @@ fn test_error_message_composition_conflict() {
 /// Parsed CLI arguments for compose command
 #[derive(Debug, Clone)]
 struct ComposeArgs {
-    pub subgraphs:   Vec<SubgraphArg>,
+    pub subgraphs: Vec<SubgraphArg>,
     pub output_path: Option<String>,
     #[allow(dead_code)] // Reason: field reserved for future config-path support; not yet wired up
     pub config_path: Option<String>,
@@ -412,30 +412,30 @@ struct SubgraphArg {
 #[derive(Debug, Clone)]
 struct ComposeConfig {
     pub conflict_resolution: String, // "error", "first_wins", "shareable"
-    pub validation:          bool,
-    pub subgraph_priority:   Vec<String>,
+    pub validation: bool,
+    pub subgraph_priority: Vec<String>,
 }
 
 /// Field type conflict info
 #[derive(Debug, Clone)]
 struct FieldTypeConflict {
     pub field_name: String,
-    pub type_name:  String,
-    pub subgraph1:  (String, String), // (name, type)
-    pub subgraph2:  (String, String), // (name, type)
+    pub type_name: String,
+    pub subgraph1: (String, String), // (name, type)
+    pub subgraph2: (String, String), // (name, type)
 }
 
 /// Conflict resolution result
 #[derive(Debug, Clone)]
 struct ConflictResolution {
-    pub chosen_type:     String,
+    pub chosen_type: String,
     pub chosen_subgraph: String,
 }
 
 /// Subgraph input for composition
 #[derive(Debug, Clone)]
 struct SubgraphInput {
-    pub name:   String,
+    pub name: String,
     pub schema: FederationMetadata,
 }
 
@@ -530,8 +530,8 @@ fn parse_compose_args(args: &[String]) -> Result<ComposeArgs, String> {
 fn load_compose_config(config_path: Option<&str>) -> Result<ComposeConfig, String> {
     let default_config = ComposeConfig {
         conflict_resolution: "error".to_string(),
-        validation:          true,
-        subgraph_priority:   vec![],
+        validation: true,
+        subgraph_priority: vec![],
     };
 
     if let Some(_path) = config_path {
@@ -605,14 +605,14 @@ fn resolve_conflict(
             };
 
             Ok(ConflictResolution {
-                chosen_type:     chosen.1,
+                chosen_type: chosen.1,
                 chosen_subgraph: chosen.0,
             })
         },
         "shareable" => {
             // In real implementation, would check @shareable directive
             Ok(ConflictResolution {
-                chosen_type:     conflict.subgraph1.1.clone(),
+                chosen_type: conflict.subgraph1.1.clone(),
                 chosen_subgraph: conflict.subgraph1.0.clone(),
             })
         },

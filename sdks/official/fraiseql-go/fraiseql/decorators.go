@@ -143,24 +143,23 @@ func (qb *QueryBuilder) SqlSource(source string) *QueryBuilder {
 	return qb
 }
 
-// SqlSourceDispatch sets an explicit dispatch mapping for this query.
-// The argument name identifies which query argument controls dispatch,
-// and the mapping maps enum values to SQL source names.
-func (qb *QueryBuilder) SqlSourceDispatch(argName string, mapping map[string]string) *QueryBuilder {
+// SqlSourceDispatch sets dispatch configuration with an explicit parameter-to-source mapping.
+// The paramName is the GraphQL argument name whose value selects the SQL source.
+// The mapping maps enum values to SQL table/view names.
+func (qb *QueryBuilder) SqlSourceDispatch(paramName string, mapping map[string]string) *QueryBuilder {
 	qb.config["sql_source_dispatch"] = map[string]interface{}{
-		"argument": argName,
-		"mapping":  mapping,
+		"param":   paramName,
+		"mapping": mapping,
 	}
 	return qb
 }
 
-// SqlSourceDispatchWithTemplate sets a template-based dispatch for this query.
-// The argument name identifies which query argument controls dispatch,
-// and the template string contains a placeholder (e.g. "v_users_{env}")
-// that the compiler expands for each enum value.
-func (qb *QueryBuilder) SqlSourceDispatchWithTemplate(argName string, template string) *QueryBuilder {
+// SqlSourceDispatchWithTemplate sets dispatch configuration using a template string.
+// The paramName is the GraphQL argument name whose value is substituted into the template.
+// Example: SqlSourceDispatchWithTemplate("env", "v_users_{env}")
+func (qb *QueryBuilder) SqlSourceDispatchWithTemplate(paramName string, template string) *QueryBuilder {
 	qb.config["sql_source_dispatch"] = map[string]interface{}{
-		"argument": argName,
+		"param":    paramName,
 		"template": template,
 	}
 	return qb

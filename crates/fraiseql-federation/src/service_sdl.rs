@@ -169,6 +169,7 @@ fn append_directives_to_line(line: &str, suffix: &str) -> String {
 /// - `type_shareable: true` → type header includes `@shareable`
 /// - `interface` types with `@key` → entity interface pattern
 /// - `input` / `enum` types → no federation directives injected
+#[must_use]
 pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) -> String {
     if !metadata.enabled {
         return base_schema.to_string();
@@ -319,6 +320,7 @@ pub fn generate_service_sdl(base_schema: &str, metadata: &FederationMetadata) ->
 }
 
 /// Parse SDL to check if it's valid GraphQL
+#[must_use]
 pub fn validate_sdl(sdl: &str) -> bool {
     // Basic validation - check for required federation elements
     sdl.contains("directive @key")

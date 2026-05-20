@@ -309,7 +309,7 @@ impl ChangeLogEntry {
 
 /// Change log listener that polls database for mutations
 pub struct ChangeLogListener {
-    config:            ChangeLogListenerConfig,
+    config: ChangeLogListenerConfig,
     last_processed_id: i64,
 }
 
@@ -375,17 +375,17 @@ impl ChangeLogListener {
                 created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
 
             entries.push(ChangeLogEntry {
-                id:                   pk,
+                id: pk,
                 pk_entity_change_log: id.to_string(),
-                fk_customer_org:      org.unwrap_or_default(),
-                fk_contact:           contact,
-                object_type:          obj_type,
-                object_id:            obj_id,
-                modification_type:    mod_type,
-                change_status:        status.unwrap_or_default(),
-                object_data:          data,
-                extra_metadata:       meta,
-                created_at:           created_at_str,
+                fk_customer_org: org.unwrap_or_default(),
+                fk_contact: contact,
+                object_type: obj_type,
+                object_id: obj_id,
+                modification_type: mod_type,
+                change_status: status.unwrap_or_default(),
+                object_data: data,
+                extra_metadata: meta,
+                created_at: created_at_str,
             });
 
             // Update checkpoint for recovery

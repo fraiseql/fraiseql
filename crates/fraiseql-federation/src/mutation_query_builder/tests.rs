@@ -10,17 +10,17 @@ fn make_metadata(typename: &str, key_field: &str) -> FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types: vec![FederatedType {
-            name:                typename.to_string(),
-            keys:                vec![KeyDirective {
-                fields:     vec![key_field.to_string()],
+            name: typename.to_string(),
+            keys: vec![KeyDirective {
+                fields: vec![key_field.to_string()],
                 resolvable: true,
             }],
-            is_extends:          false,
-            external_fields:     Vec::new(),
-            shareable_fields:    Vec::new(),
+            is_extends: false,
+            external_fields: Vec::new(),
+            shareable_fields: Vec::new(),
             inaccessible_fields: Vec::new(),
-            field_directives:    std::collections::HashMap::new(),
-            type_shareable:      false,
+            field_directives: std::collections::HashMap::new(),
+            type_shareable: false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     }

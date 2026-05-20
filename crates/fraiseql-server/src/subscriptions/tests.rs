@@ -277,8 +277,8 @@ mod event_bridge_tests {
             sender.send(event).await.expect("channel should be open");
         }
 
-        // Allow the bridge task to process all events
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        // Yield to let the bridge task process events
+        tokio::task::yield_now().await;
 
         // The bridge should still be running (didn't panic processing events)
         assert!(!handle.is_finished(), "bridge should still be running after processing events");
@@ -407,7 +407,7 @@ mod presence_tests {
         assert_eq!(state.members[0].state["status"], "away");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_evict_stale_members() {
         let config = PresenceConfig {
             heartbeat_timeout: Duration::from_millis(1),
@@ -418,8 +418,8 @@ mod presence_tests {
         mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
         mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
 
-        // Wait for heartbeat to expire
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        // Advance past heartbeat timeout
+        tokio::time::advance(Duration::from_millis(10)).await;
 
         let diffs = mgr.evict_stale().await;
         assert_eq!(diffs.len(), 1);
@@ -429,7 +429,7 @@ mod presence_tests {
         assert!(mgr.get_room("room1").await.is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_heartbeat_prevents_eviction() {
         let config = PresenceConfig {
             heartbeat_timeout: Duration::from_millis(50),
@@ -440,12 +440,12 @@ mod presence_tests {
         mgr.join("room1", "alice", serde_json::json!({})).await.unwrap();
         mgr.join("room1", "bob", serde_json::json!({})).await.unwrap();
 
-        // Wait a bit, then heartbeat only alice
-        tokio::time::sleep(Duration::from_millis(30)).await;
+        // Advance time, then heartbeat only alice
+        tokio::time::advance(Duration::from_millis(30)).await;
         mgr.heartbeat("room1", "alice").await;
 
-        // Wait for bob to expire but not alice
-        tokio::time::sleep(Duration::from_millis(30)).await;
+        // Advance past bob's expiry but not alice's (she heartbeated at t=30)
+        tokio::time::advance(Duration::from_millis(30)).await;
 
         let diffs = mgr.evict_stale().await;
         assert_eq!(diffs.len(), 1);

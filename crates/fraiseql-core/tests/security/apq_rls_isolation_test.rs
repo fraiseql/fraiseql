@@ -33,14 +33,14 @@ fn test_apq_cache_key_differs_per_user() {
     let version = "abc123";
 
     let rls_alice = WhereClause::Field {
-        path:     vec!["author_id".to_string()],
+        path: vec!["author_id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("alice"),
+        value: json!("alice"),
     };
     let rls_bob = WhereClause::Field {
-        path:     vec!["author_id".to_string()],
+        path: vec!["author_id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("bob"),
+        value: json!("bob"),
     };
 
     let key_alice = generate_cache_key(query, &vars, Some(&rls_alice), version);
@@ -65,9 +65,9 @@ fn test_apq_cache_key_admin_differs_from_user() {
     let version = "abc123";
 
     let rls_user = WhereClause::Field {
-        path:     vec!["author_id".to_string()],
+        path: vec!["author_id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("alice"),
+        value: json!("alice"),
     };
 
     let key_admin = generate_cache_key(query, &vars, None, version);
@@ -94,28 +94,28 @@ fn test_apq_cache_key_tenant_isolation() {
     // Tenant ACME: tenant_id = 'acme' AND author_id = 'alice'
     let rls_acme = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["tenant_id".to_string()],
+            path: vec!["tenant_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("acme"),
+            value: json!("acme"),
         },
         WhereClause::Field {
-            path:     vec!["author_id".to_string()],
+            path: vec!["author_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("alice"),
+            value: json!("alice"),
         },
     ]);
 
     // Tenant GLOBEX: tenant_id = 'globex' AND author_id = 'alice'
     let rls_globex = WhereClause::And(vec![
         WhereClause::Field {
-            path:     vec!["tenant_id".to_string()],
+            path: vec!["tenant_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("globex"),
+            value: json!("globex"),
         },
         WhereClause::Field {
-            path:     vec!["author_id".to_string()],
+            path: vec!["author_id".to_string()],
             operator: WhereOperator::Eq,
-            value:    json!("alice"),
+            value: json!("alice"),
         },
     ]);
 
@@ -141,9 +141,9 @@ fn test_apq_cache_key_stable_for_same_context() {
     let version = "abc123";
 
     let rls = WhereClause::Field {
-        path:     vec!["author_id".to_string()],
+        path: vec!["author_id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("alice"),
+        value: json!("alice"),
     };
 
     let key1 = generate_cache_key(query, &vars, Some(&rls), version);
@@ -165,9 +165,9 @@ fn test_apq_cache_key_changes_on_schema_version() {
     let vars = json!({});
 
     let rls = WhereClause::Field {
-        path:     vec!["author_id".to_string()],
+        path: vec!["author_id".to_string()],
         operator: WhereOperator::Eq,
-        value:    json!("alice"),
+        value: json!("alice"),
     };
 
     let key_v1 = generate_cache_key(query, &vars, Some(&rls), "schema_v1");

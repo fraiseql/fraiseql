@@ -30,7 +30,7 @@ use crate::{
 /// ```
 #[derive(Debug)]
 pub struct OryOAuth {
-    oidc:       OidcProvider,
+    oidc: OidcProvider,
     issuer_url: String,
 }
 
@@ -92,6 +92,7 @@ impl OryOAuth {
     ///
     /// # Arguments
     /// * `ory_groups` - List of Ory group names or Keto permission patterns
+    #[must_use]
     pub fn map_ory_groups_to_fraiseql(ory_groups: Vec<String>) -> Vec<String> {
         ory_groups
             .into_iter()

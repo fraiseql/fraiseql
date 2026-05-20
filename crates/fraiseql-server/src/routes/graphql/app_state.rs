@@ -23,20 +23,20 @@ use crate::{
 #[derive(Clone)]
 pub struct AppState<A: DatabaseAdapter> {
     /// Query executor (atomically swappable for schema hot-reload).
-    pub executor:                  Arc<ArcSwap<Executor<A>>>,
+    pub executor: Arc<ArcSwap<Executor<A>>>,
     /// Metrics collector.
-    pub metrics:                   Arc<MetricsCollector>,
+    pub metrics: Arc<MetricsCollector>,
     /// Query result cache (optional).
     #[cfg(feature = "arrow")]
-    pub cache:                     Option<Arc<fraiseql_arrow::cache::QueryCache>>,
+    pub cache: Option<Arc<fraiseql_arrow::cache::QueryCache>>,
     /// Server configuration (optional).
-    pub config:                    Option<Arc<crate::config::HttpServerConfig>>,
+    pub config: Option<Arc<crate::config::HttpServerConfig>>,
     /// Rate limiter for GraphQL validation errors (per IP).
     #[cfg(feature = "auth")]
-    pub graphql_rate_limiter:      Arc<KeyedRateLimiter>,
+    pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
     /// Secrets manager (optional, configured via `[fraiseql.secrets]`).
     #[cfg(feature = "secrets")]
-    pub secrets_manager:           Option<Arc<crate::secrets_manager::SecretsManager>>,
+    pub secrets_manager: Option<Arc<crate::secrets_manager::SecretsManager>>,
     /// Field encryption service for transparent encrypt/decrypt of marked fields.
     #[cfg(feature = "secrets")]
     pub field_encryption: Option<Arc<crate::encryption::middleware::FieldEncryptionService>>,
@@ -46,79 +46,79 @@ pub struct AppState<A: DatabaseAdapter> {
         Option<Arc<crate::federation::circuit_breaker::FederationCircuitBreakerManager>>,
     /// Federation subgraph latency histogram tracker.
     #[cfg(feature = "federation")]
-    pub federation_latency:        Arc<fraiseql_core::federation::SubgraphLatencyTracker>,
+    pub federation_latency: Arc<fraiseql_core::federation::SubgraphLatencyTracker>,
     /// Federation entity resolution counter metrics.
     #[cfg(feature = "federation")]
     pub federation_entity_metrics: Arc<fraiseql_core::federation::EntityResolutionMetrics>,
     /// Federation query plan cache for plan visualization.
     #[cfg(feature = "federation")]
-    pub federation_plan_cache:     Option<Arc<fraiseql_core::federation::QueryPlanCache>>,
+    pub federation_plan_cache: Option<Arc<fraiseql_core::federation::QueryPlanCache>>,
     /// Error sanitizer — strips internal details before sending responses to clients.
-    pub error_sanitizer:           Arc<ErrorSanitizer>,
+    pub error_sanitizer: Arc<ErrorSanitizer>,
     /// State encryption service (optional, enabled via `[security.state_encryption]`).
     #[cfg(feature = "auth")]
     pub state_encryption: Option<Arc<crate::auth::state_encryption::StateEncryptionService>>,
     /// API key authenticator (optional, enabled via `[security.api_keys]`).
-    pub api_key_authenticator:     Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
+    pub api_key_authenticator: Option<Arc<crate::api_key::ApiKeyAuthenticator>>,
     /// APQ persistent query store (optional, enabled via compiled schema config).
-    pub apq_store:                 Option<ArcApqStorage>,
+    pub apq_store: Option<ArcApqStorage>,
     /// Trusted document store (optional, enabled via `[security.trusted_documents]`).
-    pub trusted_docs:              Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
+    pub trusted_docs: Option<Arc<crate::trusted_documents::TrustedDocumentStore>>,
     /// APQ metrics tracker.
-    pub apq_metrics:               Arc<ApqMetrics>,
+    pub apq_metrics: Arc<ApqMetrics>,
     /// Request validator (depth/complexity limits, configured from compiled schema).
-    pub validator:                 crate::validation::RequestValidator,
+    pub validator: crate::validation::RequestValidator,
     /// Debug configuration (optional, from `[debug]` in `fraiseql.toml`).
-    pub debug_config:              Option<fraiseql_core::schema::DebugConfig>,
+    pub debug_config: Option<fraiseql_core::schema::DebugConfig>,
     /// Maximum byte length for a query string delivered via HTTP GET.
     ///
     /// Defaults to `100_000` (100 `KiB`).  Configurable via
     /// `ServerConfig::max_get_query_bytes`.
-    pub max_get_query_bytes:       usize,
+    pub max_get_query_bytes: usize,
     /// Connection pool auto-tuner (optional, enabled via `[pool_tuning]` config).
-    pub pool_tuner:                Option<Arc<crate::pool::PoolSizingAdvisor>>,
+    pub pool_tuner: Option<Arc<crate::pool::PoolSizingAdvisor>>,
     /// Observer runtime handle for health probes (optional, requires `observers` feature).
     #[cfg(feature = "observers")]
     pub observer_runtime: Option<Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>>,
     /// Schema file path for reload operations.
-    pub schema_path:               Option<PathBuf>,
+    pub schema_path: Option<PathBuf>,
     /// Database adapter reference for constructing new executors on reload.
-    pub(crate) reload_adapter:     Option<Arc<A>>,
+    pub(crate) reload_adapter: Option<Arc<A>>,
     /// Reload mutex to serialize concurrent reload attempts.
-    pub(crate) reload_lock:        Arc<tokio::sync::Mutex<()>>,
+    pub(crate) reload_lock: Arc<tokio::sync::Mutex<()>>,
     /// Whether the adapter-level query result cache is active.
     ///
     /// Set to `true` when `ServerConfig::cache_enabled = true` and the server
     /// was built via `Server::new` or `Server::with_relay_pagination`.
     /// This reflects the adapter-level `CachedDatabaseAdapter` state, NOT the
     /// Arrow flight cache (`AppState::cache`).
-    pub adapter_cache_enabled:     bool,
+    pub adapter_cache_enabled: bool,
     /// Multi-tenant executor registry (optional).
     ///
     /// When `Some`, the server operates in multi-tenant mode: each request's
     /// tenant key selects an executor from this registry. When `None`,
     /// single-tenant mode is in effect and all requests use `self.executor`.
-    pub tenant_registry:           Option<Arc<TenantExecutorRegistry<A>>>,
+    pub tenant_registry: Option<Arc<TenantExecutorRegistry<A>>>,
     /// Factory for creating tenant executors from schema JSON + pool config.
     ///
     /// Type-erased so that the management API handler does not need
     /// `A: FromPoolConfig` on its generic bounds.
-    pub tenant_executor_factory:   Option<crate::tenancy::TenantExecutorFactory<A>>,
+    pub tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
     /// Domain-to-tenant mapping for Host header-based tenant resolution.
-    pub domain_registry:           Arc<DomainRegistry>,
+    pub domain_registry: Arc<DomainRegistry>,
     /// Tenant audit log (optional, for lifecycle event recording).
-    pub tenant_audit_log:          Option<crate::tenancy::audit::AuditLogHandle>,
+    pub tenant_audit_log: Option<crate::tenancy::audit::AuditLogHandle>,
     /// Usage aggregator — shared with the `MutationAuditLayer` tracing subscriber.
     ///
     /// Always present (never `Option`): when audit logging is disabled the
     /// aggregator simply receives no events and every query returns empty counts.
-    pub usage:                     Arc<UsageAggregator>,
+    pub usage: Arc<UsageAggregator>,
     /// Before-mutation hooks from the functions subsystem (optional).
     ///
     /// When `Some`, every GraphQL mutation is checked against the trigger registry
     /// before execution. The check is a single `HashMap::get` returning `None`
     /// when no hooks are registered — zero overhead for mutations without hooks.
-    pub before_mutation_hooks:     Option<Arc<crate::subsystems::BeforeMutationHooks>>,
+    pub before_mutation_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
 
     /// Realtime broadcast observer (optional, requires realtime subsystem).
     ///
@@ -188,6 +188,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     ///
     /// Returns a guard that keeps the executor alive for the duration of the
     /// request. This is wait-free (no lock).
+    #[must_use]
     pub fn executor(&self) -> arc_swap::Guard<Arc<Executor<A>>> {
         self.executor.load()
     }
@@ -382,6 +383,64 @@ impl<A: DatabaseAdapter> AppState<A> {
         Ok(())
     }
 
+    /// Reload the compiled schema from already-validated JSON bytes.
+    ///
+    /// This avoids re-reading the schema file from disk after validation,
+    /// preventing TOCTOU race conditions where the file could change between
+    /// validation and reload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the JSON is invalid, schema validation fails, or
+    /// a reload is already in progress.  On error, the current executor is
+    /// unchanged.
+    pub async fn reload_schema_from_json(&self, json: &str) -> Result<(), String> {
+        // Serialize concurrent reloads
+        let _guard = self
+            .reload_lock
+            .try_lock()
+            .map_err(|_| "Reload already in progress".to_string())?;
+
+        let adapter = self
+            .reload_adapter
+            .as_ref()
+            .ok_or_else(|| "Reload not configured: no adapter available".to_string())?;
+
+        // 1. Parse and validate
+        let schema = CompiledSchema::from_json(json, false)
+            .map_err(|e| format!("Invalid schema JSON: {e}"))?;
+
+        // 2. Validate format version
+        schema
+            .validate_format_version()
+            .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
+
+        // 3. Check if schema actually changed
+        let current = self.executor.load();
+        if current.schema().content_hash() == schema.content_hash() {
+            return Ok(()); // Same schema, no-op
+        }
+
+        // 4. Notify adapter of schema change (clears query result cache if applicable)
+        adapter.on_schema_reload();
+
+        // 5. Construct new executor (reuses same adapter/connection pool)
+        let new_executor = Arc::new(Executor::new(schema, adapter.clone()));
+
+        // 6. Atomic swap
+        self.executor.store(new_executor);
+
+        // 7. Clear query plan caches (reference old schema)
+        #[cfg(feature = "arrow")]
+        if let Some(cache) = &self.cache {
+            cache.clear();
+        }
+
+        info!("Schema executor swapped successfully (from validated JSON)");
+
+        Ok(())
+    }
+
     /// Create new application state with custom metrics collector.
     #[must_use]
     pub fn with_metrics(executor: Arc<Executor<A>>, metrics: Arc<MetricsCollector>) -> Self {
@@ -433,11 +492,13 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Get server configuration if configured.
+    #[must_use]
     pub const fn server_config(&self) -> Option<&Arc<crate::config::HttpServerConfig>> {
         self.config.as_ref()
     }
 
     /// Get sanitized configuration for safe API exposure.
+    #[must_use]
     pub fn sanitized_config(&self) -> Option<crate::routes::api::types::SanitizedConfig> {
         self.config
             .as_ref()
@@ -563,6 +624,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     }
 
     /// Sanitize a batch of errors before sending them to the client.
+    #[must_use]
     pub fn sanitize_errors(&self, errors: Vec<GraphQLError>) -> Vec<GraphQLError> {
         self.error_sanitizer.sanitize_all(errors)
     }

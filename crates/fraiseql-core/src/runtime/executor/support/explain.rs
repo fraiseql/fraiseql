@@ -43,7 +43,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                     "EXPLAIN ANALYZE is not supported for mutations. \
                      '{query_name}' is a mutation; only regular queries are supported."
                 ),
-                path:    None,
+                path: None,
             });
         }
 
@@ -73,7 +73,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         let sql_source =
             query_def.sql_source.as_ref().ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Query '{query_name}' has no SQL source"),
-                path:    None,
+                path: None,
             })?;
 
         // Build a simple equality WHERE clause from the variables object.
@@ -114,9 +114,9 @@ fn build_where_from_variables(variables: Option<&serde_json::Value>) -> Option<W
     let mut conditions: Vec<WhereClause> = map
         .iter()
         .map(|(k, v)| WhereClause::Field {
-            path:     vec![k.clone()],
+            path: vec![k.clone()],
             operator: WhereOperator::Eq,
-            value:    v.clone(),
+            value: v.clone(),
         })
         .collect();
 

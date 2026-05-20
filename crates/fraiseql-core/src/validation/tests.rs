@@ -363,7 +363,7 @@ mod compile_time_tests {
         types.insert(
             "User".to_string(),
             TypeDef {
-                name:   "User".to_string(),
+                name: "User".to_string(),
                 fields: vec![
                     "email".to_string(),
                     "age".to_string(),
@@ -382,7 +382,7 @@ mod compile_time_tests {
         types.insert(
             "DateRange".to_string(),
             TypeDef {
-                name:   "DateRange".to_string(),
+                name: "DateRange".to_string(),
                 fields: vec!["startDate".to_string(), "endDate".to_string()],
             },
         );
@@ -945,8 +945,8 @@ mod composite_tests {
     fn test_composite_error_display() {
         let error = CompositeError {
             operator: CompositeOperator::All,
-            errors:   vec!["error1".to_string(), "error2".to_string()],
-            field:    "field".to_string(),
+            errors: vec!["error1".to_string(), "error2".to_string()],
+            field: "field".to_string(),
         };
         let display_str = error.to_string();
         assert!(display_str.contains("All validators must pass"));
@@ -1564,6 +1564,31 @@ mod custom_scalar_registry_tests {
         registry.clear().unwrap();
 
         assert!(registry.get_scalar_names().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_has_scalar_returns_false_for_missing() {
+        let registry = CustomScalarRegistry::new();
+        assert!(
+            !registry.has_scalar("NonExistent").unwrap(),
+            "has_scalar should return false for unregistered name"
+        );
+    }
+
+    #[test]
+    fn test_get_scalar_names_returns_registered_names() {
+        let registry = CustomScalarRegistry::new();
+        let scalar: Arc<dyn CustomScalar> = Arc::new(TestScalar);
+
+        assert!(
+            registry.get_scalar_names().unwrap().is_empty(),
+            "fresh registry should have no names"
+        );
+
+        registry.register(scalar).unwrap();
+        let names = registry.get_scalar_names().unwrap();
+        assert_eq!(names.len(), 1);
+        assert_eq!(names[0], "Test");
     }
 }
 
@@ -2224,7 +2249,7 @@ mod elo_rust_integration_tests {
     #[test]
     fn test_validator_creation() {
         let validator = EloRustValidator {
-            name:           "test".to_string(),
+            name: "test".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -2237,7 +2262,7 @@ mod elo_rust_integration_tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "test".to_string(),
+            name: "test".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -2253,7 +2278,7 @@ mod elo_rust_integration_tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "test".to_string(),
+            name: "test".to_string(),
             elo_expression: "x > 0".to_string(),
             generated_code: None,
         };
@@ -2270,7 +2295,7 @@ mod elo_rust_integration_tests {
 
         for i in 0..5 {
             let validator = EloRustValidator {
-                name:           format!("v{}", i),
+                name: format!("v{}", i),
                 elo_expression: "true".to_string(),
                 generated_code: None,
             };
@@ -2286,7 +2311,7 @@ mod elo_rust_integration_tests {
         let registry = RustValidatorRegistry::new(config);
 
         let validator = EloRustValidator {
-            name:           "test".to_string(),
+            name: "test".to_string(),
             elo_expression: "true".to_string(),
             generated_code: None,
         };
@@ -2313,6 +2338,68 @@ mod elo_rust_integration_tests {
         };
         let registry2 = RustValidatorRegistry::new(config2);
         assert!(!registry2.is_enabled());
+    }
+
+    #[test]
+    fn test_registry_is_empty() {
+        let registry = RustValidatorRegistry::new(RustValidatorRegistryConfig::default());
+        assert!(registry.is_empty());
+
+        registry.register(EloRustValidator {
+            name: "v".to_string(),
+            elo_expression: "true".to_string(),
+            generated_code: None,
+        });
+        assert!(!registry.is_empty());
+    }
+
+    #[test]
+    fn test_registry_list_all() {
+        let registry = RustValidatorRegistry::new(RustValidatorRegistryConfig::default());
+        assert!(registry.list_all().is_empty());
+
+        for i in 0..3 {
+            registry.register(EloRustValidator {
+                name: format!("v{i}"),
+                elo_expression: "true".to_string(),
+                generated_code: None,
+            });
+        }
+
+        let all = registry.list_all();
+        assert_eq!(all.len(), 3);
+    }
+
+    #[test]
+    fn test_registry_clear() {
+        let registry = RustValidatorRegistry::new(RustValidatorRegistryConfig::default());
+
+        for i in 0..3 {
+            registry.register(EloRustValidator {
+                name: format!("v{i}"),
+                elo_expression: "true".to_string(),
+                generated_code: None,
+            });
+        }
+
+        assert_eq!(registry.count(), 3);
+        registry.clear();
+        assert_eq!(registry.count(), 0);
+        assert!(registry.is_empty());
+    }
+
+    #[test]
+    fn test_registry_config() {
+        let config = RustValidatorRegistryConfig {
+            enabled: true,
+            cache_validators: false,
+            max_cache_size: 500,
+        };
+        let registry = RustValidatorRegistry::new(config);
+        let cfg = registry.config();
+        assert!(cfg.enabled);
+        assert!(!cfg.cache_validators);
+        assert_eq!(cfg.max_cache_size, 500);
     }
 }
 
@@ -2377,7 +2464,7 @@ mod error_responses_tests {
     fn test_from_fraiseql_error() {
         let error = FraiseQLError::Validation {
             message: "Validation failed".to_string(),
-            path:    Some("user.email".to_string()),
+            path: Some("user.email".to_string()),
         };
 
         let response = GraphQLValidationResponse::from_error(&error);
@@ -3677,7 +3764,7 @@ mod input_object_tests {
             "paymentMethod": "credit_card"
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isPremium".to_string(),
+            if_field: "isPremium".to_string(),
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -3693,7 +3780,7 @@ mod input_object_tests {
             "paymentMethod": null
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isPremium".to_string(),
+            if_field: "isPremium".to_string(),
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -3710,7 +3797,7 @@ mod input_object_tests {
             "paymentMethod": null
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isPremium".to_string(),
+            if_field: "isPremium".to_string(),
             then_fields: vec!["paymentMethod".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -3729,7 +3816,7 @@ mod input_object_tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         result.unwrap_or_else(|e| {
@@ -3747,7 +3834,7 @@ mod input_object_tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         assert!(
@@ -3766,7 +3853,7 @@ mod input_object_tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         result.unwrap_or_else(|e| {
@@ -3787,7 +3874,7 @@ mod input_object_tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -3808,7 +3895,7 @@ mod input_object_tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -3832,7 +3919,7 @@ mod input_object_tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -3857,7 +3944,7 @@ mod input_object_tests {
                 fields: vec!["entityId".to_string(), "entityPayload".to_string()],
             },
             InputObjectRule::ConditionalRequired {
-                if_field:    "isPremium".to_string(),
+                if_field: "isPremium".to_string(),
                 then_fields: vec!["paymentMethod".to_string()],
             },
         ];
@@ -3883,7 +3970,7 @@ mod input_object_tests {
             "importDuties": "50.00"
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isInternational".to_string(),
+            if_field: "isInternational".to_string(),
             then_fields: vec!["customsCode".to_string(), "importDuties".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -3900,7 +3987,7 @@ mod input_object_tests {
             "importDuties": null
         });
         let rules = vec![InputObjectRule::ConditionalRequired {
-            if_field:    "isInternational".to_string(),
+            if_field: "isInternational".to_string(),
             then_fields: vec!["customsCode".to_string(), "importDuties".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
@@ -4016,7 +4103,7 @@ mod input_object_tests {
         });
         let rules = vec![InputObjectRule::RequiredIfAbsent {
             absent_field: "addressId".to_string(),
-            then_fields:  vec!["street".to_string(), "city".to_string(), "zip".to_string()],
+            then_fields: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         }];
         let result = validate_input_object(&input, &rules, None);
         result.unwrap_or_else(|e| {
@@ -4948,7 +5035,7 @@ mod rules_tests {
     fn test_conditional_required_rule() {
         let rule = ValidationRule::ConditionalRequired {
             if_field_present: "entityId".to_string(),
-            then_required:    vec!["createdAt".to_string(), "updatedAt".to_string()],
+            then_required: vec!["createdAt".to_string(), "updatedAt".to_string()],
         };
         let desc = rule.description();
         assert!(desc.contains("If"));
@@ -4960,7 +5047,7 @@ mod rules_tests {
     #[test]
     fn test_required_if_absent_rule() {
         let rule = ValidationRule::RequiredIfAbsent {
-            absent_field:  "addressId".to_string(),
+            absent_field: "addressId".to_string(),
             then_required: vec!["street".to_string(), "city".to_string(), "zip".to_string()],
         };
         let desc = rule.description();
@@ -4985,7 +5072,7 @@ mod rules_tests {
     fn test_conditional_required_serialization() {
         let rule = ValidationRule::ConditionalRequired {
             if_field_present: "isPremium".to_string(),
-            then_required:    vec!["paymentMethod".to_string()],
+            then_required: vec!["paymentMethod".to_string()],
         };
         let json = serde_json::to_string(&rule).expect("serialization failed");
         let deserialized: ValidationRule =
@@ -4996,7 +5083,7 @@ mod rules_tests {
     #[test]
     fn test_required_if_absent_serialization() {
         let rule = ValidationRule::RequiredIfAbsent {
-            absent_field:  "presetId".to_string(),
+            absent_field: "presetId".to_string(),
             then_required: vec!["settings".to_string()],
         };
         let json = serde_json::to_string(&rule).expect("serialization failed");
@@ -5276,5 +5363,135 @@ mod validators_tests {
         };
         let validator = create_validator_from_rule(&rule);
         assert!(validator.is_some());
+    }
+}
+
+mod js_codegen_tests {
+    use crate::validation::js_codegen::JsCodegen;
+
+    #[test]
+    fn new_returns_default_instance() {
+        let _cg = JsCodegen::new();
+    }
+
+    #[test]
+    fn emit_validator_produces_function() {
+        let cg = JsCodegen::new();
+        let js = cg.emit_validator("User", "age >= 18");
+        assert!(
+            js.contains("export function validate_User(data)"),
+            "should produce named export function"
+        );
+        assert!(js.contains("errors"), "should include errors array");
+    }
+
+    #[test]
+    fn emit_validator_translates_comparison() {
+        let cg = JsCodegen::new();
+        let js = cg.emit_validator("Item", "price > 0");
+        assert!(
+            js.contains("data.price > 0"),
+            "field comparison should reference data.field: {js}"
+        );
+    }
+
+    #[test]
+    fn emit_validator_translates_equality_to_strict() {
+        let cg = JsCodegen::new();
+        let js = cg.emit_validator("Flag", "status == 1");
+        assert!(js.contains("==="), "== should become === in JavaScript: {js}");
+    }
+
+    #[test]
+    fn emit_validator_translates_not_equal_to_strict() {
+        let cg = JsCodegen::new();
+        let js = cg.emit_validator("Flag", "status != 0");
+        assert!(js.contains("!=="), "!= should become !== in JavaScript: {js}");
+    }
+
+    #[test]
+    fn emit_module_includes_header_and_multiple_validators() {
+        let cg = JsCodegen::new();
+        let module = cg.emit_module(&[("User", "age >= 18"), ("Post", "length(title) > 0")]);
+        assert!(module.contains("Generated by FraiseQL"), "module should include header comment");
+        assert!(module.contains("validate_User"), "module should include User validator");
+        assert!(module.contains("validate_Post"), "module should include Post validator");
+    }
+
+    #[test]
+    fn emit_module_empty_list() {
+        let cg = JsCodegen::new();
+        let module = cg.emit_module(&[]);
+        assert!(
+            module.contains("Generated by FraiseQL"),
+            "empty module should still include header"
+        );
+        assert!(!module.contains("export function"), "empty module should have no functions");
+    }
+
+    #[test]
+    fn elo_to_js_logical_and() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("a > 1 && b < 10");
+        assert!(js.contains("&&"), "should preserve AND operator: {js}");
+    }
+
+    #[test]
+    fn elo_to_js_logical_or() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("x == 1 || y == 2");
+        assert!(js.contains("||"), "should preserve OR operator: {js}");
+    }
+
+    #[test]
+    fn elo_to_js_negation() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("!active");
+        assert!(js.contains("!data.active"), "should negate field ref: {js}");
+    }
+
+    #[test]
+    fn elo_to_js_length_function() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("length(name) > 0");
+        assert!(
+            js.contains("(data.name || '').length"),
+            "length() should map to JS string length: {js}"
+        );
+    }
+
+    #[test]
+    fn elo_to_js_contains_function() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("contains(tags, \"rust\")");
+        assert!(js.contains(".includes("), "contains() should map to JS includes: {js}");
+    }
+
+    #[test]
+    fn elo_to_js_matches_function() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("matches(email, \"^[^@]+@\")");
+        assert!(js.contains("new RegExp("), "matches() should produce RegExp in JS: {js}");
+    }
+
+    #[test]
+    fn elo_to_js_numeric_literal() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("count > 42");
+        assert!(js.contains("42"), "numeric literal should pass through: {js}");
+    }
+
+    #[test]
+    fn elo_to_js_boolean_literal() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("active == true");
+        assert!(js.contains("true"), "boolean literal should pass through: {js}");
+    }
+
+    #[test]
+    fn elo_to_js_parenthesized_expression() {
+        let cg = JsCodegen::new();
+        let js = cg.elo_to_js("(a > 1)");
+        assert!(js.starts_with('(') && js.ends_with(')'), "should preserve parentheses: {js}");
     }
 }

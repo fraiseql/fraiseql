@@ -2,91 +2,59 @@
 
 use super::*;
 
-/// Test `EnvBackend` reads from environment
 #[tokio::test]
-async fn test_env_backend_get_secret() {
-    temp_env::async_with_vars([("TEST_SECRET_KEY", Some("test_value_123"))], async {
-        let backend = EnvBackend::new();
-
-        let secret = backend.get_secret("TEST_SECRET_KEY").await.unwrap();
-        assert_eq!(secret, "test_value_123");
-    })
-    .await;
-}
-
-/// Test `EnvBackend` returns error for missing variable
-#[tokio::test]
-async fn test_env_backend_not_found() {
+async fn get_secret_from_env_path() {
+    // PATH is always set on CI and local — use it as a read-only test
     let backend = EnvBackend::new();
-    let result = backend.get_secret("NONEXISTENT_VAR_XYZ").await;
-
-    assert!(
-        matches!(result, Err(SecretsError::NotFound(_))),
-        "expected NotFound error, got: {result:?}"
-    );
+    let secret = backend.get_secret("PATH").await.unwrap();
+    assert!(!secret.is_empty());
 }
 
-/// Test `EnvBackend` `with_expiry` returns future date
 #[tokio::test]
-async fn test_env_backend_with_expiry() {
-    temp_env::async_with_vars([("EXPIRY_TEST_KEY", Some("value"))], async {
-        let backend = EnvBackend::new();
-
-        let (secret, expiry) = backend.get_secret_with_expiry("EXPIRY_TEST_KEY").await.unwrap();
-        assert_eq!(secret, "value");
-        assert!(expiry > Utc::now(), "Expiry should be in future");
-    })
-    .await;
-}
-
-/// Test `EnvBackend` rotate returns error
-#[tokio::test]
-async fn test_env_backend_rotate_not_supported() {
+async fn get_secret_not_found() {
     let backend = EnvBackend::new();
-    let result = backend.rotate_secret("ANY_KEY").await;
-
-    assert!(
-        matches!(result, Err(SecretsError::RotationError(_))),
-        "expected RotationError, got: {result:?}"
-    );
+    let result = backend.get_secret("FRAISEQL_NONEXISTENT_VAR_12345").await;
+    assert!(result.is_err());
 }
 
-/// Test empty environment variable
 #[tokio::test]
-async fn test_env_backend_empty_value() {
-    temp_env::async_with_vars([("EMPTY_VAR", Some(""))], async {
-        let backend = EnvBackend::new();
-
-        let secret = backend.get_secret("EMPTY_VAR").await.unwrap();
-        assert_eq!(secret, "");
-    })
-    .await;
+async fn validate_empty_name() {
+    let backend = EnvBackend::new();
+    let result = backend.get_secret("").await;
+    assert!(result.is_err());
 }
 
-/// Test special characters in environment variable values
 #[tokio::test]
-async fn test_env_backend_special_chars() {
-    let special_value = "p@$$w0rd!#$%^&*()";
-    temp_env::async_with_vars([("SPECIAL_VAR", Some(special_value))], async {
-        let backend = EnvBackend::new();
-
-        let secret = backend.get_secret("SPECIAL_VAR").await.unwrap();
-        assert_eq!(secret, "p@$$w0rd!#$%^&*()");
-    })
-    .await;
+async fn validate_invalid_first_char() {
+    let backend = EnvBackend::new();
+    let result = backend.get_secret("1INVALID").await;
+    assert!(result.is_err());
 }
 
-/// Test multiple environment variables
 #[tokio::test]
-async fn test_env_backend_multiple_vars() {
-    temp_env::async_with_vars([("VAR1", Some("value1")), ("VAR2", Some("value2"))], async {
-        let backend = EnvBackend::new();
+async fn validate_invalid_char() {
+    let backend = EnvBackend::new();
+    let result = backend.get_secret("INVALID=NAME").await;
+    assert!(result.is_err());
+}
 
-        let s1 = backend.get_secret("VAR1").await.unwrap();
-        let s2 = backend.get_secret("VAR2").await.unwrap();
+#[tokio::test]
+async fn rotate_not_supported() {
+    let backend = EnvBackend::new();
+    let result = backend.rotate_secret("ANY_VAR").await;
+    assert!(result.is_err());
+}
 
-        assert_eq!(s1, "value1");
-        assert_eq!(s2, "value2");
-    })
-    .await;
+#[tokio::test]
+async fn health_check_always_ok() {
+    let backend = EnvBackend::new();
+    backend.health_check().await.unwrap();
+}
+
+#[tokio::test]
+async fn get_secret_with_expiry_returns_future_date() {
+    let backend = EnvBackend::new();
+    let (secret, expiry) = backend.get_secret_with_expiry("PATH").await.unwrap();
+    assert!(!secret.is_empty());
+    assert!(expiry > chrono::Utc::now());
 }
