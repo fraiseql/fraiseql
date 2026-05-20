@@ -19,7 +19,7 @@ chrono = {version = "0.4", features = ["serde"]}
 # ClickHouse client (optional)
 clickhouse = {version = "0.14", features = ["inserter"], optional = true}
 # Concurrent data structures
-dashmap = "6.1"
+dashmap = "6.2"
 # FraiseQL core (for Executor and query execution)
 fraiseql-core = {workspace = true}
 futures = "0.3"
