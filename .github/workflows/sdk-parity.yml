@@ -114,7 +114,7 @@ jobs:
       # PHP SDK (full parity)
       # -----------------------------------------------------------------------
       - name: Set up PHP
-        uses: shivammathur/setup-php@8358ee0e2e8afe63c2fb8253d1d52085811ab1e5  # v2
+        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc  # v2
         continue-on-error: true
         with:
           php-version: '8.2'
