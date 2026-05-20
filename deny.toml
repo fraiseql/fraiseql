@@ -248,8 +248,13 @@ version = "=0.12.1"
 
 [[bans.skip]]
 name = "lru"
-reason = "transitive via newer dependency pulling lru 0.16"
-version = "=0.16.4"
+reason = "transitive via aws-sdk-s3 (pinned to lru 0.12.x); workspace direct on lru 0.18"
+version = "=0.12.5"
+
+[[bans.skip]]
+name = "sha1"
+reason = "transitive via sqlx-mysql (pinned to sha1 0.10.x); workspace direct on sha1 0.11"
+version = "=0.10.6"
 
 [[bans.skip]]
 name = "outref"
