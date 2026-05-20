@@ -24,7 +24,7 @@ jobs:
         otp: ['26', '27']
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-      - uses: erlef/setup-beam@8251c48667b97e88a0a24ec512f5b72a039fcea7  # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93  # v1
         with:
           elixir-version: ${{ matrix.elixir }}
           otp-version: ${{ matrix.otp }}
@@ -48,7 +48,7 @@ jobs:
         working-directory: sdks/official/fraiseql-elixir
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-      - uses: erlef/setup-beam@8251c48667b97e88a0a24ec512f5b72a039fcea7  # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93  # v1
         with:
           elixir-version: '1.17'
           otp-version: '27'
@@ -71,7 +71,7 @@ jobs:
         working-directory: sdks/official/fraiseql-elixir
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-      - uses: erlef/setup-beam@8251c48667b97e88a0a24ec512f5b72a039fcea7  # v1
+      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93  # v1
         with:
           elixir-version: '1.17'
           otp-version: '27'
