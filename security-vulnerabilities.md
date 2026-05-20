@@ -87,6 +87,90 @@ FraiseQL v2 has been scanned for security vulnerabilities using `cargo audit`. T
 
 ---
 
+## Accepted Risks (Transitive Dependencies)
+
+The following vulnerabilities are pinned to transitive dependencies we do not control. They have been reviewed and accepted: the workspace direct dependency surface does not expose the vulnerable code path to untrusted input, and remediation is blocked on upstream releases we cannot accelerate.
+
+### GHSA-w8wt-cm9p-jqv2: `rand 0.8` PRNG weakness (transitive)
+
+- **Crate**: `rand` 0.8.6 (transitive only)
+- **Advisory**: [GHSA-w8wt-cm9p-jqv2](https://github.com/advisories/GHSA-w8wt-cm9p-jqv2)
+- **Severity**: LOW
+- **Dependabot alert**: #103 — dismissed `tolerable_risk` on 2026-05-19
+- **First patched**: rand 0.9.x
+
+#### Impact
+
+- The advisory concerns a PRNG-seeding weakness in `rand` 0.8.
+- Every workspace direct dependency is already on `rand = "0.9"` (fraiseql-core, fraiseql-auth, fraiseql-server, fraiseql-secrets, fraiseql-observers, fraiseql-webhooks, fraiseql-wire).
+- `rand` 0.8.6 is dragged in transitively by:
+  - `jsonwebtoken` 10.4.0 (declares `rand = "^0.8.5"`)
+  - `rsa` 0.9.10 (declares `rand = "^0.8"`)
+- No application-level RNG path uses `rand` 0.8 directly. The transitive `rand` 0.8 is exercised only by JWT key generation (jsonwebtoken) and RSA prime generation (rsa via sqlx-mysql), neither of which is exposed to untrusted input.
+
+#### Why We Cannot Fix This
+
+- SemVer-incompatible: `^0.8` and `^0.9` are different majors at the `0.x` boundary; Cargo's resolver must keep both versions when any transitive insists on `^0.8`.
+- Blocked on `jsonwebtoken 11.x` and `rsa 0.10.x` upstream releases that bump their `rand` requirement to `0.9`. Neither has shipped a `rand 0.9` build as of 2026-05-20.
+- Forking the upstreams to override the dep is not justified for a LOW-severity transitive with no exposed attack path.
+
+#### Re-Open Trigger
+
+Re-open Dependabot alert #103 and revisit when:
+
+- `jsonwebtoken` ships a release that declares `rand = "^0.9"`, **or**
+- `rsa` ships a release that declares `rand = "^0.9"`.
+
+### RUSTSEC-2026-0098 / 0099 / 0104: `rustls-webpki` via aws-smithy-http-client
+
+- **Crate**: `rustls-webpki` 0.101.7 (transitive only)
+- **Advisories**: [RUSTSEC-2026-0098](https://rustsec.org/advisories/RUSTSEC-2026-0098), [RUSTSEC-2026-0099](https://rustsec.org/advisories/RUSTSEC-2026-0099), [RUSTSEC-2026-0104](https://rustsec.org/advisories/RUSTSEC-2026-0104)
+- **GHSA**: GHSA-965h-392x-2mh5, GHSA-xgp8-3hg3-c2mh, GHSA-82j2-j2ch-gfr8
+- **Severity**: LOW / LOW / HIGH respectively
+- **Dependabot alerts**: #26, #27, #120 — dismissed `tolerable_risk` on 2026-05-19
+- **Tracked in `deny.toml`** with deadline **2026-06-15**
+
+#### Impact
+
+- Webpki name-constraint bugs (#26, #27) and CRL parsing panic (#120) in rustls-webpki 0.101.x.
+- The workspace default runtime path uses rustls-webpki 0.103.13 (unaffected).
+- rustls-webpki 0.101.7 is reachable only through `aws-smithy-http-client` (rustls 0.21 chain) when the **optional `aws-s3` feature** is enabled.
+- Default builds do not exercise this code path.
+
+#### Why We Cannot Fix This
+
+- Blocked on `aws-sdk-rust` migrating from rustls 0.21 to rustls 0.23. No application-layer override is possible without forking `aws-smithy-http-client`.
+
+#### Re-Open Trigger
+
+Re-evaluate when `aws-smithy-http-client` ships a rustls-0.23 build. Re-review deadline 2026-06-15.
+
+### CVE-2026-43868: Apache Thrift via parquet (now mitigated)
+
+- **Crate**: `thrift` 0.17.0 (transitive only)
+- **Advisory**: [GHSA-2f9f-gq7v-9h6m](https://github.com/advisories/GHSA-2f9f-gq7v-9h6m) / CVE-2026-43868
+- **Severity**: MEDIUM (memory allocation with excessive size value)
+- **Dependabot alerts**: #145, #146 — dismissed `tolerable_risk` on 2026-05-19
+
+#### Status
+
+**Mitigated** as of [PR #295](https://github.com/fraiseql/fraiseql/pull/295). The `parquet` Cargo feature in `fraiseql-arrow` is now **OFF by default**; default builds no longer pull `thrift`. Users who opt into `fraiseql-arrow/parquet` accept the residual risk.
+
+#### Why a Full Fix Is Blocked
+
+- Apache Parquet's file format spec requires Thrift-encoded metadata. No spec-compliant Parquet writer can avoid the `thrift` crate.
+- `thrift` 0.17.0 has had no upstream release since 2022-11-14; `parquet` 58.3.0 (latest) still declares `thrift = "^0.17"`.
+- No drop-in `thrift`-codec replacement exists that `parquet` accepts without forking parquet itself.
+
+#### Re-Open Trigger
+
+Re-evaluate when either:
+
+- `parquet` ships a release that drops or replaces its `thrift` dependency, **or**
+- `thrift` ships a release with a CVE-2026-43868 fix.
+
+---
+
 ## Dependency Tree
 
 ### RSA Vulnerability Dependency Path
@@ -111,6 +195,9 @@ rsa 0.9.10 (VULNERABLE)
 | paste unmaintained | Suppress warning; no action needed | No immediate action required |
 | rustls-pemfile unmaintained | Suppress warning; monitor for replacement | Can wait for ecosystem updates |
 | testcontainers yanked | Suppress warning; consider upgrade for CI/CD | No immediate action required |
+| rand 0.8 transitive | Wait for jsonwebtoken / rsa upstream to bump | Open-ended; monitor crates.io |
+| rustls-webpki 0.101 transitive | Wait for aws-sdk to move to rustls 0.23 | Re-review 2026-06-15 |
+| thrift CVE-2026-43868 | Use `fraiseql-arrow` default features (parquet OFF) | Mitigated 2026-05-20; track parquet/thrift upstream |
 
 ---
 
@@ -140,7 +227,9 @@ cargo audit --severity medium
 
 ## Last Updated
 
-2026-02-05
+2026-05-20 — added "Accepted Risks (Transitive Dependencies)" section covering
+`rand` 0.8 (#103), `rustls-webpki` 0.101 (#26/#27/#120), and `thrift`
+CVE-2026-43868 (#145/#146); refreshed remediation timeline.
 
 ## Contact
 
