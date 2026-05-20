@@ -252,11 +252,6 @@ reason = "transitive via aws-sdk-s3 (pinned to lru 0.12.x); workspace direct on 
 version = "=0.12.5"
 
 [[bans.skip]]
-name = "sha1"
-reason = "transitive via sqlx-mysql (pinned to sha1 0.10.x); workspace direct on sha1 0.11"
-version = "=0.10.6"
-
-[[bans.skip]]
 name = "outref"
 reason = "transitive via older dependency chain"
 version = "=0.1.0"

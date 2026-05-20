@@ -727,7 +727,7 @@ dependencies = [
  "fastrand",
  "hex",
  "http 1.4.0",
- "sha1 0.10.6",
+ "sha1",
  "time",
  "tokio",
  "tracing",
@@ -958,7 +958,7 @@ dependencies = [
  "http-body 0.4.6",
  "md-5 0.10.6",
  "pin-project-lite",
- "sha1 0.10.6",
+ "sha1",
  "sha2 0.10.9",
  "tracing",
 ]
@@ -1214,7 +1214,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
- "sha1 0.10.6",
+ "sha1",
  "sync_wrapper",
  "tokio",
  "tokio-tungstenite 0.29.0",
@@ -3249,7 +3249,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "sha1 0.11.0",
+ "sha1",
  "sha2 0.10.9",
  "sqlx",
  "subtle",
@@ -3603,7 +3603,7 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
- "sha1 0.11.0",
+ "sha1",
  "sha2 0.10.9",
  "sqlx",
  "subtle",
@@ -3697,7 +3697,7 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "serde_json",
- "sha1 0.11.0",
+ "sha1",
  "sha2 0.10.9",
  "sqlx",
  "subtle",
@@ -7800,17 +7800,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha1"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214"
-dependencies = [
- "cfg-if",
- "cpufeatures 0.3.0",
- "digest 0.11.2",
-]
-
-[[package]]
 name = "sha1_smol"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8194,7 +8183,7 @@ dependencies = [
  "rand 0.8.6",
  "rsa",
  "serde",
- "sha1 0.10.6",
+ "sha1",
  "sha2 0.10.9",
  "smallvec",
  "sqlx-core",
@@ -9039,7 +9028,7 @@ dependencies = [
  "constant_time_eq",
  "hmac 0.12.1",
  "rand 0.9.4",
- "sha1 0.10.6",
+ "sha1",
  "sha2 0.10.9",
  "url",
  "urlencoding",
@@ -9234,7 +9223,7 @@ dependencies = [
  "rand 0.9.4",
  "rustls 0.23.40",
  "rustls-pki-types",
- "sha1 0.10.6",
+ "sha1",
  "thiserror 2.0.18",
  "utf-8",
 ]
@@ -9251,7 +9240,7 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.4",
- "sha1 0.10.6",
+ "sha1",
  "thiserror 2.0.18",
 ]
 
