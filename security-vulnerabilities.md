@@ -117,6 +117,7 @@ The following vulnerabilities are pinned to transitive dependencies we do not co
 #### Re-Open Trigger
 
 Re-open Dependabot alert #103 and revisit when:
+
 - `jsonwebtoken` ships a release that declares `rand = "^0.9"`, **or**
 - `rsa` ships a release that declares `rand = "^0.9"`.
 
@@ -164,6 +165,7 @@ Re-evaluate when `aws-smithy-http-client` ships a rustls-0.23 build. Re-review d
 #### Re-Open Trigger
 
 Re-evaluate when either:
+
 - `parquet` ships a release that drops or replaces its `thrift` dependency, **or**
 - `thrift` ships a release with a CVE-2026-43868 fix.
 
