@@ -23,12 +23,23 @@ fn create_test_batch() -> RecordBatch {
 
 #[test]
 fn test_export_format_from_str() {
-    assert_eq!(ExportFormat::from_str("parquet").unwrap(), ExportFormat::Parquet);
     assert_eq!(ExportFormat::from_str("csv").unwrap(), ExportFormat::Csv);
     assert_eq!(ExportFormat::from_str("json").unwrap(), ExportFormat::Json);
 
-    // Case-insensitive
-    assert_eq!(ExportFormat::from_str("PARQUET").unwrap(), ExportFormat::Parquet);
+    #[cfg(feature = "parquet")]
+    {
+        assert_eq!(ExportFormat::from_str("parquet").unwrap(), ExportFormat::Parquet);
+        // Case-insensitive
+        assert_eq!(ExportFormat::from_str("PARQUET").unwrap(), ExportFormat::Parquet);
+    }
+
+    #[cfg(not(feature = "parquet"))]
+    {
+        // Without the `parquet` feature, "parquet" should yield a feature-gated error.
+        let err = ExportFormat::from_str("parquet")
+            .expect_err("expected Err for parquet without feature");
+        assert!(err.contains("parquet"), "unexpected error: {err}");
+    }
 
     // Invalid format
     assert!(
@@ -39,16 +50,18 @@ fn test_export_format_from_str() {
 
 #[test]
 fn test_export_format_extension() {
-    assert_eq!(ExportFormat::Parquet.extension(), "parquet");
     assert_eq!(ExportFormat::Csv.extension(), "csv");
     assert_eq!(ExportFormat::Json.extension(), "jsonl");
+    #[cfg(feature = "parquet")]
+    assert_eq!(ExportFormat::Parquet.extension(), "parquet");
 }
 
 #[test]
 fn test_export_format_mime_type() {
-    assert_eq!(ExportFormat::Parquet.mime_type(), "application/octet-stream");
     assert_eq!(ExportFormat::Csv.mime_type(), "text/csv");
     assert_eq!(ExportFormat::Json.mime_type(), "application/x-ndjson");
+    #[cfg(feature = "parquet")]
+    assert_eq!(ExportFormat::Parquet.mime_type(), "application/octet-stream");
 }
 
 #[test]
@@ -82,6 +95,7 @@ fn test_export_json() {
     assert!(json_str.contains("Alice"));
 }
 
+#[cfg(feature = "parquet")]
 #[test]
 fn test_export_parquet() {
     let batch = create_test_batch();
@@ -117,14 +131,17 @@ fn test_export_empty_batch() {
     let batch = RecordBatch::try_new(Arc::new(schema), vec![empty_array])
         .expect("should create empty batch");
 
-    // All formats should handle empty batches
     let csv = BulkExporter::export_batch(&batch, ExportFormat::Csv);
     let json = BulkExporter::export_batch(&batch, ExportFormat::Json);
-    let parquet = BulkExporter::export_batch(&batch, ExportFormat::Parquet);
 
     csv.unwrap_or_else(|e| panic!("expected Ok for empty-batch CSV export: {e}"));
     json.unwrap_or_else(|e| panic!("expected Ok for empty-batch JSON export: {e}"));
-    parquet.unwrap_or_else(|e| panic!("expected Ok for empty-batch Parquet export: {e}"));
+
+    #[cfg(feature = "parquet")]
+    {
+        let parquet = BulkExporter::export_batch(&batch, ExportFormat::Parquet);
+        parquet.unwrap_or_else(|e| panic!("expected Ok for empty-batch Parquet export: {e}"));
+    }
 }
 
 // --- Additional export format tests ---
@@ -141,6 +158,7 @@ fn test_export_format_parse_trait_uppercase_json() {
     assert_eq!(fmt, ExportFormat::Json);
 }
 
+#[cfg(feature = "parquet")]
 #[test]
 fn test_export_format_parse_trait_mixed_case_parquet() {
     let fmt: ExportFormat = "Parquet".parse().unwrap();
@@ -156,7 +174,7 @@ fn test_export_format_parse_unknown_returns_err() {
 
 #[test]
 fn test_export_format_clone_and_eq() {
-    let fmt = ExportFormat::Parquet;
+    let fmt = ExportFormat::Csv;
     let cloned = fmt;
     assert_eq!(fmt, cloned);
 }
@@ -179,6 +197,7 @@ fn test_json_export_contains_all_row_data() {
     assert!(json_str.contains("Charlie"));
 }
 
+#[cfg(feature = "parquet")]
 #[test]
 fn test_parquet_export_ends_with_magic_bytes() {
     let batch = create_test_batch();

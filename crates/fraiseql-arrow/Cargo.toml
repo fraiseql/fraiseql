@@ -27,7 +27,7 @@ futures = "0.3"
 reqwest = {workspace = true}
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "10"
-parquet = "57"
+parquet = {version = "57", optional = true}
 prost = "0.14"
 # Serialization
 serde = {version = "1", features = ["derive"]}
@@ -59,6 +59,9 @@ uuid = {version = "1", features = ["v4"]}
 [features]
 clickhouse = ["dep:clickhouse"]
 default = []
+# Reason: parquet pulls thrift 0.17 (CVE-2026-43868 — unmaintained upstream
+# since 2022). Off by default; opt in if you need Parquet export.
+parquet = ["dep:parquet"]
 testing = []
 
 [lib]

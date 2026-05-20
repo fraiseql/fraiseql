@@ -10,7 +10,10 @@ use arrow::array::RecordBatch;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ExportFormat {
-    /// Apache Parquet columnar format
+    /// Apache Parquet columnar format.
+    ///
+    /// Available only when the `parquet` feature is enabled.
+    #[cfg(feature = "parquet")]
     Parquet,
     /// Comma-separated values
     Csv,
@@ -23,7 +26,14 @@ impl FromStr for ExportFormat {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            #[cfg(feature = "parquet")]
             "parquet" => Ok(Self::Parquet),
+            #[cfg(not(feature = "parquet"))]
+            "parquet" => Err(
+                "Parquet export requires the `parquet` Cargo feature (disabled by default due \
+                 to CVE-2026-43868 in transitive thrift dep)"
+                    .into(),
+            ),
             "csv" => Ok(Self::Csv),
             "json" => Ok(Self::Json),
             _ => Err(format!("Unsupported export format: {}", s)),
@@ -51,6 +61,7 @@ impl ExportFormat {
     #[must_use]
     pub const fn extension(&self) -> &'static str {
         match self {
+            #[cfg(feature = "parquet")]
             Self::Parquet => "parquet",
             Self::Csv => "csv",
             Self::Json => "jsonl",
@@ -61,6 +72,7 @@ impl ExportFormat {
     #[must_use]
     pub const fn mime_type(&self) -> &'static str {
         match self {
+            #[cfg(feature = "parquet")]
             Self::Parquet => "application/octet-stream",
             Self::Csv => "text/csv",
             Self::Json => "application/x-ndjson",
@@ -88,6 +100,7 @@ impl BulkExporter {
     /// Returns error if export fails (e.g., Parquet encoding error)
     pub fn export_batch(batch: &RecordBatch, format: ExportFormat) -> Result<Vec<u8>, String> {
         match format {
+            #[cfg(feature = "parquet")]
             ExportFormat::Parquet => Self::export_parquet(batch),
             ExportFormat::Csv => Self::export_csv(batch),
             ExportFormat::Json => Self::export_json(batch),
@@ -98,6 +111,7 @@ impl BulkExporter {
     ///
     /// Parquet provides efficient columnar storage with compression.
     /// Ideal for large datasets and analytical workloads.
+    #[cfg(feature = "parquet")]
     fn export_parquet(batch: &RecordBatch) -> Result<Vec<u8>, String> {
         use parquet::arrow::ArrowWriter;
 

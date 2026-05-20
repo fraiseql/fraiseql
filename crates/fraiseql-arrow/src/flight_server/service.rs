@@ -945,12 +945,17 @@ impl FraiseQLFlightService {
         format: Option<String>,
         security_context: &fraiseql_core::security::SecurityContext,
     ) -> std::result::Result<Response<FlightDataStream>, Status> {
-        // Parse export format (default to Parquet)
+        // Parse export format. Default is Parquet when the `parquet` feature is enabled,
+        // otherwise JSON Lines (Parquet pulls in the unmaintained thrift 0.17 crate;
+        // see deny.toml / security-vulnerabilities.md for context).
         let export_format = match format.as_deref() {
             Some(f) => f
                 .parse::<ExportFormat>()
                 .map_err(|e| Status::invalid_argument(format!("Invalid format: {}", e)))?,
+            #[cfg(feature = "parquet")]
             None => ExportFormat::Parquet,
+            #[cfg(not(feature = "parquet"))]
+            None => ExportFormat::Json,
         };
 
         info!(
