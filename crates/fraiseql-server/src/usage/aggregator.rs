@@ -125,13 +125,7 @@ pub struct UsageSummary {
 /// use fraiseql_server::usage::events::MutationAuditEvent;
 ///
 /// let agg = Arc::new(UsageAggregator::new());
-/// let event = MutationAuditEvent {
-///     mutation_name: "create_user".to_owned(),
-///     entity_type:   "User".to_owned(),
-///     operation:     "create".to_owned(),
-///     tenant_id:     "acme".to_owned(),
-///     period:        "2026-05".to_owned(),
-/// };
+/// let event = MutationAuditEvent::new("create_user", "User", "create", "acme", "2026-05");
 /// agg.record(&event);
 /// let summary = agg.query("acme", "2026-05");
 /// assert_eq!(summary.mutations["User"], 1);
