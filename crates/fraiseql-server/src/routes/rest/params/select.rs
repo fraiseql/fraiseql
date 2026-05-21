@@ -25,7 +25,7 @@ const MAX_PARSE_DEPTH: usize = 32;
 /// # Errors
 ///
 /// Returns `FraiseQLError::Validation` on unbalanced parentheses, empty field
-/// names, or nesting exceeding [`MAX_PARSE_DEPTH`] levels.
+/// names, or nesting exceeding `MAX_PARSE_DEPTH` levels.
 pub fn parse_select_entries(input: &str) -> Result<Vec<SelectEntry>, FraiseQLError> {
     parse_select_entries_inner(input, 0)
 }

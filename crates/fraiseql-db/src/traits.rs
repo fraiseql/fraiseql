@@ -2,7 +2,7 @@
 //!
 //! The main [`DatabaseAdapter`] trait lives in this file. Supporting types
 //! (`RelayPageResult`, `DatabaseCapabilities`, enums, type aliases) are in
-//! the [`adapter_types`] submodule.
+//! the `adapter_types` submodule.
 
 mod adapter_types;
 mod mutations;
