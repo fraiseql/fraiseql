@@ -612,9 +612,22 @@ async fn test_token_refresh_worker_processes_due_refresh() {
 
     let handle = tokio::spawn(worker.run());
 
-    // Allow the worker to run through a few poll cycles.
+    // Let the worker reach `tokio::select!` and arm its sleep timer.
     tokio::task::yield_now().await;
+
+    // Advance past the poll interval so the sleep timer becomes ready.
     tokio::time::advance(StdDuration::from_millis(200)).await;
+
+    // Drain the worker through one refresh cycle BEFORE signalling cancellation.
+    // The `select!` in `TokenRefreshWorker::run` is not `biased`, so if both the
+    // timer and the cancel branch are ready when the task is next polled, tokio
+    // picks pseudo-randomly — and the cancel branch would win ~50% of the time,
+    // skipping the refresh call. Multiple yields force `process_due_refreshes` to
+    // complete and return to `select!` before we send cancel.
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+
     let _ = cancel_tx.send(true);
     handle.await.unwrap();
 
