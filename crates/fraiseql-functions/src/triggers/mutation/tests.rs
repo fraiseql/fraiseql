@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
 use super::*;
 
 #[test]
@@ -343,11 +345,11 @@ async fn test_before_mutation_chain_execute_modify_input() {
     };
 
     // Function that uppercases the name and returns {"input": {modified}}
-    let source = r#"
+    let source = r"
 export default async (event) => ({
   input: { ...event, name: event.name.toUpperCase() }
 });
-"#
+"
     .to_string();
     let module =
         FunctionModule::from_source("transformUser".to_string(), source, RuntimeType::Deno);

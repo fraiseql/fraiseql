@@ -97,6 +97,7 @@ pub struct LiveHostContext {
 
 impl LiveHostContext {
     /// Create a new live host context.
+    #[must_use]
     pub fn new(event_payload: EventPayload, config: HostContextConfig) -> Self {
         Self {
             event_payload,
@@ -127,6 +128,7 @@ impl LiveHostContext {
     }
 
     /// Create a new live host context with an HTTP client.
+    #[must_use]
     pub fn with_http_client(
         event_payload: EventPayload,
         config: HostContextConfig,
@@ -171,6 +173,7 @@ impl LiveHostContext {
     /// # Panics
     ///
     /// Panics if the Mutex is poisoned (should never happen in normal operation).
+    #[must_use]
     pub fn captured_logs(&self) -> Vec<LogEntry> {
         self.logs.lock().expect("log mutex poisoned").clone()
     }

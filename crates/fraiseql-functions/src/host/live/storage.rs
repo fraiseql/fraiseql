@@ -45,6 +45,7 @@ pub struct MockStorageBackend {
 #[cfg(test)]
 impl MockStorageBackend {
     /// Create a new mock storage backend.
+    #[must_use]
     pub fn new() -> std::sync::Arc<Self> {
         std::sync::Arc::new(Self {
             data: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
@@ -66,6 +67,7 @@ impl MockStorageBackend {
     /// # Panics
     ///
     /// Panics if the internal Mutex is poisoned.
+    #[must_use]
     pub fn get_stored(&self, bucket: &str, key: &str) -> Option<Vec<u8>> {
         let storage = self.data.lock().expect("storage lock poisoned");
         storage.get(bucket).and_then(|bucket_data| bucket_data.get(key)).cloned()

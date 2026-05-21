@@ -1,7 +1,5 @@
 //! Observer management route mounting.
 
-use std::sync::Arc;
-
 use axum::Router;
 use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
