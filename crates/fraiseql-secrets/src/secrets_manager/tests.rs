@@ -98,9 +98,23 @@ async fn test_lease_renewal_triggers_rotate_when_expiry_near() {
 
     let handle = tokio::spawn(task.run());
 
-    // Advance frozen time to let the worker process at least one tick.
+    // Let the task reach `tokio::select!` and arm its first `tokio::time::sleep` timer
+    // (with start_paused, the timer is registered against the frozen clock).
     tokio::task::yield_now().await;
+
+    // Advance past the check interval so the sleep timer becomes ready.
     tokio::time::advance(Duration::from_millis(200)).await;
+
+    // Drain the task through its renewal cycle BEFORE signalling cancellation.
+    // The `select!` in `LeaseRenewalTask::run` is not `biased`, so if both the
+    // timer and the cancel branch are ready when the task is next polled, tokio
+    // picks pseudo-randomly — and the cancel branch would win ~50% of the time,
+    // skipping the renewal. Multiple yields force the renewal future to complete
+    // and return to `select!` before we send cancel.
+    for _ in 0..5 {
+        tokio::task::yield_now().await;
+    }
+
     cancel_tx.send(true).unwrap();
     tokio::time::timeout(Duration::from_secs(2), handle)
         .await
