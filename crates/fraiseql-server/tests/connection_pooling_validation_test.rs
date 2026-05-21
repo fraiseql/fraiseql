@@ -569,9 +569,9 @@ async fn get_pool_connection_id(pool: &MockPool) -> Result<u64, String> {
 // Mock pool types for testing
 #[derive(Clone)]
 struct MockPool {
-    max_size: u32,
+    max_size:    u32,
     connections: Arc<Mutex<Vec<u64>>>,
-    next_id: Arc<AtomicU64>,
+    next_id:     Arc<AtomicU64>,
 }
 
 #[allow(dead_code)] // Reason: fields read by pool tests that inspect connection identity
@@ -582,8 +582,8 @@ struct MockConnection {
 #[derive(Clone)]
 #[allow(dead_code)] // Reason: fields read by timeout-specific pool tests
 struct MockPoolWithTimeout {
-    max_size: u32,
-    timeout: std::time::Duration,
+    max_size:    u32,
+    timeout:     std::time::Duration,
     connections: Arc<Mutex<Vec<u64>>>,
-    next_id: Arc<AtomicU64>,
+    next_id:     Arc<AtomicU64>,
 }

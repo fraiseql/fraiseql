@@ -29,7 +29,7 @@ pub(super) fn derive_resource_name(
     let base = type_name_to_snake(type_name);
     let name = simple_pluralize(&base);
     diagnostics.push(Diagnostic {
-        level: DiagnosticLevel::Info,
+        level:   DiagnosticLevel::Info,
         message: format!(
             "No list query for type '{type_name}'; derived resource name '{name}' from type name"
         ),

@@ -16,9 +16,9 @@ mod resilience_mod_tests {
     #[tokio::test]
     async fn test_circuit_breaker_closed_state() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.5,
-            sample_size: 10,
-            open_timeout_ms: 1000,
+            failure_threshold:      0.5,
+            sample_size:            10,
+            open_timeout_ms:        1000,
             half_open_max_requests: 3,
         };
         let breaker = CircuitBreaker::new(config);
@@ -33,9 +33,9 @@ mod resilience_mod_tests {
     #[tokio::test]
     async fn test_circuit_breaker_failure_transition() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.5,
-            sample_size: 3,
-            open_timeout_ms: 1000,
+            failure_threshold:      0.5,
+            sample_size:            3,
+            open_timeout_ms:        1000,
             half_open_max_requests: 3,
         };
         let breaker = CircuitBreaker::new(config);
@@ -61,9 +61,9 @@ mod resilience_mod_tests {
     #[tokio::test]
     async fn test_circuit_breaker_open_state_fails_fast() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.1,
-            sample_size: 1,
-            open_timeout_ms: 10000,
+            failure_threshold:      0.1,
+            sample_size:            1,
+            open_timeout_ms:        10000,
             half_open_max_requests: 3,
         };
         let breaker = CircuitBreaker::new(config);
@@ -91,9 +91,9 @@ mod resilience_mod_tests {
     #[tokio::test(start_paused = true)]
     async fn test_circuit_breaker_half_open_limited_requests() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.1,
-            sample_size: 1,
-            open_timeout_ms: 100,
+            failure_threshold:      0.1,
+            sample_size:            1,
+            open_timeout_ms:        100,
             half_open_max_requests: 2,
         };
         let breaker = CircuitBreaker::new(config);
@@ -228,9 +228,9 @@ mod per_endpoint_tests {
     #[tokio::test]
     async fn test_per_endpoint_independent_breakers() {
         let config = CircuitBreakerConfig {
-            failure_threshold: 0.1,
-            sample_size: 2,
-            open_timeout_ms: 1000,
+            failure_threshold:      0.1,
+            sample_size:            2,
+            open_timeout_ms:        1000,
             half_open_max_requests: 3,
         };
         let manager = PerEndpointCircuitBreaker::new(config);
@@ -335,7 +335,7 @@ mod strategies_tests {
             breaker,
             ResilienceStrategy::RetryWithBreaker {
                 max_attempts: 3,
-                backoff_ms: 10,
+                backoff_ms:   10,
             },
         );
 

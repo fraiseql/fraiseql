@@ -12,8 +12,8 @@ fn test_http_method_parsing() {
 fn test_http_route_exact_match() {
     let route = HttpTriggerRoute {
         function_name: "hello".to_string(),
-        method: "GET".to_string(),
-        path: "/hello".to_string(),
+        method:        "GET".to_string(),
+        path:          "/hello".to_string(),
         requires_auth: false,
     };
 
@@ -26,8 +26,8 @@ fn test_http_route_exact_match() {
 fn test_http_route_pattern_match() {
     let route = HttpTriggerRoute {
         function_name: "getUser".to_string(),
-        method: "GET".to_string(),
-        path: "/users/:id".to_string(),
+        method:        "GET".to_string(),
+        path:          "/users/:id".to_string(),
         requires_auth: false,
     };
 
@@ -41,8 +41,8 @@ fn test_http_route_pattern_match() {
 fn test_http_route_extract_params() {
     let route = HttpTriggerRoute {
         function_name: "getUser".to_string(),
-        method: "GET".to_string(),
-        path: "/users/:id/posts/:post_id".to_string(),
+        method:        "GET".to_string(),
+        path:          "/users/:id/posts/:post_id".to_string(),
         requires_auth: false,
     };
 
@@ -57,15 +57,15 @@ fn test_http_trigger_matcher() {
 
     matcher.add(HttpTriggerRoute {
         function_name: "getUser".to_string(),
-        method: "GET".to_string(),
-        path: "/users/:id".to_string(),
+        method:        "GET".to_string(),
+        path:          "/users/:id".to_string(),
         requires_auth: true,
     });
 
     matcher.add(HttpTriggerRoute {
         function_name: "createUser".to_string(),
-        method: "POST".to_string(),
-        path: "/users".to_string(),
+        method:        "POST".to_string(),
+        path:          "/users".to_string(),
         requires_auth: true,
     });
 

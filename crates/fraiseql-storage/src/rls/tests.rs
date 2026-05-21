@@ -8,35 +8,35 @@ use crate::{
 
 fn private_bucket() -> BucketConfig {
     BucketConfig {
-        name: "private-bucket".to_string(),
-        max_object_bytes: None,
+        name:               "private-bucket".to_string(),
+        max_object_bytes:   None,
         allowed_mime_types: None,
-        access: BucketAccess::Private,
-        transform_presets: None,
+        access:             BucketAccess::Private,
+        transform_presets:  None,
     }
 }
 
 fn public_bucket() -> BucketConfig {
     BucketConfig {
-        name: "public-bucket".to_string(),
-        max_object_bytes: None,
+        name:               "public-bucket".to_string(),
+        max_object_bytes:   None,
         allowed_mime_types: None,
-        access: BucketAccess::PublicRead,
-        transform_presets: None,
+        access:             BucketAccess::PublicRead,
+        transform_presets:  None,
     }
 }
 
 fn object_owned_by(owner: &str) -> StorageMetadataRow {
     StorageMetadataRow {
         pk_storage_object: 1,
-        bucket: "test".to_string(),
-        key: "file.txt".to_string(),
-        content_type: "text/plain".to_string(),
-        size_bytes: 100,
-        etag: None,
-        owner_id: Some(owner.to_string()),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        bucket:            "test".to_string(),
+        key:               "file.txt".to_string(),
+        content_type:      "text/plain".to_string(),
+        size_bytes:        100,
+        etag:              None,
+        owner_id:          Some(owner.to_string()),
+        created_at:        Utc::now(),
+        updated_at:        Utc::now(),
     }
 }
 
@@ -121,14 +121,14 @@ fn test_rls_list_filters_to_visible_objects() {
             let owner = if i < 3 { "user-1" } else { "user-2" };
             StorageMetadataRow {
                 pk_storage_object: i64::from(i),
-                bucket: "private-bucket".to_string(),
-                key: format!("file-{i}.txt"),
-                content_type: "text/plain".to_string(),
-                size_bytes: 100,
-                etag: None,
-                owner_id: Some(owner.to_string()),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
+                bucket:            "private-bucket".to_string(),
+                key:               format!("file-{i}.txt"),
+                content_type:      "text/plain".to_string(),
+                size_bytes:        100,
+                etag:              None,
+                owner_id:          Some(owner.to_string()),
+                created_at:        Utc::now(),
+                updated_at:        Utc::now(),
             }
         })
         .collect();
@@ -145,14 +145,14 @@ fn test_rls_list_public_bucket_shows_all() {
     let objects: Vec<StorageMetadataRow> = (0..5)
         .map(|i| StorageMetadataRow {
             pk_storage_object: i64::from(i),
-            bucket: "public-bucket".to_string(),
-            key: format!("file-{i}.txt"),
-            content_type: "text/plain".to_string(),
-            size_bytes: 100,
-            etag: None,
-            owner_id: Some("someone".to_string()),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            bucket:            "public-bucket".to_string(),
+            key:               format!("file-{i}.txt"),
+            content_type:      "text/plain".to_string(),
+            size_bytes:        100,
+            etag:              None,
+            owner_id:          Some("someone".to_string()),
+            created_at:        Utc::now(),
+            updated_at:        Utc::now(),
         })
         .collect();
 

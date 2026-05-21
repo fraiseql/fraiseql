@@ -93,7 +93,7 @@ impl TenantKeyResolver {
                             "Conflicting tenant values from sources: {}",
                             conflicts.join(", ")
                         ),
-                        path: None,
+                        path:    None,
                     });
                 }
             }

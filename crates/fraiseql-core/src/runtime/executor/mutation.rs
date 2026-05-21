@@ -134,7 +134,7 @@ impl<A: DatabaseAdapter> Executor<A> {
                      adapter does not support mutations. Use PostgresAdapter, MySqlAdapter, \
                      or SqlServerAdapter for mutation operations."
                 ),
-                path: None,
+                path:    None,
             });
         }
         runners::mutation::execute_mutation_impl(
@@ -202,7 +202,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         }
         Ok(crate::runtime::BulkResult {
             affected_rows: entities.len() as u64,
-            entities: Some(entities),
+            entities:      Some(entities),
         })
     }
 
@@ -240,7 +240,7 @@ impl<A: DatabaseAdapter> Executor<A> {
 
         Ok(crate::runtime::BulkResult {
             affected_rows: count,
-            entities: Some(vec![result]),
+            entities:      Some(vec![result]),
         })
     }
 }

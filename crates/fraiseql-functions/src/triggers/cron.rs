@@ -117,15 +117,15 @@ pub struct CronSchedule {
     /// The raw cron expression (e.g., "0 2 * * *").
     pub expression: String,
     /// Parsed minute field (0-59)
-    minute: CronField,
+    minute:         CronField,
     /// Parsed hour field (0-23)
-    hour: CronField,
+    hour:           CronField,
     /// Parsed day-of-month field (1-31)
-    day: CronField,
+    day:            CronField,
     /// Parsed month field (1-12)
-    month: CronField,
+    month:          CronField,
     /// Parsed day-of-week field (0-6, 0=Sunday)
-    weekday: CronField,
+    weekday:        CronField,
 }
 
 impl CronSchedule {
@@ -280,9 +280,9 @@ pub struct CronTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Cron expression (e.g., `"0 2 * * *"`).
-    pub schedule: String,
+    pub schedule:      String,
     /// Timezone for schedule evaluation (e.g., `"UTC"`, `"America/New_York"`).
-    pub timezone: String,
+    pub timezone:      String,
 }
 
 impl CronTrigger {

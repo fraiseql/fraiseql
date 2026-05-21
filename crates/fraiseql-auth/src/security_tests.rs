@@ -81,12 +81,12 @@ fn test_jwt_expiration_enforcement() {
 
     // Create expired token (exp = 1 second ago)
     let expired_token = Claims {
-        iss: "test_issuer".to_string(),
-        sub: "user123".to_string(),
-        aud: vec!["api".to_string()],
-        exp: now - 1,
-        iat: now - 3600,
-        nbf: None,
+        iss:   "test_issuer".to_string(),
+        sub:   "user123".to_string(),
+        aud:   vec!["api".to_string()],
+        exp:   now - 1,
+        iat:   now - 3600,
+        nbf:   None,
         extra: HashMap::default(),
     };
 
@@ -94,12 +94,12 @@ fn test_jwt_expiration_enforcement() {
 
     // Create future token (exp = 1 hour from now)
     let valid_token = Claims {
-        iss: "test_issuer".to_string(),
-        sub: "user123".to_string(),
-        aud: vec!["api".to_string()],
-        exp: now + 3600,
-        iat: now,
-        nbf: None,
+        iss:   "test_issuer".to_string(),
+        sub:   "user123".to_string(),
+        aud:   vec!["api".to_string()],
+        exp:   now + 3600,
+        iat:   now,
+        nbf:   None,
         extra: HashMap::default(),
     };
 

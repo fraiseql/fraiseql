@@ -507,10 +507,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                 let host =
                     fraiseql_functions::NoopHostContext::new(fraiseql_functions::EventPayload {
                         trigger_type: format!("before:mutation:{mutation_name}"),
-                        entity: mutation_name.clone(),
-                        event_kind: "before".to_string(),
-                        data: input.clone(),
-                        timestamp: chrono::Utc::now(),
+                        entity:       mutation_name.clone(),
+                        event_kind:   "before".to_string(),
+                        data:         input.clone(),
+                        timestamp:    chrono::Utc::now(),
                     });
                 match chain
                     .execute(
@@ -617,14 +617,14 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
                     op_name.to_string()
                 };
             get_audit_logger().log_entry(AuditEntry {
-                event_type: AuditEventType::AuthorizationDenied,
-                secret_type: SecretType::JwtToken,
-                subject: audit_subject.clone(),
-                operation: op_name.to_string(),
-                success: false,
+                event_type:    AuditEventType::AuthorizationDenied,
+                secret_type:   SecretType::JwtToken,
+                subject:       audit_subject.clone(),
+                operation:     op_name.to_string(),
+                success:       false,
                 error_message: Some(resource),
-                context: Some(format!("peer_ip={peer_ip}")),
-                chain_hash: None,
+                context:       Some(format!("peer_ip={peer_ip}")),
+                chain_hash:    None,
             });
         }
 

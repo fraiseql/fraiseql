@@ -176,7 +176,7 @@ impl SqlDialect for PostgresDialect {
             "IsCarrierGrade" => Ok(format!("({lhs}::inet << '100.64.0.0/10'::inet)")),
             "IsNotCarrierGrade" => Ok(format!("NOT ({lhs}::inet << '100.64.0.0/10'::inet)")),
             _ => Err(UnsupportedOperator {
-                dialect: self.name(),
+                dialect:  self.name(),
                 operator: "InetCheck",
             }),
         }

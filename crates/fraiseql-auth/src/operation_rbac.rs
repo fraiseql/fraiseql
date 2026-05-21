@@ -120,7 +120,7 @@ impl OperationPermission {
 #[derive(Debug, Clone)]
 pub struct Role {
     /// Role name (e.g., `"admin"`, `"viewer"`)
-    pub name: String,
+    pub name:        String,
     /// Set of operations this role is allowed to perform
     pub permissions: Vec<OperationPermission>,
 }

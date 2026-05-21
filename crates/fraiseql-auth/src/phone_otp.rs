@@ -158,7 +158,7 @@ pub struct SmsOtpRequest {
 #[derive(Debug, Serialize)]
 pub struct SmsOtpResponse {
     /// Always "otp_sent" (anti-enumeration).
-    pub status: String,
+    pub status:     String,
     /// Seconds until the OTP expires.
     pub expires_in: u64,
 }
@@ -169,34 +169,34 @@ pub struct SmsVerifyRequest {
     /// Phone number (will be normalized to E.164 for lookup).
     pub phone: String,
     /// 6-digit OTP code.
-    pub code: String,
+    pub code:  String,
 }
 
 /// Response body for `POST /auth/v1/verify/sms`.
 #[derive(Debug, Serialize)]
 pub struct SmsVerifyResponse {
     /// Access token for API requests.
-    pub access_token: String,
+    pub access_token:  String,
     /// Refresh token.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
     /// Token type (always "Bearer").
-    pub token_type: String,
+    pub token_type:    String,
     /// Seconds until the access token expires.
-    pub expires_in: u64,
+    pub expires_in:    u64,
 }
 
 /// Shared state for SMS OTP endpoints.
 #[derive(Clone)]
 pub struct SmsOtpAuthState {
     /// OTP store backend (shared with email OTP).
-    pub otp_store: Arc<dyn OtpStore>,
+    pub otp_store:     Arc<dyn OtpStore>,
     /// SMS delivery backend.
-    pub sms_sender: Arc<dyn SmsSender>,
+    pub sms_sender:    Arc<dyn SmsSender>,
     /// Session store for creating sessions after verification.
     pub session_store: Arc<dyn SessionStore>,
     /// Optional account store for account linking.
-    pub user_store: Option<Arc<dyn AccountStore>>,
+    pub user_store:    Option<Arc<dyn AccountStore>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +246,7 @@ pub async fn send_sms_otp(
         Err(crate::error::AuthError::RateLimited { .. }) => {
             // Anti-enumeration: always return success even when rate-limited.
             return Json(SmsOtpResponse {
-                status: "otp_sent".to_string(),
+                status:     "otp_sent".to_string(),
                 expires_in: OTP_TTL_SECS,
             })
             .into_response();
@@ -255,7 +255,7 @@ pub async fn send_sms_otp(
             tracing::error!(error = %e, "OTP store failed for SMS");
             // Anti-enumeration: still return success.
             return Json(SmsOtpResponse {
-                status: "otp_sent".to_string(),
+                status:     "otp_sent".to_string(),
                 expires_in: OTP_TTL_SECS,
             })
             .into_response();
@@ -267,7 +267,7 @@ pub async fn send_sms_otp(
     }
 
     Json(SmsOtpResponse {
-        status: "otp_sent".to_string(),
+        status:     "otp_sent".to_string(),
         expires_in: OTP_TTL_SECS,
     })
     .into_response()
@@ -339,10 +339,10 @@ pub async fn verify_sms_otp(
     let session_expiry = unix_now() + (7 * 24 * 60 * 60);
     match state.session_store.create_session(&user_id, session_expiry).await {
         Ok(tokens) => Json(SmsVerifyResponse {
-            access_token: tokens.access_token,
+            access_token:  tokens.access_token,
             refresh_token: Some(tokens.refresh_token),
-            token_type: "Bearer".to_string(),
-            expires_in: tokens.expires_in,
+            token_type:    "Bearer".to_string(),
+            expires_in:    tokens.expires_in,
         })
         .into_response(),
         Err(e) => {

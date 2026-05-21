@@ -198,9 +198,9 @@ fn validate_ndjson_rejects_count_estimated() {
 fn validate_ndjson_rejects_cursor_pagination() {
     let prefer = PreferHeader::default();
     let pagination = PaginationParams::Cursor {
-        first: Some(10),
-        after: None,
-        last: None,
+        first:  Some(10),
+        after:  None,
+        last:   None,
         before: None,
     };
     let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
@@ -212,7 +212,7 @@ fn validate_ndjson_rejects_cursor_pagination() {
 fn validate_ndjson_rejects_offset_pagination() {
     let prefer = PreferHeader::default();
     let pagination = PaginationParams::Offset {
-        limit: 10,
+        limit:  10,
         offset: 5,
     };
     let err = validate_ndjson_request(&prefer, &pagination).unwrap_err();
@@ -224,7 +224,7 @@ fn validate_ndjson_allows_limit_only() {
     // offset=0 with limit is fine — it's the default, not explicit pagination
     let prefer = PreferHeader::default();
     let pagination = PaginationParams::Offset {
-        limit: 100,
+        limit:  100,
         offset: 0,
     };
     assert!(validate_ndjson_request(&prefer, &pagination).is_ok());

@@ -32,9 +32,9 @@ fn test_where_array_empty_handling() {
     for value in &empty_array_cases {
         // ArrayContains operator with empty/null arrays
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: value.clone(),
+            value:    value.clone(),
         };
 
         match clause {
@@ -48,9 +48,9 @@ fn test_where_array_empty_handling() {
     // ArrayOverlaps operator with empty arrays
     for value in &empty_array_cases {
         let clause = WhereClause::Field {
-            path: vec!["categories".to_string()],
+            path:     vec!["categories".to_string()],
             operator: WhereOperator::ArrayOverlaps,
-            value: value.clone(),
+            value:    value.clone(),
         };
 
         match clause {
@@ -71,9 +71,9 @@ fn test_where_array_large_element_count() {
         let large_array: Vec<serde_json::Value> = (0..size).map(|i| json!(i)).collect();
 
         let clause = WhereClause::Field {
-            path: vec!["ids".to_string()],
+            path:     vec!["ids".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: json!(large_array.clone()),
+            value:    json!(large_array.clone()),
         };
 
         match clause {
@@ -101,9 +101,9 @@ fn test_where_array_with_mixed_types() {
     ]);
 
     let clause = WhereClause::Field {
-        path: vec!["values".to_string()],
+        path:     vec!["values".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: mixed_array,
+        value:    mixed_array,
     };
 
     match clause {
@@ -126,9 +126,9 @@ fn test_where_array_with_null_values() {
     let array_with_nulls = json!([1, null, 3, null, 5]);
 
     let clause = WhereClause::Field {
-        path: vec!["sparse_array".to_string()],
+        path:     vec!["sparse_array".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: array_with_nulls,
+        value:    array_with_nulls,
     };
 
     match clause {
@@ -151,9 +151,9 @@ fn test_where_array_duplicate_values() {
     let duplicate_array = json!([1, 2, 2, 3, 3, 3, 2, 1]);
 
     let clause = WhereClause::Field {
-        path: vec!["numbers".to_string()],
+        path:     vec!["numbers".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: duplicate_array,
+        value:    duplicate_array,
     };
 
     match clause {
@@ -185,9 +185,9 @@ fn test_where_array_string_elements_special_chars() {
     ]);
 
     let clause = WhereClause::Field {
-        path: vec!["strings".to_string()],
+        path:     vec!["strings".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: special_strings,
+        value:    special_strings,
     };
 
     match clause {
@@ -208,9 +208,9 @@ fn test_where_array_nested_arrays() {
     let nested_arrays = json!([[1, 2, 3], [4, 5], [], [null], [1, "mixed", true]]);
 
     let clause = WhereClause::Field {
-        path: vec!["matrix".to_string()],
+        path:     vec!["matrix".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: nested_arrays,
+        value:    nested_arrays,
     };
 
     match clause {
@@ -238,9 +238,9 @@ fn test_where_array_nested_objects() {
     ]);
 
     let clause = WhereClause::Field {
-        path: vec!["items".to_string()],
+        path:     vec!["items".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: object_array,
+        value:    object_array,
     };
 
     match clause {
@@ -266,9 +266,9 @@ fn test_where_array_overlaps_operator() {
     let overlapping_array = json!([1, 2, 3, 4, 5]);
 
     let clause = WhereClause::Field {
-        path: vec!["nums".to_string()],
+        path:     vec!["nums".to_string()],
         operator: WhereOperator::ArrayOverlaps,
-        value: overlapping_array.clone(),
+        value:    overlapping_array.clone(),
     };
 
     match clause {
@@ -285,9 +285,9 @@ fn test_where_array_in_operator() {
     let in_values = json!(["red", "green", "blue", "yellow"]);
 
     let clause = WhereClause::Field {
-        path: vec!["color".to_string()],
+        path:     vec!["color".to_string()],
         operator: WhereOperator::In,
-        value: in_values.clone(),
+        value:    in_values.clone(),
     };
 
     match clause {
@@ -304,9 +304,9 @@ fn test_where_array_nin_operator() {
     let nin_values = json!([10, 20, 30, 40, 50]);
 
     let clause = WhereClause::Field {
-        path: vec!["excluded_ids".to_string()],
+        path:     vec!["excluded_ids".to_string()],
         operator: WhereOperator::Nin,
-        value: nin_values.clone(),
+        value:    nin_values.clone(),
     };
 
     match clause {
@@ -323,9 +323,9 @@ fn test_where_array_numeric_precision() {
     let precision_array = json!([0.1, 0.123456789, 1.23e-10, 999999.999999999, -0.0000001]);
 
     let clause = WhereClause::Field {
-        path: vec!["decimals".to_string()],
+        path:     vec!["decimals".to_string()],
         operator: WhereOperator::ArrayContains,
-        value: precision_array,
+        value:    precision_array,
     };
 
     match clause {

@@ -23,7 +23,7 @@ use fraiseql_core::{
 /// Report containing all database validation warnings and discovered metadata.
 pub struct DatabaseValidationReport {
     /// All warnings emitted during validation.
-    pub warnings: Vec<DatabaseWarning>,
+    pub warnings:       Vec<DatabaseWarning>,
     /// Native columns discovered per query during L2 validation.
     ///
     /// Key: query name. Value: map of argument name → PostgreSQL type string
@@ -49,23 +49,23 @@ pub enum DatabaseWarning {
         /// Name of the query.
         query_name: String,
         /// The view name that was not found.
-        view_name: String,
+        view_name:  String,
     },
     /// L2: `jsonb_column` does not exist on the relation.
     MissingJsonColumn {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The missing column name.
         column_name: String,
     },
     /// L2: `jsonb_column` exists but is not a JSON/JSONB type.
     WrongJsonColumnType {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The column name.
         column_name: String,
         /// The actual SQL data type.
@@ -74,24 +74,24 @@ pub enum DatabaseWarning {
     /// L2: `relay_cursor_column` does not exist on the relation.
     MissingCursorColumn {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The missing cursor column name.
         column_name: String,
     },
     /// L3: a JSON key path is declared but not found in sampled data.
     MissingJsonKey {
         /// Name of the query.
-        query_name: String,
+        query_name:  String,
         /// The `sql_source` relation.
-        sql_source: String,
+        sql_source:  String,
         /// The JSON column being sampled.
         json_column: String,
         /// The GraphQL field name.
-        field_name: String,
+        field_name:  String,
         /// The snake_case key looked up in the JSON.
-        json_key: String,
+        json_key:    String,
     },
     /// L2: a direct query argument has no matching native column — will fall back to JSONB
     /// extraction.
@@ -104,7 +104,7 @@ pub enum DatabaseWarning {
         /// The `sql_source` relation.
         sql_source: String,
         /// The argument name that has no matching native column.
-        arg_name: String,
+        arg_name:   String,
     },
 }
 
@@ -296,16 +296,16 @@ pub async fn validate_schema_against_database(
                 if let Some(actual_type) = column_map.get(jsonb_col) {
                     if !is_json_type(actual_type, db_type) {
                         warnings.push(DatabaseWarning::WrongJsonColumnType {
-                            query_name: query.name.clone(),
-                            sql_source: source.clone(),
+                            query_name:  query.name.clone(),
+                            sql_source:  source.clone(),
                             column_name: jsonb_col.clone(),
                             actual_type: actual_type.clone(),
                         });
                     }
                 } else {
                     warnings.push(DatabaseWarning::MissingJsonColumn {
-                        query_name: query.name.clone(),
-                        sql_source: source.clone(),
+                        query_name:  query.name.clone(),
+                        sql_source:  source.clone(),
                         column_name: jsonb_col.clone(),
                     });
                 }
@@ -316,8 +316,8 @@ pub async fn validate_schema_against_database(
                 if let Some(ref cursor_col) = query.relay_cursor_column {
                     if !column_map.contains_key(cursor_col) {
                         warnings.push(DatabaseWarning::MissingCursorColumn {
-                            query_name: query.name.clone(),
-                            sql_source: source.clone(),
+                            query_name:  query.name.clone(),
+                            sql_source:  source.clone(),
                             column_name: cursor_col.clone(),
                         });
                     }
@@ -360,7 +360,7 @@ pub async fn validate_schema_against_database(
                         warnings.push(DatabaseWarning::NativeColumnFallback {
                             query_name: query.name.clone(),
                             sql_source: source.clone(),
-                            arg_name: (*arg_name).to_string(),
+                            arg_name:   (*arg_name).to_string(),
                         });
                     }
                 }
@@ -374,7 +374,7 @@ pub async fn validate_schema_against_database(
                 if !relation_exists(&schema_qualified, &unqualified, view) {
                     warnings.push(DatabaseWarning::MissingAdditionalView {
                         query_name: query.name.clone(),
-                        view_name: view.clone(),
+                        view_name:  view.clone(),
                     });
                 }
             }

@@ -29,7 +29,7 @@ pub(super) fn validate_cqrs_query(
 ) {
     if sql_source.starts_with("tb_") {
         diagnostics.push(Diagnostic {
-            level: DiagnosticLevel::Warning,
+            level:   DiagnosticLevel::Warning,
             message: format!(
                 "Query '{query_name}' reads from write table '{sql_source}' \
                  — expected `v_` or `tv_` prefix. This may indicate a CQRS violation."
@@ -54,7 +54,7 @@ pub(super) fn validate_cqrs_mutation(
 
     if table.starts_with("v_") || table.starts_with("tv_") {
         diagnostics.push(Diagnostic {
-            level: DiagnosticLevel::Warning,
+            level:   DiagnosticLevel::Warning,
             message: format!(
                 "Mutation '{mutation_name}' writes to view '{table}' — expected `tb_` prefix"
             ),
@@ -69,7 +69,7 @@ pub(super) fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut 
         if name.starts_with("pk_") || name.starts_with("fk_") {
             if !matches!(field.field_type, FieldType::Int | FieldType::Id) {
                 diagnostics.push(Diagnostic {
-                    level: DiagnosticLevel::Warning,
+                    level:   DiagnosticLevel::Warning,
                     message: format!(
                         "pk_/fk_ field '{name}' is {:?}, expected Int or BigInt",
                         field.field_type
@@ -78,7 +78,7 @@ pub(super) fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut 
             }
         } else if name == "id" && matches!(field.field_type, FieldType::Int) {
             diagnostics.push(Diagnostic {
-                level: DiagnosticLevel::Warning,
+                level:   DiagnosticLevel::Warning,
                 message: format!(
                     "id field on '{}' is Int, expected UUID or ID",
                     type_def.name.as_str()
@@ -108,7 +108,7 @@ pub(super) fn detect_conflicts(
                     route.method, route.path, prev_op, current_op
                 );
                 diagnostics.push(Diagnostic {
-                    level: DiagnosticLevel::Error,
+                    level:   DiagnosticLevel::Error,
                     message: err.clone(),
                 });
                 return Err(err);

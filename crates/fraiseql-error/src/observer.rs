@@ -27,7 +27,7 @@ pub enum ObserverError {
     #[error("Action failed: {action} - {message}")]
     ActionFailed {
         /// Name or type of the action that failed.
-        action: String,
+        action:  String,
         /// Reason for the failure.
         message: String,
     },

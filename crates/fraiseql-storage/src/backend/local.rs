@@ -38,12 +38,12 @@ impl LocalBackend {
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| FraiseQLError::Storage {
                 message: format!("Failed to create directory: {e}"),
-                code: Some("io_error".to_string()),
+                code:    Some("io_error".to_string()),
             })?;
         }
         tokio::fs::write(&path, data).await.map_err(|e| FraiseQLError::Storage {
             message: format!("Failed to write file: {e}"),
-            code: Some("io_error".to_string()),
+            code:    Some("io_error".to_string()),
         })?;
         Ok(key.to_string())
     }
@@ -60,12 +60,12 @@ impl LocalBackend {
             if e.kind() == std::io::ErrorKind::NotFound {
                 FraiseQLError::Storage {
                     message: format!("File not found: {key}"),
-                    code: Some("not_found".to_string()),
+                    code:    Some("not_found".to_string()),
                 }
             } else {
                 FraiseQLError::Storage {
                     message: format!("Failed to read file: {e}"),
-                    code: Some("io_error".to_string()),
+                    code:    Some("io_error".to_string()),
                 }
             }
         })
@@ -82,12 +82,12 @@ impl LocalBackend {
             if e.kind() == std::io::ErrorKind::NotFound {
                 FraiseQLError::Storage {
                     message: format!("File not found: {key}"),
-                    code: Some("not_found".to_string()),
+                    code:    Some("not_found".to_string()),
                 }
             } else {
                 FraiseQLError::Storage {
                     message: format!("Failed to delete file: {e}"),
-                    code: Some("io_error".to_string()),
+                    code:    Some("io_error".to_string()),
                 }
             }
         })
@@ -105,7 +105,7 @@ impl LocalBackend {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
             Err(e) => Err(FraiseQLError::Storage {
                 message: format!("Failed to check file existence: {e}"),
-                code: Some("io_error".to_string()),
+                code:    Some("io_error".to_string()),
             }),
         }
     }
@@ -118,7 +118,7 @@ impl LocalBackend {
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         Err(FraiseQLError::Storage {
             message: "Presigned URLs are not supported for local storage".to_string(),
-            code: Some("unsupported".to_string()),
+            code:    Some("unsupported".to_string()),
         })
     }
 
@@ -145,7 +145,7 @@ impl LocalBackend {
         // If prefix directory doesn't exist, return empty list
         if !prefix_path.exists() {
             return Ok(ListResult {
-                objects: Vec::new(),
+                objects:     Vec::new(),
                 next_cursor: None,
             });
         }
@@ -161,7 +161,7 @@ impl LocalBackend {
                 .strip_prefix(&self.root)
                 .map_err(|_| FraiseQLError::Storage {
                     message: "Failed to compute relative path".to_string(),
-                    code: Some("io_error".to_string()),
+                    code:    Some("io_error".to_string()),
                 })?
                 .to_string_lossy()
                 .into_owned();
@@ -173,7 +173,7 @@ impl LocalBackend {
             let metadata =
                 tokio::fs::metadata(full_path).await.map_err(|e| FraiseQLError::Storage {
                     message: format!("Failed to read file metadata: {e}"),
-                    code: Some("io_error".to_string()),
+                    code:    Some("io_error".to_string()),
                 })?;
 
             let size = metadata.len();

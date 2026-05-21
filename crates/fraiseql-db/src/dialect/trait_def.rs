@@ -32,7 +32,7 @@ pub enum RowViewColumnType {
 #[derive(Debug)]
 pub struct UnsupportedOperator {
     /// Dialect name (e.g., "MySQL").
-    pub dialect: &'static str,
+    pub dialect:  &'static str,
     /// Operator name (e.g., "ArrayContainedBy").
     pub operator: &'static str,
 }
@@ -208,7 +208,7 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Returns [`UnsupportedOperator`] if this dialect does not support array containment.
     fn array_contains_sql(&self, _lhs: &str, _rhs: &str) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "ArrayContains",
         })
     }
@@ -224,7 +224,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _rhs: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "ArrayContainedBy",
         })
     }
@@ -236,7 +236,7 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Returns [`UnsupportedOperator`] if this dialect does not support array overlap.
     fn array_overlaps_sql(&self, _lhs: &str, _rhs: &str) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "ArrayOverlaps",
         })
     }
@@ -250,7 +250,7 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Returns [`UnsupportedOperator`] if this dialect does not support full-text search.
     fn fts_matches_sql(&self, _expr: &str, _param: &str) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "Matches",
         })
     }
@@ -266,7 +266,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _param: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "PlainQuery",
         })
     }
@@ -282,7 +282,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _param: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "PhraseQuery",
         })
     }
@@ -298,7 +298,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _param: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "WebsearchQuery",
         })
     }
@@ -322,7 +322,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _negate: bool,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "Regex",
         })
     }
@@ -347,7 +347,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _rhs: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "VectorDistance",
         })
     }
@@ -359,7 +359,7 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Returns [`UnsupportedOperator`] if this dialect does not support Jaccard distance.
     fn jaccard_distance_sql(&self, _lhs: &str, _rhs: &str) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "JaccardDistance",
         })
     }
@@ -374,7 +374,7 @@ pub trait SqlDialect: Send + Sync + 'static {
     /// Returns [`UnsupportedOperator`] if this dialect does not support INET checks.
     fn inet_check_sql(&self, _lhs: &str, _check_name: &str) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "InetCheck",
         })
     }
@@ -393,7 +393,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _rhs: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "InetBinaryOp",
         })
     }
@@ -414,7 +414,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _rhs_type: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "LTreeBinaryOp",
         })
     }
@@ -433,7 +433,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _placeholders: &[String],
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "MatchesAnyLquery",
         })
     }
@@ -450,7 +450,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _rhs: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "LTreeDepth",
         })
     }
@@ -477,7 +477,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _param: &str,
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "LTreeIdSubquery",
         })
     }
@@ -496,7 +496,7 @@ pub trait SqlDialect: Send + Sync + 'static {
         _placeholders: &[String],
     ) -> Result<String, UnsupportedOperator> {
         Err(UnsupportedOperator {
-            dialect: self.name(),
+            dialect:  self.name(),
             operator: "Lca",
         })
     }

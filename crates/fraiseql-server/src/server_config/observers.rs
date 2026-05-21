@@ -82,8 +82,8 @@ const fn default_observer_acquire_timeout() -> u64 {
 impl Default for ObserverPoolConfig {
     fn default() -> Self {
         Self {
-            min_connections: default_observer_pool_min(),
-            max_connections: default_observer_pool_max(),
+            min_connections:      default_observer_pool_min(),
+            max_connections:      default_observer_pool_max(),
             acquire_timeout_secs: default_observer_acquire_timeout(),
         }
     }

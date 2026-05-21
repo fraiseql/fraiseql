@@ -73,7 +73,7 @@ pub enum PlanError {
         /// Current depth.
         depth: usize,
         /// Maximum allowed depth.
-        max: usize,
+        max:   usize,
     },
     /// The query body is empty / unparseable at the planner level.
     EmptyQuery,
@@ -158,7 +158,7 @@ pub fn plan_entity_fetch(
     if current_depth >= MAX_ENTITY_DEPTH {
         return Err(PlanError::DepthExceeded {
             depth: current_depth,
-            max: MAX_ENTITY_DEPTH,
+            max:   MAX_ENTITY_DEPTH,
         });
     }
 

@@ -10,30 +10,30 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields)]
 pub struct McpConfig {
     /// Enable MCP server endpoint.
-    pub enabled: bool,
+    pub enabled:      bool,
     /// Transport mode: "http", "stdio", or "both".
-    pub transport: String,
+    pub transport:    String,
     /// HTTP path for MCP endpoint (e.g., "/mcp").
-    pub path: String,
+    pub path:         String,
     /// Require authentication for MCP requests.
     pub require_auth: bool,
     /// Whitelist of query/mutation names to expose (empty = all).
     #[serde(default)]
-    pub include: Vec<String>,
+    pub include:      Vec<String>,
     /// Blacklist of query/mutation names to hide.
     #[serde(default)]
-    pub exclude: Vec<String>,
+    pub exclude:      Vec<String>,
 }
 
 impl Default for McpConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            transport: "http".to_string(),
-            path: "/mcp".to_string(),
+            enabled:      false,
+            transport:    "http".to_string(),
+            path:         "/mcp".to_string(),
             require_auth: true,
-            include: Vec::new(),
-            exclude: Vec::new(),
+            include:      Vec::new(),
+            exclude:      Vec::new(),
         }
     }
 }
@@ -87,9 +87,9 @@ pub struct DebugConfig {
 impl Default for DebugConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled:          false,
             database_explain: false,
-            expose_sql: true,
+            expose_sql:       true,
         }
     }
 }

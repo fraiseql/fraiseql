@@ -48,14 +48,14 @@ impl TokenValidator for TestValidator {
             if token.starts_with("valid-") {
                 let user_id = token.strip_prefix("valid-").unwrap_or("unknown").to_owned();
                 Ok(TokenInfo {
-                    user_id: user_id.clone(),
+                    user_id:      user_id.clone(),
                     context_hash: {
                         use std::hash::{Hash, Hasher};
                         let mut hasher = std::collections::hash_map::DefaultHasher::new();
                         user_id.hash(&mut hasher);
                         hasher.finish()
                     },
-                    expires_at: chrono::Utc::now().timestamp() + expires_in,
+                    expires_at:   chrono::Utc::now().timestamp() + expires_in,
                 })
             } else if token == "expired-token" {
                 Err("token expired".to_owned())
@@ -1034,11 +1034,11 @@ async fn test_event_payload_format() {
 
     // Send a DELETE event with old data
     let event = EntityEvent {
-        entity: "Post".to_owned(),
+        entity:     "Post".to_owned(),
         event_kind: EventKindSerde::Delete,
-        new: None,
-        old: Some(serde_json::json!({"id": 7, "title": "Deleted post"})),
-        timestamp: "2026-04-28T15:30:00Z".to_owned(),
+        new:        None,
+        old:        Some(serde_json::json!({"id": 7, "title": "Deleted post"})),
+        timestamp:  "2026-04-28T15:30:00Z".to_owned(),
     };
     event_tx.send(event).await.unwrap();
 
@@ -1264,11 +1264,11 @@ async fn test_observer_end_to_end() {
 
     // Inject an event via the observer (the same path that a real mutation would use).
     observer.on_mutation_complete(EntityEvent {
-        entity: "Post".to_owned(),
+        entity:     "Post".to_owned(),
         event_kind: EventKindSerde::Insert,
-        new: Some(serde_json::json!({"id": 42, "title": "Hello realtime", "author_id": 7})),
-        old: None,
-        timestamp: "2026-04-29T00:00:00Z".to_owned(),
+        new:        Some(serde_json::json!({"id": 42, "title": "Hello realtime", "author_id": 7})),
+        old:        None,
+        timestamp:  "2026-04-29T00:00:00Z".to_owned(),
     });
 
     let msg = next_msg(&mut ws).await;
@@ -1526,7 +1526,7 @@ async fn spawn_combined_server(validator: TestValidator) -> SocketAddr {
     let rt_server =
         Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), test_entities()));
     let rt_state = RealtimeState {
-        server: rt_server,
+        server:    rt_server,
         validator: Arc::new(validator),
     };
     let realtime_app = realtime_router(rt_state);

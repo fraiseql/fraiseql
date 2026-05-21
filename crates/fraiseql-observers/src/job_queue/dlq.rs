@@ -252,7 +252,7 @@ impl DeadLetterQueueManager {
 #[derive(Debug, Clone)]
 pub struct DlqStats {
     /// Total number of jobs in the DLQ
-    pub total_jobs: usize,
+    pub total_jobs:     usize,
     /// Count of jobs by action type
     pub by_action_type: std::collections::HashMap<String, usize>,
 }

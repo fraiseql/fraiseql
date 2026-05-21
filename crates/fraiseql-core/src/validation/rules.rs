@@ -62,7 +62,7 @@ pub enum ValidationRule {
     #[serde(rename = "cross_field")]
     CrossField {
         /// Reference to another field to compare against.
-        field: String,
+        field:    String,
         /// Comparison operator ("lt", "lte", "eq", "gte", "gt").
         operator: String,
     },
@@ -71,7 +71,7 @@ pub enum ValidationRule {
     #[serde(rename = "conditional")]
     Conditional {
         /// The condition expression.
-        condition: String,
+        condition:  String,
         /// Rules to apply if condition is true.
         then_rules: Vec<Box<ValidationRule>>,
     },
@@ -136,7 +136,7 @@ pub enum ValidationRule {
         /// If this field is present (not null/missing)
         if_field_present: String,
         /// Then these fields are required
-        then_required: Vec<String>,
+        then_required:    Vec<String>,
     },
 
     /// If a field is absent/null, then other fields are required.
@@ -155,7 +155,7 @@ pub enum ValidationRule {
     #[serde(rename = "required_if_absent")]
     RequiredIfAbsent {
         /// If this field is absent/null
-        absent_field: String,
+        absent_field:  String,
         /// Then these fields are required
         then_required: Vec<String>,
     },

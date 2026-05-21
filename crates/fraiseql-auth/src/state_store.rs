@@ -69,7 +69,7 @@ pub struct InMemoryStateStore {
     // Map of state -> (provider, expiry_secs)
     pub(crate) states: Arc<DashMap<String, (String, u64)>>,
     // Maximum number of states to store (prevents memory exhaustion)
-    max_states: usize,
+    max_states:        usize,
 }
 
 impl InMemoryStateStore {
@@ -81,7 +81,7 @@ impl InMemoryStateStore {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states:     Arc::new(DashMap::new()),
             max_states: Self::MAX_STATES,
         }
     }
@@ -93,7 +93,7 @@ impl InMemoryStateStore {
     #[must_use]
     pub fn with_max_states(max_states: usize) -> Self {
         Self {
-            states: Arc::new(DashMap::new()),
+            states:     Arc::new(DashMap::new()),
             max_states: max_states.max(1), // Ensure at least 1 state
         }
     }

@@ -6,8 +6,8 @@ use super::*;
 fn test_query_request_serialization() {
     let msg = ExchangeMessage::Request {
         correlation_id: "req-1".to_string(),
-        request_type: RequestType::Query {
-            query: "{ orders { id total } }".to_string(),
+        request_type:   RequestType::Query {
+            query:     "{ orders { id total } }".to_string(),
             variables: None,
         },
     };
@@ -32,7 +32,7 @@ fn test_query_request_serialization() {
 fn test_response_serialization() {
     let msg = ExchangeMessage::Response {
         correlation_id: "req-1".to_string(),
-        result: Ok(vec![1, 2, 3, 4]),
+        result:         Ok(vec![1, 2, 3, 4]),
     };
 
     let bytes = msg.to_json_bytes().expect("Failed to serialize");
@@ -54,7 +54,7 @@ fn test_response_serialization() {
 fn test_error_response_serialization() {
     let msg = ExchangeMessage::Response {
         correlation_id: "req-1".to_string(),
-        result: Err("Database error".to_string()),
+        result:         Err("Database error".to_string()),
     };
 
     let bytes = msg.to_json_bytes().expect("Failed to serialize");
@@ -94,7 +94,7 @@ fn test_upload_request_serialization() {
     let batch_data = vec![1, 2, 3, 4, 5];
     let msg = ExchangeMessage::Request {
         correlation_id: "upload-1".to_string(),
-        request_type: RequestType::Upload {
+        request_type:   RequestType::Upload {
             table: "orders".to_string(),
             batch: batch_data.clone(),
         },

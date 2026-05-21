@@ -11,9 +11,9 @@ use crate::where_clause::{WhereClause, WhereOperator};
 fn test_simple_equality() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["email".to_string()],
+        path:     vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("test@example.com"),
+        value:    json!("test@example.com"),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -25,9 +25,9 @@ fn test_simple_equality() {
 fn test_icontains() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["name".to_string()],
+        path:     vec!["name".to_string()],
         operator: WhereOperator::Icontains,
-        value: json!("alice"),
+        value:    json!("alice"),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -40,14 +40,14 @@ fn test_and_clause() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::And(vec![
         WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("active"),
+            value:    json!("active"),
         },
         WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Gte,
-            value: json!(18),
+            value:    json!(18),
         },
     ]);
 
@@ -63,14 +63,14 @@ fn test_indexed_columns() {
     let gen = PostgresWhereGenerator::new(PostgresDialect).with_indexed_columns(Arc::new(cols));
 
     let clause = WhereClause::Field {
-        path: vec![
+        path:     vec![
             "items".to_string(),
             "product".to_string(),
             "category".to_string(),
             "code".to_string(),
         ],
         operator: WhereOperator::Eq,
-        value: json!("BOOK"),
+        value:    json!("BOOK"),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -85,9 +85,9 @@ fn test_indexed_columns() {
 fn test_nested_path() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["address".to_string(), "city".to_string()],
+        path:     vec!["address".to_string(), "city".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("Paris"),
+        value:    json!("Paris"),
     };
 
     let (sql, _) = gen.generate(&clause).unwrap();
@@ -101,9 +101,9 @@ fn test_nested_path() {
 fn test_is_null() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["deleted_at".to_string()],
+        path:     vec!["deleted_at".to_string()],
         operator: WhereOperator::IsNull,
-        value: json!(true),
+        value:    json!(true),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -115,9 +115,9 @@ fn test_is_null() {
 fn test_param_offset() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["email".to_string()],
+        path:     vec!["email".to_string()],
         operator: WhereOperator::Eq,
-        value: json!("a@b.com"),
+        value:    json!("a@b.com"),
     };
 
     let (sql, _) = gen.generate_with_param_offset(&clause, 2).unwrap();
@@ -128,9 +128,9 @@ fn test_param_offset() {
 fn test_in_operator() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["status".to_string()],
+        path:     vec!["status".to_string()],
         operator: WhereOperator::In,
-        value: json!(["active", "pending"]),
+        value:    json!(["active", "pending"]),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -142,9 +142,9 @@ fn test_in_operator() {
 fn test_vector_cosine_distance() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["embedding".to_string()],
+        path:     vec!["embedding".to_string()],
         operator: WhereOperator::CosineDistance,
-        value: json!([0.1, 0.2, 0.3]),
+        value:    json!([0.1, 0.2, 0.3]),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();
@@ -156,9 +156,9 @@ fn test_vector_cosine_distance() {
 fn test_ltree_ancestor_of() {
     let gen = PostgresWhereGenerator::new(PostgresDialect);
     let clause = WhereClause::Field {
-        path: vec!["category_path".to_string()],
+        path:     vec!["category_path".to_string()],
         operator: WhereOperator::AncestorOf,
-        value: json!("europe.france"),
+        value:    json!("europe.france"),
     };
 
     let (sql, params) = gen.generate(&clause).unwrap();

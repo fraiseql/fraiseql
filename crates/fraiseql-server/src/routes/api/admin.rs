@@ -67,7 +67,7 @@ impl CacheStatus {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ReloadSchemaRequest {
     /// Path to compiled schema file
-    pub schema_path: String,
+    pub schema_path:   String,
     /// If true, only validate the schema without applying changes
     pub validate_only: bool,
 }
@@ -85,24 +85,24 @@ pub struct ReloadSchemaResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CacheClearRequest {
     /// Scope for clearing: "all", "entity", or "pattern"
-    pub scope: String,
+    pub scope:       String,
     /// Entity type (required if scope is "entity")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_type: Option<String>,
     /// Pattern (required if scope is "pattern")
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pattern: Option<String>,
+    pub pattern:     Option<String>,
 }
 
 /// Response after cache clear operation.
 #[derive(Debug, Serialize)]
 pub struct CacheClearResponse {
     /// Whether the operation succeeded
-    pub success: bool,
+    pub success:         bool,
     /// Number of entries cleared
     pub entries_cleared: usize,
     /// Human-readable message about the result
-    pub message: String,
+    pub message:         String,
 }
 
 /// Response containing runtime configuration (sanitized).
@@ -111,7 +111,7 @@ pub struct AdminConfigResponse {
     /// Server version
     pub version: String,
     /// Runtime configuration (secrets redacted)
-    pub config: HashMap<String, String>,
+    pub config:  HashMap<String, String>,
 }
 
 /// Validate that a caller-supplied schema path is safe to open.
@@ -210,7 +210,7 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
         };
         Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: response,
+            data:   response,
         }))
     } else {
         // Step 3: Atomically swap the executor with the validated schema.
@@ -238,7 +238,7 @@ pub async fn reload_schema_handler<A: DatabaseAdapter>(
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             },
             Err(e) => {
@@ -266,9 +266,9 @@ pub struct CacheStatsResponse {
     /// Whether cache is enabled
     pub cache_enabled: bool,
     /// Cache TTL in seconds
-    pub ttl_secs: u64,
+    pub ttl_secs:      u64,
     /// Human-readable message
-    pub message: String,
+    pub message:       String,
 }
 
 /// Clear cache entries by scope.
@@ -311,13 +311,13 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                     "Admin: cache cleared (all entries)"
                 );
                 let response = CacheClearResponse {
-                    success: true,
+                    success:         true,
                     entries_cleared: entries_before,
-                    message: format!("Cleared {} cache entries", entries_before),
+                    message:         format!("Cleared {} cache entries", entries_before),
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             } else {
                 Err(ApiError::internal_error("Cache not configured"))
@@ -357,7 +357,7 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             } else {
                 Err(ApiError::internal_error("Cache not configured"))
@@ -393,7 +393,7 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
                 };
                 Ok(Json(ApiResponse {
                     status: "success".to_string(),
-                    data: response,
+                    data:   response,
                 }))
             } else {
                 Err(ApiError::internal_error("Cache not configured"))
@@ -420,12 +420,12 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
         let response = CacheStatsResponse {
             entries_count: cache.len(),
             cache_enabled: true,
-            ttl_secs: 60, // Default TTL from QueryCache::new(60)
-            message: format!("Cache contains {} entries with 60-second TTL", cache.len()),
+            ttl_secs:      60, // Default TTL from QueryCache::new(60)
+            message:       format!("Cache contains {} entries with 60-second TTL", cache.len()),
         };
         return Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: response,
+            data:   response,
         }));
     }
     {
@@ -433,12 +433,12 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
         let response = CacheStatsResponse {
             entries_count: 0,
             cache_enabled: false,
-            ttl_secs: 0,
-            message: "Cache is not configured".to_string(),
+            ttl_secs:      0,
+            message:       "Cache is not configured".to_string(),
         };
         Ok(Json(ApiResponse {
             status: "success".to_string(),
-            data: response,
+            data:   response,
         }))
     }
 }
@@ -519,7 +519,7 @@ pub async fn config_handler<A: DatabaseAdapter>(
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
-        data: response,
+        data:   response,
     }))
 }
 

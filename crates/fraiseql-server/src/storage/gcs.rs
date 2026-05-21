@@ -20,7 +20,7 @@ const SCOPE: &str = "https://www.googleapis.com/auth/devstorage.full_control";
 /// Stores files in a Google Cloud Storage bucket.
 pub struct GcsStorageBackend {
     bucket: String,
-    auth: GcsAuth,
+    auth:   GcsAuth,
     client: reqwest::Client,
 }
 
@@ -30,8 +30,8 @@ enum GcsAuth {
     /// Service account credentials with automatic token refresh.
     ServiceAccount {
         client_email: String,
-        private_key: String,
-        token: RwLock<Option<(String, Instant)>>,
+        private_key:  String,
+        token:        RwLock<Option<(String, Instant)>>,
     },
 }
 
@@ -50,25 +50,25 @@ impl GcsStorageBackend {
             let creds_json =
                 std::fs::read_to_string(&creds_path).map_err(|e| FileError::Storage {
                     message: format!("Failed to read GCS credentials file '{creds_path}': {e}"),
-                    source: None,
+                    source:  None,
                 })?;
             let creds: serde_json::Value =
                 serde_json::from_str(&creds_json).map_err(|e| FileError::Storage {
                     message: format!("Failed to parse GCS credentials JSON: {e}"),
-                    source: None,
+                    source:  None,
                 })?;
             let client_email = creds["client_email"]
                 .as_str()
                 .ok_or_else(|| FileError::Storage {
                     message: "GCS credentials missing 'client_email' field".to_string(),
-                    source: None,
+                    source:  None,
                 })?
                 .to_owned();
             let private_key = creds["private_key"]
                 .as_str()
                 .ok_or_else(|| FileError::Storage {
                     message: "GCS credentials missing 'private_key' field".to_string(),
-                    source: None,
+                    source:  None,
                 })?
                 .to_owned();
             GcsAuth::ServiceAccount {
@@ -81,7 +81,7 @@ impl GcsStorageBackend {
                 message: "GCS authentication requires GOOGLE_CLOUD_TOKEN or \
                           GOOGLE_APPLICATION_CREDENTIALS environment variable"
                     .to_string(),
-                source: None,
+                source:  None,
             });
         };
 
@@ -131,20 +131,20 @@ impl GcsStorageBackend {
             .await
             .map_err(|e| FileError::Storage {
                 message: format!("GCS token exchange request failed: {e}"),
-                source: None,
+                source:  None,
             })?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
             return Err(FileError::Storage {
                 message: format!("GCS token exchange returned error: {body}"),
-                source: None,
+                source:  None,
             });
         }
 
         let body: serde_json::Value = resp.json().await.map_err(|e| FileError::Storage {
             message: format!("Failed to parse GCS token response: {e}"),
-            source: None,
+            source:  None,
         })?;
 
         body["access_token"]
@@ -152,7 +152,7 @@ impl GcsStorageBackend {
             .map(str::to_owned)
             .ok_or_else(|| FileError::Storage {
                 message: "GCS token response missing 'access_token' field".to_string(),
-                source: None,
+                source:  None,
             })
     }
 }
@@ -175,20 +175,20 @@ fn create_gcs_jwt(client_email: &str, private_key: &str) -> StorageResult<String
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|e| {
         FileError::Storage {
             message: format!("Invalid GCS private key: {e}"),
-            source: None,
+            source:  None,
         }
     })?;
 
     jsonwebtoken::encode(&header, &claims, &key).map_err(|e| FileError::Storage {
         message: format!("Failed to create GCS JWT: {e}"),
-        source: None,
+        source:  None,
     })
 }
 
 fn gcs_err(op: &str, err: impl std::fmt::Display) -> FileError {
     FileError::Storage {
         message: format!("GCS {op} failed: {err}"),
-        source: None,
+        source:  None,
     }
 }
 
@@ -310,7 +310,7 @@ impl StorageBackend for GcsStorageBackend {
         // for presigned URL generation in the meantime.
         Err(FileError::Storage {
             message: "Presigned URLs for GCS require V4 signing (not yet implemented)".to_string(),
-            source: None,
+            source:  None,
         })
     }
 }

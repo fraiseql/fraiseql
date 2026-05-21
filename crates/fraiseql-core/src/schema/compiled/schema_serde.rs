@@ -74,7 +74,7 @@ impl CompiledSchema {
         strict_integrity: bool,
     ) -> std::result::Result<Self, FraiseQLError> {
         let serde_err = |e: serde_json::Error| FraiseQLError::Parse {
-            message: format!("Schema JSON parse error: {e}"),
+            message:  format!("Schema JSON parse error: {e}"),
             location: String::new(),
         };
 
@@ -82,7 +82,7 @@ impl CompiledSchema {
 
         let obj = value.as_object_mut().ok_or_else(|| FraiseQLError::Validation {
             message: "Schema JSON must be an object".to_string(),
-            path: None,
+            path:    None,
         })?;
 
         // Extract and remove _content_hash
@@ -92,7 +92,7 @@ impl CompiledSchema {
             } else {
                 return Err(FraiseQLError::Validation {
                     message: "_content_hash must be a string".to_string(),
-                    path: None,
+                    path:    None,
                 });
             }
         } else if strict_integrity {
@@ -123,7 +123,7 @@ impl CompiledSchema {
                         message: format!(
                             "Schema integrity check failed: hash mismatch (expected {expected}, got {computed_hash})"
                         ),
-                        path: None,
+                        path:    None,
                     });
                 }
                 warn!(

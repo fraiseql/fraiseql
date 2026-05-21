@@ -15,9 +15,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct FieldMapping {
     /// JSONB key name (source).
-    pub source: String,
+    pub source:          String,
     /// Output key name (alias if different from source).
-    pub output: String,
+    pub output:          String,
     /// Fallback source key to try when the primary `source` is not found.
     /// Used for mutation error metadata where the key may be either `camelCase`
     /// or `snake_case` depending on the backend.
@@ -26,7 +26,7 @@ pub struct FieldMapping {
     /// This enables `__typename` to be added recursively to nested objects.
     pub nested_typename: Option<String>,
     /// Nested field mappings (for related objects).
-    pub nested_fields: Option<Vec<FieldMapping>>,
+    pub nested_fields:   Option<Vec<FieldMapping>>,
 }
 
 impl FieldMapping {
@@ -35,11 +35,11 @@ impl FieldMapping {
     pub fn simple(name: impl Into<String>) -> Self {
         let name = name.into();
         Self {
-            source: name.clone(),
-            output: name,
+            source:          name.clone(),
+            output:          name,
             source_fallback: None,
             nested_typename: None,
-            nested_fields: None,
+            nested_fields:   None,
         }
     }
 
@@ -47,11 +47,11 @@ impl FieldMapping {
     #[must_use]
     pub fn aliased(source: impl Into<String>, alias: impl Into<String>) -> Self {
         Self {
-            source: source.into(),
-            output: alias.into(),
+            source:          source.into(),
+            output:          alias.into(),
             source_fallback: None,
             nested_typename: None,
-            nested_fields: None,
+            nested_fields:   None,
         }
     }
 
@@ -76,11 +76,11 @@ impl FieldMapping {
     ) -> Self {
         let name = name.into();
         Self {
-            source: name.clone(),
-            output: name,
+            source:          name.clone(),
+            output:          name,
             source_fallback: None,
             nested_typename: Some(typename.into()),
-            nested_fields: Some(fields),
+            nested_fields:   Some(fields),
         }
     }
 
@@ -93,11 +93,11 @@ impl FieldMapping {
         fields: Vec<FieldMapping>,
     ) -> Self {
         Self {
-            source: source.into(),
-            output: alias.into(),
+            source:          source.into(),
+            output:          alias.into(),
             source_fallback: None,
             nested_typename: Some(typename.into()),
-            nested_fields: Some(fields),
+            nested_fields:   Some(fields),
         }
     }
 
@@ -120,9 +120,9 @@ impl FieldMapping {
 #[derive(Debug, Clone)]
 pub struct ProjectionMapper {
     /// Fields to project (with optional aliases).
-    pub fields: Vec<FieldMapping>,
+    pub fields:          Vec<FieldMapping>,
     /// Optional `__typename` value to add to each object.
-    pub typename: Option<String>,
+    pub typename:        Option<String>,
     /// When `true`, `__typename` is injected unconditionally regardless of selection set.
     /// Used by federation `_entities` resolver where the gateway always expects `__typename`.
     pub federation_mode: bool,
@@ -133,8 +133,8 @@ impl ProjectionMapper {
     #[must_use]
     pub fn new(fields: Vec<String>) -> Self {
         Self {
-            fields: fields.into_iter().map(FieldMapping::simple).collect(),
-            typename: None,
+            fields:          fields.into_iter().map(FieldMapping::simple).collect(),
+            typename:        None,
             federation_mode: false,
         }
     }

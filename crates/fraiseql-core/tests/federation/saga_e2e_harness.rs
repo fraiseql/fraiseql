@@ -68,88 +68,88 @@ pub enum CompensationBehavior {
 
 #[derive(Debug, Clone)]
 pub struct SagaStepDef {
-    pub subgraph: String,
-    pub mutation_type: MutationType,
-    pub typename: String,
-    pub mutation_name: String,
-    pub variables: Value,
-    pub behavior: StepBehavior,
+    pub subgraph:              String,
+    pub mutation_type:         MutationType,
+    pub typename:              String,
+    pub mutation_name:         String,
+    pub variables:             Value,
+    pub behavior:              StepBehavior,
     pub compensation_behavior: CompensationBehavior,
 }
 
 #[derive(Debug, Clone)]
 pub struct StoredSaga {
-    pub id: Uuid,
-    pub state: SagaState,
-    pub steps: Vec<StoredStep>,
-    pub created_at: Instant,
+    pub id:           Uuid,
+    pub state:        SagaState,
+    pub steps:        Vec<StoredStep>,
+    pub created_at:   Instant,
     pub completed_at: Option<Instant>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StoredStep {
-    pub order: usize,
-    pub subgraph: String,
+    pub order:         usize,
+    pub subgraph:      String,
     pub mutation_type: MutationType,
-    pub typename: String,
+    pub typename:      String,
     pub mutation_name: String,
-    pub variables: Value,
-    pub state: StepState,
-    pub result: Option<Value>,
-    pub started_at: Option<Instant>,
-    pub completed_at: Option<Instant>,
+    pub variables:     Value,
+    pub state:         StepState,
+    pub result:        Option<Value>,
+    pub started_at:    Option<Instant>,
+    pub completed_at:  Option<Instant>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StateTransition {
-    pub from: SagaState,
-    pub to: SagaState,
+    pub from:      SagaState,
+    pub to:        SagaState,
     pub timestamp: Instant,
 }
 
 #[derive(Debug, Clone)]
 pub struct StepExecution {
-    pub step_order: usize,
-    pub subgraph: String,
-    pub mutation_name: String,
-    pub variables: Value,
+    pub step_order:      usize,
+    pub subgraph:        String,
+    pub mutation_name:   String,
+    pub variables:       Value,
     pub previous_result: Option<Value>,
-    pub result: Result<Value, String>,
-    pub started_at: Instant,
-    pub completed_at: Instant,
+    pub result:          Result<Value, String>,
+    pub started_at:      Instant,
+    pub completed_at:    Instant,
 }
 
 #[derive(Debug, Clone)]
 pub struct CompensationExecution {
-    pub step_order: usize,
+    pub step_order:      usize,
     pub original_result: Option<Value>,
-    pub result: Result<Value, String>,
-    pub timestamp: Instant,
+    pub result:          Result<Value, String>,
+    pub timestamp:       Instant,
 }
 
 #[derive(Debug, Clone)]
 pub struct SagaResult {
-    pub saga_id: Uuid,
-    pub state: SagaState,
-    pub completed_steps: usize,
-    pub total_steps: usize,
-    pub error: Option<String>,
-    pub step_results: Vec<Option<Value>>,
+    pub saga_id:              Uuid,
+    pub state:                SagaState,
+    pub completed_steps:      usize,
+    pub total_steps:          usize,
+    pub error:                Option<String>,
+    pub step_results:         Vec<Option<Value>>,
     pub compensation_results: Vec<CompensationExecution>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SagaStatus {
-    pub saga_id: Uuid,
-    pub state: SagaState,
-    pub total_steps: usize,
+    pub saga_id:         Uuid,
+    pub state:           SagaState,
+    pub total_steps:     usize,
     pub completed_steps: usize,
 }
 
 #[derive(Debug)]
 pub struct RecoveryReport {
     pub pending_sagas: Vec<Uuid>,
-    pub stuck_sagas: Vec<Uuid>,
+    pub stuck_sagas:   Vec<Uuid>,
     pub cleaned_count: usize,
 }
 
@@ -158,14 +158,14 @@ pub struct RecoveryReport {
 // ========================================================================
 
 pub struct InMemorySagaStore {
-    sagas: Mutex<HashMap<Uuid, StoredSaga>>,
+    sagas:       Mutex<HashMap<Uuid, StoredSaga>>,
     transitions: Mutex<Vec<(Uuid, StateTransition)>>,
 }
 
 impl InMemorySagaStore {
     pub fn new() -> Self {
         Self {
-            sagas: Mutex::new(HashMap::new()),
+            sagas:       Mutex::new(HashMap::new()),
             transitions: Mutex::new(Vec::new()),
         }
     }
@@ -193,8 +193,8 @@ impl InMemorySagaStore {
         self.transitions.lock().unwrap().push((
             id,
             StateTransition {
-                from: old_state,
-                to: new_state,
+                from:      old_state,
+                to:        new_state,
                 timestamp: Instant::now(),
             },
         ));
@@ -277,14 +277,14 @@ impl InMemorySagaStore {
 // ========================================================================
 
 pub struct MockStepExecutor {
-    behaviors: Mutex<HashMap<usize, StepBehavior>>,
+    behaviors:  Mutex<HashMap<usize, StepBehavior>>,
     executions: Mutex<Vec<StepExecution>>,
 }
 
 impl MockStepExecutor {
     pub fn new() -> Self {
         Self {
-            behaviors: Mutex::new(HashMap::new()),
+            behaviors:  Mutex::new(HashMap::new()),
             executions: Mutex::new(Vec::new()),
         }
     }
@@ -349,14 +349,14 @@ impl MockStepExecutor {
 // ========================================================================
 
 pub struct MockStepCompensator {
-    behaviors: Mutex<HashMap<usize, CompensationBehavior>>,
+    behaviors:     Mutex<HashMap<usize, CompensationBehavior>>,
     compensations: Mutex<Vec<CompensationExecution>>,
 }
 
 impl MockStepCompensator {
     pub fn new() -> Self {
         Self {
-            behaviors: Mutex::new(HashMap::new()),
+            behaviors:     Mutex::new(HashMap::new()),
             compensations: Mutex::new(Vec::new()),
         }
     }
@@ -433,7 +433,7 @@ impl<'a> MockRecoveryManager<'a> {
 
         RecoveryReport {
             pending_sagas: pending,
-            stuck_sagas: stuck,
+            stuck_sagas:   stuck,
             cleaned_count: cleaned,
         }
     }
@@ -444,8 +444,8 @@ impl<'a> MockRecoveryManager<'a> {
 // ========================================================================
 
 pub struct SagaOrchestrator {
-    pub store: InMemorySagaStore,
-    pub executor: MockStepExecutor,
+    pub store:       InMemorySagaStore,
+    pub executor:    MockStepExecutor,
     pub compensator: MockStepCompensator,
 }
 
@@ -473,16 +473,16 @@ impl SagaOrchestrator {
             .iter()
             .enumerate()
             .map(|(i, def)| StoredStep {
-                order: i,
-                subgraph: def.subgraph.clone(),
+                order:         i,
+                subgraph:      def.subgraph.clone(),
                 mutation_type: def.mutation_type.clone(),
-                typename: def.typename.clone(),
+                typename:      def.typename.clone(),
                 mutation_name: def.mutation_name.clone(),
-                variables: def.variables.clone(),
-                state: StepState::Pending,
-                result: None,
-                started_at: None,
-                completed_at: None,
+                variables:     def.variables.clone(),
+                state:         StepState::Pending,
+                result:        None,
+                started_at:    None,
+                completed_at:  None,
             })
             .collect();
 
@@ -493,10 +493,10 @@ impl SagaOrchestrator {
         }
 
         self.store.save_saga(StoredSaga {
-            id: saga_id,
-            state: SagaState::Pending,
-            steps: stored_steps,
-            created_at: Instant::now(),
+            id:           saga_id,
+            state:        SagaState::Pending,
+            steps:        stored_steps,
+            created_at:   Instant::now(),
             completed_at: None,
         });
 
@@ -604,10 +604,10 @@ impl SagaOrchestrator {
             let comp_result = self.compensator.compensate(i, original_result);
 
             compensation_results.push(CompensationExecution {
-                step_order: i,
+                step_order:      i,
                 original_result: original_result.cloned(),
-                result: comp_result.clone(),
-                timestamp: Instant::now(),
+                result:          comp_result.clone(),
+                timestamp:       Instant::now(),
             });
 
             if comp_result.is_err() {
@@ -671,12 +671,12 @@ impl OrchestratorBuilder {
         for i in 0..count {
             let idx = i % subgraphs.len();
             self.steps.push(SagaStepDef {
-                subgraph: subgraphs[idx].to_string(),
-                mutation_type: MutationType::Create,
-                typename: typenames[idx].to_string(),
-                mutation_name: format!("create{}", typenames[idx]),
-                variables: json!({ "id": format!("id-{i}"), "step": i }),
-                behavior: StepBehavior::Succeed,
+                subgraph:              subgraphs[idx].to_string(),
+                mutation_type:         MutationType::Create,
+                typename:              typenames[idx].to_string(),
+                mutation_name:         format!("create{}", typenames[idx]),
+                variables:             json!({ "id": format!("id-{i}"), "step": i }),
+                behavior:              StepBehavior::Succeed,
                 compensation_behavior: CompensationBehavior::Succeed,
             });
         }

@@ -11,17 +11,17 @@ fn make_test_metadata() -> FederationMetadata {
     use crate::types::{FederatedType, KeyDirective};
 
     let types = vec![FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: vec![],
-        shareable_fields: vec![],
+        is_extends:          false,
+        external_fields:     vec![],
+        shareable_fields:    vec![],
         inaccessible_fields: vec![],
-        field_directives: std::collections::HashMap::new(),
-        type_shareable: false,
+        field_directives:    std::collections::HashMap::new(),
+        type_shareable:      false,
     }];
 
     FederationMetadata {
@@ -37,12 +37,12 @@ fn test_construct_simple_where_in() {
     let metadata = make_test_metadata();
     let reps = vec![
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: [(String::from("id"), json!("123"))].iter().cloned().collect(),
             all_fields: HashMap::default(),
         },
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: [(String::from("id"), json!("456"))].iter().cloned().collect(),
             all_fields: HashMap::default(),
         },
@@ -58,7 +58,7 @@ fn test_construct_simple_where_in() {
 fn test_sql_injection_prevention() {
     let metadata = make_test_metadata();
     let reps = vec![EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: [(String::from("id"), json!("'; DROP TABLE users; --"))]
             .iter()
             .cloned()

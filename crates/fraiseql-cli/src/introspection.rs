@@ -9,16 +9,16 @@ use crate::output::{ArgumentHelp, CliHelp, CommandHelp, CommandSummary, get_exit
 /// Extract complete CLI help from a clap Command
 pub fn extract_cli_help(cmd: &Command, version: &str) -> CliHelp {
     CliHelp {
-        name: cmd.get_name().to_string(),
-        version: version.to_string(),
-        about: cmd.get_about().map_or_else(String::new, ToString::to_string),
+        name:           cmd.get_name().to_string(),
+        version:        version.to_string(),
+        about:          cmd.get_about().map_or_else(String::new, ToString::to_string),
         global_options: extract_global_options(cmd),
-        subcommands: cmd
+        subcommands:    cmd
             .get_subcommands()
             .filter(|sub| !sub.is_hide_set())
             .map(extract_command_help)
             .collect(),
-        exit_codes: get_exit_codes(),
+        exit_codes:     get_exit_codes(),
     }
 }
 
@@ -45,8 +45,8 @@ pub fn list_commands(cmd: &Command) -> Vec<CommandSummary> {
     cmd.get_subcommands()
         .filter(|sub| !sub.is_hide_set())
         .map(|sub| CommandSummary {
-            name: sub.get_name().to_string(),
-            description: sub.get_about().map_or_else(String::new, ToString::to_string),
+            name:            sub.get_name().to_string(),
+            description:     sub.get_about().map_or_else(String::new, ToString::to_string),
             has_subcommands: sub.get_subcommands().count() > 0,
         })
         .collect()
@@ -57,17 +57,17 @@ fn extract_global_options(cmd: &Command) -> Vec<ArgumentHelp> {
     cmd.get_arguments()
         .filter(|arg| arg.is_global_set())
         .map(|arg| ArgumentHelp {
-            name: arg.get_id().to_string(),
-            short: arg.get_short().map(|c| format!("-{c}")),
-            long: arg.get_long().map(|s| format!("--{s}")),
-            help: arg.get_help().map_or_else(String::new, ToString::to_string),
-            required: arg.is_required_set(),
-            default_value: arg
+            name:            arg.get_id().to_string(),
+            short:           arg.get_short().map(|c| format!("-{c}")),
+            long:            arg.get_long().map(|s| format!("--{s}")),
+            help:            arg.get_help().map_or_else(String::new, ToString::to_string),
+            required:        arg.is_required_set(),
+            default_value:   arg
                 .get_default_values()
                 .first()
                 .and_then(|v| v.to_str())
                 .map(String::from),
-            takes_value: arg.get_num_args().is_some_and(|n| n.min_values() > 0),
+            takes_value:     arg.get_num_args().is_some_and(|n| n.min_values() > 0),
             possible_values: arg
                 .get_possible_values()
                 .iter()
@@ -95,17 +95,17 @@ fn extract_arguments(cmd: &Command) -> (Vec<ArgumentHelp>, Vec<ArgumentHelp>) {
         }
 
         let arg_help = ArgumentHelp {
-            name: arg.get_id().to_string(),
-            short: arg.get_short().map(|c| format!("-{c}")),
-            long: arg.get_long().map(|s| format!("--{s}")),
-            help: arg.get_help().map_or_else(String::new, ToString::to_string),
-            required: arg.is_required_set(),
-            default_value: arg
+            name:            arg.get_id().to_string(),
+            short:           arg.get_short().map(|c| format!("-{c}")),
+            long:            arg.get_long().map(|s| format!("--{s}")),
+            help:            arg.get_help().map_or_else(String::new, ToString::to_string),
+            required:        arg.is_required_set(),
+            default_value:   arg
                 .get_default_values()
                 .first()
                 .and_then(|v| v.to_str())
                 .map(String::from),
-            takes_value: arg.get_num_args().is_some_and(|n| n.min_values() > 0),
+            takes_value:     arg.get_num_args().is_some_and(|n| n.min_values() > 0),
             possible_values: arg
                 .get_possible_values()
                 .iter()

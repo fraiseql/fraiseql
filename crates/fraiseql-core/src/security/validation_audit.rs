@@ -50,27 +50,27 @@ impl Default for ValidationAuditLoggerConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationAuditEntry {
     /// Timestamp of the validation check
-    pub timestamp: DateTime<Utc>,
+    pub timestamp:         DateTime<Utc>,
     /// User ID from authentication context
-    pub user_id: Option<String>,
+    pub user_id:           Option<String>,
     /// Tenant ID for multi-tenancy isolation
-    pub tenant_id: Option<String>,
+    pub tenant_id:         Option<String>,
     /// Client IP address
-    pub ip_address: String,
+    pub ip_address:        String,
     /// GraphQL query or mutation string (may be redacted)
-    pub query_string: String,
+    pub query_string:      String,
     /// Name of the mutation (if applicable)
-    pub mutation_name: Option<String>,
+    pub mutation_name:     Option<String>,
     /// Field name that was validated
-    pub field: String,
+    pub field:             String,
     /// Validation rule that was applied
-    pub validation_rule: String,
+    pub validation_rule:   String,
     /// Whether the validation passed
-    pub valid: bool,
+    pub valid:             bool,
     /// Reason for failure (if applicable)
-    pub failure_reason: Option<String>,
+    pub failure_reason:    Option<String>,
     /// Duration of validation in microseconds
-    pub duration_us: u64,
+    pub duration_us:       u64,
     /// Type of validator executed (e.g., "`pattern_validator`", "`async_validator`")
     pub execution_context: String,
 }
@@ -78,7 +78,7 @@ pub struct ValidationAuditEntry {
 /// Validation audit logger for recording validation decisions
 #[derive(Clone)]
 pub struct ValidationAuditLogger {
-    config: Arc<ValidationAuditLoggerConfig>,
+    config:  Arc<ValidationAuditLoggerConfig>,
     entries: Arc<Mutex<Vec<ValidationAuditEntry>>>,
 }
 
@@ -87,7 +87,7 @@ impl ValidationAuditLogger {
     #[must_use]
     pub fn new(config: ValidationAuditLoggerConfig) -> Self {
         Self {
-            config: Arc::new(config),
+            config:  Arc::new(config),
             entries: Arc::new(Mutex::new(Vec::new())),
         }
     }

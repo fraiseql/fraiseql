@@ -179,8 +179,8 @@ fn extract_operation(
     let variables = var_defs
         .iter()
         .map(|var_def| VariableDefinition {
-            name: var_def.name.clone(),
-            var_type: parse_graphql_type(&var_def.var_type),
+            name:          var_def.name.clone(),
+            var_type:      parse_graphql_type(&var_def.var_type),
             default_value: var_def.default_value.as_ref().map(|v| serialize_value(v)),
         })
         .collect();
@@ -204,7 +204,7 @@ fn parse_selection_set(
                     .arguments
                     .iter()
                     .map(|(name, value)| GraphQLArgument {
-                        name: name.clone(),
+                        name:       name.clone(),
                         value_type: value_type_string(value),
                         value_json: serialize_value(value),
                     })
@@ -331,7 +331,7 @@ fn parse_directive(directive: &GraphQLDirective<String>) -> Directive {
         .arguments
         .iter()
         .map(|(name, value)| GraphQLArgument {
-            name: name.clone(),
+            name:       name.clone(),
             value_type: value_type_string(value),
             value_json: serialize_value(value),
         })
@@ -347,15 +347,15 @@ fn parse_directive(directive: &GraphQLDirective<String>) -> Directive {
 fn parse_graphql_type(graphql_type: &query::Type<String>) -> GraphQLType {
     match graphql_type {
         query::Type::NamedType(name) => GraphQLType {
-            name: name.clone(),
-            nullable: true, // Named types are nullable by default
-            list: false,
+            name:          name.clone(),
+            nullable:      true, // Named types are nullable by default
+            list:          false,
             list_nullable: false,
         },
         query::Type::ListType(inner) => GraphQLType {
-            name: format!("[{}]", parse_graphql_type(inner).name),
-            nullable: true,
-            list: true,
+            name:          format!("[{}]", parse_graphql_type(inner).name),
+            nullable:      true,
+            list:          true,
             list_nullable: true, // List items are nullable by default
         },
         query::Type::NonNullType(inner) => {

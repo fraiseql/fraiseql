@@ -12,14 +12,14 @@ pub struct MutationAuditEvent {
     /// GraphQL mutation field name (e.g. `"create_user"`).
     pub mutation_name: String,
     /// Return-type entity name (e.g. `"User"`).
-    pub entity_type: String,
+    pub entity_type:   String,
     /// Mutation operation kind (`"create"`, `"update"`, `"delete"`, `"custom"`).
-    pub operation: String,
+    pub operation:     String,
     /// Tenant identifier extracted from the security context; empty string when
     /// no tenant is present (single-tenant deployments).
-    pub tenant_id: String,
+    pub tenant_id:     String,
     /// UTC calendar month in `"YYYY-MM"` format (e.g. `"2026-05"`).
-    pub period: String,
+    pub period:        String,
 }
 
 impl MutationAuditEvent {
@@ -33,10 +33,10 @@ impl MutationAuditEvent {
     ) -> Self {
         Self {
             mutation_name: mutation_name.into(),
-            entity_type: entity_type.into(),
-            operation: operation.into(),
-            tenant_id: tenant_id.into(),
-            period: period.into(),
+            entity_type:   entity_type.into(),
+            operation:     operation.into(),
+            tenant_id:     tenant_id.into(),
+            period:        period.into(),
         }
     }
 }

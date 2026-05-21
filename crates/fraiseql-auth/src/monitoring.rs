@@ -25,21 +25,21 @@ use tracing::{Level, info, span, warn};
 #[derive(Debug, Serialize)]
 pub struct AuthEvent {
     /// Name of the authentication event (e.g., `"login"`, `"token_refresh"`).
-    pub event: String,
+    pub event:       String,
     /// Optional authenticated user ID associated with this event.
-    pub user_id: Option<String>,
+    pub user_id:     Option<String>,
     /// OAuth provider name (e.g., `"google"`, `"okta"`).
-    pub provider: Option<String>,
+    pub provider:    Option<String>,
     /// Outcome: `"started"`, `"success"`, or `"error"`.
-    pub status: String,
+    pub status:      String,
     /// Duration of the operation in milliseconds.
     pub duration_ms: f64,
     /// Error message if the operation failed.
-    pub error: Option<String>,
+    pub error:       Option<String>,
     /// RFC 3339 timestamp of when this event was created.
-    pub timestamp: String,
+    pub timestamp:   String,
     /// Optional correlation ID for tracing a request across services.
-    pub request_id: Option<String>,
+    pub request_id:  Option<String>,
 }
 
 impl AuthEvent {
@@ -47,14 +47,14 @@ impl AuthEvent {
     #[must_use]
     pub fn new(event: &str) -> Self {
         Self {
-            event: event.to_string(),
-            user_id: None,
-            provider: None,
-            status: "started".to_string(),
+            event:       event.to_string(),
+            user_id:     None,
+            provider:    None,
+            status:      "started".to_string(),
             duration_ms: 0.0,
-            error: None,
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            request_id: None,
+            error:       None,
+            timestamp:   chrono::Utc::now().to_rfc3339(),
+            request_id:  None,
         }
     }
 
@@ -133,17 +133,17 @@ impl AuthEvent {
 #[derive(Debug, Clone)]
 pub struct AuthMetrics {
     /// Total number of authentication attempts (successful + failed).
-    pub total_auth_attempts: u64,
+    pub total_auth_attempts:        u64,
     /// Number of authentication attempts that succeeded.
     pub successful_authentications: u64,
     /// Number of authentication attempts that failed.
-    pub failed_authentications: u64,
+    pub failed_authentications:     u64,
     /// Number of access tokens issued since startup.
-    pub tokens_issued: u64,
+    pub tokens_issued:              u64,
     /// Number of access tokens refreshed since startup.
-    pub tokens_refreshed: u64,
+    pub tokens_refreshed:           u64,
     /// Number of sessions explicitly revoked since startup.
-    pub sessions_revoked: u64,
+    pub sessions_revoked:           u64,
 }
 
 impl AuthMetrics {
@@ -151,12 +151,12 @@ impl AuthMetrics {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            total_auth_attempts: 0,
+            total_auth_attempts:        0,
             successful_authentications: 0,
-            failed_authentications: 0,
-            tokens_issued: 0,
-            tokens_refreshed: 0,
-            sessions_revoked: 0,
+            failed_authentications:     0,
+            tokens_issued:              0,
+            tokens_refreshed:           0,
+            sessions_revoked:           0,
         }
     }
 
@@ -219,7 +219,7 @@ impl Default for AuthMetrics {
 /// Call [`OperationTimer::finish`] to log the elapsed time and discard the timer,
 /// or read [`OperationTimer::elapsed_ms`] to sample without consuming.
 pub struct OperationTimer {
-    start: Instant,
+    start:     Instant,
     operation: String,
 }
 
@@ -230,7 +230,7 @@ impl OperationTimer {
         let _guard = span.enter();
 
         Self {
-            start: Instant::now(),
+            start:     Instant::now(),
             operation: operation.to_string(),
         }
     }

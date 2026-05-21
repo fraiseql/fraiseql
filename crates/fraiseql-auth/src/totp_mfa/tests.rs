@@ -30,9 +30,9 @@ async fn setup_enrolled_user() -> (Arc<InMemoryMfaStore>, String, Vec<String>) {
 fn build_app(session_store: Arc<InMemorySessionStore>) -> Router {
     let mfa_store = Arc::new(InMemoryMfaStore::new());
     let state = Arc::new(MfaRouteState {
-        mfa_store: mfa_store as Arc<dyn MfaStore>,
+        mfa_store:     mfa_store as Arc<dyn MfaStore>,
         session_store: session_store as Arc<dyn SessionStore>,
-        issuer: "FraiseQL".to_string(),
+        issuer:        "FraiseQL".to_string(),
     });
     Router::new()
         .route("/auth/v1/mfa/enroll", post(mfa_enroll))

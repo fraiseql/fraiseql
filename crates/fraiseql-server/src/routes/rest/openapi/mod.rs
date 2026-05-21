@@ -56,9 +56,9 @@ pub fn generate_openapi(
 
 /// Generates an `OpenAPI` 3.0.3 spec from schema metadata.
 struct OpenApiGenerator<'a> {
-    schema: &'a CompiledSchema,
+    schema:      &'a CompiledSchema,
     route_table: &'a RestRouteTable,
-    config: &'a RestConfig,
+    config:      &'a RestConfig,
 }
 
 impl<'a> OpenApiGenerator<'a> {

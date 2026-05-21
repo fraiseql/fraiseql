@@ -23,10 +23,10 @@ fn create_test_session_token() -> String {
 
     #[derive(Serialize, Deserialize)]
     struct SessionTokenClaims {
-        sub: String,
-        exp: i64,
-        iat: i64,
-        scopes: Vec<String>,
+        sub:          String,
+        exp:          i64,
+        iat:          i64,
+        scopes:       Vec<String>,
         session_type: String,
     }
 
@@ -34,10 +34,10 @@ fn create_test_session_token() -> String {
     let exp = now + chrono::Duration::minutes(5);
 
     let claims = SessionTokenClaims {
-        sub: "test-user".to_string(),
-        exp: exp.timestamp(),
-        iat: now.timestamp(),
-        scopes: vec!["user".to_string()],
+        sub:          "test-user".to_string(),
+        exp:          exp.timestamp(),
+        iat:          now.timestamp(),
+        scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };
 
@@ -87,11 +87,11 @@ async fn test_get_schema_for_ta_orders() {
 
         // Create ticket for ta_orders optimized view
         let ticket = FlightTicket::OptimizedView {
-            view: "ta_orders".to_string(),
-            filter: None,
+            view:     "ta_orders".to_string(),
+            filter:   None,
             order_by: None,
-            limit: None,
-            offset: None,
+            limit:    None,
+            offset:   None,
         };
 
         let ticket_bytes = ticket.encode().unwrap();
@@ -135,11 +135,11 @@ async fn test_get_schema_for_ta_users() {
 
         // Create ticket for ta_users optimized view
         let ticket = FlightTicket::OptimizedView {
-            view: "ta_users".to_string(),
-            filter: None,
+            view:     "ta_users".to_string(),
+            filter:   None,
             order_by: None,
-            limit: None,
-            offset: None,
+            limit:    None,
+            offset:   None,
         };
 
         let ticket_bytes = ticket.encode().unwrap();

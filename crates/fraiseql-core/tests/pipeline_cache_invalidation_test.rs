@@ -87,10 +87,10 @@ impl DatabaseAdapter for InnerMockAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 1,
+            total_connections:  1,
             active_connections: 0,
-            idle_connections: 1,
-            waiting_requests: 0,
+            idle_connections:   1,
+            waiting_requests:   0,
         }
     }
 
@@ -148,19 +148,19 @@ fn order_success_row() -> HashMap<String, serde_json::Value> {
 
 fn admin_security_context() -> SecurityContext {
     SecurityContext {
-        user_id: fraiseql_core::types::UserId::new("user-123"),
-        tenant_id: Some(fraiseql_core::types::TenantId::new("tenant-456")),
-        roles: vec!["admin".to_string()],
-        scopes: vec![],
-        attributes: HashMap::new(),
-        request_id: "req-test".to_string(),
-        ip_address: None,
+        user_id:          fraiseql_core::types::UserId::new("user-123"),
+        tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-456")),
+        roles:            vec!["admin".to_string()],
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-test".to_string(),
+        ip_address:       None,
         authenticated_at: Utc::now(),
-        expires_at: Utc::now() + chrono::Duration::hours(1),
-        issuer: None,
-        audience: None,
-        email: None,
-        display_name: None,
+        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
     }
 }
 

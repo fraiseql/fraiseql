@@ -157,7 +157,7 @@ pub struct BranchPlan {
     /// Complete middle periods: `[gte, lt)`. `None` when no complete periods exist.
     pub complete_middle: Option<(NaiveDate, NaiveDate)>,
     /// Current in-progress period: `[gte, lt)`. Always present.
-    pub current_period: (NaiveDate, NaiveDate),
+    pub current_period:  (NaiveDate, NaiveDate),
 }
 
 /// Computes which UNION ALL branches are needed given a lower bound, grain, and today's date.
@@ -223,7 +223,7 @@ pub fn determine_branches(
         } else {
             None
         },
-        current_period: (current_ps, today_exclusive),
+        current_period:  (current_ps, today_exclusive),
     }
 }
 
@@ -267,7 +267,7 @@ pub struct SplitWhereResult {
     pub lower_bound: NaiveDate,
     /// Everything except the matched date condition. `None` when the entire
     /// WHERE clause was just the date condition (nothing left).
-    pub remaining: Option<WhereClause>,
+    pub remaining:   Option<WhereClause>,
 }
 
 /// Extracts an inclusive lower-bound date from a WHERE clause on the given column.
@@ -351,7 +351,7 @@ pub fn split_where_clause(
             let date = extract_from_field(path, operator, value, column_name)?;
             Some(SplitWhereResult {
                 lower_bound: date,
-                remaining: None,
+                remaining:   None,
             })
         },
 
@@ -367,7 +367,7 @@ pub fn split_where_clause(
             let date = extract_date_from_operator(operator, value)?;
             Some(SplitWhereResult {
                 lower_bound: date,
-                remaining: None,
+                remaining:   None,
             })
         },
 

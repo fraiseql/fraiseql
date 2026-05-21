@@ -82,9 +82,9 @@ pub struct QueryExecutionTrace {
 #[must_use = "call .finish() to construct the final value"]
 pub struct QueryTraceBuilder {
     pub(crate) query_id: String,
-    pub(crate) query: String,
-    pub(crate) phases: Vec<QueryPhaseSpan>,
-    start: Instant,
+    pub(crate) query:    String,
+    pub(crate) phases:   Vec<QueryPhaseSpan>,
+    start:               Instant,
 }
 
 impl QueryTraceBuilder {
@@ -103,9 +103,9 @@ impl QueryTraceBuilder {
 
         Self {
             query_id: query_id.to_string(),
-            query: query_str,
-            phases: Vec::new(),
-            start: Instant::now(),
+            query:    query_str,
+            phases:   Vec::new(),
+            start:    Instant::now(),
         }
     }
 

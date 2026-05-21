@@ -9,17 +9,17 @@ use crate::jwt::{MAX_CLOCK_SKEW_SECS, MAX_TOKEN_AGE_SECS};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenResponse {
     /// Access token for API calls
-    pub access_token: String,
+    pub access_token:  String,
     /// Refresh token for getting new access tokens
     pub refresh_token: Option<String>,
     /// Token type (typically "Bearer")
-    pub token_type: String,
+    pub token_type:    String,
     /// Seconds until access token expires
-    pub expires_in: u64,
+    pub expires_in:    u64,
     /// ID token (JWT) for OIDC
-    pub id_token: Option<String>,
+    pub id_token:      Option<String>,
     /// Requested scopes
-    pub scope: Option<String>,
+    pub scope:         Option<String>,
 }
 
 impl TokenResponse {
@@ -53,35 +53,35 @@ impl TokenResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdTokenClaims {
     /// Issuer (provider identifier)
-    pub iss: String,
+    pub iss:            String,
     /// Subject (unique user ID)
-    pub sub: String,
+    pub sub:            String,
     /// Audience (should be client_id)
-    pub aud: String,
+    pub aud:            String,
     /// Expiration time (Unix timestamp)
-    pub exp: i64,
+    pub exp:            i64,
     /// Issued at time (Unix timestamp)
-    pub iat: i64,
+    pub iat:            i64,
     /// Not-before time (Unix timestamp) — optional per RFC 7519 §4.1.5.
     ///
     /// When present, the token MUST NOT be accepted before this time (plus
     /// [`MAX_CLOCK_SKEW_SECS`]).  When absent, the not-before check is skipped.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub nbf: Option<i64>,
+    pub nbf:            Option<i64>,
     /// Authentication time (Unix timestamp)
-    pub auth_time: Option<i64>,
+    pub auth_time:      Option<i64>,
     /// Nonce (for replay protection)
-    pub nonce: Option<String>,
+    pub nonce:          Option<String>,
     /// Email address
-    pub email: Option<String>,
+    pub email:          Option<String>,
     /// Email verified flag
     pub email_verified: Option<bool>,
     /// User name
-    pub name: Option<String>,
+    pub name:           Option<String>,
     /// Profile picture URL
-    pub picture: Option<String>,
+    pub picture:        Option<String>,
     /// Locale
-    pub locale: Option<String>,
+    pub locale:         Option<String>,
 }
 
 impl IdTokenClaims {
@@ -162,17 +162,17 @@ impl IdTokenClaims {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     /// Subject (unique user ID)
-    pub sub: String,
+    pub sub:            String,
     /// Email address
-    pub email: Option<String>,
+    pub email:          Option<String>,
     /// Email verified flag
     pub email_verified: Option<bool>,
     /// User name
-    pub name: Option<String>,
+    pub name:           Option<String>,
     /// Profile picture URL
-    pub picture: Option<String>,
+    pub picture:        Option<String>,
     /// Locale
-    pub locale: Option<String>,
+    pub locale:         Option<String>,
 }
 
 impl UserInfo {

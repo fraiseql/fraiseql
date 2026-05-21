@@ -75,10 +75,10 @@ const TEST_SECRET: &str = "flight-protocol-test-secret-32-x";
 /// JWT claims matching the shape expected by `validate_session_token`.
 #[derive(Serialize)]
 struct TestClaims {
-    sub: String,
-    exp: i64,
-    iat: i64,
-    scopes: Vec<String>,
+    sub:          String,
+    exp:          i64,
+    iat:          i64,
+    scopes:       Vec<String>,
     session_type: String,
 }
 
@@ -87,10 +87,10 @@ fn make_session_token() -> String {
     let now = Utc::now();
     let exp = now + chrono::Duration::minutes(5);
     let claims = TestClaims {
-        sub: "protocol-test-user".to_string(),
-        exp: exp.timestamp(),
-        iat: now.timestamp(),
-        scopes: vec!["user".to_string()],
+        sub:          "protocol-test-user".to_string(),
+        exp:          exp.timestamp(),
+        iat:          now.timestamp(),
+        scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };
     encode(
@@ -106,8 +106,8 @@ fn descriptor_for_ticket(ticket: &FlightTicket) -> FlightDescriptor {
     let bytes = ticket.encode().expect("Failed to encode ticket");
     FlightDescriptor {
         r#type: 1, // PATH
-        path: vec![String::from_utf8_lossy(&bytes).to_string()],
-        cmd: Default::default(),
+        path:   vec![String::from_utf8_lossy(&bytes).to_string()],
+        cmd:    Default::default(),
     }
 }
 
@@ -168,7 +168,7 @@ async fn test_list_flights_enumerates_four_default_views() {
 async fn test_get_schema_for_graphql_query_returns_schema() {
     let service = FraiseQLFlightService::new();
     let ticket = FlightTicket::GraphQLQuery {
-        query: "{ users { id name } }".to_string(),
+        query:     "{ users { id name } }".to_string(),
         variables: None,
     };
     let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
@@ -183,11 +183,11 @@ async fn test_get_schema_for_graphql_query_returns_schema() {
 async fn test_get_schema_for_optimized_view_returns_schema() {
     let service = FraiseQLFlightService::new();
     let ticket = FlightTicket::OptimizedView {
-        view: "va_orders".to_string(),
-        filter: None,
+        view:     "va_orders".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
     let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
     assert!(result.is_ok(), "get_schema for va_orders must succeed");
@@ -199,9 +199,9 @@ async fn test_get_schema_for_optimized_view_returns_schema() {
 async fn test_get_schema_bulk_export_returns_informative_error() {
     let service = FraiseQLFlightService::new();
     let ticket = FlightTicket::BulkExport {
-        table: "ta_orders".to_string(),
+        table:  "ta_orders".to_string(),
         filter: None,
-        limit: None,
+        limit:  None,
         format: None,
     };
     let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
@@ -225,9 +225,9 @@ async fn test_get_schema_bulk_export_returns_informative_error() {
 async fn test_get_flight_info_bulk_export_message_matches_get_schema() {
     let service = FraiseQLFlightService::new();
     let ticket = FlightTicket::BulkExport {
-        table: "ta_orders".to_string(),
+        table:  "ta_orders".to_string(),
         filter: None,
-        limit: None,
+        limit:  None,
         format: None,
     };
 
@@ -258,11 +258,11 @@ async fn test_get_flight_info_bulk_export_message_matches_get_schema() {
 async fn test_poll_flight_info_returns_completed_poll_info() {
     let service = FraiseQLFlightService::new();
     let ticket = FlightTicket::OptimizedView {
-        view: "va_orders".to_string(),
-        filter: None,
+        view:     "va_orders".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
 
     let poll_info = service
@@ -289,11 +289,11 @@ async fn test_poll_flight_info_returns_completed_poll_info() {
 async fn test_poll_flight_info_unknown_view_returns_not_found() {
     let service = FraiseQLFlightService::new();
     let ticket = FlightTicket::OptimizedView {
-        view: "no_such_view".to_string(),
-        filter: None,
+        view:     "no_such_view".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
 
     let err = service
@@ -343,11 +343,11 @@ async fn test_do_get_optimized_view_streams_arrow_data() {
     let service =
         FraiseQLFlightService::new_with_db(Arc::new(MockAdapter)).with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::OptimizedView {
-        view: "ta_users".to_string(),
-        filter: None,
+        view:     "ta_users".to_string(),
+        filter:   None,
         order_by: None,
-        limit: Some(5),
-        offset: None,
+        limit:    Some(5),
+        offset:   None,
     };
 
     let result = service.do_get(authenticated_ticket_request(&ticket)).await;
@@ -369,11 +369,11 @@ async fn test_do_get_optimized_view_streams_arrow_data() {
 async fn test_do_get_unknown_view_returns_not_found() {
     let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::OptimizedView {
-        view: "does_not_exist".to_string(),
-        filter: None,
+        view:     "does_not_exist".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
 
     let result = service.do_get(authenticated_ticket_request(&ticket)).await;
@@ -394,11 +394,11 @@ async fn test_do_get_unknown_view_returns_not_found() {
 async fn test_do_get_without_auth_returns_error() {
     let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::OptimizedView {
-        view: "va_orders".to_string(),
-        filter: None,
+        view:     "va_orders".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
 
     let bytes = ticket.encode().expect("Failed to encode ticket");

@@ -23,7 +23,7 @@ const ADMIN_AUTH_WINDOW_SECS: u64 = 60;
 /// Per-IP failure record for the admin brute-force guard.
 #[derive(Clone)]
 struct FailureRecord {
-    count: u32,
+    count:        u32,
     window_start: u64,
 }
 
@@ -33,7 +33,7 @@ struct FailureRecord {
 /// the state can be `Clone`d cheaply across requests.
 #[derive(Clone)]
 pub(crate) struct FailureLimiter {
-    records: Arc<DashMap<String, FailureRecord>>,
+    records:      Arc<DashMap<String, FailureRecord>>,
     max_failures: u32,
 }
 
@@ -53,7 +53,7 @@ impl FailureLimiter {
     pub(crate) fn record_failure(&self, ip: &str) -> bool {
         let now = Self::now_secs();
         let mut entry = self.records.entry(ip.to_string()).or_insert_with(|| FailureRecord {
-            count: 0,
+            count:        0,
             window_start: now,
         });
 
@@ -95,7 +95,7 @@ impl FailureLimiter {
 #[derive(Clone)]
 pub struct BearerAuthState {
     /// Expected bearer token.
-    pub token: Arc<String>,
+    pub token:       Arc<String>,
     /// Per-IP brute-force guard.
     failure_limiter: FailureLimiter,
 }
@@ -114,7 +114,7 @@ impl BearerAuthState {
     #[must_use]
     pub fn with_max_failures(token: String, max_failures: u32) -> Self {
         Self {
-            token: Arc::new(token),
+            token:           Arc::new(token),
             failure_limiter: FailureLimiter::new(max_failures),
         }
     }

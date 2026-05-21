@@ -146,11 +146,11 @@ pub(super) fn escape_jsonb_key(key: &str) -> String {
 /// ```
 #[derive(Clone)]
 pub struct PostgresAdapter {
-    pub(super) pool: Pool,
+    pub(super) pool:         Pool,
     /// Whether mutation timing injection is enabled.
     mutation_timing_enabled: bool,
     /// The PostgreSQL session variable name for timing.
-    timing_variable_name: String,
+    timing_variable_name:    String,
 }
 
 impl std::fmt::Debug for PostgresAdapter {
@@ -187,8 +187,8 @@ impl PostgresAdapter {
         Self::with_pool_config(
             connection_string,
             PoolPrewarmConfig {
-                min_size: 0,
-                max_size: DEFAULT_POOL_SIZE,
+                min_size:     0,
+                max_size:     DEFAULT_POOL_SIZE,
                 timeout_secs: None,
             },
         )
@@ -218,7 +218,7 @@ impl PostgresAdapter {
         })?;
 
         client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to connect to database: {e}"),
+            message:   format!("Failed to connect to database: {e}"),
             sql_state: e.code().map(|c| c.code().to_string()),
         })?;
 
@@ -356,7 +356,7 @@ impl PostgresAdapter {
 
         let rows: Vec<Row> =
             client.query(sql, params).await.map_err(|e| FraiseQLError::Database {
-                message: format!("Query execution failed: {e}"),
+                message:   format!("Query execution failed: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 

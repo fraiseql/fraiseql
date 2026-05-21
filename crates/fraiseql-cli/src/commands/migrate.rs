@@ -19,37 +19,37 @@ pub enum MigrateAction {
         /// Database connection URL
         database_url: String,
         /// Migration directory
-        dir: String,
+        dir:          String,
     },
     /// Roll back migrations
     Down {
         /// Database connection URL
         database_url: String,
         /// Migration directory
-        dir: String,
+        dir:          String,
         /// Number of steps to roll back
-        steps: u32,
+        steps:        u32,
     },
     /// Show migration status
     Status {
         /// Database connection URL
         database_url: String,
         /// Migration directory
-        dir: String,
+        dir:          String,
     },
     /// Create a new migration file
     Create {
         /// Migration name
         name: String,
         /// Migration directory
-        dir: String,
+        dir:  String,
     },
     /// Generate a new migration from schema diff
     Generate {
         /// Migration name
         name: String,
         /// Migration directory
-        dir: String,
+        dir:  String,
     },
     /// Validate migration files for naming, idempotency, and drift
     Validate {

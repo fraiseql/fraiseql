@@ -246,9 +246,9 @@ mod runtime_tests {
     fn test_server_runtime_config_validate_tls_missing_cert() {
         let cfg = ServerRuntimeConfig {
             tls: TlsRuntimeConfig {
-                enabled: true,
-                cert_file: String::new(),
-                key_file: "key.pem".to_string(),
+                enabled:     true,
+                cert_file:   String::new(),
+                key_file:    "key.pem".to_string(),
                 min_version: "1.2".to_string(),
             },
             ..Default::default()
@@ -261,9 +261,9 @@ mod runtime_tests {
     fn test_server_runtime_config_validate_tls_missing_key() {
         let cfg = ServerRuntimeConfig {
             tls: TlsRuntimeConfig {
-                enabled: true,
-                cert_file: "cert.pem".to_string(),
-                key_file: String::new(),
+                enabled:     true,
+                cert_file:   "cert.pem".to_string(),
+                key_file:    String::new(),
                 min_version: "1.2".to_string(),
             },
             ..Default::default()
@@ -276,9 +276,9 @@ mod runtime_tests {
     fn test_server_runtime_config_validate_bad_tls_version() {
         let cfg = ServerRuntimeConfig {
             tls: TlsRuntimeConfig {
-                enabled: true,
-                cert_file: "cert.pem".to_string(),
-                key_file: "key.pem".to_string(),
+                enabled:     true,
+                cert_file:   "cert.pem".to_string(),
+                key_file:    "key.pem".to_string(),
                 min_version: "1.0".to_string(),
             },
             ..Default::default()
@@ -503,7 +503,7 @@ mod security_tests {
     #[test]
     fn test_tenancy_to_json_row_mode() {
         let config = TenancyTomlConfig {
-            mode: TenancyModeConfig::Row,
+            mode:         TenancyModeConfig::Row,
             tenant_claim: "tenant_id".to_string(),
         };
         let json = config.to_json();
@@ -514,7 +514,7 @@ mod security_tests {
     #[test]
     fn test_tenancy_to_json_schema_mode() {
         let config = TenancyTomlConfig {
-            mode: TenancyModeConfig::Schema,
+            mode:         TenancyModeConfig::Schema,
             tenant_claim: "org_id".to_string(),
         };
         let json = config.to_json();
@@ -525,7 +525,7 @@ mod security_tests {
     #[test]
     fn test_tenancy_validate_empty_claim_with_mode_fails() {
         let config = TenancyTomlConfig {
-            mode: TenancyModeConfig::Row,
+            mode:         TenancyModeConfig::Row,
             tenant_claim: String::new(),
         };
         assert!(config.validate().is_err());
@@ -534,7 +534,7 @@ mod security_tests {
     #[test]
     fn test_tenancy_validate_empty_claim_with_none_ok() {
         let config = TenancyTomlConfig {
-            mode: TenancyModeConfig::None,
+            mode:         TenancyModeConfig::None,
             tenant_claim: String::new(),
         };
         assert!(config.validate().is_ok());

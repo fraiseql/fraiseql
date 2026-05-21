@@ -12,9 +12,9 @@ fn make_store(ttl_secs: u64) -> InMemoryIdempotencyStore {
 
 fn make_response() -> StoredResponse {
     StoredResponse {
-        status: 201,
+        status:  201,
         headers: vec![("x-request-id".to_string(), "abc".to_string())],
-        body: Some(json!({"id": 1, "name": "Alice"})),
+        body:    Some(json!({"id": 1, "name": "Alice"})),
     }
 }
 

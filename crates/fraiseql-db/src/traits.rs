@@ -8,14 +8,13 @@ mod adapter_types;
 mod mutations;
 mod relay;
 
-pub use adapter_types::*;
-pub use mutations::SupportsMutations;
-pub use relay::RelayDatabaseAdapter;
-
 use std::sync::Arc;
 
+pub use adapter_types::*;
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
+pub use mutations::SupportsMutations;
+pub use relay::RelayDatabaseAdapter;
 
 use crate::{
     types::{

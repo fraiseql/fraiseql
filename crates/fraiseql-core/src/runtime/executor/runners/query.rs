@@ -4,7 +4,8 @@
 //! against the database. It is the execution engine for the most common path.
 //!
 //! Implementation is split across sub-modules:
-//! - [`query_projection`](super::query_projection): projection field builders and ORDER BY enrichment
+//! - [`query_projection`](super::query_projection): projection field builders and ORDER BY
+//!   enrichment
 //! - [`query_params`](super::query_params): WHERE clause helpers and cache key computation
 //! - [`query_regular`](super::query_regular): regular (non-relay) query execution
 //! - [`query_relay`](super::query_relay): Relay connection and node query execution
@@ -12,8 +13,6 @@
 use std::sync::Arc;
 
 use super::super::context::ExecutorContext;
-use crate::db::traits::DatabaseAdapter;
-
 // Re-export sub-module items so that `use super::*` in tests
 // continues to find them without import path changes.
 #[cfg(test)]
@@ -22,6 +21,7 @@ pub use super::query_params::{
 };
 #[cfg(test)]
 pub use super::query_projection::selections_contain_field;
+use crate::db::traits::DatabaseAdapter;
 #[cfg(test)]
 pub use crate::db::{WhereClause, WhereOperator};
 

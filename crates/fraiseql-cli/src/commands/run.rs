@@ -96,8 +96,8 @@ async fn run_once(
         PostgresAdapter::with_pool_config(
             db_url,
             fraiseql_core::db::postgres::PoolPrewarmConfig {
-                min_size: config.pool_min_size,
-                max_size: config.pool_max_size,
+                min_size:     config.pool_min_size,
+                max_size:     config.pool_max_size,
                 timeout_secs: Some(config.pool_timeout_secs),
             },
         )
@@ -134,8 +134,8 @@ async fn run_watch_loop(
             PostgresAdapter::with_pool_config(
                 db_url,
                 fraiseql_core::db::postgres::PoolPrewarmConfig {
-                    min_size: config.pool_min_size,
-                    max_size: config.pool_max_size,
+                    min_size:     config.pool_min_size,
+                    max_size:     config.pool_max_size,
                     timeout_secs: Some(config.pool_timeout_secs),
                 },
             )
@@ -321,12 +321,12 @@ pub(crate) fn build_config_from(
 /// Convert `TlsRuntimeConfig` → `TlsServerConfig`.
 fn build_tls_config(tls: &TlsRuntimeConfig) -> TlsServerConfig {
     TlsServerConfig {
-        enabled: true,
-        cert_path: tls.cert_file.clone().into(),
-        key_path: tls.key_file.clone().into(),
-        min_version: tls.min_version.clone(),
+        enabled:             true,
+        cert_path:           tls.cert_file.clone().into(),
+        key_path:            tls.key_file.clone().into(),
+        min_version:         tls.min_version.clone(),
         require_client_cert: false,
-        client_ca_path: None,
+        client_ca_path:      None,
     }
 }
 

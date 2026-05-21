@@ -29,13 +29,13 @@ const MAX_PROVIDER_NAME_BYTES: usize = 128;
 #[derive(Clone)]
 pub struct MultiProviderAuthState {
     /// OAuth providers keyed by name (e.g., "github", "google").
-    providers: HashMap<String, Arc<dyn OAuthProvider>>,
+    providers:     HashMap<String, Arc<dyn OAuthProvider>>,
     /// CSRF state store (in-memory or Redis).
-    state_store: Arc<dyn StateStore>,
+    state_store:   Arc<dyn StateStore>,
     /// Session backend for creating sessions after successful auth.
     session_store: Arc<dyn SessionStore>,
     /// Optional user store for account linking (same email → same user).
-    user_store: Option<Arc<dyn AccountStore>>,
+    user_store:    Option<Arc<dyn AccountStore>>,
 }
 
 impl MultiProviderAuthState {
@@ -87,7 +87,7 @@ impl MultiProviderAuthState {
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeQuery {
     /// Provider name (e.g., "github", "google").
-    pub provider: String,
+    pub provider:     String,
     /// Client application callback URI.
     pub redirect_uri: String,
 }
@@ -96,11 +96,11 @@ pub struct AuthorizeQuery {
 #[derive(Debug, Deserialize)]
 pub struct CallbackQuery {
     /// Authorization code from the provider.
-    pub code: Option<String>,
+    pub code:              Option<String>,
     /// CSRF state token.
-    pub state: Option<String>,
+    pub state:             Option<String>,
     /// Provider error code.
-    pub error: Option<String>,
+    pub error:             Option<String>,
     /// Provider error description.
     pub error_description: Option<String>,
 }
@@ -116,16 +116,16 @@ pub struct ProvidersResponse {
 #[derive(Debug, Serialize)]
 pub struct AuthTokenResponse {
     /// Access token for API requests.
-    pub access_token: String,
+    pub access_token:  String,
     /// Refresh token (if available).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
     /// Token type (always "Bearer").
-    pub token_type: String,
+    pub token_type:    String,
     /// Seconds until the access token expires.
-    pub expires_in: u64,
+    pub expires_in:    u64,
     /// Provider that authenticated the user.
-    pub provider: String,
+    pub provider:      String,
 }
 
 impl AuthTokenResponse {
@@ -139,11 +139,11 @@ impl AuthTokenResponse {
 /// Builder for [`AuthTokenResponse`].
 #[derive(Debug, Default)]
 pub struct AuthTokenResponseBuilder {
-    access_token: Option<String>,
+    access_token:  Option<String>,
     refresh_token: Option<String>,
-    token_type: Option<String>,
-    expires_in: Option<u64>,
-    provider: Option<String>,
+    token_type:    Option<String>,
+    expires_in:    Option<u64>,
+    provider:      Option<String>,
 }
 
 impl AuthTokenResponseBuilder {
@@ -186,11 +186,13 @@ impl AuthTokenResponseBuilder {
     /// `expires_in`, or `provider`) was not set.
     pub fn build(self) -> Result<AuthTokenResponse, String> {
         Ok(AuthTokenResponse {
-            access_token: self.access_token.ok_or("AuthTokenResponse: access_token is required")?,
+            access_token:  self
+                .access_token
+                .ok_or("AuthTokenResponse: access_token is required")?,
             refresh_token: self.refresh_token,
-            token_type: self.token_type.ok_or("AuthTokenResponse: token_type is required")?,
-            expires_in: self.expires_in.ok_or("AuthTokenResponse: expires_in is required")?,
-            provider: self.provider.ok_or("AuthTokenResponse: provider is required")?,
+            token_type:    self.token_type.ok_or("AuthTokenResponse: token_type is required")?,
+            expires_in:    self.expires_in.ok_or("AuthTokenResponse: expires_in is required")?,
+            provider:      self.provider.ok_or("AuthTokenResponse: provider is required")?,
         })
     }
 }
@@ -411,11 +413,11 @@ pub async fn callback(
     };
 
     Json(AuthTokenResponse {
-        access_token: session_tokens.access_token,
+        access_token:  session_tokens.access_token,
         refresh_token: Some(session_tokens.refresh_token),
-        token_type: "Bearer".to_string(),
-        expires_in: session_tokens.expires_in,
-        provider: provider_name,
+        token_type:    "Bearer".to_string(),
+        expires_in:    session_tokens.expires_in,
+        provider:      provider_name,
     })
     .into_response()
 }

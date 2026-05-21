@@ -91,9 +91,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub const fn all() -> Self {
         Self {
-            detect_schema: true,
-            detect_type: true,
-            detect_typename: true,
+            detect_schema:    true,
+            detect_type:      true,
+            detect_typename:  true,
             detect_directive: true,
         }
     }
@@ -102,9 +102,9 @@ impl IntrospectionConfig {
     #[must_use]
     pub const fn strict() -> Self {
         Self {
-            detect_schema: true,
-            detect_type: true,
-            detect_typename: false,
+            detect_schema:    true,
+            detect_type:      true,
+            detect_typename:  false,
             detect_directive: true,
         }
     }

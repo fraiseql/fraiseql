@@ -64,12 +64,12 @@ impl ObserverDefinition {
         event: impl Into<String>,
     ) -> Self {
         Self {
-            name: name.into(),
-            entity: entity.into(),
-            event: event.into(),
+            name:      name.into(),
+            entity:    entity.into(),
+            event:     event.into(),
             condition: None,
-            actions: Vec::new(),
-            retry: RetryConfig::default(),
+            actions:   Vec::new(),
+            retry:     RetryConfig::default(),
         }
     }
 
@@ -149,10 +149,10 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts: 3,
+            max_attempts:     3,
             backoff_strategy: "exponential".to_string(),
             initial_delay_ms: 1000,
-            max_delay_ms: 60000,
+            max_delay_ms:     60000,
         }
     }
 }

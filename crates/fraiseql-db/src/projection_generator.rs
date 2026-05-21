@@ -82,8 +82,8 @@ impl ProjectionField {
     #[must_use]
     pub fn scalar(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            kind: FieldKind::Text,
+            name:       name.into(),
+            kind:       FieldKind::Text,
             sub_fields: None,
         }
     }
@@ -96,8 +96,8 @@ impl ProjectionField {
     #[must_use]
     pub fn native(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            kind: FieldKind::Native,
+            name:       name.into(),
+            kind:       FieldKind::Native,
             sub_fields: None,
         }
     }
@@ -106,8 +106,8 @@ impl ProjectionField {
     #[must_use]
     pub fn composite(name: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
-            kind: FieldKind::Composite,
+            name:       name.into(),
+            kind:       FieldKind::Composite,
             sub_fields: None,
         }
     }
@@ -119,8 +119,8 @@ impl ProjectionField {
     #[must_use]
     pub fn composite_with_sub_fields(name: impl Into<String>, sub_fields: Vec<Self>) -> Self {
         Self {
-            name: name.into(),
-            kind: FieldKind::Composite,
+            name:       name.into(),
+            kind:       FieldKind::Composite,
             sub_fields: Some(sub_fields),
         }
     }
@@ -160,7 +160,7 @@ fn validate_field_name(field: &str) -> Result<()> {
                  only ASCII alphanumeric characters and underscores are allowed",
                 field
             ),
-            path: None,
+            path:    None,
         })
     }
 }

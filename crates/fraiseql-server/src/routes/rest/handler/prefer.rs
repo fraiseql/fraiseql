@@ -31,23 +31,23 @@ pub enum HandlingPreference {
 #[derive(Debug, Clone, Default)]
 pub struct PreferHeader {
     /// `count=exact` — execute a parallel COUNT query.
-    pub count_exact: bool,
+    pub count_exact:           bool,
     /// `count=planned` — EXPLAIN-based estimate (PostgreSQL).
-    pub count_planned: bool,
+    pub count_planned:         bool,
     /// `count=estimated` — `pg_stats` estimate (PostgreSQL).
-    pub count_estimated: bool,
+    pub count_estimated:       bool,
     /// `return=representation` — return entity body on mutating operations.
     pub return_representation: bool,
     /// `return=minimal` — return empty body on mutating operations.
-    pub return_minimal: bool,
+    pub return_minimal:        bool,
     /// `resolution=merge-duplicates` or `resolution=ignore-duplicates` — upsert mode.
-    pub resolution: Option<String>,
+    pub resolution:            Option<String>,
     /// `tx=rollback` — dry-run mode (execute then rollback).
-    pub tx_rollback: bool,
+    pub tx_rollback:           bool,
     /// `handling=strict` or `handling=lenient` (default: strict).
-    pub handling: Option<HandlingPreference>,
+    pub handling:              Option<HandlingPreference>,
     /// `max-affected=N` — limit bulk operation scope.
-    pub max_affected: Option<u64>,
+    pub max_affected:          Option<u64>,
 }
 
 impl PreferHeader {

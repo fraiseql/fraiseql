@@ -92,16 +92,16 @@ pub fn combine_explicit_arg_where(
             provided_args.get(&arg.name).map(|value| {
                 if let Some(pg_type) = native_columns.get(&arg.name) {
                     WhereClause::NativeField {
-                        column: arg.name.clone(),
-                        pg_cast: pg_type_to_cast(pg_type).to_string(),
+                        column:   arg.name.clone(),
+                        pg_cast:  pg_type_to_cast(pg_type).to_string(),
                         operator: WhereOperator::Eq,
-                        value: value.clone(),
+                        value:    value.clone(),
                     }
                 } else {
                     WhereClause::Field {
-                        path: vec![arg.name.clone()],
+                        path:     vec![arg.name.clone()],
                         operator: WhereOperator::Eq,
-                        value: value.clone(),
+                        value:    value.clone(),
                     }
                 }
             })

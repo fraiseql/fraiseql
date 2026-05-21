@@ -67,15 +67,15 @@ impl std::fmt::Display for EventKind {
 #[derive(Debug, Clone)]
 pub struct EntityEvent {
     /// Entity type (e.g., "User", "Post").
-    pub entity: String,
+    pub entity:     String,
     /// Kind of mutation.
     pub event_kind: EventKind,
     /// Old row data (None for Insert).
-    pub old: Option<serde_json::Value>,
+    pub old:        Option<serde_json::Value>,
     /// New row data (None for Delete).
-    pub new: Option<serde_json::Value>,
+    pub new:        Option<serde_json::Value>,
     /// Timestamp of the event.
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp:  chrono::DateTime<chrono::Utc>,
 }
 
 /// Trigger that fires after a mutation completes.
@@ -102,9 +102,9 @@ pub struct AfterMutationTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Entity type to trigger on (e.g., "User").
-    pub entity_type: String,
+    pub entity_type:   String,
     /// Optional filter on event kind (None = all).
-    pub event_filter: Option<EventKind>,
+    pub event_filter:  Option<EventKind>,
 }
 
 impl AfterMutationTrigger {
@@ -119,14 +119,14 @@ impl AfterMutationTrigger {
     pub fn build_payload(&self, event: &EntityEvent) -> EventPayload {
         EventPayload {
             trigger_type: format!("after:mutation:{}", self.function_name),
-            entity: event.entity.clone(),
-            event_kind: event.event_kind.to_string(),
-            data: serde_json::json!({
+            entity:       event.entity.clone(),
+            event_kind:   event.event_kind.to_string(),
+            data:         serde_json::json!({
                 "event_kind": event.event_kind.as_str(),
                 "old": event.old,
                 "new": event.new,
             }),
-            timestamp: event.timestamp,
+            timestamp:    event.timestamp,
         }
     }
 }
@@ -253,16 +253,16 @@ impl BeforeMutationChain {
                         "before:mutation function '{}' not found in module registry",
                         trigger.function_name,
                     ),
-                    path: None,
+                    path:    None,
                 }
             })?;
 
             let payload = crate::types::EventPayload {
                 trigger_type: format!("before:mutation:{}", trigger.mutation_name),
-                entity: trigger.mutation_name.clone(),
-                event_kind: "before".to_string(),
-                data: current.clone(),
-                timestamp: chrono::Utc::now(),
+                entity:       trigger.mutation_name.clone(),
+                event_kind:   "before".to_string(),
+                data:         current.clone(),
+                timestamp:    chrono::Utc::now(),
             };
 
             let result = observer.invoke(module, payload, host, limits.clone()).await?;
@@ -317,7 +317,7 @@ impl BeforeMutationChain {
 #[derive(Debug, Clone)]
 pub struct TriggerMatcher {
     /// Map of `entity_type` → `event_kind` → triggers
-    specific: HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
+    specific:  HashMap<String, HashMap<String, Vec<AfterMutationTrigger>>>,
     /// Map of `entity_type` → triggers that match all event kinds
     all_kinds: HashMap<String, Vec<AfterMutationTrigger>>,
 }
@@ -327,7 +327,7 @@ impl TriggerMatcher {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            specific: HashMap::new(),
+            specific:  HashMap::new(),
             all_kinds: HashMap::new(),
         }
     }

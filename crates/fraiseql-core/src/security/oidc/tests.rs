@@ -145,26 +145,26 @@ fn test_oidc_config_default_cache_ttl_is_short() {
 
 fn make_validator(issuer: &str) -> OidcValidator {
     OidcValidator {
-        config: OidcConfig {
+        config:       OidcConfig {
             issuer: issuer.to_string(),
             ..Default::default()
         },
-        http_client: reqwest::Client::new(),
-        jwks_uri: format!("{issuer}/.well-known/jwks.json"),
-        jwks_cache: Arc::new(RwLock::new(None)),
+        http_client:  reqwest::Client::new(),
+        jwks_uri:     format!("{issuer}/.well-known/jwks.json"),
+        jwks_cache:   Arc::new(RwLock::new(None)),
         replay_cache: None,
     }
 }
 
 fn make_jwk(kid: &str) -> Jwk {
     Jwk {
-        kty: "RSA".to_string(),
-        kid: Some(kid.to_string()),
-        alg: None,
+        kty:     "RSA".to_string(),
+        kid:     Some(kid.to_string()),
+        alg:     None,
         key_use: None,
-        n: None,
-        e: None,
-        x5c: vec![],
+        n:       None,
+        e:       None,
+        x5c:     vec![],
     }
 }
 
@@ -188,9 +188,9 @@ fn test_detect_key_rotation_when_keys_removed() {
     {
         let mut cache = validator.jwks_cache.write();
         *cache = Some(CachedJwks {
-            jwks: old_jwks,
+            jwks:       old_jwks,
             fetched_at: Instant::now(),
-            ttl: Duration::from_secs(300),
+            ttl:        Duration::from_secs(300),
         });
     }
 
@@ -212,9 +212,9 @@ fn test_detect_key_rotation_when_no_keys_removed() {
     {
         let mut cache = validator.jwks_cache.write();
         *cache = Some(CachedJwks {
-            jwks: old_jwks,
+            jwks:       old_jwks,
             fetched_at: Instant::now(),
-            ttl: Duration::from_secs(300),
+            ttl:        Duration::from_secs(300),
         });
     }
 
@@ -244,13 +244,13 @@ fn test_find_key_without_kid() {
 
     let jwks = Jwks {
         keys: vec![Jwk {
-            kty: "RSA".to_string(),
-            kid: None, // No kid
-            alg: None,
+            kty:     "RSA".to_string(),
+            kid:     None, // No kid
+            alg:     None,
             key_use: None,
-            n: None,
-            e: None,
-            x5c: vec![],
+            n:       None,
+            e:       None,
+            x5c:     vec![],
         }],
     };
     // Should not find key without kid even if requested

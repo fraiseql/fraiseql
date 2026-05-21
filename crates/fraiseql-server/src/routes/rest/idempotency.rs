@@ -14,10 +14,9 @@
 
 use std::{sync::Arc, time::Duration};
 
-use tokio::time::Instant;
-
 use dashmap::DashMap;
 use serde_json::Value;
+use tokio::time::Instant;
 use xxhash_rust::xxh3::xxh3_64;
 
 // ---------------------------------------------------------------------------
@@ -44,17 +43,17 @@ pub enum IdempotencyCheck {
 )]
 pub struct StoredResponse {
     /// HTTP status code.
-    pub status: u16,
+    pub status:  u16,
     /// Response headers (key, value) pairs.
     pub headers: Vec<(String, String)>,
     /// Response body (if any).
-    pub body: Option<Value>,
+    pub body:    Option<Value>,
 }
 
 /// Entry in the in-memory idempotency store.
 struct Entry {
-    response: StoredResponse,
-    body_hash: u64,
+    response:   StoredResponse,
+    body_hash:  u64,
     created_at: Instant,
 }
 
@@ -96,8 +95,8 @@ pub trait IdempotencyStore: Send + Sync {
 /// Entries expire after the configured TTL.  Expired entries are lazily evicted
 /// on access and periodically during insertions.
 pub struct InMemoryIdempotencyStore {
-    entries: DashMap<String, Entry>,
-    ttl: Duration,
+    entries:     DashMap<String, Entry>,
+    ttl:         Duration,
     max_entries: usize,
 }
 

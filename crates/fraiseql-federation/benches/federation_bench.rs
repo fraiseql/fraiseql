@@ -17,17 +17,17 @@ use serde_json::json;
 fn make_metadata(type_count: usize) -> FederationMetadata {
     let types = (0..type_count)
         .map(|i| FederatedType {
-            name: format!("Type{i}"),
-            keys: vec![KeyDirective {
-                fields: vec!["id".to_string()],
+            name:                format!("Type{i}"),
+            keys:                vec![KeyDirective {
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             }],
-            is_extends: false,
-            external_fields: vec![],
-            shareable_fields: vec![],
+            is_extends:          false,
+            external_fields:     vec![],
+            shareable_fields:    vec![],
             inaccessible_fields: vec![],
-            field_directives: HashMap::new(),
-            type_shareable: false,
+            field_directives:    HashMap::new(),
+            type_shareable:      false,
         })
         .collect();
 

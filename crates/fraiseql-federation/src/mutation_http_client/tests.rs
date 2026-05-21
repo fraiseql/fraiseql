@@ -21,8 +21,8 @@ fn test_mutation_config_defaults() {
 #[test]
 fn test_mutation_config_custom() {
     let config = HttpMutationConfig {
-        timeout_ms: 10000,
-        max_retries: 5,
+        timeout_ms:     10000,
+        max_retries:    5,
         retry_delay_ms: 200,
     };
     assert_eq!(config.timeout_ms, 10000);
@@ -33,7 +33,7 @@ fn test_mutation_config_custom() {
 #[test]
 fn test_graphql_request_serialization() {
     let request = GraphQLRequest {
-        query: "mutation { updateUser(id: $id) { id } }".to_string(),
+        query:     "mutation { updateUser(id: $id) { id } }".to_string(),
         variables: json!({ "id": "123" }),
     };
 
@@ -134,7 +134,7 @@ async fn mutation_response_oversized_is_rejected() {
     let client = HttpMutationClient::new(config).unwrap();
     let url = format!("{}/graphql", mock.uri());
     let request = GraphQLRequest {
-        query: "mutation { dummy }".to_string(),
+        query:     "mutation { dummy }".to_string(),
         variables: json!({}),
     };
     let reqwest_client = reqwest::Client::new();
@@ -166,7 +166,7 @@ async fn mutation_response_within_limit_is_parsed() {
     let client = HttpMutationClient::new(config).unwrap();
     let url = format!("{}/graphql", mock.uri());
     let request = GraphQLRequest {
-        query: "mutation { dummy }".to_string(),
+        query:     "mutation { dummy }".to_string(),
         variables: json!({}),
     };
     let reqwest_client = reqwest::Client::new();

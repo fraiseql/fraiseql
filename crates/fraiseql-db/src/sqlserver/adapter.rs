@@ -181,7 +181,7 @@ impl SqlServerAdapter {
             })?;
 
             conn.simple_query("SELECT 1").await.map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to connect to SQL Server database: {e}"),
+                message:   format!("Failed to connect to SQL Server database: {e}"),
                 sql_state: None,
             })?;
         }
@@ -204,11 +204,11 @@ impl SqlServerAdapter {
         // We need to use simple_query for dynamic SQL or build the query differently
         let rows = if params.is_empty() {
             let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
-                message: format!("SQL Server query execution failed: {e}"),
+                message:   format!("SQL Server query execution failed: {e}"),
                 sql_state: e.code().and_then(map_mssql_error_code),
             })?;
             result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to get result set: {e}"),
+                message:   format!("Failed to get result set: {e}"),
                 sql_state: e.code().and_then(map_mssql_error_code),
             })?
         } else {
@@ -218,11 +218,11 @@ impl SqlServerAdapter {
             bind_json_params(&mut query, &params, &string_params)?;
 
             let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
-                message: format!("SQL Server query execution failed: {e}"),
+                message:   format!("SQL Server query execution failed: {e}"),
                 sql_state: e.code().and_then(map_mssql_error_code),
             })?;
             result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to get result set: {e}"),
+                message:   format!("Failed to get result set: {e}"),
                 sql_state: e.code().and_then(map_mssql_error_code),
             })?
         };
@@ -417,7 +417,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         })?;
 
         conn.simple_query("SELECT 1").await.map_err(|e| FraiseQLError::Database {
-            message: format!("SQL Server health check failed: {e}"),
+            message:   format!("SQL Server health check failed: {e}"),
             sql_state: None,
         })?;
 
@@ -428,10 +428,10 @@ impl DatabaseAdapter for SqlServerAdapter {
         let state = self.pool.state();
 
         PoolMetrics {
-            total_connections: state.connections,
-            idle_connections: state.idle_connections,
+            total_connections:  state.connections,
+            idle_connections:   state.idle_connections,
             active_connections: state.connections - state.idle_connections,
-            waiting_requests: 0, // bb8 doesn't expose waiting count directly
+            waiting_requests:   0, // bb8 doesn't expose waiting count directly
         }
     }
 
@@ -448,12 +448,12 @@ impl DatabaseAdapter for SqlServerAdapter {
         })?;
 
         let result = conn.simple_query(sql).await.map_err(|e| FraiseQLError::Database {
-            message: format!("SQL Server query execution failed: {e}"),
+            message:   format!("SQL Server query execution failed: {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to get result set: {e}"),
+            message:   format!("Failed to get result set: {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
@@ -513,12 +513,12 @@ impl DatabaseAdapter for SqlServerAdapter {
         bind_json_params(&mut query, params, &string_params)?;
 
         let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
-            message: format!("SQL Server parameterized aggregate query failed: {e}"),
+            message:   format!("SQL Server parameterized aggregate query failed: {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to get aggregate result set: {e}"),
+            message:   format!("Failed to get aggregate result set: {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
@@ -579,12 +579,12 @@ impl DatabaseAdapter for SqlServerAdapter {
         bind_json_params(&mut query, args, &string_params)?;
 
         let result = query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
-            message: format!("SQL Server function call failed ({function_name}): {e}"),
+            message:   format!("SQL Server function call failed ({function_name}): {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to get result set from {function_name}: {e}"),
+            message:   format!("Failed to get result set from {function_name}: {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
@@ -646,7 +646,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         };
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to get DMV result set: {e}"),
+            message:   format!("Failed to get DMV result set: {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
@@ -687,7 +687,7 @@ impl DatabaseAdapter for SqlServerAdapter {
         };
 
         let rows = result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to get DMV result set: {e}"),
+            message:   format!("Failed to get DMV result set: {e}"),
             sql_state: e.code().and_then(map_mssql_error_code),
         })?;
 
@@ -797,7 +797,7 @@ fn bind_json_params<'a>(
                 } else {
                     return Err(FraiseQLError::Validation {
                         message: format!("Cannot bind numeric value {n}: out of i64 and f64 range"),
-                        path: None,
+                        path:    None,
                     });
                 }
             },
@@ -945,7 +945,7 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
                     if !is_valid_uuid_format(&uuid) {
                         return Err(FraiseQLError::Validation {
                             message: format!("Invalid UUID cursor value: '{uuid}'"),
-                            path: None,
+                            path:    None,
                         });
                     }
                     let op = if forward { ">" } else { "<" };
@@ -1049,13 +1049,13 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
 
             let count_result =
                 count_query.query(&mut *conn).await.map_err(|e| FraiseQLError::Database {
-                    message: format!("SQL Server relay count query failed: {e}"),
+                    message:   format!("SQL Server relay count query failed: {e}"),
                     sql_state: e.code().and_then(map_mssql_error_code),
                 })?;
 
             let count_rows =
                 count_result.into_first_result().await.map_err(|e| FraiseQLError::Database {
-                    message: format!("Failed to get relay count result set: {e}"),
+                    message:   format!("Failed to get relay count result set: {e}"),
                     sql_state: e.code().and_then(map_mssql_error_code),
                 })?;
 
@@ -1065,11 +1065,11 @@ impl RelayDatabaseAdapter for SqlServerAdapter {
                 .first()
                 .and_then(|row| row.try_get::<i64, _>(0).ok().flatten())
                 .ok_or_else(|| FraiseQLError::Database {
-                    message: format!("Relay count query returned no rows for view '{view}'"),
+                    message:   format!("Relay count query returned no rows for view '{view}'"),
                     sql_state: None,
                 })?;
             let count = u64::try_from(n).map_err(|_| FraiseQLError::Database {
-                message: format!(
+                message:   format!(
                     "Relay count query returned negative value ({n}) for view '{view}'"
                 ),
                 sql_state: None,

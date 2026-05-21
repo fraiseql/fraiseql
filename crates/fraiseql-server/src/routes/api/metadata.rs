@@ -89,7 +89,7 @@ pub async fn metadata_handler<A: DatabaseAdapter>(
     let metadata = flatten_field_metadata(state.executor().schema());
     Json(ApiResponse {
         status: "success".to_string(),
-        data: MetadataResponse { metadata },
+        data:   MetadataResponse { metadata },
     })
 }
 
@@ -113,10 +113,10 @@ pub fn flatten_field_metadata(schema: &CompiledSchema) -> BTreeMap<String, Field
             map.insert(
                 type_name.to_string(),
                 FieldSecurityMetadata {
-                    encrypted: None,
+                    encrypted:      None,
                     requires_scope: None,
-                    on_deny: None,
-                    requires_role: Some(role.clone()),
+                    on_deny:        None,
+                    requires_role:  Some(role.clone()),
                 },
             );
         }

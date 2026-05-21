@@ -19,7 +19,7 @@ pub struct AuthenticatedUser {
     /// User ID from token claims
     pub user_id: String,
     /// Full JWT claims
-    pub claims: Claims,
+    pub claims:  Claims,
 }
 
 impl AuthenticatedUser {
@@ -50,10 +50,10 @@ impl AuthenticatedUser {
 
 /// Authentication middleware configuration
 pub struct AuthMiddleware {
-    validator: Arc<JwtValidator>,
+    validator:      Arc<JwtValidator>,
     _session_store: Arc<dyn SessionStore>,
-    public_key: Vec<u8>,
-    _optional: bool,
+    public_key:     Vec<u8>,
+    _optional:      bool,
 }
 
 impl AuthMiddleware {

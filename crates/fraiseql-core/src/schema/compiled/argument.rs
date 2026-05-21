@@ -119,10 +119,10 @@ impl AutoParams {
     #[must_use]
     pub const fn all() -> Self {
         Self {
-            has_where: true,
+            has_where:    true,
             has_order_by: true,
-            has_limit: true,
-            has_offset: true,
+            has_limit:    true,
+            has_offset:   true,
         }
     }
 

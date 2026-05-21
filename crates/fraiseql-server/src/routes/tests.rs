@@ -30,10 +30,10 @@ mod auth_tests {
         extra: std::collections::HashMap<String, serde_json::Value>,
     ) -> AuthUser {
         AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id: fraiseql_core::types::UserId::new(user_id),
-            scopes: vec![],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            email: None,
+            user_id:      fraiseql_core::types::UserId::new(user_id),
+            scopes:       vec![],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
             display_name: None,
             extra_claims: extra,
         })
@@ -46,10 +46,10 @@ mod auth_tests {
         extra: std::collections::HashMap<String, serde_json::Value>,
     ) -> AuthUser {
         AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id: fraiseql_core::types::UserId::new(user_id),
-            scopes: vec![],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            email: email.map(str::to_owned),
+            user_id:      fraiseql_core::types::UserId::new(user_id),
+            scopes:       vec![],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        email.map(str::to_owned),
             display_name: display_name.map(str::to_owned),
             extra_claims: extra,
         })
@@ -73,9 +73,9 @@ mod auth_tests {
 
     fn auth_router() -> Router {
         let auth_state = Arc::new(AuthPkceState {
-            pkce_store: mock_pkce_store(),
-            oidc_client: mock_oidc_client(),
-            http_client: Arc::new(reqwest::Client::new()),
+            pkce_store:              mock_pkce_store(),
+            oidc_client:             mock_oidc_client(),
+            http_client:             Arc::new(reqwest::Client::new()),
             post_login_redirect_uri: None,
         });
         Router::new()
@@ -430,9 +430,9 @@ mod health_tests {
     #[test]
     fn test_determine_status_observers_not_running_is_degraded() {
         let observers = Some(ObserverHealth {
-            running: false,
+            running:        false,
             pending_events: 0,
-            last_error: None,
+            last_error:     None,
         });
         #[cfg(feature = "federation")]
         assert_eq!(determine_status(true, observers.as_ref(), None, None), "degraded");
@@ -444,7 +444,7 @@ mod health_tests {
     fn test_determine_status_secrets_disconnected_is_degraded() {
         let secrets = Some(SecretsHealth {
             connected: false,
-            backend: "vault".to_string(),
+            backend:   "vault".to_string(),
         });
         #[cfg(feature = "federation")]
         assert_eq!(determine_status(true, None, secrets.as_ref(), None), "degraded");
@@ -459,9 +459,9 @@ mod health_tests {
 
         let federation = Some(FederationHealth {
             configured: true,
-            subgraphs: vec![SubgraphCircuitHealth {
+            subgraphs:  vec![SubgraphCircuitHealth {
                 subgraph: "Product".to_string(),
-                state: CircuitHealthState::Open,
+                state:    CircuitHealthState::Open,
             }],
         });
         assert_eq!(determine_status(true, None, None, federation.as_ref()), "degraded");
@@ -471,7 +471,7 @@ mod health_tests {
     fn test_determine_status_db_down_overrides_degraded() {
         let secrets = Some(SecretsHealth {
             connected: false,
-            backend: "vault".to_string(),
+            backend:   "vault".to_string(),
         });
         #[cfg(feature = "federation")]
         assert_eq!(determine_status(false, None, secrets.as_ref(), None), "unhealthy");
@@ -484,10 +484,10 @@ mod health_tests {
         let response = HealthResponse {
             status: "healthy".to_string(),
             database: DatabaseStatus {
-                connected: true,
-                database_type: "PostgreSQL".to_string(),
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
                 active_connections: Some(2),
-                idle_connections: Some(8),
+                idle_connections:   Some(8),
             },
             observers: None,
             cache: None,
@@ -507,18 +507,18 @@ mod health_tests {
     #[test]
     fn test_health_response_omits_federation_when_none() {
         let response = HealthResponse {
-            status: "healthy".to_string(),
-            database: DatabaseStatus {
-                connected: true,
-                database_type: "PostgreSQL".to_string(),
+            status:      "healthy".to_string(),
+            database:    DatabaseStatus {
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
                 active_connections: None,
-                idle_connections: None,
+                idle_connections:   None,
             },
-            observers: None,
-            cache: None,
-            secrets: None,
-            federation: None,
-            version: "2.0.0".to_string(),
+            observers:   None,
+            cache:       None,
+            secrets:     None,
+            federation:  None,
+            version:     "2.0.0".to_string(),
             schema_hash: None,
         };
 
@@ -532,24 +532,24 @@ mod health_tests {
         use crate::federation::circuit_breaker::{CircuitHealthState, SubgraphCircuitHealth};
 
         let response = HealthResponse {
-            status: "healthy".to_string(),
-            database: DatabaseStatus {
-                connected: true,
-                database_type: "PostgreSQL".to_string(),
+            status:      "healthy".to_string(),
+            database:    DatabaseStatus {
+                connected:          true,
+                database_type:      "PostgreSQL".to_string(),
                 active_connections: None,
-                idle_connections: None,
+                idle_connections:   None,
             },
-            observers: None,
-            cache: None,
-            secrets: None,
-            federation: Some(FederationHealth {
+            observers:   None,
+            cache:       None,
+            secrets:     None,
+            federation:  Some(FederationHealth {
                 configured: true,
-                subgraphs: vec![SubgraphCircuitHealth {
+                subgraphs:  vec![SubgraphCircuitHealth {
                     subgraph: "Product".to_string(),
-                    state: CircuitHealthState::Open,
+                    state:    CircuitHealthState::Open,
                 }],
             }),
-            version: "2.0.0".to_string(),
+            version:     "2.0.0".to_string(),
             schema_hash: None,
         };
 
@@ -572,7 +572,7 @@ mod introspection_tests {
     #[test]
     fn test_type_info_serialization() {
         let type_info = TypeInfo {
-            name: "User".to_string(),
+            name:        "User".to_string(),
             description: Some("A user in the system".to_string()),
             field_count: 3,
         };
@@ -594,15 +594,15 @@ mod metrics_tests {
     #[test]
     fn test_metrics_response_structure() {
         let response = MetricsResponse {
-            queries_total: 1000,
-            queries_success: 950,
-            queries_error: 50,
-            avg_query_duration_ms: 12.5,
-            cache_hit_ratio: 0.75,
-            pool_connections_total: 20,
-            pool_connections_idle: 15,
+            queries_total:           1000,
+            queries_success:         950,
+            queries_error:           50,
+            avg_query_duration_ms:   12.5,
+            cache_hit_ratio:         0.75,
+            pool_connections_total:  20,
+            pool_connections_idle:   15,
             pool_connections_active: 5,
-            pool_requests_waiting: 0,
+            pool_requests_waiting:   0,
         };
 
         assert_eq!(response.queries_total, 1000);
@@ -619,15 +619,15 @@ mod metrics_tests {
     #[test]
     fn test_metrics_response_serialization() {
         let response = MetricsResponse {
-            queries_total: 100,
-            queries_success: 95,
-            queries_error: 5,
-            avg_query_duration_ms: 5.0,
-            cache_hit_ratio: 0.85,
-            pool_connections_total: 10,
-            pool_connections_idle: 8,
+            queries_total:           100,
+            queries_success:         95,
+            queries_error:           5,
+            avg_query_duration_ms:   5.0,
+            cache_hit_ratio:         0.85,
+            pool_connections_total:  10,
+            pool_connections_idle:   8,
             pool_connections_active: 2,
-            pool_requests_waiting: 0,
+            pool_requests_waiting:   0,
         };
 
         let json = serde_json::to_string(&response).unwrap();

@@ -22,9 +22,9 @@ pub(super) fn gen_random_token() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PKCEChallenge {
     /// Random code verifier (43-128 characters, RFC 7636 §4.1)
-    pub code_verifier: String,
+    pub code_verifier:         String,
     /// BASE64URL(SHA256(code_verifier))
-    pub code_challenge: String,
+    pub code_challenge:        String,
     /// Challenge method: "S256" (SHA256)
     pub code_challenge_method: String,
 }
@@ -47,8 +47,8 @@ impl PKCEChallenge {
         let challenge = URL_SAFE_NO_PAD.encode(digest);
 
         Self {
-            code_verifier: verifier,
-            code_challenge: challenge,
+            code_verifier:         verifier,
+            code_challenge:        challenge,
             code_challenge_method: "S256".to_string(),
         }
     }
@@ -79,7 +79,7 @@ impl Default for PKCEChallenge {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateParameter {
     /// Random state value
-    pub state: String,
+    pub state:      String,
     /// When state expires
     pub expires_at: DateTime<Utc>,
 }
@@ -92,7 +92,7 @@ impl StateParameter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            state: gen_random_token(),
+            state:      gen_random_token(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }
@@ -123,7 +123,7 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NonceParameter {
     /// Random nonce value
-    pub nonce: String,
+    pub nonce:      String,
     /// When nonce expires
     pub expires_at: DateTime<Utc>,
 }
@@ -136,7 +136,7 @@ impl NonceParameter {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            nonce: gen_random_token(),
+            nonce:      gen_random_token(),
             expires_at: Utc::now() + Duration::minutes(10),
         }
     }

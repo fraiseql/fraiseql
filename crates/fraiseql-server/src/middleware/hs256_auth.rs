@@ -26,7 +26,7 @@ pub struct Hs256AuthState {
     /// The local JWT validator configured with an HS256 signing key.
     pub validator: Arc<AuthMiddleware>,
     /// Realm advertised in `WWW-Authenticate` challenges.
-    pub realm: String,
+    pub realm:     String,
 }
 
 impl Hs256AuthState {
