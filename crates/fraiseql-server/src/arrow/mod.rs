@@ -96,6 +96,7 @@ pub fn create_flight_service(adapter: Arc<PostgresAdapter>) -> FraiseQLFlightSer
 ///
 /// Requires both the `arrow` and `wire-backend` features.
 #[cfg(all(feature = "arrow", feature = "wire-backend"))]
+#[must_use]
 pub fn create_flight_service(adapter: Arc<FraiseWireAdapter>) -> FraiseQLFlightService {
     let flight_adapter = FlightDatabaseAdapter::from_arc(adapter);
 

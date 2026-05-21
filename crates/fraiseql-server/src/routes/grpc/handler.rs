@@ -95,6 +95,7 @@ pub type RpcDispatchTable = HashMap<String, RpcOperation>;
 ///
 /// Returns `None` for non-scalar types (Object, List, Interface, Union) that
 /// cannot be directly represented as a single database column.
+#[must_use]
 pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnType> {
     match ft {
         FieldType::String | FieldType::Scalar(_) | FieldType::Decimal | FieldType::Time => {
@@ -115,6 +116,7 @@ pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnTy
 }
 
 /// Build [`ColumnSpec`] list from a type definition's scalar fields.
+#[must_use]
 pub fn column_specs_from_type(type_def: &TypeDefinition) -> Vec<ColumnSpec> {
     type_def
         .fields
@@ -141,6 +143,7 @@ pub fn column_specs_from_type(type_def: &TypeDefinition) -> Vec<ColumnSpec> {
 ///
 /// Only simple equality filters are supported in the MVP. The returned clause
 /// is `None` when no filter fields are set.
+#[must_use]
 pub fn extract_filters(msg: &DynamicMessage, type_def: &TypeDefinition) -> Option<WhereClause> {
     let mut clauses = Vec::new();
 
@@ -237,6 +240,7 @@ fn dynamic_message_to_json(msg: &DynamicMessage) -> serde_json::Value {
 // ---------------------------------------------------------------------------
 
 /// Extract limit from the request message (capped at `MAX_GRPC_RESULT_ROWS`).
+#[must_use]
 pub fn extract_limit(msg: &DynamicMessage) -> u32 {
     for field_desc in msg.descriptor().fields() {
         if field_desc.name() == "limit" && msg.has_field(&field_desc) {
@@ -254,6 +258,7 @@ pub fn extract_limit(msg: &DynamicMessage) -> u32 {
 }
 
 /// Extract offset from the request message.
+#[must_use]
 pub fn extract_offset(msg: &DynamicMessage) -> Option<u32> {
     for field_desc in msg.descriptor().fields() {
         if field_desc.name() == "offset" && msg.has_field(&field_desc) {
@@ -444,6 +449,7 @@ pub struct MutationResult {
 ///
 /// Expects the response descriptor to have fields: `success` (bool),
 /// `id` (optional string), `error` (optional string).
+#[must_use]
 pub fn encode_mutation_response(
     result: &MutationResult,
     response_desc: &MessageDescriptor,
@@ -471,6 +477,7 @@ pub fn encode_mutation_response(
 ///
 /// Each column is mapped to the corresponding protobuf field by position (the
 /// column specs and message fields are aligned by the proto generator).
+#[must_use]
 pub fn encode_row(
     row: &[ColumnValue],
     columns: &[ColumnSpec],
@@ -495,6 +502,7 @@ pub fn encode_row(
 /// Convert a [`ColumnValue`] to a protobuf [`Value`].
 ///
 /// Returns `None` for `ColumnValue::Null` (proto3 default absence).
+#[must_use]
 pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
     match col {
         ColumnValue::Null => None,
@@ -519,6 +527,7 @@ pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
 /// For list queries, the response contains a `repeated` field named `items`
 /// (or the pluralized type name). For get queries, the response fields are
 /// the row fields directly.
+#[must_use]
 pub fn encode_response(
     rows: Vec<Vec<ColumnValue>>,
     columns: &[ColumnSpec],

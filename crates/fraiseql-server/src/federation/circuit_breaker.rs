@@ -469,6 +469,7 @@ impl FederationCircuitBreakerManager {
     /// Check whether the circuit is open for the given entity type.
     ///
     /// Returns `Some(retry_after_secs)` to reject the request, or `None` to allow it.
+    #[must_use]
     pub fn check(&self, entity: &str) -> Option<u64> {
         self.get_or_create(entity).check()
     }
