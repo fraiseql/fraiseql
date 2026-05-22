@@ -177,9 +177,7 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
         // Reject privilege escalation. sqlparser 0.62 unified all SET-like statements
         // (SetVariable, SetRole, SetTimeZone, SetNames, SetNamesDefault, plus session
         // params and transaction settings) under `Statement::Set(Set)`.
-        Statement::Set(_) => {
-            Ok(SqlClassification::Rejected(RejectionReason::PrivilegeEscalation))
-        },
+        Statement::Set(_) => Ok(SqlClassification::Rejected(RejectionReason::PrivilegeEscalation)),
 
         // Reject procedure calls
         Statement::Call(_) => Ok(SqlClassification::Rejected(RejectionReason::ProcedureCall)),
