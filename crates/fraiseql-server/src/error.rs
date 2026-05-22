@@ -93,7 +93,7 @@ impl ErrorCode {
 #[derive(Debug, Clone, Serialize)]
 pub struct ErrorLocation {
     /// Line number (1-indexed).
-    pub line: usize,
+    pub line:   usize,
     /// Column number (1-indexed).
     pub column: usize,
 }
@@ -191,11 +191,11 @@ impl GraphQLError {
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         let request_id = request_id.into();
         let extensions = self.extensions.take().unwrap_or(ErrorExtensions {
-            category: None,
-            status: None,
-            request_id: None,
+            category:         None,
+            status:           None,
+            request_id:       None,
             retry_after_secs: None,
-            detail: None,
+            detail:           None,
         });
 
         self.extensions = Some(ErrorExtensions {
@@ -335,11 +335,11 @@ impl GraphQLError {
             ErrorCode::CircuitBreakerOpen,
         )
         .with_extensions(ErrorExtensions {
-            category: Some("CIRCUIT_BREAKER".to_string()),
-            status: Some(503),
-            request_id: None,
+            category:         Some("CIRCUIT_BREAKER".to_string()),
+            status:           Some(503),
+            request_id:       None,
             retry_after_secs: Some(retry_after_secs),
-            detail: None,
+            detail:           None,
         })
     }
 }

@@ -125,7 +125,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             _ => {
                 return Err(FraiseQLError::Validation {
                     message: format!("Mutation '{mutation_name}' has no sql_source configured"),
-                    path: None,
+                    path:    None,
                 });
             },
         }
@@ -208,7 +208,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                 "Mutation '{mutation_name}' is missing required argument(s): {}",
                 missing_required.join(", ")
             ),
-            path: None,
+            path:    None,
         });
     }
 
@@ -228,7 +228,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
                  (unauthenticated request)",
                 mutation_name
             ),
-            path: None,
+            path:    None,
         })?;
         for (param_name, source) in &mutation_def.inject_params {
             args.push(resolve_inject_value(param_name, source, sec_ctx)?);
@@ -259,7 +259,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     // 5. Expect at least one row
     let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
         message: format!("Mutation '{mutation_name}': function returned no rows"),
-        path: None,
+        path:    None,
     })?;
 
     // 6. Parse the mutation_response row

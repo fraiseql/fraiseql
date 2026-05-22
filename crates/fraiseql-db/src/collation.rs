@@ -29,7 +29,7 @@ use crate::{collation_config::CollationConfig, types::DatabaseType};
 /// assert_eq!(mapper.map_locale("fr-FR").unwrap(), Some("utf8mb4_unicode_ci".to_string()));
 /// ```
 pub struct CollationMapper {
-    config: CollationConfig,
+    config:        CollationConfig,
     database_type: DatabaseType,
 }
 
@@ -189,7 +189,7 @@ impl CollationMapper {
             InvalidLocaleStrategy::DatabaseDefault => Ok(None),
             InvalidLocaleStrategy::Error => Err(FraiseQLError::Validation {
                 message: "Invalid locale: not in allowed list".to_string(),
-                path: None,
+                path:    None,
             }),
         }
     }

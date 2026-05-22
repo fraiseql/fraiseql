@@ -28,7 +28,7 @@ impl Default for ConvertConfig {
     fn default() -> Self {
         Self {
             batch_size: 10_000,
-            max_rows: None,
+            max_rows:   None,
         }
     }
 }

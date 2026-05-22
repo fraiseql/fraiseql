@@ -65,7 +65,7 @@ mod admin_tests {
     #[test]
     fn test_reload_schema_request_empty_path() {
         let request = ReloadSchemaRequest {
-            schema_path: String::new(),
+            schema_path:   String::new(),
             validate_only: false,
         };
 
@@ -75,7 +75,7 @@ mod admin_tests {
     #[test]
     fn test_reload_schema_request_with_path() {
         let request = ReloadSchemaRequest {
-            schema_path: "/path/to/schema.json".to_string(),
+            schema_path:   "/path/to/schema.json".to_string(),
             validate_only: false,
         };
 
@@ -88,9 +88,9 @@ mod admin_tests {
 
         for scope in valid_scopes {
             let request = CacheClearRequest {
-                scope: scope.to_string(),
+                scope:       scope.to_string(),
                 entity_type: None,
-                pattern: None,
+                pattern:     None,
             };
             assert_eq!(request.scope, scope);
         }
@@ -100,7 +100,7 @@ mod admin_tests {
     fn test_admin_config_response_has_version() {
         let response = AdminConfigResponse {
             version: "2.0.0-a1".to_string(),
-            config: HashMap::new(),
+            config:  HashMap::new(),
         };
 
         assert!(!response.version.is_empty());
@@ -129,9 +129,9 @@ mod admin_tests {
     #[test]
     fn test_cache_clear_response_counts_entries() {
         let response = CacheClearResponse {
-            success: true,
+            success:         true,
             entries_cleared: 42,
-            message: "Cleared".to_string(),
+            message:         "Cleared".to_string(),
         };
 
         assert_eq!(response.entries_cleared, 42);
@@ -140,9 +140,9 @@ mod admin_tests {
     #[test]
     fn test_cache_clear_request_entity_required_for_entity_scope() {
         let request = CacheClearRequest {
-            scope: "entity".to_string(),
+            scope:       "entity".to_string(),
             entity_type: Some("User".to_string()),
-            pattern: None,
+            pattern:     None,
         };
 
         assert_eq!(request.scope, "entity");
@@ -152,9 +152,9 @@ mod admin_tests {
     #[test]
     fn test_cache_clear_request_pattern_required_for_pattern_scope() {
         let request = CacheClearRequest {
-            scope: "pattern".to_string(),
+            scope:       "pattern".to_string(),
             entity_type: None,
-            pattern: Some("*_user".to_string()),
+            pattern:     Some("*_user".to_string()),
         };
 
         assert_eq!(request.scope, "pattern");
@@ -165,7 +165,7 @@ mod admin_tests {
     fn test_admin_config_response_sanitization_excludes_paths() {
         let response = AdminConfigResponse {
             version: "2.0.0".to_string(),
-            config: {
+            config:  {
                 let mut m = HashMap::new();
                 m.insert("port".to_string(), "8000".to_string());
                 m.insert("host".to_string(), "0.0.0.0".to_string());
@@ -185,7 +185,7 @@ mod admin_tests {
     fn test_admin_config_response_includes_limits() {
         let response = AdminConfigResponse {
             version: "2.0.0".to_string(),
-            config: {
+            config:  {
                 let mut m = HashMap::new();
                 m.insert("max_request_size".to_string(), "10MB".to_string());
                 m.insert("request_timeout".to_string(), "30s".to_string());
@@ -204,8 +204,8 @@ mod admin_tests {
         let response = CacheStatsResponse {
             entries_count: 100,
             cache_enabled: true,
-            ttl_secs: 60,
-            message: "Cache statistics".to_string(),
+            ttl_secs:      60,
+            message:       "Cache statistics".to_string(),
         };
 
         assert_eq!(response.entries_count, 100);
@@ -217,7 +217,7 @@ mod admin_tests {
     #[test]
     fn test_reload_schema_request_validates_path() {
         let request = ReloadSchemaRequest {
-            schema_path: "/path/to/schema.json".to_string(),
+            schema_path:   "/path/to/schema.json".to_string(),
             validate_only: false,
         };
 
@@ -227,7 +227,7 @@ mod admin_tests {
     #[test]
     fn test_reload_schema_request_validate_only_flag() {
         let request = ReloadSchemaRequest {
-            schema_path: "/path/to/schema.json".to_string(),
+            schema_path:   "/path/to/schema.json".to_string(),
             validate_only: true,
         };
 
@@ -301,7 +301,7 @@ mod admin_tests {
     #[test]
     fn test_reload_schema_request_carries_audit_fields() {
         let req = ReloadSchemaRequest {
-            schema_path: "/var/run/fraiseql/schema.compiled.json".to_string(),
+            schema_path:   "/var/run/fraiseql/schema.compiled.json".to_string(),
             validate_only: false,
         };
         assert!(!req.schema_path.is_empty(), "schema_path must be present for audit log");
@@ -311,16 +311,16 @@ mod admin_tests {
     #[test]
     fn test_cache_clear_request_carries_audit_fields() {
         let all_req = CacheClearRequest {
-            scope: "all".to_string(),
+            scope:       "all".to_string(),
             entity_type: None,
-            pattern: None,
+            pattern:     None,
         };
         assert_eq!(all_req.scope, "all");
 
         let entity_req = CacheClearRequest {
-            scope: "entity".to_string(),
+            scope:       "entity".to_string(),
             entity_type: Some("Order".to_string()),
-            pattern: None,
+            pattern:     None,
         };
         assert!(
             entity_req.entity_type.is_some(),
@@ -328,9 +328,9 @@ mod admin_tests {
         );
 
         let pattern_req = CacheClearRequest {
-            scope: "pattern".to_string(),
+            scope:       "pattern".to_string(),
             entity_type: None,
-            pattern: Some("v_order*".to_string()),
+            pattern:     Some("v_order*".to_string()),
         };
         assert!(pattern_req.pattern.is_some(), "pattern scope must carry pattern for audit");
     }
@@ -344,8 +344,8 @@ mod design_tests {
     fn test_severity_count_response() {
         let resp = SeverityCountResponse {
             critical: 1,
-            warning: 3,
-            info: 5,
+            warning:  3,
+            info:     5,
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("\"critical\":1"));
@@ -366,10 +366,10 @@ mod federation_tests {
     #[test]
     fn test_subgraph_info_creation() {
         let info = SubgraphInfo {
-            name: "test".to_string(),
-            url: "http://test.local".to_string(),
+            name:     "test".to_string(),
+            url:      "http://test.local".to_string(),
             entities: vec!["Entity1".to_string()],
-            healthy: true,
+            healthy:  true,
         };
 
         assert_eq!(info.name, "test");
@@ -386,7 +386,7 @@ mod federation_tests {
     #[test]
     fn test_graph_response_creation() {
         let response = GraphResponse {
-            format: "json".to_string(),
+            format:  "json".to_string(),
             content: "{}".to_string(),
         };
 
@@ -437,13 +437,13 @@ mod federation_tests {
         use fraiseql_core::federation::SubgraphFetch;
 
         let response = PlanResponse {
-            cached: true,
+            cached:             true,
             schema_fingerprint: "fp123".to_string(),
-            fetches: Some(vec![SubgraphFetch {
-                subgraph: "users".to_string(),
-                query: "{ user(id: $id) { name } }".to_string(),
+            fetches:            Some(vec![SubgraphFetch {
+                subgraph:     "users".to_string(),
+                query:        "{ user(id: $id) { name } }".to_string(),
                 entity_types: vec!["User".to_string()],
-                depends_on: None,
+                depends_on:   None,
             }]),
         };
 
@@ -548,7 +548,7 @@ mod metadata_tests {
         let email_field = FieldDefinition::new("email", FieldType::String).with_encryption(
             FieldEncryptionConfig {
                 key_reference: "keys/email".to_string(),
-                algorithm: "AES-256-GCM".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
             },
         );
         let ssn_field = FieldDefinition::new("ssn", FieldType::String)
@@ -613,7 +613,7 @@ mod metadata_tests {
         let email_field = FieldDefinition::new("email", FieldType::String).with_encryption(
             FieldEncryptionConfig {
                 key_reference: "keys/email".to_string(),
-                algorithm: "AES-256-GCM".to_string(),
+                algorithm:     "AES-256-GCM".to_string(),
             },
         );
 
@@ -738,10 +738,10 @@ mod metadata_tests {
     #[test]
     fn is_empty_true_when_all_none() {
         let meta = FieldSecurityMetadata {
-            encrypted: None,
+            encrypted:      None,
             requires_scope: None,
-            on_deny: None,
-            requires_role: None,
+            on_deny:        None,
+            requires_role:  None,
         };
         assert!(meta.is_empty());
     }
@@ -749,10 +749,10 @@ mod metadata_tests {
     #[test]
     fn is_empty_false_when_any_some() {
         let meta = FieldSecurityMetadata {
-            encrypted: Some(true),
+            encrypted:      Some(true),
             requires_scope: None,
-            on_deny: None,
-            requires_role: None,
+            on_deny:        None,
+            requires_role:  None,
         };
         assert!(!meta.is_empty());
     }
@@ -840,8 +840,8 @@ mod query_tests {
     #[test]
     fn test_generate_warnings_deep() {
         let complexity = ComplexityInfo {
-            depth: 15,
-            complexity: 10,
+            depth:       15,
+            complexity:  10,
             alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
@@ -852,8 +852,8 @@ mod query_tests {
     #[test]
     fn test_generate_warnings_high_complexity() {
         let complexity = ComplexityInfo {
-            depth: 3,
-            complexity: 200,
+            depth:       3,
+            complexity:  200,
             alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
@@ -864,8 +864,8 @@ mod query_tests {
     #[test]
     fn test_generate_warnings_high_alias_count() {
         let complexity = ComplexityInfo {
-            depth: 2,
-            complexity: 5,
+            depth:       2,
+            complexity:  5,
             alias_count: 35,
         };
         let warnings = generate_warnings(&complexity);
@@ -875,8 +875,8 @@ mod query_tests {
     #[test]
     fn test_estimate_cost() {
         let complexity = ComplexityInfo {
-            depth: 2,
-            complexity: 3,
+            depth:       2,
+            complexity:  3,
             alias_count: 0,
         };
         let cost = estimate_cost(&complexity);
@@ -886,9 +886,9 @@ mod query_tests {
     #[test]
     fn test_stats_response_structure() {
         let response = StatsResponse {
-            total_queries: 100,
+            total_queries:      100,
             successful_queries: 95,
-            failed_queries: 5,
+            failed_queries:     5,
             average_latency_ms: 42.5,
         };
         assert_eq!(response.total_queries, 100);
@@ -900,18 +900,18 @@ mod query_tests {
     #[test]
     fn test_explain_response_structure() {
         let response = ExplainResponse {
-            query: "query { users { id } }".to_string(),
-            sql: Some("SELECT id FROM users".to_string()),
-            complexity: ComplexityInfo {
-                depth: 2,
-                complexity: 2,
+            query:          "query { users { id } }".to_string(),
+            sql:            Some("SELECT id FROM users".to_string()),
+            complexity:     ComplexityInfo {
+                depth:       2,
+                complexity:  2,
                 alias_count: 0,
             },
-            warnings: vec![],
+            warnings:       vec![],
             estimated_cost: 50,
             views_accessed: vec!["v_user".to_string()],
-            query_type: "regular".to_string(),
-            database_plan: None,
+            query_type:     "regular".to_string(),
+            database_plan:  None,
         };
 
         assert!(!response.query.is_empty());
@@ -931,7 +931,7 @@ mod query_tests {
     #[test]
     fn test_explain_request_structure() {
         let request = ExplainRequest {
-            query: "query { users { id } }".to_string(),
+            query:     "query { users { id } }".to_string(),
             variables: None,
         };
         assert!(!request.query.is_empty());
@@ -1360,10 +1360,10 @@ mod usage_tests {
         let usage = Arc::new(UsageAggregator::new());
         let event = |entity: &str| crate::usage::events::MutationAuditEvent {
             mutation_name: format!("create_{entity}"),
-            entity_type: entity.to_owned(),
-            operation: "create".to_owned(),
-            tenant_id: "acme".to_owned(),
-            period: "2026-05".to_owned(),
+            entity_type:   entity.to_owned(),
+            operation:     "create".to_owned(),
+            tenant_id:     "acme".to_owned(),
+            period:        "2026-05".to_owned(),
         };
         for _ in 0..3 {
             usage.record(&event("User"));
@@ -1416,10 +1416,10 @@ mod usage_tests {
         let usage = Arc::new(UsageAggregator::new());
         usage.record(&crate::usage::events::MutationAuditEvent {
             mutation_name: "create_user".to_owned(),
-            entity_type: "User".to_owned(),
-            operation: "create".to_owned(),
-            tenant_id: "acme".to_owned(),
-            period: "2026-04".to_owned(),
+            entity_type:   "User".to_owned(),
+            operation:     "create".to_owned(),
+            tenant_id:     "acme".to_owned(),
+            period:        "2026-04".to_owned(),
         });
 
         let router = make_router(usage);

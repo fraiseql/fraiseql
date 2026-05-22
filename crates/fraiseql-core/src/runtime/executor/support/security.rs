@@ -107,11 +107,11 @@ pub(in super::super) fn apply_field_rbac_filtering(
                 projection_fields,
             )
             .map_err(|rejected_field| FraiseQLError::Authorization {
-                message: format!(
+                message:  format!(
                     "Access denied: field '{rejected_field}' on type '{return_type}' \
                      requires a scope you do not have"
                 ),
-                action: Some("read".to_string()),
+                action:   Some("read".to_string()),
                 resource: Some(format!("{return_type}.{rejected_field}")),
             });
         }
@@ -119,6 +119,6 @@ pub(in super::super) fn apply_field_rbac_filtering(
 
     Ok(FieldAccessResult {
         allowed: projection_fields,
-        masked: Vec::new(),
+        masked:  Vec::new(),
     })
 }

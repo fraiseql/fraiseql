@@ -19,19 +19,19 @@ fn test_e2e_recovery_detects_pending_sagas() {
 
     let pending_id = Uuid::new_v4();
     store.save_saga(StoredSaga {
-        id: pending_id,
-        state: SagaState::Pending,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           pending_id,
+        state:        SagaState::Pending,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: None,
     });
 
     let completed_id = Uuid::new_v4();
     store.save_saga(StoredSaga {
-        id: completed_id,
-        state: SagaState::Completed,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           completed_id,
+        state:        SagaState::Completed,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: Some(Instant::now()),
     });
 
@@ -48,10 +48,10 @@ fn test_e2e_recovery_detects_stuck_executing() {
 
     let stuck_id = Uuid::new_v4();
     store.save_saga(StoredSaga {
-        id: stuck_id,
-        state: SagaState::Executing,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           stuck_id,
+        state:        SagaState::Executing,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: None,
     });
 
@@ -68,19 +68,19 @@ fn test_e2e_recovery_cleans_stale_completed() {
 
     for _ in 0..3 {
         store.save_saga(StoredSaga {
-            id: Uuid::new_v4(),
-            state: SagaState::Completed,
-            steps: vec![],
-            created_at: Instant::now(),
+            id:           Uuid::new_v4(),
+            state:        SagaState::Completed,
+            steps:        vec![],
+            created_at:   Instant::now(),
             completed_at: Some(Instant::now()),
         });
     }
 
     store.save_saga(StoredSaga {
-        id: Uuid::new_v4(),
-        state: SagaState::Pending,
-        steps: vec![],
-        created_at: Instant::now(),
+        id:           Uuid::new_v4(),
+        state:        SagaState::Pending,
+        steps:        vec![],
+        created_at:   Instant::now(),
         completed_at: None,
     });
 
@@ -106,12 +106,12 @@ fn test_e2e_multiple_sagas_execute_independently() {
 
     // Saga 1: single step, succeeds
     let saga1_steps = vec![SagaStepDef {
-        subgraph: "users".to_string(),
-        mutation_type: MutationType::Create,
-        typename: "User".to_string(),
-        mutation_name: "createUser".to_string(),
-        variables: json!({"id": "1"}),
-        behavior: StepBehavior::Succeed,
+        subgraph:              "users".to_string(),
+        mutation_type:         MutationType::Create,
+        typename:              "User".to_string(),
+        mutation_name:         "createUser".to_string(),
+        variables:             json!({"id": "1"}),
+        behavior:              StepBehavior::Succeed,
         compensation_behavior: CompensationBehavior::Succeed,
     }];
     let saga1_id = orchestrator.create_saga(saga1_steps).expect("Should create saga 1");
@@ -127,21 +127,21 @@ fn test_e2e_multiple_sagas_execute_independently() {
 
     let saga2_steps = vec![
         SagaStepDef {
-            subgraph: "orders".to_string(),
-            mutation_type: MutationType::Create,
-            typename: "Order".to_string(),
-            mutation_name: "createOrder".to_string(),
-            variables: json!({"id": "2"}),
-            behavior: StepBehavior::Succeed,
+            subgraph:              "orders".to_string(),
+            mutation_type:         MutationType::Create,
+            typename:              "Order".to_string(),
+            mutation_name:         "createOrder".to_string(),
+            variables:             json!({"id": "2"}),
+            behavior:              StepBehavior::Succeed,
             compensation_behavior: CompensationBehavior::Succeed,
         },
         SagaStepDef {
-            subgraph: "products".to_string(),
-            mutation_type: MutationType::Update,
-            typename: "Product".to_string(),
-            mutation_name: "updateProduct".to_string(),
-            variables: json!({"id": "3"}),
-            behavior: StepBehavior::Fail("saga2 failure".to_string()),
+            subgraph:              "products".to_string(),
+            mutation_type:         MutationType::Update,
+            typename:              "Product".to_string(),
+            mutation_name:         "updateProduct".to_string(),
+            variables:             json!({"id": "3"}),
+            behavior:              StepBehavior::Fail("saga2 failure".to_string()),
             compensation_behavior: CompensationBehavior::Succeed,
         },
     ];
@@ -153,12 +153,12 @@ fn test_e2e_multiple_sagas_execute_independently() {
     orchestrator.executor.set_behavior(0, StepBehavior::Succeed);
 
     let saga3_steps = vec![SagaStepDef {
-        subgraph: "payments".to_string(),
-        mutation_type: MutationType::Create,
-        typename: "Payment".to_string(),
-        mutation_name: "createPayment".to_string(),
-        variables: json!({"id": "4"}),
-        behavior: StepBehavior::Succeed,
+        subgraph:              "payments".to_string(),
+        mutation_type:         MutationType::Create,
+        typename:              "Payment".to_string(),
+        mutation_name:         "createPayment".to_string(),
+        variables:             json!({"id": "4"}),
+        behavior:              StepBehavior::Succeed,
         compensation_behavior: CompensationBehavior::Succeed,
     }];
     let saga3_id = orchestrator.create_saga(saga3_steps).expect("Should create saga 3");
@@ -208,12 +208,12 @@ fn test_e2e_saga_isolation_during_compensation() {
     // Saga 1: succeeds
     orchestrator.executor.set_behavior(0, StepBehavior::Succeed);
     let saga1_steps = vec![SagaStepDef {
-        subgraph: "users".to_string(),
-        mutation_type: MutationType::Create,
-        typename: "User".to_string(),
-        mutation_name: "createUser".to_string(),
-        variables: json!({"id": "1"}),
-        behavior: StepBehavior::Succeed,
+        subgraph:              "users".to_string(),
+        mutation_type:         MutationType::Create,
+        typename:              "User".to_string(),
+        mutation_name:         "createUser".to_string(),
+        variables:             json!({"id": "1"}),
+        behavior:              StepBehavior::Succeed,
         compensation_behavior: CompensationBehavior::Succeed,
     }];
     let saga1_id = orchestrator.create_saga(saga1_steps).expect("Should create saga 1");
@@ -227,21 +227,21 @@ fn test_e2e_saga_isolation_during_compensation() {
 
     let saga2_steps = vec![
         SagaStepDef {
-            subgraph: "orders".to_string(),
-            mutation_type: MutationType::Create,
-            typename: "Order".to_string(),
-            mutation_name: "createOrder".to_string(),
-            variables: json!({"id": "2"}),
-            behavior: StepBehavior::Succeed,
+            subgraph:              "orders".to_string(),
+            mutation_type:         MutationType::Create,
+            typename:              "Order".to_string(),
+            mutation_name:         "createOrder".to_string(),
+            variables:             json!({"id": "2"}),
+            behavior:              StepBehavior::Succeed,
             compensation_behavior: CompensationBehavior::Succeed,
         },
         SagaStepDef {
-            subgraph: "products".to_string(),
-            mutation_type: MutationType::Update,
-            typename: "Product".to_string(),
-            mutation_name: "updateProduct".to_string(),
-            variables: json!({"id": "3"}),
-            behavior: StepBehavior::Fail("fail".to_string()),
+            subgraph:              "products".to_string(),
+            mutation_type:         MutationType::Update,
+            typename:              "Product".to_string(),
+            mutation_name:         "updateProduct".to_string(),
+            variables:             json!({"id": "3"}),
+            behavior:              StepBehavior::Fail("fail".to_string()),
             compensation_behavior: CompensationBehavior::Succeed,
         },
     ];

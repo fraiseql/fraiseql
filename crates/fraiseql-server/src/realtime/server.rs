@@ -28,36 +28,36 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct RealtimeConfig {
     /// Maximum concurrent connections per security context hash (default: 10).
-    pub max_connections_per_context: usize,
+    pub max_connections_per_context:  usize,
     /// Interval between server heartbeat pings (default: 30s).
-    pub heartbeat_interval: Duration,
+    pub heartbeat_interval:           Duration,
     /// Disconnect after this duration of inactivity (default: 60s).
-    pub idle_timeout: Duration,
+    pub idle_timeout:                 Duration,
     /// Maximum subscriptions per entity across all connections (default: 10,000).
     pub max_subscriptions_per_entity: usize,
     /// Bounded channel capacity for the observer-to-pipeline event channel (default: 10,000).
-    pub event_channel_capacity: usize,
+    pub event_channel_capacity:       usize,
     /// How often to re-validate JWT tokens (default: same as `heartbeat_interval`).
     /// Per D14: check JWT on each heartbeat.
-    pub token_revalidation_interval: Duration,
+    pub token_revalidation_interval:  Duration,
     /// Consecutive per-connection delivery failures before kicking the client
     /// with close code 4002 "slow consumer" (default: 50).
-    pub max_consecutive_drops: usize,
+    pub max_consecutive_drops:        usize,
     /// Capacity of the per-connection event channel (default: 256).
-    pub connection_event_capacity: usize,
+    pub connection_event_capacity:    usize,
 }
 
 impl Default for RealtimeConfig {
     fn default() -> Self {
         Self {
-            max_connections_per_context: 10,
-            heartbeat_interval: Duration::from_secs(30),
-            idle_timeout: Duration::from_secs(60),
+            max_connections_per_context:  10,
+            heartbeat_interval:           Duration::from_secs(30),
+            idle_timeout:                 Duration::from_secs(60),
             max_subscriptions_per_entity: 10_000,
-            event_channel_capacity: 10_000,
-            token_revalidation_interval: Duration::from_secs(30),
-            max_consecutive_drops: 50,
-            connection_event_capacity: 256,
+            event_channel_capacity:       10_000,
+            token_revalidation_interval:  Duration::from_secs(30),
+            max_consecutive_drops:        50,
+            connection_event_capacity:    256,
         }
     }
 }
@@ -90,18 +90,18 @@ pub trait TokenValidator: Send + Sync + 'static {
 #[derive(Debug, Clone)]
 pub struct TokenInfo {
     /// User identifier (from JWT `sub` claim).
-    pub user_id: String,
+    pub user_id:      String,
     /// Security context hash for connection grouping.
     pub context_hash: u64,
     /// When the token expires (Unix timestamp in seconds).
-    pub expires_at: i64,
+    pub expires_at:   i64,
 }
 
 /// Shared state for the realtime `WebSocket` handler.
 #[derive(Clone)]
 pub struct RealtimeState {
     /// The realtime server instance.
-    pub server: Arc<RealtimeServer>,
+    pub server:    Arc<RealtimeServer>,
     /// Token validator for authenticating connections.
     pub validator: Arc<dyn TokenValidator>,
 }
@@ -109,13 +109,13 @@ pub struct RealtimeState {
 /// The realtime `WebSocket` server.
 pub struct RealtimeServer {
     /// Active connection manager.
-    pub(crate) connections: Arc<ConnectionManager>,
+    pub(crate) connections:    Arc<ConnectionManager>,
     /// Subscription manager for entity change subscriptions.
-    pub(crate) subscriptions: Arc<SubscriptionManager>,
+    pub(crate) subscriptions:  Arc<SubscriptionManager>,
     /// Set of entity names that accept realtime subscriptions.
     pub(crate) known_entities: HashSet<String>,
     /// Server configuration.
-    pub(crate) config: RealtimeConfig,
+    pub(crate) config:         RealtimeConfig,
 }
 
 impl RealtimeServer {

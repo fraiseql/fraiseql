@@ -78,7 +78,7 @@ impl WindowAllowlist {
                     "Field '{identifier}' is not a known {context} field for this window query. \
                      Only fields declared in the compiled schema are permitted."
                 ),
-                path: None,
+                path:    None,
             })
         }
     }

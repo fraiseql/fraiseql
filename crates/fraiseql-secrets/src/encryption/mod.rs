@@ -293,8 +293,8 @@ const VERSION_PREFIX_SIZE: usize = 2;
 /// 6. Once migration is complete, remove the fallback.
 pub struct VersionedFieldEncryption {
     primary_version: KeyVersion,
-    primary: FieldEncryption,
-    fallbacks: Vec<(KeyVersion, FieldEncryption)>,
+    primary:         FieldEncryption,
+    fallbacks:       Vec<(KeyVersion, FieldEncryption)>,
 }
 
 impl VersionedFieldEncryption {

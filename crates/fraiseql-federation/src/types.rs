@@ -269,7 +269,7 @@ impl EntityRepresentation {
     pub fn from_any(value: &Value) -> Result<Self> {
         let obj = value.as_object().ok_or_else(|| FraiseQLError::Validation {
             message: "Entity representation must be a JSON object".to_string(),
-            path: None,
+            path:    None,
         })?;
 
         let typename = obj
@@ -277,7 +277,7 @@ impl EntityRepresentation {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "__typename field is required in entity representation".to_string(),
-                path: None,
+                path:    None,
             })?
             .to_string();
 
@@ -331,7 +331,7 @@ pub enum ResolutionStrategy {
     /// Entity is owned by this subgraph, resolve locally
     Local {
         /// View or table name to query
-        view_name: String,
+        view_name:   String,
         /// Columns that form the key
         key_columns: Vec<String>,
     },
@@ -341,7 +341,7 @@ pub enum ResolutionStrategy {
         /// Connection string or identifier
         connection_string: String,
         /// Key columns for WHERE clause
-        key_columns: Vec<String>,
+        key_columns:       Vec<String>,
     },
 
     /// Resolve via HTTP to external subgraph
@@ -408,7 +408,7 @@ impl FederationResolver {
             self.metadata.types.iter().find(|t| t.name == typename).ok_or_else(|| {
                 FraiseQLError::Validation {
                     message: format!("Type {typename} not found in federation metadata"),
-                    path: None,
+                    path:    None,
                 }
             })?;
 
@@ -424,7 +424,7 @@ impl FederationResolver {
             let key_cols = fed_type.keys.first().map(|k| k.fields.clone()).unwrap_or_default();
 
             ResolutionStrategy::Local {
-                view_name: format!("{}_federation_view", typename),
+                view_name:   format!("{}_federation_view", typename),
                 key_columns: key_cols,
             }
         };

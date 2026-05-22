@@ -22,36 +22,36 @@ use serde_json::json;
 /// Mock trace context for testing distributed tracing
 #[derive(Debug, Clone)]
 struct TestTraceContext {
-    trace_id: String,
+    trace_id:       String,
     parent_span_id: String,
-    spans: Arc<Mutex<Vec<TestSpan>>>,
+    spans:          Arc<Mutex<Vec<TestSpan>>>,
 }
 
 /// Mock span for testing
 #[derive(Debug, Clone)]
 struct TestSpan {
-    name: String,
-    span_id: String,
+    name:            String,
+    span_id:         String,
     _parent_span_id: String,
-    trace_id: String,
-    start_time: Instant,
-    duration_us: u64,
-    attributes: HashMap<String, String>,
+    trace_id:        String,
+    start_time:      Instant,
+    duration_us:     u64,
+    attributes:      HashMap<String, String>,
 }
 
 /// Mock metrics collector for testing
 #[derive(Debug, Clone, Default)]
 struct TestMetricsCollector {
-    entity_resolutions_total: Arc<Mutex<u64>>,
-    entity_resolutions_errors: Arc<Mutex<u64>>,
+    entity_resolutions_total:    Arc<Mutex<u64>>,
+    entity_resolutions_errors:   Arc<Mutex<u64>>,
     entity_resolution_durations: Arc<Mutex<Vec<u64>>>,
-    subgraph_requests_total: Arc<Mutex<u64>>,
-    subgraph_requests_errors: Arc<Mutex<u64>>,
-    subgraph_request_durations: Arc<Mutex<Vec<u64>>>,
-    mutations_total: Arc<Mutex<u64>>,
-    mutations_errors: Arc<Mutex<u64>>,
-    cache_hits: Arc<Mutex<u64>>,
-    cache_misses: Arc<Mutex<u64>>,
+    subgraph_requests_total:     Arc<Mutex<u64>>,
+    subgraph_requests_errors:    Arc<Mutex<u64>>,
+    subgraph_request_durations:  Arc<Mutex<Vec<u64>>>,
+    mutations_total:             Arc<Mutex<u64>>,
+    mutations_errors:            Arc<Mutex<u64>>,
+    cache_hits:                  Arc<Mutex<u64>>,
+    cache_misses:                Arc<Mutex<u64>>,
 }
 
 impl TestMetricsCollector {
@@ -113,11 +113,11 @@ impl TestMetricsCollector {
 #[derive(Debug, Clone)]
 struct TestLogEntry {
     timestamp: Instant,
-    level: String,
-    message: String,
-    query_id: String,
-    trace_id: String,
-    context: serde_json::Value,
+    level:     String,
+    message:   String,
+    query_id:  String,
+    trace_id:  String,
+    context:   serde_json::Value,
 }
 
 /// Mock log collector for testing
@@ -168,8 +168,8 @@ impl TestLogCollector {
 /// Mock federation executor for testing
 struct TestFederationExecutor {
     trace_context: TestTraceContext,
-    metrics: TestMetricsCollector,
-    logs: TestLogCollector,
+    metrics:       TestMetricsCollector,
+    logs:          TestLogCollector,
 }
 
 impl TestFederationExecutor {
@@ -181,8 +181,8 @@ impl TestFederationExecutor {
                 parent_span_id: format!("{:016x}", 1u64),
                 spans,
             },
-            metrics: TestMetricsCollector::new(),
-            logs: TestLogCollector::new(),
+            metrics:       TestMetricsCollector::new(),
+            logs:          TestLogCollector::new(),
         }
     }
 
@@ -570,11 +570,11 @@ fn test_structured_logging_json_serialization() {
 
     let log_entry = TestLogEntry {
         timestamp: Instant::now(),
-        level: "info".to_string(),
-        message: "Entity resolution completed".to_string(),
-        query_id: "query_123".to_string(),
-        trace_id: "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
-        context: json!({
+        level:     "info".to_string(),
+        message:   "Entity resolution completed".to_string(),
+        query_id:  "query_123".to_string(),
+        trace_id:  "4bf92f3577b34da6a3ce929d0e0e4736".to_string(),
+        context:   json!({
             "operation_type": "entity_resolution",
             "status": "success",
             "duration_ms": 32.5,
@@ -617,15 +617,15 @@ fn parse_traceparent(header: &str) -> Option<TraceparentHeader> {
     }
 
     Some(TraceparentHeader {
-        trace_id: parts[1].to_string(),
+        trace_id:       parts[1].to_string(),
         parent_span_id: parts[2].to_string(),
-        _trace_flags: parts[3].to_string(),
+        _trace_flags:   parts[3].to_string(),
     })
 }
 
 #[derive(Debug)]
 struct TraceparentHeader {
-    trace_id: String,
+    trace_id:       String,
     parent_span_id: String,
-    _trace_flags: String,
+    _trace_flags:   String,
 }

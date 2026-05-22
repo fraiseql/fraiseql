@@ -35,7 +35,7 @@ const MAX_BULK_INSERT_ITEMS: usize = 1_000;
 
 /// Operation-specific parameters for filter-based bulk operations.
 struct BulkFilterOp<'a> {
-    operation: &'a str,
+    operation:          &'a str,
     missing_filter_msg: &'a str,
 }
 
@@ -45,9 +45,9 @@ struct BulkFilterOp<'a> {
 
 /// Handles bulk operations for the REST transport.
 pub struct BulkHandler<'a, A: DatabaseAdapter> {
-    executor: &'a Arc<Executor<A>>,
-    schema: &'a CompiledSchema,
-    config: &'a RestConfig,
+    executor:    &'a Arc<Executor<A>>,
+    schema:      &'a CompiledSchema,
+    config:      &'a RestConfig,
     route_table: &'a RestRouteTable,
 }
 
@@ -140,9 +140,9 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             let refs: Vec<&str> = applied.iter().map(String::as_str).collect();
             set_preference_applied(&mut response_headers, &refs);
             Ok(RestResponse {
-                status: StatusCode::CREATED,
+                status:  StatusCode::CREATED,
                 headers: response_headers,
-                body: None,
+                body:    None,
             })
         } else {
             // Parse and collect entity data from results
@@ -168,9 +168,9 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             set_preference_applied(&mut response_headers, &refs);
 
             Ok(RestResponse {
-                status: StatusCode::CREATED,
+                status:  StatusCode::CREATED,
                 headers: response_headers,
-                body: Some(json!(entities)),
+                body:    Some(json!(entities)),
             })
         }
     }
@@ -197,7 +197,7 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             headers,
             security_context,
             BulkFilterOp {
-                operation: "update",
+                operation:          "update",
                 missing_filter_msg: "Bulk update requires at least one filter parameter",
             },
         )
@@ -226,7 +226,7 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             headers,
             security_context,
             BulkFilterOp {
-                operation: "delete",
+                operation:          "delete",
                 missing_filter_msg: "Bulk delete requires at least one filter parameter",
             },
         )
@@ -429,9 +429,9 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             set_preference_applied(&mut response_headers, &applied);
 
             Ok(RestResponse {
-                status: StatusCode::OK,
+                status:  StatusCode::OK,
                 headers: response_headers,
-                body: Some(json!(entities)),
+                body:    Some(json!(entities)),
             })
         } else if prefer.return_minimal || bulk_result.affected_rows == 0 {
             if prefer.return_minimal {
@@ -439,16 +439,16 @@ impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
             }
             set_preference_applied(&mut response_headers, &applied);
             Ok(RestResponse {
-                status: StatusCode::NO_CONTENT,
+                status:  StatusCode::NO_CONTENT,
                 headers: response_headers,
-                body: None,
+                body:    None,
             })
         } else {
             set_preference_applied(&mut response_headers, &applied);
             Ok(RestResponse {
-                status: StatusCode::OK,
+                status:  StatusCode::OK,
                 headers: response_headers,
-                body: None,
+                body:    None,
             })
         }
     }

@@ -149,11 +149,11 @@ mod runtime_tests {
     #[test]
     fn test_runtime_health_default() {
         let health = RuntimeHealth {
-            running: false,
-            observer_count: 0,
-            last_checkpoint: None,
+            running:          false,
+            observer_count:   0,
+            last_checkpoint:  None,
             events_processed: 0,
-            errors: 0,
+            errors:           0,
         };
         assert!(!health.running);
         assert_eq!(health.observer_count, 0);

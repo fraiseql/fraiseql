@@ -152,9 +152,9 @@ fn test_append_order_by_datetime_cast_postgres() {
 fn test_append_order_by_native_column() {
     let mut sql = "SELECT data FROM tv_user".to_string();
     let clause = OrderByClause {
-        field: "createdAt".to_string(),
-        direction: OrderDirection::Desc,
-        field_type: crate::types::sql_hints::OrderByFieldType::DateTime,
+        field:         "createdAt".to_string(),
+        direction:     OrderDirection::Desc,
+        field_type:    crate::types::sql_hints::OrderByFieldType::DateTime,
         native_column: Some("created_at".to_string()),
     };
     let appended = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL).unwrap();
@@ -170,9 +170,9 @@ fn test_append_order_by_mixed_native_and_jsonb() {
     let mut sql = "SELECT data FROM tv_user".to_string();
     let clauses = [
         OrderByClause {
-            field: "createdAt".to_string(),
-            direction: OrderDirection::Desc,
-            field_type: OrderByFieldType::DateTime,
+            field:         "createdAt".to_string(),
+            direction:     OrderDirection::Desc,
+            field_type:    OrderByFieldType::DateTime,
             native_column: Some("created_at".to_string()),
         },
         {

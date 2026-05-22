@@ -657,8 +657,8 @@ fn test_field_type_vector_sql_type() {
 #[test]
 fn test_vector_config_serialization() {
     let config = VectorConfig {
-        dimensions: 1536,
-        index_type: VectorIndexType::Hnsw,
+        dimensions:      1536,
+        index_type:      VectorIndexType::Hnsw,
         distance_metric: DistanceMetric::Cosine,
     };
 
@@ -1093,7 +1093,7 @@ fn tenancy_config_default_values() {
 #[test]
 fn tenancy_config_serde_round_trip() {
     let config = TenancyConfig {
-        mode: TenancyMode::Row,
+        mode:         TenancyMode::Row,
         tenant_claim: "org_id".to_string(),
     };
     let json = serde_json::to_string(&config).unwrap();
@@ -1136,7 +1136,7 @@ fn security_config_tenancy_skipped_when_default() {
 fn security_config_tenancy_present_when_non_default() {
     let config = SecurityConfig {
         tenancy: TenancyConfig {
-            mode: TenancyMode::Row,
+            mode:         TenancyMode::Row,
             tenant_claim: "tenant_id".to_string(),
         },
         ..SecurityConfig::default()
@@ -1150,7 +1150,7 @@ fn security_config_tenancy_present_when_non_default() {
 fn security_config_with_tenancy_round_trip() {
     let config = SecurityConfig {
         tenancy: TenancyConfig {
-            mode: TenancyMode::Schema,
+            mode:         TenancyMode::Schema,
             tenant_claim: "org_id".to_string(),
         },
         ..SecurityConfig::default()
@@ -1398,7 +1398,7 @@ fn test_field_with_encryption_builder() {
     let field =
         FieldDefinition::new("email", FieldType::String).with_encryption(FieldEncryptionConfig {
             key_reference: "keys/email".to_string(),
-            algorithm: "AES-256-GCM".to_string(),
+            algorithm:     "AES-256-GCM".to_string(),
         });
     assert!(field.is_encrypted());
     assert_eq!(field.encryption.unwrap().key_reference, "keys/email");
@@ -1409,7 +1409,7 @@ fn test_field_encryption_roundtrip_serialization() {
     let field =
         FieldDefinition::new("email", FieldType::String).with_encryption(FieldEncryptionConfig {
             key_reference: "keys/email".to_string(),
-            algorithm: "AES-256-GCM".to_string(),
+            algorithm:     "AES-256-GCM".to_string(),
         });
     let json = serde_json::to_string(&field).unwrap();
     let deserialized: FieldDefinition = serde_json::from_str(&json).unwrap();
@@ -1486,9 +1486,9 @@ fn test_federation_config_serde() {
 fn test_entity_override() {
     let config = CircuitBreakerConfig {
         per_entity: vec![EntityCircuitBreakerOverride {
-            entity: "Product".to_string(),
+            entity:            "Product".to_string(),
             failure_threshold: Some(2),
-            recovery_timeout: None,
+            recovery_timeout:  None,
             success_threshold: None,
         }],
         ..Default::default()
@@ -1501,12 +1501,12 @@ fn test_entity_override() {
 #[test]
 fn test_roundtrip_serialization() {
     let config = FederationConfig {
-        enabled: true,
-        version: Some("v2".to_string()),
-        service_name: Some("my-service".to_string()),
-        schema_url: None,
-        entities: vec![FederationEntity {
-            name: "User".to_string(),
+        enabled:         true,
+        version:         Some("v2".to_string()),
+        service_name:    Some("my-service".to_string()),
+        schema_url:      None,
+        entities:        vec![FederationEntity {
+            name:       "User".to_string(),
             key_fields: vec!["id".to_string()],
         }],
         circuit_breaker: Some(CircuitBreakerConfig::default()),

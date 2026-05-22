@@ -11,20 +11,20 @@ use serde_json::json;
 /// HTTP response with status, headers, and optional body.
 pub struct RestResponse {
     /// HTTP status code.
-    pub status: StatusCode,
+    pub status:  StatusCode,
     /// Response headers.
     pub headers: axum::http::HeaderMap,
     /// Response body (None for 204 No Content).
-    pub body: Option<serde_json::Value>,
+    pub body:    Option<serde_json::Value>,
 }
 
 /// REST-specific error with HTTP status code.
 #[derive(Debug)]
 pub struct RestError {
     /// HTTP status code.
-    pub status: StatusCode,
+    pub status:  StatusCode,
     /// Error code string.
-    pub code: &'static str,
+    pub code:    &'static str,
     /// Human-readable error message.
     pub message: String,
     /// Structured details for field-level errors.
@@ -35,8 +35,8 @@ impl RestError {
     /// 400 Bad Request.
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self {
-            status: StatusCode::BAD_REQUEST,
-            code: "BAD_REQUEST",
+            status:  StatusCode::BAD_REQUEST,
+            code:    "BAD_REQUEST",
             message: message.into(),
             details: None,
         }
@@ -46,8 +46,8 @@ impl RestError {
     #[must_use]
     pub fn forbidden() -> Self {
         Self {
-            status: StatusCode::FORBIDDEN,
-            code: "FORBIDDEN",
+            status:  StatusCode::FORBIDDEN,
+            code:    "FORBIDDEN",
             message: "Access denied".to_string(),
             details: None,
         }
@@ -56,8 +56,8 @@ impl RestError {
     /// 404 Not Found.
     pub fn not_found(message: impl Into<String>) -> Self {
         Self {
-            status: StatusCode::NOT_FOUND,
-            code: "NOT_FOUND",
+            status:  StatusCode::NOT_FOUND,
+            code:    "NOT_FOUND",
             message: message.into(),
             details: None,
         }
@@ -66,8 +66,8 @@ impl RestError {
     /// 422 Unprocessable Entity.
     pub fn unprocessable_entity(message: impl Into<String>, details: serde_json::Value) -> Self {
         Self {
-            status: StatusCode::UNPROCESSABLE_ENTITY,
-            code: "UNPROCESSABLE_ENTITY",
+            status:  StatusCode::UNPROCESSABLE_ENTITY,
+            code:    "UNPROCESSABLE_ENTITY",
             message: message.into(),
             details: Some(details),
         }
@@ -76,8 +76,8 @@ impl RestError {
     /// 500 Internal Server Error.
     pub fn internal(message: impl Into<String>) -> Self {
         Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            code: "INTERNAL_SERVER_ERROR",
+            status:  StatusCode::INTERNAL_SERVER_ERROR,
+            code:    "INTERNAL_SERVER_ERROR",
             message: message.into(),
             details: None,
         }
@@ -108,8 +108,8 @@ impl From<FraiseQLError> for RestError {
             | FraiseQLError::UnknownType { .. } => Self::bad_request(err.to_string()),
             FraiseQLError::Authorization { .. } => Self::forbidden(),
             FraiseQLError::Authentication { .. } => Self {
-                status: StatusCode::UNAUTHORIZED,
-                code: "UNAUTHENTICATED",
+                status:  StatusCode::UNAUTHORIZED,
+                code:    "UNAUTHENTICATED",
                 message: "Authentication required".to_string(),
                 details: None,
             },

@@ -28,11 +28,11 @@ use tokio::{net::TcpListener, task::JoinHandle};
 /// Test server configuration
 pub struct TestServerConfig {
     /// Bind address
-    pub bind_addr: String,
+    pub bind_addr:    String,
     /// Database URL
     pub database_url: String,
     /// Schema path
-    pub schema_path: String,
+    pub schema_path:  String,
 }
 
 impl TestServerConfig {
@@ -40,10 +40,10 @@ impl TestServerConfig {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            bind_addr: "127.0.0.1:0".to_string(), // Random port
+            bind_addr:    "127.0.0.1:0".to_string(), // Random port
             database_url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgresql:///fraiseql_test".to_string()),
-            schema_path: "schema.compiled.json".to_string(),
+            schema_path:  "schema.compiled.json".to_string(),
         }
     }
 
@@ -71,11 +71,11 @@ impl Default for TestServerConfig {
 /// Test server handle
 pub struct TestServer {
     /// Server port
-    pub port: u16,
+    pub port:     u16,
     /// Base URL
     pub base_url: String,
     /// Server task handle
-    _handle: Option<JoinHandle<()>>,
+    _handle:      Option<JoinHandle<()>>,
 }
 
 impl TestServer {

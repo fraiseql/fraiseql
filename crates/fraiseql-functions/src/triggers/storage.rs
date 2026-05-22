@@ -55,17 +55,17 @@ impl StorageOperation {
 #[derive(Debug, Clone)]
 pub struct StorageEventPayload {
     /// Bucket name.
-    pub bucket: String,
+    pub bucket:       String,
     /// Object key/path.
-    pub key: String,
+    pub key:          String,
     /// Object size in bytes.
-    pub size_bytes: i64,
+    pub size_bytes:   i64,
     /// MIME type of the object.
     pub content_type: String,
     /// User ID of the owner (if applicable).
-    pub owner_id: Option<String>,
+    pub owner_id:     Option<String>,
     /// Operation that triggered the event.
-    pub operation: StorageOperation,
+    pub operation:    StorageOperation,
 }
 
 /// A trigger that fires after storage operations.
@@ -74,9 +74,9 @@ pub struct StorageTrigger {
     /// Name of the function to invoke.
     pub function_name: String,
     /// Bucket name to listen on.
-    pub bucket: String,
+    pub bucket:        String,
     /// Operation filter (Upload, Delete, or Any).
-    pub operation: StorageOperation,
+    pub operation:     StorageOperation,
 }
 
 impl StorageTrigger {

@@ -118,7 +118,7 @@ async fn apply_ddl(port: u16) {
 /// Reusable in-process server started from a compiled schema and a live
 /// PostgreSQL adapter.  Shuts down when dropped.
 struct TestPipeline {
-    pub url: String,
+    pub url:   String,
     _shutdown: oneshot::Sender<()>,
     // Keep the temp directory alive for the full test lifetime.
     _fixtures: TempDir,
@@ -163,7 +163,7 @@ impl TestPipeline {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         Self {
-            url: format!("http://127.0.0.1:{port}"),
+            url:       format!("http://127.0.0.1:{port}"),
             _shutdown: tx,
             _fixtures: fixtures,
         }

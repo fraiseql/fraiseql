@@ -3,16 +3,16 @@ use super::*;
 #[test]
 fn serializes_to_expected_json_fields() {
     let entry = QueryStatEntry {
-        query_id: "12345".to_string(),
-        query_text: "SELECT * FROM users WHERE id = $1".to_string(),
-        calls: 42,
+        query_id:           "12345".to_string(),
+        query_text:         "SELECT * FROM users WHERE id = $1".to_string(),
+        calls:              42,
         total_exec_time_ms: 100.5,
-        mean_exec_time_ms: 2.39,
-        min_exec_time_ms: 0.8,
-        max_exec_time_ms: 15.2,
-        rows_returned: 42,
-        cache_hit_ratio: Some(0.95),
-        database_specific: serde_json::json!({"shared_blks_hit": 1024}),
+        mean_exec_time_ms:  2.39,
+        min_exec_time_ms:   0.8,
+        max_exec_time_ms:   15.2,
+        rows_returned:      42,
+        cache_hit_ratio:    Some(0.95),
+        database_specific:  serde_json::json!({"shared_blks_hit": 1024}),
     };
 
     let json = serde_json::to_value(&entry).unwrap();

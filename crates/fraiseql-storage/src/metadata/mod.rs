@@ -18,38 +18,38 @@ pub struct StorageMetadataRow {
     /// Primary key.
     pub pk_storage_object: i64,
     /// Bucket name.
-    pub bucket: String,
+    pub bucket:            String,
     /// Object key (path within bucket).
-    pub key: String,
+    pub key:               String,
     /// MIME content type.
-    pub content_type: String,
+    pub content_type:      String,
     /// Object size in bytes.
-    pub size_bytes: i64,
+    pub size_bytes:        i64,
     /// Entity tag for integrity verification.
-    pub etag: Option<String>,
+    pub etag:              Option<String>,
     /// Owner identifier (user sub claim).
-    pub owner_id: Option<String>,
+    pub owner_id:          Option<String>,
     /// Row creation time.
-    pub created_at: DateTime<Utc>,
+    pub created_at:        DateTime<Utc>,
     /// Last update time.
-    pub updated_at: DateTime<Utc>,
+    pub updated_at:        DateTime<Utc>,
 }
 
 /// Data required to insert a new storage object record.
 #[derive(Debug, Clone)]
 pub struct NewStorageObject {
     /// Bucket name.
-    pub bucket: String,
+    pub bucket:       String,
     /// Object key (path within bucket).
-    pub key: String,
+    pub key:          String,
     /// MIME content type.
     pub content_type: String,
     /// Object size in bytes.
-    pub size_bytes: i64,
+    pub size_bytes:   i64,
     /// Entity tag for integrity verification.
-    pub etag: Option<String>,
+    pub etag:         Option<String>,
     /// Owner identifier (user sub claim).
-    pub owner_id: Option<String>,
+    pub owner_id:     Option<String>,
 }
 
 /// Storage metadata repository backed by PostgreSQL.
@@ -87,7 +87,7 @@ impl StorageMetadataRepo {
         .await
         .map_err(|e| FraiseQLError::Storage {
             message: e.to_string(),
-            code: None,
+            code:    None,
         })?;
 
         Ok(pk)
@@ -115,7 +115,7 @@ impl StorageMetadataRepo {
         .await
         .map_err(|e| FraiseQLError::Storage {
             message: e.to_string(),
-            code: None,
+            code:    None,
         })?;
 
         Ok(row.map(Into::into))
@@ -137,7 +137,7 @@ impl StorageMetadataRepo {
                 .await
                 .map_err(|e| FraiseQLError::Storage {
                     message: e.to_string(),
-                    code: None,
+                    code:    None,
                 })?;
 
         Ok(result.rows_affected() > 0)
@@ -192,7 +192,7 @@ impl StorageMetadataRepo {
         }
         .map_err(|e| FraiseQLError::Storage {
             message: e.to_string(),
-            code: None,
+            code:    None,
         })?;
 
         Ok(rows.into_iter().map(Into::into).collect())
@@ -227,7 +227,7 @@ impl StorageMetadataRepo {
         .await
         .map_err(|e| FraiseQLError::Storage {
             message: e.to_string(),
-            code: None,
+            code:    None,
         })?;
 
         Ok(pk)
@@ -245,28 +245,28 @@ impl StorageMetadataRepo {
 #[derive(sqlx::FromRow)]
 struct MetadataQueryRow {
     pk_storage_object: i64,
-    bucket: String,
-    key: String,
-    content_type: String,
-    size_bytes: i64,
-    etag: Option<String>,
-    owner_id: Option<String>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
+    bucket:            String,
+    key:               String,
+    content_type:      String,
+    size_bytes:        i64,
+    etag:              Option<String>,
+    owner_id:          Option<String>,
+    created_at:        DateTime<Utc>,
+    updated_at:        DateTime<Utc>,
 }
 
 impl From<MetadataQueryRow> for StorageMetadataRow {
     fn from(row: MetadataQueryRow) -> Self {
         Self {
             pk_storage_object: row.pk_storage_object,
-            bucket: row.bucket,
-            key: row.key,
-            content_type: row.content_type,
-            size_bytes: row.size_bytes,
-            etag: row.etag,
-            owner_id: row.owner_id,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
+            bucket:            row.bucket,
+            key:               row.key,
+            content_type:      row.content_type,
+            size_bytes:        row.size_bytes,
+            etag:              row.etag,
+            owner_id:          row.owner_id,
+            created_at:        row.created_at,
+            updated_at:        row.updated_at,
         }
     }
 }
@@ -278,10 +278,10 @@ impl From<MetadataQueryRow> for StorageMetadataRow {
 impl From<&StorageMetadataRow> for ObjectInfo {
     fn from(row: &StorageMetadataRow) -> Self {
         Self {
-            key: row.key.clone(),
-            size: row.size_bytes.max(0) as u64,
-            content_type: row.content_type.clone(),
-            etag: row.etag.clone().unwrap_or_default(),
+            key:           row.key.clone(),
+            size:          row.size_bytes.max(0) as u64,
+            content_type:  row.content_type.clone(),
+            etag:          row.etag.clone().unwrap_or_default(),
             last_modified: row.updated_at.to_rfc3339(),
         }
     }

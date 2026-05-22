@@ -10,11 +10,11 @@ fn temp_service(
     let tmpdir = TempDir::new().expect("create tempdir");
     let backend = StorageBackend::Local(LocalBackend::new(tmpdir.path().to_str().unwrap()));
     let config = BucketConfig {
-        name: "test".to_string(),
-        max_object_bytes: max_size,
+        name:               "test".to_string(),
+        max_object_bytes:   max_size,
         allowed_mime_types: allowed_types,
-        access: BucketAccess::Private,
-        transform_presets: None,
+        access:             BucketAccess::Private,
+        transform_presets:  None,
     };
     (BucketService::new(backend, config), tmpdir)
 }

@@ -29,11 +29,11 @@ impl FromStr for ExportFormat {
             #[cfg(feature = "parquet")]
             "parquet" => Ok(Self::Parquet),
             #[cfg(not(feature = "parquet"))]
-            "parquet" => Err(
-                "Parquet export requires the `parquet` Cargo feature (disabled by default due \
+            "parquet" => {
+                Err("Parquet export requires the `parquet` Cargo feature (disabled by default due \
                  to CVE-2026-43868 in transitive thrift dep)"
-                    .into(),
-            ),
+                    .into())
+            },
             "csv" => Ok(Self::Csv),
             "json" => Ok(Self::Json),
             _ => Err(format!("Unsupported export format: {}", s)),
@@ -190,9 +190,9 @@ impl BulkExporter {
 #[derive(Debug, Clone)]
 pub struct BatchStats {
     /// Number of rows
-    pub num_rows: usize,
+    pub num_rows:     usize,
     /// Number of columns
-    pub num_columns: usize,
+    pub num_columns:  usize,
     /// Approximate memory usage in bytes
     pub memory_bytes: usize,
 }

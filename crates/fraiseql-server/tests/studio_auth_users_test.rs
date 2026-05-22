@@ -8,9 +8,9 @@ use fraiseql_server::routes::studio::auth_users::{UserInviteRequest, UserListRes
 #[test]
 fn test_user_list_response_shape() {
     let resp = UserListResponse {
-        users: vec![],
-        total: 0,
-        page: 1,
+        users:     vec![],
+        total:     0,
+        page:      1,
         page_size: 50,
     };
     let json = serde_json::to_string(&resp).unwrap();

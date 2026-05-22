@@ -44,8 +44,8 @@ fn bench_subscription_fanout_lookup(c: &mut Criterion) {
         let mgr = SubscriptionManager::new(20_000);
         for i in 0..n {
             let details = SubscriptionDetails {
-                event_filter: None,
-                field_filters: vec![],
+                event_filter:          None,
+                field_filters:         vec![],
                 security_context_hash: u64::try_from(i % 10).unwrap(),
             };
             let conn_id = format!("conn-{i}");
@@ -66,10 +66,10 @@ fn bench_context_hash(c: &mut Criterion) {
     c.bench_function("realtime_context_hash", |b| {
         b.iter(|| {
             security_context_hash(black_box(&SecurityContextHashInput {
-                user_id: "user-12345",
-                roles: &roles,
+                user_id:   "user-12345",
+                roles:     &roles,
                 tenant_id: Some("tenant-abc"),
-                scopes: &scopes,
+                scopes:    &scopes,
             }))
         });
     });

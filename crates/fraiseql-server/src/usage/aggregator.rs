@@ -125,13 +125,7 @@ pub struct UsageSummary {
 /// use fraiseql_server::usage::events::MutationAuditEvent;
 ///
 /// let agg = Arc::new(UsageAggregator::new());
-/// let event = MutationAuditEvent {
-///     mutation_name: "create_user".to_owned(),
-///     entity_type:   "User".to_owned(),
-///     operation:     "create".to_owned(),
-///     tenant_id:     "acme".to_owned(),
-///     period:        "2026-05".to_owned(),
-/// };
+/// let event = MutationAuditEvent::new("create_user", "User", "create", "acme", "2026-05");
 /// agg.record(&event);
 /// let summary = agg.query("acme", "2026-05");
 /// assert_eq!(summary.mutations["User"], 1);
@@ -145,7 +139,7 @@ pub struct UsageAggregator {
     /// (e.g. to upgrade from `NoopBackend` to `PostgresBackend` once the DB pool
     /// is available at server startup, after the tracing subscriber has already
     /// taken a reference via [`global_aggregator`]).
-    backend: std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
+    backend:  std::sync::RwLock<std::sync::Arc<dyn UsageBackend>>,
 }
 
 impl std::fmt::Debug for UsageAggregator {
@@ -162,7 +156,7 @@ impl UsageAggregator {
     pub fn new() -> Self {
         Self {
             counters: DashMap::new(),
-            backend: std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
+            backend:  std::sync::RwLock::new(std::sync::Arc::new(NoopBackend)),
         }
     }
 
@@ -171,7 +165,7 @@ impl UsageAggregator {
     pub fn new_with_backend(backend: std::sync::Arc<dyn UsageBackend>) -> Self {
         Self {
             counters: DashMap::new(),
-            backend: std::sync::RwLock::new(backend),
+            backend:  std::sync::RwLock::new(backend),
         }
     }
 

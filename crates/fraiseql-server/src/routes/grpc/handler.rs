@@ -41,11 +41,11 @@ pub enum RpcKind {
     /// A read query against a row-shaped view (`vr_*`).
     Query {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name: String,
+        view_name:      String,
         /// Whether this RPC returns a list.
-        returns_list: bool,
+        returns_list:   bool,
         /// Column specs for the row-shaped view.
-        columns: Vec<ColumnSpec>,
+        columns:        Vec<ColumnSpec>,
         /// Inner row message descriptor (the repeated element for list queries,
         /// or the single message for get queries).
         row_descriptor: MessageDescriptor,
@@ -57,9 +57,9 @@ pub enum RpcKind {
     /// individually as gRPC frames.
     ServerStream {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name: String,
+        view_name:      String,
         /// Column specs for the row-shaped view.
-        columns: Vec<ColumnSpec>,
+        columns:        Vec<ColumnSpec>,
         /// Row message descriptor (the entity type, e.g., `User`).
         row_descriptor: MessageDescriptor,
     },
@@ -74,11 +74,11 @@ pub enum RpcKind {
 #[derive(Debug, Clone)]
 pub struct RpcOperation {
     /// Operation name in the compiled schema (query or mutation name).
-    pub operation_name: String,
+    pub operation_name:      String,
     /// GraphQL type name (e.g., `"User"`).
-    pub type_name: String,
+    pub type_name:           String,
     /// What kind of RPC this is (query or mutation).
-    pub kind: RpcKind,
+    pub kind:                RpcKind,
     /// Response message descriptor for encoding results.
     pub response_descriptor: MessageDescriptor,
 }
@@ -95,6 +95,7 @@ pub type RpcDispatchTable = HashMap<String, RpcOperation>;
 ///
 /// Returns `None` for non-scalar types (Object, List, Interface, Union) that
 /// cannot be directly represented as a single database column.
+#[must_use]
 pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnType> {
     match ft {
         FieldType::String | FieldType::Scalar(_) | FieldType::Decimal | FieldType::Time => {
@@ -115,13 +116,14 @@ pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnTy
 }
 
 /// Build [`ColumnSpec`] list from a type definition's scalar fields.
+#[must_use]
 pub fn column_specs_from_type(type_def: &TypeDefinition) -> Vec<ColumnSpec> {
     type_def
         .fields
         .iter()
         .filter_map(|f| {
             field_type_to_column_type(&f.field_type).map(|ct| ColumnSpec {
-                name: f.name.to_string(),
+                name:        f.name.to_string(),
                 column_type: ct,
             })
         })
@@ -141,6 +143,7 @@ pub fn column_specs_from_type(type_def: &TypeDefinition) -> Vec<ColumnSpec> {
 ///
 /// Only simple equality filters are supported in the MVP. The returned clause
 /// is `None` when no filter fields are set.
+#[must_use]
 pub fn extract_filters(msg: &DynamicMessage, type_def: &TypeDefinition) -> Option<WhereClause> {
     let mut clauses = Vec::new();
 
@@ -166,9 +169,9 @@ pub fn extract_filters(msg: &DynamicMessage, type_def: &TypeDefinition) -> Optio
         let json_value = proto_value_to_json(&value);
 
         clauses.push(WhereClause::Field {
-            path: vec![field_name.to_string()],
+            path:     vec![field_name.to_string()],
             operator: WhereOperator::Eq,
-            value: json_value,
+            value:    json_value,
         });
     }
 
@@ -237,6 +240,7 @@ fn dynamic_message_to_json(msg: &DynamicMessage) -> serde_json::Value {
 // ---------------------------------------------------------------------------
 
 /// Extract limit from the request message (capped at `MAX_GRPC_RESULT_ROWS`).
+#[must_use]
 pub fn extract_limit(msg: &DynamicMessage) -> u32 {
     for field_desc in msg.descriptor().fields() {
         if field_desc.name() == "limit" && msg.has_field(&field_desc) {
@@ -254,6 +258,7 @@ pub fn extract_limit(msg: &DynamicMessage) -> u32 {
 }
 
 /// Extract offset from the request message.
+#[must_use]
 pub fn extract_offset(msg: &DynamicMessage) -> Option<u32> {
     for field_desc in msg.descriptor().fields() {
         if field_desc.name() == "offset" && msg.has_field(&field_desc) {
@@ -435,15 +440,16 @@ pub struct MutationResult {
     /// Whether the mutation succeeded.
     pub success: bool,
     /// Optional entity ID returned by the mutation.
-    pub id: Option<String>,
+    pub id:      Option<String>,
     /// Optional error message (when `success` is false).
-    pub error: Option<String>,
+    pub error:   Option<String>,
 }
 
 /// Encode a [`MutationResult`] into a protobuf response message.
 ///
 /// Expects the response descriptor to have fields: `success` (bool),
 /// `id` (optional string), `error` (optional string).
+#[must_use]
 pub fn encode_mutation_response(
     result: &MutationResult,
     response_desc: &MessageDescriptor,
@@ -471,6 +477,7 @@ pub fn encode_mutation_response(
 ///
 /// Each column is mapped to the corresponding protobuf field by position (the
 /// column specs and message fields are aligned by the proto generator).
+#[must_use]
 pub fn encode_row(
     row: &[ColumnValue],
     columns: &[ColumnSpec],
@@ -495,6 +502,7 @@ pub fn encode_row(
 /// Convert a [`ColumnValue`] to a protobuf [`Value`].
 ///
 /// Returns `None` for `ColumnValue::Null` (proto3 default absence).
+#[must_use]
 pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
     match col {
         ColumnValue::Null => None,
@@ -519,6 +527,7 @@ pub fn column_value_to_proto(col: &ColumnValue) -> Option<Value> {
 /// For list queries, the response contains a `repeated` field named `items`
 /// (or the pluralized type name). For get queries, the response fields are
 /// the row fields directly.
+#[must_use]
 pub fn encode_response(
     rows: Vec<Vec<ColumnValue>>,
     columns: &[ColumnSpec],
@@ -664,9 +673,9 @@ pub fn build_dispatch_table(
             table.insert(
                 full_method,
                 RpcOperation {
-                    operation_name: mutation_name,
-                    type_name: mutation_def.return_type.clone(),
-                    kind: RpcKind::Mutation { function_name },
+                    operation_name:      mutation_name,
+                    type_name:           mutation_def.return_type.clone(),
+                    kind:                RpcKind::Mutation { function_name },
                     response_descriptor: response_desc,
                 },
             );

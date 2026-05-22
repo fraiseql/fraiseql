@@ -995,28 +995,28 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
     use fraiseql_core::compiler::fact_table::*;
 
     FactTableMetadata {
-        table_name: "tf_metrics".to_string(),
-        measures: vec![MeasureColumn {
-            name: "raw_value".to_string(),
+        table_name:               "tf_metrics".to_string(),
+        measures:                 vec![MeasureColumn {
+            name:     "raw_value".to_string(),
             sql_type: SqlType::Decimal,
             nullable: false,
         }],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        dimensions:               DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![DimensionPath {
-                name: "source".to_string(),
+                name:      "source".to_string(),
                 json_path: "data->>'source'".to_string(),
                 data_type: "text".to_string(),
             }],
         },
-        denormalized_filters: vec![FilterColumn {
-            name: "device_id".to_string(),
+        denormalized_filters:     vec![FilterColumn {
+            name:     "device_id".to_string(),
             sql_type: SqlType::Text,
-            indexed: true,
+            indexed:  true,
         }],
-        calendar_dimensions: vec![],
-        partial_period: None,
-        native_measures: std::collections::HashMap::from([
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::from([
             ("measures.volume".to_string(), "volume".to_string()),
             ("measures.latency".to_string(), "latency_ms".to_string()),
         ]),

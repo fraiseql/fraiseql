@@ -43,9 +43,9 @@ impl FromStr for SbomFormat {
 /// Parsed Cargo.lock package entry
 #[derive(Debug, Deserialize)]
 pub(crate) struct CargoLockPackage {
-    pub(crate) name: String,
+    pub(crate) name:    String,
     pub(crate) version: String,
-    pub(crate) source: Option<String>,
+    pub(crate) source:  Option<String>,
 }
 
 /// Parsed Cargo.lock file

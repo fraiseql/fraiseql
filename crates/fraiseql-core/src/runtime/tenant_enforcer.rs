@@ -16,7 +16,7 @@ use crate::db::where_clause::{WhereClause, WhereOperator};
 #[derive(Debug, Clone)]
 pub struct TenantEnforcer {
     /// Current `org_id` for this request
-    org_id: Option<String>,
+    org_id:         Option<String>,
     /// Enforce tenant scoping (require `org_id` for all queries)
     require_tenant: bool,
 }
@@ -83,9 +83,9 @@ impl TenantEnforcer {
 
         // Build org_id filter clause
         let org_id_filter = WhereClause::Field {
-            path: vec!["org_id".to_string()],
+            path:     vec!["org_id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(org_id),
+            value:    json!(org_id),
         };
 
         // Combine with user's WHERE clause

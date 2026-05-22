@@ -42,11 +42,11 @@ pub struct TomlProjectConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct ProjectConfig {
     /// Project name
-    pub name: String,
+    pub name:            String,
     /// Project version
-    pub version: String,
+    pub version:         String,
     /// Optional project description
-    pub description: Option<String>,
+    pub description:     Option<String>,
     /// Target database backend (e.g. "postgresql", "mysql", "sqlite", "sqlserver")
     pub database_target: Option<String>,
 }
@@ -54,9 +54,9 @@ pub struct ProjectConfig {
 impl Default for ProjectConfig {
     fn default() -> Self {
         Self {
-            name: "my-fraiseql-app".to_string(),
-            version: "1.0.0".to_string(),
-            description: None,
+            name:            "my-fraiseql-app".to_string(),
+            version:         "1.0.0".to_string(),
+            description:     None,
             database_target: None,
         }
     }
@@ -72,10 +72,10 @@ pub struct FraiseQLSettings {
     pub output_file: String,
     /// Security configuration
     #[serde(rename = "security")]
-    pub security: SecurityConfig,
+    pub security:    SecurityConfig,
     /// Tenancy isolation configuration
     #[serde(default)]
-    pub tenancy: security::TenancyTomlConfig,
+    pub tenancy:     security::TenancyTomlConfig,
 }
 
 impl Default for FraiseQLSettings {
@@ -83,8 +83,8 @@ impl Default for FraiseQLSettings {
         Self {
             schema_file: "schema.json".to_string(),
             output_file: "schema.compiled.json".to_string(),
-            security: SecurityConfig::default(),
-            tenancy: security::TenancyTomlConfig::default(),
+            security:    SecurityConfig::default(),
+            tenancy:     security::TenancyTomlConfig::default(),
         }
     }
 }

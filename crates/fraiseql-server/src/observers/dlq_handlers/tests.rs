@@ -3,11 +3,11 @@ use super::*;
 #[test]
 fn delivery_status_summary_serializes() {
     let summary = DeliveryStatusSummary {
-        running: true,
-        observer_count: 3,
+        running:          true,
+        observer_count:   3,
         events_processed: 42,
-        errors: 1,
-        dlq_count: 2,
+        errors:           1,
+        dlq_count:        2,
     };
     let json = serde_json::to_value(&summary).expect("serialize");
     assert_eq!(json["running"], true);
@@ -18,9 +18,9 @@ fn delivery_status_summary_serializes() {
 #[test]
 fn dlq_list_response_serializes() {
     let response = DlqListResponse {
-        items: vec![],
-        total: 0,
-        limit: 50,
+        items:  vec![],
+        total:  0,
+        limit:  50,
         offset: 0,
     };
     let json = serde_json::to_value(&response).expect("serialize");
@@ -43,8 +43,8 @@ fn retry_response_serializes() {
 fn retry_all_response_serializes() {
     let response = RetryAllResponse {
         items_retried: 5,
-        items_failed: 1,
-        message: "done".to_string(),
+        items_failed:  1,
+        message:       "done".to_string(),
     };
     let json = serde_json::to_value(&response).expect("serialize");
     assert_eq!(json["items_retried"], 5);

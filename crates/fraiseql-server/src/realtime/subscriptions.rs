@@ -62,11 +62,11 @@ pub enum FilterOperator {
 #[derive(Debug, Clone)]
 pub struct FieldFilter {
     /// Field name to compare.
-    pub field: String,
+    pub field:    String,
     /// Comparison operator.
     pub operator: FilterOperator,
     /// Value to compare against.
-    pub value: Value,
+    pub value:    Value,
 }
 
 impl FilterOperator {
@@ -118,9 +118,9 @@ pub fn parse_filter(filter_str: &str) -> Result<Vec<FieldFilter>, String> {
             let (op_str, value_str) =
                 rest.split_once('.').ok_or_else(|| format!("invalid filter operator: {rest}"))?;
             Ok(FieldFilter {
-                field: field.to_owned(),
+                field:    field.to_owned(),
                 operator: FilterOperator::parse(op_str)?,
-                value: parse_filter_value(value_str),
+                value:    parse_filter_value(value_str),
             })
         })
         .collect()
@@ -130,9 +130,9 @@ pub fn parse_filter(filter_str: &str) -> Result<Vec<FieldFilter>, String> {
 #[derive(Debug, Clone)]
 pub struct SubscriptionDetails {
     /// Optional event type filter (None = all events).
-    pub event_filter: Option<EventKind>,
+    pub event_filter:          Option<EventKind>,
     /// Field-level filters applied to event payloads.
-    pub field_filters: Vec<FieldFilter>,
+    pub field_filters:         Vec<FieldFilter>,
     /// Security context hash for RLS grouping.
     pub security_context_hash: u64,
 }
@@ -143,11 +143,11 @@ pub struct SubscriptionDetails {
 /// Level 2: connection → map of entity → subscription details (for per-connection state).
 pub struct SubscriptionManager {
     /// entity → set of connection IDs subscribed to it.
-    entity_subscribers: DashMap<String, DashSet<ConnectionId>>,
+    entity_subscribers:       DashMap<String, DashSet<ConnectionId>>,
     /// `connection_id` → (entity → subscription details).
     connection_subscriptions: DashMap<ConnectionId, HashMap<String, SubscriptionDetails>>,
     /// Maximum subscriptions per entity (fan-out limit).
-    max_per_entity: usize,
+    max_per_entity:           usize,
 }
 
 impl SubscriptionManager {

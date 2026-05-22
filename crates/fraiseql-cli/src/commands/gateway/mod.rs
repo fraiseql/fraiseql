@@ -65,12 +65,12 @@ pub fn validate(config_path: &str) -> Result<CommandResult> {
     if let Err(errors) = config::validate_config(&config, base_dir) {
         let error_strings: Vec<String> = errors.iter().map(ToString::to_string).collect();
         return Ok(CommandResult {
-            status: "validation-failed".to_string(),
-            command: "federation/gateway".to_string(),
-            data: None,
-            message: Some(format!("{} validation error(s)", error_strings.len())),
-            code: Some("GATEWAY_CONFIG_INVALID".to_string()),
-            errors: error_strings,
+            status:   "validation-failed".to_string(),
+            command:  "federation/gateway".to_string(),
+            data:     None,
+            message:  Some(format!("{} validation error(s)", error_strings.len())),
+            code:     Some("GATEWAY_CONFIG_INVALID".to_string()),
+            errors:   error_strings,
             warnings: Vec::new(),
         });
     }

@@ -249,10 +249,10 @@ pub struct BridgeConfig {
 impl Default for BridgeConfig {
     fn default() -> Self {
         Self {
-            transport_name: "pg_to_nats".to_string(),
-            batch_size: 100,
+            transport_name:     "pg_to_nats".to_string(),
+            batch_size:         100,
             poll_interval_secs: 1,
-            notify_channel: "fraiseql_events".to_string(),
+            notify_channel:     "fraiseql_events".to_string(),
         }
     }
 }
@@ -281,10 +281,10 @@ impl Default for BridgeConfig {
 ///    - Safe against accidental multi-bridge races
 #[cfg(feature = "nats")]
 pub struct PostgresNatsBridge {
-    pool: PgPool,
-    nats_transport: Arc<NatsTransport>,
+    pool:             PgPool,
+    nats_transport:   Arc<NatsTransport>,
     checkpoint_store: Arc<dyn CheckpointStore>,
-    config: BridgeConfig,
+    config:           BridgeConfig,
 }
 
 #[cfg(feature = "nats")]

@@ -8,28 +8,28 @@ use serde::{Deserialize, Serialize};
 pub struct ObserversConfig {
     /// Enable observers system
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled:   bool,
     /// Backend service (redis, nats, postgresql, mysql, in-memory)
-    pub backend: String,
+    pub backend:   String,
     /// Redis connection URL (required when backend = "redis")
     pub redis_url: Option<String>,
     /// NATS connection URL (required when backend = "nats")
     ///
     /// Example: `nats://localhost:4222`
     /// Can be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.
-    pub nats_url: Option<String>,
+    pub nats_url:  Option<String>,
     /// Event handlers
-    pub handlers: Vec<EventHandler>,
+    pub handlers:  Vec<EventHandler>,
 }
 
 impl Default for ObserversConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            backend: "redis".to_string(),
+            enabled:   false,
+            backend:   "redis".to_string(),
             redis_url: None,
-            nats_url: None,
-            handlers: vec![],
+            nats_url:  None,
+            handlers:  vec![],
         }
     }
 }
@@ -39,17 +39,17 @@ impl Default for ObserversConfig {
 #[serde(deny_unknown_fields)]
 pub struct EventHandler {
     /// Handler name
-    pub name: String,
+    pub name:           String,
     /// Event type to handle
-    pub event: String,
+    pub event:          String,
     /// Action to perform (slack, email, sms, webhook, push, etc.)
-    pub action: String,
+    pub action:         String,
     /// Webhook URL for webhook actions
-    pub webhook_url: Option<String>,
+    pub webhook_url:    Option<String>,
     /// Retry strategy
     pub retry_strategy: Option<String>,
     /// Maximum retry attempts
-    pub max_retries: Option<u32>,
+    pub max_retries:    Option<u32>,
     /// Handler description
-    pub description: Option<String>,
+    pub description:    Option<String>,
 }

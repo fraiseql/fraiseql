@@ -25,11 +25,11 @@ pub struct StorageSchemaTypes;
 #[derive(Debug, Default)]
 pub struct StorageSchemaEntries {
     /// Type definitions for inclusion in the compiled schema `types` array.
-    pub types: Vec<Value>,
+    pub types:     Vec<Value>,
     /// Mutation definitions for inclusion in the compiled schema `mutations` array.
     pub mutations: Vec<Value>,
     /// Query definitions for inclusion in the compiled schema `queries` array.
-    pub queries: Vec<Value>,
+    pub queries:   Vec<Value>,
 }
 
 impl StorageSchemaTypes {

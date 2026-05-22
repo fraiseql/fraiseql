@@ -341,8 +341,8 @@ pub struct MSSQLBridgeConfig {
 impl Default for MSSQLBridgeConfig {
     fn default() -> Self {
         Self {
-            transport_name: "mssql_to_nats".to_string(),
-            batch_size: 100,
+            transport_name:     "mssql_to_nats".to_string(),
+            batch_size:         100,
             poll_interval_secs: 1,
         }
     }
@@ -372,10 +372,10 @@ impl Default for MSSQLBridgeConfig {
 /// 4. At-least-once delivery (consumers must be idempotent)
 #[cfg(all(feature = "mssql", feature = "nats"))]
 pub struct MSSQLNatsBridge {
-    pool: MSSQLPool,
-    nats_transport: Arc<NatsTransport>,
+    pool:             MSSQLPool,
+    nats_transport:   Arc<NatsTransport>,
     checkpoint_store: Arc<dyn CheckpointStore>,
-    config: MSSQLBridgeConfig,
+    config:           MSSQLBridgeConfig,
 }
 
 #[cfg(all(feature = "mssql", feature = "nats"))]

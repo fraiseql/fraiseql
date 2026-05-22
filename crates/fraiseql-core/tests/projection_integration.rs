@@ -287,7 +287,7 @@ fn test_result_projector_error_envelope() {
 
     let error = FraiseQLError::Validation {
         message: "Invalid field selection".to_string(),
-        path: Some("query.users".to_string()),
+        path:    Some("query.users".to_string()),
     };
 
     let wrapped = ResultProjector::wrap_error(&error);

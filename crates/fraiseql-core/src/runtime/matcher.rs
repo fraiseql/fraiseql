@@ -49,22 +49,22 @@ impl QueryMatch {
         let selections = fields
             .iter()
             .map(|f| FieldSelection {
-                name: f.clone(),
-                alias: None,
-                arguments: Vec::new(),
+                name:          f.clone(),
+                alias:         None,
+                arguments:     Vec::new(),
                 nested_fields: Vec::new(),
-                directives: Vec::new(),
+                directives:    Vec::new(),
             })
             .collect();
 
         let parsed_query = ParsedQuery {
             operation_type: "query".to_string(),
             operation_name: Some(query_def.name.clone()),
-            root_field: query_def.name.clone(),
-            selections: Vec::new(),
-            variables: Vec::new(),
-            fragments: Vec::new(),
-            source: String::new(),
+            root_field:     query_def.name.clone(),
+            selections:     Vec::new(),
+            variables:      Vec::new(),
+            fragments:      Vec::new(),
+            source:         String::new(),
         };
 
         Ok(Self {
@@ -142,7 +142,7 @@ impl QueryMatcher {
     ) -> Result<QueryMatch> {
         // 1. Parse GraphQL query using proper parser
         let parsed = parse_query(query).map_err(|e| FraiseQLError::Parse {
-            message: e.to_string(),
+            message:  e.to_string(),
             location: "query".to_string(),
         })?;
 
@@ -154,7 +154,7 @@ impl QueryMatcher {
         let resolved_selections = resolver.resolve_spreads(&parsed.selections).map_err(|e| {
             FraiseQLError::Validation {
                 message: e.to_string(),
-                path: Some("fragments".to_string()),
+                path:    Some("fragments".to_string()),
             }
         })?;
 
@@ -163,7 +163,7 @@ impl QueryMatcher {
             DirectiveEvaluator::filter_selections(&resolved_selections, &variables_map).map_err(
                 |e| FraiseQLError::Validation {
                     message: e.to_string(),
-                    path: Some("directives".to_string()),
+                    path:    Some("directives".to_string()),
                 },
             )?;
 

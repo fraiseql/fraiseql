@@ -36,26 +36,26 @@ mod routing {
     async fn test_per_view_mock_returns_distinct_results() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
-            native_columns: HashMap::new(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      HashMap::new(),
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
@@ -104,9 +104,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_limit_threads_to_adapter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: true,
-            has_offset: false,
-            has_where: false,
+            has_limit:    true,
+            has_offset:   false,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -121,9 +121,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_offset_threads_to_adapter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: false,
-            has_offset: true,
-            has_where: false,
+            has_limit:    false,
+            has_offset:   true,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -138,9 +138,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_where_threads_user_filter_to_adapter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: false,
-            has_offset: false,
-            has_where: true,
+            has_limit:    false,
+            has_offset:   false,
+            has_where:    true,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -159,9 +159,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_where_false_ignores_user_filter() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: false,
-            has_offset: false,
-            has_where: false,
+            has_limit:    false,
+            has_offset:   false,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -180,9 +180,9 @@ mod auto_params {
     #[tokio::test]
     async fn test_has_limit_and_offset_together() {
         let schema = schema_with_auto_params(AutoParams {
-            has_limit: true,
-            has_offset: true,
-            has_where: false,
+            has_limit:    true,
+            has_offset:   true,
+            has_where:    false,
             has_order_by: false,
         });
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -237,19 +237,19 @@ mod rls_composition {
 
     fn tenant_security_context() -> SecurityContext {
         SecurityContext {
-            user_id: "user-42".into(),
-            roles: vec!["viewer".to_string()],
-            tenant_id: Some("tenant-abc".into()),
-            scopes: vec!["read:User".to_string()],
-            attributes: HashMap::default(),
-            request_id: "req-001".to_string(),
-            ip_address: None,
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:          "user-42".into(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        Some("tenant-abc".into()),
+            scopes:           vec!["read:User".to_string()],
+            attributes:       HashMap::default(),
+            request_id:       "req-001".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
             authenticated_at: Utc::now(),
-            issuer: None,
-            audience: None,
-            email: None,
-            display_name: None,
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -366,29 +366,29 @@ mod rls_composition {
         let mut native_cols = HashMap::new();
         native_cols.insert("tenant_id".to_string(), "uuid".to_string());
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: AutoParams {
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams {
                 has_where: true,
                 ..AutoParams::default()
             },
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: inject,
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
-            native_columns: native_cols,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       inject,
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      native_cols,
         });
         schema.types.push({
             let mut t = TypeDefinition::new("User", "v_user");
@@ -441,7 +441,7 @@ mod session_variables {
     /// Mock adapter that captures calls to `set_session_variables`.
     struct SessionVarCapturingAdapter {
         mock_results: Vec<JsonbValue>,
-        captured: std::sync::Mutex<Vec<(String, String)>>,
+        captured:     std::sync::Mutex<Vec<(String, String)>>,
     }
 
     impl SessionVarCapturingAdapter {
@@ -502,10 +502,10 @@ mod session_variables {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections: 1,
+                total_connections:  1,
                 active_connections: 0,
-                idle_connections: 1,
-                waiting_requests: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
             }
         }
 
@@ -536,8 +536,8 @@ mod session_variables {
     fn schema_with_session_vars() -> CompiledSchema {
         let mut schema = test_schema();
         schema.session_variables = SessionVariablesConfig {
-            variables: vec![SessionVariableMapping {
-                name: "app.tenant_id".to_string(),
+            variables:         vec![SessionVariableMapping {
+                name:   "app.tenant_id".to_string(),
                 source: SessionVariableSource::Jwt {
                     claim: "tenant_id".to_string(),
                 },
@@ -549,19 +549,19 @@ mod session_variables {
 
     fn security_ctx_with_tenant() -> SecurityContext {
         SecurityContext {
-            user_id: "user-1".into(),
-            roles: vec![],
-            tenant_id: Some("tenant-abc".into()),
-            scopes: vec![],
-            attributes: HashMap::default(),
-            request_id: "req-sv".to_string(),
-            ip_address: None,
-            expires_at: Utc::now() + chrono::Duration::hours(1),
+            user_id:          "user-1".into(),
+            roles:            vec![],
+            tenant_id:        Some("tenant-abc".into()),
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-sv".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
             authenticated_at: Utc::now(),
-            issuer: None,
-            audience: None,
-            email: None,
-            display_name: None,
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -624,21 +624,21 @@ mod pg_type_cast_tests {
 
     fn leaf(name: &str) -> FieldSelection {
         FieldSelection {
-            name: name.to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![],
-            directives: vec![],
+            directives:    vec![],
         }
     }
 
     fn fragment(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
         FieldSelection {
-            name: name.to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: nested,
-            directives: vec![],
+            directives:    vec![],
         }
     }
 
@@ -774,9 +774,9 @@ mod pg_type_cast_tests {
     #[test]
     fn no_explicit_args_returns_existing() {
         let existing = Some(WhereClause::Field {
-            path: vec!["rls".into()],
+            path:     vec!["rls".into()],
             operator: WhereOperator::Eq,
-            value: serde_json::json!("x"),
+            value:    serde_json::json!("x"),
         });
         let result = combine_explicit_arg_where(
             existing.clone(),
@@ -844,9 +844,9 @@ mod pg_type_cast_tests {
     #[test]
     fn explicit_args_combined_with_existing_where() {
         let existing = WhereClause::Field {
-            path: vec!["rls_tenant".into()],
+            path:     vec!["rls_tenant".into()],
             operator: WhereOperator::Eq,
-            value: serde_json::json!("tenant-1"),
+            value:    serde_json::json!("tenant-1"),
         };
         let args = vec![make_arg("id")];
         let mut provided = std::collections::HashMap::new();

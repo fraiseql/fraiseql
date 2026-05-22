@@ -111,24 +111,24 @@ pub struct RuntimeHealth {
 
 /// Observer runtime that manages the execution loop
 pub struct ObserverRuntime {
-    config: ObserverRuntimeConfig,
-    repository: ObserverRepository,
-    running: Arc<AtomicBool>,
+    config:              ObserverRuntimeConfig,
+    repository:          ObserverRepository,
+    running:             Arc<AtomicBool>,
     /// Handle to the background processing task
-    task_handle: Option<JoinHandle<()>>,
+    task_handle:         Option<JoinHandle<()>>,
     /// Channel to send shutdown signal
-    shutdown_tx: Option<mpsc::Sender<()>>,
+    shutdown_tx:         Option<mpsc::Sender<()>>,
     /// Statistics
-    events_processed: Arc<std::sync::atomic::AtomicU64>,
-    errors: Arc<std::sync::atomic::AtomicU64>,
-    observer_count: Arc<std::sync::atomic::AtomicUsize>,
-    last_checkpoint: Arc<std::sync::atomic::AtomicI64>,
+    events_processed:    Arc<std::sync::atomic::AtomicU64>,
+    errors:              Arc<std::sync::atomic::AtomicU64>,
+    observer_count:      Arc<std::sync::atomic::AtomicUsize>,
+    last_checkpoint:     Arc<std::sync::atomic::AtomicI64>,
     /// Hot-swappable components for reload
-    matcher: Arc<RwLock<Option<EventMatcher>>>,
-    executor: Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
-    entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
+    matcher:             Arc<RwLock<Option<EventMatcher>>>,
+    executor:            Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
+    entity_type_index:   Arc<RwLock<HashMap<(String, String), Vec<i64>>>>,
     /// In-memory DLQ shared across reloads and exposed to HTTP handlers.
-    dlq: Arc<InMemoryDlq>,
+    dlq:                 Arc<InMemoryDlq>,
     /// Optional sender to forward CDC events to `EventBridge` for GraphQL subscriptions
     event_bridge_sender: Option<mpsc::Sender<BridgeEntityEvent>>,
 }
@@ -172,11 +172,11 @@ impl ObserverRuntime {
     > {
         // Load all enabled observers
         let query = crate::observers::ListObserversQuery {
-            page: 1,
-            page_size: 10000, // Load all
-            entity_type: None,
-            event_type: None,
-            enabled: Some(true),
+            page:            1,
+            page_size:       10000, // Load all
+            entity_type:     None,
+            event_type:      None,
+            enabled:         Some(true),
             include_deleted: false,
         };
 
@@ -618,11 +618,11 @@ impl ObserverRuntime {
     #[must_use]
     pub fn health(&self) -> RuntimeHealth {
         RuntimeHealth {
-            running: self.running.load(Ordering::SeqCst),
-            observer_count: self.observer_count.load(Ordering::SeqCst),
-            last_checkpoint: Some(self.last_checkpoint.load(Ordering::SeqCst)),
+            running:          self.running.load(Ordering::SeqCst),
+            observer_count:   self.observer_count.load(Ordering::SeqCst),
+            last_checkpoint:  Some(self.last_checkpoint.load(Ordering::SeqCst)),
             events_processed: self.events_processed.load(Ordering::SeqCst),
-            errors: self.errors.load(Ordering::SeqCst),
+            errors:           self.errors.load(Ordering::SeqCst),
         }
     }
 

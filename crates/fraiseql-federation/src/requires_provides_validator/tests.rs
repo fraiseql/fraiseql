@@ -9,14 +9,14 @@ fn test_validator_creation() {
 #[test]
 fn test_runtime_validator_missing_required_field() {
     let directives = FieldFederationDirectives {
-        requires: vec![FieldPathSelection {
-            path: vec!["weight".to_string()],
+        requires:      vec![FieldPathSelection {
+            path:     vec!["weight".to_string()],
             typename: "Order".to_string(),
         }],
-        provides: vec![],
-        external: false,
-        shareable: false,
-        inaccessible: false,
+        provides:      vec![],
+        external:      false,
+        shareable:     false,
+        inaccessible:  false,
         override_from: None,
     };
 
@@ -35,14 +35,14 @@ fn test_runtime_validator_missing_required_field() {
 #[test]
 fn test_runtime_validator_all_required_fields_present() {
     let directives = FieldFederationDirectives {
-        requires: vec![FieldPathSelection {
-            path: vec!["weight".to_string()],
+        requires:      vec![FieldPathSelection {
+            path:     vec!["weight".to_string()],
             typename: "Order".to_string(),
         }],
-        provides: vec![],
-        external: false,
-        shareable: false,
-        inaccessible: false,
+        provides:      vec![],
+        external:      false,
+        shareable:     false,
+        inaccessible:  false,
         override_from: None,
     };
 
@@ -62,20 +62,20 @@ fn test_runtime_validator_all_required_fields_present() {
 #[test]
 fn test_entity_validation_multiple_missing_fields() {
     let directives = FieldFederationDirectives {
-        requires: vec![
+        requires:      vec![
             FieldPathSelection {
-                path: vec!["weight".to_string()],
+                path:     vec!["weight".to_string()],
                 typename: "Order".to_string(),
             },
             FieldPathSelection {
-                path: vec!["shippingAddress".to_string()],
+                path:     vec!["shippingAddress".to_string()],
                 typename: "Order".to_string(),
             },
         ],
-        provides: vec![],
-        external: false,
-        shareable: false,
-        inaccessible: false,
+        provides:      vec![],
+        external:      false,
+        shareable:     false,
+        inaccessible:  false,
         override_from: None,
     };
 
@@ -97,20 +97,20 @@ fn test_entity_validation_multiple_missing_fields() {
 #[test]
 fn test_entity_validation_partial_fields() {
     let directives = FieldFederationDirectives {
-        requires: vec![
+        requires:      vec![
             FieldPathSelection {
-                path: vec!["weight".to_string()],
+                path:     vec!["weight".to_string()],
                 typename: "Order".to_string(),
             },
             FieldPathSelection {
-                path: vec!["shippingAddress".to_string()],
+                path:     vec!["shippingAddress".to_string()],
                 typename: "Order".to_string(),
             },
         ],
-        provides: vec![],
-        external: false,
-        shareable: false,
-        inaccessible: false,
+        provides:      vec![],
+        external:      false,
+        shareable:     false,
+        inaccessible:  false,
         override_from: None,
     };
 
@@ -141,14 +141,14 @@ fn test_entity_validation_partial_fields() {
 #[test]
 fn test_validate_provides_fields_missing() {
     let directives = FieldFederationDirectives {
-        requires: vec![],
-        provides: vec![FieldPathSelection {
-            path: vec!["userId".to_string()],
+        requires:      vec![],
+        provides:      vec![FieldPathSelection {
+            path:     vec!["userId".to_string()],
             typename: "Order".to_string(),
         }],
-        external: false,
-        shareable: false,
-        inaccessible: false,
+        external:      false,
+        shareable:     false,
+        inaccessible:  false,
         override_from: None,
     };
 
@@ -165,14 +165,14 @@ fn test_validate_provides_fields_missing() {
 #[test]
 fn test_validate_provides_fields_present() {
     let directives = FieldFederationDirectives {
-        requires: vec![],
-        provides: vec![FieldPathSelection {
-            path: vec!["userId".to_string()],
+        requires:      vec![],
+        provides:      vec![FieldPathSelection {
+            path:     vec!["userId".to_string()],
             typename: "Order".to_string(),
         }],
-        external: false,
-        shareable: false,
-        inaccessible: false,
+        external:      false,
+        shareable:     false,
+        inaccessible:  false,
         override_from: None,
     };
 

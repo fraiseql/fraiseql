@@ -56,16 +56,16 @@ mod nats_tests {
     #[test]
     fn test_nats_config_custom() {
         let config = NatsConfig {
-            url: "nats://custom:4222".to_string(),
-            stream_name: "custom.stream".to_string(),
-            consumer_name: "custom-consumer".to_string(),
-            subject_prefix: "custom.prefix".to_string(),
+            url:                    "nats://custom:4222".to_string(),
+            stream_name:            "custom.stream".to_string(),
+            consumer_name:          "custom-consumer".to_string(),
+            subject_prefix:         "custom.prefix".to_string(),
             max_reconnect_attempts: 10,
-            reconnect_delay_ms: 2000,
-            ack_wait_secs: 60,
+            reconnect_delay_ms:     2000,
+            ack_wait_secs:          60,
             retention_max_messages: 500_000,
-            retention_max_bytes: 512_000_000,
-            dead_letter_subject: None,
+            retention_max_bytes:    512_000_000,
+            dead_letter_subject:    None,
         };
 
         assert_eq!(config.url, "nats://custom:4222");
@@ -178,8 +178,8 @@ mod nats_tests {
         // Subscribe with filter for "Product" only
         let filter = EventFilter {
             entity_type: Some("Product".to_string()),
-            operation: None,
-            tenant_id: None,
+            operation:   None,
+            tenant_id:   None,
         };
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
@@ -231,8 +231,8 @@ mod nats_tests {
         // Subscribe with filter for UPDATE operations only
         let filter = EventFilter {
             entity_type: None,
-            operation: Some("UPDATE".to_string()),
-            tenant_id: None,
+            operation:   Some("UPDATE".to_string()),
+            tenant_id:   None,
         };
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 

@@ -11,14 +11,14 @@ mod api_key_tests {
 
     fn test_config(key: &str) -> ApiKeyConfig {
         ApiKeyConfig {
-            enabled: true,
-            header: "x-api-key".into(),
+            enabled:        true,
+            header:         "x-api-key".into(),
             hash_algorithm: "sha256".into(),
-            storage: "env".into(),
-            static_keys: vec![StaticApiKeyConfig {
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
                 key_hash: format!("sha256:{}", sha256_hex(key)),
-                scopes: vec!["read:*".into()],
-                name: "test-key".into(),
+                scopes:   vec!["read:*".into()],
+                name:     "test-key".into(),
             }],
         }
     }
@@ -81,14 +81,14 @@ mod api_key_tests {
     #[test]
     fn invalid_hash_hex_is_skipped() {
         let config = ApiKeyConfig {
-            enabled: true,
-            header: "x-api-key".into(),
+            enabled:        true,
+            header:         "x-api-key".into(),
             hash_algorithm: "sha256".into(),
-            storage: "env".into(),
-            static_keys: vec![StaticApiKeyConfig {
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
                 key_hash: "not-valid-hex".into(),
-                scopes: vec![],
-                name: "bad-key".into(),
+                scopes:   vec![],
+                name:     "bad-key".into(),
             }],
         };
         let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
@@ -99,14 +99,14 @@ mod api_key_tests {
     fn hash_without_prefix_works() {
         let hash = sha256_hex("test");
         let config = ApiKeyConfig {
-            enabled: true,
-            header: "x-api-key".into(),
+            enabled:        true,
+            header:         "x-api-key".into(),
             hash_algorithm: "sha256".into(),
-            storage: "env".into(),
-            static_keys: vec![StaticApiKeyConfig {
+            storage:        "env".into(),
+            static_keys:    vec![StaticApiKeyConfig {
                 key_hash: hash, // no "sha256:" prefix
-                scopes: vec![],
-                name: "no-prefix".into(),
+                scopes:   vec![],
+                name:     "no-prefix".into(),
             }],
         };
         let auth = ApiKeyAuthenticator::from_config(&config).unwrap();
@@ -266,14 +266,14 @@ mod cli_tests {
         };
         let mut config = ServerConfig::default();
         config.rate_limiting = Some(RateLimitConfig {
-            enabled: true,
-            rps_per_ip: 42,
-            rps_per_user: 420,
-            burst_size: 100,
+            enabled:               true,
+            rps_per_ip:            42,
+            rps_per_user:          420,
+            burst_size:            100,
             cleanup_interval_secs: 60,
-            trust_proxy_headers: true,
-            trusted_proxy_cidrs: Vec::new(),
-            max_buckets: 100_000,
+            trust_proxy_headers:   true,
+            trusted_proxy_cidrs:   Vec::new(),
+            max_buckets:           100_000,
         });
         args.apply_to_config(&mut config);
         let rl = config.rate_limiting.unwrap();
@@ -392,7 +392,7 @@ mod error_tests {
     fn test_from_fraiseql_error_database_maps_to_database_code() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Database {
-            message: "relation \"users\" does not exist".into(),
+            message:   "relation \"users\" does not exist".into(),
             sql_state: None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -404,7 +404,7 @@ mod error_tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Validation {
             message: "field 'id' is required".into(),
-            path: None,
+            path:    None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::ValidationError);
@@ -415,7 +415,7 @@ mod error_tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::NotFound {
             resource_type: "User".into(),
-            identifier: "123".into(),
+            identifier:    "123".into(),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::NotFound);
@@ -425,8 +425,8 @@ mod error_tests {
     fn test_from_fraiseql_error_authorization_maps_to_forbidden() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Authorization {
-            message: "insufficient permissions".into(),
-            action: Some("write".into()),
+            message:  "insufficient permissions".into(),
+            action:   Some("write".into()),
             resource: Some("User".into()),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -446,11 +446,11 @@ mod error_tests {
     #[test]
     fn test_error_extensions() {
         let extensions = ErrorExtensions {
-            category: Some("VALIDATION".to_string()),
-            status: Some(400),
-            request_id: Some("req-123".to_string()),
+            category:         Some("VALIDATION".to_string()),
+            status:           Some(400),
+            request_id:       Some("req-123".to_string()),
             retry_after_secs: None,
-            detail: None,
+            detail:           None,
         };
 
         let error = GraphQLError::validation("Invalid").with_extensions(extensions);
@@ -489,7 +489,7 @@ mod error_tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Timeout {
             timeout_ms: 5000,
-            query: Some("{ users { id } }".into()),
+            query:      Some("{ users { id } }".into()),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::Timeout);
@@ -499,7 +499,7 @@ mod error_tests {
     fn test_from_fraiseql_rate_limited_maps_to_rate_limit_code() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::RateLimited {
-            message: "too many requests".into(),
+            message:          "too many requests".into(),
             retry_after_secs: 60,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -520,7 +520,7 @@ mod error_tests {
     fn test_from_fraiseql_parse_maps_to_parse_code() {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Parse {
-            message: "unexpected token".into(),
+            message:  "unexpected token".into(),
             location: "line 1, col 5".into(),
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
@@ -532,7 +532,7 @@ mod error_tests {
         use fraiseql_core::error::FraiseQLError;
         let err = FraiseQLError::Internal {
             message: "unexpected nil pointer".into(),
-            source: None,
+            source:  None,
         };
         let graphql_err = GraphQLError::from_fraiseql_error(&err);
         assert_eq!(graphql_err.code, ErrorCode::InternalServerError);
@@ -682,10 +682,10 @@ mod extractors_tests {
         use chrono::Utc;
 
         let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
-            user_id: fraiseql_core::types::UserId::new("user123"),
-            scopes: vec!["read:user".to_string(), "write:post".to_string()],
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            email: None,
+            user_id:      fraiseql_core::types::UserId::new("user123"),
+            scopes:       vec!["read:user".to_string(), "write:post".to_string()],
+            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),
         });
@@ -1057,12 +1057,12 @@ mod tls_tests {
     #[test]
     fn test_postgres_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "require".to_string(),
-            redis_ssl: false,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "require".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -1077,12 +1077,12 @@ mod tls_tests {
     #[test]
     fn test_redis_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "prefer".to_string(),
-            redis_ssl: true,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "prefer".to_string(),
+            redis_ssl:           true,
+            clickhouse_https:    false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -1097,12 +1097,12 @@ mod tls_tests {
     #[test]
     fn test_clickhouse_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "prefer".to_string(),
-            redis_ssl: false,
-            clickhouse_https: true,
+            postgres_ssl_mode:   "prefer".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    true,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -1117,12 +1117,12 @@ mod tls_tests {
     #[test]
     fn test_elasticsearch_url_tls_application() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "prefer".to_string(),
-            redis_ssl: false,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "prefer".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    false,
             elasticsearch_https: true,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -1137,12 +1137,12 @@ mod tls_tests {
     #[test]
     fn test_all_database_tls_enabled() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "require".to_string(),
-            redis_ssl: true,
-            clickhouse_https: true,
+            postgres_ssl_mode:   "require".to_string(),
+            redis_ssl:           true,
+            clickhouse_https:    true,
             elasticsearch_https: true,
             verify_certificates: true,
-            ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
+            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca-bundle.crt")),
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -1162,12 +1162,12 @@ mod tls_tests {
     #[test]
     fn test_postgres_url_with_existing_params() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "require".to_string(),
-            redis_ssl: false,
-            clickhouse_https: false,
+            postgres_ssl_mode:   "require".to_string(),
+            redis_ssl:           false,
+            clickhouse_https:    false,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: None,
+            ca_bundle_path:      None,
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -1183,12 +1183,12 @@ mod tls_tests {
     #[test]
     fn test_database_tls_config_getters() {
         let db_config = DatabaseTlsConfig {
-            postgres_ssl_mode: "verify-full".to_string(),
-            redis_ssl: true,
-            clickhouse_https: true,
+            postgres_ssl_mode:   "verify-full".to_string(),
+            redis_ssl:           true,
+            clickhouse_https:    true,
             elasticsearch_https: false,
             verify_certificates: true,
-            ca_bundle_path: Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
+            ca_bundle_path:      Some(PathBuf::from("/etc/ssl/certs/ca.pem")),
         };
 
         let setup = TlsSetup::new(None, Some(db_config))
@@ -1218,12 +1218,12 @@ mod tls_tests {
     #[test]
     fn test_create_rustls_config_with_missing_cert() {
         let tls_config = TlsServerConfig {
-            enabled: true,
-            cert_path: PathBuf::from("/nonexistent/cert.pem"),
-            key_path: PathBuf::from("/nonexistent/key.pem"),
+            enabled:             true,
+            cert_path:           PathBuf::from("/nonexistent/cert.pem"),
+            key_path:            PathBuf::from("/nonexistent/key.pem"),
             require_client_cert: false,
-            client_ca_path: None,
-            min_version: "1.2".to_string(),
+            client_ca_path:      None,
+            min_version:         "1.2".to_string(),
         };
 
         let setup = TlsSetup::new(Some(tls_config), None)

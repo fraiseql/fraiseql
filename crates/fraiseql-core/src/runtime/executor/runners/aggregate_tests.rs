@@ -17,37 +17,37 @@ use crate::{
 
 fn tenant_security_context(tenant_id: &str) -> SecurityContext {
     SecurityContext {
-        user_id: "user-42".into(),
-        roles: vec!["viewer".to_string()],
-        tenant_id: Some(tenant_id.into()),
-        scopes: vec![],
-        attributes: HashMap::default(),
-        request_id: "req-001".to_string(),
-        ip_address: None,
-        expires_at: Utc::now() + chrono::Duration::hours(1),
+        user_id:          "user-42".into(),
+        roles:            vec!["viewer".to_string()],
+        tenant_id:        Some(tenant_id.into()),
+        scopes:           vec![],
+        attributes:       HashMap::default(),
+        request_id:       "req-001".to_string(),
+        ip_address:       None,
+        expires_at:       Utc::now() + chrono::Duration::hours(1),
         authenticated_at: Utc::now(),
-        issuer: None,
-        audience: None,
-        email: None,
-        display_name: None,
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
     }
 }
 
 fn admin_security_context() -> SecurityContext {
     SecurityContext {
-        user_id: "admin-1".into(),
-        roles: vec!["admin".to_string()],
-        tenant_id: Some("tenant-abc".into()),
-        scopes: vec![],
-        attributes: HashMap::default(),
-        request_id: "req-002".to_string(),
-        ip_address: None,
-        expires_at: Utc::now() + chrono::Duration::hours(1),
+        user_id:          "admin-1".into(),
+        roles:            vec!["admin".to_string()],
+        tenant_id:        Some("tenant-abc".into()),
+        scopes:           vec![],
+        attributes:       HashMap::default(),
+        request_id:       "req-002".to_string(),
+        ip_address:       None,
+        expires_at:       Utc::now() + chrono::Duration::hours(1),
         authenticated_at: Utc::now(),
-        issuer: None,
-        audience: None,
-        email: None,
-        display_name: None,
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
     }
 }
 
@@ -58,31 +58,31 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
     schema.add_fact_table(
         "tf_sales".to_string(),
         FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
-                    name: "tenant_id".to_string(),
+                    name:     "tenant_id".to_string(),
                     sql_type: SqlType::Text,
-                    indexed: true,
+                    indexed:  true,
                 },
                 FilterColumn {
-                    name: "author_id".to_string(),
+                    name:     "author_id".to_string(),
                     sql_type: SqlType::Text,
-                    indexed: true,
+                    indexed:  true,
                 },
             ],
-            calendar_dimensions: vec![],
-            partial_period: None,
-            native_measures: std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );
@@ -249,35 +249,35 @@ fn schema_with_partial_period() -> crate::schema::CompiledSchema {
     schema.add_fact_table(
         "tf_events".to_string(),
         FactTableMetadata {
-            table_name: "tf_events".to_string(),
-            measures: vec![MeasureColumn {
-                name: "volume".to_string(),
+            table_name:               "tf_events".to_string(),
+            measures:                 vec![MeasureColumn {
+                name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
-                    name: "tenant_id".to_string(),
+                    name:     "tenant_id".to_string(),
                     sql_type: SqlType::Text,
-                    indexed: true,
+                    indexed:  true,
                 },
                 FilterColumn {
-                    name: "period_start".to_string(),
+                    name:     "period_start".to_string(),
                     sql_type: SqlType::Date,
-                    indexed: true,
+                    indexed:  true,
                 },
             ],
-            calendar_dimensions: vec![],
-            partial_period: Some(PartialPeriodConfig {
-                fine_grain_view: "v_events_day".to_string(),
+            calendar_dimensions:      vec![],
+            partial_period:           Some(PartialPeriodConfig {
+                fine_grain_view:   "v_events_day".to_string(),
                 time_grain_column: "period_start".to_string(),
-                time_grain_trunc: TemporalGrain::Month,
+                time_grain_trunc:  TemporalGrain::Month,
             }),
-            native_measures: std::collections::HashMap::new(),
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );

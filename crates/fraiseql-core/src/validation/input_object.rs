@@ -48,7 +48,7 @@ pub enum InputObjectRule {
     /// If one field is present, others must be present
     ConditionalRequired {
         /// The trigger field whose presence activates the requirement.
-        if_field: String,
+        if_field:    String,
         /// Fields that must be present when `if_field` is provided.
         then_fields: Vec<String>,
     },
@@ -57,7 +57,7 @@ pub enum InputObjectRule {
         /// The field whose absence activates the requirement.
         absent_field: String,
         /// Fields that must be present when `absent_field` is missing.
-        then_fields: Vec<String>,
+        then_fields:  Vec<String>,
     },
     /// Custom validator function name to invoke
     Custom {
@@ -70,7 +70,7 @@ pub enum InputObjectRule {
 #[derive(Debug, Clone, Default)]
 pub struct InputObjectValidationResult {
     /// All validation errors
-    pub errors: Vec<String>,
+    pub errors:      Vec<String>,
     /// Count of errors
     pub error_count: usize,
 }
@@ -80,7 +80,7 @@ impl InputObjectValidationResult {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            errors: Vec::new(),
+            errors:      Vec::new(),
             error_count: 0,
         }
     }
@@ -123,7 +123,7 @@ impl InputObjectValidationResult {
         if self.has_errors() {
             Err(FraiseQLError::Validation {
                 message: format!("Input object validation failed: {}", self.errors.join("; ")),
-                path: Some(path.to_string()),
+                path:    Some(path.to_string()),
             })
         } else {
             Ok(())
@@ -154,7 +154,7 @@ pub fn validate_input_object(
     if !matches!(input, Value::Object(_)) {
         return Err(FraiseQLError::Validation {
             message: "Input must be an object".to_string(),
-            path: Some(path.to_string()),
+            path:    Some(path.to_string()),
         });
     }
 
@@ -185,7 +185,7 @@ fn validate_rule(input: &Value, rule: &InputObjectRule, path: &str) -> Result<()
                 "Custom validator '{name}' is not registered. \
                  Register validators via InputValidatorRegistry before executing queries."
             ),
-            path: Some(path.to_string()),
+            path:    Some(path.to_string()),
         }),
     }
 }
@@ -200,7 +200,7 @@ fn validate_any_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
         if !has_any {
             return Err(FraiseQLError::Validation {
                 message: format!("At least one of [{}] must be provided", fields.join(", ")),
-                path: Some(path.to_string()),
+                path:    Some(path.to_string()),
             });
         }
     }
@@ -224,7 +224,7 @@ fn validate_one_of(input: &Value, fields: &[String], path: &str) -> Result<()> {
                     present_count,
                     if present_count == 1 { "was" } else { "were" }
                 ),
-                path: Some(path.to_string()),
+                path:    Some(path.to_string()),
             });
         }
     }
@@ -259,7 +259,7 @@ fn validate_conditional_required(
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
-                    path: Some(path.to_string()),
+                    path:    Some(path.to_string()),
                 });
             }
         }
@@ -295,7 +295,7 @@ fn validate_required_if_absent(
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
-                    path: Some(path.to_string()),
+                    path:    Some(path.to_string()),
                 });
             }
         }

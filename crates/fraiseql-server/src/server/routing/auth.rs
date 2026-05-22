@@ -15,9 +15,9 @@ use super::super::{
     AuthMeState, AuthPkceState, OidcAuthState, Server, auth_callback, auth_me, auth_start,
     oidc_auth_middleware,
 };
-use crate::auth::anon_signup;
-use crate::auth::social::social_authorize;
-use crate::auth::{mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify};
+use crate::auth::{
+    anon_signup, mfa_challenge, mfa_enroll, mfa_unenroll, mfa_verify, social::social_authorize,
+};
 
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Mount all `#[cfg(feature = "auth")]`-gated authentication routes.
@@ -25,9 +25,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // PKCE OAuth2 auth routes — mounted only when both pkce and [auth] are configured.
         if let (Some(store), Some(client)) = (&self.pkce_store, &self.oidc_server_client) {
             let auth_state = Arc::new(AuthPkceState {
-                pkce_store: Arc::clone(store),
-                oidc_client: Arc::clone(client),
-                http_client: Arc::new(
+                pkce_store:              Arc::clone(store),
+                oidc_client:             Arc::clone(client),
+                http_client:             Arc::new(
                     reqwest::Client::builder()
                         .timeout(std::time::Duration::from_secs(30))
                         .build()

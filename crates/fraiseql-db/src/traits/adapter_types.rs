@@ -13,7 +13,7 @@ use crate::types::{DatabaseType, JsonbValue};
 #[non_exhaustive]
 pub struct RelayPageResult {
     /// The page of JSONB rows (already trimmed to the requested page size).
-    pub rows: Vec<JsonbValue>,
+    pub rows:        Vec<JsonbValue>,
     /// Total count of matching rows (only populated when requested via `include_total_count`).
     pub total_count: Option<u64>,
 }
@@ -69,28 +69,28 @@ impl DatabaseCapabilities {
     pub const fn from_database_type(db_type: DatabaseType) -> Self {
         match db_type {
             DatabaseType::PostgreSQL => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: true,
                 requires_custom_collation: false,
-                recommended_collation: Some("icu"),
+                recommended_collation:     Some("icu"),
             },
             DatabaseType::MySQL => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: false,
                 requires_custom_collation: false,
-                recommended_collation: Some("utf8mb4_unicode_ci"),
+                recommended_collation:     Some("utf8mb4_unicode_ci"),
             },
             DatabaseType::SQLite => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: false,
                 requires_custom_collation: true,
-                recommended_collation: Some("NOCASE"),
+                recommended_collation:     Some("NOCASE"),
             },
             DatabaseType::SQLServer => Self {
-                database_type: db_type,
+                database_type:             db_type,
                 supports_locale_collation: true,
                 requires_custom_collation: false,
-                recommended_collation: Some("Latin1_General_100_CI_AI_SC_UTF8"),
+                recommended_collation:     Some("Latin1_General_100_CI_AI_SC_UTF8"),
             },
         }
     }
@@ -139,17 +139,17 @@ pub enum DirectMutationOp {
 #[derive(Debug)]
 pub struct DirectMutationContext<'a> {
     /// The mutation operation to perform.
-    pub operation: DirectMutationOp,
+    pub operation:      DirectMutationOp,
     /// Target table name (e.g., `"users"`).
-    pub table: &'a str,
+    pub table:          &'a str,
     /// Client-supplied column names (in bind order).
-    pub columns: &'a [String],
+    pub columns:        &'a [String],
     /// All bind values: client values first, then injected values.
-    pub values: &'a [serde_json::Value],
+    pub values:         &'a [serde_json::Value],
     /// Server-injected column names (e.g., RLS tenant columns), appended after client columns.
     pub inject_columns: &'a [String],
     /// GraphQL return type name (e.g., `"User"`), used in the mutation response envelope.
-    pub return_type: &'a str,
+    pub return_type:    &'a str,
 }
 
 /// A typed cursor value for keyset (relay) pagination.

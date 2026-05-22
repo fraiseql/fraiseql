@@ -14,11 +14,11 @@ use crate::types::RuntimeType;
 #[derive(Debug, Clone)]
 pub struct FunctionRecord {
     /// Unique name for this function.
-    pub name: String,
+    pub name:     String,
     /// Compiled bytecode or source text.
     pub bytecode: Bytes,
     /// Which runtime executes this module.
-    pub runtime: RuntimeType,
+    pub runtime:  RuntimeType,
 }
 
 /// Trait for function deployment storage.

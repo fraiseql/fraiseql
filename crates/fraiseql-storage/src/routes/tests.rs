@@ -52,10 +52,10 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
     );
 
     let state = StorageState {
-        backend: Arc::new(crate::backend::StorageBackend::Local(backend)),
+        backend:  Arc::new(crate::backend::StorageBackend::Local(backend)),
         metadata: Arc::new(StorageMetadataRepo::new(pool)),
-        rls: StorageRlsEvaluator::new(),
-        buckets: Arc::new(buckets),
+        rls:      StorageRlsEvaluator::new(),
+        buckets:  Arc::new(buckets),
     };
 
     (state, (container, tmp))
@@ -65,7 +65,7 @@ async fn test_state(bucket_name: &str, access: BucketAccess) -> (StorageState, i
 fn authenticated_router(state: StorageState) -> axum::Router {
     let user = StorageUser {
         user_id: Some("test-user".to_string()),
-        roles: vec!["user".to_string()],
+        roles:   vec!["user".to_string()],
     };
     storage_router(state).layer(Extension(user))
 }
@@ -96,11 +96,11 @@ async fn test_put_object_exceeding_size_limit_returns_413() {
     buckets.insert(
         "small-bucket".to_string(),
         BucketConfig {
-            name: "small-bucket".to_string(),
-            max_object_bytes: Some(64),
+            name:               "small-bucket".to_string(),
+            max_object_bytes:   Some(64),
             allowed_mime_types: None,
-            access: BucketAccess::PublicRead,
-            transform_presets: None,
+            access:             BucketAccess::PublicRead,
+            transform_presets:  None,
         },
     );
     let state = StorageState {
@@ -249,11 +249,11 @@ async fn test_mime_type_rejection_returns_415() {
     buckets.insert(
         "images-only".to_string(),
         BucketConfig {
-            name: "images-only".to_string(),
-            max_object_bytes: None,
+            name:               "images-only".to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: Some(vec!["image/*".to_string()]),
-            access: BucketAccess::PublicRead,
-            transform_presets: None,
+            access:             BucketAccess::PublicRead,
+            transform_presets:  None,
         },
     );
     let state = StorageState {
@@ -390,7 +390,7 @@ async fn test_different_user_denied_on_private_bucket() {
     // Read as different user — should be denied
     let other_user = StorageUser {
         user_id: Some("other-user".to_string()),
-        roles: vec!["user".to_string()],
+        roles:   vec!["user".to_string()],
     };
     let app = storage_router(state).layer(Extension(other_user));
     let download = Request::builder()

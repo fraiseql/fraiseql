@@ -16,17 +16,17 @@ fn enabled_metadata() -> FederationMetadata {
 /// Helper: build a `FederatedType` with a single `@key(fields: "id")`.
 fn user_type_with_key() -> FederatedType {
     FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: Vec::new(),
-        shareable_fields: Vec::new(),
+        is_extends:          false,
+        external_fields:     Vec::new(),
+        shareable_fields:    Vec::new(),
         inaccessible_fields: Vec::new(),
-        field_directives: HashMap::new(),
-        type_shareable: false,
+        field_directives:    HashMap::new(),
+        type_shareable:      false,
     }
 }
 
@@ -156,7 +156,7 @@ fn test_field_requires_directive() {
     user.field_directives.insert(
         "fullName".to_string(),
         FieldFederationDirectives::new().with_requires(vec![FieldPathSelection {
-            path: vec!["profile".to_string()],
+            path:     vec!["profile".to_string()],
             typename: "User".to_string(),
         }]),
     );
@@ -183,7 +183,7 @@ fn test_field_requires_nested_path() {
     user.field_directives.insert(
         "displayAge".to_string(),
         FieldFederationDirectives::new().with_requires(vec![FieldPathSelection {
-            path: vec!["profile".to_string(), "age".to_string()],
+            path:     vec!["profile".to_string(), "age".to_string()],
             typename: "User".to_string(),
         }]),
     );
@@ -210,7 +210,7 @@ fn test_field_provides_directive() {
     user.field_directives.insert(
         "reviews".to_string(),
         FieldFederationDirectives::new().with_provides(vec![FieldPathSelection {
-            path: vec!["body".to_string()],
+            path:     vec!["body".to_string()],
             typename: "Review".to_string(),
         }]),
     );
@@ -302,15 +302,15 @@ fn test_multi_directive_field() {
     user.field_directives.insert(
         "email".to_string(),
         FieldFederationDirectives {
-            external: true,
-            shareable: false,
-            inaccessible: false,
+            external:      true,
+            shareable:     false,
+            inaccessible:  false,
             override_from: None,
-            requires: vec![FieldPathSelection {
-                path: vec!["id".to_string()],
+            requires:      vec![FieldPathSelection {
+                path:     vec!["id".to_string()],
                 typename: "User".to_string(),
             }],
-            provides: Vec::new(),
+            provides:      Vec::new(),
         },
     );
 
@@ -334,17 +334,17 @@ fn test_multi_directive_field() {
 #[test]
 fn test_extends_type_uses_extend_keyword() {
     let user = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: true,
-        external_fields: Vec::new(),
-        shareable_fields: Vec::new(),
+        is_extends:          true,
+        external_fields:     Vec::new(),
+        shareable_fields:    Vec::new(),
         inaccessible_fields: Vec::new(),
-        field_directives: HashMap::new(),
-        type_shareable: false,
+        field_directives:    HashMap::new(),
+        type_shareable:      false,
     };
 
     let metadata = FederationMetadata {
@@ -370,17 +370,17 @@ fn test_extends_type_uses_extend_keyword() {
 #[test]
 fn test_type_level_shareable() {
     let user = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: Vec::new(),
-        shareable_fields: Vec::new(),
+        is_extends:          false,
+        external_fields:     Vec::new(),
+        shareable_fields:    Vec::new(),
         inaccessible_fields: Vec::new(),
-        field_directives: HashMap::new(),
-        type_shareable: true,
+        field_directives:    HashMap::new(),
+        type_shareable:      true,
     };
 
     let metadata = FederationMetadata {
@@ -442,17 +442,17 @@ fn test_cross_type_field_collision() {
         .insert("name".to_string(), FieldFederationDirectives::new().shareable());
 
     let product = FederatedType {
-        name: "Product".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["sku".to_string()],
+        name:                "Product".to_string(),
+        keys:                vec![KeyDirective {
+            fields:     vec!["sku".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: Vec::new(),
-        shareable_fields: Vec::new(),
+        is_extends:          false,
+        external_fields:     Vec::new(),
+        shareable_fields:    Vec::new(),
         inaccessible_fields: Vec::new(),
-        field_directives: HashMap::new(),
-        type_shareable: false,
+        field_directives:    HashMap::new(),
+        type_shareable:      false,
     };
 
     let metadata = FederationMetadata {
@@ -512,17 +512,17 @@ input CreateUserInput {\n  name: String!\n}";
 #[test]
 fn test_interface_entity_pattern() {
     let node = FederatedType {
-        name: "Node".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:                "Node".to_string(),
+        keys:                vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: true,
         }],
-        is_extends: false,
-        external_fields: Vec::new(),
-        shareable_fields: Vec::new(),
+        is_extends:          false,
+        external_fields:     Vec::new(),
+        shareable_fields:    Vec::new(),
         inaccessible_fields: Vec::new(),
-        field_directives: HashMap::new(),
-        type_shareable: false,
+        field_directives:    HashMap::new(),
+        type_shareable:      false,
     };
 
     let metadata = FederationMetadata {
@@ -544,17 +544,17 @@ fn test_interface_entity_pattern() {
 #[test]
 fn test_non_resolvable_key() {
     let user = FederatedType {
-        name: "User".to_string(),
-        keys: vec![KeyDirective {
-            fields: vec!["id".to_string()],
+        name:                "User".to_string(),
+        keys:                vec![KeyDirective {
+            fields:     vec!["id".to_string()],
             resolvable: false,
         }],
-        is_extends: false,
-        external_fields: Vec::new(),
-        shareable_fields: Vec::new(),
+        is_extends:          false,
+        external_fields:     Vec::new(),
+        shareable_fields:    Vec::new(),
         inaccessible_fields: Vec::new(),
-        field_directives: HashMap::new(),
-        type_shareable: false,
+        field_directives:    HashMap::new(),
+        type_shareable:      false,
     };
 
     let metadata = FederationMetadata {
@@ -576,23 +576,23 @@ fn test_non_resolvable_key() {
 #[test]
 fn test_multiple_keys_on_one_type() {
     let user = FederatedType {
-        name: "User".to_string(),
-        keys: vec![
+        name:                "User".to_string(),
+        keys:                vec![
             KeyDirective {
-                fields: vec!["id".to_string()],
+                fields:     vec!["id".to_string()],
                 resolvable: true,
             },
             KeyDirective {
-                fields: vec!["email".to_string()],
+                fields:     vec!["email".to_string()],
                 resolvable: true,
             },
         ],
-        is_extends: false,
-        external_fields: Vec::new(),
-        shareable_fields: Vec::new(),
+        is_extends:          false,
+        external_fields:     Vec::new(),
+        shareable_fields:    Vec::new(),
         inaccessible_fields: Vec::new(),
-        field_directives: HashMap::new(),
-        type_shareable: false,
+        field_directives:    HashMap::new(),
+        type_shareable:      false,
     };
 
     let metadata = FederationMetadata {
@@ -649,16 +649,16 @@ fn test_field_directive_suffix_empty() {
 #[test]
 fn test_field_directive_suffix_all() {
     let d = FieldFederationDirectives {
-        external: true,
-        shareable: true,
-        inaccessible: true,
+        external:      true,
+        shareable:     true,
+        inaccessible:  true,
         override_from: Some("old".to_string()),
-        requires: vec![FieldPathSelection {
-            path: vec!["id".to_string()],
+        requires:      vec![FieldPathSelection {
+            path:     vec!["id".to_string()],
             typename: "X".to_string(),
         }],
-        provides: vec![FieldPathSelection {
-            path: vec!["name".to_string()],
+        provides:      vec![FieldPathSelection {
+            path:     vec!["name".to_string()],
             typename: "Y".to_string(),
         }],
     };

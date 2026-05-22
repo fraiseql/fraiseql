@@ -192,11 +192,11 @@ fn test_request_validation_integration() {
 
     // Test with valid request
     let valid_request = GraphQLRequest {
-        query: Some("{ user { id } }".to_string()),
-        variables: None,
+        query:          Some("{ user { id } }".to_string()),
+        variables:      None,
         operation_name: None,
-        extensions: None,
-        document_id: None,
+        extensions:     None,
+        document_id:    None,
     };
 
     validator
@@ -208,11 +208,11 @@ fn test_request_validation_integration() {
 
     // Test with invalid depth
     let deep_request = GraphQLRequest {
-        query: Some("{ a { b { c { d { e { f } } } } } }".to_string()),
-        variables: None,
+        query:          Some("{ a { b { c { d { e { f } } } } } }".to_string()),
+        variables:      None,
         operation_name: None,
-        extensions: None,
-        document_id: None,
+        extensions:     None,
+        document_id:    None,
     };
 
     let validator = validator.with_max_depth(2);
@@ -243,11 +243,11 @@ fn test_multiple_errors_response() {
 #[test]
 fn test_error_extensions() {
     let extensions = ErrorExtensions {
-        category: Some("VALIDATION".to_string()),
-        status: Some(400),
-        request_id: Some("req-12345".to_string()),
+        category:         Some("VALIDATION".to_string()),
+        status:           Some(400),
+        request_id:       Some("req-12345".to_string()),
         retry_after_secs: None,
-        detail: None,
+        detail:           None,
     };
 
     let error = GraphQLError::validation("Invalid input").with_extensions(extensions);
@@ -380,7 +380,7 @@ fn test_minimal_validator() {
 #[test]
 fn test_validation_error_conversion() {
     let error = fraiseql_server::ComplexityValidationError::QueryTooDeep {
-        max_depth: 10,
+        max_depth:    10,
         actual_depth: 15,
     };
 

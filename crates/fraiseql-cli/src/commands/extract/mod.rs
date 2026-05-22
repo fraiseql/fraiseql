@@ -41,7 +41,7 @@ use self::{
 
 /// Extracted schema from a single source file.
 struct ExtractedSchema {
-    types: Vec<IntermediateType>,
+    types:   Vec<IntermediateType>,
     queries: Vec<IntermediateQuery>,
 }
 

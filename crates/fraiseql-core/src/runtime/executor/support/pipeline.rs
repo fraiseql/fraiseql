@@ -39,14 +39,14 @@ pub struct RootFieldResult {
     /// Response key for this field (alias if provided, otherwise field name).
     pub field_name: String,
     /// Resolved data value.
-    pub data: serde_json::Value,
+    pub data:       serde_json::Value,
 }
 
 /// Aggregated result from a multi-root parallel execution.
 #[derive(Debug)]
 pub struct PipelineResult {
     /// Results for each root field, in the order they were requested.
-    pub fields: Vec<RootFieldResult>,
+    pub fields:   Vec<RootFieldResult>,
     /// `true` when results were produced by the parallel path.
     pub parallel: bool,
 }

@@ -26,38 +26,38 @@ static GLOBAL_REGISTRY: OnceLock<MetricsRegistry> = OnceLock::new();
 #[derive(Clone)]
 pub struct MetricsRegistry {
     // Event processing metrics
-    pub(crate) events_processed_total: IntCounter,
-    pub(crate) events_failed_total: IntCounterVec,
+    pub(crate) events_processed_total:                IntCounter,
+    pub(crate) events_failed_total:                   IntCounterVec,
     pub(crate) events_deserialization_failures_total: IntCounter,
-    pub(crate) events_tenant_violations_total: IntCounter,
+    pub(crate) events_tenant_violations_total:        IntCounter,
 
     // Cache metrics
-    pub(crate) cache_hits_total: IntCounter,
-    pub(crate) cache_misses_total: IntCounter,
+    pub(crate) cache_hits_total:      IntCounter,
+    pub(crate) cache_misses_total:    IntCounter,
     pub(crate) cache_evictions_total: IntCounter,
 
     // Deduplication metrics
-    pub(crate) dedup_detected_total: IntCounter,
+    pub(crate) dedup_detected_total:           IntCounter,
     pub(crate) dedup_processing_skipped_total: IntCounter,
 
     // Action execution metrics
-    pub(crate) action_executed_total: IntCounterVec,
+    pub(crate) action_executed_total:   IntCounterVec,
     pub(crate) action_duration_seconds: HistogramVec,
-    pub(crate) action_errors_total: IntCounterVec,
+    pub(crate) action_errors_total:     IntCounterVec,
 
     // Queue metrics
-    pub(crate) backlog_size: IntGauge,
-    pub(crate) dlq_items: IntGauge,
+    pub(crate) backlog_size:       IntGauge,
+    pub(crate) dlq_items:          IntGauge,
     pub(crate) dlq_overflow_total: IntCounter,
 
     // Job queue metrics
-    pub(crate) job_queued_total: IntCounter,
-    pub(crate) job_executed_total: IntCounterVec,
-    pub(crate) job_failed_total: IntCounterVec,
+    pub(crate) job_queued_total:     IntCounter,
+    pub(crate) job_executed_total:   IntCounterVec,
+    pub(crate) job_failed_total:     IntCounterVec,
     pub(crate) job_duration_seconds: HistogramVec,
-    pub(crate) job_retry_attempts: IntCounterVec,
-    pub(crate) job_queue_depth: IntGauge,
-    pub(crate) job_dlq_items: IntGauge,
+    pub(crate) job_retry_attempts:   IntCounterVec,
+    pub(crate) job_queue_depth:      IntGauge,
+    pub(crate) job_dlq_items:        IntGauge,
 }
 
 impl MetricsRegistry {

@@ -18,13 +18,13 @@ pub struct PutResult {
 #[derive(Debug, Clone)]
 pub struct StorageObject {
     /// Raw file contents.
-    pub body: Bytes,
+    pub body:          Bytes,
     /// MIME type of the object.
-    pub content_type: String,
+    pub content_type:  String,
     /// Size in bytes.
-    pub size: u64,
+    pub size:          u64,
     /// Entity tag for integrity verification.
-    pub etag: String,
+    pub etag:          String,
     /// Last modification time as ISO 8601 string.
     pub last_modified: String,
 }
@@ -33,7 +33,7 @@ pub struct StorageObject {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListResult {
     /// Objects matching the query.
-    pub objects: Vec<ObjectInfo>,
+    pub objects:     Vec<ObjectInfo>,
     /// Cursor for the next page (if any).
     pub next_cursor: Option<String>,
 }
@@ -42,13 +42,13 @@ pub struct ListResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObjectInfo {
     /// Key (path) of the object.
-    pub key: String,
+    pub key:           String,
     /// Size in bytes.
-    pub size: u64,
+    pub size:          u64,
     /// MIME type.
-    pub content_type: String,
+    pub content_type:  String,
     /// Entity tag for integrity.
-    pub etag: String,
+    pub etag:          String,
     /// Last modification time as ISO 8601.
     pub last_modified: String,
 }
@@ -57,7 +57,7 @@ pub struct ObjectInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ObjectMetadata {
     /// Owner/uploader of the object.
-    pub owner: Option<String>,
+    pub owner:          Option<String>,
     /// Custom headers to store with the object.
     pub custom_headers: HashMap<String, String>,
 }

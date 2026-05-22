@@ -11,9 +11,9 @@ use crate::{
 
 fn field(path: &str, op: WhereOperator, val: serde_json::Value) -> WhereClause {
     WhereClause::Field {
-        path: vec![path.to_string()],
+        path:     vec![path.to_string()],
         operator: op,
-        value: val,
+        value:    val,
     }
 }
 
@@ -296,9 +296,9 @@ fn hierarchy_context_none_is_backward_compatible() {
 #[test]
 fn hierarchy_context_can_be_constructed() {
     let ctx = HierarchyContext {
-        table: "tb_category".to_string(),
+        table:       "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     assert_eq!(ctx.table, "tb_category");
     assert_eq!(ctx.path_column, "category_path");
@@ -308,9 +308,9 @@ fn hierarchy_context_can_be_constructed() {
 #[test]
 fn hierarchy_context_cross_table() {
     let ctx = HierarchyContext {
-        table: "tb_location".to_string(),
+        table:       "tb_location".to_string(),
         path_column: "location_path".to_string(),
-        fk_column: Some("fk_location".to_string()),
+        fk_column:   Some("fk_location".to_string()),
     };
     assert_eq!(ctx.fk_column, Some("fk_location".to_string()));
 }
@@ -321,9 +321,9 @@ fn hierarchy_context_cross_table() {
 fn descendant_of_id_self_referencing() {
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table: "tb_category".to_string(),
+        table:       "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     let clause = field(
         "category_path",
@@ -342,9 +342,9 @@ fn descendant_of_id_self_referencing() {
 fn ancestor_of_id_self_referencing() {
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table: "tb_category".to_string(),
+        table:       "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     let clause = field(
         "category_path",
@@ -363,9 +363,9 @@ fn ancestor_of_id_self_referencing() {
 fn descendant_of_id_cross_table() {
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table: "tb_location".to_string(),
+        table:       "tb_location".to_string(),
         path_column: "location_path".to_string(),
-        fk_column: Some("fk_location".to_string()),
+        fk_column:   Some("fk_location".to_string()),
     };
     let clause = field(
         "location",
@@ -384,9 +384,9 @@ fn descendant_of_id_cross_table() {
 fn ancestor_of_id_cross_table() {
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table: "tb_location".to_string(),
+        table:       "tb_location".to_string(),
         path_column: "location_path".to_string(),
-        fk_column: Some("fk_location".to_string()),
+        fk_column:   Some("fk_location".to_string()),
     };
     let clause = field(
         "location",
@@ -415,9 +415,9 @@ fn descendant_of_id_mysql_unsupported() {
     use crate::dialect::MySqlDialect;
     let gen = GenericWhereGenerator::new(MySqlDialect);
     let ctx = HierarchyContext {
-        table: "tb_category".to_string(),
+        table:       "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
     let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
@@ -430,9 +430,9 @@ fn ancestor_of_id_sqlite_unsupported() {
     use crate::dialect::SqliteDialect;
     let gen = GenericWhereGenerator::new(SqliteDialect);
     let ctx = HierarchyContext {
-        table: "tb_category".to_string(),
+        table:       "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     let clause = field("category_path", WhereOperator::AncestorOfId, json!("some-id"));
     let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
@@ -445,9 +445,9 @@ fn descendant_of_id_sqlserver_unsupported() {
     use crate::dialect::SqlServerDialect;
     let gen = GenericWhereGenerator::new(SqlServerDialect);
     let ctx = HierarchyContext {
-        table: "tb_category".to_string(),
+        table:       "tb_category".to_string(),
         path_column: "category_path".to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
     let err = gen.generate_with_hierarchy(&clause, &ctx).unwrap_err();
@@ -459,9 +459,9 @@ fn descendant_of_id_sqlserver_unsupported() {
 fn ltree_id_subquery_escapes_adversarial_identifiers() {
     let gen = GenericWhereGenerator::new(PostgresDialect);
     let ctx = HierarchyContext {
-        table: r#"evil"table"#.to_string(),
+        table:       r#"evil"table"#.to_string(),
         path_column: r#"evil"col"#.to_string(),
-        fk_column: None,
+        fk_column:   None,
     };
     let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
     let (sql, _) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();

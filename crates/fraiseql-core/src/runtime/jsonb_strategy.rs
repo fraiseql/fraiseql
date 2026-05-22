@@ -52,7 +52,7 @@ pub struct JsonbOptimizationOptions {
 impl Default for JsonbOptimizationOptions {
     fn default() -> Self {
         Self {
-            default_strategy: JsonbStrategy::Project,
+            default_strategy:       JsonbStrategy::Project,
             auto_threshold_percent: 80,
         }
     }

@@ -51,14 +51,14 @@ fn test_mutation_ownership_local_type() {
         enabled: true,
         version: "v2".to_string(),
         types: vec![crate::FederatedType {
-            name: "User".to_string(),
-            keys: vec![],
-            is_extends: false, // NOT extended = local
-            external_fields: vec![],
-            shareable_fields: vec![],
+            name:                "User".to_string(),
+            keys:                vec![],
+            is_extends:          false, // NOT extended = local
+            external_fields:     vec![],
+            shareable_fields:    vec![],
             inaccessible_fields: vec![],
-            field_directives: std::collections::HashMap::new(),
-            type_shareable: false,
+            field_directives:    std::collections::HashMap::new(),
+            type_shareable:      false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };
@@ -73,14 +73,14 @@ fn test_mutation_ownership_extended_type() {
         enabled: true,
         version: "v2".to_string(),
         types: vec![crate::FederatedType {
-            name: "User".to_string(),
-            keys: vec![],
-            is_extends: true, // Extended = remote
-            external_fields: vec![],
-            shareable_fields: vec![],
+            name:                "User".to_string(),
+            keys:                vec![],
+            is_extends:          true, // Extended = remote
+            external_fields:     vec![],
+            shareable_fields:    vec![],
             inaccessible_fields: vec![],
-            field_directives: std::collections::HashMap::new(),
-            type_shareable: false,
+            field_directives:    std::collections::HashMap::new(),
+            type_shareable:      false,
         }],
         remote_subscription_fields: std::collections::HashMap::new(),
     };

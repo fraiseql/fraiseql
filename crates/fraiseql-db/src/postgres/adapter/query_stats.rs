@@ -83,7 +83,7 @@ impl PostgresAdapter {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to query pg_stat_statements: {e}"),
+                message:   format!("Failed to query pg_stat_statements: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -120,7 +120,7 @@ impl PostgresAdapter {
             )
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to query pg_stat_statements by id: {e}"),
+                message:   format!("Failed to query pg_stat_statements by id: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             })?;
 
@@ -141,7 +141,7 @@ impl PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
         client.execute("SELECT pg_stat_statements_reset()", &[]).await.map_err(|e| {
             FraiseQLError::Database {
-                message: format!("Failed to reset pg_stat_statements: {e}"),
+                message:   format!("Failed to reset pg_stat_statements: {e}"),
                 sql_state: e.code().map(|c| c.code().to_string()),
             }
         })?;

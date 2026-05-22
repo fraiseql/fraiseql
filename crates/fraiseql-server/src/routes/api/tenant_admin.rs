@@ -28,25 +28,25 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct TenantRegistrationRequest {
     /// Compiled schema JSON (the full `schema.compiled.json` contents).
-    pub schema: serde_json::Value,
+    pub schema:               serde_json::Value,
     /// Database connection configuration for this tenant.
-    pub connection: TenantPoolConfig,
+    pub connection:           TenantPoolConfig,
     /// Maximum requests per second (token bucket rate). `None` = unlimited.
     #[serde(default)]
     pub max_requests_per_sec: Option<u32>,
     /// Maximum concurrent in-flight requests. `None` = unlimited.
     #[serde(default)]
-    pub max_concurrent: Option<u32>,
+    pub max_concurrent:       Option<u32>,
     /// Maximum storage in bytes (soft limit). `None` = unlimited.
     #[serde(default)]
-    pub max_storage_bytes: Option<u64>,
+    pub max_storage_bytes:    Option<u64>,
 }
 
 /// Response for tenant write operations.
 #[derive(Debug, Serialize)]
 pub struct TenantResponse {
     /// The tenant key.
-    pub key: String,
+    pub key:    String,
     /// Whether this was `"created"`, `"updated"`, or `"removed"`.
     pub status: &'static str,
 }
@@ -55,11 +55,11 @@ pub struct TenantResponse {
 #[derive(Debug, Serialize)]
 pub struct TenantMetadata {
     /// The tenant key.
-    pub key: String,
+    pub key:            String,
     /// Tenant lifecycle status (`"active"` or `"suspended"`).
-    pub status: &'static str,
+    pub status:         &'static str,
     /// Number of queries in the tenant's compiled schema.
-    pub query_count: usize,
+    pub query_count:    usize,
     /// Number of mutations in the tenant's compiled schema.
     pub mutation_count: usize,
 }
@@ -70,14 +70,14 @@ pub struct TenantListResponse {
     /// All registered tenant keys.
     pub tenants: Vec<String>,
     /// Number of registered tenants.
-    pub count: usize,
+    pub count:   usize,
 }
 
 /// Response for `GET /api/v1/admin/tenants/{key}/health`.
 #[derive(Debug, Serialize)]
 pub struct TenantHealthResponse {
     /// The tenant key.
-    pub key: String,
+    pub key:    String,
     /// Health status.
     pub status: &'static str,
 }
@@ -87,7 +87,7 @@ pub struct TenantHealthResponse {
 pub struct EventsQuery {
     /// Maximum number of events to return (default: 50, max: 200).
     #[serde(default = "default_events_limit")]
-    pub limit: usize,
+    pub limit:  usize,
     /// Offset for pagination (default: 0).
     #[serde(default)]
     pub offset: usize,
@@ -101,11 +101,11 @@ const fn default_events_limit() -> usize {
 #[derive(Debug, Serialize)]
 pub struct TenantEventsResponse {
     /// The tenant key.
-    pub key: String,
+    pub key:    String,
     /// The events, newest first.
     pub events: Vec<crate::tenancy::audit::TenantEvent>,
     /// Total number of events returned.
-    pub count: usize,
+    pub count:  usize,
 }
 
 /// Body for `PUT /api/v1/admin/domains/{domain}`.
@@ -119,9 +119,9 @@ pub struct DomainRegistrationRequest {
 #[derive(Debug, Serialize)]
 pub struct DomainResponse {
     /// The domain name.
-    pub domain: String,
+    pub domain:     String,
     /// Whether this was `"registered"` or `"removed"`.
-    pub status: &'static str,
+    pub status:     &'static str,
     /// The tenant key the domain maps to (omitted on removal).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant_key: Option<String>,
@@ -133,14 +133,14 @@ pub struct DomainListResponse {
     /// All registered domain → tenant key mappings.
     pub domains: Vec<DomainMapping>,
     /// Number of registered domains.
-    pub count: usize,
+    pub count:   usize,
 }
 
 /// A single domain → tenant key mapping.
 #[derive(Debug, Serialize)]
 pub struct DomainMapping {
     /// The custom domain.
-    pub domain: String,
+    pub domain:     String,
     /// The tenant key it resolves to.
     pub tenant_key: String,
 }
@@ -188,8 +188,8 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 
     let quota = TenantQuota {
         max_requests_per_sec: body.max_requests_per_sec,
-        max_concurrent: body.max_concurrent,
-        max_storage_bytes: body.max_storage_bytes,
+        max_concurrent:       body.max_concurrent,
+        max_storage_bytes:    body.max_storage_bytes,
     };
 
     let was_insert = registry.upsert_with_quota(&key, executor, quota);

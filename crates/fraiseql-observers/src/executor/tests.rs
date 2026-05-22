@@ -33,9 +33,9 @@ fn test_executor_creation() {
 fn test_backoff_exponential() {
     let executor = create_test_executor();
     let config = RetryConfig {
-        max_attempts: 5,
+        max_attempts:     5,
         initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        max_delay_ms:     5000,
         backoff_strategy: BackoffStrategy::Exponential,
     };
 
@@ -56,9 +56,9 @@ fn test_backoff_exponential() {
 fn test_backoff_linear() {
     let executor = create_test_executor();
     let config = RetryConfig {
-        max_attempts: 5,
+        max_attempts:     5,
         initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        max_delay_ms:     5000,
         backoff_strategy: BackoffStrategy::Linear,
     };
 
@@ -73,9 +73,9 @@ fn test_backoff_linear() {
 fn test_backoff_fixed() {
     let executor = create_test_executor();
     let config = RetryConfig {
-        max_attempts: 5,
+        max_attempts:     5,
         initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        max_delay_ms:     5000,
         backoff_strategy: BackoffStrategy::Fixed,
     };
 
@@ -90,9 +90,9 @@ fn test_backoff_fixed() {
 fn test_backoff_exponential_cap() {
     let executor = create_test_executor();
     let config = RetryConfig {
-        max_attempts: 10,
+        max_attempts:     10,
         initial_delay_ms: 100,
-        max_delay_ms: 1000,
+        max_delay_ms:     1000,
         backoff_strategy: BackoffStrategy::Exponential,
     };
 
@@ -105,15 +105,15 @@ fn test_backoff_exponential_cap() {
 fn test_execution_summary_success() {
     let summary = ExecutionSummary {
         successful_actions: 5,
-        failed_actions: 0,
+        failed_actions:     0,
         conditions_skipped: 0,
-        total_duration_ms: 50.0,
-        dlq_errors: 0,
-        errors: vec![],
-        duplicate_skipped: false,
-        tenant_rejected: false,
-        cache_hits: 0,
-        cache_misses: 0,
+        total_duration_ms:  50.0,
+        dlq_errors:         0,
+        errors:             vec![],
+        duplicate_skipped:  false,
+        tenant_rejected:    false,
+        cache_hits:         0,
+        cache_misses:       0,
     };
 
     assert!(summary.is_success());
@@ -124,15 +124,15 @@ fn test_execution_summary_success() {
 fn test_execution_summary_failure() {
     let summary = ExecutionSummary {
         successful_actions: 3,
-        failed_actions: 1,
+        failed_actions:     1,
         conditions_skipped: 1,
-        total_duration_ms: 75.0,
-        dlq_errors: 0,
-        errors: vec![],
-        duplicate_skipped: false,
-        tenant_rejected: false,
-        cache_hits: 0,
-        cache_misses: 0,
+        total_duration_ms:  75.0,
+        dlq_errors:         0,
+        errors:             vec![],
+        duplicate_skipped:  false,
+        tenant_rejected:    false,
+        cache_hits:         0,
+        cache_misses:       0,
     };
 
     assert!(!summary.is_success());
@@ -248,9 +248,9 @@ async fn test_run_listener_loop_with_iteration_limit() {
 fn test_exponential_backoff_calculation() {
     let executor = create_test_executor();
     let config = RetryConfig {
-        max_attempts: 5,
+        max_attempts:     5,
         initial_delay_ms: 100,
-        max_delay_ms: 5000,
+        max_delay_ms:     5000,
         backoff_strategy: BackoffStrategy::Exponential,
     };
 
@@ -281,9 +281,9 @@ fn test_exponential_backoff_calculation() {
 fn test_exponential_backoff_cap() {
     let executor = create_test_executor();
     let config = RetryConfig {
-        max_attempts: 10,
+        max_attempts:     10,
         initial_delay_ms: 100,
-        max_delay_ms: 1000,
+        max_delay_ms:     1000,
         backoff_strategy: BackoffStrategy::Exponential,
     };
 
@@ -341,9 +341,9 @@ fn make_mock_executor_with_matcher(
 
 fn webhook_action() -> ActionConfig {
     ActionConfig::Webhook {
-        url: Some("https://example.com/hook".to_string()),
-        url_env: None,
-        headers: std::collections::HashMap::new(),
+        url:           Some("https://example.com/hook".to_string()),
+        url_env:       None,
+        headers:       std::collections::HashMap::new(),
         body_template: None,
     }
 }
@@ -586,8 +586,8 @@ async fn test_retry_two_transient_then_success() {
                 } else {
                     Ok(ActionResult {
                         action_type: at,
-                        success: true,
-                        message: "ok".to_string(),
+                        success:     true,
+                        message:     "ok".to_string(),
                         duration_ms: 1.0,
                     })
                 }
@@ -764,9 +764,9 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
     // DefaultActionDispatcher handles the missing-URL case directly.
     let executor = create_test_executor();
     let action = ActionConfig::Webhook {
-        url: None,
-        url_env: None,
-        headers: std::collections::HashMap::new(),
+        url:           None,
+        url_env:       None,
+        headers:       std::collections::HashMap::new(),
         body_template: None,
     };
     let event = test_event();
@@ -783,9 +783,9 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
 async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name() {
     let executor = create_test_executor();
     let action = ActionConfig::Webhook {
-        url: None,
-        url_env: Some("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET".to_string()),
-        headers: std::collections::HashMap::new(),
+        url:           None,
+        url_env:       Some("FRAISEQL_TEST_WEBHOOK_URL_DEFINITELY_NOT_SET".to_string()),
+        headers:       std::collections::HashMap::new(),
         body_template: None,
     };
     let event = test_event();
@@ -807,9 +807,9 @@ async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name()
 async fn test_dispatch_slack_missing_webhook_url_returns_invalid_config() {
     let executor = create_test_executor();
     let action = ActionConfig::Slack {
-        webhook_url: None,
-        webhook_url_env: None,
-        channel: None,
+        webhook_url:      None,
+        webhook_url_env:  None,
+        channel:          None,
         message_template: None,
     };
     let event = test_event();
@@ -826,12 +826,12 @@ async fn test_dispatch_slack_missing_webhook_url_returns_invalid_config() {
 async fn test_dispatch_email_missing_to_returns_invalid_config() {
     let executor = create_test_executor();
     let action = ActionConfig::Email {
-        to: None,
-        to_template: None,
-        subject: Some("Hello".to_string()),
+        to:               None,
+        to_template:      None,
+        subject:          Some("Hello".to_string()),
         subject_template: None,
-        body_template: Some("body".to_string()),
-        reply_to: None,
+        body_template:    Some("body".to_string()),
+        reply_to:         None,
     };
     let event = test_event();
 
@@ -847,12 +847,12 @@ async fn test_dispatch_email_missing_to_returns_invalid_config() {
 async fn test_dispatch_email_missing_subject_returns_invalid_config() {
     let executor = create_test_executor();
     let action = ActionConfig::Email {
-        to: Some("user@example.com".to_string()),
-        to_template: None,
-        subject: None,
+        to:               Some("user@example.com".to_string()),
+        to_template:      None,
+        subject:          None,
         subject_template: None,
-        body_template: Some("body".to_string()),
-        reply_to: None,
+        body_template:    Some("body".to_string()),
+        reply_to:         None,
     };
     let event = test_event();
 
@@ -868,8 +868,8 @@ async fn test_dispatch_email_missing_subject_returns_invalid_config() {
 async fn test_dispatch_sms_missing_phone_returns_invalid_config() {
     let executor = create_test_executor();
     let action = ActionConfig::Sms {
-        phone: None,
-        phone_template: None,
+        phone:            None,
+        phone_template:   None,
         message_template: Some("Hi".to_string()),
     };
     let event = test_event();
@@ -886,9 +886,9 @@ async fn test_dispatch_sms_missing_phone_returns_invalid_config() {
 async fn test_dispatch_push_missing_device_token_returns_invalid_config() {
     let executor = create_test_executor();
     let action = ActionConfig::Push {
-        device_token: None,
+        device_token:   None,
         title_template: Some("title".to_string()),
-        body_template: Some("body".to_string()),
+        body_template:  Some("body".to_string()),
     };
     let event = test_event();
 
@@ -904,9 +904,9 @@ async fn test_dispatch_push_missing_device_token_returns_invalid_config() {
 async fn test_dispatch_slack_url_env_var_missing_error() {
     let executor = create_test_executor();
     let action = ActionConfig::Slack {
-        webhook_url: None,
-        webhook_url_env: Some("FRAISEQL_TEST_SLACK_URL_MISSING_VAR".to_string()),
-        channel: None,
+        webhook_url:      None,
+        webhook_url_env:  Some("FRAISEQL_TEST_SLACK_URL_MISSING_VAR".to_string()),
+        channel:          None,
         message_template: None,
     };
     let event = test_event();
@@ -952,10 +952,10 @@ async fn test_process_event_with_mock_dispatcher_success() {
 
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: None,
-        actions: vec![webhook_action()],
-        retry: RetryConfig {
+        entity:     "Order".to_string(),
+        condition:  None,
+        actions:    vec![webhook_action()],
+        retry:      RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -991,10 +991,10 @@ async fn test_process_event_mock_dispatcher_failure_goes_to_log_policy() {
 
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: None,
-        actions: vec![webhook_action()],
-        retry: RetryConfig {
+        entity:     "Order".to_string(),
+        condition:  None,
+        actions:    vec![webhook_action()],
+        retry:      RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -1025,10 +1025,10 @@ async fn test_process_event_condition_false_skips_action() {
     // Using a numeric field that exists so eval_comparison returns Ok(false)
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: Some("id == 99999".to_string()),
-        actions: vec![webhook_action()],
-        retry: RetryConfig::default(),
+        entity:     "Order".to_string(),
+        condition:  Some("id == 99999".to_string()),
+        actions:    vec![webhook_action()],
+        retry:      RetryConfig::default(),
         on_failure: FP::Log,
     };
     let mut observers = std::collections::HashMap::new();
@@ -1058,10 +1058,10 @@ async fn test_process_event_multiple_observers_all_succeed() {
     for i in 0..3usize {
         let observer = ObserverDefinition {
             event_type: "INSERT".to_string(),
-            entity: "Order".to_string(),
-            condition: None,
-            actions: vec![webhook_action()],
-            retry: RetryConfig {
+            entity:     "Order".to_string(),
+            condition:  None,
+            actions:    vec![webhook_action()],
+            retry:      RetryConfig {
                 max_attempts: 1,
                 initial_delay_ms: 0,
                 ..RetryConfig::default()
@@ -1091,16 +1091,16 @@ async fn test_process_event_multiple_actions_in_one_observer() {
 
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: None,
-        actions: vec![
+        entity:     "Order".to_string(),
+        condition:  None,
+        actions:    vec![
             webhook_action(),
             ActionConfig::Cache {
                 key_pattern: "orders:*".to_string(),
-                action: "invalidate".to_string(),
+                action:      "invalidate".to_string(),
             },
         ],
-        retry: RetryConfig {
+        retry:      RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -1134,10 +1134,10 @@ async fn test_process_event_dlq_policy_pushes_on_failure() {
 
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: None,
-        actions: vec![webhook_action()],
-        retry: RetryConfig {
+        entity:     "Order".to_string(),
+        condition:  None,
+        actions:    vec![webhook_action()],
+        retry:      RetryConfig {
             max_attempts: 1,
             initial_delay_ms: 0,
             ..RetryConfig::default()
@@ -1216,7 +1216,7 @@ async fn test_mock_dispatcher_call_log_records_action_type() {
         webhook_action(),
         ActionConfig::Cache {
             key_pattern: "k:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         },
     ];
 
@@ -1401,10 +1401,10 @@ fn test_compile_condition_returns_ast_for_valid_condition() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: Some("total > 100".to_string()),
-        actions: vec![],
-        retry: crate::config::RetryConfig::default(),
+        entity:     "Order".to_string(),
+        condition:  Some("total > 100".to_string()),
+        actions:    vec![],
+        retry:      crate::config::RetryConfig::default(),
         on_failure: crate::config::FailurePolicy::Log,
     };
     let ast = observer
@@ -1418,10 +1418,10 @@ fn test_compile_condition_returns_none_when_no_condition() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: None,
-        actions: vec![],
-        retry: crate::config::RetryConfig::default(),
+        entity:     "Order".to_string(),
+        condition:  None,
+        actions:    vec![],
+        retry:      crate::config::RetryConfig::default(),
         on_failure: crate::config::FailurePolicy::Log,
     };
     let ast = observer
@@ -1435,10 +1435,10 @@ fn test_compile_condition_returns_error_for_invalid_dsl() {
     use crate::config::runtime::ObserverDefinition;
     let observer = ObserverDefinition {
         event_type: "INSERT".to_string(),
-        entity: "Order".to_string(),
-        condition: Some("@@@invalid$$$".to_string()),
-        actions: vec![],
-        retry: crate::config::RetryConfig::default(),
+        entity:     "Order".to_string(),
+        condition:  Some("@@@invalid$$$".to_string()),
+        actions:    vec![],
+        retry:      crate::config::RetryConfig::default(),
         on_failure: crate::config::FailurePolicy::Log,
     };
     let result = observer.compile_condition();

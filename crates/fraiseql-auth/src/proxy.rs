@@ -16,7 +16,7 @@ fn validate_ip_format(ip_str: &str) -> Option<IpAddr> {
 pub struct ProxyConfig {
     /// List of trusted proxy IPs (e.g., load balancer, Nginx, HAProxy IPs)
     /// Only X-Forwarded-For headers from these IPs are trusted
-    pub trusted_proxies: Vec<IpAddr>,
+    pub trusted_proxies:       Vec<IpAddr>,
     /// If true, require request to come from a trusted proxy to use X-Forwarded-For
     pub require_trusted_proxy: bool,
 }
@@ -39,7 +39,7 @@ impl ProxyConfig {
     #[must_use]
     pub fn localhost_only() -> Self {
         Self {
-            trusted_proxies: vec!["127.0.0.1".parse().expect("valid IP")], /* Reason: "127.0.0.1" is a compile-time literal and always parses successfully */
+            trusted_proxies:       vec!["127.0.0.1".parse().expect("valid IP")], /* Reason: "127.0.0.1" is a compile-time literal and always parses successfully */
             require_trusted_proxy: true,
         }
     }
@@ -48,7 +48,7 @@ impl ProxyConfig {
     #[must_use]
     pub const fn none() -> Self {
         Self {
-            trusted_proxies: Vec::new(),
+            trusted_proxies:       Vec::new(),
             require_trusted_proxy: false,
         }
     }

@@ -39,7 +39,7 @@ use crate::{
 /// For broadcast semantics, use a real transport backed by NATS or PostgreSQL.
 pub struct InMemoryTransport {
     /// Sender for publishing events (bounded; clone-safe)
-    sender: mpsc::Sender<EntityEvent>,
+    sender:   mpsc::Sender<EntityEvent>,
     /// Receiver for consuming events
     receiver: Arc<Mutex<mpsc::Receiver<EntityEvent>>>,
 }
@@ -115,7 +115,7 @@ impl EventTransport for InMemoryTransport {
     async fn health_check(&self) -> Result<TransportHealth> {
         // In-memory transport is always healthy (no external dependencies)
         Ok(TransportHealth {
-            status: HealthStatus::Healthy,
+            status:  HealthStatus::Healthy,
             message: Some("In-memory transport operational".to_string()),
         })
     }

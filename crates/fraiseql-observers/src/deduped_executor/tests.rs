@@ -11,7 +11,7 @@ use crate::{event::EventKind, matcher::EventMatcher, testing::mocks::MockDeadLet
 // the shard level, matching the SET NX semantics of the Redis backend.
 #[derive(Clone)]
 struct InMemoryDedupStore {
-    store: Arc<dashmap::DashMap<String, bool>>,
+    store:          Arc<dashmap::DashMap<String, bool>>,
     window_seconds: u64,
 }
 

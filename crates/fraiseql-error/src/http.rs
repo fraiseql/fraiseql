@@ -18,21 +18,21 @@ use crate::{AuthError, FileError, RuntimeError, WebhookError};
 #[non_exhaustive]
 pub struct ErrorResponse {
     /// Short machine-readable error category (e.g. `"authentication_error"`).
-    pub error: String,
+    pub error:             String,
     /// Human-readable description safe to display to end-users.
     pub error_description: String,
     /// Stable, fine-grained error code for programmatic handling (e.g.
     /// `"token_expired"`).
-    pub error_code: String,
+    pub error_code:        String,
     /// URL to the documentation page for this error code, if available.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error_uri: Option<String>,
+    pub error_uri:         Option<String>,
     /// Additional structured details about the error (omitted when `None`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<serde_json::Value>,
+    pub details:           Option<serde_json::Value>,
     /// Number of seconds the client should wait before retrying, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry_after: Option<u64>,
+    pub retry_after:       Option<u64>,
 }
 
 impl ErrorResponse {
@@ -47,12 +47,12 @@ impl ErrorResponse {
     ) -> Self {
         let code = code.into();
         Self {
-            error: error.into(),
+            error:             error.into(),
             error_description: description.into(),
-            error_uri: Some(format!("https://docs.fraiseql.dev/errors#{}", code)),
-            error_code: code,
-            details: None,
-            retry_after: None,
+            error_uri:         Some(format!("https://docs.fraiseql.dev/errors#{}", code)),
+            error_code:        code,
+            details:           None,
+            retry_after:       None,
         }
     }
 

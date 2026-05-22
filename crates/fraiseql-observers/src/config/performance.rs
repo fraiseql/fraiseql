@@ -45,11 +45,11 @@ const fn default_concurrent_timeout_ms() -> u64 {
 impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
-            enable_dedup: false,
-            enable_caching: false,
-            enable_concurrent: true,
+            enable_dedup:           false,
+            enable_caching:         false,
+            enable_concurrent:      true,
             max_concurrent_actions: default_max_concurrent_actions(),
-            concurrent_timeout_ms: default_concurrent_timeout_ms(),
+            concurrent_timeout_ms:  default_concurrent_timeout_ms(),
         }
     }
 }

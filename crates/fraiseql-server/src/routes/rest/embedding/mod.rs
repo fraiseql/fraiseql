@@ -29,11 +29,11 @@ use super::{
 /// Parameters for embedding execution, grouping shared context.
 pub struct EmbeddingRequest<'a, A: DatabaseAdapter> {
     /// Query executor.
-    pub executor: &'a Arc<fraiseql_core::runtime::Executor<A>>,
+    pub executor:         &'a Arc<fraiseql_core::runtime::Executor<A>>,
     /// Compiled schema for type/query lookup.
-    pub schema: &'a CompiledSchema,
+    pub schema:           &'a CompiledSchema,
     /// REST configuration (page size limits, etc.).
-    pub config: &'a RestConfig,
+    pub config:           &'a RestConfig,
     /// Parent type name for relationship lookup.
     pub parent_type_name: &'a str,
     /// Security context for RLS enforcement.
@@ -66,9 +66,9 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
     })?;
 
     let ctx = EmbedCtx {
-        executor: req.executor,
-        schema: req.schema,
-        config: req.config,
+        executor:         req.executor,
+        schema:           req.schema,
+        config:           req.config,
         security_context: req.security_context,
     };
 

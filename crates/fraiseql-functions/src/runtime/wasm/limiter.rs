@@ -32,7 +32,7 @@ impl Error for ResourceLimitError {}
 #[derive(Debug, Clone, Copy)]
 pub struct LimitStats {
     /// Peak memory usage in bytes.
-    pub peak_memory: u64,
+    pub peak_memory:    u64,
     /// Current memory usage in bytes.
     pub current_memory: u64,
 }
@@ -41,7 +41,7 @@ impl LimitStats {
     /// Create new limit stats with zero values.
     pub const fn new() -> Self {
         Self {
-            peak_memory: 0,
+            peak_memory:    0,
             current_memory: 0,
         }
     }
@@ -61,9 +61,9 @@ pub struct FunctionStoreLimiter {
     /// Maximum memory allowed in bytes.
     max_limit: u64,
     /// Current memory usage.
-    current: u64,
+    current:   u64,
     /// Peak memory usage seen.
-    peak: u64,
+    peak:      u64,
 }
 
 impl FunctionStoreLimiter {
@@ -81,7 +81,7 @@ impl FunctionStoreLimiter {
     #[must_use]
     pub const fn stats(&self) -> LimitStats {
         LimitStats {
-            peak_memory: self.peak,
+            peak_memory:    self.peak,
             current_memory: self.current,
         }
     }

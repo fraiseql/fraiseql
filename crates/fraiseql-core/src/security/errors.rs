@@ -24,7 +24,7 @@ pub enum SecurityError {
         /// Seconds to wait before retrying
         retry_after: u64,
         /// Maximum allowed requests
-        limit: usize,
+        limit:       usize,
         /// Time window in seconds
         window_secs: u64,
     },
@@ -35,7 +35,7 @@ pub enum SecurityError {
     /// excessive database queries or resource consumption.
     QueryTooDeep {
         /// Actual query depth
-        depth: usize,
+        depth:     usize,
         /// Maximum allowed depth
         max_depth: usize,
     },
@@ -46,7 +46,7 @@ pub enum SecurityError {
     /// accounting for pagination and nested selections.
     QueryTooComplex {
         /// Actual query complexity score
-        complexity: usize,
+        complexity:     usize,
         /// Maximum allowed complexity
         max_complexity: usize,
     },
@@ -56,7 +56,7 @@ pub enum SecurityError {
     /// Very large queries can consume memory or cause `DoS`.
     QueryTooLarge {
         /// Actual query size in bytes
-        size: usize,
+        size:     usize,
         /// Maximum allowed size in bytes
         max_size: usize,
     },
@@ -102,7 +102,7 @@ pub enum SecurityError {
     /// if TLS 1.3 is required but the connection uses TLS 1.2.
     TlsVersionTooOld {
         /// The TLS version actually used
-        current: crate::security::TlsVersion,
+        current:  crate::security::TlsVersion,
         /// The minimum TLS version required
         required: crate::security::TlsVersion,
     },

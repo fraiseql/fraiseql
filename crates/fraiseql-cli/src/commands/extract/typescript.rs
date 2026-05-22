@@ -102,14 +102,14 @@ pub(super) fn extract_ts_fields(body: &str) -> Vec<IntermediateField> {
 
     for cap in field_re.captures_iter(body) {
         fields.push(IntermediateField {
-            name: cap[1].to_string(),
-            field_type: cap[2].to_string(),
-            nullable: &cap[3] == "true",
-            description: None,
-            directives: None,
+            name:           cap[1].to_string(),
+            field_type:     cap[2].to_string(),
+            nullable:       &cap[3] == "true",
+            description:    None,
+            directives:     None,
             requires_scope: None,
-            on_deny: None,
-            hierarchy: None,
+            on_deny:        None,
+            hierarchy:      None,
         });
     }
     fields
@@ -140,10 +140,10 @@ pub(super) fn extract_ts_query_args(body: &str) -> Vec<IntermediateArgument> {
 
     for cap in arg_re.captures_iter(body) {
         args.push(IntermediateArgument {
-            name: cap[1].to_string(),
-            arg_type: cap[2].to_string(),
-            nullable: &cap[3] != "true",
-            default: None,
+            name:       cap[1].to_string(),
+            arg_type:   cap[2].to_string(),
+            nullable:   &cap[3] != "true",
+            default:    None,
             deprecated: None,
         });
     }

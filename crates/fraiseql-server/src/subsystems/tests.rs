@@ -46,27 +46,27 @@ async fn local_storage_state(bucket_name: &str) -> StorageState {
     buckets.insert(
         bucket_name.to_string(),
         BucketConfig {
-            name: bucket_name.to_string(),
-            max_object_bytes: None,
+            name:               bucket_name.to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: None,
-            access: BucketAccess::Private,
-            transform_presets: None,
+            access:             BucketAccess::Private,
+            transform_presets:  None,
         },
     );
     StorageState {
-        backend: Arc::new(backend),
+        backend:  Arc::new(backend),
         metadata: Arc::new(StorageMetadataRepo::new(lazy_pool())),
-        rls: StorageRlsEvaluator::new(),
-        buckets: Arc::new(buckets),
+        rls:      StorageRlsEvaluator::new(),
+        buckets:  Arc::new(buckets),
     }
 }
 
 fn minimal_schema_storage_config() -> SchemaStorageConfig {
     SchemaStorageConfig {
         buckets: vec![SchemaBucketDef {
-            name: "avatars".to_string(),
-            access: "private".to_string(),
-            max_object_bytes: None,
+            name:               "avatars".to_string(),
+            access:             "private".to_string(),
+            max_object_bytes:   None,
             allowed_mime_types: None,
         }],
     }
@@ -74,7 +74,7 @@ fn minimal_schema_storage_config() -> SchemaStorageConfig {
 
 fn minimal_functions_config() -> FunctionsConfig {
     FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![FunctionDefinition::new(
             "on_create_user",
             "after:mutation:createUser",
@@ -194,8 +194,8 @@ async fn test_server_state_all_features() {
     let rt_server = Arc::new(RealtimeServer::with_entities(RealtimeConfig::default(), entities));
     let (rt_observer, _rx) = RealtimeBroadcastObserver::new(256);
     let realtime = RealtimeSubsystem {
-        server: rt_server,
-        observer: rt_observer,
+        server:        rt_server,
+        observer:      rt_observer,
         schema_config: minimal_realtime_config(),
     };
 
@@ -218,7 +218,7 @@ fn test_server_state_validates_deps_functions_need_storage() {
     // Functions with after:storage triggers but no storage subsystem → error.
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![FunctionDefinition::new(
             "on_upload",
             "after:storage:avatars:upload",
@@ -255,7 +255,7 @@ async fn test_server_state_validates_deps_storage_triggers_ok_with_storage() {
 
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![FunctionDefinition::new(
             "on_upload",
             "after:storage:avatars:upload",
@@ -366,15 +366,15 @@ async fn test_validate_unknown_bucket_warns() {
     let schema_config = SchemaStorageConfig {
         buckets: vec![
             SchemaBucketDef {
-                name: "avatars".to_string(),
-                access: "private".to_string(),
-                max_object_bytes: None,
+                name:               "avatars".to_string(),
+                access:             "private".to_string(),
+                max_object_bytes:   None,
                 allowed_mime_types: None,
             },
             SchemaBucketDef {
-                name: "docs".to_string(), // present in schema but not in runtime
-                access: "private".to_string(),
-                max_object_bytes: None,
+                name:               "docs".to_string(), // present in schema but not in runtime
+                access:             "private".to_string(),
+                max_object_bytes:   None,
                 allowed_mime_types: None,
             },
         ],
@@ -398,7 +398,7 @@ async fn test_validate_unknown_bucket_warns() {
 fn test_validate_empty_functions_registry_warns() {
     let observer = Arc::new(FunctionObserver::new());
     let config = FunctionsConfig {
-        module_dir: "/functions".into(),
+        module_dir:  "/functions".into(),
         definitions: vec![], // no definitions
     };
     let trigger_registry = TriggerRegistry::new();

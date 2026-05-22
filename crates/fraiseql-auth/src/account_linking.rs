@@ -31,7 +31,7 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProviderLink {
     /// Provider name (e.g. `"github"`, `"google"`).
-    pub provider: String,
+    pub provider:    String,
     /// Provider-specific user identifier (opaque string from the provider).
     pub provider_id: String,
 }
@@ -40,9 +40,9 @@ pub struct ProviderLink {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountRecord {
     /// Internal FraiseQL user identifier (stable across providers).
-    pub user_id: String,
+    pub user_id:   String,
     /// Verified email address shared across all linked providers.
-    pub email: String,
+    pub email:     String,
     /// All provider credentials linked to this account.
     pub providers: Vec<ProviderLink>,
 }
@@ -94,9 +94,9 @@ pub struct AccountLinkResult {
     /// Stable internal user identifier.
     pub user_id: String,
     /// Whether a new account was created (`true`) or an existing one was linked (`false`).
-    pub is_new: bool,
+    pub is_new:  bool,
     /// Whether a new provider link was added to an existing account.
-    pub linked: bool,
+    pub linked:  bool,
 }
 
 // ─── In-memory backend ────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ pub struct AccountLinkResult {
 /// Uses `DashMap` for lock-free concurrent reads and fine-grained write locking.
 pub struct InMemoryAccountStore {
     /// email → user_id (fast lookup by email)
-    by_email: DashMap<String, String>,
+    by_email:   DashMap<String, String>,
     /// user_id → AccountRecord
     by_user_id: DashMap<String, AccountRecord>,
 }
@@ -121,7 +121,7 @@ impl InMemoryAccountStore {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            by_email: DashMap::new(),
+            by_email:   DashMap::new(),
             by_user_id: DashMap::new(),
         }
     }
@@ -157,7 +157,7 @@ impl AccountStore for InMemoryAccountStore {
         let logger = get_audit_logger();
         let email_normalized = normalize_email(email);
         let new_link = ProviderLink {
-            provider: provider.to_string(),
+            provider:    provider.to_string(),
             provider_id: provider_id.to_string(),
         };
 
@@ -186,16 +186,16 @@ impl AccountStore for InMemoryAccountStore {
 
             return Ok(AccountLinkResult {
                 user_id: existing_user_id.clone(),
-                is_new: false,
-                linked: !already_linked,
+                is_new:  false,
+                linked:  !already_linked,
             });
         }
 
         // No existing account — create a new one.
         let user_id = format!("user_{}", Uuid::new_v4().as_simple());
         let record = AccountRecord {
-            user_id: user_id.clone(),
-            email: email_normalized.clone(),
+            user_id:   user_id.clone(),
+            email:     email_normalized.clone(),
             providers: vec![new_link],
         };
         self.by_email.insert(email_normalized, user_id.clone());

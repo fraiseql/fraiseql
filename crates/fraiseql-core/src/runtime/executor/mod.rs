@@ -219,7 +219,7 @@ enum QueryType {
     /// Contains the root field name and per-type selection fields.
     /// Keys are type names (from `...on TypeName` fragments); `""` holds common fields.
     Mutation {
-        name: String,
+        name:            String,
         type_selections: HashMap<String, Vec<String>>,
     },
 
@@ -333,7 +333,7 @@ fn resolve_inject_value(
                 message: format!(
                     "Inject param '{param_name}': JWT claim '{claim}' not present in token"
                 ),
-                path: None,
+                path:    None,
             })
         },
     }

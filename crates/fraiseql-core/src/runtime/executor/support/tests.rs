@@ -60,10 +60,10 @@ mod explain_tests {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections: 1,
-                idle_connections: 1,
+                total_connections:  1,
+                idle_connections:   1,
                 active_connections: 0,
-                waiting_requests: 0,
+                waiting_requests:   0,
             }
         }
 
@@ -227,10 +227,10 @@ mod pipeline_tests {
 
         fn pool_metrics(&self) -> PoolMetrics {
             PoolMetrics {
-                total_connections: 1,
-                idle_connections: 1,
+                total_connections:  1,
+                idle_connections:   1,
                 active_connections: 0,
-                waiting_requests: 0,
+                waiting_requests:   0,
             }
         }
 

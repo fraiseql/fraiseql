@@ -9,7 +9,7 @@ use crate::{
 
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
-    db: PgPool,
+    db:          PgPool,
     /// Optional RSA private key for JWT signing (None falls back to HMAC)
     signing_key: Option<Vec<u8>>,
 }

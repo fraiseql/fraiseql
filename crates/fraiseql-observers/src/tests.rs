@@ -76,7 +76,7 @@ mod actions_tests {
     fn test_action_execution_result() {
         let result = ActionExecutionResult {
             action_type: "webhook".to_string(),
-            success: true,
+            success:     true,
             duration_ms: 42.5,
             tracking_id: Some("abc123".to_string()),
         };
@@ -560,11 +560,11 @@ mod elasticsearch_sink_tests {
     #[test]
     fn test_config_custom_values_validate() {
         let config = ElasticsearchSinkConfig {
-            url: "https://es.example.com:9200".to_string(),
-            index_prefix: "my-app-events".to_string(),
-            bulk_size: 500,
+            url:                 "https://es.example.com:9200".to_string(),
+            index_prefix:        "my-app-events".to_string(),
+            bulk_size:           500,
             flush_interval_secs: 30,
-            max_retries: 5,
+            max_retries:         5,
         };
         config
             .validate()
@@ -601,26 +601,26 @@ mod elasticsearch_sink_tests {
             .await;
 
         let config = ElasticsearchSinkConfig {
-            url: mock.uri(),
-            index_prefix: "test".to_string(),
-            bulk_size: 10,
+            url:                 mock.uri(),
+            index_prefix:        "test".to_string(),
+            bulk_size:           10,
             flush_interval_secs: 5,
-            max_retries: 1,
+            max_retries:         1,
         };
         let sink = ElasticsearchSink::new_unchecked(config);
 
         // Drive the private try_bulk_index path via flush_buffer through a mock event.
         // We create a minimal event buffer and call the internal path indirectly.
         let event = crate::event::EntityEvent {
-            id: uuid::Uuid::nil(),
-            event_type: crate::event::EventKind::Created,
+            id:          uuid::Uuid::nil(),
+            event_type:  crate::event::EventKind::Created,
             entity_type: "Order".to_string(),
-            entity_id: uuid::Uuid::nil(),
-            timestamp: chrono::Utc::now(),
-            data: serde_json::json!({}),
-            changes: None,
-            user_id: None,
-            tenant_id: Some("tenant-1".to_string()),
+            entity_id:   uuid::Uuid::nil(),
+            timestamp:   chrono::Utc::now(),
+            data:        serde_json::json!({}),
+            changes:     None,
+            user_id:     None,
+            tenant_id:   Some("tenant-1".to_string()),
         };
         let result = sink.try_bulk_index(&[event]).await;
         assert!(result.is_err(), "oversized bulk response must be rejected");
@@ -687,7 +687,7 @@ mod error_tests {
     #[test]
     fn test_deserialization_error_routes_to_dlq() {
         let err = ObserverError::DeserializationError {
-            raw: b"not valid json {{".to_vec(),
+            raw:    b"not valid json {{".to_vec(),
             reason: "invalid json: expected value at line 1 column 1".to_string(),
         };
         // Not transient — retrying the same broken bytes cannot succeed.
@@ -706,7 +706,7 @@ mod error_tests {
     #[test]
     fn test_tenant_violation_error_code() {
         let err = ObserverError::TenantViolation {
-            event_tenant: Some("other-tenant".to_string()),
+            event_tenant:   Some("other-tenant".to_string()),
             required_scope: "Single(acme)".to_string(),
         };
         assert_eq!(err.code(), ObserverErrorCode::TenantViolation);
@@ -719,7 +719,7 @@ mod error_tests {
     #[test]
     fn test_tenant_violation_none_tenant() {
         let err = ObserverError::TenantViolation {
-            event_tenant: None,
+            event_tenant:   None,
             required_scope: "Single(acme)".to_string(),
         };
         assert_eq!(err.code(), ObserverErrorCode::TenantViolation);
@@ -866,26 +866,26 @@ mod factory_tests {
     #[tokio::test]
     async fn test_build_postgres_only_topology() {
         let config = ObserverRuntimeConfig {
-            transport: TransportConfig {
+            transport:               TransportConfig {
                 transport: TransportKind::Postgres,
                 ..Default::default()
             },
-            redis: None, // No Redis
-            clickhouse: None,
-            job_queue: None,
-            performance: PerformanceConfig {
+            redis:                   None, // No Redis
+            clickhouse:              None,
+            job_queue:               None,
+            performance:             PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
                 enable_concurrent: true,
                 ..Default::default()
             },
-            observers: HashMap::new(),
-            channel_capacity: 1000,
-            max_concurrency: 50,
-            overflow_policy: crate::config::OverflowPolicy::Drop,
+            observers:               HashMap::new(),
+            channel_capacity:        1000,
+            max_concurrency:         50,
+            overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout: "30s".to_string(),
-            max_dlq_size: None,
+            shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -896,21 +896,21 @@ mod factory_tests {
     #[tokio::test]
     async fn test_build_rejects_dedup_without_redis() {
         let config = ObserverRuntimeConfig {
-            transport: TransportConfig::default(),
-            redis: None, // No Redis but dedup enabled
-            clickhouse: None,
-            job_queue: None,
-            performance: PerformanceConfig {
+            transport:               TransportConfig::default(),
+            redis:                   None, // No Redis but dedup enabled
+            clickhouse:              None,
+            job_queue:               None,
+            performance:             PerformanceConfig {
                 enable_dedup: true, // Invalid!
                 ..Default::default()
             },
-            observers: HashMap::new(),
-            channel_capacity: 1000,
-            max_concurrency: 50,
-            overflow_policy: crate::config::OverflowPolicy::Drop,
+            observers:               HashMap::new(),
+            channel_capacity:        1000,
+            max_concurrency:         50,
+            overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout: "30s".to_string(),
-            max_dlq_size: None,
+            shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -958,23 +958,23 @@ mod factory_tests {
     #[tokio::test]
     async fn test_build_with_queue_requires_config() {
         let config = ObserverRuntimeConfig {
-            transport: TransportConfig::default(),
-            redis: None,
-            clickhouse: None,
-            job_queue: None, // No job queue config
-            performance: PerformanceConfig {
+            transport:               TransportConfig::default(),
+            redis:                   None,
+            clickhouse:              None,
+            job_queue:               None, // No job queue config
+            performance:             PerformanceConfig {
                 enable_dedup: false,
                 enable_caching: false,
                 enable_concurrent: true,
                 ..Default::default()
             },
-            observers: HashMap::new(),
-            channel_capacity: 1000,
-            max_concurrency: 50,
-            overflow_policy: crate::config::OverflowPolicy::Drop,
+            observers:               HashMap::new(),
+            channel_capacity:        1000,
+            max_concurrency:         50,
+            overflow_policy:         crate::config::OverflowPolicy::Drop,
             backlog_alert_threshold: 500,
-            shutdown_timeout: "30s".to_string(),
-            max_dlq_size: None,
+            shutdown_timeout:        "30s".to_string(),
+            max_dlq_size:            None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -1073,15 +1073,15 @@ mod matcher_tests {
     fn create_observer(event_type: &str, entity: &str) -> ObserverDefinition {
         ObserverDefinition {
             event_type: event_type.to_string(),
-            entity: entity.to_string(),
-            condition: None,
-            actions: vec![ActionConfig::Webhook {
-                url: Some("https://example.com".to_string()),
-                url_env: None,
-                headers: HashMap::default(),
+            entity:     entity.to_string(),
+            condition:  None,
+            actions:    vec![ActionConfig::Webhook {
+                url:           Some("https://example.com".to_string()),
+                url_env:       None,
+                headers:       HashMap::default(),
                 body_template: Some("{}".to_string()),
             }],
-            retry: RetryConfig::default(),
+            retry:      RetryConfig::default(),
             on_failure: FailurePolicy::Log,
         }
     }
@@ -1367,11 +1367,11 @@ mod queued_executor_tests {
     #[test]
     fn test_queued_summary_success() {
         let summary = QueuedExecutionSummary {
-            jobs_queued: 5,
-            queueing_errors: 0,
+            jobs_queued:        5,
+            queueing_errors:    0,
             conditions_skipped: 0,
-            job_ids: vec![],
-            errors: vec![],
+            job_ids:            vec![],
+            errors:             vec![],
         };
         assert!(summary.is_success());
         assert_eq!(summary.total_jobs(), 5);
@@ -1425,8 +1425,8 @@ mod traits_tests {
     fn test_action_result_creation() {
         let result = ActionResult {
             action_type: "email".to_string(),
-            success: true,
-            message: "Email sent".to_string(),
+            success:     true,
+            message:     "Email sent".to_string(),
             duration_ms: 125.5,
         };
 
@@ -1445,12 +1445,12 @@ mod traits_tests {
         );
 
         let action = ActionConfig::Email {
-            to: Some("user@example.com".to_string()),
-            to_template: None,
-            subject: Some("Test".to_string()),
+            to:               Some("user@example.com".to_string()),
+            to_template:      None,
+            subject:          Some("Test".to_string()),
             subject_template: None,
-            body_template: Some("Body".to_string()),
-            reply_to: None,
+            body_template:    Some("Body".to_string()),
+            reply_to:         None,
         };
 
         let item = DlqItem {

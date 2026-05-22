@@ -16,83 +16,83 @@ mod routing {
 
     fn make_test_route_table() -> RestRouteTable {
         RestRouteTable {
-            base_path: "/rest/v1".to_string(),
-            resources: vec![RestResource {
-                name: "users".to_string(),
+            base_path:   "/rest/v1".to_string(),
+            resources:   vec![RestResource {
+                name:      "users".to_string(),
                 type_name: "User".to_string(),
-                id_arg: Some("id".to_string()),
-                routes: vec![
+                id_arg:    Some("id".to_string()),
+                routes:    vec![
                     RestRoute {
-                        method: HttpMethod::Get,
-                        path: "/users".to_string(),
-                        source: RouteSource::Query {
+                        method:          HttpMethod::Get,
+                        path:            "/users".to_string(),
+                        source:          RouteSource::Query {
                             name: "users".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 200,
+                        success_status:  200,
                     },
                     RestRoute {
-                        method: HttpMethod::Get,
-                        path: "/users/{id}".to_string(),
-                        source: RouteSource::Query {
+                        method:          HttpMethod::Get,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Query {
                             name: "user".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 200,
+                        success_status:  200,
                     },
                     RestRoute {
-                        method: HttpMethod::Post,
-                        path: "/users".to_string(),
-                        source: RouteSource::Mutation {
+                        method:          HttpMethod::Post,
+                        path:            "/users".to_string(),
+                        source:          RouteSource::Mutation {
                             name: "createUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 201,
+                        success_status:  201,
                     },
                     RestRoute {
-                        method: HttpMethod::Put,
-                        path: "/users/{id}".to_string(),
-                        source: RouteSource::Mutation {
+                        method:          HttpMethod::Put,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Mutation {
                             name: "updateUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 200,
+                        success_status:  200,
                     },
                     RestRoute {
-                        method: HttpMethod::Patch,
-                        path: "/users/{id}".to_string(),
-                        source: RouteSource::Mutation {
+                        method:          HttpMethod::Patch,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Mutation {
                             name: "updateUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 200,
+                        success_status:  200,
                     },
                     RestRoute {
-                        method: HttpMethod::Patch,
-                        path: "/users/{id}/update-email".to_string(),
-                        source: RouteSource::Mutation {
+                        method:          HttpMethod::Patch,
+                        path:            "/users/{id}/update-email".to_string(),
+                        source:          RouteSource::Mutation {
                             name: "updateUserEmail".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 200,
+                        success_status:  200,
                     },
                     RestRoute {
-                        method: HttpMethod::Delete,
-                        path: "/users/{id}".to_string(),
-                        source: RouteSource::Mutation {
+                        method:          HttpMethod::Delete,
+                        path:            "/users/{id}".to_string(),
+                        source:          RouteSource::Mutation {
                             name: "deleteUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 204,
+                        success_status:  204,
                     },
                     RestRoute {
-                        method: HttpMethod::Post,
-                        path: "/users/{id}/archive".to_string(),
-                        source: RouteSource::Mutation {
+                        method:          HttpMethod::Post,
+                        path:            "/users/{id}/archive".to_string(),
+                        source:          RouteSource::Mutation {
                             name: "archiveUser".to_string(),
                         },
                         update_coverage: None,
-                        success_status: 200,
+                        success_status:  200,
                     },
                 ],
             }],
@@ -485,7 +485,7 @@ mod query {
             }
         });
         let pagination = PaginationParams::Offset {
-            limit: 10,
+            limit:  10,
             offset: 0,
         };
         let response = build_query_response(&result, Some(100), &pagination).unwrap();
@@ -630,9 +630,9 @@ mod mutation {
     #[test]
     fn stored_response_replay() {
         let stored = StoredResponse {
-            status: 201,
+            status:  201,
             headers: vec![("x-rows-affected".to_string(), "1".to_string())],
-            body: Some(json!({"id": 1})),
+            body:    Some(json!({"id": 1})),
         };
         let request_headers = HeaderMap::new();
         let rest = stored_response_to_rest(stored, &request_headers);

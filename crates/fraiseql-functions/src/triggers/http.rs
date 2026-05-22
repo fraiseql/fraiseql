@@ -96,9 +96,9 @@ pub struct HttpTriggerRoute {
     /// Name of the function to invoke.
     pub function_name: String,
     /// HTTP method (GET, POST, etc.).
-    pub method: String,
+    pub method:        String,
     /// Path pattern (e.g., "/users/:id").
-    pub path: String,
+    pub path:          String,
     /// Whether authentication is required.
     pub requires_auth: bool,
 }
@@ -109,8 +109,8 @@ impl HttpTriggerRoute {
     pub fn new(function_name: &str, method: &str, path: &str) -> Self {
         Self {
             function_name: function_name.to_string(),
-            method: method.to_string(),
-            path: path.to_string(),
+            method:        method.to_string(),
+            path:          path.to_string(),
             requires_auth: false,
         }
     }
@@ -179,17 +179,17 @@ impl HttpTriggerRoute {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpTriggerPayload {
     /// HTTP method (GET, POST, etc.).
-    pub method: String,
+    pub method:  String,
     /// Request path.
-    pub path: String,
+    pub path:    String,
     /// Request headers.
     pub headers: serde_json::Value,
     /// Query parameters.
-    pub query: serde_json::Value,
+    pub query:   serde_json::Value,
     /// Path parameters (extracted from route pattern).
-    pub params: serde_json::Value,
+    pub params:  serde_json::Value,
     /// Request body (if any).
-    pub body: Option<serde_json::Value>,
+    pub body:    Option<serde_json::Value>,
 }
 
 impl HttpTriggerPayload {
@@ -281,11 +281,11 @@ impl HttpTriggerPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HttpTriggerResponse {
     /// HTTP status code (default 200).
-    pub status: u16,
+    pub status:  u16,
     /// Response headers.
     pub headers: serde_json::Value,
     /// Response body.
-    pub body: serde_json::Value,
+    pub body:    serde_json::Value,
 }
 
 impl HttpTriggerResponse {
@@ -319,9 +319,9 @@ impl HttpTriggerResponse {
     #[must_use]
     pub fn no_content() -> Self {
         Self {
-            status: 204,
+            status:  204,
             headers: serde_json::json!({}),
-            body: serde_json::json!({}),
+            body:    serde_json::json!({}),
         }
     }
 

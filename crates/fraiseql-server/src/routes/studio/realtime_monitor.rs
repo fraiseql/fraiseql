@@ -19,7 +19,7 @@ use crate::routes::graphql::app_state::AppState;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PresenceRoom {
     /// Room name / identifier.
-    pub room: String,
+    pub room:    String,
     /// Current member count in the room.
     pub members: u32,
 }
@@ -28,13 +28,13 @@ pub struct PresenceRoom {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RealtimeStatsResponse {
     /// Total active `WebSocket` connections.
-    pub connections: u32,
+    pub connections:    u32,
     /// Active broadcast channel names.
-    pub channels: Vec<String>,
+    pub channels:       Vec<String>,
     /// Active presence rooms with member counts.
     pub presence_rooms: Vec<PresenceRoom>,
     /// CDC replication lag in milliseconds, or `None` if CDC is not configured.
-    pub cdc_lag_ms: Option<u64>,
+    pub cdc_lag_ms:     Option<u64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -52,10 +52,10 @@ where
 {
     // Placeholder — not yet wired to PresenceManager / BroadcastManager.
     Json(RealtimeStatsResponse {
-        connections: 0,
-        channels: vec![],
+        connections:    0,
+        channels:       vec![],
         presence_rooms: vec![],
-        cdc_lag_ms: None,
+        cdc_lag_ms:     None,
     })
 }
 

@@ -30,7 +30,7 @@ mod job_queue_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -48,7 +48,7 @@ mod job_queue_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -65,7 +65,7 @@ mod job_queue_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -83,7 +83,7 @@ mod job_queue_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -102,7 +102,7 @@ mod job_queue_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 2, crate::config::BackoffStrategy::Exponential);
@@ -119,7 +119,7 @@ mod job_queue_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -135,7 +135,7 @@ mod job_queue_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
 
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
@@ -157,7 +157,7 @@ mod job_queue_tests {
             event_id,
             ActionConfig::Cache {
                 key_pattern: "test:*".to_string(),
-                action: "invalidate".to_string(),
+                action:      "invalidate".to_string(),
             },
             3,
             crate::config::BackoffStrategy::Exponential,
@@ -167,9 +167,9 @@ mod job_queue_tests {
         let job_webhook = Job::new(
             event_id,
             ActionConfig::Webhook {
-                url: Some("http://example.com".to_string()),
-                url_env: None,
-                headers: std::collections::HashMap::default(),
+                url:           Some("http://example.com".to_string()),
+                url_env:       None,
+                headers:       std::collections::HashMap::default(),
                 body_template: None,
             },
             3,
@@ -320,7 +320,7 @@ mod dlq_tests {
     #[test]
     fn test_dlq_stats_empty() {
         let stats = DlqStats {
-            total_jobs: 0,
+            total_jobs:     0,
             by_action_type: std::collections::HashMap::new(),
         };
 
@@ -388,7 +388,7 @@ mod redis_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -427,7 +427,7 @@ mod traits_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
         let job_id = job.id;
@@ -447,7 +447,7 @@ mod traits_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -464,7 +464,7 @@ mod traits_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -487,7 +487,7 @@ mod traits_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let mut job = Job::new(event_id, action, 3, crate::config::BackoffStrategy::Exponential);
 
@@ -508,7 +508,7 @@ mod traits_tests {
         let event_id = Uuid::new_v4();
         let action = ActionConfig::Cache {
             key_pattern: "test:*".to_string(),
-            action: "invalidate".to_string(),
+            action:      "invalidate".to_string(),
         };
         let mut job = Job::new(event_id, action, 1, crate::config::BackoffStrategy::Exponential);
 

@@ -98,7 +98,7 @@ async fn test_query_log_records_all_attempts() {
 async fn test_custom_error_propagation() {
     let adapter = FailingAdapter::new().fail_with_error(FailError::Cancelled {
         query_id: "q-123".to_string(),
-        reason: "client disconnect".to_string(),
+        reason:   "client disconnect".to_string(),
     });
 
     let result = adapter.execute_where_query("v_user", None, None, None, None).await;
@@ -116,7 +116,7 @@ async fn test_custom_error_propagation() {
 #[tokio::test]
 async fn test_error_classification_database_is_server_error() {
     let err = FraiseQLError::Database {
-        message: "connection refused".to_string(),
+        message:   "connection refused".to_string(),
         sql_state: None,
     };
     assert!(err.is_server_error());
@@ -128,7 +128,7 @@ async fn test_error_classification_database_is_server_error() {
 async fn test_error_classification_timeout_is_retryable() {
     let err = FraiseQLError::Timeout {
         timeout_ms: 3000,
-        query: Some("SELECT 1".to_string()),
+        query:      Some("SELECT 1".to_string()),
     };
     assert!(err.is_retryable());
     assert!(err.is_server_error());
@@ -138,7 +138,7 @@ async fn test_error_classification_timeout_is_retryable() {
 #[tokio::test]
 async fn test_multiple_failures_then_recovery() {
     let adapter = FailingAdapter::new().fail_with_error(FailError::Database {
-        message: "temporary failure".to_string(),
+        message:   "temporary failure".to_string(),
         sql_state: None,
     });
 

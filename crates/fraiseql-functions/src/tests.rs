@@ -5,8 +5,8 @@ use super::*;
 #[test]
 fn test_function_result_captures_output() {
     let logs = vec![LogEntry {
-        level: LogLevel::Info,
-        message: "test".to_string(),
+        level:     LogLevel::Info,
+        message:   "test".to_string(),
         timestamp: chrono::Utc::now(),
     }];
     let duration = Duration::from_millis(100);
@@ -27,10 +27,10 @@ fn test_function_result_captures_output() {
 fn test_event_payload_serialization() {
     let payload = EventPayload {
         trigger_type: "mutation".to_string(),
-        entity: "User".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({"id": 123}),
-        timestamp: chrono::Utc::now(),
+        entity:       "User".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({"id": 123}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let json = serde_json::to_string(&payload).expect("serialize");
