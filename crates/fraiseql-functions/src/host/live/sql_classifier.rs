@@ -105,13 +105,7 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
         Statement::Query(_) => Ok(SqlClassification::ReadOnly),
 
         // EXPLAIN is allowed, but not EXPLAIN ANALYZE (which executes the statement)
-        Statement::Explain {
-            describe_alias: _,
-            analyze,
-            verbose: _,
-            statement: _,
-            format: _,
-        } => {
+        Statement::Explain { analyze, .. } => {
             if *analyze {
                 Ok(SqlClassification::Rejected(RejectionReason::ExplainAnalyze))
             } else {
@@ -180,12 +174,10 @@ fn classify_statement(stmt: &sqlparser::ast::Statement) -> Result<SqlClassificat
             RejectionReason::DdlStatement("TRUNCATE".to_string()),
         )),
 
-        // Reject privilege escalation
-        Statement::SetVariable { .. }
-        | Statement::SetRole { .. }
-        | Statement::SetTimeZone { .. }
-        | Statement::SetNames { .. }
-        | Statement::SetNamesDefault { .. } => {
+        // Reject privilege escalation. sqlparser 0.62 unified all SET-like statements
+        // (SetVariable, SetRole, SetTimeZone, SetNames, SetNamesDefault, plus session
+        // params and transaction settings) under `Statement::Set(Set)`.
+        Statement::Set(_) => {
             Ok(SqlClassification::Rejected(RejectionReason::PrivilegeEscalation))
         },
 
