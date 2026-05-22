@@ -200,7 +200,10 @@ async fn test_wasm_guest_get_env_var() {
 async fn test_wasm_guest_calls_query_with_live_host() {
     // RED: Component calls fraiseql:host/io.query
     // Should receive GraphQL result as JSON string
-    use crate::host::live::{HostContextConfig, LiveHostContext};
+    use crate::{
+        host::live::{HostContextConfig, LiveHostContext},
+        runtime::FunctionRuntime,
+    };
 
     let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
         .expect("Failed to create WasmRuntime");
@@ -236,7 +239,10 @@ async fn test_wasm_guest_calls_query_with_live_host() {
 async fn test_wasm_guest_calls_http_request_with_live_host() {
     // RED: Component calls fraiseql:host/io.http-request
     // Should receive HTTP response with status, headers, body
-    use crate::host::live::{HostContextConfig, LiveHostContext};
+    use crate::{
+        host::live::{HostContextConfig, LiveHostContext},
+        runtime::FunctionRuntime,
+    };
 
     let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
         .expect("Failed to create WasmRuntime");
@@ -275,7 +281,10 @@ async fn test_wasm_guest_calls_http_request_with_live_host() {
 async fn test_wasm_guest_calls_storage_get_with_live_host() {
     // RED: Component calls fraiseql:host/io.storage-get
     // Should receive bytes from storage backend or error
-    use crate::host::live::{HostContextConfig, LiveHostContext};
+    use crate::{
+        host::live::{HostContextConfig, LiveHostContext},
+        runtime::FunctionRuntime,
+    };
 
     let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
         .expect("Failed to create WasmRuntime");
@@ -311,7 +320,10 @@ async fn test_wasm_guest_calls_storage_get_with_live_host() {
 async fn test_wasm_guest_calls_env_var_with_live_host() {
     // RED: Component calls fraiseql:host/context.get-env-var
     // Should receive environment variable value or None
-    use crate::host::live::{HostContextConfig, LiveHostContext};
+    use crate::{
+        host::live::{HostContextConfig, LiveHostContext},
+        runtime::FunctionRuntime,
+    };
 
     let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
         .expect("Failed to create WasmRuntime");
@@ -348,7 +360,10 @@ async fn test_wasm_guest_calls_env_var_with_live_host() {
 async fn test_wasm_guest_calls_auth_context_with_live_host() {
     // RED: Component calls fraiseql:host/context.get-auth-context
     // Should receive auth context JSON with user info
-    use crate::host::live::{HostContextConfig, LiveHostContext};
+    use crate::{
+        host::live::{HostContextConfig, LiveHostContext},
+        runtime::FunctionRuntime,
+    };
 
     let runtime = super::WasmRuntime::new(&super::WasmConfig::default())
         .expect("Failed to create WasmRuntime");
