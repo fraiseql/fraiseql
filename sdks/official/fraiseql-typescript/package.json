@@ -64,7 +64,7 @@
   "devDependencies": {
     "@langchain/core": "^1.1.47",
     "@mastra/core": "^1.35.0",
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.9.1",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "ai": "^6.0.185",
