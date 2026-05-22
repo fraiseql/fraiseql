@@ -54,8 +54,8 @@ impl SchemaOptimizer {
         // Check if query would benefit from indexes
         if query.returns_list && !query.arguments.is_empty() {
             report.index_hints.push(IndexHint {
-                query_name: query.name.clone(),
-                reason: "List query with arguments benefits from index".to_string(),
+                query_name:        query.name.clone(),
+                reason:            "List query with arguments benefits from index".to_string(),
                 suggested_columns: query.arguments.iter().map(|arg| arg.name.clone()).collect(),
             });
         }
@@ -124,8 +124,8 @@ impl SchemaOptimizer {
 
                 type_def.sql_projection_hint = Some(hint);
                 report.projection_hints.push(ProjectionHint {
-                    type_name: type_def.name.to_string(),
-                    field_count: type_def.fields.len(),
+                    type_name:                   type_def.name.to_string(),
+                    field_count:                 type_def.fields.len(),
                     estimated_reduction_percent: type_def
                         .sql_projection_hint
                         .as_ref()
@@ -242,9 +242,9 @@ impl SchemaOptimizer {
 #[derive(Debug, Default)]
 pub struct OptimizationReport {
     /// Index suggestions for query performance
-    pub index_hints: Vec<IndexHint>,
+    pub index_hints:        Vec<IndexHint>,
     /// SQL projection hints for types that would benefit from JSONB field filtering
-    pub projection_hints: Vec<ProjectionHint>,
+    pub projection_hints:   Vec<ProjectionHint>,
     /// General optimization notes
     pub optimization_notes: Vec<String>,
 }
@@ -303,9 +303,9 @@ impl OptimizationReport {
 #[derive(Debug, Clone)]
 pub struct IndexHint {
     /// Query name that would benefit from index
-    pub query_name: String,
+    pub query_name:        String,
     /// Reason for the suggestion
-    pub reason: String,
+    pub reason:            String,
     /// Suggested columns to index
     pub suggested_columns: Vec<String>,
 }
@@ -314,9 +314,9 @@ pub struct IndexHint {
 #[derive(Debug, Clone)]
 pub struct ProjectionHint {
     /// Type name that would benefit from SQL projection
-    pub type_name: String,
+    pub type_name:                   String,
     /// Number of fields in the type
-    pub field_count: usize,
+    pub field_count:                 usize,
     /// Estimated payload reduction percentage (0-100)
     pub estimated_reduction_percent: u32,
 }

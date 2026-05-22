@@ -25,7 +25,7 @@ pub fn parse_representations(
 ) -> Result<Vec<EntityRepresentation>> {
     let array = input.as_array().ok_or_else(|| FraiseQLError::Validation {
         message: "Representations must be an array".to_string(),
-        path: None,
+        path:    None,
     })?;
 
     if array.len() > MAX_ENTITIES_BATCH_SIZE {
@@ -34,7 +34,7 @@ pub fn parse_representations(
                 "Too many entity representations: {} (max {MAX_ENTITIES_BATCH_SIZE})",
                 array.len()
             ),
-            path: None,
+            path:    None,
         });
     }
 
@@ -44,7 +44,7 @@ pub fn parse_representations(
         let mut rep =
             EntityRepresentation::from_any(item).map_err(|e| FraiseQLError::Validation {
                 message: format!("Representation {idx}: {e}"),
-                path: None,
+                path:    None,
             })?;
 
         // Extract key fields based on metadata
@@ -99,7 +99,7 @@ pub fn validate_representations(
     } else {
         Err(FraiseQLError::Validation {
             message: format!("Invalid representations: {}", errors.join("; ")),
-            path: None,
+            path:    None,
         })
     }
 }

@@ -15,14 +15,14 @@ use crate::routes::rest::handler::RestError;
 
 /// Internal state for the streaming unfold loop.
 pub(super) struct StreamState<A: DatabaseAdapter> {
-    pub executor: Arc<Executor<A>>,
-    pub query_name: String,
-    pub query_match: QueryMatch,
-    pub variables: serde_json::Value,
+    pub executor:     Arc<Executor<A>>,
+    pub query_name:   String,
+    pub query_match:  QueryMatch,
+    pub variables:    serde_json::Value,
     pub security_ctx: Option<SecurityContext>,
-    pub batch_size: u64,
-    pub offset: u64,
-    pub done: bool,
+    pub batch_size:   u64,
+    pub offset:       u64,
+    pub done:         bool,
 }
 
 /// Fetch the next batch of rows, serialize as NDJSON bytes, and advance the offset.

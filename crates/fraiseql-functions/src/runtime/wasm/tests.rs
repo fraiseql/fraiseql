@@ -56,10 +56,10 @@ async fn test_wasm_guest_can_call_log() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({"test": true}),
-        timestamp: chrono::Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({"test": true}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -87,10 +87,10 @@ async fn test_wasm_guest_log_levels() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -117,10 +117,10 @@ async fn test_wasm_guest_get_event_payload() {
 
     let event = EventPayload {
         trigger_type: "mutation".to_string(),
-        entity: "User".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({"user_id": 42, "email": "test@example.com"}),
-        timestamp: chrono::Utc::now(),
+        entity:       "User".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({"user_id": 42, "email": "test@example.com"}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -147,10 +147,10 @@ async fn test_wasm_guest_get_auth_context() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -178,10 +178,10 @@ async fn test_wasm_guest_get_env_var() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -211,10 +211,10 @@ async fn test_wasm_guest_calls_query_with_live_host() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "TestEntity".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({"id": 42, "name": "test_item"}),
-        timestamp: chrono::Utc::now(),
+        entity:       "TestEntity".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({"id": 42, "name": "test_item"}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let config = HostContextConfig::default();
@@ -247,10 +247,10 @@ async fn test_wasm_guest_calls_http_request_with_live_host() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "TestEntity".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({"id": 42}),
-        timestamp: chrono::Utc::now(),
+        entity:       "TestEntity".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({"id": 42}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let config = HostContextConfig {
@@ -286,10 +286,10 @@ async fn test_wasm_guest_calls_storage_get_with_live_host() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "File".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
+        entity:       "File".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let config = HostContextConfig::default();
@@ -322,10 +322,10 @@ async fn test_wasm_guest_calls_env_var_with_live_host() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -359,10 +359,10 @@ async fn test_wasm_guest_calls_auth_context_with_live_host() {
 
     let event = EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({}),
-        timestamp: chrono::Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    chrono::Utc::now(),
     };
 
     let config = HostContextConfig::default();

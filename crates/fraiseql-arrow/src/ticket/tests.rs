@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn test_graphql_query_ticket_roundtrip() {
     let ticket = FlightTicket::GraphQLQuery {
-        query: "{ users { id } }".to_string(),
+        query:     "{ users { id } }".to_string(),
         variables: None,
     };
 
@@ -18,7 +18,7 @@ fn test_graphql_query_ticket_roundtrip() {
 #[test]
 fn test_graphql_query_with_variables() {
     let ticket = FlightTicket::GraphQLQuery {
-        query: "query($id: ID!) { user(id: $id) { name } }".to_string(),
+        query:     "query($id: ID!) { user(id: $id) { name } }".to_string(),
         variables: Some(serde_json::json!({"id": "123"})),
     };
 
@@ -38,9 +38,9 @@ fn test_graphql_query_with_variables() {
 fn test_observer_events_ticket_roundtrip() {
     let ticket = FlightTicket::ObserverEvents {
         entity_type: "Order".to_string(),
-        start_date: Some("2026-01-01".to_string()),
-        end_date: Some("2026-01-31".to_string()),
-        limit: Some(10_000),
+        start_date:  Some("2026-01-01".to_string()),
+        end_date:    Some("2026-01-31".to_string()),
+        limit:       Some(10_000),
     };
 
     let bytes = ticket.encode().unwrap();
@@ -60,11 +60,11 @@ fn test_observer_events_ticket_roundtrip() {
 #[test]
 fn test_optimized_view_ticket() {
     let ticket = FlightTicket::OptimizedView {
-        view: "va_orders".to_string(),
-        filter: Some("created_at > '2026-01-01'".to_string()),
+        view:     "va_orders".to_string(),
+        filter:   Some("created_at > '2026-01-01'".to_string()),
         order_by: Some("created_at DESC".to_string()),
-        limit: Some(100_000),
-        offset: Some(0),
+        limit:    Some(100_000),
+        offset:   Some(0),
     };
 
     let bytes = ticket.encode().unwrap();
@@ -91,11 +91,11 @@ fn test_optimized_view_ticket() {
 #[test]
 fn test_optimized_view_minimal() {
     let ticket = FlightTicket::OptimizedView {
-        view: "va_users".to_string(),
-        filter: None,
+        view:     "va_users".to_string(),
+        filter:   None,
         order_by: None,
-        limit: None,
-        offset: None,
+        limit:    None,
+        offset:   None,
     };
 
     let bytes = ticket.encode().unwrap();
@@ -107,9 +107,9 @@ fn test_optimized_view_minimal() {
 #[test]
 fn test_bulk_export_ticket() {
     let ticket = FlightTicket::BulkExport {
-        table: "users".to_string(),
+        table:  "users".to_string(),
         filter: Some("active = true".to_string()),
-        limit: Some(1_000_000),
+        limit:  Some(1_000_000),
         format: Some("parquet".to_string()),
     };
 
@@ -169,7 +169,7 @@ fn test_batched_queries_single() {
 #[test]
 fn test_graphql_query_empty_string_roundtrips() {
     let ticket = FlightTicket::GraphQLQuery {
-        query: String::new(),
+        query:     String::new(),
         variables: None,
     };
     let bytes = ticket.encode().unwrap();
@@ -187,9 +187,9 @@ fn test_graphql_query_empty_string_roundtrips() {
 fn test_observer_events_all_none_optional_fields() {
     let ticket = FlightTicket::ObserverEvents {
         entity_type: "User".to_string(),
-        start_date: None,
-        end_date: None,
-        limit: None,
+        start_date:  None,
+        end_date:    None,
+        limit:       None,
     };
     let bytes = ticket.encode().unwrap();
     let decoded = FlightTicket::decode(&bytes).unwrap();
@@ -212,9 +212,9 @@ fn test_observer_events_all_none_optional_fields() {
 #[test]
 fn test_bulk_export_all_none_optional_fields() {
     let ticket = FlightTicket::BulkExport {
-        table: "orders".to_string(),
+        table:  "orders".to_string(),
         filter: None,
-        limit: None,
+        limit:  None,
         format: None,
     };
     let bytes = ticket.encode().unwrap();
@@ -258,7 +258,7 @@ fn test_valid_json_but_wrong_type_tag_returns_error() {
 #[test]
 fn test_encode_produces_valid_utf8_json() {
     let ticket = FlightTicket::GraphQLQuery {
-        query: "{ users { id } }".to_string(),
+        query:     "{ users { id } }".to_string(),
         variables: None,
     };
     let bytes = ticket.encode().unwrap();
@@ -270,11 +270,11 @@ fn test_encode_produces_valid_utf8_json() {
 #[test]
 fn test_optimized_view_offset_zero_roundtrips() {
     let ticket = FlightTicket::OptimizedView {
-        view: "va_orders".to_string(),
-        filter: None,
+        view:     "va_orders".to_string(),
+        filter:   None,
         order_by: None,
-        limit: Some(1000),
-        offset: Some(0),
+        limit:    Some(1000),
+        offset:   Some(0),
     };
     let bytes = ticket.encode().unwrap();
     let decoded = FlightTicket::decode(&bytes).unwrap();
@@ -284,7 +284,7 @@ fn test_optimized_view_offset_zero_roundtrips() {
 #[test]
 fn test_graphql_query_with_complex_variables_roundtrips() {
     let ticket = FlightTicket::GraphQLQuery {
-        query: "query Q($filter: FilterInput!) { items(filter: $filter) { id } }".to_string(),
+        query:     "query Q($filter: FilterInput!) { items(filter: $filter) { id } }".to_string(),
         variables: Some(serde_json::json!({
             "filter": {
                 "status": "active",

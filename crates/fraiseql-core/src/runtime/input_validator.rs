@@ -52,13 +52,13 @@ impl ValidationErrorCollection {
             let err = &self.errors[0];
             FraiseQLError::Validation {
                 message: err.to_string(),
-                path: Some(err.field.clone()),
+                path:    Some(err.field.clone()),
             }
         } else {
             let messages: Vec<String> = self.errors.iter().map(|e| e.to_string()).collect();
             FraiseQLError::Validation {
                 message: format!("Multiple validation errors: {}", messages.join("; ")),
-                path: None,
+                path:    None,
             }
         }
     }
@@ -153,7 +153,7 @@ pub(crate) fn validate_string_field(
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "required", "Field is required")
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 });
             }
             Ok(())
@@ -170,7 +170,7 @@ pub(crate) fn validate_string_field(
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "pattern", msg)
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
         },
@@ -193,7 +193,7 @@ pub(crate) fn validate_string_field(
                         "Field validation failed: {}",
                         ValidationFieldError::new(field_path, "length", msg)
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
         },
@@ -210,7 +210,7 @@ pub(crate) fn validate_string_field(
                             format!("Must be one of: {}", values.join(", "))
                         )
                     ),
-                    path: Some(field_path.to_string()),
+                    path:    Some(field_path.to_string()),
                 })
             }
         },

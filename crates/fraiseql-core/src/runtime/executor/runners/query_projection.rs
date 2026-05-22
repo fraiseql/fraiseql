@@ -4,8 +4,7 @@
 //! hints and enrich ORDER BY clauses with schema-derived type information.
 
 use crate::{
-    db::projection_generator::FieldKind,
-    db::{OrderByClause, OrderByFieldType, ProjectionField},
+    db::{OrderByClause, OrderByFieldType, ProjectionField, projection_generator::FieldKind},
     graphql::FieldSelection,
     schema::CompiledSchema,
 };

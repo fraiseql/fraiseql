@@ -61,9 +61,9 @@ impl RoleDefinition {
     #[must_use]
     pub fn new(name: impl Into<String>, scopes: Vec<String>) -> Self {
         Self {
-            name: RoleName::new(name),
+            name:        RoleName::new(name),
             description: None,
-            scopes: scopes.into_iter().map(Scope::new).collect(),
+            scopes:      scopes.into_iter().map(Scope::new).collect(),
         }
     }
 
@@ -172,7 +172,7 @@ fn default_tenant_claim() -> String {
 impl Default for TenancyConfig {
     fn default() -> Self {
         Self {
-            mode: TenancyMode::None,
+            mode:         TenancyMode::None,
             tenant_claim: default_tenant_claim(),
         }
     }

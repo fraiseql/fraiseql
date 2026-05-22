@@ -71,13 +71,13 @@ impl JobState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobAttempt {
     /// Attempt number (1-based)
-    pub attempt: u32,
+    pub attempt:    u32,
     /// When this attempt started
     pub started_at: DateTime<Utc>,
     /// Whether this attempt succeeded
-    pub success: bool,
+    pub success:    bool,
     /// Error message if it failed
-    pub error: Option<String>,
+    pub error:      Option<String>,
 }
 
 /// Job to be executed asynchronously
@@ -176,10 +176,10 @@ impl Job {
     pub fn mark_completed(&mut self) {
         self.state = JobState::Completed;
         self.attempts.push(JobAttempt {
-            attempt: self.attempt,
+            attempt:    self.attempt,
             started_at: Utc::now(),
-            success: true,
-            error: None,
+            success:    true,
+            error:      None,
         });
     }
 
@@ -187,10 +187,10 @@ impl Job {
     pub fn mark_failed(&mut self, error: String) {
         self.last_error = Some(error.clone());
         self.attempts.push(JobAttempt {
-            attempt: self.attempt,
+            attempt:    self.attempt,
             started_at: Utc::now(),
-            success: false,
-            error: Some(error),
+            success:    false,
+            error:      Some(error),
         });
 
         if self.can_retry() {

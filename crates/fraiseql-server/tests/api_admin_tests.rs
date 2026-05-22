@@ -34,7 +34,7 @@ fn test_reload_schema_request_structure() {
     use fraiseql_server::routes::api::admin::ReloadSchemaRequest;
 
     let request = ReloadSchemaRequest {
-        schema_path: "/path/to/schema.compiled.json".to_string(),
+        schema_path:   "/path/to/schema.compiled.json".to_string(),
         validate_only: false,
     };
 
@@ -47,7 +47,7 @@ fn test_reload_schema_request_with_validation() {
     use fraiseql_server::routes::api::admin::ReloadSchemaRequest;
 
     let request = ReloadSchemaRequest {
-        schema_path: "/path/to/schema.compiled.json".to_string(),
+        schema_path:   "/path/to/schema.compiled.json".to_string(),
         validate_only: true,
     };
 
@@ -59,9 +59,9 @@ fn test_cache_clear_request_structure() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "all".to_string(),
+        scope:       "all".to_string(),
         entity_type: None,
-        pattern: None,
+        pattern:     None,
     };
 
     assert_eq!(request.scope, "all");
@@ -74,9 +74,9 @@ fn test_cache_clear_request_by_entity() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "entity".to_string(),
+        scope:       "entity".to_string(),
         entity_type: Some("User".to_string()),
-        pattern: None,
+        pattern:     None,
     };
 
     assert_eq!(request.scope, "entity");
@@ -88,9 +88,9 @@ fn test_cache_clear_request_by_pattern() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "pattern".to_string(),
+        scope:       "pattern".to_string(),
         entity_type: None,
-        pattern: Some("user_*".to_string()),
+        pattern:     Some("user_*".to_string()),
     };
 
     assert_eq!(request.scope, "pattern");
@@ -102,9 +102,9 @@ fn test_cache_clear_response_structure() {
     use fraiseql_server::routes::api::admin::CacheClearResponse;
 
     let response = CacheClearResponse {
-        success: true,
+        success:         true,
         entries_cleared: 150,
-        message: "Cache cleared".to_string(),
+        message:         "Cache cleared".to_string(),
     };
 
     assert!(response.success);
@@ -170,9 +170,9 @@ fn test_cache_clear_response_json_serialization() {
     use fraiseql_server::routes::api::admin::CacheClearResponse;
 
     let response = CacheClearResponse {
-        success: true,
+        success:         true,
         entries_cleared: 42,
-        message: "Cache cleared".to_string(),
+        message:         "Cache cleared".to_string(),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -186,7 +186,7 @@ fn test_api_response_wrapper_reload_schema() {
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: ReloadSchemaResponse {
+        data:   ReloadSchemaResponse {
             success: true,
             message: "Reloaded".to_string(),
         },
@@ -202,10 +202,10 @@ fn test_api_response_wrapper_cache_clear() {
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: CacheClearResponse {
-            success: true,
+        data:   CacheClearResponse {
+            success:         true,
             entries_cleared: 10,
-            message: "Cleared".to_string(),
+            message:         "Cleared".to_string(),
         },
     };
 
@@ -221,9 +221,9 @@ fn test_api_response_wrapper_admin_config() {
 
     let response = ApiResponse {
         status: "success".to_string(),
-        data: AdminConfigResponse {
+        data:   AdminConfigResponse {
             version: "2.0.0-a1".to_string(),
-            config: HashMap::new(),
+            config:  HashMap::new(),
         },
     };
 
@@ -236,7 +236,7 @@ fn test_reload_schema_request_json_serialization() {
     use fraiseql_server::routes::api::admin::ReloadSchemaRequest;
 
     let request = ReloadSchemaRequest {
-        schema_path: "/path/schema.json".to_string(),
+        schema_path:   "/path/schema.json".to_string(),
         validate_only: false,
     };
 
@@ -250,9 +250,9 @@ fn test_cache_clear_request_json_serialization() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "all".to_string(),
+        scope:       "all".to_string(),
         entity_type: None,
-        pattern: None,
+        pattern:     None,
     };
 
     let json = serde_json::to_string(&request).unwrap();
@@ -264,9 +264,9 @@ fn test_cache_clear_request_with_entity_json_serialization() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "entity".to_string(),
+        scope:       "entity".to_string(),
         entity_type: Some("User".to_string()),
-        pattern: None,
+        pattern:     None,
     };
 
     let json = serde_json::to_string(&request).unwrap();
@@ -324,9 +324,9 @@ fn test_cache_clear_response_zero_entries() {
     use fraiseql_server::routes::api::admin::CacheClearResponse;
 
     let response = CacheClearResponse {
-        success: true,
+        success:         true,
         entries_cleared: 0,
-        message: "Cache was empty".to_string(),
+        message:         "Cache was empty".to_string(),
     };
 
     assert!(response.success);
@@ -338,9 +338,9 @@ fn test_cache_clear_response_multiple_entries() {
     use fraiseql_server::routes::api::admin::CacheClearResponse;
 
     let response = CacheClearResponse {
-        success: true,
+        success:         true,
         entries_cleared: 1000,
-        message: "Cleared 1000 entries".to_string(),
+        message:         "Cleared 1000 entries".to_string(),
     };
 
     assert!(response.success);
@@ -355,7 +355,7 @@ fn test_admin_config_response_empty_config() {
 
     let response = AdminConfigResponse {
         version: "2.0.0-a1".to_string(),
-        config: HashMap::new(),
+        config:  HashMap::new(),
     };
 
     assert!(response.config.is_empty());
@@ -386,7 +386,7 @@ fn test_reload_schema_request_absolute_path() {
     use fraiseql_server::routes::api::admin::ReloadSchemaRequest;
 
     let request = ReloadSchemaRequest {
-        schema_path: "/absolute/path/to/schema.compiled.json".to_string(),
+        schema_path:   "/absolute/path/to/schema.compiled.json".to_string(),
         validate_only: false,
     };
 
@@ -398,7 +398,7 @@ fn test_reload_schema_request_relative_path() {
     use fraiseql_server::routes::api::admin::ReloadSchemaRequest;
 
     let request = ReloadSchemaRequest {
-        schema_path: "schema.compiled.json".to_string(),
+        schema_path:   "schema.compiled.json".to_string(),
         validate_only: false,
     };
 
@@ -410,9 +410,9 @@ fn test_cache_clear_request_all_scope() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "all".to_string(),
+        scope:       "all".to_string(),
         entity_type: None,
-        pattern: None,
+        pattern:     None,
     };
 
     assert_eq!(request.scope, "all");
@@ -425,9 +425,9 @@ fn test_cache_clear_request_entity_scope() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "entity".to_string(),
+        scope:       "entity".to_string(),
         entity_type: Some("Post".to_string()),
-        pattern: None,
+        pattern:     None,
     };
 
     assert_eq!(request.scope, "entity");
@@ -439,9 +439,9 @@ fn test_cache_clear_request_pattern_scope() {
     use fraiseql_server::routes::api::admin::CacheClearRequest;
 
     let request = CacheClearRequest {
-        scope: "pattern".to_string(),
+        scope:       "pattern".to_string(),
         entity_type: None,
-        pattern: Some("*_user".to_string()),
+        pattern:     Some("*_user".to_string()),
     };
 
     assert_eq!(request.scope, "pattern");

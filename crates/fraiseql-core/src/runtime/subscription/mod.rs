@@ -185,6 +185,6 @@ pub enum SubscriptionError {
         /// Transport that failed.
         transport: String,
         /// Reason for failure.
-        reason: String,
+        reason:    String,
     },
 }

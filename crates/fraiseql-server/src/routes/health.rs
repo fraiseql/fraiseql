@@ -57,19 +57,19 @@ pub struct FederationHealth {
     /// Whether federation is configured at all.
     pub configured: bool,
     /// Per-entity circuit breaker state.
-    pub subgraphs: Vec<crate::federation::circuit_breaker::SubgraphCircuitHealth>,
+    pub subgraphs:  Vec<crate::federation::circuit_breaker::SubgraphCircuitHealth>,
 }
 
 /// Observer runtime health snapshot.
 #[derive(Debug, Serialize)]
 pub struct ObserverHealth {
     /// Whether the observer runtime is currently running.
-    pub running: bool,
+    pub running:        bool,
     /// Approximate number of events pending in the internal queue.
     pub pending_events: usize,
     /// Last error message from the observer runtime, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_error: Option<String>,
+    pub last_error:     Option<String>,
 }
 
 /// Cache subsystem health.
@@ -79,7 +79,7 @@ pub struct CacheHealth {
     /// `true` for the in-memory backend).
     pub connected: bool,
     /// Cache backend type: `"redis"` or `"in-memory"`.
-    pub backend: String,
+    pub backend:   String,
 }
 
 /// Secrets backend health.
@@ -88,7 +88,7 @@ pub struct SecretsHealth {
     /// Whether the secrets backend is reachable and the token is valid.
     pub connected: bool,
     /// Backend type: `"vault"`, `"env"`, `"aws-secrets"`, etc.
-    pub backend: String,
+    pub backend:   String,
 }
 
 /// Readiness response (subset of `HealthResponse`).
@@ -159,18 +159,18 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     let database = if db_healthy {
         DatabaseStatus {
-            connected: true,
-            database_type: format!("{db_type:?}"),
+            connected:          true,
+            database_type:      format!("{db_type:?}"),
             active_connections: Some(metrics.active_connections as usize),
-            idle_connections: Some(metrics.idle_connections as usize),
+            idle_connections:   Some(metrics.idle_connections as usize),
         }
     } else {
         error!("Database health check failed: {:?}", health_result.err());
         DatabaseStatus {
-            connected: false,
-            database_type: format!("{db_type:?}"),
+            connected:          false,
+            database_type:      format!("{db_type:?}"),
             active_connections: Some(metrics.active_connections as usize),
-            idle_connections: Some(metrics.idle_connections as usize),
+            idle_connections:   Some(metrics.idle_connections as usize),
         }
     };
 
@@ -179,7 +179,7 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     #[cfg(feature = "federation")]
     let federation = state.circuit_breaker.as_ref().map(|cb| FederationHealth {
         configured: true,
-        subgraphs: cb.health_snapshot(),
+        subgraphs:  cb.health_snapshot(),
     });
 
     // Probe observer health when the runtime is attached to AppState.
@@ -191,9 +191,9 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         // Reason: events_processed is a counter that won't realistically exceed usize on any target
         let pending = health.events_processed as usize;
         Some(ObserverHealth {
-            running: health.running,
+            running:        health.running,
             pending_events: pending,
-            last_error: if health.errors > 0 {
+            last_error:     if health.errors > 0 {
                 Some(format!("{} errors encountered", health.errors))
             } else {
                 None
@@ -209,7 +209,7 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     #[cfg(feature = "arrow")]
     let cache = state.cache.as_ref().map(|_| CacheHealth {
         connected: true, // In-memory cache is always "connected"
-        backend: "in-memory".to_string(),
+        backend:   "in-memory".to_string(),
     });
     #[cfg(not(feature = "arrow"))]
     let cache: Option<CacheHealth> = None;

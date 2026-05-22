@@ -29,9 +29,9 @@ mod pg_operators {
     #[test]
     fn eq_string() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -40,9 +40,9 @@ mod pg_operators {
     #[test]
     fn eq_numeric() {
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(100),
+            value:    json!(100),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -51,9 +51,9 @@ mod pg_operators {
     #[test]
     fn neq() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Neq,
-            value: json!("deleted"),
+            value:    json!("deleted"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -62,9 +62,9 @@ mod pg_operators {
     #[test]
     fn gt() {
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(100),
+            value:    json!(100),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -73,9 +73,9 @@ mod pg_operators {
     #[test]
     fn gte() {
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gte,
-            value: json!(100),
+            value:    json!(100),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -84,9 +84,9 @@ mod pg_operators {
     #[test]
     fn lt() {
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Lt,
-            value: json!(18),
+            value:    json!(18),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -95,9 +95,9 @@ mod pg_operators {
     #[test]
     fn lte() {
         let clause = WhereClause::Field {
-            path: vec!["age".to_string()],
+            path:     vec!["age".to_string()],
             operator: WhereOperator::Lte,
-            value: json!(65),
+            value:    json!(65),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -106,9 +106,9 @@ mod pg_operators {
     #[test]
     fn like() {
         let clause = WhereClause::Field {
-            path: vec!["title".to_string()],
+            path:     vec!["title".to_string()],
             operator: WhereOperator::Like,
-            value: json!("%rust%"),
+            value:    json!("%rust%"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -117,9 +117,9 @@ mod pg_operators {
     #[test]
     fn ilike() {
         let clause = WhereClause::Field {
-            path: vec!["title".to_string()],
+            path:     vec!["title".to_string()],
             operator: WhereOperator::Ilike,
-            value: json!("%rust%"),
+            value:    json!("%rust%"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -128,9 +128,9 @@ mod pg_operators {
     #[test]
     fn contains() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Contains,
-            value: json!("alice"),
+            value:    json!("alice"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -139,9 +139,9 @@ mod pg_operators {
     #[test]
     fn icontains() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Icontains,
-            value: json!("alice"),
+            value:    json!("alice"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -150,9 +150,9 @@ mod pg_operators {
     #[test]
     fn startswith() {
         let clause = WhereClause::Field {
-            path: vec!["username".to_string()],
+            path:     vec!["username".to_string()],
             operator: WhereOperator::Startswith,
-            value: json!("admin"),
+            value:    json!("admin"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -161,9 +161,9 @@ mod pg_operators {
     #[test]
     fn endswith() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Endswith,
-            value: json!("@example.com"),
+            value:    json!("@example.com"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -172,9 +172,9 @@ mod pg_operators {
     #[test]
     fn in_operator() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending", "review"]),
+            value:    json!(["active", "pending", "review"]),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -183,9 +183,9 @@ mod pg_operators {
     #[test]
     fn nin_operator() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Nin,
-            value: json!(["deleted", "banned"]),
+            value:    json!(["deleted", "banned"]),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -194,9 +194,9 @@ mod pg_operators {
     #[test]
     fn is_null_true() {
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -205,9 +205,9 @@ mod pg_operators {
     #[test]
     fn is_null_false() {
         let clause = WhereClause::Field {
-            path: vec!["published_at".to_string()],
+            path:     vec!["published_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(false),
+            value:    json!(false),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -225,14 +225,14 @@ mod pg_compound {
     fn and_two_fields() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["published".to_string()],
+                path:     vec!["published".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
             WhereClause::Field {
-                path: vec!["author_id".to_string()],
+                path:     vec!["author_id".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("00000000-0000-0000-0000-000000000001"),
+                value:    json!("00000000-0000-0000-0000-000000000001"),
             },
         ]);
         let (sql, _params) = pg().generate(&clause).unwrap();
@@ -243,14 +243,14 @@ mod pg_compound {
     fn or_two_fields() {
         let clause = WhereClause::Or(vec![
             WhereClause::Field {
-                path: vec!["role".to_string()],
+                path:     vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("admin"),
+                value:    json!("admin"),
             },
             WhereClause::Field {
-                path: vec!["role".to_string()],
+                path:     vec!["role".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("superuser"),
+                value:    json!("superuser"),
             },
         ]);
         let (sql, _params) = pg().generate(&clause).unwrap();
@@ -261,20 +261,20 @@ mod pg_compound {
     fn nested_and_or() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["active".to_string()],
+                path:     vec!["active".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!(true),
+                value:    json!(true),
             },
             WhereClause::Or(vec![
                 WhereClause::Field {
-                    path: vec!["role".to_string()],
+                    path:     vec!["role".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("admin"),
+                    value:    json!("admin"),
                 },
                 WhereClause::Field {
-                    path: vec!["role".to_string()],
+                    path:     vec!["role".to_string()],
                     operator: WhereOperator::Eq,
-                    value: json!("mod"),
+                    value:    json!("mod"),
                 },
             ]),
         ]);
@@ -285,9 +285,9 @@ mod pg_compound {
     #[test]
     fn deep_nested_path() {
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -296,9 +296,9 @@ mod pg_compound {
     #[test]
     fn param_offset_two() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Alice"),
+            value:    json!("Alice"),
         };
         let (sql, _params) = pg().generate_with_param_offset(&clause, 2).unwrap();
         assert_snapshot!(sql);
@@ -324,9 +324,9 @@ mod mysql_operators {
     #[test]
     fn eq_string() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -335,9 +335,9 @@ mod mysql_operators {
     #[test]
     fn like() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Like,
-            value: json!("%alice%"),
+            value:    json!("%alice%"),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -346,9 +346,9 @@ mod mysql_operators {
     #[test]
     fn in_operator() {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::In,
-            value: json!(["active", "pending"]),
+            value:    json!(["active", "pending"]),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -357,9 +357,9 @@ mod mysql_operators {
     #[test]
     fn is_null_true() {
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -368,9 +368,9 @@ mod mysql_operators {
     #[test]
     fn nested_path() {
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -380,14 +380,14 @@ mod mysql_operators {
     fn and_compound() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("active"),
+                value:    json!("active"),
             },
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gt,
-                value: json!(18),
+                value:    json!(18),
             },
         ]);
         let (sql, _params) = my().generate(&clause).unwrap();
@@ -414,9 +414,9 @@ mod sqlite_operators {
     #[test]
     fn eq_string() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
         let (sql, _params) = sq().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -425,9 +425,9 @@ mod sqlite_operators {
     #[test]
     fn like() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Like,
-            value: json!("%alice%"),
+            value:    json!("%alice%"),
         };
         let (sql, _params) = sq().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -436,9 +436,9 @@ mod sqlite_operators {
     #[test]
     fn gt_numeric() {
         let clause = WhereClause::Field {
-            path: vec!["score".to_string()],
+            path:     vec!["score".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(50),
+            value:    json!(50),
         };
         let (sql, _params) = sq().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -447,9 +447,9 @@ mod sqlite_operators {
     #[test]
     fn is_null_true() {
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
         let (sql, _params) = sq().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -458,9 +458,9 @@ mod sqlite_operators {
     #[test]
     fn nested_path() {
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
         let (sql, _params) = sq().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -470,14 +470,14 @@ mod sqlite_operators {
     fn and_compound() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("active"),
+                value:    json!("active"),
             },
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gt,
-                value: json!(18),
+                value:    json!(18),
             },
         ]);
         let (sql, _params) = sq().generate(&clause).unwrap();
@@ -504,9 +504,9 @@ mod sqlserver_operators {
     #[test]
     fn eq_string() {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("alice@example.com"),
+            value:    json!("alice@example.com"),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -515,9 +515,9 @@ mod sqlserver_operators {
     #[test]
     fn like() {
         let clause = WhereClause::Field {
-            path: vec!["name".to_string()],
+            path:     vec!["name".to_string()],
             operator: WhereOperator::Like,
-            value: json!("%alice%"),
+            value:    json!("%alice%"),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -526,9 +526,9 @@ mod sqlserver_operators {
     #[test]
     fn is_null_true() {
         let clause = WhereClause::Field {
-            path: vec!["deleted_at".to_string()],
+            path:     vec!["deleted_at".to_string()],
             operator: WhereOperator::IsNull,
-            value: json!(true),
+            value:    json!(true),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -537,9 +537,9 @@ mod sqlserver_operators {
     #[test]
     fn nested_path() {
         let clause = WhereClause::Field {
-            path: vec!["address".to_string(), "city".to_string()],
+            path:     vec!["address".to_string(), "city".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("Paris"),
+            value:    json!("Paris"),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -549,14 +549,14 @@ mod sqlserver_operators {
     fn and_compound() {
         let clause = WhereClause::And(vec![
             WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: json!("active"),
+                value:    json!("active"),
             },
             WhereClause::Field {
-                path: vec!["age".to_string()],
+                path:     vec!["age".to_string()],
                 operator: WhereOperator::Gt,
-                value: json!(18),
+                value:    json!(18),
             },
         ]);
         let (sql, _params) = ss().generate(&clause).unwrap();
@@ -574,13 +574,13 @@ mod pg_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path: vec![
+            path:     vec![
                 "profile".to_string(),
                 "social".to_string(),
                 "twitter".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value: json!("@alice"),
+            value:    json!("@alice"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -602,13 +602,13 @@ mod mysql_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path: vec![
+            path:     vec![
                 "profile".to_string(),
                 "social".to_string(),
                 "twitter".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value: json!("@alice"),
+            value:    json!("@alice"),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -630,13 +630,13 @@ mod sqlite_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path: vec![
+            path:     vec![
                 "profile".to_string(),
                 "social".to_string(),
                 "twitter".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value: json!("@alice"),
+            value:    json!("@alice"),
         };
         let (sql, _params) = sq().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -658,13 +658,13 @@ mod sqlserver_json_deep {
     #[test]
     fn three_level_path() {
         let clause = WhereClause::Field {
-            path: vec![
+            path:     vec![
                 "profile".to_string(),
                 "social".to_string(),
                 "twitter".to_string(),
             ],
             operator: WhereOperator::Eq,
-            value: json!("@alice"),
+            value:    json!("@alice"),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -681,9 +681,9 @@ mod pg_array_operators {
     #[test]
     fn array_contains() {
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: json!(["rust", "graphql"]),
+            value:    json!(["rust", "graphql"]),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -692,9 +692,9 @@ mod pg_array_operators {
     #[test]
     fn array_contained_by() {
         let clause = WhereClause::Field {
-            path: vec!["roles".to_string()],
+            path:     vec!["roles".to_string()],
             operator: WhereOperator::ArrayContainedBy,
-            value: json!(["admin", "editor", "viewer"]),
+            value:    json!(["admin", "editor", "viewer"]),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -703,9 +703,9 @@ mod pg_array_operators {
     #[test]
     fn array_overlaps() {
         let clause = WhereClause::Field {
-            path: vec!["skills".to_string()],
+            path:     vec!["skills".to_string()],
             operator: WhereOperator::ArrayOverlaps,
-            value: json!(["rust", "go", "python"]),
+            value:    json!(["rust", "go", "python"]),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -714,9 +714,9 @@ mod pg_array_operators {
     #[test]
     fn strictly_contains() {
         let clause = WhereClause::Field {
-            path: vec!["metadata".to_string()],
+            path:     vec!["metadata".to_string()],
             operator: WhereOperator::StrictlyContains,
-            value: json!({"verified": true}),
+            value:    json!({"verified": true}),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -738,9 +738,9 @@ mod mysql_array_operators {
     #[test]
     fn array_contains() {
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: json!(["rust", "graphql"]),
+            value:    json!(["rust", "graphql"]),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -749,9 +749,9 @@ mod mysql_array_operators {
     #[test]
     fn array_overlaps() {
         let clause = WhereClause::Field {
-            path: vec!["skills".to_string()],
+            path:     vec!["skills".to_string()],
             operator: WhereOperator::ArrayOverlaps,
-            value: json!(["rust", "go"]),
+            value:    json!(["rust", "go"]),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -773,9 +773,9 @@ mod sqlite_array_operators {
     #[test]
     fn array_contains() {
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: json!(["rust", "graphql"]),
+            value:    json!(["rust", "graphql"]),
         };
         let (sql, _params) = sq().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -797,9 +797,9 @@ mod sqlserver_array_operators {
     #[test]
     fn array_contains() {
         let clause = WhereClause::Field {
-            path: vec!["tags".to_string()],
+            path:     vec!["tags".to_string()],
             operator: WhereOperator::ArrayContains,
-            value: json!(["rust", "graphql"]),
+            value:    json!(["rust", "graphql"]),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -816,9 +816,9 @@ mod pg_fts {
     #[test]
     fn matches() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::Matches,
-            value: json!("rust & graphql"),
+            value:    json!("rust & graphql"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -827,9 +827,9 @@ mod pg_fts {
     #[test]
     fn plain_query() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::PlainQuery,
-            value: json!("rust graphql"),
+            value:    json!("rust graphql"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -838,9 +838,9 @@ mod pg_fts {
     #[test]
     fn phrase_query() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::PhraseQuery,
-            value: json!("compiled graphql engine"),
+            value:    json!("compiled graphql engine"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -849,9 +849,9 @@ mod pg_fts {
     #[test]
     fn websearch_query() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::WebsearchQuery,
-            value: json!("rust OR graphql -slow"),
+            value:    json!("rust OR graphql -slow"),
         };
         let (sql, _params) = pg().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -873,9 +873,9 @@ mod mysql_fts {
     #[test]
     fn matches() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::Matches,
-            value: json!("rust graphql"),
+            value:    json!("rust graphql"),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -884,9 +884,9 @@ mod mysql_fts {
     #[test]
     fn plain_query() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::PlainQuery,
-            value: json!("+rust +graphql"),
+            value:    json!("+rust +graphql"),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -895,9 +895,9 @@ mod mysql_fts {
     #[test]
     fn phrase_query() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::PhraseQuery,
-            value: json!("compiled graphql"),
+            value:    json!("compiled graphql"),
         };
         let (sql, _params) = my().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -919,9 +919,9 @@ mod sqlserver_fts {
     #[test]
     fn matches() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::Matches,
-            value: json!("rust AND graphql"),
+            value:    json!("rust AND graphql"),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -930,9 +930,9 @@ mod sqlserver_fts {
     #[test]
     fn plain_query() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::PlainQuery,
-            value: json!("rust graphql"),
+            value:    json!("rust graphql"),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);
@@ -941,9 +941,9 @@ mod sqlserver_fts {
     #[test]
     fn phrase_query() {
         let clause = WhereClause::Field {
-            path: vec!["content".to_string()],
+            path:     vec!["content".to_string()],
             operator: WhereOperator::PhraseQuery,
-            value: json!("compiled graphql engine"),
+            value:    json!("compiled graphql engine"),
         };
         let (sql, _params) = ss().generate(&clause).unwrap();
         assert_snapshot!(sql);

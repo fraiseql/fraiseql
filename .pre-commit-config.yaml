@@ -12,9 +12,9 @@ repos:
     rev: v1.0
     hooks:
       - id: fmt
-        name: cargo fmt
-        description: Format Rust code with rustfmt
-        entry: cargo fmt --all --
+        name: cargo +nightly fmt
+        description: Format Rust code with nightly rustfmt (matches CI; needed for unstable .rustfmt.toml options like group_imports, imports_granularity, wrap_comments)
+        entry: cargo +nightly fmt --all --
         language: system
         types: [rust]
         pass_filenames: false

@@ -28,7 +28,7 @@ use common::{DatabaseFixture, FakeGraphQLExecutor, GraphQLResult, TestDataBuilde
 #[derive(Debug, Clone)]
 struct GraphQLQuery {
     query_string: String,
-    variables: HashMap<String, String>,
+    variables:    HashMap<String, String>,
 }
 
 impl GraphQLQuery {
@@ -36,7 +36,7 @@ impl GraphQLQuery {
     fn new(query: &str) -> Self {
         Self {
             query_string: query.to_string(),
-            variables: HashMap::new(),
+            variables:    HashMap::new(),
         }
     }
 
@@ -64,7 +64,7 @@ impl GraphQLQuery {
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Reason: fields used selectively across HTTP layer test cases
 struct GraphQLResponse {
-    data: Option<String>,
+    data:   Option<String>,
     errors: Vec<String>,
 }
 
@@ -73,7 +73,7 @@ impl GraphQLResponse {
     /// Create success response
     fn success(data: &str) -> Self {
         Self {
-            data: Some(data.to_string()),
+            data:   Some(data.to_string()),
             errors: vec![],
         }
     }
@@ -81,7 +81,7 @@ impl GraphQLResponse {
     /// Create error response
     fn error(message: &str) -> Self {
         Self {
-            data: None,
+            data:   None,
             errors: vec![message.to_string()],
         }
     }

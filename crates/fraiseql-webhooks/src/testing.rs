@@ -25,14 +25,14 @@ pub mod mocks {
         /// Whether `verify` should return `Ok(true)` or `Ok(false)`.
         pub should_succeed: bool,
         /// Ordered record of every `verify` invocation made against this mock.
-        pub calls: Mutex<Vec<MockVerifyCall>>,
+        pub calls:          Mutex<Vec<MockVerifyCall>>,
     }
 
     /// A single recorded invocation of [`MockSignatureVerifier::verify`].
     #[derive(Debug, Clone)]
     pub struct MockVerifyCall {
         /// The raw request body passed to `verify`.
-        pub payload: Vec<u8>,
+        pub payload:   Vec<u8>,
         /// The signature string passed to `verify`.
         pub signature: String,
     }
@@ -43,7 +43,7 @@ pub mod mocks {
         pub fn succeeding() -> Self {
             Self {
                 should_succeed: true,
-                calls: Mutex::new(Vec::new()),
+                calls:          Mutex::new(Vec::new()),
             }
         }
 
@@ -52,7 +52,7 @@ pub mod mocks {
         pub fn failing() -> Self {
             Self {
                 should_succeed: false,
-                calls: Mutex::new(Vec::new()),
+                calls:          Mutex::new(Vec::new()),
             }
         }
 
@@ -86,7 +86,7 @@ pub mod mocks {
             _url: Option<&str>,
         ) -> std::result::Result<bool, SignatureError> {
             self.calls.lock().unwrap().push(MockVerifyCall {
-                payload: payload.to_vec(),
+                payload:   payload.to_vec(),
                 signature: signature.to_string(),
             });
             Ok(self.should_succeed)
@@ -102,13 +102,13 @@ pub mod mocks {
     #[derive(Debug, Clone)]
     pub struct IdempotencyRecord {
         /// Unique identifier assigned when the event was first recorded.
-        pub id: uuid::Uuid,
+        pub id:         uuid::Uuid,
         /// The event type string (e.g., `"payment_intent.succeeded"`).
         pub event_type: String,
         /// Processing status, e.g. `"success"` or `"failed"`.
-        pub status: String,
+        pub status:     String,
         /// Optional error message set when processing failed.
-        pub error: Option<String>,
+        pub error:      Option<String>,
     }
 
     impl MockIdempotencyStore {
@@ -134,10 +134,10 @@ pub mod mocks {
                 map.insert(
                     (provider.to_string(), event_id.to_string()),
                     IdempotencyRecord {
-                        id: uuid::Uuid::new_v4(),
+                        id:         uuid::Uuid::new_v4(),
                         event_type: "test".to_string(),
-                        status: "success".to_string(),
-                        error: None,
+                        status:     "success".to_string(),
+                        error:      None,
                     },
                 );
             }

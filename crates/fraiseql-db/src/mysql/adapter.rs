@@ -125,7 +125,7 @@ impl MySqlAdapter {
             .fetch_one(&pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("Failed to connect to MySQL database: {e}"),
+                message:   format!("Failed to connect to MySQL database: {e}"),
                 sql_state: None,
             })?;
 
@@ -332,7 +332,7 @@ impl DatabaseAdapter for MySqlAdapter {
     async fn health_check(&self) -> Result<()> {
         sqlx::query("SELECT 1").fetch_one(&self.pool).await.map_err(|e| {
             FraiseQLError::Database {
-                message: format!("MySQL health check failed: {e}"),
+                message:   format!("MySQL health check failed: {e}"),
                 sql_state: None,
             }
         })?;
@@ -346,10 +346,10 @@ impl DatabaseAdapter for MySqlAdapter {
         let idle = self.pool.num_idle();
 
         PoolMetrics {
-            total_connections: size,
-            idle_connections: idle as u32,
+            total_connections:  size,
+            idle_connections:   idle as u32,
             active_connections: size - idle as u32,
-            waiting_requests: 0, // sqlx doesn't expose waiting count
+            waiting_requests:   0, // sqlx doesn't expose waiting count
         }
     }
 
@@ -610,7 +610,7 @@ impl DatabaseAdapter for MySqlAdapter {
         if sql.contains(';') {
             return Err(FraiseQLError::Validation {
                 message: "EXPLAIN SQL must be a single statement".into(),
-                path: None,
+                path:    None,
             });
         }
         let explain_sql = format!("EXPLAIN FORMAT=JSON {sql}");
@@ -618,17 +618,17 @@ impl DatabaseAdapter for MySqlAdapter {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| FraiseQLError::Database {
-                message: format!("MySQL EXPLAIN failed: {e}"),
+                message:   format!("MySQL EXPLAIN failed: {e}"),
                 sql_state: None,
             })?;
 
         let raw: String = row.try_get(0).map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to read MySQL EXPLAIN output: {e}"),
+            message:   format!("Failed to read MySQL EXPLAIN output: {e}"),
             sql_state: None,
         })?;
 
         serde_json::from_str(&raw).map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to parse MySQL EXPLAIN JSON: {e}"),
+            message:   format!("Failed to parse MySQL EXPLAIN JSON: {e}"),
             sql_state: None,
         })
     }
@@ -666,7 +666,7 @@ impl DatabaseAdapter for MySqlAdapter {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| FraiseQLError::Database {
-            message: format!("Failed to query performance_schema: {e}"),
+            message:   format!("Failed to query performance_schema: {e}"),
             sql_state: None,
         })?;
 
@@ -677,19 +677,19 @@ impl DatabaseAdapter for MySqlAdapter {
                 let no_good_index: i64 = row.try_get("SUM_NO_GOOD_INDEX_USED").unwrap_or(0);
 
                 Ok(crate::types::QueryStatEntry {
-                    query_id: row.try_get::<String, _>("query_id").unwrap_or_default(),
-                    query_text: row.try_get::<String, _>("query_text").unwrap_or_default(),
-                    calls: row.try_get::<i64, _>("calls").unwrap_or(0).unsigned_abs(),
+                    query_id:           row.try_get::<String, _>("query_id").unwrap_or_default(),
+                    query_text:         row.try_get::<String, _>("query_text").unwrap_or_default(),
+                    calls:              row.try_get::<i64, _>("calls").unwrap_or(0).unsigned_abs(),
                     total_exec_time_ms: row.try_get("total_exec_time_ms").unwrap_or(0.0),
-                    mean_exec_time_ms: row.try_get("mean_exec_time_ms").unwrap_or(0.0),
-                    min_exec_time_ms: row.try_get("min_exec_time_ms").unwrap_or(0.0),
-                    max_exec_time_ms: row.try_get("max_exec_time_ms").unwrap_or(0.0),
-                    rows_returned: row
+                    mean_exec_time_ms:  row.try_get("mean_exec_time_ms").unwrap_or(0.0),
+                    min_exec_time_ms:   row.try_get("min_exec_time_ms").unwrap_or(0.0),
+                    max_exec_time_ms:   row.try_get("max_exec_time_ms").unwrap_or(0.0),
+                    rows_returned:      row
                         .try_get::<i64, _>("rows_returned")
                         .unwrap_or(0)
                         .unsigned_abs(),
-                    cache_hit_ratio: None,
-                    database_specific: serde_json::json!({
+                    cache_hit_ratio:    None,
+                    database_specific:  serde_json::json!({
                         "sum_rows_examined": rows_examined,
                         "sum_no_index_used": no_index,
                         "sum_no_good_index_used": no_good_index,
@@ -803,7 +803,7 @@ impl MySqlAdapter {
 
         let row: MySqlRow =
             query.fetch_one(&self.pool).await.map_err(|e| FraiseQLError::Database {
-                message: format!("MySQL COUNT query failed: {e}"),
+                message:   format!("MySQL COUNT query failed: {e}"),
                 sql_state: None,
             })?;
 

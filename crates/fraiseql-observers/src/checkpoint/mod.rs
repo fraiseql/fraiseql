@@ -48,25 +48,25 @@ use crate::error::{ObserverError, Result};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointState {
     /// Listener identifier (used as primary key)
-    pub listener_id: String,
+    pub listener_id:       String,
     /// Last successfully processed changelog entry ID
     pub last_processed_id: i64,
     /// Timestamp of last checkpoint update
     pub last_processed_at: DateTime<Utc>,
     /// Size of the last batch processed
-    pub batch_size: usize,
+    pub batch_size:        usize,
     /// Total events processed in this batch
-    pub event_count: usize,
+    pub event_count:       usize,
 }
 
 impl Default for CheckpointState {
     fn default() -> Self {
         Self {
-            listener_id: String::new(),
+            listener_id:       String::new(),
             last_processed_id: 0,
             last_processed_at: Utc::now(),
-            batch_size: 0,
-            event_count: 0,
+            batch_size:        0,
+            event_count:       0,
         }
     }
 }
@@ -482,11 +482,11 @@ impl CheckpointStore for InMemoryCheckpointStore {
                 // No checkpoint exists yet. Succeed only when starting from zero.
                 if expected_id == 0 {
                     e.insert(CheckpointState {
-                        listener_id: listener_id.to_string(),
+                        listener_id:       listener_id.to_string(),
                         last_processed_id: new_id,
                         last_processed_at: Utc::now(),
-                        batch_size: 0,
-                        event_count: 0,
+                        batch_size:        0,
+                        event_count:       0,
                     });
                     Ok(true)
                 } else {

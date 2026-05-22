@@ -14,7 +14,7 @@ use super::{IdempotencyCheck, IdempotencyStore, StoredResponse};
 #[derive(serde::Serialize, serde::Deserialize)]
 struct RedisEntry {
     body_hash: u64,
-    response: StoredResponse,
+    response:  StoredResponse,
 }
 
 /// Redis-backed idempotency store.
@@ -22,8 +22,8 @@ struct RedisEntry {
 /// Each key is stored as `fraiseql:idempotency:{key}` with TTL set via `SET EX`.
 /// Value is MessagePack-encoded `RedisEntry`.
 pub struct RedisIdempotencyStore {
-    pool: redis::aio::ConnectionManager,
-    ttl: Duration,
+    pool:   redis::aio::ConnectionManager,
+    ttl:    Duration,
     prefix: String,
 }
 

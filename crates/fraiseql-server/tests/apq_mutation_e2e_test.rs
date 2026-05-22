@@ -51,24 +51,24 @@ fn mutation_success_row(entity: Value) -> Vec<HashMap<String, Value>> {
 /// Create an `ArgumentDefinition` for a required (non-nullable) argument.
 fn required_arg(name: &str, ty: FieldType) -> ArgumentDefinition {
     ArgumentDefinition {
-        name: name.to_string(),
-        arg_type: ty,
-        nullable: false,
+        name:          name.to_string(),
+        arg_type:      ty,
+        nullable:      false,
         default_value: None,
-        description: None,
-        deprecation: None,
+        description:   None,
+        deprecation:   None,
     }
 }
 
 /// Create an `ArgumentDefinition` for an optional (nullable) argument.
 fn optional_arg(name: &str, ty: FieldType) -> ArgumentDefinition {
     ArgumentDefinition {
-        name: name.to_string(),
-        arg_type: ty,
-        nullable: true,
+        name:          name.to_string(),
+        arg_type:      ty,
+        nullable:      true,
         default_value: None,
-        description: None,
-        deprecation: None,
+        description:   None,
+        deprecation:   None,
     }
 }
 

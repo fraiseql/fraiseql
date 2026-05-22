@@ -160,9 +160,9 @@ fn assert_injection_safe(sql: &str, payload: &str, operator: &str) {
 fn test_eq_operator_injection_safety() {
     for payload in OWASP_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["email".to_string()],
+            path:     vec!["email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("SQL generation should not fail");
@@ -174,9 +174,9 @@ fn test_eq_operator_injection_safety() {
 fn test_neq_operator_injection_safety() {
     for payload in OWASP_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Neq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("SQL generation should not fail");
@@ -188,9 +188,9 @@ fn test_neq_operator_injection_safety() {
 fn test_gt_operator_injection_safety() {
     for payload in OWASP_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["amount".to_string()],
+            path:     vec!["amount".to_string()],
             operator: WhereOperator::Gt,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("SQL generation should not fail");
@@ -202,9 +202,9 @@ fn test_gt_operator_injection_safety() {
 fn test_contains_operator_injection_safety() {
     for payload in OWASP_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["description".to_string()],
+            path:     vec!["description".to_string()],
             operator: WhereOperator::Contains,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("SQL generation should not fail");
@@ -216,9 +216,9 @@ fn test_contains_operator_injection_safety() {
 fn test_startswith_operator_injection_safety() {
     for payload in OWASP_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["prefix".to_string()],
+            path:     vec!["prefix".to_string()],
             operator: WhereOperator::Startswith,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("SQL generation should not fail");
@@ -230,9 +230,9 @@ fn test_startswith_operator_injection_safety() {
 fn test_in_operator_injection_safety() {
     for payload in OWASP_PAYLOADS {
         let clause = WhereClause::Field {
-            path: vec!["id".to_string()],
+            path:     vec!["id".to_string()],
             operator: WhereOperator::In,
-            value: json!([payload]),
+            value:    json!([payload]),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("SQL generation should not fail");
@@ -251,9 +251,9 @@ fn test_parameter_pollution_injection_safety() {
 
     for payload in payloads {
         let clause = WhereClause::Field {
-            path: vec!["user_id".to_string()],
+            path:     vec!["user_id".to_string()],
             operator: WhereOperator::In,
-            value: json!([payload, "legitimate_value", "another_value"]),
+            value:    json!([payload, "legitimate_value", "another_value"]),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle multiple values");
@@ -268,9 +268,9 @@ fn test_type_confusion_injection_safety() {
 
     for payload in payloads {
         let clause = WhereClause::Field {
-            path: vec!["user_id".to_string()],
+            path:     vec!["user_id".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload), // Pass as numeric-looking string
+            value:    json!(payload), // Pass as numeric-looking string
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle type confusion");
@@ -286,9 +286,9 @@ fn test_nested_field_path_injection_safety() {
     for payload in payloads {
         // Test with nested path (JSONB in PostgreSQL, JSON in MySQL, etc.)
         let clause = WhereClause::Field {
-            path: vec!["profile".to_string(), "email".to_string()],
+            path:     vec!["profile".to_string(), "email".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle nested paths");
@@ -303,15 +303,15 @@ fn test_compound_condition_injection_safety() {
 
     // Simulate: WHERE field1 = 'injection' AND field2 = 'injection'
     let condition1 = WhereClause::Field {
-        path: vec!["field1".to_string()],
+        path:     vec!["field1".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(payload),
+        value:    json!(payload),
     };
 
     let condition2 = WhereClause::Field {
-        path: vec!["field2".to_string()],
+        path:     vec!["field2".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(payload),
+        value:    json!(payload),
     };
 
     let sql1 = WhereSqlGenerator::to_sql(&condition1).unwrap();
@@ -329,9 +329,9 @@ fn test_compound_condition_injection_safety() {
 #[test]
 fn test_empty_string_injection_safety() {
     let clause = WhereClause::Field {
-        path: vec!["field".to_string()],
+        path:     vec!["field".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(""),
+        value:    json!(""),
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle empty string");
@@ -344,9 +344,9 @@ fn test_long_payload_injection_safety() {
     let long_payload = "'; DROP TABLE users; --".repeat(1000);
 
     let clause = WhereClause::Field {
-        path: vec!["field".to_string()],
+        path:     vec!["field".to_string()],
         operator: WhereOperator::Eq,
-        value: json!(long_payload),
+        value:    json!(long_payload),
     };
 
     let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle long payload");
@@ -368,9 +368,9 @@ fn test_unicode_injection_safety() {
 
     for payload in payloads {
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle unicode");
@@ -389,9 +389,9 @@ fn test_all_quote_variants_injection_safety() {
         let payload = format!("{}1 OR 1=1{}", quote_char, quote_char);
 
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle quote variant");
@@ -414,9 +414,9 @@ fn test_postgresql_specific_injection_safety() {
 
     for payload in payloads {
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle PG injection");
@@ -435,9 +435,9 @@ fn test_mysql_specific_injection_safety() {
 
     for payload in payloads {
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle MySQL injection");
@@ -456,9 +456,9 @@ fn test_sqlserver_specific_injection_safety() {
 
     for payload in payloads {
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         let sql = WhereSqlGenerator::to_sql(&clause).expect("Should handle SQL Server injection");
@@ -494,9 +494,9 @@ fn test_comprehensive_owasp_injection_safety() {
     for payload in OWASP_PAYLOADS {
         for operator in &all_operators {
             let clause = WhereClause::Field {
-                path: vec!["test_field".to_string()],
+                path:     vec!["test_field".to_string()],
                 operator: operator.clone(),
-                value: json!(payload),
+                value:    json!(payload),
             };
 
             let sql = WhereSqlGenerator::to_sql(&clause)
@@ -517,9 +517,9 @@ fn test_injection_robustness_no_panic() {
 
     for payload in dangerous_chars {
         let clause = WhereClause::Field {
-            path: vec!["field".to_string()],
+            path:     vec!["field".to_string()],
             operator: WhereOperator::Eq,
-            value: json!(payload),
+            value:    json!(payload),
         };
 
         // Must not panic, must generate SQL

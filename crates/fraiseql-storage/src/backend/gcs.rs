@@ -19,7 +19,7 @@ const SCOPE: &str = "https://www.googleapis.com/auth/devstorage.full_control";
 /// Stores files in a Google Cloud Storage bucket.
 pub struct GcsBackend {
     bucket: String,
-    auth: GcsAuth,
+    auth:   GcsAuth,
     client: reqwest::Client,
 }
 
@@ -29,8 +29,8 @@ enum GcsAuth {
     /// Service account credentials with automatic token refresh.
     ServiceAccount {
         client_email: String,
-        private_key: String,
-        token: RwLock<Option<(String, Instant)>>,
+        private_key:  String,
+        token:        RwLock<Option<(String, Instant)>>,
     },
 }
 
@@ -49,25 +49,25 @@ impl GcsBackend {
             let creds_json =
                 std::fs::read_to_string(&creds_path).map_err(|e| FraiseQLError::Storage {
                     message: format!("Failed to read GCS credentials file '{creds_path}': {e}"),
-                    code: None,
+                    code:    None,
                 })?;
             let creds: serde_json::Value =
                 serde_json::from_str(&creds_json).map_err(|e| FraiseQLError::Storage {
                     message: format!("Failed to parse GCS credentials JSON: {e}"),
-                    code: None,
+                    code:    None,
                 })?;
             let client_email = creds["client_email"]
                 .as_str()
                 .ok_or_else(|| FraiseQLError::Storage {
                     message: "GCS credentials missing 'client_email' field".to_string(),
-                    code: None,
+                    code:    None,
                 })?
                 .to_owned();
             let private_key = creds["private_key"]
                 .as_str()
                 .ok_or_else(|| FraiseQLError::Storage {
                     message: "GCS credentials missing 'private_key' field".to_string(),
-                    code: None,
+                    code:    None,
                 })?
                 .to_owned();
             GcsAuth::ServiceAccount {
@@ -80,7 +80,7 @@ impl GcsBackend {
                 message: "GCS authentication requires GOOGLE_CLOUD_TOKEN or \
                           GOOGLE_APPLICATION_CREDENTIALS environment variable"
                     .to_string(),
-                code: None,
+                code:    None,
             });
         };
 
@@ -139,20 +139,20 @@ impl GcsBackend {
             .await
             .map_err(|e| FraiseQLError::Storage {
                 message: format!("GCS token exchange request failed: {e}"),
-                code: None,
+                code:    None,
             })?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
             return Err(FraiseQLError::Storage {
                 message: format!("GCS token exchange returned error: {body}"),
-                code: None,
+                code:    None,
             });
         }
 
         let body: serde_json::Value = resp.json().await.map_err(|e| FraiseQLError::Storage {
             message: format!("Failed to parse GCS token response: {e}"),
-            code: None,
+            code:    None,
         })?;
 
         body["access_token"]
@@ -160,7 +160,7 @@ impl GcsBackend {
             .map(str::to_owned)
             .ok_or_else(|| FraiseQLError::Storage {
                 message: "GCS token response missing 'access_token' field".to_string(),
-                code: None,
+                code:    None,
             })
     }
 }
@@ -183,20 +183,20 @@ fn create_gcs_jwt(client_email: &str, private_key: &str) -> Result<String> {
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|e| {
         FraiseQLError::Storage {
             message: format!("Invalid GCS private key: {e}"),
-            code: None,
+            code:    None,
         }
     })?;
 
     jsonwebtoken::encode(&header, &claims, &key).map_err(|e| FraiseQLError::Storage {
         message: format!("Failed to create GCS JWT: {e}"),
-        code: None,
+        code:    None,
     })
 }
 
 fn gcs_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
     FraiseQLError::Storage {
         message: format!("GCS {op} failed: {err}"),
-        code: None,
+        code:    None,
     }
 }
 
@@ -344,7 +344,7 @@ impl GcsBackend {
         // for presigned URL generation in the meantime.
         Err(FraiseQLError::Storage {
             message: "Presigned URLs for GCS require V4 signing (not yet implemented)".to_string(),
-            code: None,
+            code:    None,
         })
     }
 
@@ -362,7 +362,7 @@ impl GcsBackend {
     ) -> Result<super::types::ListResult> {
         Err(FraiseQLError::Storage {
             message: "list not yet implemented for GCS".to_string(),
-            code: Some("not_implemented".to_string()),
+            code:    Some("not_implemented".to_string()),
         })
     }
 }

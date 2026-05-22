@@ -88,7 +88,7 @@ impl FactTableDetector {
                     "Table '{}' is not a fact table (must start with 'tf_')",
                     table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -97,7 +97,7 @@ impl FactTableDetector {
         if columns.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!("Table '{}' not found or has no columns", table_name),
-                path: None,
+                path:    None,
             });
         }
 
@@ -134,7 +134,7 @@ impl FactTableDetector {
                     // Skip common non-measure columns
                     if name != "id" && !name.ends_with("_id") {
                         measures.push(MeasureColumn {
-                            name: name.clone(),
+                            name:     name.clone(),
                             sql_type: sql_type.clone(),
                             nullable: *is_nullable,
                         });
@@ -143,9 +143,9 @@ impl FactTableDetector {
                     // Check if it's a denormalized filter
                     if name.ends_with("_id") && indexed_set.contains(name.as_str()) {
                         filters.push(FilterColumn {
-                            name: name.clone(),
+                            name:     name.clone(),
                             sql_type: sql_type.clone(),
-                            indexed: true,
+                            indexed:  true,
                         });
                     }
                 },
@@ -182,7 +182,7 @@ impl FactTableDetector {
             table_name: table_name.to_string(),
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "dimensions".to_string(),
+                name:  "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,
@@ -222,7 +222,7 @@ impl FactTableDetector {
                     "Fact table '{}' must have at least one measure column",
                     metadata.table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -234,7 +234,7 @@ impl FactTableDetector {
                         "Measure column '{}' must be numeric type, found {:?}",
                         measure.name, measure.sql_type
                     ),
-                    path: None,
+                    path:    None,
                 });
             }
         }
@@ -246,7 +246,7 @@ impl FactTableDetector {
                     "Fact table '{}' must have a dimension column (JSONB)",
                     metadata.table_name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -469,98 +469,98 @@ impl FactTableDetector {
         match column_name {
             "date_info" => vec![
                 CalendarBucket {
-                    json_key: "date".to_string(),
+                    json_key:    "date".to_string(),
                     bucket_type: TemporalBucket::Day,
-                    data_type: "date".to_string(),
+                    data_type:   "date".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "week".to_string(),
+                    json_key:    "week".to_string(),
                     bucket_type: TemporalBucket::Week,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "week_info" => vec![
                 CalendarBucket {
-                    json_key: "week".to_string(),
+                    json_key:    "week".to_string(),
                     bucket_type: TemporalBucket::Week,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "month_info" => vec![
                 CalendarBucket {
-                    json_key: "month".to_string(),
+                    json_key:    "month".to_string(),
                     bucket_type: TemporalBucket::Month,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "quarter_info" => vec![
                 CalendarBucket {
-                    json_key: "quarter".to_string(),
+                    json_key:    "quarter".to_string(),
                     bucket_type: TemporalBucket::Quarter,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "semester_info" => vec![
                 CalendarBucket {
-                    json_key: "semester".to_string(),
+                    json_key:    "semester".to_string(),
                     bucket_type: TemporalBucket::Quarter, // Map to Quarter for now
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
                 CalendarBucket {
-                    json_key: "year".to_string(),
+                    json_key:    "year".to_string(),
                     bucket_type: TemporalBucket::Year,
-                    data_type: "integer".to_string(),
+                    data_type:   "integer".to_string(),
                 },
             ],
             "year_info" => vec![CalendarBucket {
-                json_key: "year".to_string(),
+                json_key:    "year".to_string(),
                 bucket_type: TemporalBucket::Year,
-                data_type: "integer".to_string(),
+                data_type:   "integer".to_string(),
             }],
             _ => Vec::new(),
         }
@@ -584,7 +584,7 @@ impl FactTableDetector {
                 SqlType::Jsonb | SqlType::Json => {
                     // This is the dimension column
                     dimension_column = Some(DimensionColumn {
-                        name: name.to_string(),
+                        name:  name.to_string(),
                         paths: Vec::new(),
                     });
                 },
@@ -623,7 +623,7 @@ impl FactTableDetector {
             table_name,
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
-                name: "dimensions".to_string(),
+                name:  "dimensions".to_string(),
                 paths: Vec::new(),
             }),
             denormalized_filters: filters,

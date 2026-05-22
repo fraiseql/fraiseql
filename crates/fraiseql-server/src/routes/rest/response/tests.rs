@@ -175,7 +175,7 @@ fn format_collection_with_pagination() {
     let formatter = RestResponseFormatter::new(&config, "/rest/v1/users");
     let result = json!({ "data": { "users": [{ "id": 1 }, { "id": 2 }] } });
     let pagination = PaginationParams::Offset {
-        limit: 10,
+        limit:  10,
         offset: 0,
     };
     let headers = empty_headers();

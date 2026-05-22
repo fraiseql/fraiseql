@@ -13,8 +13,8 @@ fn test_event_kind_as_str() {
 fn test_after_mutation_trigger_matches() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: Some(EventKind::Insert),
+        entity_type:   "User".to_string(),
+        event_filter:  Some(EventKind::Insert),
     };
 
     assert!(trigger.matches("User", EventKind::Insert));
@@ -26,8 +26,8 @@ fn test_after_mutation_trigger_matches() {
 fn test_after_mutation_trigger_matches_all_kinds() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserChanged".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: None,
+        entity_type:   "User".to_string(),
+        event_filter:  None,
     };
 
     assert!(trigger.matches("User", EventKind::Insert));
@@ -40,16 +40,16 @@ fn test_after_mutation_trigger_matches_all_kinds() {
 fn test_after_mutation_trigger_builds_payload() {
     let trigger = AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: Some(EventKind::Insert),
+        entity_type:   "User".to_string(),
+        event_filter:  Some(EventKind::Insert),
     };
 
     let event = EntityEvent {
-        entity: "User".to_string(),
+        entity:     "User".to_string(),
         event_kind: EventKind::Insert,
-        old: None,
-        new: Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp: chrono::Utc::now(),
+        old:        None,
+        new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
+        timestamp:  chrono::Utc::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -84,8 +84,8 @@ fn test_trigger_matcher_specific_event_kind() {
     let mut matcher = TriggerMatcher::new();
     let trigger = AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: Some(EventKind::Insert),
+        entity_type:   "User".to_string(),
+        event_filter:  Some(EventKind::Insert),
     };
 
     matcher.add(trigger);
@@ -103,8 +103,8 @@ fn test_trigger_matcher_all_kinds() {
     let mut matcher = TriggerMatcher::new();
     let trigger = AfterMutationTrigger {
         function_name: "onUserChanged".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: None,
+        entity_type:   "User".to_string(),
+        event_filter:  None,
     };
 
     matcher.add(trigger);
@@ -120,15 +120,15 @@ fn test_trigger_matcher_mixed_specific_and_all() {
     // Add specific triggers
     matcher.add(AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: Some(EventKind::Insert),
+        entity_type:   "User".to_string(),
+        event_filter:  Some(EventKind::Insert),
     });
 
     // Add all-kinds trigger
     matcher.add(AfterMutationTrigger {
         function_name: "onUserChanged".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: None,
+        entity_type:   "User".to_string(),
+        event_filter:  None,
     });
 
     // Insert should return both
@@ -147,14 +147,14 @@ fn test_trigger_matcher_multiple_entities() {
 
     matcher.add(AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: Some(EventKind::Insert),
+        entity_type:   "User".to_string(),
+        event_filter:  Some(EventKind::Insert),
     });
 
     matcher.add(AfterMutationTrigger {
         function_name: "onPostCreated".to_string(),
-        entity_type: "Post".to_string(),
-        event_filter: Some(EventKind::Insert),
+        entity_type:   "Post".to_string(),
+        event_filter:  Some(EventKind::Insert),
     });
 
     let user_results = matcher.find("User", EventKind::Insert);
@@ -172,8 +172,8 @@ fn test_trigger_matcher_no_cross_entity_match() {
 
     matcher.add(AfterMutationTrigger {
         function_name: "onUserCreated".to_string(),
-        entity_type: "User".to_string(),
-        event_filter: Some(EventKind::Insert),
+        entity_type:   "User".to_string(),
+        event_filter:  Some(EventKind::Insert),
     });
 
     let post_results = matcher.find("Post", EventKind::Insert);
@@ -199,10 +199,10 @@ async fn test_before_mutation_chain_execute_empty_chain_proceeds() {
 
     let event = crate::types::EventPayload {
         trigger_type: "test".to_string(),
-        entity: "createUser".to_string(),
-        event_kind: "before".to_string(),
-        data: input.clone(),
-        timestamp: chrono::Utc::now(),
+        entity:       "createUser".to_string(),
+        event_kind:   "before".to_string(),
+        data:         input.clone(),
+        timestamp:    chrono::Utc::now(),
     };
 
     let result = chain
@@ -254,10 +254,10 @@ async fn test_before_mutation_chain_execute_passthrough_proceeds() {
     let input = serde_json::json!({ "name": "Alice" });
     let event = crate::types::EventPayload {
         trigger_type: "before:mutation:createUser".to_string(),
-        entity: "createUser".to_string(),
-        event_kind: "before".to_string(),
-        data: input.clone(),
-        timestamp: chrono::Utc::now(),
+        entity:       "createUser".to_string(),
+        event_kind:   "before".to_string(),
+        data:         input.clone(),
+        timestamp:    chrono::Utc::now(),
     };
 
     let result = chain
@@ -310,10 +310,10 @@ async fn test_before_mutation_chain_execute_abort() {
     let input = serde_json::json!({ "name": "" });
     let event = crate::types::EventPayload {
         trigger_type: "before:mutation:createUser".to_string(),
-        entity: "createUser".to_string(),
-        event_kind: "before".to_string(),
-        data: input.clone(),
-        timestamp: chrono::Utc::now(),
+        entity:       "createUser".to_string(),
+        event_kind:   "before".to_string(),
+        data:         input.clone(),
+        timestamp:    chrono::Utc::now(),
     };
 
     let result = chain
@@ -371,10 +371,10 @@ export default async (event) => ({
     let input = serde_json::json!({ "name": "alice" });
     let event = crate::types::EventPayload {
         trigger_type: "before:mutation:createUser".to_string(),
-        entity: "createUser".to_string(),
-        event_kind: "before".to_string(),
-        data: input.clone(),
-        timestamp: chrono::Utc::now(),
+        entity:       "createUser".to_string(),
+        event_kind:   "before".to_string(),
+        data:         input.clone(),
+        timestamp:    chrono::Utc::now(),
     };
 
     let result = chain
@@ -441,10 +441,10 @@ async fn test_before_mutation_chain_execute_missing_module_returns_error() {
     let input = serde_json::json!({ "name": "Alice" });
     let event = crate::types::EventPayload {
         trigger_type: "before:mutation:createUser".to_string(),
-        entity: "createUser".to_string(),
-        event_kind: "before".to_string(),
-        data: input.clone(),
-        timestamp: chrono::Utc::now(),
+        entity:       "createUser".to_string(),
+        event_kind:   "before".to_string(),
+        data:         input.clone(),
+        timestamp:    chrono::Utc::now(),
     };
 
     let result = chain

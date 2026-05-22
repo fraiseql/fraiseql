@@ -263,7 +263,8 @@ async fn test_presence_heartbeat_keeps_member_alive() {
     tokio::time::advance(Duration::from_millis(30)).await;
     mgr.heartbeat("room1", "alice").await;
 
-    // Advance another 30ms — bob's heartbeat (60ms total) exceeds 50ms timeout, alice's (30ms) does not
+    // Advance another 30ms — bob's heartbeat (60ms total) exceeds 50ms timeout, alice's (30ms) does
+    // not
     tokio::time::advance(Duration::from_millis(30)).await;
 
     let diffs = mgr.evict_stale().await;

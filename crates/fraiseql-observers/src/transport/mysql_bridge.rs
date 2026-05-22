@@ -231,18 +231,18 @@ impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for MySQLChangeLogEntry {
 
         Ok(Self {
             pk_entity_change_log: row.try_get("pk_entity_change_log")?,
-            id: row.try_get("id")?,
-            fk_customer_org: row.try_get("fk_customer_org")?,
-            fk_contact: row.try_get("fk_contact")?,
-            object_type: row.try_get("object_type")?,
-            object_id: row.try_get("object_id")?,
-            modification_type: row.try_get("modification_type")?,
-            change_status: row.try_get("change_status")?,
-            object_data: row.try_get("object_data")?,
-            extra_metadata: row.try_get("extra_metadata")?,
-            created_at: row.try_get("created_at")?,
-            nats_published_at: row.try_get("nats_published_at")?,
-            nats_event_id: row.try_get("nats_event_id")?,
+            id:                   row.try_get("id")?,
+            fk_customer_org:      row.try_get("fk_customer_org")?,
+            fk_contact:           row.try_get("fk_contact")?,
+            object_type:          row.try_get("object_type")?,
+            object_id:            row.try_get("object_id")?,
+            modification_type:    row.try_get("modification_type")?,
+            change_status:        row.try_get("change_status")?,
+            object_data:          row.try_get("object_data")?,
+            extra_metadata:       row.try_get("extra_metadata")?,
+            created_at:           row.try_get("created_at")?,
+            nats_published_at:    row.try_get("nats_published_at")?,
+            nats_event_id:        row.try_get("nats_event_id")?,
         })
     }
 }
@@ -269,8 +269,8 @@ pub struct MySQLBridgeConfig {
 impl Default for MySQLBridgeConfig {
     fn default() -> Self {
         Self {
-            transport_name: "mysql_to_nats".to_string(),
-            batch_size: 100,
+            transport_name:     "mysql_to_nats".to_string(),
+            batch_size:         100,
             poll_interval_secs: 1,
         }
     }
@@ -300,10 +300,10 @@ impl Default for MySQLBridgeConfig {
 /// 4. At-least-once delivery (consumers must be idempotent)
 #[cfg(all(feature = "mysql", feature = "nats"))]
 pub struct MySQLNatsBridge {
-    pool: MySqlPool,
-    nats_transport: Arc<NatsTransport>,
+    pool:             MySqlPool,
+    nats_transport:   Arc<NatsTransport>,
     checkpoint_store: Arc<dyn CheckpointStore>,
-    config: MySQLBridgeConfig,
+    config:           MySQLBridgeConfig,
 }
 
 #[cfg(all(feature = "mysql", feature = "nats"))]

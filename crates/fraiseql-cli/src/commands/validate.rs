@@ -67,18 +67,18 @@ pub struct CycleError {
     /// Types involved in the cycle
     pub types: Vec<String>,
     /// Human-readable path
-    pub path: String,
+    pub path:  String,
 }
 
 /// Analysis of a specific type
 #[derive(Debug, Serialize)]
 pub struct TypeAnalysis {
     /// Type name
-    pub name: String,
+    pub name:                    String,
     /// Types this type depends on
-    pub dependencies: Vec<String>,
+    pub dependencies:            Vec<String>,
     /// Types that depend on this type
-    pub dependents: Vec<String>,
+    pub dependents:              Vec<String>,
     /// Transitive dependencies (all types reachable)
     pub transitive_dependencies: Vec<String>,
 }
@@ -108,7 +108,7 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
         for cycle in detected_cycles {
             let cycle_error = CycleError {
                 types: cycle.nodes.clone(),
-                path: cycle.path_string(),
+                path:  cycle.path_string(),
             };
             errors.push(format!("Circular dependency: {}", cycle.path_string()));
             cycles.push(cycle_error);
@@ -140,9 +140,9 @@ pub fn run_with_options(input: &str, opts: ValidateOptions) -> Result<CommandRes
                 let transitive = graph.transitive_dependencies(type_name);
 
                 analyses.push(TypeAnalysis {
-                    name: type_name.clone(),
-                    dependencies: deps,
-                    dependents: refs,
+                    name:                    type_name.clone(),
+                    dependencies:            deps,
+                    dependents:              refs,
                     transitive_dependencies: transitive.into_iter().collect(),
                 });
             } else {

@@ -101,8 +101,8 @@ pub fn format_heartbeat() -> String {
 #[must_use]
 pub fn observers_not_available() -> RestError {
     RestError {
-        status: StatusCode::NOT_IMPLEMENTED,
-        code: "NOT_IMPLEMENTED",
+        status:  StatusCode::NOT_IMPLEMENTED,
+        code:    "NOT_IMPLEMENTED",
         message: "SSE streaming requires the observers feature".to_string(),
         details: None,
     }

@@ -219,7 +219,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         if let (Some(ref store), Some(ref runtime)) = (&self.function_store, &self.function_runtime)
         {
             let functions_state = FunctionsRouteState {
-                store: store.clone(),
+                store:   store.clone(),
                 runtime: runtime.clone(),
             };
             app = app.merge(functions_router(functions_state));

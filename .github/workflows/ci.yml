@@ -129,7 +129,11 @@ jobs:
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # 90 min headroom: the Test Suite step makes 4 sequential `cargo test -p ...`
+    # calls with different feature sets. When sccache writes fail (e.g. repo
+    # cache quota exhausted) and rebuilds run cold, build + tests can exceed
+    # the original 60-min limit. 90 absorbs that worst case.
+    timeout-minutes: 90
     strategy:
       matrix:
         os: [ubuntu-latest]

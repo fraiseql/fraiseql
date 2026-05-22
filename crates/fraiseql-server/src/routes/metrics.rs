@@ -24,23 +24,23 @@ use crate::{metrics_server::PrometheusMetrics, routes::graphql::AppState};
 #[derive(Debug, Serialize)]
 pub struct MetricsResponse {
     /// Total GraphQL queries
-    pub queries_total: u64,
+    pub queries_total:           u64,
     /// Successfully executed queries
-    pub queries_success: u64,
+    pub queries_success:         u64,
     /// Failed queries
-    pub queries_error: u64,
+    pub queries_error:           u64,
     /// Average query duration (ms)
-    pub avg_query_duration_ms: f64,
+    pub avg_query_duration_ms:   f64,
     /// Cache hit ratio (0-1)
-    pub cache_hit_ratio: f64,
+    pub cache_hit_ratio:         f64,
     /// Total connections in pool
-    pub pool_connections_total: u32,
+    pub pool_connections_total:  u32,
     /// Idle (available) connections in pool
-    pub pool_connections_idle: u32,
+    pub pool_connections_idle:   u32,
     /// Active (in-use) connections in pool
     pub pool_connections_active: u32,
     /// Requests waiting for a pool connection
-    pub pool_requests_waiting: u32,
+    pub pool_requests_waiting:   u32,
 }
 
 /// Metrics handler - returns Prometheus format metrics.
@@ -455,15 +455,15 @@ pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
     let pool = state.executor().pool_metrics();
 
     let response = MetricsResponse {
-        queries_total: prometheus_metrics.queries_total,
-        queries_success: prometheus_metrics.queries_success,
-        queries_error: prometheus_metrics.queries_error,
-        avg_query_duration_ms: prometheus_metrics.queries_avg_duration_ms,
-        cache_hit_ratio: prometheus_metrics.cache_hit_ratio,
-        pool_connections_total: pool.total_connections,
-        pool_connections_idle: pool.idle_connections,
+        queries_total:           prometheus_metrics.queries_total,
+        queries_success:         prometheus_metrics.queries_success,
+        queries_error:           prometheus_metrics.queries_error,
+        avg_query_duration_ms:   prometheus_metrics.queries_avg_duration_ms,
+        cache_hit_ratio:         prometheus_metrics.cache_hit_ratio,
+        pool_connections_total:  pool.total_connections,
+        pool_connections_idle:   pool.idle_connections,
         pool_connections_active: pool.active_connections,
-        pool_requests_waiting: pool.waiting_requests,
+        pool_requests_waiting:   pool.waiting_requests,
     };
 
     Json(response)

@@ -77,11 +77,11 @@ mod checkpoint_tests {
         use chrono::Utc;
 
         let state = CheckpointState {
-            listener_id: "test-listener".to_string(),
+            listener_id:       "test-listener".to_string(),
             last_processed_id: 1000,
             last_processed_at: Utc::now(),
-            batch_size: 50,
-            event_count: 50,
+            batch_size:        50,
+            event_count:       50,
         };
 
         let json = serde_json::to_string(&state).expect("serialize");
@@ -103,11 +103,11 @@ mod checkpoint_tests {
         assert!(store.load("l1").await.unwrap().is_none());
 
         let state = CheckpointState {
-            listener_id: "l1".to_string(),
+            listener_id:       "l1".to_string(),
             last_processed_id: 42,
             last_processed_at: Utc::now(),
-            batch_size: 10,
-            event_count: 10,
+            batch_size:        10,
+            event_count:       10,
         };
         store.save("l1", &state).await.unwrap();
 
@@ -121,11 +121,11 @@ mod checkpoint_tests {
 
         let store = InMemoryCheckpointStore::new_silent();
         let state = CheckpointState {
-            listener_id: "l1".to_string(),
+            listener_id:       "l1".to_string(),
             last_processed_id: 1,
             last_processed_at: Utc::now(),
-            batch_size: 0,
-            event_count: 0,
+            batch_size:        0,
+            event_count:       0,
         };
         store.save("l1", &state).await.unwrap();
         store.delete("l1").await.unwrap();

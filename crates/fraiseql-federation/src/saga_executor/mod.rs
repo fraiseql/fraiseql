@@ -103,7 +103,7 @@ pub struct StepExecutionResult {
     /// Step number that executed (1-indexed)
     pub step_number: u32,
     /// Whether step succeeded (true) or failed (false)
-    pub success: bool,
+    pub success:     bool,
     /// Result data if successful
     ///
     /// Contains:
@@ -111,14 +111,14 @@ pub struct StepExecutionResult {
     /// - Key fields (id, etc.)
     /// - Mutation output fields
     /// - Timestamps
-    pub data: Option<serde_json::Value>,
+    pub data:        Option<serde_json::Value>,
     /// Error message if failed
     ///
     /// Includes:
     /// - Error type (timeout, network, mutation failed, etc.)
     /// - Subgraph context
     /// - Suggestion for resolution
-    pub error: Option<String>,
+    pub error:       Option<String>,
     /// Execution duration in milliseconds
     ///
     /// Measured from step start to completion (or failure)
@@ -130,17 +130,17 @@ pub struct StepExecutionResult {
 #[derive(Debug, Clone)]
 pub struct ExecutionState {
     /// Saga identifier
-    pub saga_id: Uuid,
+    pub saga_id:         Uuid,
     /// Total steps in saga
-    pub total_steps: u32,
+    pub total_steps:     u32,
     /// Number of completed steps
     pub completed_steps: u32,
     /// Currently executing step, if any
-    pub current_step: Option<u32>,
+    pub current_step:    Option<u32>,
     /// Whether saga has failed
-    pub failed: bool,
+    pub failed:          bool,
     /// Reason for failure, if any
-    pub failure_reason: Option<String>,
+    pub failure_reason:  Option<String>,
 }
 
 /// Saga forward phase executor

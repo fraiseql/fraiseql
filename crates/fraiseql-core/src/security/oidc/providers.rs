@@ -172,17 +172,17 @@ pub(super) fn default_scope_claim() -> String {
 impl Default for OidcConfig {
     fn default() -> Self {
         Self {
-            issuer: String::new(),
-            audience: None,
+            issuer:               String::new(),
+            audience:             None,
             additional_audiences: Vec::new(),
-            jwks_cache_ttl_secs: default_jwks_cache_ttl(),
-            allowed_algorithms: default_algorithms(),
-            clock_skew_secs: default_clock_skew(),
-            jwks_uri: None,
-            required: default_required(),
-            scope_claim: default_scope_claim(),
-            require_jti: false,
-            me: None,
+            jwks_cache_ttl_secs:  default_jwks_cache_ttl(),
+            allowed_algorithms:   default_algorithms(),
+            clock_skew_secs:      default_clock_skew(),
+            jwks_uri:             None,
+            required:             default_required(),
+            scope_claim:          default_scope_claim(),
+            require_jti:          false,
+            me:                   None,
         }
     }
 }

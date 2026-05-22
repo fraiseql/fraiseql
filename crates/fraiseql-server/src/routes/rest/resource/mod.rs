@@ -79,15 +79,15 @@ pub enum RouteSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestRoute {
     /// HTTP method.
-    pub method: HttpMethod,
+    pub method:          HttpMethod,
     /// Path relative to the REST base (e.g., `/users` or `/users/{id}`).
-    pub path: String,
+    pub path:            String,
     /// The operation backing this route.
-    pub source: RouteSource,
+    pub source:          RouteSource,
     /// For Update mutations, the coverage classification.
     pub update_coverage: Option<UpdateCoverage>,
     /// Expected successful HTTP status code.
-    pub success_status: u16,
+    pub success_status:  u16,
 }
 
 /// A REST resource groups routes under a common base path derived from a
@@ -95,22 +95,22 @@ pub struct RestRoute {
 #[derive(Debug, Clone)]
 pub struct RestResource {
     /// Resource base name (e.g., `users`).
-    pub name: String,
+    pub name:      String,
     /// GraphQL return type name (e.g., `User`).
     pub type_name: String,
     /// Name of the ID argument for single-resource routes (e.g., `id`).
-    pub id_arg: Option<String>,
+    pub id_arg:    Option<String>,
     /// Routes for this resource.
-    pub routes: Vec<RestRoute>,
+    pub routes:    Vec<RestRoute>,
 }
 
 /// Complete route table derived from a compiled schema.
 #[derive(Debug, Clone)]
 pub struct RestRouteTable {
     /// REST base path (e.g., `/rest/v1`).
-    pub base_path: String,
+    pub base_path:   String,
     /// Resources keyed by resource name.
-    pub resources: Vec<RestResource>,
+    pub resources:   Vec<RestResource>,
     /// Diagnostics emitted during derivation.
     pub diagnostics: Vec<Diagnostic>,
 }
@@ -119,7 +119,7 @@ pub struct RestRouteTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Severity level.
-    pub level: DiagnosticLevel,
+    pub level:   DiagnosticLevel,
     /// Human-readable diagnostic message.
     pub message: String,
 }

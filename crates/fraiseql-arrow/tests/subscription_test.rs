@@ -16,14 +16,14 @@ async fn test_subscribe_and_broadcast() {
 
     // Create and broadcast event
     let event = HistoricalEvent {
-        id: Uuid::new_v4(),
-        event_type: "INSERT".to_string(),
+        id:          Uuid::new_v4(),
+        event_type:  "INSERT".to_string(),
         entity_type: "Order".to_string(),
-        entity_id: Uuid::new_v4(),
-        data: serde_json::json!({"total": 100.50}),
-        user_id: Some("user123".to_string()),
-        tenant_id: Some("tenant1".to_string()),
-        timestamp: Utc::now(),
+        entity_id:   Uuid::new_v4(),
+        data:        serde_json::json!({"total": 100.50}),
+        user_id:     Some("user123".to_string()),
+        tenant_id:   Some("tenant1".to_string()),
+        timestamp:   Utc::now(),
     };
 
     manager.broadcast_event(&event);
@@ -46,14 +46,14 @@ async fn test_multiple_subscribers_same_type() {
     assert_eq!(manager.subscription_count(), 2);
 
     let event = HistoricalEvent {
-        id: Uuid::new_v4(),
-        event_type: "UPDATE".to_string(),
+        id:          Uuid::new_v4(),
+        event_type:  "UPDATE".to_string(),
         entity_type: "Order".to_string(),
-        entity_id: Uuid::new_v4(),
-        data: serde_json::json!({"total": 200.00}),
-        user_id: None,
-        tenant_id: None,
-        timestamp: Utc::now(),
+        entity_id:   Uuid::new_v4(),
+        data:        serde_json::json!({"total": 200.00}),
+        user_id:     None,
+        tenant_id:   None,
+        timestamp:   Utc::now(),
     };
 
     manager.broadcast_event(&event);
@@ -78,14 +78,14 @@ async fn test_type_filtering() {
 
     // Broadcast Order event
     let order_event = HistoricalEvent {
-        id: Uuid::new_v4(),
-        event_type: "INSERT".to_string(),
+        id:          Uuid::new_v4(),
+        event_type:  "INSERT".to_string(),
         entity_type: "Order".to_string(),
-        entity_id: Uuid::new_v4(),
-        data: serde_json::json!({"total": 100}),
-        user_id: None,
-        tenant_id: None,
-        timestamp: Utc::now(),
+        entity_id:   Uuid::new_v4(),
+        data:        serde_json::json!({"total": 100}),
+        user_id:     None,
+        tenant_id:   None,
+        timestamp:   Utc::now(),
     };
 
     manager.broadcast_event(&order_event);
@@ -124,14 +124,14 @@ async fn test_sequential_events() {
     // Send multiple events
     for i in 0..5 {
         let event = HistoricalEvent {
-            id: Uuid::new_v4(),
-            event_type: "INSERT".to_string(),
+            id:          Uuid::new_v4(),
+            event_type:  "INSERT".to_string(),
             entity_type: "Order".to_string(),
-            entity_id: Uuid::new_v4(),
-            data: serde_json::json!({"order_num": i}),
-            user_id: None,
-            tenant_id: None,
-            timestamp: Utc::now(),
+            entity_id:   Uuid::new_v4(),
+            data:        serde_json::json!({"order_num": i}),
+            user_id:     None,
+            tenant_id:   None,
+            timestamp:   Utc::now(),
         };
 
         manager.broadcast_event(&event);
@@ -160,14 +160,14 @@ fn test_subscription_manager_default() {
 #[test]
 fn test_event_serialization() {
     let event = HistoricalEvent {
-        id: Uuid::new_v4(),
-        event_type: "UPDATE".to_string(),
+        id:          Uuid::new_v4(),
+        event_type:  "UPDATE".to_string(),
         entity_type: "Order".to_string(),
-        entity_id: Uuid::new_v4(),
-        data: serde_json::json!({"total": 100.50, "status": "shipped"}),
-        user_id: Some("user123".to_string()),
-        tenant_id: Some("tenant1".to_string()),
-        timestamp: Utc::now(),
+        entity_id:   Uuid::new_v4(),
+        data:        serde_json::json!({"total": 100.50, "status": "shipped"}),
+        user_id:     Some("user123".to_string()),
+        tenant_id:   Some("tenant1".to_string()),
+        timestamp:   Utc::now(),
     };
 
     // Should serialize to JSON without errors

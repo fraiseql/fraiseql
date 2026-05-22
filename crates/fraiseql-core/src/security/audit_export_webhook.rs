@@ -35,8 +35,8 @@ const WEBHOOK_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Webhook audit exporter that POSTs JSON batches to a configurable URL.
 pub struct WebhookAuditExporter {
-    client: Client,
-    config: WebhookExportConfig,
+    client:            Client,
+    config:            WebhookExportConfig,
     pub(crate) buffer: Arc<Mutex<Vec<AuditEntry>>>,
 }
 

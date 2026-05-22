@@ -53,12 +53,13 @@ pub struct RollingErrorWindow {
 #[derive(Debug, Clone)]
 struct ErrorBucket {
     timestamp: Instant,
-    errors: u32,
-    total: u32,
+    errors:    u32,
+    total:     u32,
 }
 
 impl RollingErrorWindow {
     /// Create new rolling error window.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             buckets: Mutex::new(VecDeque::with_capacity(6)),
@@ -77,8 +78,8 @@ impl RollingErrorWindow {
         } else {
             buckets.push_back(ErrorBucket {
                 timestamp: Instant::now(),
-                errors: 0,
-                total: 1,
+                errors:    0,
+                total:     1,
             });
         }
     }
@@ -96,8 +97,8 @@ impl RollingErrorWindow {
         } else {
             buckets.push_back(ErrorBucket {
                 timestamp: Instant::now(),
-                errors: 1,
-                total: 1,
+                errors:    1,
+                total:     1,
             });
         }
     }
@@ -167,9 +168,9 @@ impl Default for RollingErrorWindow {
 /// Subgraph health checker.
 pub struct SubgraphHealthChecker {
     pub(crate) subgraphs: Vec<SubgraphConfig>,
-    http_client: reqwest::Client,
-    error_windows: Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
-    status_cache: Arc<Mutex<Vec<SubgraphHealthStatus>>>,
+    http_client:          reqwest::Client,
+    error_windows:        Arc<Mutex<std::collections::HashMap<String, RollingErrorWindow>>>,
+    status_cache:         Arc<Mutex<Vec<SubgraphHealthStatus>>>,
 }
 
 /// Configuration for a single subgraph.
@@ -184,6 +185,7 @@ pub struct SubgraphConfig {
 
 impl SubgraphHealthChecker {
     /// Create new health checker with subgraph configurations.
+    #[must_use]
     pub fn new(subgraphs: Vec<SubgraphConfig>) -> Self {
         let mut error_windows = std::collections::HashMap::new();
         for config in &subgraphs {
@@ -310,6 +312,7 @@ impl SubgraphHealthChecker {
     /// # Panics
     ///
     /// Panics if the internal status cache mutex is poisoned.
+    #[must_use]
     pub fn get_cached_statuses(&self) -> Vec<SubgraphHealthStatus> {
         self.status_cache
             .lock()
@@ -320,6 +323,7 @@ impl SubgraphHealthChecker {
     }
 
     /// Get overall federation health status.
+    #[must_use]
     pub fn get_overall_status(&self) -> String {
         let statuses = self.get_cached_statuses();
 

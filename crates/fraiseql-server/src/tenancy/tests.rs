@@ -202,10 +202,10 @@ mod pool_factory_tests {
 
     fn test_pool_config() -> TenantPoolConfig {
         TenantPoolConfig {
-            connection_string: "stub://localhost/test".to_string(),
-            max_connections: 5,
+            connection_string:    "stub://localhost/test".to_string(),
+            max_connections:      5,
             connect_timeout_secs: 5,
-            idle_timeout_secs: 300,
+            idle_timeout_secs:    300,
         }
     }
 

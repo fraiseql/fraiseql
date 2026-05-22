@@ -250,7 +250,7 @@ fn test_incremental_composition_add_subgraph() {
     // THEN: Should merge new subgraph without recreating all
 
     let existing_supergraph = ComposedSupergraph {
-        types: vec!["User".to_string(), "Order".to_string()],
+        types:   vec!["User".to_string(), "Order".to_string()],
         version: "v2".to_string(),
     };
 
@@ -271,7 +271,7 @@ fn test_incremental_composition_preserves_state() {
     // THEN: Should preserve all existing state
 
     let existing = ComposedSupergraph {
-        types: vec!["User".to_string()],
+        types:   vec!["User".to_string()],
         version: "v2".to_string(),
     };
 
@@ -361,7 +361,7 @@ fn test_missing_referenced_type() {
 
 #[derive(Debug, Clone)]
 struct ComposedSupergraph {
-    pub types: Vec<String>,
+    pub types:   Vec<String>,
     pub version: String,
 }
 
@@ -370,8 +370,8 @@ fn parse_config_yaml(content: &str) -> Result<ComposeConfig, String> {
     // Simplified YAML parsing for testing
     let mut config = ComposeConfig {
         conflict_resolution: "error".to_string(),
-        validation: true,
-        subgraph_priority: vec![],
+        validation:          true,
+        subgraph_priority:   vec![],
     };
 
     if content.contains("first_wins") {
@@ -400,8 +400,8 @@ fn parse_config_yaml(content: &str) -> Result<ComposeConfig, String> {
 #[derive(Debug, Clone)]
 struct ComposeConfig {
     pub conflict_resolution: String,
-    pub validation: bool,
-    pub subgraph_priority: Vec<String>,
+    pub validation:          bool,
+    pub subgraph_priority:   Vec<String>,
 }
 
 /// Format composed schema in specified output format

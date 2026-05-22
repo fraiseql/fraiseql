@@ -61,10 +61,10 @@ fn redis_url() -> String {
 #[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn test_redis_config() -> RedisConfig {
     RedisConfig {
-        url: redis_url(),
-        pool_size: 5,
-        dedup_window_secs: 300,
-        cache_ttl_secs: 60,
+        url:                  redis_url(),
+        pool_size:            5,
+        dedup_window_secs:    300,
+        cache_ttl_secs:       60,
         connect_timeout_secs: 5,
         command_timeout_secs: 2,
     }
@@ -74,27 +74,27 @@ fn test_redis_config() -> RedisConfig {
 #[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn test_runtime_config() -> ObserverRuntimeConfig {
     ObserverRuntimeConfig {
-        transport: TransportConfig {
+        transport:               TransportConfig {
             transport: TransportKind::InMemory,
             ..Default::default()
         },
-        redis: Some(test_redis_config()),
-        clickhouse: None,
-        job_queue: None,
-        performance: PerformanceConfig {
-            enable_dedup: true,
-            enable_caching: true,
-            enable_concurrent: true,
+        redis:                   Some(test_redis_config()),
+        clickhouse:              None,
+        job_queue:               None,
+        performance:             PerformanceConfig {
+            enable_dedup:           true,
+            enable_caching:         true,
+            enable_concurrent:      true,
             max_concurrent_actions: 10,
-            concurrent_timeout_ms: 5000,
+            concurrent_timeout_ms:  5000,
         },
-        observers: HashMap::new(),
-        channel_capacity: 100,
-        max_concurrency: 50,
-        shutdown_timeout: "30s".to_string(),
+        observers:               HashMap::new(),
+        channel_capacity:        100,
+        max_concurrency:         50,
+        shutdown_timeout:        "30s".to_string(),
         backlog_alert_threshold: 1000,
-        overflow_policy: OverflowPolicy::Drop,
-        max_dlq_size: None,
+        overflow_policy:         OverflowPolicy::Drop,
+        max_dlq_size:            None,
     }
 }
 
@@ -108,9 +108,12 @@ fn create_test_event(kind: EventKind, entity_type: &str, data: serde_json::Value
 #[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn create_http_action(url: &str) -> ActionConfig {
     ActionConfig::Webhook {
-        url: Some(url.to_string()),
-        url_env: None,
-        headers: HashMap::from([("Content-Type".to_string(), "application/json".to_string())]),
+        url:           Some(url.to_string()),
+        url_env:       None,
+        headers:       HashMap::from([(
+            "Content-Type".to_string(),
+            "application/json".to_string(),
+        )]),
         body_template: Some(
             r#"{"event": "{{ event.kind }}", "entity": "{{ event.entity_type }}"}"#.to_string(),
         ),

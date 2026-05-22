@@ -189,7 +189,7 @@ fn test_multiple_key_definitions_inconsistent() {
     let mut auth_user = FederatedType::new("User".to_string());
     auth_user.is_extends = true;
     auth_user.keys.push(KeyDirective {
-        fields: vec!["email".to_string()],
+        fields:     vec!["email".to_string()],
         resolvable: true,
     });
 
@@ -444,7 +444,7 @@ fn test_many_extensions_single_owner() {
         let type_name = format!("Service{}", i);
         let mut service_type = FederatedType::new(type_name);
         service_type.keys.push(KeyDirective {
-            fields: vec!["id".to_string()],
+            fields:     vec!["id".to_string()],
             resolvable: true,
         });
         metadata.types.push(service_type);
@@ -470,7 +470,7 @@ fn test_many_extensions_single_owner() {
 fn create_user_type_basic() -> FederatedType {
     let mut user = FederatedType::new("User".to_string());
     user.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     user.is_extends = false;
@@ -486,7 +486,7 @@ fn create_user_type_extending() -> FederatedType {
 fn create_user_type_with_key(key_fields: &[&str]) -> FederatedType {
     let mut user = FederatedType::new("User".to_string());
     user.keys.push(KeyDirective {
-        fields: key_fields.iter().map(|s| (*s).to_string()).collect(),
+        fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
         resolvable: true,
     });
     user.is_extends = false;
@@ -509,7 +509,7 @@ fn create_user_type_extending_with_fields(_fields: Vec<(&str, &str)>) -> Federat
 fn create_order_type_basic() -> FederatedType {
     let mut order = FederatedType::new("Order".to_string());
     order.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     order.is_extends = false;
@@ -525,7 +525,7 @@ fn create_order_type_extending() -> FederatedType {
 fn create_product_type_basic() -> FederatedType {
     let mut product = FederatedType::new("Product".to_string());
     product.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     product.is_extends = false;
@@ -541,7 +541,7 @@ fn create_product_type_extending() -> FederatedType {
 fn create_payment_type_basic() -> FederatedType {
     let mut payment = FederatedType::new("Payment".to_string());
     payment.keys.push(KeyDirective {
-        fields: vec!["id".to_string()],
+        fields:     vec!["id".to_string()],
         resolvable: true,
     });
     payment.is_extends = false;
@@ -569,7 +569,7 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
         return Ok(ComposedSchema {
             enabled: false,
             version: "v2".to_string(),
-            types: Vec::new(),
+            types:   Vec::new(),
         });
     }
 
@@ -611,5 +611,5 @@ fn compose_federation_schemas(subgraphs: &[FederationMetadata]) -> Result<Compos
 struct ComposedSchema {
     pub enabled: bool,
     pub version: String,
-    pub types: Vec<FederatedType>,
+    pub types:   Vec<FederatedType>,
 }

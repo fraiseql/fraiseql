@@ -46,7 +46,7 @@ fn is_valid_type(base_type: &str, defined_types: &std::collections::HashSet<&str
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaValidationError {
     /// Error message.
-    pub message: String,
+    pub message:  String,
     /// Location in schema.
     pub location: String,
 }
@@ -107,7 +107,7 @@ impl SchemaValidator {
             if ir_type.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Type name cannot be empty".to_string(),
-                    path: Some("types".to_string()),
+                    path:    Some("types".to_string()),
                 });
             }
 
@@ -122,7 +122,7 @@ impl SchemaValidator {
                             "Type '{}' field '{}' references unknown type '{}'",
                             ir_type.name, field.name, base_type
                         ),
-                        path: Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
+                        path:    Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
                     });
                 }
             }
@@ -143,7 +143,7 @@ impl SchemaValidator {
             if query.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Query name cannot be empty".to_string(),
-                    path: Some("queries".to_string()),
+                    path:    Some("queries".to_string()),
                 });
             }
 
@@ -155,7 +155,7 @@ impl SchemaValidator {
                         "Query '{}' returns unknown type '{}'",
                         query.name, query.return_type
                     ),
-                    path: Some(format!("queries.{}.return_type", query.name)),
+                    path:    Some(format!("queries.{}.return_type", query.name)),
                 });
             }
 
@@ -168,7 +168,7 @@ impl SchemaValidator {
                             "Query '{}' argument '{}' has unknown type '{}'",
                             query.name, arg.name, arg.arg_type
                         ),
-                        path: Some(format!("queries.{}.arguments.{}", query.name, arg.name)),
+                        path:    Some(format!("queries.{}.arguments.{}", query.name, arg.name)),
                     });
                 }
             }
@@ -179,7 +179,7 @@ impl SchemaValidator {
             if mutation.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Mutation name cannot be empty".to_string(),
-                    path: Some("mutations".to_string()),
+                    path:    Some("mutations".to_string()),
                 });
             }
 
@@ -190,7 +190,7 @@ impl SchemaValidator {
                         "Mutation '{}' returns unknown type '{}'",
                         mutation.name, mutation.return_type
                     ),
-                    path: Some(format!("mutations.{}.return_type", mutation.name)),
+                    path:    Some(format!("mutations.{}.return_type", mutation.name)),
                 });
             }
         }
@@ -200,7 +200,7 @@ impl SchemaValidator {
             if subscription.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: "Subscription name cannot be empty".to_string(),
-                    path: Some("subscriptions".to_string()),
+                    path:    Some("subscriptions".to_string()),
                 });
             }
 
@@ -211,7 +211,7 @@ impl SchemaValidator {
                         "Subscription '{}' returns unknown type '{}'",
                         subscription.name, subscription.return_type
                     ),
-                    path: Some(format!("subscriptions.{}.return_type", subscription.name)),
+                    path:    Some(format!("subscriptions.{}.return_type", subscription.name)),
                 });
             }
         }
@@ -230,14 +230,14 @@ impl SchemaValidator {
             if !table_name.starts_with("tf_") {
                 return Err(FraiseQLError::Validation {
                     message: format!("Fact table '{}' must start with 'tf_' prefix", table_name),
-                    path: Some(format!("fact_tables.{}", table_name)),
+                    path:    Some(format!("fact_tables.{}", table_name)),
                 });
             }
 
             if metadata.measures.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: format!("Fact table '{}' must have at least one measure", table_name),
-                    path: Some(format!("fact_tables.{}.measures", table_name)),
+                    path:    Some(format!("fact_tables.{}.measures", table_name)),
                 });
             }
 
@@ -245,7 +245,7 @@ impl SchemaValidator {
             if metadata.dimensions.name.is_empty() {
                 return Err(FraiseQLError::Validation {
                     message: format!("Fact table '{}' dimensions missing 'name' field", table_name),
-                    path: Some(format!("fact_tables.{}.dimensions", table_name)),
+                    path:    Some(format!("fact_tables.{}.dimensions", table_name)),
                 });
             }
         }
@@ -272,7 +272,7 @@ impl SchemaValidator {
                             "Aggregate type '{}' must have a 'count' field",
                             ir_type.name
                         ),
-                        path: Some(format!("types.{}.fields", ir_type.name)),
+                        path:    Some(format!("types.{}.fields", ir_type.name)),
                     });
                 }
             }
@@ -287,7 +287,7 @@ impl SchemaValidator {
                                 "GroupByInput type '{}' field '{}' must be Boolean, got '{}'",
                                 ir_type.name, field.name, field.field_type
                             ),
-                            path: Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
+                            path:    Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
                         });
                     }
                 }
@@ -306,7 +306,7 @@ impl SchemaValidator {
                                 "HavingInput type '{}' field '{}' must have operator suffix (_eq, _neq, _gt, _gte, _lt, _lte)",
                                 ir_type.name, field.name
                             ),
-                            path: Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
+                            path:    Some(format!("types.{}.fields.{}", ir_type.name, field.name)),
                         });
                     }
                 }

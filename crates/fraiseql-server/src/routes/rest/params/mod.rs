@@ -84,23 +84,23 @@ const RESERVED_PARAMS: &[&str] = &[
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct ExtractedParams {
     /// Path parameters (e.g., `[("id", 123)]`).
-    pub path_params: Vec<(String, serde_json::Value)>,
+    pub path_params:       Vec<(String, serde_json::Value)>,
     /// WHERE clause for the query (merged from simple/bracket/filter/logical params).
-    pub where_clause: Option<serde_json::Value>,
+    pub where_clause:      Option<serde_json::Value>,
     /// ORDER BY clause (from `?sort=`).
-    pub order_by: Option<serde_json::Value>,
+    pub order_by:          Option<serde_json::Value>,
     /// Pagination parameters.
-    pub pagination: PaginationParams,
+    pub pagination:        PaginationParams,
     /// Field selection (from `?select=`).
-    pub field_selection: RestFieldSpec,
+    pub field_selection:   RestFieldSpec,
     /// Full-text search query (from `?search=`).
-    pub search_query: Option<String>,
+    pub search_query:      Option<String>,
     /// Embedded resource specifications (from parenthetical select syntax).
-    pub embeddings: Vec<EmbeddedSpec>,
+    pub embeddings:        Vec<EmbeddedSpec>,
     /// Embedded resource filters (from `?rel.field[op]=value` syntax).
     pub embedding_filters: HashMap<String, serde_json::Value>,
     /// Count-only embeddings (from `?select=id,posts.count`).
-    pub embedding_counts: Vec<String>,
+    pub embedding_counts:  Vec<String>,
 }
 
 /// Pagination mode and parameters.
@@ -110,18 +110,18 @@ pub enum PaginationParams {
     /// Offset-based pagination.
     Offset {
         /// Maximum number of rows to return.
-        limit: u64,
+        limit:  u64,
         /// Number of rows to skip.
         offset: u64,
     },
     /// Cursor-based (Relay) pagination.
     Cursor {
         /// Forward page size.
-        first: Option<u64>,
+        first:  Option<u64>,
         /// Cursor to start after.
-        after: Option<String>,
+        after:  Option<String>,
         /// Backward page size.
-        last: Option<u64>,
+        last:   Option<u64>,
         /// Cursor to start before.
         before: Option<String>,
     },
@@ -162,9 +162,9 @@ pub struct EmbeddedSpec {
     /// Relationship name (e.g., "posts") or FK column (e.g., "`fk_user`").
     pub relationship: String,
     /// Optional rename for the embedded field (e.g., `author` in `author:fk_user(...)`).
-    pub rename: Option<String>,
+    pub rename:       Option<String>,
     /// Sub-selected fields (may include nested `EmbeddedSpec`).
-    pub fields: Vec<SelectEntry>,
+    pub fields:       Vec<SelectEntry>,
 }
 
 // ---------------------------------------------------------------------------
@@ -173,9 +173,9 @@ pub struct EmbeddedSpec {
 
 /// Extracts and validates REST request parameters against schema metadata.
 pub struct RestParamExtractor<'a> {
-    config: &'a RestConfig,
+    config:    &'a RestConfig,
     query_def: &'a QueryDefinition,
-    type_def: Option<&'a TypeDefinition>,
+    type_def:  Option<&'a TypeDefinition>,
 }
 
 impl<'a> RestParamExtractor<'a> {

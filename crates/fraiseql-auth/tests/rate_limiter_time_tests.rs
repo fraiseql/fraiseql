@@ -24,9 +24,9 @@ use fraiseql_auth::{AuthRateLimitConfig, KeyedRateLimiter};
 fn rate_limiter_resets_after_window_expires() {
     // Use a 1-second window so the test completes quickly.
     let config = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 3,
-        window_secs: 1,
+        window_secs:  1,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -47,9 +47,9 @@ fn rate_limiter_resets_after_window_expires() {
 fn rate_limiter_allows_exactly_max_requests_then_resets() {
     // Verify reset after window, not just the initial fill.
     let config = AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 2,
-        window_secs: 1,
+        window_secs:  1,
     };
     let limiter = KeyedRateLimiter::new(config);
 
@@ -86,9 +86,9 @@ fn rate_limiter_fails_open_on_broken_system_clock() {
     // A broken clock (returns u64::MAX) must cause all requests to be allowed.
     let limiter = KeyedRateLimiter::with_clock(
         AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3, // Normally blocks after 3 requests.
-            window_secs: 60,
+            window_secs:  60,
         },
         broken_clock,
     );
@@ -111,9 +111,9 @@ fn rate_limiter_injectable_clock_controls_window_expiry() {
 
     let limiter = KeyedRateLimiter::with_clock(
         AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 60,
+            window_secs:  60,
         },
         move || time_for_limiter.load(Ordering::SeqCst),
     );
@@ -140,9 +140,9 @@ fn rate_limiter_allows_exactly_max_requests() {
     // Verify the off-by-one comparison: `count < max_requests` (not `<=`).
     // With max_requests = 5, requests 1–5 must be allowed, request 6 must be denied.
     let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-        enabled: true,
+        enabled:      true,
         max_requests: 5,
-        window_secs: 60,
+        window_secs:  60,
     });
 
     for i in 0..5 {

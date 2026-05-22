@@ -205,9 +205,9 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts: default_max_attempts(),
+            max_attempts:     default_max_attempts(),
             initial_delay_ms: default_initial_delay(),
-            max_delay_ms: default_max_delay(),
+            max_delay_ms:     default_max_delay(),
             backoff_strategy: BackoffStrategy::default(),
         }
     }
@@ -269,12 +269,12 @@ pub enum ActionConfig {
     /// HTTP POST webhook to external URL
     Webhook {
         /// URL to POST to
-        url: Option<String>,
+        url:           Option<String>,
         /// Environment variable containing the URL
-        url_env: Option<String>,
+        url_env:       Option<String>,
         /// Optional HTTP headers
         #[serde(default)]
-        headers: HashMap<String, String>,
+        headers:       HashMap<String, String>,
         /// Template for request body
         #[serde(default)]
         body_template: Option<String>,
@@ -283,12 +283,12 @@ pub enum ActionConfig {
     /// Send message to Slack webhook
     Slack {
         /// Slack webhook URL
-        webhook_url: Option<String>,
+        webhook_url:      Option<String>,
         /// Environment variable containing webhook URL
-        webhook_url_env: Option<String>,
+        webhook_url_env:  Option<String>,
         /// Channel to send to (if not in webhook URL)
         #[serde(default)]
-        channel: Option<String>,
+        channel:          Option<String>,
         /// Message template
         #[serde(default)]
         message_template: Option<String>,
@@ -297,26 +297,26 @@ pub enum ActionConfig {
     /// Send email via SMTP
     Email {
         /// Recipient email address
-        to: Option<String>,
+        to:               Option<String>,
         /// Template for recipient (e.g., "{{ data.email }}")
-        to_template: Option<String>,
+        to_template:      Option<String>,
         /// Email subject
-        subject: Option<String>,
+        subject:          Option<String>,
         /// Subject template
         subject_template: Option<String>,
         /// Email body template
-        body_template: Option<String>,
+        body_template:    Option<String>,
         /// Reply-to address
         #[serde(default)]
-        reply_to: Option<String>,
+        reply_to:         Option<String>,
     },
 
     /// Send SMS (stub for, full implementation later)
     Sms {
         /// Phone number to send to
-        phone: Option<String>,
+        phone:            Option<String>,
         /// Template for phone number
-        phone_template: Option<String>,
+        phone_template:   Option<String>,
         /// Message template
         message_template: Option<String>,
     },
@@ -324,17 +324,17 @@ pub enum ActionConfig {
     /// Send push notification (stub for)
     Push {
         /// Device token
-        device_token: Option<String>,
+        device_token:   Option<String>,
         /// Title template
         title_template: Option<String>,
         /// Body template
-        body_template: Option<String>,
+        body_template:  Option<String>,
     },
 
     /// Update search index (stub for)
     Search {
         /// Index name
-        index: String,
+        index:       String,
         /// Document ID template
         id_template: Option<String>,
     },
@@ -344,7 +344,7 @@ pub enum ActionConfig {
         /// Cache key pattern
         key_pattern: String,
         /// Action: "invalidate" or "refresh"
-        action: String,
+        action:      String,
     },
 }
 
@@ -544,12 +544,12 @@ const fn default_max_listeners() -> usize {
 impl Default for MultiListenerConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            listener_id: default_listener_id(),
-            lease_duration_ms: default_lease_duration_ms(),
+            enabled:                  false,
+            listener_id:              default_listener_id(),
+            lease_duration_ms:        default_lease_duration_ms(),
             health_check_interval_ms: default_health_check_interval_ms(),
-            failover_threshold_ms: default_failover_threshold_ms(),
-            max_listeners: default_max_listeners(),
+            failover_threshold_ms:    default_failover_threshold_ms(),
+            max_listeners:            default_max_listeners(),
         }
     }
 }

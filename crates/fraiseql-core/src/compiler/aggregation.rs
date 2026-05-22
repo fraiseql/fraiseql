@@ -65,21 +65,21 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregationRequest {
     /// Fact table name
-    pub table_name: String,
+    pub table_name:   String,
     /// WHERE clause filters (applied before GROUP BY)
     pub where_clause: Option<WhereClause>,
     /// GROUP BY selections
-    pub group_by: Vec<GroupBySelection>,
+    pub group_by:     Vec<GroupBySelection>,
     /// Aggregate selections (what to compute)
-    pub aggregates: Vec<AggregateSelection>,
+    pub aggregates:   Vec<AggregateSelection>,
     /// HAVING clause filters (applied after GROUP BY)
-    pub having: Vec<HavingCondition>,
+    pub having:       Vec<HavingCondition>,
     /// ORDER BY clauses
-    pub order_by: Vec<OrderByClause>,
+    pub order_by:     Vec<OrderByClause>,
     /// LIMIT
-    pub limit: Option<u32>,
+    pub limit:        Option<u32>,
     /// OFFSET
-    pub offset: Option<u32>,
+    pub offset:       Option<u32>,
 }
 
 /// GROUP BY selection
@@ -89,7 +89,7 @@ pub enum GroupBySelection {
     /// Group by JSONB dimension
     Dimension {
         /// JSONB path (e.g., "category")
-        path: String,
+        path:  String,
         /// Alias for result
         alias: String,
     },
@@ -100,20 +100,20 @@ pub enum GroupBySelection {
         /// Bucket type
         bucket: TemporalBucket,
         /// Alias for result
-        alias: String,
+        alias:  String,
     },
     /// Group by pre-computed calendar dimension
     CalendarDimension {
         /// Source timestamp column (e.g., "`occurred_at`")
-        source_column: String,
+        source_column:   String,
         /// Calendar JSONB column (e.g., "`date_info`")
         calendar_column: String,
         /// JSON key within calendar column (e.g., "month")
-        json_key: String,
+        json_key:        String,
         /// Temporal bucket type
-        bucket: TemporalBucket,
+        bucket:          TemporalBucket,
         /// Alias for result
-        alias: String,
+        alias:           String,
     },
     /// Group by a native SQL column (not JSONB-extracted).
     ///
@@ -121,7 +121,7 @@ pub enum GroupBySelection {
     /// matches an entry in the query's `native_columns` map.
     NativeDimension {
         /// Column name as it appears in the CREATE VIEW DDL.
-        column: String,
+        column:  String,
         /// PostgreSQL type for cast expressions (e.g. `"int8"`).
         pg_cast: String,
     },
@@ -160,20 +160,20 @@ pub enum AggregateSelection {
     /// Aggregate function on a measure
     MeasureAggregate {
         /// Measure column name
-        measure: String,
+        measure:  String,
         /// Aggregate function
         function: AggregateFunction,
         /// Alias for result
-        alias: String,
+        alias:    String,
     },
     /// Boolean aggregate
     BoolAggregate {
         /// Field to aggregate
-        field: String,
+        field:    String,
         /// Boolean aggregate function
         function: crate::compiler::aggregate_types::BoolAggregateFunction,
         /// Alias for result
-        alias: String,
+        alias:    String,
     },
 }
 
@@ -196,24 +196,24 @@ pub struct HavingCondition {
     /// Aggregate to filter on
     pub aggregate: AggregateSelection,
     /// Comparison operator
-    pub operator: HavingOperator,
+    pub operator:  HavingOperator,
     /// Value to compare against
-    pub value: serde_json::Value,
+    pub value:     serde_json::Value,
 }
 
 /// Validated and optimized aggregation execution plan
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregationPlan {
     /// Fact table metadata
-    pub metadata: FactTableMetadata,
+    pub metadata:              FactTableMetadata,
     /// Original request
-    pub request: AggregationRequest,
+    pub request:               AggregationRequest,
     /// Validated GROUP BY expressions
-    pub group_by_expressions: Vec<GroupByExpression>,
+    pub group_by_expressions:  Vec<GroupByExpression>,
     /// Validated aggregate expressions
     pub aggregate_expressions: Vec<AggregateExpression>,
     /// Validated HAVING conditions
-    pub having_conditions: Vec<ValidatedHavingCondition>,
+    pub having_conditions:     Vec<ValidatedHavingCondition>,
 }
 
 /// Validated GROUP BY expression
@@ -225,9 +225,9 @@ pub enum GroupByExpression {
         /// JSONB column name (usually "data")
         jsonb_column: String,
         /// Path to extract (e.g., "category")
-        path: String,
+        path:         String,
         /// Result alias
-        alias: String,
+        alias:        String,
     },
     /// Temporal bucket with `DATE_TRUNC`
     TemporalBucket {
@@ -236,27 +236,27 @@ pub enum GroupByExpression {
         /// Bucket type
         bucket: TemporalBucket,
         /// Result alias
-        alias: String,
+        alias:  String,
     },
     /// Pre-computed calendar dimension extraction
     CalendarPath {
         /// Calendar JSONB column (e.g., "`date_info`")
         calendar_column: String,
         /// JSON key within calendar column (e.g., "month")
-        json_key: String,
+        json_key:        String,
         /// Result alias
-        alias: String,
+        alias:           String,
     },
     /// A native SQL column on the view/fact table — referenced directly,
     /// not via JSONB extraction. Generates a dialect-quoted column reference in
     /// GROUP BY / SELECT, enabling btree index usage.
     NativeColumn {
         /// Column name as it appears in the CREATE VIEW DDL.
-        column: String,
+        column:  String,
         /// PostgreSQL type suffix for casting (e.g. `"uuid"`, `"int8"`, `""`).
         pg_cast: String,
         /// Alias used in SELECT and referenced by ORDER BY.
-        alias: String,
+        alias:   String,
     },
 }
 
@@ -274,44 +274,44 @@ pub enum AggregateExpression {
         /// Column to count
         column: String,
         /// Result alias
-        alias: String,
+        alias:  String,
     },
     /// Aggregate function on measure column
     MeasureAggregate {
         /// Measure column name
-        column: String,
+        column:   String,
         /// Aggregate function
         function: AggregateFunction,
         /// Result alias
-        alias: String,
+        alias:    String,
         /// Whether the column is a native SQL column (not JSONB-extracted).
         ///
         /// When `true`, the SQL generator quotes the column identifier and skips
         /// any `::numeric` cast that would otherwise be needed for JSONB text values.
         #[serde(default)]
-        native: bool,
+        native:   bool,
     },
     /// Advanced aggregate with optional parameters
     AdvancedAggregate {
         /// Column to aggregate
-        column: String,
+        column:    String,
         /// Aggregate function
-        function: AggregateFunction,
+        function:  AggregateFunction,
         /// Result alias
-        alias: String,
+        alias:     String,
         /// Optional delimiter for `STRING_AGG`
         delimiter: Option<String>,
         /// Optional ORDER BY for `ARRAY_AGG/STRING_AGG`
-        order_by: Option<Vec<OrderByClause>>,
+        order_by:  Option<Vec<OrderByClause>>,
     },
     /// Boolean aggregate (`BOOL_AND/BOOL_OR`)
     BoolAggregate {
         /// Column to aggregate (boolean expression)
-        column: String,
+        column:   String,
         /// Boolean aggregate function
         function: crate::compiler::aggregate_types::BoolAggregateFunction,
         /// Result alias
-        alias: String,
+        alias:    String,
     },
 }
 
@@ -321,9 +321,9 @@ pub struct ValidatedHavingCondition {
     /// Aggregate expression to filter on
     pub aggregate: AggregateExpression,
     /// Comparison operator
-    pub operator: HavingOperator,
+    pub operator:  HavingOperator,
     /// Value to compare against
-    pub value: serde_json::Value,
+    pub value:     serde_json::Value,
 }
 
 impl AggregationPlan {
@@ -408,13 +408,13 @@ impl AggregationPlanner {
                                 "Dimension '{}' not found in fact table '{}'",
                                 path, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
                     expressions.push(GroupByExpression::JsonbPath {
                         jsonb_column: metadata.dimensions.name.clone(),
-                        path: path.clone(),
-                        alias: alias.clone(),
+                        path:         path.clone(),
+                        alias:        alias.clone(),
                     });
                 },
                 GroupBySelection::TemporalBucket {
@@ -432,14 +432,14 @@ impl AggregationPlanner {
                                 "Column '{}' not found in fact table '{}'",
                                 column, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
                     expressions.push(GroupByExpression::TemporalBucket {
                         column: column.clone(),
                         bucket: *bucket,
-                        alias: alias.clone(),
+                        alias:  alias.clone(),
                     });
                 },
                 GroupBySelection::CalendarDimension {
@@ -451,15 +451,15 @@ impl AggregationPlanner {
                     // Calendar dimension - use pre-computed JSONB field
                     expressions.push(GroupByExpression::CalendarPath {
                         calendar_column: calendar_column.clone(),
-                        json_key: json_key.clone(),
-                        alias: alias.clone(),
+                        json_key:        json_key.clone(),
+                        alias:           alias.clone(),
                     });
                 },
                 GroupBySelection::NativeDimension { column, pg_cast } => {
                     // Native SQL column — alias equals the column name by convention.
                     expressions.push(GroupByExpression::NativeColumn {
-                        alias: column.clone(),
-                        column: column.clone(),
+                        alias:   column.clone(),
+                        column:  column.clone(),
                         pg_cast: pg_cast.clone(),
                     });
                 },
@@ -493,13 +493,13 @@ impl AggregationPlanner {
                                 "Measure '{}' not found in fact table '{}'",
                                 field, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
                     expressions.push(AggregateExpression::CountDistinct {
                         column: field.clone(),
-                        alias: alias.clone(),
+                        alias:  alias.clone(),
                     });
                 },
                 AggregateSelection::MeasureAggregate {
@@ -520,7 +520,7 @@ impl AggregationPlanner {
                                 "Measure or field '{}' not found in fact table '{}'",
                                 measure, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
@@ -533,15 +533,15 @@ impl AggregationPlanner {
                             | AggregateFunction::StringAgg
                     ) {
                         expressions.push(AggregateExpression::AdvancedAggregate {
-                            column: measure.clone(),
-                            function: *function,
-                            alias: alias.clone(),
+                            column:    measure.clone(),
+                            function:  *function,
+                            alias:     alias.clone(),
                             delimiter: if *function == AggregateFunction::StringAgg {
                                 Some(", ".to_string())
                             } else {
                                 None
                             },
-                            order_by: None,
+                            order_by:  None,
                         });
                     } else {
                         // Check if the measure references a native measure mapping
@@ -553,10 +553,10 @@ impl AggregationPlanner {
                             (measure.clone(), false)
                         };
                         expressions.push(AggregateExpression::MeasureAggregate {
-                            column: resolved_column,
+                            column:   resolved_column,
                             function: *function,
-                            alias: alias.clone(),
-                            native: is_native,
+                            alias:    alias.clone(),
+                            native:   is_native,
                         });
                     }
                 },
@@ -575,14 +575,14 @@ impl AggregationPlanner {
                                 "Boolean field '{}' not found in fact table '{}'",
                                 field, metadata.table_name
                             ),
-                            path: None,
+                            path:    None,
                         });
                     }
 
                     expressions.push(AggregateExpression::BoolAggregate {
-                        column: field.clone(),
+                        column:   field.clone(),
                         function: *function,
-                        alias: alias.clone(),
+                        alias:    alias.clone(),
                     });
                 },
             }
@@ -607,7 +607,7 @@ impl AggregationPlanner {
                 AggregateSelection::CountDistinct { field, alias } => {
                     AggregateExpression::CountDistinct {
                         column: field.clone(),
-                        alias: alias.clone(),
+                        alias:  alias.clone(),
                     }
                 },
                 AggregateSelection::MeasureAggregate {
@@ -624,22 +624,22 @@ impl AggregationPlanner {
                             | AggregateFunction::StringAgg
                     ) {
                         AggregateExpression::AdvancedAggregate {
-                            column: measure.clone(),
-                            function: *function,
-                            alias: alias.clone(),
+                            column:    measure.clone(),
+                            function:  *function,
+                            alias:     alias.clone(),
                             delimiter: if *function == AggregateFunction::StringAgg {
                                 Some(", ".to_string())
                             } else {
                                 None
                             },
-                            order_by: None,
+                            order_by:  None,
                         }
                     } else {
                         AggregateExpression::MeasureAggregate {
-                            column: measure.clone(),
+                            column:   measure.clone(),
                             function: *function,
-                            alias: alias.clone(),
-                            native: false,
+                            alias:    alias.clone(),
+                            native:   false,
                         }
                     }
                 },
@@ -648,9 +648,9 @@ impl AggregationPlanner {
                     function,
                     alias,
                 } => AggregateExpression::BoolAggregate {
-                    column: field.clone(),
+                    column:   field.clone(),
                     function: *function,
-                    alias: alias.clone(),
+                    alias:    alias.clone(),
                 },
             };
 
@@ -659,8 +659,8 @@ impl AggregationPlanner {
 
             validated.push(ValidatedHavingCondition {
                 aggregate: aggregate_expr,
-                operator: condition.operator,
-                value: condition.value.clone(),
+                operator:  condition.operator,
+                value:     condition.value.clone(),
             });
         }
 

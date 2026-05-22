@@ -48,14 +48,14 @@ impl TenantEventKind {
 #[derive(Debug, Clone, Serialize)]
 pub struct TenantEvent {
     /// The tenant key this event relates to.
-    pub tenant_key: String,
+    pub tenant_key:  String,
     /// The kind of lifecycle event.
-    pub event: TenantEventKind,
+    pub event:       TenantEventKind,
     /// The actor who triggered the event (JWT `sub` claim or `"admin_token"`).
-    pub actor: Option<String>,
+    pub actor:       Option<String>,
     /// Event-specific metadata (e.g., quota changes, config diffs).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<serde_json::Value>,
+    pub payload:     Option<serde_json::Value>,
     /// When the event occurred (ISO 8601).
     pub occurred_at: String,
 }

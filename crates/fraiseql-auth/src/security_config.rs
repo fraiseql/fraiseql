@@ -11,32 +11,32 @@ use serde_json::Value as JsonValue;
 #[derive(Debug, Clone)]
 pub struct SecurityConfigFromSchema {
     /// Audit logging configuration
-    pub audit_logging: AuditLoggingSettings,
+    pub audit_logging:      AuditLoggingSettings,
     /// Error sanitization configuration
     pub error_sanitization: ErrorSanitizationSettings,
     /// Rate limiting configuration
-    pub rate_limiting: RateLimitingSettings,
+    pub rate_limiting:      RateLimitingSettings,
     /// State encryption configuration
-    pub state_encryption: StateEncryptionSettings,
+    pub state_encryption:   StateEncryptionSettings,
 }
 
 /// Audit logging subsystem settings loaded from the compiled schema.
 #[derive(Debug, Clone)]
 pub struct AuditLoggingSettings {
     /// Whether audit logging is active.
-    pub enabled: bool,
+    pub enabled:                bool,
     /// Minimum tracing level for audit records (e.g., `"info"`, `"debug"`).
-    pub log_level: String,
+    pub log_level:              String,
     /// When `true`, raw credential values may appear in log records.
     /// Must be `false` in production deployments.
     pub include_sensitive_data: bool,
     /// When `true`, log records are written from a background task rather than
     /// the request thread, reducing latency at the cost of some delivery guarantees.
-    pub async_logging: bool,
+    pub async_logging:          bool,
     /// Number of audit records to buffer before flushing (async mode only).
-    pub buffer_size: u32,
+    pub buffer_size:            u32,
     /// How frequently (in seconds) the async buffer is flushed.
-    pub flush_interval_secs: u32,
+    pub flush_interval_secs:    u32,
 }
 
 /// Error sanitization settings — controls how authentication errors are presented to clients.
@@ -44,98 +44,98 @@ pub struct AuditLoggingSettings {
 pub struct ErrorSanitizationSettings {
     /// Whether error sanitization is active.
     /// When `false`, internal error details may be forwarded to API clients.
-    pub enabled: bool,
+    pub enabled:                bool,
     /// Replace specific internal error messages with generic user-safe strings.
-    pub generic_messages: bool,
+    pub generic_messages:       bool,
     /// Log the full internal error message via `tracing` before sanitizing.
-    pub internal_logging: bool,
+    pub internal_logging:       bool,
     /// When `true`, sensitive field values (tokens, keys, etc.) may appear in error messages.
     /// **Must be `false` in production** — setting this to `true` fails
     /// [`crate::security_init::validate_security_config`].
     pub leak_sensitive_details: bool,
     /// Format template for user-facing error messages (e.g., `"generic"`).
-    pub user_facing_format: String,
+    pub user_facing_format:     String,
 }
 
 /// Rate-limiting thresholds for each authentication endpoint.
 #[derive(Debug, Clone)]
 pub struct RateLimitingSettings {
     /// Whether rate limiting is active across all auth endpoints.
-    pub enabled: bool,
+    pub enabled:                    bool,
     /// Maximum requests to `/auth/start` per IP per window.
-    pub auth_start_max_requests: u32,
+    pub auth_start_max_requests:    u32,
     /// Window duration (in seconds) for the `/auth/start` rate limit.
-    pub auth_start_window_secs: u64,
+    pub auth_start_window_secs:     u64,
     /// Maximum requests to `/auth/callback` per IP per window.
     pub auth_callback_max_requests: u32,
     /// Window duration (in seconds) for the `/auth/callback` rate limit.
-    pub auth_callback_window_secs: u64,
+    pub auth_callback_window_secs:  u64,
     /// Maximum token refresh requests per user per window.
-    pub auth_refresh_max_requests: u32,
+    pub auth_refresh_max_requests:  u32,
     /// Window duration (in seconds) for the `/auth/refresh` rate limit.
-    pub auth_refresh_window_secs: u64,
+    pub auth_refresh_window_secs:   u64,
     /// Maximum logout requests per user per window.
-    pub auth_logout_max_requests: u32,
+    pub auth_logout_max_requests:   u32,
     /// Window duration (in seconds) for the `/auth/logout` rate limit.
-    pub auth_logout_window_secs: u64,
+    pub auth_logout_window_secs:    u64,
     /// Maximum failed login attempts per user per window (brute-force protection).
-    pub failed_login_max_requests: u32,
+    pub failed_login_max_requests:  u32,
     /// Window duration (in seconds) for the failed login rate limit (typically 1 hour).
-    pub failed_login_window_secs: u64,
+    pub failed_login_window_secs:   u64,
 }
 
 /// OAuth state encryption settings loaded from the compiled schema.
 #[derive(Debug, Clone)]
 pub struct StateEncryptionSettings {
     /// Whether OAuth PKCE state tokens are encrypted before being sent to the provider.
-    pub enabled: bool,
+    pub enabled:              bool,
     /// AEAD algorithm to use (e.g., `"chacha20-poly1305"`, `"aes-256-gcm"`).
-    pub algorithm: String,
+    pub algorithm:            String,
     /// When `true`, keys are rotated automatically.
     pub key_rotation_enabled: bool,
     /// Nonce size in bytes (must be 12 for both ChaCha20-Poly1305 and AES-256-GCM).
-    pub nonce_size: u32,
+    pub nonce_size:           u32,
     /// Encryption key size in bytes (must be 32 for both supported algorithms).
-    pub key_size: u32,
+    pub key_size:             u32,
 }
 
 impl Default for SecurityConfigFromSchema {
     fn default() -> Self {
         Self {
-            audit_logging: AuditLoggingSettings {
-                enabled: true,
-                log_level: "info".to_string(),
+            audit_logging:      AuditLoggingSettings {
+                enabled:                true,
+                log_level:              "info".to_string(),
                 include_sensitive_data: false,
-                async_logging: true,
-                buffer_size: 1000,
-                flush_interval_secs: 5,
+                async_logging:          true,
+                buffer_size:            1000,
+                flush_interval_secs:    5,
             },
             error_sanitization: ErrorSanitizationSettings {
-                enabled: true,
-                generic_messages: true,
-                internal_logging: true,
+                enabled:                true,
+                generic_messages:       true,
+                internal_logging:       true,
                 leak_sensitive_details: false,
-                user_facing_format: "generic".to_string(),
+                user_facing_format:     "generic".to_string(),
             },
-            rate_limiting: RateLimitingSettings {
-                enabled: true,
-                auth_start_max_requests: 100,
-                auth_start_window_secs: 60,
+            rate_limiting:      RateLimitingSettings {
+                enabled:                    true,
+                auth_start_max_requests:    100,
+                auth_start_window_secs:     60,
                 auth_callback_max_requests: 50,
-                auth_callback_window_secs: 60,
-                auth_refresh_max_requests: 10,
-                auth_refresh_window_secs: 60,
-                auth_logout_max_requests: 20,
-                auth_logout_window_secs: 60,
-                failed_login_max_requests: 5,
-                failed_login_window_secs: 3600,
+                auth_callback_window_secs:  60,
+                auth_refresh_max_requests:  10,
+                auth_refresh_window_secs:   60,
+                auth_logout_max_requests:   20,
+                auth_logout_window_secs:    60,
+                failed_login_max_requests:  5,
+                failed_login_window_secs:   3600,
             },
-            state_encryption: StateEncryptionSettings {
-                enabled: true,
-                algorithm: "chacha20-poly1305".to_string(),
+            state_encryption:   StateEncryptionSettings {
+                enabled:              true,
+                algorithm:            "chacha20-poly1305".to_string(),
                 key_rotation_enabled: false,
-                nonce_size: 12,
-                key_size: 32,
+                nonce_size:           12,
+                key_size:             32,
             },
         }
     }

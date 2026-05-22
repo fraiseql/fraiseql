@@ -159,10 +159,10 @@ impl DatabaseAdapter for MockDatabaseAdapter {
 
     fn pool_metrics(&self) -> PoolMetrics {
         PoolMetrics {
-            total_connections: 5,
+            total_connections:  5,
             active_connections: 1,
-            idle_connections: 4,
-            waiting_requests: 0,
+            idle_connections:   4,
+            waiting_requests:   0,
         }
     }
 
@@ -364,7 +364,7 @@ async fn test_graphql_response_list_with_typename() {
 async fn test_graphql_error_response() {
     let error = FraiseQLError::Validation {
         message: "Invalid query field".to_string(),
-        path: Some("query.user.invalidField".to_string()),
+        path:    Some("query.user.invalidField".to_string()),
     };
 
     let response = ResultProjector::wrap_error(&error);

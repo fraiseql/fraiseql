@@ -33,11 +33,11 @@ use crate::error::{AuthError, Result};
 #[derive(Debug, Clone)]
 pub struct AuthRateLimitConfig {
     /// Whether rate limiting is enabled for this endpoint
-    pub enabled: bool,
+    pub enabled:      bool,
     /// Maximum number of requests allowed in the window
     pub max_requests: u32,
     /// Window duration in seconds
-    pub window_secs: u64,
+    pub window_secs:  u64,
 }
 
 impl AuthRateLimitConfig {
@@ -46,9 +46,9 @@ impl AuthRateLimitConfig {
     #[must_use]
     pub const fn per_ip_standard() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
-            window_secs: 60,
+            window_secs:  60,
         }
     }
 
@@ -57,9 +57,9 @@ impl AuthRateLimitConfig {
     #[must_use]
     pub const fn per_ip_strict() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 50,
-            window_secs: 60,
+            window_secs:  60,
         }
     }
 
@@ -68,9 +68,9 @@ impl AuthRateLimitConfig {
     #[must_use]
     pub const fn per_user_standard() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         }
     }
 
@@ -79,9 +79,9 @@ impl AuthRateLimitConfig {
     #[must_use]
     pub const fn failed_login_attempts() -> Self {
         Self {
-            enabled: true,
+            enabled:      true,
             max_requests: 5,
-            window_secs: 3600,
+            window_secs:  3600,
         }
     }
 }
@@ -90,7 +90,7 @@ impl AuthRateLimitConfig {
 #[derive(Debug, Clone)]
 struct RequestRecord {
     /// Number of requests in current window
-    count: u32,
+    count:        u32,
     /// Unix timestamp of window start
     window_start: u64,
 }
@@ -135,14 +135,14 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 /// - [`KeyedRateLimiter::with_clock_and_max_entries`] — custom clock + cap (testing).
 pub struct KeyedRateLimiter {
-    records: Arc<Mutex<HashMap<String, RequestRecord>>>,
-    config: AuthRateLimitConfig,
+    records:     Arc<Mutex<HashMap<String, RequestRecord>>>,
+    config:      AuthRateLimitConfig,
     max_entries: usize,
     /// Monotonically increasing call counter for triggering periodic sweeps.
     check_count: AtomicU64,
     /// Time source — defaults to `SystemTime::now()` via [`system_clock`].
     /// Overridable via [`KeyedRateLimiter::with_clock`] for testing.
-    clock: Box<dyn Fn() -> u64 + Send + Sync>,
+    clock:       Box<dyn Fn() -> u64 + Send + Sync>,
 }
 
 /// Default clock that reads wall-clock time.
@@ -309,7 +309,7 @@ impl KeyedRateLimiter {
 
         // Get or create record for this key (first request from this key)
         let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
-            count: 0,
+            count:        0,
             window_start: now,
         });
 
@@ -385,13 +385,13 @@ pub fn warn_if_single_node_rate_limiting() {
 /// Global rate limiters for different endpoints
 pub struct RateLimiters {
     /// auth/start: per-IP, 100 req/min
-    pub auth_start: KeyedRateLimiter,
+    pub auth_start:    KeyedRateLimiter,
     /// auth/callback: per-IP, 50 req/min
     pub auth_callback: KeyedRateLimiter,
     /// auth/refresh: per-user, 10 req/min
-    pub auth_refresh: KeyedRateLimiter,
+    pub auth_refresh:  KeyedRateLimiter,
     /// auth/logout: per-user, 20 req/min
-    pub auth_logout: KeyedRateLimiter,
+    pub auth_logout:   KeyedRateLimiter,
     /// Failed login tracking: per-user, 5 attempts/hour
     pub failed_logins: KeyedRateLimiter,
 }
@@ -401,10 +401,10 @@ impl RateLimiters {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            auth_start: KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard()),
+            auth_start:    KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard()),
             auth_callback: KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict()),
-            auth_refresh: KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
-            auth_logout: KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
+            auth_refresh:  KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
+            auth_logout:   KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
             failed_logins: KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts()),
         }
     }
@@ -419,10 +419,10 @@ impl RateLimiters {
         failed_cfg: AuthRateLimitConfig,
     ) -> Self {
         Self {
-            auth_start: KeyedRateLimiter::new(start_cfg),
+            auth_start:    KeyedRateLimiter::new(start_cfg),
             auth_callback: KeyedRateLimiter::new(callback_cfg),
-            auth_refresh: KeyedRateLimiter::new(refresh_cfg),
-            auth_logout: KeyedRateLimiter::new(logout_cfg),
+            auth_refresh:  KeyedRateLimiter::new(refresh_cfg),
+            auth_logout:   KeyedRateLimiter::new(logout_cfg),
             failed_logins: KeyedRateLimiter::new(failed_cfg),
         }
     }

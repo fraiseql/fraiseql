@@ -11,11 +11,11 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug, Clone)]
 pub struct SchemaDependencyGraph {
     /// Map of type name to types it depends on (outgoing edges).
-    pub(super) outgoing: HashMap<String, HashSet<String>>,
+    pub(super) outgoing:   HashMap<String, HashSet<String>>,
     /// Map of type name to types that depend on it (incoming edges).
-    pub(super) incoming: HashMap<String, HashSet<String>>,
+    pub(super) incoming:   HashMap<String, HashSet<String>>,
     /// All type names in the schema.
-    pub(super) all_types: HashSet<String>,
+    pub(super) all_types:  HashSet<String>,
     /// Root types that are always considered "used" (Query, Mutation, Subscription).
     pub(super) root_types: HashSet<String>,
 }

@@ -8,7 +8,7 @@ use super::*;
 fn test_deduplicate_representations() {
     let reps = vec![
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: {
                 let mut m = HashMap::new();
                 m.insert("id".to_string(), json!("123"));
@@ -17,7 +17,7 @@ fn test_deduplicate_representations() {
             all_fields: HashMap::new(),
         },
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: {
                 let mut m = HashMap::new();
                 m.insert("id".to_string(), json!("123"));
@@ -26,7 +26,7 @@ fn test_deduplicate_representations() {
             all_fields: HashMap::new(),
         },
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: {
                 let mut m = HashMap::new();
                 m.insert("id".to_string(), json!("456"));
@@ -44,17 +44,17 @@ fn test_deduplicate_representations() {
 fn test_group_entities_by_typename() {
     let reps = vec![
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: HashMap::new(),
             all_fields: HashMap::new(),
         },
         EntityRepresentation {
-            typename: "Order".to_string(),
+            typename:   "Order".to_string(),
             key_fields: HashMap::new(),
             all_fields: HashMap::new(),
         },
         EntityRepresentation {
-            typename: "User".to_string(),
+            typename:   "User".to_string(),
             key_fields: HashMap::new(),
             all_fields: HashMap::new(),
         },
@@ -69,14 +69,14 @@ fn test_group_entities_by_typename() {
 #[test]
 fn test_construct_batch_where_clause() {
     let mut rep1 = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: HashMap::new(),
         all_fields: HashMap::new(),
     };
     rep1.key_fields.insert("id".to_string(), json!("123"));
 
     let mut rep2 = EntityRepresentation {
-        typename: "User".to_string(),
+        typename:   "User".to_string(),
         key_fields: HashMap::new(),
         all_fields: HashMap::new(),
     };
@@ -95,7 +95,7 @@ fn test_construct_batch_where_clause() {
 #[test]
 fn test_construct_batch_where_clause_multi_key() {
     let mut rep1 = EntityRepresentation {
-        typename: "OrderItem".to_string(),
+        typename:   "OrderItem".to_string(),
         key_fields: HashMap::new(),
         all_fields: HashMap::new(),
     };
@@ -103,7 +103,7 @@ fn test_construct_batch_where_clause_multi_key() {
     rep1.key_fields.insert("product_id".to_string(), json!("P1"));
 
     let mut rep2 = EntityRepresentation {
-        typename: "OrderItem".to_string(),
+        typename:   "OrderItem".to_string(),
         key_fields: HashMap::new(),
         all_fields: HashMap::new(),
     };
@@ -150,7 +150,7 @@ fn test_multi_key_extract_key_fields() {
 fn test_multi_key_deduplicate() {
     let make_rep = |oid: &str, pid: &str| {
         let mut rep = EntityRepresentation {
-            typename: "OrderItem".to_string(),
+            typename:   "OrderItem".to_string(),
             key_fields: HashMap::new(),
             all_fields: HashMap::new(),
         };
@@ -177,7 +177,7 @@ fn test_override_field_included_in_local_resolution() {
 
     let mut product = FederatedType::new("Product".to_string());
     product.keys = vec![KeyDirective {
-        fields: vec!["sku".to_string()],
+        fields:     vec!["sku".to_string()],
         resolvable: true,
     }];
     product.set_field_directives(

@@ -107,7 +107,7 @@ impl AggregateQueryParser {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: "Missing 'table' field in aggregate query".to_string(),
-                path: None,
+                path:    None,
             })?
             .to_string();
 
@@ -270,19 +270,19 @@ impl AggregateQueryParser {
                     {
                         // Priority 3: Deep JSONB path mapped to a native column
                         selections.push(GroupBySelection::NativeDimension {
-                            column: mapped_col.clone(),
+                            column:  mapped_col.clone(),
                             pg_cast: String::new(),
                         });
                     } else if let Some(pg_cast) = native_columns.get(key.as_str()) {
                         // Priority 4: Native SQL column (filter-derived) — direct reference
                         selections.push(GroupBySelection::NativeDimension {
-                            column: key.clone(),
+                            column:  key.clone(),
                             pg_cast: pg_cast.clone(),
                         });
                     } else {
                         // Priority 5: Regular JSONB dimension
                         selections.push(GroupBySelection::Dimension {
-                            path: key.clone(),
+                            path:  key.clone(),
                             alias: key.clone(),
                         });
                     }
@@ -307,7 +307,7 @@ impl AggregateQueryParser {
                                     "Temporal bucketing column '{}' not found in denormalized filters",
                                     key
                                 ),
-                                path: None,
+                                path:    None,
                             });
                         }
 
@@ -346,7 +346,7 @@ impl AggregateQueryParser {
                     return Ok(Some(GroupBySelection::TemporalBucket {
                         column: filter_col.name.clone(),
                         bucket: bucket.1,
-                        alias: key.to_string(),
+                        alias:  key.to_string(),
                     }));
                 }
             }
@@ -382,11 +382,11 @@ impl AggregateQueryParser {
                         Self::find_calendar_bucket(calendar_dim, *bucket_type)
                     {
                         return Ok(Some(GroupBySelection::CalendarDimension {
-                            source_column: calendar_dim.source_column.clone(),
+                            source_column:   calendar_dim.source_column.clone(),
                             calendar_column: gran.column_name.clone(),
-                            json_key: bucket.json_key.clone(),
-                            bucket: bucket.bucket_type,
-                            alias: key.to_string(),
+                            json_key:        bucket.json_key.clone(),
+                            bucket:          bucket.bucket_type,
+                            alias:           key.to_string(),
                         }));
                     }
                 }
@@ -407,11 +407,11 @@ impl AggregateQueryParser {
             if calendar_dim.source_column == column {
                 if let Some((gran, cal_bucket)) = Self::find_calendar_bucket(calendar_dim, bucket) {
                     return Some(GroupBySelection::CalendarDimension {
-                        source_column: calendar_dim.source_column.clone(),
+                        source_column:   calendar_dim.source_column.clone(),
                         calendar_column: gran.column_name.clone(),
-                        json_key: cal_bucket.json_key.clone(),
-                        bucket: cal_bucket.bucket_type,
-                        alias: column.to_string(),
+                        json_key:        cal_bucket.json_key.clone(),
+                        bucket:          cal_bucket.bucket_type,
+                        alias:           column.to_string(),
                     });
                 }
             }
@@ -510,7 +510,7 @@ impl AggregateQueryParser {
                     "COUNT DISTINCT field '{}' not found in dimensions or measures. Available: {:?}",
                     stripped, dimension_paths
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -520,18 +520,18 @@ impl AggregateQueryParser {
             if let Some(stripped) = agg_name.strip_suffix("_bool_and") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field: dimension_path,
+                        field:    dimension_path,
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::And,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
             if let Some(stripped) = agg_name.strip_suffix("_bool_or") {
                 if stripped == dimension_path {
                     return Ok(AggregateSelection::BoolAggregate {
-                        field: dimension_path,
+                        field:    dimension_path,
                         function: crate::compiler::aggregate_types::BoolAggregateFunction::Or,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
@@ -555,9 +555,9 @@ impl AggregateQueryParser {
                 let expected_name = format!("{}{}", measure.name, func.0);
                 if agg_name == expected_name {
                     return Ok(AggregateSelection::MeasureAggregate {
-                        measure: measure.name.clone(),
+                        measure:  measure.name.clone(),
                         function: func.1,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
@@ -583,9 +583,9 @@ impl AggregateQueryParser {
                     // Store the JSONB path as the measure name; the planner resolves
                     // it to the native column via FactTableMetadata.native_measures.
                     return Ok(AggregateSelection::MeasureAggregate {
-                        measure: jsonb_path.clone(),
+                        measure:  jsonb_path.clone(),
                         function: func.1,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
@@ -604,9 +604,9 @@ impl AggregateQueryParser {
                 if agg_name == expected_name {
                     // For dimension aggregates, store the path as the "measure"
                     return Ok(AggregateSelection::MeasureAggregate {
-                        measure: dimension_path,
+                        measure:  dimension_path,
                         function: func.1,
-                        alias: agg_name.to_string(),
+                        alias:    agg_name.to_string(),
                     });
                 }
             }
@@ -614,7 +614,7 @@ impl AggregateQueryParser {
 
         Err(FraiseQLError::Validation {
             message: format!("Unknown aggregate selection: {agg_name}"),
-            path: None,
+            path:    None,
         })
     }
 
@@ -655,7 +655,7 @@ impl AggregateQueryParser {
                             message: format!(
                                 "HAVING condition references non-selected aggregate: {agg_name}"
                             ),
-                            path: None,
+                            path:    None,
                         })?
                         .clone();
 

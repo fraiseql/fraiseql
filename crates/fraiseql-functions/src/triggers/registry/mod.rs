@@ -36,7 +36,7 @@ pub enum ParsedTrigger {
         /// Entity type name (e.g., "User", "Post").
         entity_type: String,
         /// Operation kind: "insert", "update", "delete", or None for all.
-        operation: Option<String>,
+        operation:   Option<String>,
     },
     /// Before mutation: `before:mutation:<mutation_name>`
     BeforeMutation {
@@ -46,7 +46,7 @@ pub enum ParsedTrigger {
     /// After storage: `after:storage:<bucket>:<operation>`
     AfterStorage {
         /// Bucket name.
-        bucket: String,
+        bucket:    String,
         /// Operation: "upload", "delete", or "all".
         operation: String,
     },
@@ -60,7 +60,7 @@ pub enum ParsedTrigger {
         /// HTTP method (GET, POST, etc.).
         method: String,
         /// URL path pattern.
-        path: String,
+        path:   String,
     },
 }
 
@@ -159,15 +159,15 @@ impl ParsedTrigger {
 #[derive(Debug, Default)]
 pub struct TriggerRegistry {
     /// After-mutation triggers indexed by entity and operation.
-    pub after_mutation_triggers: TriggerMatcher,
+    pub after_mutation_triggers:  TriggerMatcher,
     /// Before-mutation triggers indexed by mutation name.
     pub before_mutation_triggers: Vec<BeforeMutationTrigger>,
     /// HTTP trigger routes indexed by method and path.
-    pub http_routes: HttpTriggerMatcher,
+    pub http_routes:              HttpTriggerMatcher,
     /// Cron-scheduled triggers.
-    pub cron_triggers: Vec<crate::triggers::cron::CronTrigger>,
+    pub cron_triggers:            Vec<crate::triggers::cron::CronTrigger>,
     /// Total function definitions loaded.
-    pub function_count: usize,
+    pub function_count:           usize,
 }
 
 impl TriggerRegistry {
@@ -234,8 +234,8 @@ impl TriggerRegistry {
                 ParsedTrigger::Cron { expression } => {
                     let trigger = crate::triggers::cron::CronTrigger {
                         function_name: func.name.clone(),
-                        schedule: expression,
-                        timezone: "UTC".to_string(),
+                        schedule:      expression,
+                        timezone:      "UTC".to_string(),
                     };
                     registry.cron_triggers.push(trigger);
                 },

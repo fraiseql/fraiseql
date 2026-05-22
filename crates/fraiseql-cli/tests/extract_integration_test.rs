@@ -239,10 +239,10 @@ fn test_extract_from_directory() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language: Language::Python,
-        database: init::Database::from_str("postgres").unwrap(),
-        size: ProjectSize::S,
-        no_git: true,
+        language:     Language::Python,
+        database:     init::Database::from_str("postgres").unwrap(),
+        size:         ProjectSize::S,
+        no_git:       true,
     };
     init::run(&config).unwrap();
 
@@ -270,10 +270,10 @@ fn test_extract_with_language_override() {
 
     let config = InitConfig {
         project_name: project_dir.to_string_lossy().to_string(),
-        language: Language::Python,
-        database: init::Database::from_str("postgres").unwrap(),
-        size: ProjectSize::S,
-        no_git: true,
+        language:     Language::Python,
+        database:     init::Database::from_str("postgres").unwrap(),
+        size:         ProjectSize::S,
+        no_git:       true,
     };
     init::run(&config).unwrap();
 

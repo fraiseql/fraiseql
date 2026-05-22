@@ -40,21 +40,21 @@ pub const REQUIRE_AUD: bool = true;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claims {
     /// Subject (typically user ID)
-    pub sub: String,
+    pub sub:   String,
     /// Issued at (Unix timestamp)
-    pub iat: u64,
+    pub iat:   u64,
     /// Expiration time (Unix timestamp)
-    pub exp: u64,
+    pub exp:   u64,
     /// Not-before time (Unix timestamp) — optional per RFC 7519 §4.1.5.
     ///
     /// When present, the token MUST NOT be accepted before this time (plus
     /// [`MAX_CLOCK_SKEW_SECS`]).  When absent, the not-before check is skipped.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub nbf: Option<u64>,
+    pub nbf:   Option<u64>,
     /// Issuer
-    pub iss: String,
+    pub iss:   String,
     /// Audience
-    pub aud: Vec<String>,
+    pub aud:   Vec<String>,
     /// Additional custom claims
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -160,7 +160,7 @@ impl Claims {
 /// JWT validator configuration and validation logic
 pub struct JwtValidator {
     validation: Validation,
-    issuer: String,
+    issuer:     String,
 }
 
 impl JwtValidator {

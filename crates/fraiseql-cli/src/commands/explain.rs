@@ -12,26 +12,26 @@ use crate::output::CommandResult;
 #[derive(Debug, Serialize)]
 pub struct ExplainResponse {
     /// The analyzed query string
-    pub query: String,
+    pub query:          String,
     /// Compiled SQL representation (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sql: Option<String>,
+    pub sql:            Option<String>,
     /// Estimated query execution cost
     pub estimated_cost: usize,
     /// Complexity metrics
-    pub complexity: ComplexityInfo,
+    pub complexity:     ComplexityInfo,
     /// Warnings about query structure
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub warnings: Vec<String>,
+    pub warnings:       Vec<String>,
 }
 
 /// Complexity analysis metrics for a query
 #[derive(Debug, Serialize)]
 pub struct ComplexityInfo {
     /// Maximum nesting depth of the query
-    pub depth: usize,
+    pub depth:       usize,
     /// Overall complexity score (accounts for pagination multipliers)
-    pub score: usize,
+    pub score:       usize,
     /// Number of aliased fields
     pub alias_count: usize,
 }
@@ -83,15 +83,15 @@ pub fn run(query: &str) -> Result<CommandResult> {
     let has_warnings = !warnings.is_empty();
 
     let response = ExplainResponse {
-        query: query.to_string(),
-        sql: Some(sql),
+        query:          query.to_string(),
+        sql:            Some(sql),
         estimated_cost: score,
-        complexity: ComplexityInfo {
+        complexity:     ComplexityInfo {
             depth,
             score,
             alias_count,
         },
-        warnings: warnings.clone(),
+        warnings:       warnings.clone(),
     };
 
     let result = if has_warnings {

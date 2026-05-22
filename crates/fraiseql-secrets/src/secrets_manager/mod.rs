@@ -31,11 +31,11 @@ pub enum SecretsBackendConfig {
     /// Read secrets from `HashiCorp` Vault.
     Vault {
         /// Vault server address (e.g., `https://vault.example.com:8200`).
-        addr: String,
+        addr:       String,
         /// Authentication method.
-        auth: VaultAuth,
+        auth:       VaultAuth,
         /// Optional namespace (Enterprise feature).
-        namespace: Option<String>,
+        namespace:  Option<String>,
         /// Whether to verify TLS certificates.
         tls_verify: bool,
     },
@@ -54,7 +54,7 @@ pub enum VaultAuth {
     /// Authenticate via `AppRole` (recommended for production).
     AppRole {
         /// The role ID for `AppRole` login.
-        role_id: String,
+        role_id:   String,
         /// The secret ID for `AppRole` login (high-value credential).
         secret_id: Zeroizing<String>,
     },
@@ -183,10 +183,10 @@ impl SecretsManager {
 /// (within one `check_interval` of expiry, ensuring renewal before the next
 /// poll cycle can catch it). Designed to run as a background tokio task.
 pub struct LeaseRenewalTask {
-    manager: Arc<SecretsManager>,
+    manager:        Arc<SecretsManager>,
     check_interval: Duration,
-    cancel_rx: tokio::sync::watch::Receiver<bool>,
-    tracked_keys: Vec<String>,
+    cancel_rx:      tokio::sync::watch::Receiver<bool>,
+    tracked_keys:   Vec<String>,
 }
 
 impl LeaseRenewalTask {

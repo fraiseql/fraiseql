@@ -55,8 +55,8 @@ impl ScalarValidationError {
     ) -> Self {
         Self {
             scalar_name: scalar_name.into(),
-            context: context.into(),
-            message: message.into(),
+            context:     context.into(),
+            message:     message.into(),
         }
     }
 

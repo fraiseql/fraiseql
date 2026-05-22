@@ -49,12 +49,12 @@ pub struct HostContextConfig {
 impl Default for HostContextConfig {
     fn default() -> Self {
         Self {
-            allowed_domains: vec!["*".to_string()], /* Allow all by default (should be
-                                                     * restricted) */
-            allowed_env_vars: HashSet::new(),
-            max_http_response_bytes: 10 * 1024 * 1024, // 10 MB
-            http_connect_timeout_ms: 5000,
-            http_read_timeout_ms: 30000,
+            allowed_domains:          vec!["*".to_string()], /* Allow all by default (should be
+                                                              * restricted) */
+            allowed_env_vars:         HashSet::new(),
+            max_http_response_bytes:  10 * 1024 * 1024, // 10 MB
+            http_connect_timeout_ms:  5000,
+            http_read_timeout_ms:     30000,
             max_storage_upload_bytes: 100 * 1024 * 1024, // 100 MB
         }
     }
@@ -152,19 +152,19 @@ impl LiveHostContext {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
 
         SecurityContext {
-            user_id: fraiseql_core::types::UserId("anonymous".to_string()),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: std::collections::HashMap::new(),
-            request_id: format!("req-{}", now),
-            ip_address: None,
+            user_id:          fraiseql_core::types::UserId("anonymous".to_string()),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::new(),
+            request_id:       format!("req-{}", now),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
-            issuer: None,
-            audience: None,
-            email: None,
-            display_name: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(24),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -211,8 +211,8 @@ impl HostContext for LiveHostContext {
             },
             sql_classifier::SqlClassification::Rejected(reason) => {
                 Err(fraiseql_error::FraiseQLError::Authorization {
-                    message: format!("SQL query not allowed: {}", reason),
-                    action: Some("execute_sql_query".to_string()),
+                    message:  format!("SQL query not allowed: {}", reason),
+                    action:   Some("execute_sql_query".to_string()),
                     resource: None,
                 })
             },
@@ -228,10 +228,10 @@ impl HostContext for LiveHostContext {
     ) -> Result<crate::host::HttpResponse> {
         // Validate URL for SSRF attacks
         let http_config = http_validator::HttpClientConfig {
-            allowed_domains: self.config.allowed_domains.clone(),
+            allowed_domains:    self.config.allowed_domains.clone(),
             max_response_bytes: self.config.max_http_response_bytes,
             connect_timeout_ms: self.config.http_connect_timeout_ms,
-            read_timeout_ms: self.config.http_read_timeout_ms,
+            read_timeout_ms:    self.config.http_read_timeout_ms,
         };
         http_validator::validate_outbound_url(url, &http_config)?;
 
@@ -248,7 +248,7 @@ impl HostContext for LiveHostContext {
                 .build()
                 .map_err(|e| fraiseql_error::FraiseQLError::Internal {
                     message: format!("failed to create HTTP client: {}", e),
-                    source: None,
+                    source:  None,
                 })?;
             Arc::new(client)
         };
@@ -264,7 +264,7 @@ impl HostContext for LiveHostContext {
             _ => {
                 return Err(fraiseql_error::FraiseQLError::Validation {
                     message: format!("unsupported HTTP method: {}", method),
-                    path: None,
+                    path:    None,
                 });
             },
         };
@@ -282,7 +282,7 @@ impl HostContext for LiveHostContext {
         // Execute request
         let response = req.send().await.map_err(|e| fraiseql_error::FraiseQLError::Internal {
             message: format!("HTTP request failed: {}", e),
-            source: None,
+            source:  None,
         })?;
 
         let status = response.status().as_u16();
@@ -298,7 +298,7 @@ impl HostContext for LiveHostContext {
         let body_bytes =
             response.bytes().await.map_err(|e| fraiseql_error::FraiseQLError::Internal {
                 message: format!("failed to read response body: {}", e),
-                source: None,
+                source:  None,
             })?;
 
         if body_bytes.len() > self.config.max_http_response_bytes {
@@ -308,7 +308,7 @@ impl HostContext for LiveHostContext {
                     body_bytes.len(),
                     self.config.max_http_response_bytes
                 ),
-                path: None,
+                path:    None,
             });
         }
 
@@ -344,7 +344,7 @@ impl HostContext for LiveHostContext {
                     body.len(),
                     self.config.max_storage_upload_bytes
                 ),
-                path: None,
+                path:    None,
             });
         }
 

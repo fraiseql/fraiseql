@@ -39,20 +39,20 @@ use crate::{
 /// Main observer executor engine
 pub struct ObserverExecutor {
     /// Event-to-observer matcher
-    pub(super) matcher: Arc<EventMatcher>,
+    pub(super) matcher:           Arc<EventMatcher>,
     /// Condition parser and evaluator
-    pub(super) condition_parser: Arc<crate::condition::ConditionParser>,
+    pub(super) condition_parser:  Arc<crate::condition::ConditionParser>,
     /// Pre-parsed condition AST cache (condition string → compiled AST).
     ///
     /// Condition strings are deterministic: the same string always produces the
     /// same AST, so we can safely cache the parse result indefinitely.  This
     /// avoids re-lexing and re-parsing the condition on every incoming event,
     /// which was the dominant cost at high event throughput.
-    pub(super) condition_cache: dashmap::DashMap<String, crate::condition::ConditionAst>,
+    pub(super) condition_cache:   dashmap::DashMap<String, crate::condition::ConditionAst>,
     /// Action dispatcher (production or mock)
-    pub(super) dispatcher: Arc<dyn ActionDispatcher>,
+    pub(super) dispatcher:        Arc<dyn ActionDispatcher>,
     /// Dead letter queue for failed actions
-    pub(super) dlq: Arc<dyn DeadLetterQueue>,
+    pub(super) dlq:               Arc<dyn DeadLetterQueue>,
     /// Maximum number of entries the DLQ may hold (`None` = unbounded).
     ///
     /// When this limit is reached the newest entry is dropped and a warning is
@@ -60,9 +60,9 @@ pub struct ObserverExecutor {
     /// counter that acts as a conservative approximation of DLQ depth (it does
     /// not decrease when items are retried/acked, so it may trigger the cap
     /// earlier than strictly necessary, which is the safe direction).
-    pub(super) max_dlq_size: Option<usize>,
+    pub(super) max_dlq_size:      Option<usize>,
     /// Monotonically-increasing count of pushes sent to the DLQ.
-    pub(super) dlq_push_count: Arc<AtomicUsize>,
+    pub(super) dlq_push_count:    Arc<AtomicUsize>,
     /// Per-action dispatch timeout in milliseconds.
     ///
     /// When set, each call to `execute_action_internal` is wrapped in a
@@ -72,10 +72,10 @@ pub struct ObserverExecutor {
     pub(super) action_timeout_ms: Option<u64>,
     /// Optional cache backend for action result caching
     #[cfg(feature = "caching")]
-    pub(super) cache_backend: Option<Arc<dyn CacheBackendDyn>>,
+    pub(super) cache_backend:     Option<Arc<dyn CacheBackendDyn>>,
     /// Prometheus metrics registry
     #[cfg(feature = "metrics")]
-    pub(super) metrics: MetricsRegistry,
+    pub(super) metrics:           MetricsRegistry,
 }
 
 impl ObserverExecutor {
@@ -83,12 +83,12 @@ impl ObserverExecutor {
     pub fn new(matcher: EventMatcher, dlq: Arc<dyn DeadLetterQueue>) -> Self {
         let dispatcher = Arc::new(DefaultActionDispatcher {
             webhook_action: Arc::new(WebhookAction::new()),
-            slack_action: Arc::new(SlackAction::new()),
-            email_action: Arc::new(EmailAction::new()),
-            sms_action: Arc::new(SmsAction::new()),
-            push_action: Arc::new(PushAction::new()),
-            search_action: Arc::new(SearchAction::new()),
-            cache_action: Arc::new(CacheAction::new()),
+            slack_action:   Arc::new(SlackAction::new()),
+            email_action:   Arc::new(EmailAction::new()),
+            sms_action:     Arc::new(SmsAction::new()),
+            push_action:    Arc::new(PushAction::new()),
+            search_action:  Arc::new(SearchAction::new()),
+            cache_action:   Arc::new(CacheAction::new()),
         });
         Self {
             matcher: Arc::new(matcher),
@@ -132,12 +132,12 @@ impl ObserverExecutor {
     ) -> Self {
         let dispatcher = Arc::new(DefaultActionDispatcher {
             webhook_action: Arc::new(WebhookAction::new()),
-            slack_action: Arc::new(SlackAction::new()),
-            email_action: Arc::new(EmailAction::new()),
-            sms_action: Arc::new(SmsAction::new()),
-            push_action: Arc::new(PushAction::new()),
-            search_action: Arc::new(SearchAction::new()),
-            cache_action: Arc::new(CacheAction::new()),
+            slack_action:   Arc::new(SlackAction::new()),
+            email_action:   Arc::new(EmailAction::new()),
+            sms_action:     Arc::new(SmsAction::new()),
+            push_action:    Arc::new(PushAction::new()),
+            search_action:  Arc::new(SearchAction::new()),
+            cache_action:   Arc::new(CacheAction::new()),
         });
         Self {
             matcher: Arc::new(matcher),

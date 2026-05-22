@@ -4,29 +4,29 @@ use super::*;
 
 fn test_security_context() -> SecurityContext {
     SecurityContext {
-        user_id: UserId("user123".to_string()),
-        roles: vec!["user".to_string()],
-        scopes: vec!["read".to_string()],
-        tenant_id: None,
+        user_id:          UserId("user123".to_string()),
+        roles:            vec!["user".to_string()],
+        scopes:           vec!["read".to_string()],
+        tenant_id:        None,
         authenticated_at: chrono::Utc::now(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-        request_id: "req-123".to_string(),
-        ip_address: None,
-        attributes: std::collections::HashMap::new(),
-        issuer: None,
-        audience: None,
-        email: None,
-        display_name: None,
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        request_id:       "req-123".to_string(),
+        ip_address:       None,
+        attributes:       std::collections::HashMap::new(),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
     }
 }
 
 fn test_event() -> EventPayload {
     EventPayload {
         trigger_type: "test".to_string(),
-        entity: "Test".to_string(),
-        event_kind: "created".to_string(),
-        data: serde_json::json!({"test": true}),
-        timestamp: chrono::Utc::now(),
+        entity:       "Test".to_string(),
+        event_kind:   "created".to_string(),
+        data:         serde_json::json!({"test": true}),
+        timestamp:    chrono::Utc::now(),
     }
 }
 

@@ -979,9 +979,9 @@ mod session_tests {
             .as_secs();
 
         let session = SessionData {
-            user_id: "user123".to_string(),
-            issued_at: now,
-            expires_at: now + 3600,
+            user_id:            "user123".to_string(),
+            issued_at:          now,
+            expires_at:         now + 3600,
             refresh_token_hash: "hash".to_string(),
         };
 
@@ -996,9 +996,9 @@ mod session_tests {
             .as_secs();
 
         let session = SessionData {
-            user_id: "user123".to_string(),
-            issued_at: now - 3600,
-            expires_at: now - 100,
+            user_id:            "user123".to_string(),
+            issued_at:          now - 3600,
+            expires_at:         now - 100,
             refresh_token_hash: "hash".to_string(),
         };
 
@@ -1112,12 +1112,12 @@ mod session_postgres_tests {
             .as_secs();
 
         let mut claims = crate::Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600,
-            nbf: None,
-            iss: "fraiseql".to_string(),
-            aud: vec!["fraiseql-api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600,
+            nbf:   None,
+            iss:   "fraiseql".to_string(),
+            aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
         };
 
@@ -1151,12 +1151,12 @@ mod session_postgres_tests {
             .as_secs();
 
         let mut claims = crate::Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600,
-            nbf: None,
-            iss: "fraiseql".to_string(),
-            aud: vec!["fraiseql-api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600,
+            nbf:   None,
+            iss:   "fraiseql".to_string(),
+            aud:   vec!["fraiseql-api".to_string()],
             extra: std::collections::HashMap::new(),
         };
 
@@ -1475,12 +1475,12 @@ mod jwt_tests {
             .as_secs();
 
         Claims {
-            sub: "user123".to_string(),
-            iat: now,
-            exp: now + 3600,
-            nbf: None,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   now,
+            exp:   now + 3600,
+            nbf:   None,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         }
     }
@@ -1728,12 +1728,12 @@ mod middleware_tests {
     #[test]
     fn test_authenticated_user_clone() {
         let claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            nbf: None,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            nbf:   None,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -1749,12 +1749,12 @@ mod middleware_tests {
     #[test]
     fn test_has_role_single_string() {
         let mut claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            nbf: None,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            nbf:   None,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -1772,12 +1772,12 @@ mod middleware_tests {
     #[test]
     fn test_has_role_array() {
         let mut claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            nbf: None,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            nbf:   None,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -1799,12 +1799,12 @@ mod middleware_tests {
     #[test]
     fn test_get_custom_claim() {
         let mut claims = Claims {
-            sub: "user123".to_string(),
-            iat: 1000,
-            exp: 2000,
-            nbf: None,
-            iss: "https://example.com".to_string(),
-            aud: vec!["api".to_string()],
+            sub:   "user123".to_string(),
+            iat:   1000,
+            exp:   2000,
+            nbf:   None,
+            iss:   "https://example.com".to_string(),
+            aud:   vec!["api".to_string()],
             extra: HashMap::new(),
         };
 
@@ -1840,7 +1840,7 @@ mod middleware_tests {
     #[test]
     fn test_invalid_claim_value_sanitized() {
         let error = AuthError::InvalidClaimValue {
-            claim: "exp".to_string(),
+            claim:  "exp".to_string(),
             reason: "Must match pattern: ^[0-9]{10,}$".to_string(),
         };
         let response = error.into_response();
@@ -1974,7 +1974,7 @@ mod middleware_tests {
                 claim: "test".to_string(),
             },
             AuthError::InvalidClaimValue {
-                claim: "test".to_string(),
+                claim:  "test".to_string(),
                 reason: "test".to_string(),
             },
             AuthError::OAuthError {
@@ -2037,7 +2037,7 @@ mod operation_rbac_tests {
 
         AuthenticatedUser {
             user_id: "test-user".to_string(),
-            claims: Claims {
+            claims:  Claims {
                 sub: "test-user".to_string(),
                 iat: 1_000_000,
                 exp: 2_000_000,
@@ -2055,7 +2055,7 @@ mod operation_rbac_tests {
 
         AuthenticatedUser {
             user_id: "test-user".to_string(),
-            claims: Claims {
+            claims:  Claims {
                 sub: "test-user".to_string(),
                 iat: 1_000_000,
                 exp: 2_000_000,
@@ -2236,9 +2236,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_allows_within_limit() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         for i in 0..3 {
@@ -2250,9 +2250,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_rejects_over_limit() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         limiter.check("key").ok();
@@ -2268,9 +2268,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_per_key() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         limiter.check("key1").ok();
@@ -2283,9 +2283,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_error_contains_retry_after() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         limiter.check("key").ok();
@@ -2302,9 +2302,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_active_limiters_count() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         assert_eq!(limiter.active_limiters(), 0);
@@ -2404,9 +2404,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_clear_limiters() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         limiter.check("key").ok();
@@ -2427,9 +2427,9 @@ mod rate_limiting_tests_inner {
         use std::sync::Arc as StdArc;
 
         let limiter = StdArc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 100,
-            window_secs: 60,
+            window_secs:  60,
         }));
 
         let mut handles = vec![];
@@ -2458,9 +2458,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiting_many_keys() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         for i in 0..1000 {
@@ -2498,9 +2498,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_attack_prevention_scenario() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         let target = "admin@example.com";
@@ -2519,9 +2519,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_disabled() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: false,
+            enabled:      false,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         for i in 0..100 {
@@ -2535,9 +2535,9 @@ mod rate_limiting_tests_inner {
         use std::{sync::Arc, thread};
 
         let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 50,
-            window_secs: 60,
+            window_secs:  60,
         }));
 
         let key = "shared_key";
@@ -2577,9 +2577,9 @@ mod rate_limiting_tests_inner {
         use std::{sync::Arc, thread};
 
         let limiter = Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 60,
+            window_secs:  60,
         }));
 
         let mut handles = vec![];
@@ -2619,9 +2619,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_atomic_check_and_update_not_interleaved() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 3,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         let key = "test_key";
@@ -2651,9 +2651,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_concurrent_window_reset_safety() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 2,
-            window_secs: 3600,
+            window_secs:  3600,
         });
 
         let key = "reset_key";
@@ -2679,9 +2679,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_evicts_lru_entry_when_at_capacity() {
         let config = AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 3600,
+            window_secs:  3600,
         };
         let limiter = KeyedRateLimiter::with_max_entries(config, 3);
 
@@ -2702,9 +2702,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_rate_limiter_capacity_configurable() {
         let config = AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 10,
-            window_secs: 3600,
+            window_secs:  3600,
         };
         let limiter = KeyedRateLimiter::with_max_entries(config, 5);
 
@@ -2727,9 +2727,9 @@ mod rate_limiting_tests_inner {
         let now = Arc::new(AtomicU64::new(1_000));
         let clock_ref = Arc::clone(&now);
         let config = AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 3600,
+            window_secs:  3600,
         };
         let limiter = KeyedRateLimiter::with_clock_and_max_entries(config, 2, move || {
             clock_ref.load(Ordering::Relaxed)
@@ -2805,9 +2805,9 @@ mod rate_limiting_tests_inner {
     #[test]
     fn test_no_toctou_race_condition() {
         let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
-            enabled: true,
+            enabled:      true,
             max_requests: 1,
-            window_secs: 60,
+            window_secs:  60,
         });
 
         let key = "single_key";
@@ -2847,10 +2847,10 @@ mod anonymous_tests {
     async fn test_anon_signup_response_shape() {
         // Verify the response struct has the expected fields.
         let resp = AnonSignupResponse {
-            user_id: "anon_test-uuid".to_string(),
-            access_token: "at_123".to_string(),
+            user_id:       "anon_test-uuid".to_string(),
+            access_token:  "at_123".to_string(),
             refresh_token: "rt_456".to_string(),
-            expires_in: 3600,
+            expires_in:    3600,
         };
         assert!(resp.user_id.starts_with("anon_"));
         assert_eq!(resp.expires_in, 3600);
@@ -4465,21 +4465,21 @@ mod multi_provider_tests {
 
     #[derive(Debug, Clone)]
     struct MockProvider {
-        name: String,
-        auth_url: String,
+        name:      String,
+        auth_url:  String,
         user_info: UserInfo,
     }
 
     impl MockProvider {
         fn new(name: &str) -> Self {
             Self {
-                name: name.to_string(),
-                auth_url: format!("https://{name}.example.com/authorize"),
+                name:      name.to_string(),
+                auth_url:  format!("https://{name}.example.com/authorize"),
                 user_info: UserInfo {
-                    id: format!("{name}-user-1"),
-                    email: format!("user@{name}.com"),
-                    name: Some("Test User".to_string()),
-                    picture: None,
+                    id:         format!("{name}-user-1"),
+                    email:      format!("user@{name}.com"),
+                    name:       Some("Test User".to_string()),
+                    picture:    None,
                     raw_claims: serde_json::json!({}),
                 },
             }
@@ -4487,13 +4487,13 @@ mod multi_provider_tests {
 
         fn with_email(name: &str, email: &str) -> Self {
             Self {
-                name: name.to_string(),
-                auth_url: format!("https://{name}.example.com/authorize"),
+                name:      name.to_string(),
+                auth_url:  format!("https://{name}.example.com/authorize"),
                 user_info: UserInfo {
-                    id: format!("{name}-user-1"),
-                    email: email.to_string(),
-                    name: Some("Test User".to_string()),
-                    picture: None,
+                    id:         format!("{name}-user-1"),
+                    email:      email.to_string(),
+                    name:       Some("Test User".to_string()),
+                    picture:    None,
                     raw_claims: serde_json::json!({}),
                 },
             }
@@ -4512,10 +4512,10 @@ mod multi_provider_tests {
 
         async fn exchange_code(&self, _code: &str) -> AuthResult<TokenResponse> {
             Ok(TokenResponse {
-                access_token: "mock_access_token".to_string(),
+                access_token:  "mock_access_token".to_string(),
                 refresh_token: Some("mock_refresh_token".to_string()),
-                expires_in: 3600,
-                token_type: "Bearer".to_string(),
+                expires_in:    3600,
+                token_type:    "Bearer".to_string(),
             })
         }
 
@@ -5061,20 +5061,20 @@ mod oidc_provider_tests {
     #[test]
     fn test_oauth_provider_name() {
         let provider = OidcProvider {
-            name: "my-oidc".to_string(),
-            issuer_url: "https://example.com".to_string(),
-            client_id: "client_id".to_string(),
+            name:          "my-oidc".to_string(),
+            issuer_url:    "https://example.com".to_string(),
+            client_id:     "client_id".to_string(),
             client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri: "http://localhost:8000/callback".to_string(),
-            discovery: OidcDiscovery {
-                issuer: "https://example.com".to_string(),
+            redirect_uri:  "http://localhost:8000/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 "https://example.com".to_string(),
                 authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint: "https://example.com/token".to_string(),
-                userinfo_endpoint: "https://example.com/userinfo".to_string(),
-                jwks_uri: None,
-                revocation_endpoint: None,
+                token_endpoint:         "https://example.com/token".to_string(),
+                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
+                jwks_uri:               None,
+                revocation_endpoint:    None,
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
         assert_eq!(OAuthProvider::name(&provider), "my-oidc");
     }
@@ -5082,20 +5082,20 @@ mod oidc_provider_tests {
     #[test]
     fn test_oauth_provider_debug() {
         let provider = OidcProvider {
-            name: "test".to_string(),
-            issuer_url: "https://example.com".to_string(),
-            client_id: "client_id".to_string(),
+            name:          "test".to_string(),
+            issuer_url:    "https://example.com".to_string(),
+            client_id:     "client_id".to_string(),
             client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri: "http://localhost:8000/callback".to_string(),
-            discovery: OidcDiscovery {
-                issuer: "https://example.com".to_string(),
+            redirect_uri:  "http://localhost:8000/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 "https://example.com".to_string(),
                 authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint: "https://example.com/token".to_string(),
-                userinfo_endpoint: "https://example.com/userinfo".to_string(),
-                jwks_uri: None,
-                revocation_endpoint: None,
+                token_endpoint:         "https://example.com/token".to_string(),
+                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
+                jwks_uri:               None,
+                revocation_endpoint:    None,
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
 
         let debug_str = format!("{:?}", provider);
@@ -5106,20 +5106,20 @@ mod oidc_provider_tests {
     #[test]
     fn test_add_auth_params() {
         let provider = OidcProvider {
-            name: "test".to_string(),
-            issuer_url: "https://example.com".to_string(),
-            client_id: "my_client".to_string(),
+            name:          "test".to_string(),
+            issuer_url:    "https://example.com".to_string(),
+            client_id:     "my_client".to_string(),
             client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri: "http://localhost:8000/callback".to_string(),
-            discovery: OidcDiscovery {
-                issuer: "https://example.com".to_string(),
+            redirect_uri:  "http://localhost:8000/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 "https://example.com".to_string(),
                 authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint: "https://example.com/token".to_string(),
-                userinfo_endpoint: "https://example.com/userinfo".to_string(),
-                jwks_uri: None,
-                revocation_endpoint: None,
+                token_endpoint:         "https://example.com/token".to_string(),
+                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
+                jwks_uri:               None,
+                revocation_endpoint:    None,
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
 
         let mut url = "https://example.com/auth".to_string();
@@ -5146,20 +5146,20 @@ mod oidc_provider_tests {
             .await;
 
         let provider = OidcProvider {
-            name: "test".to_string(),
-            issuer_url: mock_server.uri(),
-            client_id: "client_id".to_string(),
+            name:          "test".to_string(),
+            issuer_url:    mock_server.uri(),
+            client_id:     "client_id".to_string(),
             client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri: "http://localhost/callback".to_string(),
-            discovery: OidcDiscovery {
-                issuer: mock_server.uri(),
+            redirect_uri:  "http://localhost/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 mock_server.uri(),
                 authorization_endpoint: format!("{}/auth", mock_server.uri()),
-                token_endpoint: format!("{}/token", mock_server.uri()),
-                userinfo_endpoint: format!("{}/userinfo", mock_server.uri()),
-                jwks_uri: None,
-                revocation_endpoint: Some(format!("{}/revoke", mock_server.uri())),
+                token_endpoint:         format!("{}/token", mock_server.uri()),
+                userinfo_endpoint:      format!("{}/userinfo", mock_server.uri()),
+                jwks_uri:               None,
+                revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
 
         let result = provider.revoke_token("some_token").await;
@@ -5186,20 +5186,20 @@ mod oidc_provider_tests {
             .await;
 
         let provider = OidcProvider {
-            name: "test".to_string(),
-            issuer_url: mock_server.uri(),
-            client_id: "client_id".to_string(),
+            name:          "test".to_string(),
+            issuer_url:    mock_server.uri(),
+            client_id:     "client_id".to_string(),
             client_secret: zeroize::Zeroizing::new("secret".to_string()),
-            redirect_uri: "http://localhost/callback".to_string(),
-            discovery: OidcDiscovery {
-                issuer: mock_server.uri(),
+            redirect_uri:  "http://localhost/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 mock_server.uri(),
                 authorization_endpoint: format!("{}/auth", mock_server.uri()),
-                token_endpoint: format!("{}/token", mock_server.uri()),
-                userinfo_endpoint: format!("{}/userinfo", mock_server.uri()),
-                jwks_uri: None,
-                revocation_endpoint: Some(format!("{}/revoke", mock_server.uri())),
+                token_endpoint:         format!("{}/token", mock_server.uri()),
+                userinfo_endpoint:      format!("{}/userinfo", mock_server.uri()),
+                jwks_uri:               None,
+                revocation_endpoint:    Some(format!("{}/revoke", mock_server.uri())),
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
 
         provider
@@ -5315,20 +5315,20 @@ mod oidc_provider_tests {
         assert!(secret.is_empty(), "secret bytes must be wiped after zeroize");
 
         let provider = OidcProvider {
-            name: "test".to_string(),
-            issuer_url: "https://example.com".to_string(),
-            client_id: "id".to_string(),
+            name:          "test".to_string(),
+            issuer_url:    "https://example.com".to_string(),
+            client_id:     "id".to_string(),
             client_secret: zeroize::Zeroizing::new("my_secret".to_string()),
-            redirect_uri: "https://example.com/callback".to_string(),
-            discovery: OidcDiscovery {
-                issuer: "https://example.com".to_string(),
+            redirect_uri:  "https://example.com/callback".to_string(),
+            discovery:     OidcDiscovery {
+                issuer:                 "https://example.com".to_string(),
                 authorization_endpoint: "https://example.com/auth".to_string(),
-                token_endpoint: "https://example.com/token".to_string(),
-                userinfo_endpoint: "https://example.com/userinfo".to_string(),
-                jwks_uri: None,
-                revocation_endpoint: None,
+                token_endpoint:         "https://example.com/token".to_string(),
+                userinfo_endpoint:      "https://example.com/userinfo".to_string(),
+                jwks_uri:               None,
+                revocation_endpoint:    None,
             },
-            client: reqwest::Client::new(),
+            client:        reqwest::Client::new(),
         };
         let _: &zeroize::Zeroizing<String> = &provider.client_secret;
     }

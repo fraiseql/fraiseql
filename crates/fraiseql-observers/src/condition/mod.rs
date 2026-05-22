@@ -52,7 +52,7 @@ pub enum ConditionAst {
         /// Field name or path
         field: String,
         /// Operator: ==, !=, >, <, >=, <=
-        op: String,
+        op:    String,
         /// Value to compare against
         value: String,
     },
@@ -83,14 +83,14 @@ pub enum ConditionAst {
     /// Logical AND
     And {
         /// Left operand
-        left: Box<ConditionAst>,
+        left:  Box<ConditionAst>,
         /// Right operand
         right: Box<ConditionAst>,
     },
     /// Logical OR
     Or {
         /// Left operand
-        left: Box<ConditionAst>,
+        left:  Box<ConditionAst>,
         /// Right operand
         right: Box<ConditionAst>,
     },

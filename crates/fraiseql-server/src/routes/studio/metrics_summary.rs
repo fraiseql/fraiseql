@@ -149,8 +149,8 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
         0.0
     };
     let errors_stats = ErrorRates {
-        rate_5m: error_rate,
-        rate_1h: error_rate,
+        rate_5m:  error_rate,
+        rate_1h:  error_rate,
         rate_24h: error_rate,
     };
 
@@ -170,9 +170,9 @@ pub(crate) fn build_summary(m: &MetricsCollector) -> MetricsSummary {
 
     // Pool stats — not available from MetricsCollector (requires adapter-level access)
     let pool = PoolStats {
-        active: 0,
-        idle: 0,
-        max: 0,
+        active:      0,
+        idle:        0,
+        max:         0,
         utilization: 0.0,
     };
 

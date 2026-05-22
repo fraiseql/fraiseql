@@ -22,42 +22,42 @@ mod aggregate_parser_tests {
         use crate::compiler::fact_table::DimensionPath;
 
         FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
-                    name: "revenue".to_string(),
+                    name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name: "quantity".to_string(),
+                    name:     "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:               DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![
                     DimensionPath {
-                        name: "category".to_string(),
+                        name:      "category".to_string(),
                         json_path: "data->>'category'".to_string(),
                         data_type: "text".to_string(),
                     },
                     DimensionPath {
-                        name: "product".to_string(),
+                        name:      "product".to_string(),
                         json_path: "data->>'product'".to_string(),
                         data_type: "text".to_string(),
                     },
                 ],
             },
-            denormalized_filters: vec![FilterColumn {
-                name: "occurred_at".to_string(),
+            denormalized_filters:     vec![FilterColumn {
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
-            partial_period: None,
-            native_measures: std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -391,16 +391,16 @@ mod aggregate_parser_tests {
     #[test]
     fn test_parser_resolves_native_measure_aggregate() {
         let metadata = FactTableMetadata {
-            table_name: "mv_daily_sales".to_string(),
-            measures: vec![],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            table_name:               "mv_daily_sales".to_string(),
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions: vec![],
-            partial_period: None,
-            native_measures: std::collections::HashMap::from([(
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::from([(
                 "measures.volume".to_string(),
                 "volume".to_string(),
             )]),
@@ -437,16 +437,16 @@ mod aggregate_parser_tests {
     #[test]
     fn test_group_by_uses_dimension_mapping() {
         let metadata = FactTableMetadata {
-            table_name: "mv_daily_sales".to_string(),
-            measures: vec![],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            table_name:               "mv_daily_sales".to_string(),
+            measures:                 vec![],
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions: vec![],
-            partial_period: None,
-            native_measures: std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
                 "category_id".to_string(),
@@ -475,20 +475,20 @@ mod aggregate_parser_tests {
     #[test]
     fn test_mapped_dimension_not_in_group_by_unless_selected() {
         let metadata = FactTableMetadata {
-            table_name: "mv_daily_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "volume".to_string(),
+            table_name:               "mv_daily_sales".to_string(),
+            measures:                 vec![MeasureColumn {
+                name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "data".to_string(),
+            dimensions:               DimensionColumn {
+                name:  "data".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![],
-            calendar_dimensions: vec![],
-            partial_period: None,
-            native_measures: std::collections::HashMap::new(),
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
                 "category_id".to_string(),
@@ -534,52 +534,52 @@ mod aggregate_projector_tests {
         use crate::compiler::fact_table::DimensionPath;
 
         let metadata = FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![MeasureColumn {
-                name: "revenue".to_string(),
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![MeasureColumn {
+                name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
                 nullable: false,
             }],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:               DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![DimensionPath {
-                    name: "category".to_string(),
+                    name:      "category".to_string(),
                     json_path: "data->>'category'".to_string(),
                     data_type: "text".to_string(),
                 }],
             },
-            denormalized_filters: vec![FilterColumn {
-                name: "occurred_at".to_string(),
+            denormalized_filters:     vec![FilterColumn {
+                name:     "occurred_at".to_string(),
                 sql_type: SqlType::Timestamp,
-                indexed: true,
+                indexed:  true,
             }],
-            calendar_dimensions: vec![],
-            partial_period: None,
-            native_measures: std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
         let request = AggregationRequest {
-            table_name: "tf_sales".to_string(),
+            table_name:   "tf_sales".to_string(),
             where_clause: None,
-            group_by: vec![GroupBySelection::Dimension {
-                path: "category".to_string(),
+            group_by:     vec![GroupBySelection::Dimension {
+                path:  "category".to_string(),
                 alias: "category".to_string(),
             }],
-            aggregates: vec![
+            aggregates:   vec![
                 AggregateSelection::Count {
                     alias: "count".to_string(),
                 },
                 AggregateSelection::MeasureAggregate {
-                    measure: "revenue".to_string(),
+                    measure:  "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias: "revenue_sum".to_string(),
+                    alias:    "revenue_sum".to_string(),
                 },
             ],
-            having: vec![],
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            having:       vec![],
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         AggregationPlan {
@@ -587,18 +587,18 @@ mod aggregate_projector_tests {
             request,
             group_by_expressions: vec![GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path: "category".to_string(),
-                alias: "category".to_string(),
+                path:         "category".to_string(),
+                alias:        "category".to_string(),
             }],
             aggregate_expressions: vec![
                 AggregateExpression::Count {
                     alias: "count".to_string(),
                 },
                 AggregateExpression::MeasureAggregate {
-                    column: "revenue".to_string(),
+                    column:   "revenue".to_string(),
                     function: AggregateFunction::Sum,
-                    alias: "revenue_sum".to_string(),
-                    native: false,
+                    alias:    "revenue_sum".to_string(),
+                    native:   false,
                 },
             ],
             having_conditions: vec![],
@@ -942,36 +942,36 @@ mod field_filter_tests {
 
     fn create_test_field(name: &str, requires_scope: Option<&str>) -> FieldDefinition {
         FieldDefinition {
-            name: name.into(),
-            field_type: FieldType::String,
-            nullable: false,
-            default_value: None,
-            description: None,
-            vector_config: None,
-            alias: None,
-            deprecation: None,
+            name:           name.into(),
+            field_type:     FieldType::String,
+            nullable:       false,
+            default_value:  None,
+            description:    None,
+            vector_config:  None,
+            alias:          None,
+            deprecation:    None,
             requires_scope: requires_scope.map(|s| s.to_string()),
-            on_deny: FieldDenyPolicy::default(),
-            encryption: None,
-            hierarchy: None,
+            on_deny:        FieldDenyPolicy::default(),
+            encryption:     None,
+            hierarchy:      None,
         }
     }
 
     fn create_test_context(roles: &[&str]) -> SecurityContext {
         SecurityContext {
-            user_id: "test-user".into(),
-            roles: roles.iter().map(|&r| r.to_string()).collect(),
-            tenant_id: None,
-            scopes: vec![],
-            attributes: std::collections::HashMap::new(),
-            request_id: "test-req".to_string(),
-            ip_address: None,
+            user_id:          "test-user".into(),
+            roles:            roles.iter().map(|&r| r.to_string()).collect(),
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::new(),
+            request_id:       "test-req".to_string(),
+            ip_address:       None,
             authenticated_at: chrono::Utc::now(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
-            email: None,
-            display_name: None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -1588,7 +1588,7 @@ mod jsonb_strategy_tests {
     #[test]
     fn test_choose_strategy_below_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Project,
+            default_strategy:       JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -1599,7 +1599,7 @@ mod jsonb_strategy_tests {
     #[test]
     fn test_choose_strategy_at_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Project,
+            default_strategy:       JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -1610,7 +1610,7 @@ mod jsonb_strategy_tests {
     #[test]
     fn test_choose_strategy_above_threshold() {
         let opts = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Project,
+            default_strategy:       JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
 
@@ -1621,7 +1621,7 @@ mod jsonb_strategy_tests {
     #[test]
     fn test_choose_strategy_respects_default() {
         let opts = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Stream,
+            default_strategy:       JsonbStrategy::Stream,
             auto_threshold_percent: 80,
         };
 
@@ -1652,26 +1652,26 @@ mod matcher_tests {
     fn test_schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
-            native_columns: HashMap::new(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      HashMap::new(),
         });
         schema
     }
@@ -1855,26 +1855,26 @@ mod matcher_tests {
     fn test_uzer_typo_suggests_user() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "user".to_string(),
-            return_type: "User".to_string(),
-            returns_list: false,
-            nullable: true,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "user".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        false,
+            nullable:            true,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
-            native_columns: HashMap::new(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      HashMap::new(),
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -1889,26 +1889,26 @@ mod matcher_tests {
     fn test_unknown_query_error_includes_suggestion() {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
-            name: "users".to_string(),
-            return_type: "User".to_string(),
-            returns_list: true,
-            nullable: false,
-            arguments: Vec::new(),
-            sql_source: Some("v_user".to_string()),
-            description: None,
-            auto_params: crate::schema::AutoParams::default(),
-            deprecation: None,
-            jsonb_column: "data".to_string(),
-            relay: false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         crate::schema::AutoParams::default(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
             relay_cursor_column: None,
-            relay_cursor_type: CursorType::default(),
-            inject_params: IndexMap::default(),
-            cache_ttl_seconds: None,
-            additional_views: vec![],
-            requires_role: None,
-            rest_path: None,
-            rest_method: None,
-            native_columns: HashMap::new(),
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       IndexMap::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            native_columns:      HashMap::new(),
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -1926,7 +1926,7 @@ mod matcher_tests {
     #[test]
     fn test_resolve_inline_arg_literal_integer() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "3".to_string(),
             value_type: "int".to_string(),
         };
@@ -1938,7 +1938,7 @@ mod matcher_tests {
     #[test]
     fn test_resolve_inline_arg_literal_string() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "status".to_string(),
+            name:       "status".to_string(),
             value_json: "\"active\"".to_string(),
             value_type: "string".to_string(),
         };
@@ -1950,7 +1950,7 @@ mod matcher_tests {
     #[test]
     fn test_resolve_inline_arg_literal_boolean() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "active".to_string(),
+            name:       "active".to_string(),
             value_json: "true".to_string(),
             value_type: "boolean".to_string(),
         };
@@ -1962,7 +1962,7 @@ mod matcher_tests {
     #[test]
     fn test_resolve_inline_arg_literal_null() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "null".to_string(),
             value_type: "null".to_string(),
         };
@@ -1975,7 +1975,7 @@ mod matcher_tests {
     fn test_resolve_inline_arg_variable_reference_json_quoted() {
         // Parser serializes Variable("myLimit") as "\"$myLimit\""
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "\"$myLimit\"".to_string(),
             value_type: "variable".to_string(),
         };
@@ -1989,7 +1989,7 @@ mod matcher_tests {
     fn test_resolve_inline_arg_variable_reference_raw() {
         // Defensive: unquoted $var format
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "$limit".to_string(),
             value_type: "variable".to_string(),
         };
@@ -2002,7 +2002,7 @@ mod matcher_tests {
     #[test]
     fn test_resolve_inline_arg_variable_not_found() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "limit".to_string(),
+            name:       "limit".to_string(),
             value_json: "\"$missing\"".to_string(),
             value_type: "variable".to_string(),
         };
@@ -2014,7 +2014,7 @@ mod matcher_tests {
     #[test]
     fn test_resolve_inline_arg_object() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "where".to_string(),
+            name:       "where".to_string(),
             value_json: r#"{"status":{"eq":"active"}}"#.to_string(),
             value_type: "object".to_string(),
         };
@@ -2026,7 +2026,7 @@ mod matcher_tests {
     #[test]
     fn test_resolve_inline_arg_list() {
         let arg = crate::graphql::GraphQLArgument {
-            name: "ids".to_string(),
+            name:       "ids".to_string(),
             value_json: "[1,2,3]".to_string(),
             value_type: "list".to_string(),
         };
@@ -2312,61 +2312,61 @@ mod planner_tests {
 
     fn test_query_match() -> QueryMatch {
         QueryMatch {
-            query_def: QueryDefinition {
-                name: "users".to_string(),
-                return_type: "User".to_string(),
-                returns_list: true,
-                nullable: false,
-                arguments: Vec::new(),
-                sql_source: Some("v_user".to_string()),
-                description: None,
-                auto_params: AutoParams::default(),
-                deprecation: None,
-                jsonb_column: "data".to_string(),
-                relay: false,
+            query_def:      QueryDefinition {
+                name:                "users".to_string(),
+                return_type:         "User".to_string(),
+                returns_list:        true,
+                nullable:            false,
+                arguments:           Vec::new(),
+                sql_source:          Some("v_user".to_string()),
+                description:         None,
+                auto_params:         AutoParams::default(),
+                deprecation:         None,
+                jsonb_column:        "data".to_string(),
+                relay:               false,
                 relay_cursor_column: None,
-                relay_cursor_type: CursorType::default(),
-                inject_params: IndexMap::default(),
-                cache_ttl_seconds: None,
-                additional_views: vec![],
-                requires_role: None,
-                rest_path: None,
-                rest_method: None,
-                native_columns: HashMap::new(),
+                relay_cursor_type:   CursorType::default(),
+                inject_params:       IndexMap::default(),
+                cache_ttl_seconds:   None,
+                additional_views:    vec![],
+                requires_role:       None,
+                rest_path:           None,
+                rest_method:         None,
+                native_columns:      HashMap::new(),
             },
-            fields: vec!["id".to_string(), "name".to_string()],
-            selections: vec![FieldSelection {
-                name: "users".to_string(),
-                alias: None,
-                arguments: vec![],
+            fields:         vec!["id".to_string(), "name".to_string()],
+            selections:     vec![FieldSelection {
+                name:          "users".to_string(),
+                alias:         None,
+                arguments:     vec![],
                 nested_fields: vec![
                     FieldSelection {
-                        name: "id".to_string(),
-                        alias: None,
-                        arguments: vec![],
+                        name:          "id".to_string(),
+                        alias:         None,
+                        arguments:     vec![],
                         nested_fields: vec![],
-                        directives: vec![],
+                        directives:    vec![],
                     },
                     FieldSelection {
-                        name: "name".to_string(),
-                        alias: None,
-                        arguments: vec![],
+                        name:          "name".to_string(),
+                        alias:         None,
+                        arguments:     vec![],
                         nested_fields: vec![],
-                        directives: vec![],
+                        directives:    vec![],
                     },
                 ],
-                directives: vec![],
+                directives:    vec![],
             }],
-            arguments: HashMap::new(),
+            arguments:      HashMap::new(),
             operation_name: Some("users".to_string()),
-            parsed_query: ParsedQuery {
+            parsed_query:   ParsedQuery {
                 operation_type: "query".to_string(),
                 operation_name: Some("users".to_string()),
-                root_field: "users".to_string(),
-                selections: vec![],
-                variables: vec![],
-                fragments: vec![],
-                source: "{ users { id name } }".to_string(),
+                root_field:     "users".to_string(),
+                selections:     vec![],
+                variables:      vec![],
+                fragments:      vec![],
+                source:         "{ users { id name } }".to_string(),
             },
         }
     }
@@ -2434,11 +2434,11 @@ mod planner_tests {
 
         // Add __typename to the nested fields of the root selection
         query_match.selections[0].nested_fields.push(FieldSelection {
-            name: "__typename".to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          "__typename".to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![],
-            directives: vec![],
+            directives:    vec![],
         });
 
         let plan = planner.plan(&query_match).unwrap();
@@ -2461,7 +2461,7 @@ mod planner_tests {
     #[test]
     fn test_planner_always_projects_when_fields_present() {
         let custom_options = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Stream,
+            default_strategy:       JsonbStrategy::Stream,
             auto_threshold_percent: 50,
         };
         let planner = QueryPlanner::with_jsonb_options(true, custom_options);
@@ -2476,7 +2476,7 @@ mod planner_tests {
     #[test]
     fn test_choose_jsonb_strategy_forces_project_with_fields() {
         let options = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Stream,
+            default_strategy:       JsonbStrategy::Stream,
             auto_threshold_percent: 80,
         };
         let planner = QueryPlanner::with_jsonb_options(true, options);
@@ -2489,7 +2489,7 @@ mod planner_tests {
     #[test]
     fn test_choose_jsonb_strategy_forces_project_with_many_fields() {
         let options = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Project,
+            default_strategy:       JsonbStrategy::Project,
             auto_threshold_percent: 80,
         };
         let planner = QueryPlanner::with_jsonb_options(true, options);
@@ -2503,7 +2503,7 @@ mod planner_tests {
     #[test]
     fn test_choose_jsonb_strategy_empty_fields_uses_default() {
         let options = JsonbOptimizationOptions {
-            default_strategy: JsonbStrategy::Stream,
+            default_strategy:       JsonbStrategy::Stream,
             auto_threshold_percent: 80,
         };
         let planner = QueryPlanner::with_jsonb_options(true, options);
@@ -2594,7 +2594,7 @@ mod projection_tests {
     fn test_wrap_error() {
         let error = FraiseQLError::Validation {
             message: "Invalid query".to_string(),
-            path: None,
+            path:    None,
         };
 
         let wrapped = ResultProjector::wrap_error(&error);
@@ -3014,42 +3014,42 @@ mod projection_tests {
 
     fn make_selections_with_typename() -> Vec<FieldSelection> {
         vec![FieldSelection {
-            name: "users".to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          "users".to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![
                 FieldSelection {
-                    name: "id".to_string(),
-                    alias: None,
-                    arguments: vec![],
+                    name:          "id".to_string(),
+                    alias:         None,
+                    arguments:     vec![],
                     nested_fields: vec![],
-                    directives: vec![],
+                    directives:    vec![],
                 },
                 FieldSelection {
-                    name: "__typename".to_string(),
-                    alias: None,
-                    arguments: vec![],
+                    name:          "__typename".to_string(),
+                    alias:         None,
+                    arguments:     vec![],
                     nested_fields: vec![],
-                    directives: vec![],
+                    directives:    vec![],
                 },
             ],
-            directives: vec![],
+            directives:    vec![],
         }]
     }
 
     fn make_selections_without_typename() -> Vec<FieldSelection> {
         vec![FieldSelection {
-            name: "users".to_string(),
-            alias: None,
-            arguments: vec![],
+            name:          "users".to_string(),
+            alias:         None,
+            arguments:     vec![],
             nested_fields: vec![FieldSelection {
-                name: "id".to_string(),
-                alias: None,
-                arguments: vec![],
+                name:          "id".to_string(),
+                alias:         None,
+                arguments:     vec![],
                 nested_fields: vec![],
-                directives: vec![],
+                directives:    vec![],
             }],
-            directives: vec![],
+            directives:    vec![],
         }]
     }
 
@@ -3327,10 +3327,10 @@ mod query_tracing_tests {
     #[test]
     fn test_query_phase_span_serialize() {
         let span = QueryPhaseSpan {
-            phase: "parse".to_string(),
+            phase:       "parse".to_string(),
             duration_us: 100,
-            success: true,
-            error: None,
+            success:     true,
+            error:       None,
         };
 
         let json = serde_json::to_string(&span).expect("serialize should work");
@@ -3652,9 +3652,9 @@ mod tenant_enforcer_tests {
         let enforcer = TenantEnforcer::new(Some("org-123".to_string()));
 
         let user_clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("active"),
+            value:    json!("active"),
         };
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
@@ -3707,9 +3707,9 @@ mod tenant_enforcer_tests {
     fn test_enforce_tenant_scope_without_org_id() {
         let enforcer = TenantEnforcer::new(None);
         let user_clause = WhereClause::Field {
-            path: vec!["status".to_string()],
+            path:     vec!["status".to_string()],
             operator: WhereOperator::Eq,
-            value: json!("active"),
+            value:    json!("active"),
         };
 
         let result = enforcer.enforce_tenant_scope(Some(&user_clause));
@@ -3778,25 +3778,25 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![SelectColumn {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
                 expression: "revenue".to_string(),
-                alias: "revenue".to_string(),
+                alias:      "revenue".to_string(),
             }],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec!["data->>'category'".to_string()],
-                order_by: vec![OrderByClause::new(
+                order_by:     vec![OrderByClause::new(
                     "revenue".to_string(),
                     OrderDirection::Desc,
                 )],
-                frame: None,
+                frame:        None,
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -3811,38 +3811,38 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![
                 SelectColumn {
                     expression: "occurred_at".to_string(),
-                    alias: "date".to_string(),
+                    alias:      "date".to_string(),
                 },
                 SelectColumn {
                     expression: "revenue".to_string(),
-                    alias: "revenue".to_string(),
+                    alias:      "revenue".to_string(),
                 },
             ],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::Sum {
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::Sum {
                     field: "revenue".to_string(),
                 },
-                alias: "running_total".to_string(),
+                alias:        "running_total".to_string(),
                 partition_by: vec![],
-                order_by: vec![OrderByClause::new(
+                order_by:     vec![OrderByClause::new(
                     "occurred_at".to_string(),
                     OrderDirection::Asc,
                 )],
-                frame: Some(WindowFrame {
+                frame:        Some(WindowFrame {
                     frame_type: FrameType::Rows,
-                    start: FrameBoundary::UnboundedPreceding,
-                    end: FrameBoundary::CurrentRow,
-                    exclusion: None,
+                    start:      FrameBoundary::UnboundedPreceding,
+                    end:        FrameBoundary::CurrentRow,
+                    exclusion:  None,
                 }),
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -3856,42 +3856,42 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![
                 WindowFunction {
-                    function: WindowFunctionType::Lag {
-                        field: "revenue".to_string(),
-                        offset: 1,
+                    function:     WindowFunctionType::Lag {
+                        field:   "revenue".to_string(),
+                        offset:  1,
                         default: Some(serde_json::json!(0)),
                     },
-                    alias: "prev_revenue".to_string(),
+                    alias:        "prev_revenue".to_string(),
                     partition_by: vec![],
-                    order_by: vec![OrderByClause::new(
+                    order_by:     vec![OrderByClause::new(
                         "occurred_at".to_string(),
                         OrderDirection::Asc,
                     )],
-                    frame: None,
+                    frame:        None,
                 },
                 WindowFunction {
-                    function: WindowFunctionType::Lead {
-                        field: "revenue".to_string(),
-                        offset: 1,
+                    function:     WindowFunctionType::Lead {
+                        field:   "revenue".to_string(),
+                        offset:  1,
                         default: None,
                     },
-                    alias: "next_revenue".to_string(),
+                    alias:        "next_revenue".to_string(),
                     partition_by: vec![],
-                    order_by: vec![OrderByClause::new(
+                    order_by:     vec![OrderByClause::new(
                         "occurred_at".to_string(),
                         OrderDirection::Asc,
                     )],
-                    frame: None,
+                    frame:        None,
                 },
             ],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -3928,29 +3928,29 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::Avg {
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::Avg {
                     field: "revenue".to_string(),
                 },
-                alias: "moving_avg_7d".to_string(),
+                alias:        "moving_avg_7d".to_string(),
                 partition_by: vec![],
-                order_by: vec![OrderByClause::new(
+                order_by:     vec![OrderByClause::new(
                     "occurred_at".to_string(),
                     OrderDirection::Asc,
                 )],
-                frame: Some(WindowFrame {
+                frame:        Some(WindowFrame {
                     frame_type: FrameType::Rows,
-                    start: FrameBoundary::NPreceding { n: 6 },
-                    end: FrameBoundary::CurrentRow,
-                    exclusion: None,
+                    start:      FrameBoundary::NPreceding { n: 6 },
+                    end:        FrameBoundary::CurrentRow,
+                    exclusion:  None,
                 }),
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -3964,32 +3964,32 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::SQLServer);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![
                 WindowFunction {
-                    function: WindowFunctionType::Stddev {
+                    function:     WindowFunctionType::Stddev {
                         field: "revenue".to_string(),
                     },
-                    alias: "stddev".to_string(),
+                    alias:        "stddev".to_string(),
                     partition_by: vec![],
-                    order_by: vec![],
-                    frame: None,
+                    order_by:     vec![],
+                    frame:        None,
                 },
                 WindowFunction {
-                    function: WindowFunctionType::Variance {
+                    function:     WindowFunctionType::Variance {
                         field: "revenue".to_string(),
                     },
-                    alias: "variance".to_string(),
+                    alias:        "variance".to_string(),
                     partition_by: vec![],
-                    order_by: vec![],
-                    frame: None,
+                    order_by:     vec![],
+                    frame:        None,
                 },
             ],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4007,26 +4007,26 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![SelectColumn {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
                 expression: "revenue".to_string(),
-                alias: "revenue".to_string(),
+                alias:      "revenue".to_string(),
             }],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec![],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: Some(WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: serde_json::json!("active"),
+                value:    serde_json::json!("active"),
             }),
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4046,26 +4046,26 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![SelectColumn {
+            table:        "tf_sales".to_string(),
+            select:       vec![SelectColumn {
                 expression: "revenue".to_string(),
-                alias: "revenue".to_string(),
+                alias:      "revenue".to_string(),
             }],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec![],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: Some(WhereClause::Field {
-                path: vec!["status".to_string()],
+                path:     vec!["status".to_string()],
                 operator: WhereOperator::Eq,
-                value: serde_json::json!("active"),
+                value:    serde_json::json!("active"),
             }),
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4080,19 +4080,19 @@ mod window_tests {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
 
         let plan = WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            table:        "tf_sales".to_string(),
+            select:       vec![],
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec![],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4119,38 +4119,38 @@ mod window_parser_tests {
 
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
-            table_name: "tf_sales".to_string(),
-            measures: vec![
+            table_name:               "tf_sales".to_string(),
+            measures:                 vec![
                 MeasureColumn {
-                    name: "revenue".to_string(),
+                    name:     "revenue".to_string(),
                     sql_type: SqlType::Decimal,
                     nullable: false,
                 },
                 MeasureColumn {
-                    name: "quantity".to_string(),
+                    name:     "quantity".to_string(),
                     sql_type: SqlType::Int,
                     nullable: false,
                 },
             ],
-            dimensions: DimensionColumn {
-                name: "dimensions".to_string(),
+            dimensions:               DimensionColumn {
+                name:  "dimensions".to_string(),
                 paths: vec![],
             },
-            denormalized_filters: vec![
+            denormalized_filters:     vec![
                 FilterColumn {
-                    name: "customer_id".to_string(),
+                    name:     "customer_id".to_string(),
                     sql_type: SqlType::Uuid,
-                    indexed: true,
+                    indexed:  true,
                 },
                 FilterColumn {
-                    name: "occurred_at".to_string(),
+                    name:     "occurred_at".to_string(),
                     sql_type: SqlType::Timestamp,
-                    indexed: true,
+                    indexed:  true,
                 },
             ],
-            calendar_dimensions: vec![],
-            partial_period: None,
-            native_measures: std::collections::HashMap::new(),
+            calendar_dimensions:      vec![],
+            partial_period:           None,
+            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -4460,28 +4460,28 @@ mod window_projector_tests {
 
     fn create_test_plan() -> WindowExecutionPlan {
         WindowExecutionPlan {
-            table: "tf_sales".to_string(),
-            select: vec![
+            table:        "tf_sales".to_string(),
+            select:       vec![
                 SelectColumn {
                     expression: "revenue".to_string(),
-                    alias: "revenue".to_string(),
+                    alias:      "revenue".to_string(),
                 },
                 SelectColumn {
                     expression: "category".to_string(),
-                    alias: "category".to_string(),
+                    alias:      "category".to_string(),
                 },
             ],
-            windows: vec![WindowFunction {
-                function: WindowFunctionType::RowNumber,
-                alias: "rank".to_string(),
+            windows:      vec![WindowFunction {
+                function:     WindowFunctionType::RowNumber,
+                alias:        "rank".to_string(),
                 partition_by: vec!["category".to_string()],
-                order_by: vec![],
-                frame: None,
+                order_by:     vec![],
+                frame:        None,
             }],
             where_clause: None,
-            order_by: vec![],
-            limit: None,
-            offset: None,
+            order_by:     vec![],
+            limit:        None,
+            offset:       None,
         }
     }
 

@@ -33,10 +33,10 @@ impl MutationAuditEvent {
     ) -> Self {
         Self {
             mutation_name: mutation_name.into(),
-            entity_type: entity_type.into(),
-            operation: operation.into(),
-            tenant_id: tenant_id.into(),
-            period: period.into(),
+            entity_type:   entity_type.into(),
+            operation:     operation.into(),
+            tenant_id:     tenant_id.into(),
+            period:        period.into(),
         }
     }
 }

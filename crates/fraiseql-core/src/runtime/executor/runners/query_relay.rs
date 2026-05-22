@@ -2,11 +2,13 @@
 
 use std::sync::Arc;
 
-use super::super::resolve_inject_value;
-use super::query::QueryRunner;
-use super::query_params::{compute_projection_reduction, inject_param_where_clause};
-use super::query_projection::{
-    build_typed_projection_fields, enrich_order_by_clauses, selections_contain_field,
+use super::{
+    super::resolve_inject_value,
+    query::QueryRunner,
+    query_params::{compute_projection_reduction, inject_param_where_clause},
+    query_projection::{
+        build_typed_projection_fields, enrich_order_by_clauses, selections_contain_field,
+    },
 };
 use crate::{
     db::{
@@ -66,14 +68,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_def.name
                 ),
-                path: None,
+                path:    None,
             });
         }
 
         let sql_source =
             query_def.sql_source.as_deref().ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Relay query '{}' has no sql_source configured", query_def.name),
-                path: None,
+                path:    None,
             })?;
 
         let cursor_column =
@@ -85,7 +87,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                         "Relay query '{}' has no relay_cursor_column derived",
                         query_def.name
                     ),
-                    path: None,
+                    path:    None,
                 })?;
 
         // Guard: relay pagination requires the executor to have been constructed
@@ -97,7 +99,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                  the executor with `Executor::new_with_relay`.",
                 self.ctx.adapter.database_type()
             ),
-            path: None,
+            path:    None,
         })?;
 
         // --- RLS + inject_params evaluation (same logic as execute_from_match) ---
@@ -119,7 +121,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                     "Query '{}' has inject params but was called without a security context",
                     query_def.name
                 ),
-                path: None,
+                path:    None,
             })?;
             let mut conditions: Vec<WhereClause> = query_def
                 .inject_params
@@ -165,7 +167,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                         Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
                             || FraiseQLError::Validation {
                                 message: format!("invalid relay cursor for `after`: {s:?}"),
-                                path: Some("after".to_string()),
+                                path:    Some("after".to_string()),
                             },
                         )?),
                         None => None,
@@ -174,7 +176,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                         Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
                             || FraiseQLError::Validation {
                                 message: format!("invalid relay cursor for `before`: {s:?}"),
-                                path: Some("before".to_string()),
+                                path:    Some("before".to_string()),
                             },
                         )?),
                         None => None,
@@ -187,7 +189,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                             Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
                                 FraiseQLError::Validation {
                                     message: format!("invalid relay cursor for `after`: {s:?}"),
-                                    path: Some("after".to_string()),
+                                    path:    Some("after".to_string()),
                                 }
                             })?)
                         },
@@ -198,7 +200,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                             Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
                                 FraiseQLError::Validation {
                                     message: format!("invalid relay cursor for `before`: {s:?}"),
-                                    path: Some("before".to_string()),
+                                    path:    Some("before".to_string()),
                                 }
                             })?)
                         },
@@ -402,7 +404,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             // Fall back to extracting inline literal, e.g. node(id: "NDI=")
             Self::extract_inline_node_id(query).ok_or_else(|| FraiseQLError::Validation {
                 message: "node query: missing or unresolvable 'id' argument".to_string(),
-                path: Some("node.id".to_string()),
+                path:    Some("node.id".to_string()),
             })?
         };
 
@@ -410,7 +412,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let (type_name, uuid) =
             decode_node_id(&raw_id).ok_or_else(|| FraiseQLError::Validation {
                 message: format!("node query: invalid node ID '{raw_id}'"),
-                path: Some("node.id".to_string()),
+                path:    Some("node.id".to_string()),
             })?;
 
         // 3. Find the SQL view for this type (O(1) index lookup built at startup).
@@ -418,15 +420,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             self.ctx.node_type_index.get(&type_name).cloned().ok_or_else(|| {
                 FraiseQLError::Validation {
                     message: format!("node query: no registered SQL view for type '{type_name}'"),
-                    path: Some("node.id".to_string()),
+                    path:    Some("node.id".to_string()),
                 }
             })?;
 
         // 4. Build WHERE clause: data->>'id' = uuid
         let where_clause = WhereClause::Field {
-            path: vec!["id".to_string()],
+            path:     vec!["id".to_string()],
             operator: WhereOperator::Eq,
-            value: serde_json::Value::String(uuid),
+            value:    serde_json::Value::String(uuid),
         };
 
         // 5. Build projection hint from selections (mirrors regular query path).

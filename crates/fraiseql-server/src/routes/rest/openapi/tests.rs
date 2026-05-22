@@ -154,15 +154,15 @@ fn nested_object_produces_ref() {
 fn enum_field_produces_ref() {
     let mut schema = rest_schema();
     schema.enums.push(fraiseql_core::schema::EnumDefinition {
-        name: "Status".to_string(),
-        values: vec![
+        name:        "Status".to_string(),
+        values:      vec![
             fraiseql_core::schema::EnumValueDefinition {
-                name: "ACTIVE".to_string(),
+                name:        "ACTIVE".to_string(),
                 description: None,
                 deprecation: None,
             },
             fraiseql_core::schema::EnumValueDefinition {
-                name: "INACTIVE".to_string(),
+                name:        "INACTIVE".to_string(),
                 description: None,
                 deprecation: None,
             },
@@ -444,8 +444,8 @@ fn error_schema_present() {
 fn missing_rest_config_returns_error() {
     let schema = TestSchemaBuilder::new().build();
     let route_table = RestRouteTable {
-        base_path: "/rest/v1".to_string(),
-        resources: vec![],
+        base_path:   "/rest/v1".to_string(),
+        resources:   vec![],
         diagnostics: vec![],
     };
     let result = generate_openapi(&schema, &route_table);
@@ -460,8 +460,8 @@ fn empty_route_table_produces_minimal_spec() {
         ..RestConfig::default()
     });
     let route_table = RestRouteTable {
-        base_path: "/rest/v1".to_string(),
-        resources: vec![],
+        base_path:   "/rest/v1".to_string(),
+        resources:   vec![],
         diagnostics: vec![],
     };
     let spec = generate_openapi(&schema, &route_table).unwrap();
@@ -623,13 +623,13 @@ fn method_to_string_all() {
 #[test]
 fn should_have_prefer_header_get_collection() {
     let mut route = RestRoute {
-        method: HttpMethod::Get,
-        path: "/users".to_string(),
-        source: RouteSource::Query {
+        method:          HttpMethod::Get,
+        path:            "/users".to_string(),
+        source:          RouteSource::Query {
             name: "users".to_string(),
         },
         update_coverage: None,
-        success_status: 200,
+        success_status:  200,
     };
     assert!(should_have_prefer_header(&route));
 
@@ -640,13 +640,13 @@ fn should_have_prefer_header_get_collection() {
 #[test]
 fn should_have_prefer_header_post() {
     let route = RestRoute {
-        method: HttpMethod::Post,
-        path: "/users".to_string(),
-        source: RouteSource::Mutation {
+        method:          HttpMethod::Post,
+        path:            "/users".to_string(),
+        source:          RouteSource::Mutation {
             name: "createUser".to_string(),
         },
         update_coverage: None,
-        success_status: 201,
+        success_status:  201,
     };
     assert!(should_have_prefer_header(&route));
 }
@@ -654,13 +654,13 @@ fn should_have_prefer_header_post() {
 #[test]
 fn should_have_prefer_header_put() {
     let route = RestRoute {
-        method: HttpMethod::Put,
-        path: "/users/{id}".to_string(),
-        source: RouteSource::Mutation {
+        method:          HttpMethod::Put,
+        path:            "/users/{id}".to_string(),
+        source:          RouteSource::Mutation {
             name: "updateUser".to_string(),
         },
         update_coverage: None,
-        success_status: 200,
+        success_status:  200,
     };
     assert!(!should_have_prefer_header(&route));
 }

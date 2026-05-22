@@ -247,17 +247,17 @@ fn test_has_rls_configured_no_policies_key() {
 
 fn make_type_def(name: &str) -> TypeDefinition {
     TypeDefinition {
-        name: name.into(),
-        sql_source: format!("v_{}", name.to_lowercase()).as_str().into(),
-        jsonb_column: "data".to_string(),
-        fields: vec![],
-        description: None,
+        name:                name.into(),
+        sql_source:          format!("v_{}", name.to_lowercase()).as_str().into(),
+        jsonb_column:        "data".to_string(),
+        fields:              vec![],
+        description:         None,
         sql_projection_hint: None,
-        implements: vec![],
-        requires_role: None,
-        is_error: false,
-        relay: false,
-        relationships: vec![],
+        implements:          vec![],
+        requires_role:       None,
+        is_error:            false,
+        relay:               false,
+        relationships:       vec![],
     }
 }
 
@@ -518,16 +518,16 @@ fn fact_table_add_and_get() {
     assert!(!schema.has_fact_tables());
 
     let meta = FactTableMetadata {
-        table_name: "tf_sales".to_string(),
-        measures: vec![],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        table_name:               "tf_sales".to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions: vec![],
-        partial_period: None,
-        native_measures: std::collections::HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
     schema.add_fact_table("tf_sales".to_string(), meta);
@@ -542,16 +542,16 @@ fn list_fact_tables_returns_all_names() {
     use crate::compiler::fact_table::{DimensionColumn, FactTableMetadata};
 
     let make_meta = |name: &str| FactTableMetadata {
-        table_name: name.to_string(),
-        measures: vec![],
-        dimensions: DimensionColumn {
-            name: "data".to_string(),
+        table_name:               name.to_string(),
+        measures:                 vec![],
+        dimensions:               DimensionColumn {
+            name:  "data".to_string(),
             paths: vec![],
         },
-        denormalized_filters: vec![],
-        calendar_dimensions: vec![],
-        partial_period: None,
-        native_measures: std::collections::HashMap::new(),
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -646,7 +646,7 @@ fn tenancy_mode_row_when_configured() {
     let mut schema = CompiledSchema::new();
     let mut sec = SecurityConfig::new();
     sec.tenancy = TenancyConfig {
-        mode: TenancyMode::Row,
+        mode:         TenancyMode::Row,
         tenant_claim: "tenant_id".to_string(),
     };
     schema.security = Some(sec);
@@ -659,7 +659,7 @@ fn tenancy_mode_schema_when_configured() {
     let mut schema = CompiledSchema::new();
     let mut sec = SecurityConfig::new();
     sec.tenancy = TenancyConfig {
-        mode: TenancyMode::Schema,
+        mode:         TenancyMode::Schema,
         tenant_claim: "org_id".to_string(),
     };
     schema.security = Some(sec);
@@ -687,7 +687,7 @@ fn tenancy_round_trip_through_json() {
     let mut schema = CompiledSchema::new();
     let mut sec = SecurityConfig::new();
     sec.tenancy = TenancyConfig {
-        mode: TenancyMode::Row,
+        mode:         TenancyMode::Row,
         tenant_claim: "org_id".to_string(),
     };
     schema.security = Some(sec);
@@ -761,7 +761,7 @@ fn federation_metadata_some_when_enabled() {
         enabled: true,
         version: Some("v2".to_string()),
         entities: vec![FederationEntity {
-            name: "User".to_string(),
+            name:       "User".to_string(),
             key_fields: vec!["id".to_string()],
         }],
         ..Default::default()

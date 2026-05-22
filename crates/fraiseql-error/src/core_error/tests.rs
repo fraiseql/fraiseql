@@ -36,7 +36,7 @@ fn test_retryable_errors() {
     assert!(
         FraiseQLError::Timeout {
             timeout_ms: 5000,
-            query: None,
+            query:      None,
         }
         .is_retryable()
     );

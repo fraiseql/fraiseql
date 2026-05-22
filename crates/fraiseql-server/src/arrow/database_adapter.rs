@@ -80,6 +80,7 @@ impl FlightDatabaseAdapter {
     /// # Arguments
     ///
     /// * `adapter` - FraiseQL Wire adapter from fraiseql-core
+    #[must_use]
     pub fn new(adapter: FraiseWireAdapter) -> Self {
         Self {
             inner: Arc::new(adapter),
@@ -91,11 +92,13 @@ impl FlightDatabaseAdapter {
     /// # Arguments
     ///
     /// * `adapter` - FraiseQL Wire adapter wrapped in Arc
+    #[must_use]
     pub const fn from_arc(adapter: Arc<FraiseWireAdapter>) -> Self {
         Self { inner: adapter }
     }
 
     /// Get a reference to the inner FraiseQL Wire adapter.
+    #[must_use]
     pub const fn inner(&self) -> &Arc<FraiseWireAdapter> {
         &self.inner
     }
