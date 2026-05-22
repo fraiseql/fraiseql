@@ -1,0 +1,99 @@
+name: Cache Cleanup
+
+# Two cleanup strategies:
+#   - PR closed/merged   → delete all caches for that PR's ref
+#   - Nightly (06:00 UTC) → delete caches older than 7 days, except dev/main
+# Manual dispatch is also supported via the Actions tab.
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: 'Delete caches older than N days (dev/main excluded). Default 7.'
+        required: false
+        default: '7'
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  pr-cleanup:
+    name: Delete caches for closed PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete caches for ${{ github.event.pull_request.head.ref }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: |
+          set -euo pipefail
+          echo "Listing caches for $PR_REF"
+          ids=$(gh cache list --ref "$PR_REF" --limit 100 --json id --jq '.[].id' || true)
+          if [ -z "$ids" ]; then
+            echo "No caches found for $PR_REF"
+            exit 0
+          fi
+          count=0
+          for id in $ids; do
+            if gh cache delete "$id"; then
+              count=$((count + 1))
+            else
+              echo "::warning::Failed to delete cache $id (may have been evicted concurrently)"
+            fi
+          done
+          echo "Deleted $count cache(s) for $PR_REF"
+
+  age-cleanup:
+    name: Delete caches older than N days
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old caches (excluding dev/main)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          MAX_AGE_DAYS: ${{ inputs.max_age_days || '7' }}
+        run: |
+          set -euo pipefail
+          cutoff=$(date -u -d "${MAX_AGE_DAYS} days ago" +%s)
+          echo "Deleting caches created before $(date -u -d "@$cutoff" --iso-8601=seconds)"
+          echo "Preserving refs/heads/dev and refs/heads/main"
+
+          # gh cache list paginates; --limit 1000 is the API max per call
+          mapfile -t rows < <(
+            gh cache list --limit 1000 \
+              --json id,createdAt,ref \
+              --jq '.[] | "\(.id)|\(.createdAt)|\(.ref)"'
+          )
+
+          deleted=0
+          kept=0
+          for row in "${rows[@]}"; do
+            IFS='|' read -r id created ref <<<"$row"
+            created_ts=$(date -u -d "$created" +%s)
+
+            if [ "$ref" = "refs/heads/dev" ] || [ "$ref" = "refs/heads/main" ]; then
+              kept=$((kept + 1))
+              continue
+            fi
+            if [ "$created_ts" -ge "$cutoff" ]; then
+              kept=$((kept + 1))
+              continue
+            fi
+
+            if gh cache delete "$id"; then
+              deleted=$((deleted + 1))
+            else
+              echo "::warning::Failed to delete cache $id"
+            fi
+          done
+
+          echo "Deleted: $deleted   Kept: $kept"
