@@ -187,9 +187,7 @@ fn test_trigger_matcher_no_cross_entity_match() {
 async fn test_before_mutation_chain_execute_empty_chain_proceeds() {
     use std::collections::HashMap;
 
-    use crate::{
-        FunctionModule, FunctionObserver, ResourceLimits, RuntimeType, host::NoopHostContext,
-    };
+    use crate::{FunctionModule, FunctionObserver, ResourceLimits, host::NoopHostContext};
 
     // Empty chain: no triggers → Proceed with original input
     let chain = BeforeMutationChain { triggers: vec![] };
