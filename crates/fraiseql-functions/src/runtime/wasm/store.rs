@@ -32,6 +32,7 @@ pub struct StoreData {
 
 impl StoreData {
     /// Create a new store data for an invocation.
+    #[must_use]
     pub fn new(event_payload: EventPayload, limits: ResourceLimits) -> Self {
         Self {
             event_payload,

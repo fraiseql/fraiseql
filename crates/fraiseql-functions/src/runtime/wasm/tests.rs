@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
-use super::*;
-use crate::{EventPayload, FunctionModule, RuntimeType, runtime::FunctionRuntime};
+use crate::{EventPayload, FunctionModule, RuntimeType};
 
 /// Helper to find test fixture file
 fn fixture_path(name: &str) -> PathBuf {

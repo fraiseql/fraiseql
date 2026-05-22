@@ -15,6 +15,7 @@ pub struct ResourceLimitError {
 impl ResourceLimitError {
     /// Create a new resource limit error.
     #[allow(clippy::missing_const_for_fn)] // String isn't const-compatible
+    #[must_use]
     pub fn new(message: String) -> Self {
         Self { message }
     }
@@ -39,6 +40,7 @@ pub struct LimitStats {
 
 impl LimitStats {
     /// Create new limit stats with zero values.
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             peak_memory:    0,

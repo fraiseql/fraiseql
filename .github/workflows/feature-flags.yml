@@ -118,3 +118,26 @@ jobs:
         uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
       - name: cargo check
         run: cargo check -p fraiseql-storage --no-default-features --features "${{ matrix.features }}"
+
+  functions-matrix:
+    name: "check functions (${{ matrix.features }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - "host-live"                                # live host context (sqlparser-gated classifier)
+          - "host-storage"                             # storage backend integration
+          - "runtime-wasm"                             # wasmtime runtime
+          - "runtime-deno"                             # deno_core runtime
+          - "host-live,host-storage"                   # combined host
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a  # v0.0.9
+      - name: cargo check
+        run: cargo check -p fraiseql-functions --no-default-features --features "${{ matrix.features }}"
+      - name: cargo clippy
+        run: cargo clippy -p fraiseql-functions --no-default-features --features "${{ matrix.features }}" --all-targets -- -D warnings

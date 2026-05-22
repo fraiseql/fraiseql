@@ -60,6 +60,7 @@ impl LiveHostContextFactory {
     /// # Future Enhancement
     ///
     /// This will accept fully configured backend services from the caller.
+    #[must_use]
     pub const fn new() -> Self {
         Self {}
     }
