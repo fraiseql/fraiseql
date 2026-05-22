@@ -10,6 +10,8 @@ __all__ = [
 ]
 
 import inspect
+import sys
+import typing
 from typing import TYPE_CHECKING, Annotated, Any, Union, get_args, get_origin
 
 if TYPE_CHECKING:
@@ -141,6 +143,25 @@ def _extract_federation_directives(
     return fed
 
 
+def _get_class_annotations(cls: type) -> dict[str, Any]:
+    """Resolve class annotations to their actual types.
+
+    With ``from __future__ import annotations``, ``cls.__annotations__`` stores
+    annotations as strings. This helper evaluates them against the class's
+    defining-module globals (and not class-local names) so that field names
+    shadowing imported types — e.g. ``date: date | None`` — resolve correctly
+    (issue #233). ``Annotated[...]`` metadata is preserved so callers can
+    still extract field configuration. Falls back to the raw annotation map
+    if type resolution fails (e.g. for unresolvable forward references).
+    """
+    module = sys.modules.get(cls.__module__)
+    globalns = getattr(module, "__dict__", None)
+    try:
+        return typing.get_type_hints(cls, globalns=globalns, localns={}, include_extras=True)
+    except (NameError, TypeError):
+        return dict(getattr(cls, "__annotations__", {}))
+
+
 def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     """Extract field information from a class with type annotations.
 
@@ -174,11 +195,12 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
             "salary": {"type": "Int", "nullable": False, "requires_scope": "hr:compensation"}
         }
     """
-    if not hasattr(cls, "__annotations__"):
+    annotations = _get_class_annotations(cls)
+    if not annotations:
         return {}
 
     fields = {}
-    for field_name, field_type in cls.__annotations__.items():
+    for field_name, field_type in annotations.items():
         graphql_type, nullable = python_type_to_graphql(field_type)
         field_info: dict[str, Any] = {
             "type": graphql_type,
