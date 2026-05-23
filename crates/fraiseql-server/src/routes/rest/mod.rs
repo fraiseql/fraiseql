@@ -10,6 +10,7 @@
 pub mod bulk;
 pub mod cache_control;
 pub mod embedding;
+pub mod export_config;
 pub mod handler;
 pub mod idempotency;
 pub mod openapi;

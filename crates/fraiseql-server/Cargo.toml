@@ -179,6 +179,12 @@ redis-apq = ["fraiseql-core/redis-apq"]
 redis-idempotency = ["redis", "rmp-serde"]
 # REST transport
 rest = []
+# REST export formats — fine-grained flags compose into the `export` umbrella.
+# Deps are wired in their respective phases (CSV phase 2, XLSX phase 4, Parquet phase 5).
+export-csv = []
+export-xlsx = []
+export-parquet = []
+export = ["export-csv", "export-xlsx", "export-parquet"]
 redis-pkce = ["auth", "fraiseql-auth/redis-pkce"]
 redis-rate-limiting = ["redis"]
 # Persist usage counters to Redis so they survive process restarts

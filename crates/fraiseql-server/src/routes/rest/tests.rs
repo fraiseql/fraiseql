@@ -335,3 +335,77 @@ fn observers_not_available_returns_501() {
     assert_eq!(err.status, StatusCode::NOT_IMPLEMENTED);
     assert_eq!(err.code, "NOT_IMPLEMENTED");
 }
+
+// ---------------------------------------------------------------------------
+// export_config tests (B1 Phase 1 Cycle 1)
+// ---------------------------------------------------------------------------
+
+mod export_config {
+    use super::super::export_config::{ExportConfig, ExportFormat};
+
+    #[test]
+    fn default_values_match_spec() {
+        let cfg = ExportConfig::default();
+        assert_eq!(cfg.csv_delimiter, ',');
+        assert!(cfg.csv_include_bom);
+        assert_eq!(cfg.xlsx_max_rows, 100_000);
+        assert_eq!(cfg.parquet_max_rows, 1_000_000);
+        assert!(cfg.xlsx_temp_dir.is_none());
+        assert_eq!(cfg.max_concurrent_xlsx, 10);
+        assert!(cfg.export_formats.is_empty());
+    }
+
+    #[test]
+    fn deserializes_empty_toml_to_defaults() {
+        let cfg: ExportConfig = toml::from_str("").unwrap();
+        let default_cfg = ExportConfig::default();
+        assert_eq!(cfg.csv_delimiter, default_cfg.csv_delimiter);
+        assert_eq!(cfg.csv_include_bom, default_cfg.csv_include_bom);
+        assert_eq!(cfg.xlsx_max_rows, default_cfg.xlsx_max_rows);
+        assert_eq!(cfg.parquet_max_rows, default_cfg.parquet_max_rows);
+        assert_eq!(cfg.xlsx_temp_dir, default_cfg.xlsx_temp_dir);
+        assert_eq!(cfg.max_concurrent_xlsx, default_cfg.max_concurrent_xlsx);
+        assert_eq!(cfg.export_formats, default_cfg.export_formats);
+    }
+
+    #[test]
+    fn deserializes_full_toml_overrides_defaults() {
+        let toml_src = r#"
+            csv_delimiter = ";"
+            csv_include_bom = false
+            xlsx_max_rows = 50000
+            parquet_max_rows = 250000
+            xlsx_temp_dir = "/var/tmp/xlsx"
+            max_concurrent_xlsx = 4
+            export_formats = ["csv", "xlsx", "parquet"]
+        "#;
+        let cfg: ExportConfig = toml::from_str(toml_src).unwrap();
+        assert_eq!(cfg.csv_delimiter, ';');
+        assert!(!cfg.csv_include_bom);
+        assert_eq!(cfg.xlsx_max_rows, 50_000);
+        assert_eq!(cfg.parquet_max_rows, 250_000);
+        assert_eq!(cfg.xlsx_temp_dir.as_deref(), Some(std::path::Path::new("/var/tmp/xlsx")));
+        assert_eq!(cfg.max_concurrent_xlsx, 4);
+        assert_eq!(
+            cfg.export_formats,
+            vec![ExportFormat::Csv, ExportFormat::Xlsx, ExportFormat::Parquet],
+        );
+    }
+
+    #[test]
+    fn export_format_deserializes_lowercase_kebab_strings() {
+        // sanity: serde renames must accept the lowercase TOML values used by users
+        let cfg: ExportConfig =
+            toml::from_str(r#"export_formats = ["csv", "xlsx", "parquet"]"#).unwrap();
+        assert_eq!(
+            cfg.export_formats,
+            vec![ExportFormat::Csv, ExportFormat::Xlsx, ExportFormat::Parquet],
+        );
+    }
+
+    #[test]
+    fn export_format_rejects_unknown_variant() {
+        let result: Result<ExportConfig, _> = toml::from_str(r#"export_formats = ["yaml"]"#);
+        assert!(result.is_err(), "unknown export format should fail to deserialize");
+    }
+}
