@@ -68,7 +68,7 @@
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "ai": "^6.0.185",
-    "eslint": "^9.0.0",
+    "eslint": "^10.4.0",
     "msw": "^2.0.0",
     "prettier": "^3.0.0",
     "tsup": "^8.0.0",
