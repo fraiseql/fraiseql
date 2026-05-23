@@ -330,7 +330,7 @@ version = "=0.11.1"
 [[bans.skip-tree]]
 name = "wasmtime"
 reason = "wasmtime v44 pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat; upgrade tracked for 2026-12-01"
-version = "=44.0.1"
+version = "=44.0.2"
 
 # Non-wasmtime duplicates from ecosystem migrations
 [graph]

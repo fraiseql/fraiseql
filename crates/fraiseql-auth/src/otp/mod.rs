@@ -440,8 +440,5 @@ pub async fn otp_verify(
     (StatusCode::OK, Json(tokens)).into_response()
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;

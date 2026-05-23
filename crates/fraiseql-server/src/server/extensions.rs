@@ -353,6 +353,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             db_pool,
             storage_state: None,
             realtime_state: None,
+            #[cfg(feature = "arrow")]
             flight_service,
             adapter_cache_enabled: false,
             broadcast_manager: None,

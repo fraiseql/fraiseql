@@ -499,5 +499,4 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
 }
 
 #[cfg(test)]
-#[path = "mutation_tests.rs"]
 mod tests;

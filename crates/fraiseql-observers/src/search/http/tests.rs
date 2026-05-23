@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::ObserverError;
 
 #[test]
 fn test_http_search_backend_clone() {

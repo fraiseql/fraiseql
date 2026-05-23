@@ -122,7 +122,7 @@ jobs:
       - name: Check semver compatibility
         run: |
           for crate in fraiseql-error fraiseql-db fraiseql-core fraiseql-server fraiseql-cli; do
-            cargo semver-checks check-release -p $crate --baseline-rev HEAD~1 || true
+            cargo semver-checks check-release -p $crate || true
           done
 
   # Build and test on multiple platforms

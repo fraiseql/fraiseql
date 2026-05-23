@@ -22,5 +22,11 @@ cd "$SCRIPT_DIR/guest-transform"
 cargo build --target wasm32-wasip2 --release
 cp target/wasm32-wasip2/release/fraiseql_guest_transform.wasm "$SCRIPT_DIR/guest-transform.wasm"
 
+# Build guest-full-bridge
+echo "Building guest-full-bridge..."
+cd "$SCRIPT_DIR/guest-full-bridge"
+cargo build --target wasm32-wasip2 --release
+cp target/wasm32-wasip2/release/fraiseql_guest_full_bridge.wasm "$SCRIPT_DIR/guest-full-bridge.wasm"
+
 echo "Build complete!"
 ls -lh "$SCRIPT_DIR"/*.wasm

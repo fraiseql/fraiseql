@@ -202,7 +202,9 @@ use_self = "allow"
 [workspace.lints.rust]
 dead_code = "deny"
 missing_docs = "deny"
-unsafe_code = "forbid"
+# Reason: `deny` (not `forbid`) so fraiseql-functions can `#[allow(unsafe_code)]` on
+# wasmtime::component::bindgen! generated glue. No hand-written unsafe in the workspace.
+unsafe_code = "deny"
 unused_imports = "warn"
 unused_variables = "warn"
 

@@ -1,5 +1,5 @@
 [package]
-name = "fraiseql-guest-identity"
+name = "fraiseql-guest-full-bridge"
 version = "0.1.0"
 edition = "2021"
 publish = false

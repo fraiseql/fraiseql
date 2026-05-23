@@ -187,8 +187,5 @@ fn generate_state_token() -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #[cfg(test)]
 mod tests;

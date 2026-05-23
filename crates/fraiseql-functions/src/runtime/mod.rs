@@ -8,6 +8,7 @@ pub mod deno;
 
 use std::future::Future;
 
+use async_trait::async_trait;
 use fraiseql_error::Result;
 
 use crate::{
@@ -54,22 +55,27 @@ pub trait FunctionRuntime: Send + Sync {
 pub type BoxedFunctionRuntime = Box<dyn FunctionRuntime + Send + Sync>;
 
 /// Object-safe variant of `FunctionRuntime` for dynamic dispatch.
+///
 /// This trait has the same semantic methods but without generic parameters,
-/// making it suitable for `Box<dyn SendFunctionRuntime>`.
+/// making it suitable for `Arc<dyn SendFunctionRuntime>`. The `invoke_raw`
+/// method uses a [`NoopHostContext`](crate::NoopHostContext) internally.
+#[async_trait]
 pub trait SendFunctionRuntime: Send + Sync {
-    /// Invoke a function module with the given event and resource limits.
-    fn invoke_raw(
+    /// Execute a function module with the given event and resource limits.
+    ///
+    /// Uses [`NoopHostContext`](crate::NoopHostContext) — callers that need
+    /// host-bridge functionality should use [`FunctionRuntime::invoke`] with
+    /// a concrete host context instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the module cannot be loaded, or execution fails.
+    async fn invoke_raw(
         &self,
-        module: &crate::types::FunctionModule,
-        event: crate::types::EventPayload,
-        limits: crate::types::ResourceLimits,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<Output = fraiseql_error::Result<crate::types::FunctionResult>>
-                + Send
-                + '_,
-        >,
-    >;
+        module: &FunctionModule,
+        event: EventPayload,
+        limits: ResourceLimits,
+    ) -> Result<FunctionResult>;
 
     /// Get the list of file extensions this runtime supports.
     fn supported_extensions(&self) -> &[&str];
