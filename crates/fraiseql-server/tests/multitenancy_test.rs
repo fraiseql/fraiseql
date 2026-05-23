@@ -11,6 +11,7 @@
 #![allow(clippy::missing_panics_doc)] // Reason: test helpers
 #![allow(clippy::missing_errors_doc)] // Reason: test helpers
 #![allow(missing_docs)] // Reason: test code
+#![allow(clippy::todo)] // Reason: documented #[ignore]d stubs awaiting live-PostgreSQL test infra
 
 use std::sync::Arc;
 

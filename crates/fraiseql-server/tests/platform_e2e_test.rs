@@ -41,6 +41,7 @@
 #![allow(clippy::missing_errors_doc)] // Reason: test helpers
 #![allow(missing_docs)] // Reason: test code
 #![allow(clippy::items_after_statements)] // Reason: test helpers near use site
+#![allow(clippy::todo)] // Reason: documented #[ignore]d Tier 3 stubs awaiting full-platform infra
 
 // ── Tier 1: Structural Tests ──────────────────────────────────────────────────
 

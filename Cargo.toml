@@ -192,6 +192,23 @@ unused_async = "allow"
 unused_enumerate_index = "allow"
 # Reason: some trait implementations accept self for API uniformity even when unused.
 unused_self = "allow"
+# ── Restriction lints (opt-in) ───────────────────────────────────────────────
+# Reason: `dbg!(...)` is a debug aid; it must not survive into committed code.
+dbg_macro = "deny"
+# Reason: `f32`/`f64` literals that lose precision under their target type
+# silently change behavior; require an explicit cast or different literal.
+lossy_float_literal = "deny"
+# Reason: `std::mem::forget` leaks resources and almost always indicates a
+# misuse of `ManuallyDrop` or a missing `Drop` impl. Force an explicit allow.
+mem_forget = "deny"
+# Reason: `todo!()` is a WIP marker; allowed in feature branches but must be
+# cleared (or explicitly per-file allowed with a Reason for documented stubs)
+# before merging to `dev`.
+todo = "deny"
+# Reason: `unimplemented!()` is a "never reached / never planned" panic. Real
+# unimplemented surfaces should return `FraiseQLError::Unsupported` or a
+# trait-defined error variant instead of panicking.
+unimplemented = "deny"
 # ── Security ─────────────────────────────────────────────────────────────────
 # Reason: production code must use .expect("reason") to document assumptions;
 # .unwrap() is only permitted in tests/examples with an explicit allow + Reason.
