@@ -227,10 +227,7 @@ impl DatabaseAdapter for MySqlAdapter {
             return self.execute_where_query(view, where_clause, limit, offset, order_by).await;
         }
 
-        let Some(projection) = projection else {
-            // Reason: unreachable — `is_none()` check above returns early
-            unreachable!("projection is Some; None case returned above");
-        };
+        let projection = projection.expect("projection is Some; None case returned above");
 
         // Build SQL with MySQL-specific JSON_OBJECT projection
         let mut sql = format!(

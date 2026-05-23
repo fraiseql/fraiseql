@@ -217,9 +217,6 @@ unused_self = "allow"
 #   - print_stdout / print_stderr / use_debug: 1,770 + 60 instances, almost
 #     all in legitimate CLI output (fraiseql-cli, observers `cli` feature),
 #     build scripts, tests, examples, and benches.
-#   - unreachable: 21 instances, all `unreachable!("…")` invariant markers
-#     proving exhaustive matches; per-site allows would add noise without
-#     value.
 #
 # Reason: `dbg!(...)` is a debug aid; it must not survive into committed code.
 dbg_macro = "deny"
@@ -237,6 +234,11 @@ todo = "deny"
 # unimplemented surfaces should return `FraiseQLError::Unsupported` or a
 # trait-defined error variant instead of panicking.
 unimplemented = "deny"
+# Reason: `unreachable!()` is a documented invariant marker; every remaining
+# instance carries an explanatory message proving the case cannot occur.
+# Enforcing the lint means new `unreachable!()` calls must add a per-site
+# `#[allow(clippy::unreachable)]` + `// Reason:` sibling.
+unreachable = "deny"
 # ── Security ─────────────────────────────────────────────────────────────────
 # Reason: production code must use .expect("reason") to document assumptions;
 # .unwrap() is only permitted in tests/examples with an explicit allow + Reason.

@@ -123,6 +123,10 @@ impl DatabaseType {
     ///     "CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.amount')) AS DECIMAL(38,12))"
     /// );
     /// ```
+    // Reason: each `unreachable!()` is for `F::Text` after the early return at
+    // the top of the function eliminates that variant. The `match` is repeated
+    // per dialect to map each remaining variant to a dialect-specific cast type.
+    #[allow(clippy::unreachable)]
     #[must_use]
     pub fn typed_json_field_expr(self, key: &str, field_type: OrderByFieldType) -> String {
         use OrderByFieldType as F;
@@ -137,7 +141,7 @@ impl DatabaseType {
         match self {
             Self::PostgreSQL => {
                 let pg_type = match field_type {
-                    F::Text => unreachable!(),
+                    F::Text => unreachable!("F::Text returned early at function top"),
                     F::Integer => "bigint",
                     F::Numeric => "numeric",
                     F::Boolean => "boolean",
@@ -149,7 +153,7 @@ impl DatabaseType {
             },
             Self::MySQL => {
                 let mysql_type = match field_type {
-                    F::Text => unreachable!(),
+                    F::Text => unreachable!("F::Text returned early at function top"),
                     F::Integer => "SIGNED",
                     F::Numeric => "DECIMAL(38,12)",
                     F::Boolean => "UNSIGNED",
@@ -162,7 +166,7 @@ impl DatabaseType {
             Self::SQLite => {
                 // SQLite has limited type affinity; CAST works for REAL/INTEGER.
                 let sqlite_type = match field_type {
-                    F::Text => unreachable!(),
+                    F::Text => unreachable!("F::Text returned early at function top"),
                     F::Integer | F::Boolean => "INTEGER",
                     F::Numeric => "REAL",
                     F::DateTime | F::Date | F::Time => "TEXT", // ISO-8601 sorts correctly as text
@@ -171,7 +175,7 @@ impl DatabaseType {
             },
             Self::SQLServer => {
                 let sqlserver_type = match field_type {
-                    F::Text => unreachable!(),
+                    F::Text => unreachable!("F::Text returned early at function top"),
                     F::Integer => "BIGINT",
                     F::Numeric => "DECIMAL(38,12)",
                     F::Boolean => "BIT",

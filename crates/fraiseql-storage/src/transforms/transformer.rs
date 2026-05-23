@@ -206,8 +206,14 @@ impl ImageTransformer {
                     })?;
             },
             OutputFormat::Bmp => {
-                // Already validated as unsupported above
-                unreachable!()
+                // Defense in depth: BMP is rejected by the validation block
+                // above. If we somehow reach here, return an error rather than
+                // panic so production cannot be crashed by a missed validation
+                // path.
+                return Err(FraiseQLError::Validation {
+                    message: "BMP format is not supported for transforms".to_string(),
+                    path:    Some("format".to_string()),
+                });
             },
         }
 
