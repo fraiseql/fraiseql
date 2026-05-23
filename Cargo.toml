@@ -200,6 +200,27 @@ unused_enumerate_index = "allow"
 # Reason: some trait implementations accept self for API uniformity even when unused.
 unused_self = "allow"
 # ── Restriction lints (opt-in) ───────────────────────────────────────────────
+# The clippy `restriction` group is not enabled wholesale because most of it
+# bans valid Rust on principle (e.g. `arithmetic_side_effects`,
+# `float_arithmetic`, `shadow_reuse`, `single_call_fn`, `pub_use`). The few
+# rules below catch real bugs without producing noise.
+#
+# Deliberately NOT enforced — re-evaluating these is wasted work unless the
+# codebase changes substantially. See chore/tighten-clippy for the probe data:
+#   - expect_used / panic: contradicts the project policy of using
+#     `.expect("reason")` to document assumptions (see unwrap_used above).
+#     A workspace probe surfaced 3,104 expect + 1,246 panic instances; the
+#     vast majority are intentional production-code asserts or test code.
+#   - indexing_slicing: 4,460 instances; would require a workspace-wide
+#     refactor to `.get(i)?` or per-crate phase-in. Real out-of-bounds bugs
+#     are caught by tests, not by this lint.
+#   - print_stdout / print_stderr / use_debug: 1,770 + 60 instances, almost
+#     all in legitimate CLI output (fraiseql-cli, observers `cli` feature),
+#     build scripts, tests, examples, and benches.
+#   - unreachable: 21 instances, all `unreachable!("…")` invariant markers
+#     proving exhaustive matches; per-site allows would add noise without
+#     value.
+#
 # Reason: `dbg!(...)` is a debug aid; it must not survive into committed code.
 dbg_macro = "deny"
 # Reason: `f32`/`f64` literals that lose precision under their target type
