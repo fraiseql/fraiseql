@@ -63,6 +63,9 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 name = "storage_bench"
 harness = false
 
+[lints]
+workspace = true
+
 [features]
 default = ["postgres"]
 postgres = []

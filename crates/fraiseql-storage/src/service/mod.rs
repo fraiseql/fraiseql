@@ -25,13 +25,13 @@ pub struct BucketService {
 impl BucketService {
     /// Creates a new bucket service.
     #[must_use]
-    pub fn new(backend: StorageBackend, config: BucketConfig) -> Self {
+    pub const fn new(backend: StorageBackend, config: BucketConfig) -> Self {
         Self { backend, config }
     }
 
     /// Returns a reference to the bucket configuration.
     #[must_use]
-    pub fn config(&self) -> &BucketConfig {
+    pub const fn config(&self) -> &BucketConfig {
         &self.config
     }
 

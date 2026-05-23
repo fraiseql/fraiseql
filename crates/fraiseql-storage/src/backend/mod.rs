@@ -184,7 +184,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "not_found" if the key does not exist,
+    /// Returns `FraiseQLError::Storage` with code `not_found` if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         match self {

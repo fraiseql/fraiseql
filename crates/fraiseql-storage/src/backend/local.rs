@@ -52,7 +52,7 @@ impl LocalBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "not_found" if the key does not exist,
+    /// Returns `FraiseQLError::Storage` with code `not_found` if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         let path = self.key_path(key)?;
@@ -182,16 +182,16 @@ impl LocalBackend {
                 .ok()
                 .and_then(|t| {
                     let duration = t.duration_since(std::time::UNIX_EPOCH).ok()?;
-                    chrono::DateTime::from_timestamp(
-                        duration.as_secs() as i64,
-                        duration.subsec_nanos(),
-                    )
+                    // Reason: u64→i64 cast for chrono timestamp; only wraps after year
+                    // 292277026596.
+                    #[allow(clippy::cast_possible_wrap)]
+                    let secs = duration.as_secs() as i64;
+                    chrono::DateTime::from_timestamp(secs, duration.subsec_nanos())
                 })
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+                .map_or_else(|| chrono::Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
 
             // Generate simple etag from size and mtime
-            let etag = format!("{:x}", fnv1a_hash(&format!("{}-{}", size, last_modified)));
+            let etag = format!("{:x}", fnv1a_hash(&format!("{size}-{last_modified}")));
 
             objects.push((
                 key.clone(),
@@ -211,7 +211,7 @@ impl LocalBackend {
 
         // Apply cursor pagination
         let start_idx = if let Some(c) = cursor {
-            objects.iter().position(|(k, _)| k == c).map(|i| i + 1).unwrap_or(0)
+            objects.iter().position(|(k, _)| k == c).map_or(0, |i| i + 1)
         } else {
             0
         };
@@ -235,12 +235,12 @@ impl LocalBackend {
 
 /// Simple FNV-1a hash function
 fn fnv1a_hash(data: &str) -> u64 {
-    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const FNV_PRIME: u64 = 0x100000001b3;
+    const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
     let mut hash = FNV_OFFSET_BASIS;
     for byte in data.bytes() {
-        hash ^= byte as u64;
+        hash ^= u64::from(byte);
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     hash

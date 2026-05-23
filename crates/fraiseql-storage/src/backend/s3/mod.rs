@@ -26,7 +26,7 @@ impl S3Backend {
     /// variables, shared credentials file, instance profile, etc.).
     ///
     /// Set `endpoint` for S3-compatible services like Hetzner, Scaleway, OVH,
-    /// Exoscale, Backblaze B2, Cloudflare R2, or MinIO.
+    /// Exoscale, Backblaze B2, Cloudflare R2, or `MinIO`.
     pub async fn new(bucket: &str, region: Option<&str>, endpoint: Option<&str>) -> Self {
         let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
         if let Some(r) = region {
@@ -82,7 +82,7 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "not_found" if the key does not exist,
+    /// Returns `FraiseQLError::Storage` with code `not_found` if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
@@ -186,7 +186,9 @@ impl S3Backend {
             .list_objects_v2()
             .bucket(&self.bucket)
             .prefix(prefix)
-            .max_keys(limit as i32)
+            // Reason: AWS SDK's max_keys takes i32; limit is a u32 capped at S3's documented 1000.
+            // Truncation/sign-wrap cannot occur in practice; the SDK itself clamps server-side.
+            .max_keys(i32::try_from(limit).unwrap_or(i32::MAX))
             .set_continuation_token(continuation_token)
             .send()
             .await
@@ -194,12 +196,14 @@ impl S3Backend {
 
         for obj in resp.contents() {
             let key = obj.key().unwrap_or("").to_string();
+            // Reason: object size is reported as i64 by the SDK but is non-negative per S3
+            // contract.
+            #[allow(clippy::cast_sign_loss)]
             let size = obj.size().unwrap_or(0) as u64;
             let etag = obj.e_tag().unwrap_or("").to_string();
             let last_modified = obj
                 .last_modified()
-                .map(|dt| dt.to_string())
-                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+                .map_or_else(|| chrono::Utc::now().to_rfc3339(), |dt| dt.to_string());
 
             objects.push(super::types::ObjectInfo {
                 key,
@@ -220,10 +224,10 @@ impl S3Backend {
     }
 }
 
-/// Implementation of PresignCapable for S3Backend.
+/// Implementation of `PresignCapable` for `S3Backend`.
 ///
 /// Enables time-limited direct access URLs for S3 objects, allowing clients
-/// to upload/download without going through the FraiseQL server.
+/// to upload/download without going through the `FraiseQL` server.
 impl super::PresignCapable for S3Backend {
     async fn presign_put(
         &self,

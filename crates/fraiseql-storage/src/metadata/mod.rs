@@ -60,7 +60,7 @@ pub struct StorageMetadataRepo {
 impl StorageMetadataRepo {
     /// Create a new repository wrapping the given connection pool.
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
@@ -277,11 +277,14 @@ impl From<MetadataQueryRow> for StorageMetadataRow {
 
 impl From<&StorageMetadataRow> for ObjectInfo {
     fn from(row: &StorageMetadataRow) -> Self {
+        // Reason: size_bytes is non-negative (clamped above by .max(0)); cast to u64 is safe.
+        #[allow(clippy::cast_sign_loss)]
+        let size = row.size_bytes.max(0) as u64;
         Self {
-            key:           row.key.clone(),
-            size:          row.size_bytes.max(0) as u64,
-            content_type:  row.content_type.clone(),
-            etag:          row.etag.clone().unwrap_or_default(),
+            key: row.key.clone(),
+            size,
+            content_type: row.content_type.clone(),
+            etag: row.etag.clone().unwrap_or_default(),
             last_modified: row.updated_at.to_rfc3339(),
         }
     }

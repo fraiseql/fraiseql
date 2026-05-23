@@ -2,11 +2,14 @@
 
 #[cfg(test)]
 mod backend_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(missing_docs)] // Reason: test functions are self-describing
+
     use tempfile::TempDir;
 
     use crate::backend::LocalBackend;
 
-    /// Helper to create a LocalBackend backed by a temp directory.
+    /// Helper to create a `LocalBackend` backed by a temp directory.
     fn temp_backend() -> (LocalBackend, TempDir) {
         let tmpdir = TempDir::new().expect("create tempdir");
         let backend = LocalBackend::new(tmpdir.path().to_str().unwrap());

@@ -5,6 +5,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
 #![allow(missing_docs)] // Reason: criterion_group!/criterion_main! generate undocumented items
+#![allow(clippy::cast_possible_truncation)] // Reason: `(i % 256) as u8` is bounded by the modulo
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use fraiseql_storage::backend::local::LocalBackend;

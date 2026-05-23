@@ -1,5 +1,8 @@
 //! Tests for GraphQL schema type generation.
 
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(missing_docs)] // Reason: test functions are self-describing
+
 use super::StorageSchemaTypes;
 use crate::config::{BucketAccess, BucketConfig};
 

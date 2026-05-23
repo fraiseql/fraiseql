@@ -1,3 +1,6 @@
+#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(missing_docs)] // Reason: test functions are self-describing
+
 use tempfile::TempDir;
 
 use super::*;
