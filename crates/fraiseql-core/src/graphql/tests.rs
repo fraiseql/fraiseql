@@ -13,6 +13,7 @@ mod fragment_resolver_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     fn make_field(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
@@ -265,6 +266,7 @@ mod fragments_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -349,6 +351,7 @@ mod parser_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
     use crate::graphql::parser::{MAX_SERIALIZE_DEPTH, serialize_value};
 
@@ -585,6 +588,7 @@ mod require_permission_directive_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -614,6 +618,7 @@ mod types_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -738,6 +743,7 @@ mod complexity_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     // ── Regression tests: operation names and arguments must NOT be counted ──

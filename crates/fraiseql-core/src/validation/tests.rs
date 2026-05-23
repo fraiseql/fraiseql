@@ -26,6 +26,7 @@ mod async_validators_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     // ── EmailFormatValidator ──────────────────────────────────────────────────
@@ -224,6 +225,7 @@ mod async_validators_tests {
 mod checksum_tests {
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     // Luhn tests
@@ -353,6 +355,7 @@ mod compile_time_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     fn create_test_context() -> SchemaContext {
@@ -658,6 +661,7 @@ mod compile_time_tests {
 mod composite_tests {
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
     use crate::validation::{composite::validate_single_rule, rules::ValidationRule};
 
@@ -1007,6 +1011,7 @@ mod cross_field_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -1474,6 +1479,7 @@ mod custom_scalar_registry_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[derive(Debug)]
@@ -1599,6 +1605,7 @@ mod date_validators_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
     use crate::validation::date_validators::{
         compare_dates, days_between, get_days_in_month, is_leap_year, parse_date,
@@ -1890,6 +1897,7 @@ mod elo_expressions_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     // Helper to create test context
@@ -2236,6 +2244,7 @@ mod elo_expressions_tests {
 mod elo_rust_integration_tests {
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -2408,6 +2417,7 @@ mod error_responses_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -2489,6 +2499,7 @@ mod id_policy_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     // ==================== UUID Format Tests ====================
@@ -3358,6 +3369,7 @@ mod inheritance_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -3669,6 +3681,7 @@ mod input_object_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -4119,6 +4132,7 @@ mod input_processor_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -4299,6 +4313,7 @@ mod mutual_exclusivity_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -4607,6 +4622,7 @@ mod mutual_exclusivity_tests {
 mod rate_limiting_tests {
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
     use crate::validation::rate_limiting::DimensionRateLimiter;
 
@@ -4828,6 +4844,7 @@ mod rate_limiting_tests {
 mod rich_scalars_tests {
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     // Email tests
@@ -4949,6 +4966,7 @@ mod rich_scalars_tests {
 mod rules_tests {
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]
@@ -5100,6 +5118,7 @@ mod scalar_validator_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
     use crate::error::{FraiseQLError, Result};
 
@@ -5286,6 +5305,7 @@ mod validators_tests {
 
     use super::super::*;
     #[allow(unused_imports)]
+    // Reason: nested test mod re-imports may not all be used by every test
     use super::*;
 
     #[test]

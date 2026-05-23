@@ -30,7 +30,7 @@ pub struct HttpResponse {
 ///
 /// The `#[trait_variant::make]` macro generates `SendHostContext` which is
 /// object-safe for `Box<dyn SendHostContext>` dynamic dispatch.
-#[allow(clippy::trait_duplication_in_bounds)]
+#[allow(clippy::trait_duplication_in_bounds)] // Reason: trait_variant::make expands to bounds that look duplicated to clippy
 #[trait_variant::make(SendHostContext: Send)]
 pub trait HostContext: Send + Sync {
     /// Execute a GraphQL query.

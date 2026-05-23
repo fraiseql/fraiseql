@@ -65,9 +65,9 @@ impl SubgraphHistogram {
         // +Inf bucket always incremented
         self.bucket_counts[10].fetch_add(1, Ordering::Relaxed);
 
-        // duration.as_micros() returns u128; truncation to u64 is acceptable
-        // for latencies up to ~584,942 years.
         #[allow(clippy::cast_possible_truncation)]
+        // Reason: duration.as_micros() returns u128; truncation to u64 is acceptable for latencies
+        // up to ~584,942 years.
         let micros = duration.as_micros() as u64;
         self.sum_microseconds.fetch_add(micros, Ordering::Relaxed);
         self.count.fetch_add(1, Ordering::Relaxed);
