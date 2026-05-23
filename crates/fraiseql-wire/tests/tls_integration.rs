@@ -30,6 +30,7 @@
 //!
 //! 2. In CI (with `GitHub` Actions setup - see ci.yml)
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_wire::connection::TlsConfig;
 
 /// Install a crypto provider for rustls tests.

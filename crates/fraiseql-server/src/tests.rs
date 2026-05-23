@@ -1,5 +1,6 @@
 // ── api_key_tests ─────────────────────────────────────────────────────────────
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 mod api_key_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 

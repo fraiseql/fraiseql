@@ -13,6 +13,7 @@
 //! - Data consistency would be violated
 
 #![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used to satisfy destructuring patterns in test assertions
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;
 

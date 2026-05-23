@@ -7,7 +7,7 @@
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::missing_panics_doc)] // Reason: test helpers
 #![allow(clippy::missing_errors_doc)] // Reason: test helpers
 #![allow(missing_docs)] // Reason: test code

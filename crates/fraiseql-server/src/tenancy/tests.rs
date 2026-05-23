@@ -1,5 +1,6 @@
 // ── audit_tests ───────────────────────────────────────────────────────────────
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 mod audit_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
     #![allow(clippy::missing_panics_doc)] // Reason: test helpers

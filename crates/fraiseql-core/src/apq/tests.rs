@@ -1,7 +1,7 @@
 //! Tests for `apq/` modules.
 //! Re-export items not in `crate::apq::*` so submodules reach them via `use super::*`.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub use std::time::Duration;
 
 pub use serde_json::json;

@@ -7,7 +7,7 @@
 //! - `poll_flight_info` names the target version in its error message
 //! - `do_get` streams placeholder data when no database adapter is configured
 //! - `list_actions` advertises all four documented admin actions
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::default_trait_access)] // Reason: test code uses Default::default() for struct field initialization
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
 

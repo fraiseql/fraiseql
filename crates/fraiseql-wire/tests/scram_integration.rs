@@ -3,6 +3,7 @@
 //! Tests that verify SCRAM-SHA-256 authentication works end-to-end with PostgreSQL.
 //! These tests validate the complete authentication flow, error handling, and compatibility.
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 mod common;
 
 use common::{connect_test_client, get_test_container};

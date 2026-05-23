@@ -5,7 +5,7 @@
 //! - Prevents token confusion attacks
 //! - Configuration validation enforces audience requirement
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::no_effect_underscore_binding)] // Reason: _ bindings used to satisfy destructuring patterns in test assertions
 use fraiseql_core::security::oidc::OidcConfig;
 

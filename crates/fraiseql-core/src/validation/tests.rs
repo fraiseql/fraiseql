@@ -2,7 +2,7 @@
 //! Re-export commonly-needed items from sibling modules so submodules can reach them
 //! via `use super::*` after the `use super::super::*` wildcard import.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub use fraiseql_error::{FraiseQLError, ValidationFieldError};

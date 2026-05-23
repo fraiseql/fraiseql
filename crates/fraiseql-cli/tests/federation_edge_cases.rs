@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Federation edge case tests
 //! - Directive conflict scenarios (@requires/@provides/@key/@shareable interactions)
 //! - Conflicting @key definitions across subgraphs

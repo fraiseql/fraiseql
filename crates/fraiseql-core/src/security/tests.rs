@@ -1,5 +1,6 @@
 //! Tests for `security/` modules.
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 mod audit_tests {
     use chrono::Utc;
 

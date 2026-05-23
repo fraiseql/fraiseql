@@ -20,7 +20,7 @@
 
 #![cfg(test)]
 #![allow(dead_code)]
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 // ============================================================================
 // Example Validation Helpers
 // ============================================================================

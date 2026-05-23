@@ -11,6 +11,7 @@
 //! let executor = Executor::new(schema, adapter);
 //! ```
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use std::collections::HashMap;
 
 use serde_json::{Value, json};

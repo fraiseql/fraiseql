@@ -1,5 +1,6 @@
 //! Tests for `security/auth_middleware/` modules.
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 mod middleware_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 

@@ -18,7 +18,7 @@
 
 #![allow(unused_imports)]
 #![cfg(feature = "nats")]
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use std::time::Duration;
 
 use uuid::Uuid;

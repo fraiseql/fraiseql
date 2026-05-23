@@ -40,8 +40,7 @@
 //! **Parallelism:** safe
 
 #![cfg(feature = "observers")]
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 mod observer_test_helpers;
 
 use std::time::Duration;

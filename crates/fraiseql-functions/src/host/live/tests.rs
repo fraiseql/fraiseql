@@ -1,6 +1,6 @@
 //! Tests for `LiveHostContext` `GraphQL` query execution.
 
-#![allow(clippy::unwrap_used)] // Reason: tests use unwrap for concise assertions
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(clippy::field_reassign_with_default)] // Reason: test setup is clearer with explicit field assignments
 #![allow(clippy::match_same_arms)] // Reason: test match arms with distinct comments serve as documentation
 

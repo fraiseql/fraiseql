@@ -1,5 +1,6 @@
 // Integration tests for all security layers working together
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 #[cfg(test)]
 mod integration_security {
     /// Complete security stack scenario verification

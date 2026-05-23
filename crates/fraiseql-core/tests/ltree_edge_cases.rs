@@ -14,6 +14,7 @@
 //! - Corrupt special characters in paths (wrong results)
 //! - Allow SQL injection through path components
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_core::db::where_clause::{WhereClause, WhereOperator};
 use serde_json::json;
 

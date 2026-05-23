@@ -1,6 +1,6 @@
 //! Local entity mutations (owned entities).
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::sync::Arc;
 
 use fraiseql_core::federation::mutation_executor::FederationMutationExecutor;

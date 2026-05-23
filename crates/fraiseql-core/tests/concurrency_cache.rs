@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Cache concurrency stress tests.
 //!
 //! Verifies that `CachedDatabaseAdapter` handles concurrent access correctly:

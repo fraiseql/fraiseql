@@ -1,7 +1,7 @@
 //! Tests for `graphql/` modules.
 //! Re-export items not in `crate::graphql::*` so submodules can reach them via `use super::*`.
 #![allow(unused_imports)] // Reason: blanket re-exports for test convenience
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 pub use std::collections::{HashMap, HashSet};
 
 pub use graphql_parser::query;

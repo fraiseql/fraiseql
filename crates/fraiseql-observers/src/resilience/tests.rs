@@ -1,3 +1,4 @@
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod resilience_mod_tests {
     use std::time::Duration;

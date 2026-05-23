@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Input edge case tests.
 //!
 //! Tests validation and parsing of malformed, extreme, or adversarial inputs.

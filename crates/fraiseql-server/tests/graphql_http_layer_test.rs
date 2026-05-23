@@ -10,8 +10,7 @@
 //!           For SQL behavioral tests, see `crates/fraiseql-core/tests/sql_behavioral.rs`.
 
 #![cfg(test)]
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::collections::HashMap;
 
 // Common test utilities

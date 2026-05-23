@@ -4,7 +4,7 @@
 //! key field inclusion, federation format projection, query timeout,
 //! connection failure, syntax error, and constraint violation handling.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{

@@ -1,5 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 //! Golden fixture tests — verify every field of every struct in `CompiledSchema`.
 //!
 //! Each fixture is a canonical JSON file that exercises a specific set of features.

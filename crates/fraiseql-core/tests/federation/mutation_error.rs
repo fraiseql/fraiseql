@@ -1,6 +1,6 @@
 //! Mutation error scenarios.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_core::federation::{
     mutation_executor::FederationMutationExecutor,
     mutation_query_builder::{build_insert_query, build_update_query},

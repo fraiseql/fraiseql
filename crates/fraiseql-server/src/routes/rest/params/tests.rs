@@ -1,7 +1,6 @@
 //! Tests for the `params` module.
 
-#![allow(clippy::unwrap_used)] // Reason: test assertions use unwrap/unwrap_err intentionally
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_core::schema::{
     ArgumentDefinition, AutoParams, Cardinality, FieldDefinition, FieldType, QueryDefinition,
     Relationship, RestConfig, TypeDefinition,

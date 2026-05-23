@@ -1,7 +1,6 @@
 //! Tests for the `runtime` module.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 mod aggregate_parser_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use serde_json::json;

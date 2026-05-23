@@ -518,7 +518,14 @@ pub trait SqlDialect: Send + Sync + 'static {
         col_type: &RowViewColumnType,
     ) -> String {
         let _ = (json_column, field_name, col_type);
-        panic!("{} dialect has not implemented row_view_column_expr", self.name())
+        // Reason: this is a default-impl panic that fires only if a dialect
+        // forgets to override; that's a compile-time-discoverable programmer
+        // error, not user input, so a panic on first call is the right
+        // failure mode.
+        #[allow(clippy::panic)]
+        {
+            panic!("{} dialect has not implemented row_view_column_expr", self.name())
+        }
     }
 
     /// Generate the full DDL statement(s) to create a row-shaped view.

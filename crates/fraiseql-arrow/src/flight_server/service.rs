@@ -230,10 +230,16 @@ impl FraiseQLFlightService {
         // Without it, every handshake will fail with an opaque internal error at
         // request time.  Panicking here gives a clear startup message instead.
         let session_secret = read_flight_session_secret().unwrap_or_else(|| {
-            panic!(
-                "FLIGHT_SESSION_SECRET must be set when using authenticated Arrow Flight. \
-                 Generate one with: openssl rand -hex 32"
-            )
+            // Reason: startup-time fail-fast on missing configuration; the
+            // alternative (returning an opaque internal error per handshake)
+            // is significantly worse.
+            #[allow(clippy::panic)]
+            {
+                panic!(
+                    "FLIGHT_SESSION_SECRET must be set when using authenticated Arrow Flight. \
+                     Generate one with: openssl rand -hex 32"
+                )
+            }
         });
 
         Self {

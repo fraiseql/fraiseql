@@ -1,7 +1,7 @@
 //! Tests for `DenoRuntime` — `JavaScript`/`TypeScript` function execution via V8
 
 #![cfg(feature = "runtime-deno")]
-#![allow(clippy::unwrap_used)] // Reason: tests are stubs, cleanup in GREEN phase
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(unused_imports)] // Reason: used in test functions that may not be compiled in some configurations
 
 use chrono::Utc;

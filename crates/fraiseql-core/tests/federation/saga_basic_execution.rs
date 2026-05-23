@@ -5,7 +5,7 @@
 //! - Concurrent saga handling (6 tests)
 
 #![allow(clippy::cast_possible_truncation)] // Reason: test step counts cast usize→u32; test sizes never exceed u32::MAX
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_core::federation::{
     saga_compensator::SagaCompensator,
     saga_coordinator::{CompensationStrategy, SagaCoordinator},

@@ -26,7 +26,7 @@
 //! **Parallelism:** safe
 
 #![cfg(test)]
-
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use std::sync::Arc;
 
 use fraiseql_core::{

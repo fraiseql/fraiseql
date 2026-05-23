@@ -1,5 +1,6 @@
 //! Tests for the realtime `WebSocket` module.
 
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{Router, routing::get};
