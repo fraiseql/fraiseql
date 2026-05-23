@@ -1,4 +1,4 @@
-#![allow(clippy::panic)] // Reason: test code, panics acceptable
+#![allow(clippy::panic, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics acceptable
 mod listener_mod_tests {
     use uuid::Uuid;
 

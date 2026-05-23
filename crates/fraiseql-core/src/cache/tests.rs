@@ -1,6 +1,6 @@
 //! Tests for the `cache` module.
 
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
 mod config_tests {
     use crate::cache::*;

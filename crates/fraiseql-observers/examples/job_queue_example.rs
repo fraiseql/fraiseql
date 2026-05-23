@@ -21,6 +21,7 @@
 //! curl http://localhost:9090/metrics 2>/dev/null | grep fraiseql_observer_job
 //! ```
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 #[cfg(all(feature = "queue", feature = "metrics", feature = "testing"))]
 #[tokio::main]
 async fn main() -> fraiseql_observers::Result<()> {

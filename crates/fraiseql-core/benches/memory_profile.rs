@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: benchmark setup code, panics acceptable
 #![allow(missing_docs)] // Reason: test harness binary, no public API
 
 //! Memory profiling benchmarks using dhat.

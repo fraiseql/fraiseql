@@ -3,6 +3,7 @@
 //! Tests validate mutation operations via Docker federation stack including
 //! direct mutations, extended mutations, error handling, and data consistency.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use super::common::*;
 
 // ============================================================================

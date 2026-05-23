@@ -1,3 +1,4 @@
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use super::*;
 
 /// S44b: `cleanup_all` must be crate-private; only `cleanup_all_for_testing` is pub.

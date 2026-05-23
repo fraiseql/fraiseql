@@ -3,6 +3,7 @@
 //! Tests validate 3+ subgraph setup, direct product queries, multi-hop
 //! federation, entity resolution chains, and cross-boundary queries.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use super::common::*;
 
 // ============================================================================

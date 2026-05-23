@@ -2,7 +2,7 @@
 //!
 //! Provides a PostgreSQL testcontainer with the test schema and seed data.
 
-#![allow(clippy::doc_markdown)] // Reason: test helper docs don't need backticks
+#![allow(clippy::doc_markdown, clippy::print_stdout, clippy::print_stderr)] // Reason: test helper docs don't need backticks
 
 use std::sync::Arc;
 use testcontainers_modules::{

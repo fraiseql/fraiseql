@@ -1,3 +1,4 @@
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 mod transport_mod_tests {
     use super::super::*;
 

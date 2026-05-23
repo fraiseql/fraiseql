@@ -214,9 +214,8 @@ unused_self = "allow"
 #   - indexing_slicing: 4,460 instances; would require a workspace-wide
 #     refactor to `.get(i)?` or per-crate phase-in. Real out-of-bounds bugs
 #     are caught by tests, not by this lint.
-#   - print_stdout / print_stderr / use_debug: 1,770 + 60 instances, almost
-#     all in legitimate CLI output (fraiseql-cli, observers `cli` feature),
-#     build scripts, tests, examples, and benches.
+#   - use_debug: 60 instances; mostly in trace/debug logs and tests. Skipped
+#     because `{:?}` is the standard `tracing` event payload pattern.
 #
 # Reason: `dbg!(...)` is a debug aid; it must not survive into committed code.
 dbg_macro = "deny"
@@ -246,6 +245,14 @@ unreachable = "deny"
 # dialects that forget to override an optional method). Tests get a
 # crate/module-level allow alongside `unwrap_used`.
 panic = "deny"
+# Reason: `println!`/`print!` and `eprintln!`/`eprint!` should not appear in
+# production library/server code (which uses `tracing` for structured logs).
+# The legitimate CLI surfaces (`fraiseql-cli` lib, `fraiseql-observers`
+# `cli` submodule, `fraiseql-server` binary) carry a crate/module-level
+# allow with `// Reason:`. Tests, examples, build scripts, and benches
+# print directly and carry module-level allows.
+print_stdout = "deny"
+print_stderr = "deny"
 # ── Security ─────────────────────────────────────────────────────────────────
 # Reason: production code must use .expect("reason") to document assumptions;
 # .unwrap() is only permitted in tests/examples with an explicit allow + Reason.

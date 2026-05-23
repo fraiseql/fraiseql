@@ -16,7 +16,7 @@
 //! ```
 
 #![cfg(test)]
-#![allow(clippy::manual_let_else)] // Reason: test uses match for clarity in assertion context
+#![allow(clippy::manual_let_else, clippy::print_stdout, clippy::print_stderr)] // Reason: test uses match for clarity in assertion context
 #![allow(clippy::panic)] // Reason: test code, panics acceptable
 use fraiseql_core::{
     cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache, RlsEnforcement},

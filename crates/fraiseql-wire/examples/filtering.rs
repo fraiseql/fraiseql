@@ -9,7 +9,7 @@
 //! cargo run --example filtering
 //! ```
 
-#![allow(clippy::doc_markdown)] // Reason: example docs
+#![allow(clippy::doc_markdown, clippy::print_stdout, clippy::print_stderr)] // Reason: example docs
 
 use fraiseql_wire::client::FraiseClient;
 use futures::stream::StreamExt;

@@ -1,4 +1,9 @@
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr
+)] // Reason: test code, panics acceptable
 #![allow(clippy::cast_possible_truncation)] // Reason: test uses usize→u32 for small test counts
 #![allow(clippy::doc_markdown)] // Reason: test doc comments use non-standard code formatting
 #![allow(clippy::format_push_string)] // Reason: test query builders use push_str(&format!()) for readability

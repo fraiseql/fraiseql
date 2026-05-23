@@ -7,7 +7,7 @@
 //! gracefully when `node` is not found, allowing `cargo check` to work
 //! without a Node environment.
 
-#![allow(clippy::panic)] // Reason: test code, panics acceptable
+#![allow(clippy::panic, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics acceptable
 use std::{
     env, fs,
     path::{Path, PathBuf},

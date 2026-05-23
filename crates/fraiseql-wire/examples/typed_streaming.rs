@@ -1,4 +1,4 @@
-#![allow(clippy::doc_markdown)] // Reason: example docs with environment variables
+#![allow(clippy::doc_markdown, clippy::print_stdout, clippy::print_stderr)] // Reason: example docs with environment variables
 #![allow(clippy::map_unwrap_or)] // Reason: example filtering patterns
 
 //! Typed streaming example

@@ -1,4 +1,9 @@
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr
+)] // Reason: test code, panics acceptable
 //! Test fraiseql-wire directly without adapter layer
 //!
 //! Run with: cargo test -p fraiseql-core --features wire-backend,test-postgres --test

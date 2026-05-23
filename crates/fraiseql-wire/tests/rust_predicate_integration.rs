@@ -1,5 +1,6 @@
 //! Integration tests for Rust predicates
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 mod common;
 
 use common::connect_test_client;

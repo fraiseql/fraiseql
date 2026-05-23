@@ -13,6 +13,7 @@
 //!   `POSTGRES_PASSWORD` - Database password (default: postgres)
 //!   `POSTGRES_DB`       - Database name (default: postgres)
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use fraiseql_wire::{connection::ConnectionConfig, FraiseClient};
 use std::env;
 use std::time::Duration;

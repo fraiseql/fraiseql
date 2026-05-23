@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: benchmark setup code, panics acceptable
 #![allow(clippy::doc_markdown)] // Reason: benchmark documentation with special formatting
 #![allow(clippy::single_char_pattern)] // Reason: string pattern matching in benchmarks
 

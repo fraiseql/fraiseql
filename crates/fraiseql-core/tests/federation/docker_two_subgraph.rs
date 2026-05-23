@@ -3,7 +3,7 @@
 //! Tests validate 2-subgraph federation queries, entity resolution consistency,
 //! and data consistency between direct and federated queries.
 
-#![allow(clippy::panic)] // Reason: test code, panics acceptable
+#![allow(clippy::panic, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics acceptable
 use super::common::*;
 
 // ============================================================================

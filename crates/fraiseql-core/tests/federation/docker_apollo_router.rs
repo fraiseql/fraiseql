@@ -3,6 +3,7 @@
 //! Tests validate Apollo Router subgraph discovery, schema composition,
 //! SDL completeness, federation directives, query routing, and error handling.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use super::common::*;
 
 // ============================================================================

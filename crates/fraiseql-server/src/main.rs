@@ -1,4 +1,5 @@
 //! FraiseQL Server binary.
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: server binary; pre-tracing startup banner and CLI errors go to stdout/stderr.
 
 use std::{path::Path, sync::Arc};
 

@@ -9,6 +9,7 @@
 //! - Compiled schema at `schema.compiled.json`
 //! - Database running at `postgresql://localhost/fraiseql_dev`
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 fn main() {
     println!("FraiseQL minimal example");
     println!("This example requires:");

@@ -21,6 +21,7 @@
 //! cargo test --test integration_test --features "postgres,dedup,caching,nats,testing"
 //! ```
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
 #[cfg(feature = "caching")]

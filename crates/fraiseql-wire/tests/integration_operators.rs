@@ -3,6 +3,7 @@
 //! These tests verify that all operators work correctly with actual PostgreSQL data.
 //! Uses testcontainers to automatically spin up PostgreSQL with test data.
 
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 mod common;
 
 use common::connect_test_client;

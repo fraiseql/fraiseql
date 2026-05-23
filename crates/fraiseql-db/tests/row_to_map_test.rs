@@ -1,5 +1,5 @@
 #![cfg(feature = "postgres")]
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
 //! Integration tests for `row_to_map` with real PostgreSQL instances.
 //!

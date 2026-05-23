@@ -2,7 +2,7 @@
 //!
 //! Provides a shared PostgreSQL container and a connected `PostgresAdapter`.
 #![allow(dead_code)]
-
+#![allow(clippy::print_stdout, clippy::print_stderr)] // Reason: CLI / test / example / bench code prints to stdout/stderr by design
 use std::sync::Arc;
 
 use fraiseql_core::db::postgres::PostgresAdapter;

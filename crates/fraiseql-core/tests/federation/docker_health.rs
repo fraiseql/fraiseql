@@ -2,7 +2,7 @@
 //!
 //! Tests validate service startup, health checks, and schema composition.
 
-#![allow(clippy::panic)] // Reason: test code, panics acceptable
+#![allow(clippy::panic, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics acceptable
 use super::common::*;
 
 // ============================================================================

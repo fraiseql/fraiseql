@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: test code, panics acceptable
 #![allow(clippy::unreadable_literal)] // Reason: test byte-count thresholds use large literals
 #![allow(clippy::items_after_statements)] // Reason: test helper closures defined near use site
 
