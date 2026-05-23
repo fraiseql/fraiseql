@@ -21,6 +21,8 @@ use super::{FunctionsRouteState, functions_router};
 /// Build a test router with a given store and noop runtime.
 fn make_test_state(store: Arc<dyn FunctionStore>) -> FunctionsRouteState {
     struct NoopRuntime;
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    // Reason: SendFunctionRuntime is itself an async_trait; impls must match the macro signature.
     #[async_trait]
     impl SendFunctionRuntime for NoopRuntime {
         async fn invoke_raw(
