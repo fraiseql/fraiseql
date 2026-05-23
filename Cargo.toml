@@ -211,9 +211,16 @@ unused_self = "allow"
 #     `.expect("reason")` to document assumptions (see unwrap_used above).
 #     A workspace probe surfaced 3,104 instances; the vast majority are
 #     intentional documented asserts. Do not enable.
-#   - indexing_slicing: 4,460 instances; would require a workspace-wide
-#     refactor to `.get(i)?` or per-crate phase-in. Real out-of-bounds bugs
-#     are caught by tests, not by this lint.
+#   - indexing_slicing: round-2 probe surfaced 1,015 production hits across
+#     14 crates (top: observers 194, core 177, wire 140, auth 114, server
+#     100). Cleaning up requires per-crate refactoring to `.get(i)?` (which
+#     changes return types) or per-crate `#![allow]` followed by gradual
+#     cleanup. Both approaches are out of scope for a single PR. Production
+#     indexing in this codebase is concentrated in SQL codegen paths and
+#     wire/protocol decoders where indices are statically bounded by the
+#     schema or pre-validated lengths; real out-of-bounds bugs are caught
+#     by tests. Re-evaluate once a single crate is volunteered to lead the
+#     phased migration.
 #   - use_debug: 60 instances; mostly in trace/debug logs and tests. Skipped
 #     because `{:?}` is the standard `tracing` event payload pattern.
 #
@@ -253,6 +260,18 @@ panic = "deny"
 # print directly and carry module-level allows.
 print_stdout = "deny"
 print_stderr = "deny"
+# Reason: probed at 0 hits; `;` after expression-statement bodies. Cheap
+# insurance against future regressions where someone writes
+# `fn foo() { other_fn() }` instead of `fn foo() { other_fn(); }`.
+semicolon_if_nothing_returned = "deny"
+# Reason: `clippy::string_to_string` was renamed to `clippy::implicit_clone`
+# (which is part of the `pedantic` group and already enforced). Leaving as
+# a documented note here so a future probe does not re-add it.
+# Reason: probed at 0 hits; requires `// SAFETY:` on every `unsafe {}`
+# block. The workspace already has `unsafe_code = "deny"` (rustc-level),
+# so only the `fraiseql-functions` `wasmtime::component::bindgen!`
+# generated glue can have unsafe. Cheap insurance.
+undocumented_unsafe_blocks = "deny"
 # ── Security ─────────────────────────────────────────────────────────────────
 # Reason: production code must use .expect("reason") to document assumptions;
 # .unwrap() is only permitted in tests/examples with an explicit allow + Reason.
