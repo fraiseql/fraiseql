@@ -223,6 +223,20 @@ unused_self = "allow"
 #     phased migration.
 #   - use_debug: 60 instances; mostly in trace/debug logs and tests. Skipped
 #     because `{:?}` is the standard `tracing` event payload pattern.
+#   - clone_on_ref_ptr: round-2 probe surfaced 329 hits across 78 files
+#     (server 166, core 71). Forcing `Arc::clone(&x)` over `.clone()` is
+#     a readability improvement but would touch ownership patterns
+#     throughout async code. Skipped; revisit per-crate.
+#   - map_err_ignore: round-2 probe surfaced 264 hits across 50 files
+#     (auth 68, server 66). Real signal — `.map_err(|_| ...)` often
+#     drops error context — but too noisy to enable in a single pass.
+#     Skipped; revisit per-crate.
+#   - str_to_string: round-2 probe surfaced 17,528 hits. Stylistic
+#     noise (flags `.to_string()` on already-`String` or `&'static
+#     str`). Skipped.
+#   - unseparated_literal_suffix: round-2 probe surfaced 311 hits.
+#     Stylistic preference for `100_u64` over `100u64`; the codebase is
+#     mixed and consistency is not currently enforced. Skipped.
 #
 # Reason: `dbg!(...)` is a debug aid; it must not survive into committed code.
 dbg_macro = "deny"
