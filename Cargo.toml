@@ -272,6 +272,11 @@ semicolon_if_nothing_returned = "deny"
 # so only the `fraiseql-functions` `wasmtime::component::bindgen!`
 # generated glue can have unsafe. Cheap insurance.
 undocumented_unsafe_blocks = "deny"
+# Reason: every `assert!` / `assert_eq!` in production code must carry a
+# message. Failure messages without context are hard to debug from log
+# output alone. Test files where the assertion expression IS the message
+# (e.g. `assert_eq!(types[0]["name"], "Author")`) get a module-level allow.
+missing_assert_message = "deny"
 # ── Security ─────────────────────────────────────────────────────────────────
 # Reason: production code must use .expect("reason") to document assumptions;
 # .unwrap() is only permitted in tests/examples with an explicit allow + Reason.

@@ -12,7 +12,7 @@
 //! **Parallelism:** safe
 
 #![allow(dead_code)] // Some helpers may not be used in all test files
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::missing_assert_message)] // Reason: test code, panics are acceptable
 #![allow(clippy::cast_precision_loss)] // Reason: test metrics use usize/u64→f64 for reporting
 #![allow(clippy::cast_sign_loss)] // Reason: test data uses small positive integers
 #![allow(clippy::cast_possible_truncation)] // Reason: test data values are small and bounded

@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: benchmark setup code, panics acceptable
+#![allow(clippy::unwrap_used, clippy::missing_assert_message)] // Reason: benchmark setup code, panics acceptable
 #![allow(missing_docs)] // Reason: criterion_group!/criterion_main! macros generate undocumented items
 
 //! Performance benchmarks for federation operations
