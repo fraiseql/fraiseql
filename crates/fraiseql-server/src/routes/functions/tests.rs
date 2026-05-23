@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use axum::{
     body::Body,
     http::{Method, Request, StatusCode},
@@ -20,26 +21,19 @@ use super::{FunctionsRouteState, functions_router};
 /// Build a test router with a given store and noop runtime.
 fn make_test_state(store: Arc<dyn FunctionStore>) -> FunctionsRouteState {
     struct NoopRuntime;
+    #[async_trait]
     impl SendFunctionRuntime for NoopRuntime {
-        fn invoke_raw(
+        async fn invoke_raw(
             &self,
             _module: &FunctionModule,
             _event: EventPayload,
             _limits: ResourceLimits,
-        ) -> std::pin::Pin<
-            Box<
-                dyn std::future::Future<Output = fraiseql_error::Result<FunctionResult>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async {
-                Ok(FunctionResult {
-                    value:             Some(serde_json::json!({"ok": true})),
-                    logs:              Vec::<LogEntry>::new(),
-                    duration:          std::time::Duration::from_millis(1),
-                    memory_peak_bytes: 0,
-                })
+        ) -> fraiseql_error::Result<FunctionResult> {
+            Ok(FunctionResult {
+                value:             Some(serde_json::json!({"ok": true})),
+                logs:              Vec::<LogEntry>::new(),
+                duration:          std::time::Duration::from_millis(1),
+                memory_peak_bytes: 0,
             })
         }
 
@@ -51,7 +45,10 @@ fn make_test_state(store: Arc<dyn FunctionStore>) -> FunctionsRouteState {
             false
         }
 
-        fn name(&self) -> &'static str {
+        // Reason: trait signature returns `&str` (elided to `&'a self → &'a str`);
+        // narrowing to `&'static str` would change the impl signature and fail E0195.
+        #[allow(clippy::unnecessary_literal_bound)]
+        fn name(&self) -> &str {
             "noop"
         }
     }

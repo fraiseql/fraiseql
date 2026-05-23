@@ -135,6 +135,7 @@ pub struct ObserverRuntime {
 
 impl ObserverRuntime {
     /// Create a new observer runtime
+    #[must_use]
     pub fn new(config: ObserverRuntimeConfig) -> Self {
         let repository = ObserverRepository::new(config.pool.clone());
 

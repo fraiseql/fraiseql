@@ -325,6 +325,7 @@ pub struct RedisBackend {
 #[cfg(feature = "redis-usage")]
 impl RedisBackend {
     /// Create a new Redis backend from an existing connection manager.
+    #[must_use]
     pub const fn new(client: ::redis::aio::ConnectionManager) -> Self {
         Self { client }
     }

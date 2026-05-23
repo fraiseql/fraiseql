@@ -519,6 +519,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Get secrets manager if configured.
     #[cfg(feature = "secrets")]
+    #[must_use]
     pub const fn secrets_manager(&self) -> Option<&Arc<crate::secrets_manager::SecretsManager>> {
         self.secrets_manager.as_ref()
     }

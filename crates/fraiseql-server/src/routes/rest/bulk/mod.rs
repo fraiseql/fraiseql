@@ -53,6 +53,7 @@ pub struct BulkHandler<'a, A: DatabaseAdapter> {
 
 impl<'a, A: DatabaseAdapter + SupportsMutations> BulkHandler<'a, A> {
     /// Create a new bulk handler.
+    #[must_use]
     pub const fn new(
         executor: &'a Arc<Executor<A>>,
         schema: &'a CompiledSchema,

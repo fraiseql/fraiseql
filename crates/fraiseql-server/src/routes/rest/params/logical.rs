@@ -71,6 +71,7 @@ pub fn parse_logical_group(
 }
 
 /// Split logical group contents by commas, respecting nested parentheses.
+#[must_use]
 pub fn split_logical_parts(input: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut current = String::new();
@@ -100,6 +101,7 @@ pub fn split_logical_parts(input: &str) -> Vec<String> {
 }
 
 /// Check if a part is a nested logical operator: `and=(...)`, `or=(...)`, `not=(...)`.
+#[must_use]
 pub fn parse_nested_logical(part: &str) -> Option<(&str, &str)> {
     for op in &["and", "or", "not"] {
         let prefix = format!("{op}=");
@@ -113,6 +115,7 @@ pub fn parse_nested_logical(part: &str) -> Option<(&str, &str)> {
 }
 
 /// Parse a value from a logical group, attempting numeric and boolean coercion.
+#[must_use]
 pub fn parse_logical_value(raw: &str) -> serde_json::Value {
     // Try integer.
     if let Ok(v) = raw.parse::<i64>() {
