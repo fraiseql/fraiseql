@@ -217,8 +217,16 @@ impl LocalBackend {
         };
 
         let end_idx = (start_idx + limit).min(objects.len());
-        let page: Vec<ObjectInfo> =
-            objects[start_idx..end_idx].iter().map(|(_, info)| info.clone()).collect();
+        // `start_idx <= objects.len()` (sourced from `.position()` or `0`) and
+        // `end_idx <= objects.len()` by the `.min()` above, so this slice is
+        // always in-bounds; fall back to an empty page if the invariant ever
+        // breaks rather than panicking.
+        let page: Vec<ObjectInfo> = objects
+            .get(start_idx..end_idx)
+            .unwrap_or(&[])
+            .iter()
+            .map(|(_, info)| info.clone())
+            .collect();
 
         let next_cursor = if end_idx < objects.len() {
             page.last().map(|o| o.key.clone())

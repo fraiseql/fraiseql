@@ -58,8 +58,9 @@ impl GcsBackend {
                     source:  Some(Box::new(e)),
                 })
             })?;
-            let client_email = creds["client_email"]
-                .as_str()
+            let client_email = creds
+                .get("client_email")
+                .and_then(serde_json::Value::as_str)
                 .ok_or_else(|| {
                     FraiseQLError::File(FileError::Backend {
                         message: "GCS credentials missing 'client_email' field".to_string(),
@@ -67,8 +68,9 @@ impl GcsBackend {
                     })
                 })?
                 .to_owned();
-            let private_key = creds["private_key"]
-                .as_str()
+            let private_key = creds
+                .get("private_key")
+                .and_then(serde_json::Value::as_str)
                 .ok_or_else(|| {
                     FraiseQLError::File(FileError::Backend {
                         message: "GCS credentials missing 'private_key' field".to_string(),
@@ -166,12 +168,15 @@ impl GcsBackend {
             })
         })?;
 
-        body["access_token"].as_str().map(str::to_owned).ok_or_else(|| {
-            FraiseQLError::File(FileError::Backend {
-                message: "GCS token response missing 'access_token' field".to_string(),
-                source:  None,
+        body.get("access_token")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                FraiseQLError::File(FileError::Backend {
+                    message: "GCS token response missing 'access_token' field".to_string(),
+                    source:  None,
+                })
             })
-        })
     }
 }
 

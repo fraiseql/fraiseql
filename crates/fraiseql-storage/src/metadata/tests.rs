@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::missing_panics_doc)] // Reason: test functions
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 
 use sqlx::PgPool;
 use testcontainers::runners::AsyncRunner;

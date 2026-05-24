@@ -12,6 +12,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 #![allow(missing_docs)] // Reason: test functions are self-describing
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
 
 use crate::backend::S3Backend;
 

@@ -3,6 +3,7 @@
 #[cfg(test)]
 mod backend_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape collections; OOB indices correctly fail the test
     #![allow(missing_docs)] // Reason: test functions are self-describing
 
     use tempfile::TempDir;
