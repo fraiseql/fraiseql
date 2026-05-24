@@ -91,13 +91,19 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         }
 
         // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
-        let response_cache_key =
-            self.ctx.response_cache.as_ref().filter(|rc| rc.is_enabled()).map(|_| {
-                let query_key = Self::compute_response_cache_key(&query_match);
-                let sec_hash =
-                    crate::cache::response_cache::hash_security_context(Some(security_context));
-                (query_key, sec_hash)
-            });
+        let response_cache_key = if self
+            .ctx
+            .response_cache
+            .as_ref()
+            .is_some_and(|rc| rc.is_enabled())
+        {
+            let query_key = Self::compute_response_cache_key(&query_match)?;
+            let sec_hash =
+                crate::cache::response_cache::hash_security_context(Some(security_context));
+            Some((query_key, sec_hash))
+        } else {
+            None
+        };
 
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
@@ -325,7 +331,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Hashes the query name, matched fields, and arguments to produce
     /// a u64 key. Combined with the security context hash, this forms
     /// the full response cache key.
-    fn compute_response_cache_key(query_match: &crate::runtime::matcher::QueryMatch) -> u64 {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when any argument value fails
+    /// JSON serialization. The previous implementation silently collapsed
+    /// failures to an empty string, which could cause two distinct argument
+    /// trees to map to the same cache key (F044).
+    fn compute_response_cache_key(
+        query_match: &crate::runtime::matcher::QueryMatch,
+    ) -> Result<u64> {
         use std::hash::{Hash, Hasher};
         let mut hasher = ahash::AHasher::default();
         query_match.query_def.name.hash(&mut hasher);
@@ -337,11 +352,17 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         keys.sort();
         for key in keys {
             key.hash(&mut hasher);
-            serde_json::to_string(&query_match.arguments[key])
-                .unwrap_or_default()
-                .hash(&mut hasher);
+            let serialized = serde_json::to_string(&query_match.arguments[key]).map_err(|e| {
+                FraiseQLError::Validation {
+                    message: format!(
+                        "failed to serialize argument '{key}' for response cache key: {e}"
+                    ),
+                    path:    Some(format!("arguments.{key}")),
+                }
+            })?;
+            serialized.hash(&mut hasher);
         }
-        hasher.finish()
+        Ok(hasher.finish())
     }
 
     /// Execute a regular (non-aggregate, non-relay) GraphQL query.
