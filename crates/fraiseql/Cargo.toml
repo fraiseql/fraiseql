@@ -39,6 +39,7 @@ workspace = true
 [package]
 description = "FraiseQL v2 - Compiled GraphQL execution engine for relational databases"
 name = "fraiseql"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

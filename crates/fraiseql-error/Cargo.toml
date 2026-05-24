@@ -23,6 +23,7 @@ workspace = true
 [package]
 description = "Error types for FraiseQL v2"
 name = "fraiseql-error"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

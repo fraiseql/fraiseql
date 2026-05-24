@@ -74,6 +74,7 @@ workspace = true
 [package]
 description = "Apache Arrow Flight integration for FraiseQL"
 name = "fraiseql-arrow"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true
