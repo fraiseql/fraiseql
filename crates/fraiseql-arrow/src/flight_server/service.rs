@@ -7,7 +7,8 @@ use arrow_flight::{FlightData, flight_service_server::FlightServiceServer};
 use chrono::Utc;
 use fraiseql_core::security::OidcValidator;
 use futures::Stream;
-use tokio::sync::Semaphore;
+use tokio::sync::{Semaphore, mpsc};
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Response, Status};
 use tracing::{debug, info, warn};
 
@@ -58,6 +59,39 @@ fn read_flight_session_secret() -> Option<String> {
 /// When all permits are taken, new `do_get` requests immediately receive
 /// `Status::resource_exhausted` rather than being queued indefinitely.
 const DEFAULT_MAX_CONCURRENT_STREAMS: usize = 50;
+
+/// Channel buffer size for the per-stream `FlightData` producer task (F011).
+///
+/// Each in-flight Arrow Flight stream uses a bounded `mpsc` channel between the
+/// `FlightData` encoder and the gRPC consumer. A small buffer keeps peak memory
+/// per request to a few materialised `FlightData` payloads while still letting
+/// the encoder run a few batches ahead of the network.
+const FLIGHT_DATA_CHANNEL_BUFFER: usize = 4;
+
+/// Spawn a `FlightData` producer task that encodes `RecordBatch`es into
+/// `FlightData` messages and sends them through a bounded channel.
+///
+/// Returns a `ReceiverStream` whose `Stream::poll_next` exerts backpressure on
+/// the producer via the bounded channel: once `FLIGHT_DATA_CHANNEL_BUFFER`
+/// messages are queued, the producer's `send().await` parks until the
+/// consumer pulls a message.
+///
+/// The encoder is `FnOnce` because the producer task takes ownership of any
+/// captured state (batches, schema, exporter) and drops it when the stream
+/// ends.
+fn spawn_flight_data_stream<F, Fut>(
+    producer: F,
+) -> impl Stream<Item = std::result::Result<FlightData, Status>>
+where
+    F: FnOnce(mpsc::Sender<std::result::Result<FlightData, Status>>) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    let (tx, rx) = mpsc::channel::<std::result::Result<FlightData, Status>>(
+        FLIGHT_DATA_CHANNEL_BUFFER,
+    );
+    tokio::spawn(producer(tx));
+    ReceiverStream::new(rx)
+}
 
 impl FraiseQLFlightService {
     /// Create a new Flight service with placeholder data (for testing/development).
@@ -510,22 +544,28 @@ impl FraiseQLFlightService {
                 .convert_json_to_arrow_batches(&parsed)
                 .map_err(|e| Status::internal(format!("Arrow conversion failed: {e}")))?;
 
-            // Stream schema first, then batches
-            let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
+            // Encode the schema header eagerly (must precede the batches so the
+            // client can decode the rest of the stream).
+            let schema_header = batches
+                .first()
+                .map(|b| schema_to_flight_data(&b.schema()))
+                .transpose()?;
 
-            // Generate schema from first batch if available
-            if let Some(first_batch) = batches.first() {
-                // first_batch.schema() returns SchemaRef = &Arc<Schema>
-                // schema_to_flight_data expects &Arc<Schema>
-                let schema_ref = first_batch.schema();
-                messages.push(Ok(schema_to_flight_data(&schema_ref)?));
-            }
-
-            for batch in batches {
-                messages.push(record_batch_to_flight_data(&batch));
-            }
-
-            let stream = futures::stream::iter(messages);
+            // Stream the batches through a bounded mpsc channel so the encode
+            // step pauses when the consumer is slow (F011 backpressure).
+            let stream = spawn_flight_data_stream(move |tx| async move {
+                if let Some(header) = schema_header {
+                    if tx.send(Ok(header)).await.is_err() {
+                        return;
+                    }
+                }
+                for batch in batches {
+                    let msg = record_batch_to_flight_data(&batch);
+                    if tx.send(msg).await.is_err() {
+                        return;
+                    }
+                }
+            });
             Ok(stream)
         } else {
             // No executor configured: refuse rather than return unauthenticated fake data
@@ -716,19 +756,22 @@ impl FraiseQLFlightService {
 
         info!("Generated {} Arrow batches", batches.len());
 
-        // 6. Convert batches to FlightData and stream to client
-        // First message: schema
+        // 6. Convert batches to FlightData and stream to client.
+        // Schema header is encoded eagerly so any encoding error surfaces
+        // before the stream starts; data batches stream through a bounded
+        // channel so the encode step backpressures on the consumer (F011).
         let schema_message = schema_to_flight_data(&schema)?;
-
-        // Subsequent messages: data batches
-        let batch_messages: Vec<std::result::Result<FlightData, Status>> =
-            batches.iter().map(record_batch_to_flight_data).collect();
-
-        // Combine schema + batches into a single stream
-        let mut all_messages = vec![Ok(schema_message)];
-        all_messages.extend(batch_messages);
-
-        let stream = futures::stream::iter(all_messages);
+        let stream = spawn_flight_data_stream(move |tx| async move {
+            if tx.send(Ok(schema_message)).await.is_err() {
+                return;
+            }
+            for batch in batches {
+                let msg = record_batch_to_flight_data(&batch);
+                if tx.send(msg).await.is_err() {
+                    return;
+                }
+            }
+        });
         Ok(stream)
     }
 
@@ -866,7 +909,17 @@ impl FraiseQLFlightService {
             return Err(Status::not_found("All batched queries returned empty results"));
         }
 
-        let stream = futures::stream::iter(all_messages);
+        // Stream the pre-encoded messages through a bounded channel so the
+        // gRPC write half exerts backpressure on this task if the client
+        // is slow (F011). The messages are already materialised here — the
+        // backpressure window is between this task and the gRPC consumer.
+        let stream = spawn_flight_data_stream(move |tx| async move {
+            for msg in all_messages {
+                if tx.send(msg).await.is_err() {
+                    return;
+                }
+            }
+        });
         Ok(stream)
     }
 
@@ -1040,33 +1093,41 @@ impl FraiseQLFlightService {
             return Err(Status::internal("No Arrow batches created".to_string()));
         }
 
-        // Export batches to requested format
-        let mut messages: Vec<std::result::Result<FlightData, Status>> = Vec::new();
-
-        for (index, batch) in batches.iter().enumerate() {
-            // Export batch to requested format
-            let exported_bytes = BulkExporter::export_batch(batch, export_format)
-                .map_err(|e| Status::internal(format!("Export failed: {}", e)))?;
-
-            info!(batch_index = index, bytes_size = exported_bytes.len(), "Exported batch");
-
-            // Create FlightData with exported bytes
-            let flight_data = FlightData {
-                data_body: exported_bytes.into(),
-                app_metadata: export_format.mime_type().as_bytes().to_vec().into(),
-                ..Default::default()
-            };
-            messages.push(Ok(flight_data));
-        }
-
         info!(
             table = %table,
-            batch_count = messages.len(),
+            batch_count = batches.len(),
             format = ?export_format,
-            "Bulk export completed"
+            "Bulk export started"
         );
 
-        let stream = futures::stream::iter(messages);
+        // Export and stream batches through a bounded channel so each
+        // `BulkExporter::export_batch` call only runs when the consumer is
+        // ready for it — peak memory holds the channel-buffer-sized window of
+        // serialised payloads rather than the full Vec<FlightData> (F011).
+        let mime = export_format.mime_type().as_bytes().to_vec();
+        let stream = spawn_flight_data_stream(move |tx| async move {
+            for (index, batch) in batches.iter().enumerate() {
+                let msg = match BulkExporter::export_batch(batch, export_format) {
+                    Ok(exported_bytes) => {
+                        info!(
+                            batch_index = index,
+                            bytes_size = exported_bytes.len(),
+                            "Exported batch"
+                        );
+                        Ok(FlightData {
+                            data_body: exported_bytes.into(),
+                            app_metadata: mime.clone().into(),
+                            ..Default::default()
+                        })
+                    },
+                    Err(e) => Err(Status::internal(format!("Export failed: {e}"))),
+                };
+                let is_err = msg.is_err();
+                if tx.send(msg).await.is_err() || is_err {
+                    return;
+                }
+            }
+        });
         Ok(Response::new(Box::pin(stream)))
     }
 
@@ -1199,3 +1260,110 @@ impl Default for FraiseQLFlightService {
 
 #[cfg(test)]
 mod convert_tests;
+
+#[cfg(test)]
+mod backpressure_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use arrow_flight::FlightData;
+    use futures::StreamExt;
+    use tonic::Status;
+
+    use super::{FLIGHT_DATA_CHANNEL_BUFFER, spawn_flight_data_stream};
+
+    /// F011: when the consumer is slow, the producer must park on
+    /// `tx.send()` once `FLIGHT_DATA_CHANNEL_BUFFER` messages are in flight
+    /// rather than continuing to produce ahead.
+    #[tokio::test]
+    async fn producer_parks_when_channel_buffer_full() {
+        // Total messages exceed the channel buffer by a healthy margin.
+        let total = FLIGHT_DATA_CHANNEL_BUFFER + 6;
+        let produced = Arc::new(AtomicUsize::new(0));
+        let produced_clone = Arc::clone(&produced);
+
+        let stream = spawn_flight_data_stream(move |tx| async move {
+            for i in 0..total {
+                let msg: std::result::Result<FlightData, Status> = Ok(FlightData {
+                    data_body: vec![i as u8].into(),
+                    ..Default::default()
+                });
+                if tx.send(msg).await.is_err() {
+                    return;
+                }
+                produced_clone.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+
+        // Pin the stream so we can poll it incrementally.
+        let mut stream = Box::pin(stream);
+
+        // Let the producer run ahead as far as the channel allows.
+        // ReceiverStream + bounded channel(N) means the producer can
+        // enqueue up to N + 1 messages before parking (N in the channel,
+        // 1 in the `send()` future).
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let ahead = produced.load(Ordering::SeqCst);
+        assert!(
+            ahead <= FLIGHT_DATA_CHANNEL_BUFFER + 1,
+            "producer ran ahead by {ahead} messages (buffer is {FLIGHT_DATA_CHANNEL_BUFFER}); \
+             backpressure is not engaged"
+        );
+        assert!(
+            ahead >= FLIGHT_DATA_CHANNEL_BUFFER,
+            "producer only produced {ahead} messages before parking; expected to fill the buffer"
+        );
+
+        // Consume the stream and verify we receive all messages.
+        let mut received = 0_usize;
+        while stream.next().await.is_some() {
+            received += 1;
+        }
+        assert_eq!(received, total);
+        assert_eq!(produced.load(Ordering::SeqCst), total);
+    }
+
+    /// If the consumer drops the stream, the producer must terminate cleanly
+    /// without leaking the spawned task.
+    #[tokio::test]
+    async fn producer_exits_when_consumer_drops() {
+        let produced = Arc::new(AtomicUsize::new(0));
+        let produced_clone = Arc::clone(&produced);
+
+        let stream = spawn_flight_data_stream(move |tx| async move {
+            for i in 0..1_000_usize {
+                let msg: std::result::Result<FlightData, Status> = Ok(FlightData {
+                    data_body: vec![(i % 256) as u8].into(),
+                    ..Default::default()
+                });
+                if tx.send(msg).await.is_err() {
+                    return;
+                }
+                produced_clone.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+
+        let mut stream = Box::pin(stream);
+
+        // Pull two messages, then drop the consumer.
+        for _ in 0..2 {
+            stream.next().await.unwrap().unwrap();
+        }
+        drop(stream);
+
+        // Give the producer task a moment to observe the channel close
+        // and exit.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // The producer should not have iterated the full 1000 items.
+        let final_count = produced.load(Ordering::SeqCst);
+        assert!(
+            final_count < 1_000,
+            "producer kept running after consumer dropped (produced {final_count})"
+        );
+    }
+}
