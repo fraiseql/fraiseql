@@ -4,6 +4,22 @@ use super::message::FrontendMessage;
 use bytes::{BufMut, BytesMut};
 use std::io;
 
+/// Write a 4-byte big-endian length back into a previously-reserved slot.
+///
+/// Every encoder writes a placeholder `put_i32(0)` early, captures the offset
+/// in `len_pos`, then continues writing the body. This helper backfills the
+/// real length using a bounds-checked `.get_mut()` so the file stays panic-free
+/// under `#![deny(clippy::indexing_slicing)]`.
+fn fill_length(buf: &mut BytesMut, len_pos: usize, len: usize) {
+    let bytes = (len as i32).to_be_bytes();
+    if let Some(slot) = buf.get_mut(len_pos..len_pos + 4) {
+        slot.copy_from_slice(&bytes);
+    }
+    // If the slot is missing the buffer was corrupted upstream; the encoder
+    // contract guarantees the caller reserved exactly 4 bytes at `len_pos`
+    // before appending the body, so the `if let` always succeeds in practice.
+}
+
 /// Encode a frontend message into bytes
 ///
 /// # Errors
@@ -58,7 +74,7 @@ fn encode_startup(buf: &mut BytesMut, version: i32, params: &[(String, String)])
 
     // Fill in length
     let len = buf.len() - len_pos;
-    buf[len_pos..len_pos + 4].copy_from_slice(&(len as i32).to_be_bytes());
+    fill_length(buf, len_pos, len);
 
     Ok(())
 }
@@ -72,7 +88,7 @@ fn encode_password(buf: &mut BytesMut, password: &str) -> io::Result<()> {
     buf.put_u8(0);
 
     let len = buf.len() - len_pos;
-    buf[len_pos..len_pos + 4].copy_from_slice(&(len as i32).to_be_bytes());
+    fill_length(buf, len_pos, len);
 
     Ok(())
 }
@@ -86,7 +102,7 @@ fn encode_query(buf: &mut BytesMut, query: &str) -> io::Result<()> {
     buf.put_u8(0);
 
     let len = buf.len() - len_pos;
-    buf[len_pos..len_pos + 4].copy_from_slice(&(len as i32).to_be_bytes());
+    fill_length(buf, len_pos, len);
 
     Ok(())
 }
@@ -115,7 +131,7 @@ fn encode_sasl_initial_response(
     buf.put_slice(data);
 
     let len = buf.len() - len_pos;
-    buf[len_pos..len_pos + 4].copy_from_slice(&(len as i32).to_be_bytes());
+    fill_length(buf, len_pos, len);
 
     Ok(())
 }
@@ -129,7 +145,7 @@ fn encode_sasl_response(buf: &mut BytesMut, data: &[u8]) -> io::Result<()> {
     buf.put_slice(data);
 
     let len = buf.len() - len_pos;
-    buf[len_pos..len_pos + 4].copy_from_slice(&(len as i32).to_be_bytes());
+    fill_length(buf, len_pos, len);
 
     Ok(())
 }

@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::indexing_slicing)] // Reason: test fixtures index into known-shape buffers; OOB indices correctly fail the test
 use super::*;
 
 #[test]

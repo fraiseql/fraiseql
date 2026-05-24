@@ -18,14 +18,15 @@ pub fn validate_row_description(msg: &BackendMessage) -> Result<()> {
     };
 
     // Must have exactly one column
-    if fields.len() != 1 {
-        return Err(WireError::InvalidSchema(format!(
-            "expected 1 column, got {}",
-            fields.len()
-        )));
-    }
-
-    let field = &fields[0];
+    let field = match fields.as_slice() {
+        [only] => only,
+        _ => {
+            return Err(WireError::InvalidSchema(format!(
+                "expected 1 column, got {}",
+                fields.len()
+            )));
+        }
+    };
 
     // Column must be named "data"
     if field.name != "data" {
@@ -57,7 +58,10 @@ pub fn extract_field_description(msg: &BackendMessage) -> Result<FieldDescriptio
         _ => return Err(WireError::Protocol("expected RowDescription".into())),
     };
 
-    Ok(fields[0].clone())
+    fields
+        .first()
+        .cloned()
+        .ok_or_else(|| WireError::Protocol("RowDescription has no fields".into()))
 }
 
 #[cfg(test)]

@@ -13,6 +13,10 @@
 //! ```
 
 #![warn(missing_docs, rust_2018_idioms)]
+// Wave 9 (Q4): all library decoders/encoders/validators are panic-free
+// w.r.t. slice/vec indexing. Test files and examples opt out individually
+// with `#![allow(clippy::indexing_slicing)]` + `// Reason:`.
+#![deny(clippy::indexing_slicing)]
 // Pedantic allows — workspace sets `pedantic = deny`. These are grouped and
 // justified per Q3 / F053 (see `IMPROVEMENTS.md`). Two categories:
 //
