@@ -179,6 +179,7 @@ XL  (> one week)
 - **Verification:** Add a smoke test that triggers a 1 GB Flight response and asserts peak RSS stays below ~100 MB.
 - **Risk:** Larger refactor; ensure error semantics (mid-stream failure) remain compatible with Flight clients.
 - **Confidence:** Medium
+- **Status:** Closed in 0077a3eb1 — introduced `spawn_flight_data_stream` helper that wires a producer closure to a bounded `mpsc::channel(4)` + `tokio_stream::wrappers::ReceiverStream`. Converted the 4 multi-batch sites (528, 731, 869, 1069) to defer per-batch encoding (`record_batch_to_flight_data` / `BulkExporter::export_batch`) into the producer task; the consumer's `poll_next` exerts backpressure via the bounded channel. The 5 single-element sites (action handlers + observer events) stay on `stream::iter(vec![one])` — no backpressure to gain. Two new tests in `backpressure_tests`: `producer_parks_when_channel_buffer_full` asserts the producer runs ahead by ≤ `BUFFER + 1` (one in-flight `send().await`) when the consumer is idle; `producer_exits_when_consumer_drops` asserts the producer task terminates when the stream is dropped mid-iteration. Eager database query + Arrow conversion (upstream of the channel) is unchanged — addressing those requires a streaming converter (separate work).
 
 #### F019 — `parking_lot::Mutex` would replace tokio `Mutex` for sync critical sections
 - **Severity:** 🟡 Medium
@@ -190,6 +191,7 @@ XL  (> one week)
 - **Verification:** Existing APQ tests; add a tiny bench around `get/set`.
 - **Risk:** None — caller signatures unchanged.
 - **Confidence:** High
+- **Status:** Closed in bb95ef8e9 — scanned 4 production `tokio::sync::Mutex` sites; converted 2, kept 2. Converted: `fraiseql-core::apq::InMemoryApqStorage::entries` (HashMap insert/get/remove with no await inside — the F019 spec target) and `fraiseql-observers::listener::ListenerHandle::last_heartbeat` (single `Instant` read/write; `update_heartbeat` becomes non-async, breaking change allowed per round-2). Kept: `PostgresNotifyTransport::listener` (`next_batch().await` held under the lock), `MultiListenerCoordinator::leader_id` (`get_listener_state().await` held under the lock), and `AppState::reload_lock` (guard held across `tokio::fs::read_to_string(...).await` in `reload_schema`). Added `parking_lot` workspace dep to `fraiseql-observers`. 53 APQ tests pass.
 
 ### Correctness
 
@@ -429,6 +431,7 @@ XL  (> one week)
 - **Suggested approach:** Add a module-level doc explaining the ownership contract for `JsonbValue` and whether projection allocates.
 - **Risk:** Docs-only.
 - **Confidence:** Medium
+- **Status:** Closed in 59122560a via the docs-only path — `JsonbValue` rustdoc now spells out the SQL → application boundary contract: adapter-owned (safe across the post-connection await), projector takes `&[JsonbValue]` and produces a freshly-allocated tree (no aliasing), and the type is intentionally distinct from `serde_json::Value` so the boundary is visible in signatures. `ResultProjector::project_results` gained a matching ownership note. Type name unchanged — `JsonbValue` is the canonical adapter-side name and renaming would churn every database driver and every projection caller for marginal clarity gain.
 
 ### Testing
 
@@ -440,6 +443,7 @@ XL  (> one week)
 - **Suggested approach:** Add `fuzz_targets/json_validate.rs` driving `wire::json::validate::validate(...)` with arbitrary bytes and structured `Arbitrary` JSON values.
 - **Risk:** None — additive.
 - **Confidence:** High
+- **Status:** Closed in 2763ca296 — landed `crates/fraiseql-wire/fuzz/fuzz_targets/json_validate.rs` driving `fraiseql_wire::stream::parse_json`. (Round-1 finding pointed at `wire::json::validate`, but that module validates the Postgres `RowDescription` schema — it doesn't touch JSON bytes. The actual JSON parse path for JSONB rows coming off the wire is `stream::parse_json`, which calls `serde_json::from_slice` and is what every variable / row payload eventually traverses.) Target compiles under the existing libfuzzer-sys infra alongside `protocol_decode` and `scram_parse`. Running the fuzzer is a separate effort — the landing is the "wire it in" part.
 
 #### F031 — Property tests cover schema and cache but not the runtime executor flow
 - **Severity:** 🟡 Medium
@@ -539,6 +543,7 @@ XL  (> one week)
 - **Suggested approach:** Introduce a `ProjectionExecutionParams<'a>` struct that the adapter accepts. Same call shape but compile-time guarantees on parameter order.
 - **Risk:** Trait change — all adapters update.
 - **Confidence:** High
+- **Status:** Closed in 83725aed8 — added `fraiseql_db::ProjectionRequest<'a>` (borrowed struct, field order mirrors SQL `SELECT … FROM … WHERE … ORDER BY … LIMIT … OFFSET`). Trait method `execute_with_projection_arc` now takes `&ProjectionRequest<'_>` instead of 6 positional params. Default impl still forwards to `execute_with_projection` (kept on the 6-arg shape because it has many adapter implementations; consolidating it is a larger refactor and was not in scope). Single override in `CachedDatabaseAdapter` plus 4 in-tree call sites updated. Struct is intentionally NOT `#[non_exhaustive]` — it is the call shape of the trait method, any field addition is a breaking trait change regardless, and struct-literal construction forces callers to set every field (missing one is a hard compile error).
 
 ### GraphQL / wire protocol
 
@@ -552,6 +557,7 @@ XL  (> one week)
 - **Verification:** DHAT bench of `parse_query` against a 1 KB query with many fields.
 - **Risk:** Lifetime propagates through `QueryMatch`, `ResultProjector`, etc.
 - **Confidence:** Medium
+- **Status:** **Open — won't fix without bench evidence.** Round-2 analysis: `ParsedQuery` already owns its strings (every name field is `String` in `crates/fraiseql-core/src/graphql/types.rs:72-160`). The conversion path (`extract_operation`, `parse_selection_set`) copies every identifier out of the parser's AST into the owned `ParsedQuery`, so the *intermediate* `Document<'_, String>` is the only thing that benefits — `~30` `String` allocations on a `~20`-field query, all dropped before `parse_query` returns. Since the F001 fix made `parse_graphql_document` public and returns `Document<'_, String>`, the parsed document also lives across the validator-and-matcher span in the handler. Holding `Document<'_, &str>` together with the owned source `String` from `GraphQLRequest::query` requires a self-referential structure (`ouroboros`/`yoke`) — explicitly excluded by the round-2 industrial framing ("don't add a heavy dep for what may be a marginal win"). Alternative: propagate `'a` through `QueryMatch`, `ResultProjector`, and the executor pipeline — a workspace-wide refactor far exceeding "M" effort. Reopen this finding only with a DHAT bench showing the intermediate Strings are a real fraction of per-request alloc cost; otherwise the allocation pattern is acceptable given the cost of the alternatives.
 
 ### Observability
 
@@ -710,6 +716,7 @@ XL  (> one week)
 ### Build & tooling
 
 #### F053 — Wire-crate Q3 recommendation: cast denylist + module/test relocation, retire the count gate
+- **Status:** Closed in 897a2188a — moved 2 actually-firing test-bleed allows (`unreadable_literal`, `explicit_iter_loop`) into per-module `#![allow]` inside the `mod tests` blocks at `json_stream/tests.rs` and `adaptive_chunking/tests.rs`. Removed 2 no-longer-firing allows (`map_unwrap_or`, `range_plus_one`) from the crate level entirely. Grouped the remaining 15 crate-level allows under two commented headers: "Wire-protocol cast suppressions" (8) and "Crate-wide style preferences" (7). Added `make lint-gate-wire` enforcing both `count ≤ 15` and "none of the 4 test-bleed lints appear at crate level" (matches the existing `lint-gate-db` / `lint-gate-core` mechanic). Allow count post-reorganization: **15** (target).
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** The current `fraiseql-wire/src/lib.rs:17-35` has 19 crate-level `#![allow(...)]` directives covering pedantic lints. The Q3 policy left "count-cap vs explicit denylist" open. A count cap of 20 catches "the file grew an unjustified 21st allow" but is silent on whether the *existing* 19 are still justified. An explicit denylist gives the same regression guard with finer granularity.
