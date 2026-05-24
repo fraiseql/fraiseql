@@ -86,6 +86,7 @@ XL  (> one week)
 - **Verification:** Add a criterion bench in `crates/fraiseql-core/benches/graphql_parse.rs` that times "parse + validate + match" before/after; expect ~30-50 % reduction in CPU per request for queries that exercise validation.
 - **Risk:** Public API change to `RequestValidator::validate_query` signature; either deprecate-and-add or keep the string variant for callers that don't have an AST yet.
 - **Confidence:** High
+- **Status:** Closed in b94abc592 — `RequestValidator::validate_query_doc(&Document<'_, String>)` accepts the pre-parsed AST and `parse_graphql_document(&str)` exposes the underlying parse. The HTTP handler now parses once at the validator boundary and feeds the same `Document` into `validate_query_doc`. Threading the AST through `Executor::execute` (the matcher's parse) is left as a follow-up.
 
 #### F002 — Response cache hit deep-clones the cached value
 - **Severity:** 🟠 High
@@ -100,7 +101,7 @@ XL  (> one week)
 - **Status:** Closed in 15fd10a48 — applied the minimum-effort signature-preserving variant: `Arc::unwrap_or_clone(cached)` on the cache-hit return path and `Arc::new(response)` + `Arc::clone(&cached)` for the put + return on the cache-miss path. The wider signature change (return `Arc<Value>` end-to-end) was deferred — the `execute_with_security` trait method has 3 impls across fraiseql-arrow and fraiseql-server; routing the Arc through them is a follow-up.
 
 #### F003 — Dynamic validators recompile `Regex` per request
-- **Status:** Re-prioritized — see round-2 update (industrial framing recommends changing the `ValidationRule` shape, not a runtime cache).
+- **Status:** Closed in dd4393d06 — `ValidationRule::Pattern { pattern: String, .. }` is now `ValidationRule::Pattern { pattern: CompiledPattern, .. }` where `CompiledPattern` owns a pre-compiled `Regex` plus the original source string for serde round-trip. Compilation happens once at construction (or at `schema.compiled.json` deserialisation); the three hot-path sites (`runtime/input_validator.rs`, `validation/composite.rs`, `validation/custom_type_registry::validate_pattern`) reuse the compiled `Regex` directly. Invalid patterns now surface at schema load instead of degrading silently per request.
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** Each `ValidationRule::Pattern` validation invokes `regex::Regex::new(pattern)` on every call. Compiling a moderate regex takes 50–200 µs; for a field validated on every request, this dominates execution time.
@@ -132,6 +133,7 @@ XL  (> one week)
 - **Verification:** DHAT allocator bench over a synthetic mutation with a 100 KB input.
 - **Risk:** `QueryMatch` is widely used across `runtime/executor/**`; the lifetime change ripples through every method signature.
 - **Confidence:** Medium (the borrow change is mechanically straightforward, but the blast radius is wide).
+- **Status:** Closed in 38c6e705b together with F024 — the matcher used to build the variables map twice (once for directive evaluation, once for `QueryMatch::arguments`). Folded into a single `variables_to_map` conversion that is borrowed by the directive evaluator and then moved onto `QueryMatch.arguments`. The wider "make `QueryMatch` borrow its arguments" change was deferred — the executor's downstream call chain would need a `'a` lifetime in every signature; not necessary to deliver the F005/F024 win.
 
 #### F009 — `MetricsCollector` redundantly wraps every counter in `Arc`
 - **Severity:** 🟠 High
@@ -259,11 +261,12 @@ XL  (> one week)
 - **Suggested approach:** Build one map (preferably borrowed; see F005) and pass references where each consumer needs read access.
 - **Risk:** Internal; signature change for `build_variables_map`/`extract_arguments`.
 - **Confidence:** High
+- **Status:** Closed in 38c6e705b together with F005 — the two clone passes are now a single conversion. The same `HashMap<String, Value>` is borrowed by the directive evaluator and then moved onto `QueryMatch.arguments`.
 
 ### API design
 
 #### F018 — `Box<dyn Fn() -> u64 + Send + Sync>` clock in `KeyedRateLimiter` blocks `Clone`
-- **Status:** Re-prioritized — see round-2 update (industrial: kill the boxed clock; generic over `Clock` trait).
+- **Status:** Closed in 3dca6bd67 — `KeyedRateLimiter<C: Clock = SystemClock>` is now generic over a new `Clock` trait. `SystemClock` is a zero-sized type holding the existing fail-closed `SystemTime::now()` semantics; a blanket impl on `F: Fn() -> u64 + Send + Sync` keeps test ergonomics so closures and `fn` pointers (like `|| u64::MAX`) work unchanged through `with_clock`. The limiter is `Clone` whenever `C: Clone` (which `SystemClock` is via `Copy`) — verified by a new regression test in `tests/rate_limiter_time_tests.rs`.
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** The trait-object clock prevents `KeyedRateLimiter: Clone` and forces a heap allocation on construction. The clock is only swapped in tests; a generic `<C: Fn() -> u64 + Send + Sync>` would inline it.
@@ -285,7 +288,7 @@ XL  (> one week)
 - **Status:** Closed in dffa25762 — signature changed to `impl Iterator<Item = &str> + '_`. The only non-test callers (the function is re-exported in `runtime/mod.rs` but only test files reference it by name across `crates/`) were the two assertions in `executor/support/tests.rs`, which now `.collect()` into a `Vec` explicitly. Breaking change marked with `!` in the commit.
 
 #### F036 — `to_sql_param` returns `Box<dyn ToSql + Sync + Send>` per parameter
-- **Status:** Re-prioritized — see round-2 update (industrial: lifetime-rule cost is one-time, trait stable).
+- **Status:** Closed in c9b599e15 — the `to_sql_param` helper was dead code: every hot-path call site already used the borrowing pattern `.iter().map(|p| p as &(dyn ToSql + Sync)).collect()` (PR notes called this out as "already shifted"). Deleted the helper and added `as_sql_param_refs(&[QueryParam]) -> Vec<&(dyn ToSql + Sync)>` to centralise the repeated boilerplate. `QueryParam` already implemented `ToSql` so no per-parameter heap allocation remains on the query path.
 - **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** Every query parameter heap-allocates a `Box<dyn ToSql>`. For a query with 10 params and 1 000 RPS, that's 10 000 allocations/s for a borrow that could be `&dyn ToSql` or an enum dispatch.
@@ -335,7 +338,7 @@ XL  (> one week)
 ### Async patterns
 
 #### F021 — `tokio::spawn` fire-and-forget without `JoinHandle` tracking in lifecycle paths
-- **Status:** Re-prioritized — see round-2 update (industrial: `JoinSet` on the `Server` struct + `select!` shutdown).
+- **Status:** Closed in 19bfd826c — added `tasks: tokio::task::JoinSet<()>` to `Server<A>`. Threaded a `&mut JoinSet<()>` through `trusted_docs_from_schema`/`spawn_trusted_docs_reload` and extracted a shared `spawn_pkce_cleanup` helper used by both constructor paths. `serve_with_shutdown` adds the SIGUSR1 handler, usage-persistence flush, and Arrow Flight gRPC server spawns onto the same set; after `axum::serve` returns a module-level `drain_lifecycle_tasks` aborts and awaits every task under the configured shutdown timeout. Per-request spawns (subscription event handlers, request middleware) are NOT migrated — they are not lifecycle tasks. New regression tests in `server/tests.rs` exercise the abort+drain path.
 - **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** Server shutdown cannot await background tasks; if a task is still running during graceful shutdown it is dropped mid-flight (which for tokio tasks means cancellation, but for `mpsc` consumers may mean lost messages).
