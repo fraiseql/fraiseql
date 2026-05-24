@@ -131,8 +131,32 @@ impl RemoteDatabaseConfig {
 /// contend with other readers on different shards; writes likewise lock a
 /// single shard.  `DashMap` has no poisoning, so the cache survives panics
 /// in unrelated code.
+///
+/// # Feature gating
+///
+/// The only writer that populates `adapters` is [`get_or_create_connection`],
+/// which is gated behind the `unstable` Cargo feature because direct
+/// remote-database federation is still WIP (the method currently always
+/// returns `FraiseQLError::Internal` with an "unstable API" message).
+///
+/// Without the `unstable` feature the manager is effectively a write-never
+/// store: [`new`], [`close_connection`], [`close_all`], and
+/// [`connection_count`] all compile and operate on an empty cache. The field
+/// itself is left ungated so the read-only surface of the API stays
+/// available — downstream code that needs to wire a `ConnectionManager`
+/// into its own type can do so without depending on the `unstable` feature.
+///
+/// [`get_or_create_connection`]: ConnectionManager::get_or_create_connection
+/// [`new`]: ConnectionManager::new
+/// [`close_connection`]: ConnectionManager::close_connection
+/// [`close_all`]: ConnectionManager::close_all
+/// [`connection_count`]: ConnectionManager::connection_count
 pub struct ConnectionManager {
-    /// Cached adapters keyed by connection string
+    /// Cached adapters keyed by connection string.
+    ///
+    /// Populated only by the `unstable`-gated `get_or_create_connection`;
+    /// without that feature this map stays empty for the lifetime of the
+    /// manager. See the struct-level docs for the design rationale.
     adapters: Arc<DashMap<String, ArcDatabaseAdapter>>,
 }
 
