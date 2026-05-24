@@ -6,10 +6,10 @@ async-trait = "0.1"
 base64 = "0.22"
 bb8 = {version = "0.8", optional = true}
 bb8-tiberius = {version = "0.15", optional = true}
-chrono = {version = "0.4", features = ["serde"]}
+chrono = {workspace = true}
 clap = {version = "4.5", features = ["derive"], optional = true}
 colored = {version = "2.1", optional = true}
-dashmap = "6.1"
+dashmap = {workspace = true}
 # Arrow Flight Dependencies
 fraiseql-arrow = {workspace = true, optional = true}
 fraiseql-error = {workspace = true}
@@ -32,7 +32,7 @@ tiberius = {version = "0.12", default-features = false, features = ["native-tls"
 tokio = {workspace = true}
 tokio-util = {version = "0.7", features = ["compat"], optional = true}
 tracing = "0.1"
-uuid = {version = "1.0", features = ["v4", "serde"]}
+uuid = {workspace = true}
 
 [dev-dependencies]
 criterion = {version = "0.5", features = ["async_tokio"]}
