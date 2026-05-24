@@ -3589,6 +3589,7 @@ dependencies = [
  "fraiseql-test-utils",
  "futures",
  "http 1.4.0",
+ "parking_lot",
  "prometheus",
  "proptest",
  "rand 0.9.4",
