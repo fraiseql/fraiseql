@@ -42,7 +42,7 @@
 //! assert_eq!(uuid, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
 //! ```
 
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use regex::Regex;
 use serde_json::Value;
@@ -53,13 +53,10 @@ use crate::error::Result;
 
 /// UUID v4 format regex (RFC 4122).
 /// Matches: 550e8400-e29b-41d4-a716-446655440000
-fn uuid_regex() -> &'static Regex {
-    static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| {
-        Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-            .expect("UUID regex is valid")
-    })
-}
+static UUID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+        .expect("UUID regex is valid")
+});
 
 /// Extracts entity UUIDs from mutation response objects.
 ///
@@ -194,7 +191,7 @@ impl UUIDExtractor {
     /// ```
     #[must_use]
     pub fn is_valid_uuid(id: &str) -> bool {
-        uuid_regex().is_match(&id.to_lowercase())
+        UUID_REGEX.is_match(&id.to_lowercase())
     }
 }
 
