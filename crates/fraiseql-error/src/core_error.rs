@@ -268,16 +268,50 @@ pub enum FraiseQLError {
     /// keeping `fraiseql-error` a leaf crate, the boxed payload is
     /// type-erased here; subsystem crates provide their own
     /// `impl From<SubsystemError> for FraiseQLError` (the sqlx pattern).
+    ///
+    /// `#[source]` is explicit: `thiserror` 2.x does not auto-detect a single
+    /// tuple field as the source, and downstream chain-walkers (`tracing`,
+    /// `miette`, `anyhow`) rely on `Error::source()` returning the underlying
+    /// subsystem error rather than `None`.
+    ///
+    /// # Pattern-matching on the inner error
+    ///
+    /// Because the payload is boxed and `dyn`-erased, downstream `match`
+    /// statements cannot bind on subsystem variants directly. Recover the
+    /// concrete type via [`std::error::Error::source`] + `downcast_ref`:
+    ///
+    /// ```ignore
+    /// use std::error::Error;
+    /// use fraiseql_error::FraiseQLError;
+    /// use fraiseql_auth::AuthError;
+    ///
+    /// if let FraiseQLError::Auth(_) = &err {
+    ///     if let Some(inner) = err.source().and_then(|s| s.downcast_ref::<AuthError>()) {
+    ///         match inner {
+    ///             AuthError::TokenExpired => {/* handle */},
+    ///             _ => {},
+    ///         }
+    ///     }
+    /// }
+    /// ```
     #[error("Auth error: {0}")]
-    Auth(Box<dyn std::error::Error + Send + Sync>),
+    Auth(#[source] Box<dyn std::error::Error + Send + Sync>),
 
     /// A webhook-processing error originating from the webhook subsystem.
+    ///
+    /// `#[source]` is explicit for the same reason as [`Self::Auth`]; see
+    /// that variant for the `downcast_ref` recovery pattern on the boxed
+    /// `fraiseql_webhooks::WebhookError`.
     #[error("Webhook error: {0}")]
-    Webhook(Box<dyn std::error::Error + Send + Sync>),
+    Webhook(#[source] Box<dyn std::error::Error + Send + Sync>),
 
     /// An observer subsystem error (event dispatch, action execution, retry exhaustion).
+    ///
+    /// `#[source]` is explicit for the same reason as [`Self::Auth`]; see
+    /// that variant for the `downcast_ref` recovery pattern on the boxed
+    /// `fraiseql_observers::ObserverError`.
     #[error("Observer error: {0}")]
-    Observer(Box<dyn std::error::Error + Send + Sync>),
+    Observer(#[source] Box<dyn std::error::Error + Send + Sync>),
 
     /// A file-handling error (size limit, unsupported type, virus scan, quota).
     ///

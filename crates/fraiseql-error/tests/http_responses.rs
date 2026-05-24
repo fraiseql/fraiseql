@@ -196,3 +196,55 @@ fn error_response_with_retry_after() {
     let json = serde_json::to_value(&resp).unwrap();
     assert_eq!(json["retry_after"], 30);
 }
+
+// --- F049 regression: boxed-payload variants must expose Error::source() ---
+//
+// `thiserror` 2.x does NOT auto-detect a single tuple field as the source —
+// without an explicit `#[source]`, `err.source()` returns `None`. Any
+// chain-walker (`tracing`, `miette`, `anyhow`) would see an empty source
+// chain for `FraiseQLError::{Auth, Webhook, Observer}`, hiding the real
+// subsystem-level error from structured logs. The asymmetry against the
+// `Internal { #[source] source }` variant in the same enum makes the bug
+// invisible at compile time. These tests pin the contract.
+
+use std::error::Error as _;
+
+#[test]
+fn auth_variant_preserves_source_chain() {
+    let inner: Box<dyn std::error::Error + Send + Sync> =
+        Box::new(std::io::Error::other("token-store unreachable"));
+    let inner_display = inner.to_string();
+
+    let err = FraiseQLError::Auth(inner);
+
+    let source = err.source().expect("FraiseQLError::Auth must expose its boxed source");
+    assert_eq!(
+        source.to_string(),
+        inner_display,
+        "Error::source() should yield the inner subsystem error verbatim",
+    );
+}
+
+#[test]
+fn webhook_variant_preserves_source_chain() {
+    let inner: Box<dyn std::error::Error + Send + Sync> =
+        Box::new(std::io::Error::other("webhook delivery refused"));
+    let inner_display = inner.to_string();
+
+    let err = FraiseQLError::Webhook(inner);
+
+    let source = err.source().expect("FraiseQLError::Webhook must expose its boxed source");
+    assert_eq!(source.to_string(), inner_display);
+}
+
+#[test]
+fn observer_variant_preserves_source_chain() {
+    let inner: Box<dyn std::error::Error + Send + Sync> =
+        Box::new(std::io::Error::other("observer dispatch failed"));
+    let inner_display = inner.to_string();
+
+    let err = FraiseQLError::Observer(inner);
+
+    let source = err.source().expect("FraiseQLError::Observer must expose its boxed source");
+    assert_eq!(source.to_string(), inner_display);
+}
