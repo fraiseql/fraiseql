@@ -71,8 +71,13 @@ pub use fraiseql_core::{
     CompiledSchema, FraiseQLConfig, FraiseQLError, Result, TenantContext, apq, cache, compiler, db,
     graphql, runtime, schema, security, tenancy, validation,
 };
-// Re-export error types
-pub use fraiseql_error::{AuthError, ConfigError, FileError, RuntimeError, WebhookError};
+// Re-export error types. The canonical workspace error is `FraiseQLError`
+// (re-exported via `fraiseql_core` above). `ConfigError` and `FileError` are
+// the only domain-specific error vocabularies owned directly by
+// `fraiseql-error`; subsystem error types (auth, webhook, observer) live in
+// their own crates and compose into `FraiseQLError::{Auth, Webhook, Observer}`
+// via `From` impls.
+pub use fraiseql_error::{ConfigError, FileError};
 #[cfg(feature = "observers")]
 pub use fraiseql_observers as observers;
 // Conditional re-exports (feature-gated)

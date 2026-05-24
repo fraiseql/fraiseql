@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Serialize;
 
-use crate::{AuthError, FileError, RuntimeError, WebhookError};
+use crate::{FileError, FraiseQLError};
 
 /// Standardised JSON error body returned by all FraiseQL HTTP endpoints.
 ///
@@ -49,7 +49,7 @@ impl ErrorResponse {
         Self {
             error:             error.into(),
             error_description: description.into(),
-            error_uri:         Some(format!("https://docs.fraiseql.dev/errors#{}", code)),
+            error_uri:         Some(format!("https://docs.fraiseql.dev/errors#{code}")),
             error_code:        code,
             details:           None,
             retry_after:       None,
@@ -71,208 +71,132 @@ impl ErrorResponse {
     }
 }
 
-impl IntoResponse for RuntimeError {
+impl IntoResponse for FraiseQLError {
     fn into_response(self) -> Response {
         let error_code = self.error_code();
+        let http_status = StatusCode::from_u16(self.status_code())
+            .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-        let (status, response) = match &self {
-            RuntimeError::Config(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                // SECURITY: Config errors may contain connection strings or secrets.
-                // Return a generic message; details are in server logs only.
-                ErrorResponse::new(
-                    "configuration_error",
-                    "A configuration error occurred",
-                    error_code,
-                ),
+        // SECURITY: messages here are deliberately generic — raw error
+        // details (database messages, config values, provider endpoints,
+        // internal paths) are kept server-side and surfaced only in
+        // structured logs via the `Display`/`source` chain.
+        let (error_category, description, retry_after) = match &self {
+            FraiseQLError::Parse { .. }
+            | FraiseQLError::Validation { .. }
+            | FraiseQLError::UnknownField { .. }
+            | FraiseQLError::UnknownType { .. } => {
+                ("validation_error", self.to_string(), None)
+            },
+            FraiseQLError::Authentication { .. } | FraiseQLError::Auth(_) => {
+                ("authentication_error", "Authentication failed".to_string(), None)
+            },
+            FraiseQLError::Authorization { .. } => {
+                ("authorization_error", "Insufficient permissions".to_string(), None)
+            },
+            FraiseQLError::NotFound { .. } => {
+                ("not_found", "Resource not found".to_string(), None)
+            },
+            FraiseQLError::Conflict { .. } => {
+                ("conflict", self.to_string(), None)
+            },
+            FraiseQLError::RateLimited {
+                retry_after_secs, ..
+            } => ("rate_limited", "Rate limit exceeded".to_string(), Some(*retry_after_secs)),
+            FraiseQLError::Timeout { .. } | FraiseQLError::Cancelled { .. } => {
+                ("timeout", "Request timed out".to_string(), None)
+            },
+            FraiseQLError::ServiceUnavailable { retry_after, .. } => (
+                "service_unavailable",
+                "Service temporarily unavailable".to_string(),
+                *retry_after,
             ),
-
-            RuntimeError::Auth(e) => {
-                let (status, msg) = match e {
-                    AuthError::InsufficientPermissions { .. } => {
-                        (StatusCode::FORBIDDEN, "Insufficient permissions")
-                    },
-                    AuthError::AccountLocked { .. } => (StatusCode::FORBIDDEN, "Account locked"),
-                    AuthError::InvalidCredentials => {
-                        (StatusCode::UNAUTHORIZED, "Invalid credentials")
-                    },
-                    AuthError::TokenExpired => (StatusCode::UNAUTHORIZED, "Token expired"),
-                    // SECURITY: InvalidToken, ProviderError messages may contain internal details
-                    // (JWT parsing reasons, provider endpoint URLs). Return generic message.
-                    AuthError::InvalidToken { .. } | AuthError::ProviderError { .. } => {
-                        (StatusCode::UNAUTHORIZED, "Authentication failed")
-                    },
-                    AuthError::InvalidState => (StatusCode::UNAUTHORIZED, "Invalid OAuth state"),
-                    AuthError::UserDenied => {
-                        (StatusCode::UNAUTHORIZED, "User denied authorization")
-                    },
-                    AuthError::SessionNotFound | AuthError::SessionExpired => {
-                        (StatusCode::UNAUTHORIZED, "Session not found or expired")
-                    },
-                    AuthError::RefreshTokenInvalid => {
-                        (StatusCode::UNAUTHORIZED, "Refresh token invalid or expired")
-                    },
-                };
-                (status, ErrorResponse::new("authentication_error", msg, error_code))
+            FraiseQLError::Unsupported { .. } => {
+                ("unsupported", self.to_string(), None)
             },
-
-            RuntimeError::Webhook(e) => {
-                let (status, msg) = match e {
-                    WebhookError::InvalidSignature => {
-                        (StatusCode::UNAUTHORIZED, "Invalid webhook signature")
-                    },
-                    WebhookError::DuplicateEvent { .. } => (StatusCode::OK, "Duplicate event"),
-                    WebhookError::TimestampExpired { .. } => {
-                        (StatusCode::BAD_REQUEST, "Webhook timestamp expired — check your clock")
-                    },
-                    WebhookError::TimestampFuture { .. } => {
-                        (StatusCode::BAD_REQUEST, "Webhook timestamp is in the future")
-                    },
-                    WebhookError::MissingSignature { .. } => {
-                        (StatusCode::BAD_REQUEST, "Missing webhook signature header")
-                    },
-                    WebhookError::UnknownEvent { .. } => {
-                        (StatusCode::BAD_REQUEST, "Unknown webhook event type")
-                    },
-                    WebhookError::ProviderNotConfigured { .. } => {
-                        (StatusCode::BAD_REQUEST, "Webhook provider not configured")
-                    },
-                    // SECURITY: PayloadError and IdempotencyError messages may contain
-                    // internal parsing details. Return generic messages.
-                    WebhookError::PayloadError { .. } | WebhookError::IdempotencyError { .. } => {
-                        (StatusCode::BAD_REQUEST, "Webhook processing failed")
-                    },
-                };
-                (status, ErrorResponse::new("webhook_error", msg, error_code))
+            FraiseQLError::Webhook(_) => {
+                ("webhook_error", "Webhook processing failed".to_string(), None)
             },
-
-            RuntimeError::File(e) => {
-                let (status, msg) = match e {
-                    FileError::TooLarge { size, max } => (
-                        StatusCode::PAYLOAD_TOO_LARGE,
-                        // Safe to expose size info — helps client fix the request.
-                        format!("File too large: {} bytes exceeds maximum {}", size, max),
-                    ),
-                    FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
-                        (StatusCode::UNSUPPORTED_MEDIA_TYPE, "Unsupported file type".to_string())
-                    },
-                    FileError::NotFound { .. } => {
-                        // SECURITY: Do not expose internal file paths.
-                        (StatusCode::NOT_FOUND, "File not found".to_string())
-                    },
-                    FileError::VirusDetected { .. } => {
-                        (StatusCode::UNPROCESSABLE_ENTITY, "File failed security scan".to_string())
-                    },
-                    FileError::QuotaExceeded => {
-                        (StatusCode::INSUFFICIENT_STORAGE, "Storage quota exceeded".to_string())
-                    },
-                    _ => (StatusCode::BAD_REQUEST, "File operation failed".to_string()),
-                };
-                (status, ErrorResponse::new("file_error", msg, error_code))
+            FraiseQLError::File(e) => file_error_response(e),
+            // SECURITY: database/config/storage/internal/observer details
+            // must not leak to clients.
+            FraiseQLError::Database { .. } => {
+                ("database_error", "A database error occurred".to_string(), None)
             },
-
-            RuntimeError::Notification(e) => {
-                use crate::NotificationError::{
-                    CircuitOpen, InvalidInput, ProviderRateLimited, ProviderUnavailable,
-                };
-                let status = match e {
-                    CircuitOpen { .. } | ProviderUnavailable { .. } => {
-                        StatusCode::SERVICE_UNAVAILABLE
-                    },
-                    ProviderRateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
-                    InvalidInput { .. } => StatusCode::BAD_REQUEST,
-                    _ => StatusCode::INTERNAL_SERVER_ERROR,
-                };
-                // SECURITY: Provider details (API keys, endpoints) must not appear in responses.
-                let msg = match e {
-                    InvalidInput { .. } => self.to_string(),
-                    _ => "Notification service unavailable".to_string(),
-                };
-                (status, ErrorResponse::new("notification_error", msg, error_code))
+            FraiseQLError::ConnectionPool { .. } => {
+                ("internal_error", "Connection pool exhausted".to_string(), None)
             },
-
-            RuntimeError::RateLimited { retry_after } => {
-                let mut resp =
-                    ErrorResponse::new("rate_limited", "Rate limit exceeded", error_code);
-                if let Some(secs) = retry_after {
-                    resp = resp.with_retry_after(*secs);
-                }
-                (StatusCode::TOO_MANY_REQUESTS, resp)
+            FraiseQLError::Configuration { .. } => {
+                ("configuration_error", "A configuration error occurred".to_string(), None)
             },
-
-            RuntimeError::ServiceUnavailable { retry_after, .. } => {
-                // SECURITY: ServiceUnavailable may contain internal service names or endpoints.
-                // Return a generic message; details are in server logs only.
-                let mut resp = ErrorResponse::new(
-                    "service_unavailable",
-                    "Service temporarily unavailable",
-                    error_code,
-                );
-                if let Some(secs) = retry_after {
-                    resp = resp.with_retry_after(*secs);
-                }
-                (StatusCode::SERVICE_UNAVAILABLE, resp)
+            FraiseQLError::Storage { .. } => {
+                ("storage_error", "A storage error occurred".to_string(), None)
             },
-
-            RuntimeError::NotFound { .. } => (
-                StatusCode::NOT_FOUND,
-                // SECURITY: Do not expose internal resource names or IDs.
-                ErrorResponse::new("not_found", "Resource not found", error_code),
-            ),
-
-            RuntimeError::Database(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::new("database_error", "A database error occurred", error_code),
-            ),
-
-            _ => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse::new("internal_error", "An internal error occurred", error_code),
-            ),
+            FraiseQLError::Observer(_) => {
+                ("observer_error", "Observer processing failed".to_string(), None)
+            },
+            FraiseQLError::Internal { .. } => {
+                ("internal_error", "An internal error occurred".to_string(), None)
+            },
         };
 
-        // Add Retry-After header for rate limits
-        let mut resp = (status, Json(response)).into_response();
-        if let Some(retry_after) = self.retry_after_header() {
-            if let Ok(value) = retry_after.parse() {
+        let mut body = ErrorResponse::new(error_category, description, error_code);
+        if let Some(secs) = retry_after {
+            body = body.with_retry_after(secs);
+        }
+
+        let mut resp = (http_status, Json(body)).into_response();
+        if let Some(secs) = retry_after {
+            if let Ok(value) = secs.to_string().parse() {
                 resp.headers_mut().insert("Retry-After", value);
             }
         }
-
         resp
     }
 }
 
-impl RuntimeError {
-    fn retry_after_header(&self) -> Option<String> {
-        match self {
-            Self::RateLimited {
-                retry_after: Some(secs),
-            }
-            | Self::ServiceUnavailable {
-                retry_after: Some(secs),
-                ..
-            } => Some(secs.to_string()),
-            _ => None,
-        }
+/// Return the (category, message, `retry_after`) tuple for a [`FileError`].
+///
+/// `TooLarge` is the only variant whose message is safe to forward to the
+/// client (the size limits help the caller correct the request).
+fn file_error_response(e: &FileError) -> (&'static str, String, Option<u64>) {
+    match e {
+        FileError::TooLarge { size, max } => (
+            "file_error",
+            format!("File too large: {size} bytes exceeds maximum {max}"),
+            None,
+        ),
+        FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
+            ("file_error", "Unsupported file type".to_string(), None)
+        },
+        FileError::NotFound { .. } => ("file_error", "File not found".to_string(), None),
+        FileError::VirusDetected { .. } => {
+            ("file_error", "File failed security scan".to_string(), None)
+        },
+        FileError::QuotaExceeded => {
+            ("file_error", "Storage quota exceeded".to_string(), None)
+        },
+        FileError::Storage { .. } | FileError::Processing { .. } => {
+            ("file_error", "File operation failed".to_string(), None)
+        },
     }
 }
 
-/// Convenience trait that allows returning `Result<T, RuntimeError>` from axum
+/// Convenience trait that allows returning `Result<T, FraiseQLError>` from axum
 /// handlers by converting it directly into an HTTP [`Response`].
 ///
 /// Import this trait and call `.into_http_response()` on any
-/// `Result<impl IntoResponse, RuntimeError>` value.
+/// `Result<impl IntoResponse, FraiseQLError>` value.
 pub trait IntoHttpResponse {
     /// Convert this result into an axum [`Response`].
     ///
     /// On success the inner value is serialised via its own [`IntoResponse`]
-    /// implementation. On error the [`RuntimeError`] is converted to a JSON
+    /// implementation. On error the [`FraiseQLError`] is converted to a JSON
     /// error body with the appropriate HTTP status code.
     fn into_http_response(self) -> Response;
 }
 
-impl<T> IntoHttpResponse for Result<T, RuntimeError>
+impl<T> IntoHttpResponse for std::result::Result<T, FraiseQLError>
 where
     T: IntoResponse,
 {

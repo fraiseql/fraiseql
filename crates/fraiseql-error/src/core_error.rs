@@ -450,7 +450,9 @@ impl FraiseQLError {
             Self::Parse { .. }
             | Self::Validation { .. }
             | Self::UnknownField { .. }
-            | Self::UnknownType { .. } => 400,
+            | Self::UnknownType { .. }
+            | Self::Webhook(_)
+            | Self::File(_) => 400,
             Self::Authentication { .. } | Self::Auth(_) => 401,
             Self::Authorization { .. } => 403,
             Self::NotFound { .. } => 404,
@@ -465,7 +467,6 @@ impl FraiseQLError {
             | Self::Observer(_) => 500,
             Self::Unsupported { .. } => 501,
             Self::ServiceUnavailable { .. } => 503,
-            Self::Webhook(_) | Self::File(_) => 400,
         }
     }
 

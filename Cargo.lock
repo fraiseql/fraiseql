@@ -3343,6 +3343,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
+ "fraiseql-error",
  "hex",
  "hmac 0.12.1",
  "http 1.4.0",
@@ -3595,6 +3596,7 @@ dependencies = [
  "criterion",
  "dashmap",
  "fraiseql-arrow",
+ "fraiseql-error",
  "fraiseql-test-utils",
  "futures",
  "http 1.4.0",
@@ -3795,6 +3797,7 @@ version = "2.3.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
+ "fraiseql-error",
  "futures",
  "hex",
  "hmac 0.12.1",
