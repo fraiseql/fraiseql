@@ -478,6 +478,23 @@ impl FraiseQLError {
     }
 
     /// Get HTTP status code equivalent.
+    ///
+    /// # Future variants
+    ///
+    /// `FraiseQLError` is `#[non_exhaustive]`. The trailing `_ => 500` arm
+    /// is a deliberate safety net so a new variant added without updating
+    /// this match still gets a defined (and *safe*) HTTP status — generic
+    /// 500 Internal Server Error — rather than leaking implementation
+    /// details to the client by returning the wrong code.
+    //
+    // Reason: the trailing wildcard arm intentionally duplicates the 500
+    // server-error arm above (silencing `match_same_arms`), and is currently
+    // unreachable within this crate because the match enumerates every
+    // existing variant (silencing `unreachable_patterns`). The duplication is
+    // the security guarantee: when a future variant is added to this
+    // `#[non_exhaustive]` enum, the wildcard becomes reachable and prevents a
+    // wrong-status leak. See IMPROVEMENTS.md F055.
+    #[allow(clippy::match_same_arms, unreachable_patterns)]
     #[must_use]
     pub const fn status_code(&self) -> u16 {
         match self {
@@ -501,10 +518,24 @@ impl FraiseQLError {
             | Self::Observer(_) => 500,
             Self::Unsupported { .. } => 501,
             Self::ServiceUnavailable { .. } => 503,
+            // SECURITY: any future variant defaults to 500 Internal Server
+            // Error until explicitly mapped, so we never accidentally return
+            // an inappropriate status (e.g. 200, 401) to clients.
+            _ => 500,
         }
     }
 
     /// Get error code for GraphQL response.
+    ///
+    /// # Future variants
+    ///
+    /// `FraiseQLError` is `#[non_exhaustive]`. The trailing `_` arm returns
+    /// `"INTERNAL_SERVER_ERROR"` so a new variant added without updating
+    /// this match still receives a stable (if generic) error code.
+    // Reason: see `status_code` — same security-defence rationale; same two
+    // lints (`match_same_arms` for the duplicated arm body, `unreachable_patterns`
+    // because the in-crate match currently covers every variant).
+    #[allow(clippy::match_same_arms, unreachable_patterns)]
     #[must_use]
     pub const fn error_code(&self) -> &'static str {
         match self {
@@ -530,6 +561,9 @@ impl FraiseQLError {
             Self::Unsupported { .. } => "UNSUPPORTED_OPERATION",
             Self::ServiceUnavailable { .. } => "SERVICE_UNAVAILABLE",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",
+            // SECURITY: see `status_code` — fallback to the safe generic
+            // category until the new variant is explicitly classified.
+            _ => "INTERNAL_SERVER_ERROR",
         }
     }
 

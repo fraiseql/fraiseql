@@ -72,6 +72,14 @@ impl ErrorResponse {
 }
 
 impl IntoResponse for FraiseQLError {
+    // Reason: the trailing `_` arm in the inner match intentionally duplicates
+    // the `Internal` arm (silencing `match_same_arms`) and is currently
+    // unreachable within `fraiseql-error` because every existing variant is
+    // explicitly enumerated (silencing `unreachable_patterns`). The wildcard
+    // becomes reachable as soon as a future variant is added to the
+    // `#[non_exhaustive]` enum and gives that variant the safe generic
+    // response. See IMPROVEMENTS.md F055.
+    #[allow(clippy::match_same_arms, unreachable_patterns)]
     fn into_response(self) -> Response {
         let error_code = self.error_code();
         let http_status = StatusCode::from_u16(self.status_code())
@@ -138,6 +146,13 @@ impl IntoResponse for FraiseQLError {
             FraiseQLError::Internal { .. } => {
                 ("internal_error", "An internal error occurred".to_string(), None)
             },
+            // SECURITY: `FraiseQLError` is `#[non_exhaustive]`. A future
+            // variant added without updating this match will silently fall
+            // through to this generic 500 Internal Server Error response
+            // instead of leaking implementation details (or, worse, returning
+            // a misleading 2xx). `status_code()` and `error_code()` have
+            // matching fallbacks — keep all three in lockstep.
+            _ => ("internal_error", "An internal error occurred".to_string(), None),
         };
 
         let mut body = ErrorResponse::new(error_category, description, error_code);
