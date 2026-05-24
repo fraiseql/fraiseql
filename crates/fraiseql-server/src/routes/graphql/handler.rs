@@ -12,7 +12,7 @@ use fraiseql_core::{
     db::traits::DatabaseAdapter,
     security::SecurityContext,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use super::{
     app_state::AppState,
@@ -365,7 +365,10 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // Increment total queries counter
     metrics.queries_total.fetch_add(1, Ordering::Relaxed);
 
-    info!(
+    // Reason (F041): per-request execution log moved to `debug!`. At >100 RPS
+    // this event drowns the operator's `info!`-level signal-to-noise ratio.
+    // `info!` is reserved for startup/shutdown/schema-reload events.
+    debug!(
         query_length = query.len(),
         has_variables = request.variables.is_some(),
         operation_name = ?request.operation_name,
