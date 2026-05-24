@@ -408,6 +408,13 @@ fmt-check:
 # Run all checks
 check: fmt-check clippy test
 
+# Standard lint + test combo (F035). Convenience target that matches what
+# CI runs: strict clippy gate over the whole workspace, then nextest.
+.PHONY: ci
+ci:
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
+	cargo nextest run --workspace --all-features
+
 # Clean build artifacts
 clean:
 	cargo clean

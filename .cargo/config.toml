@@ -10,6 +10,10 @@ bloat = "bloat --release --crates"
 br = "build --release"
 c = "check"
 check-all = "check --all-targets --all-features"
+# Reason (F035): `ci` is a single-subcommand alias that runs the strict workspace
+# lint gate. Cargo aliases cannot chain commands with `&&`; for the full
+# lint + test combo use `make ci` (see top-level Makefile).
+ci = "clippy --workspace --all-targets --all-features -- -D warnings"
 clippy-all = "clippy --all-targets --all-features -- -D warnings"
 cov = "llvm-cov --all-features --workspace --lcov --output-path lcov.info"
 doc-open = "doc --all-features --no-deps --open"
