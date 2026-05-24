@@ -3,7 +3,100 @@
 //! This module defines the validation rules that can be applied to input fields
 //! in a GraphQL schema. Rules are serializable and can be embedded in the compiled schema.
 
-use serde::{Deserialize, Serialize};
+use std::fmt;
+
+use regex::Regex;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+/// A regex pattern compiled once at construction or deserialisation time.
+///
+/// Stores both the compiled [`Regex`] and the source string so that the rule
+/// remains [`Clone`] / [`PartialEq`] / [`Serialize`] without needing to
+/// recompile on every match. Compilation errors surface at the construction
+/// site (e.g. schema load) rather than per-request on the validation hot path.
+#[derive(Debug, Clone)]
+pub struct CompiledPattern {
+    /// Original pattern source — preserved for serde round-trip and diagnostics.
+    source: String,
+    /// Pre-compiled regex matcher.
+    regex:  Regex,
+}
+
+impl CompiledPattern {
+    /// Compile a regex pattern.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying [`regex::Error`] if `pattern` is not a valid
+    /// regular expression.
+    pub fn new(pattern: impl Into<String>) -> Result<Self, regex::Error> {
+        let source = pattern.into();
+        let regex = Regex::new(&source)?;
+        Ok(Self { source, regex })
+    }
+
+    /// Borrow the compiled regex for matching.
+    #[must_use]
+    pub const fn regex(&self) -> &Regex {
+        &self.regex
+    }
+
+    /// Borrow the original pattern source.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.source
+    }
+
+    /// Test whether the input string matches this pattern.
+    #[must_use]
+    pub fn is_match(&self, value: &str) -> bool {
+        self.regex.is_match(value)
+    }
+}
+
+impl fmt::Display for CompiledPattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.source)
+    }
+}
+
+impl PartialEq for CompiledPattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.source == other.source
+    }
+}
+
+impl Eq for CompiledPattern {}
+
+impl Serialize for CompiledPattern {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.source)
+    }
+}
+
+impl<'de> Deserialize<'de> for CompiledPattern {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let source = String::deserialize(deserializer)?;
+        Self::new(source).map_err(D::Error::custom)
+    }
+}
+
+impl TryFrom<String> for CompiledPattern {
+    type Error = regex::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl TryFrom<&str> for CompiledPattern {
+    type Error = regex::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
 
 /// A validation rule that can be applied to a field.
 ///
@@ -18,10 +111,14 @@ pub enum ValidationRule {
     Required,
 
     /// Field value must match a regular expression pattern.
+    ///
+    /// The `pattern` is compiled once when the rule is constructed (or
+    /// deserialised from the compiled schema), so the regex engine is not
+    /// re-invoked per request.
     #[serde(rename = "pattern")]
     Pattern {
-        /// The regex pattern to match.
-        pattern: String,
+        /// The regex pattern to match — compiled at construction.
+        pattern: CompiledPattern,
         /// Optional error message for when pattern doesn't match.
         message: Option<String>,
     },

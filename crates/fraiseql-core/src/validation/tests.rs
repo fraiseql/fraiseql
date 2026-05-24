@@ -699,7 +699,7 @@ mod composite_tests {
         let rules = vec![
             ValidationRule::Required,
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
         ];
@@ -719,7 +719,7 @@ mod composite_tests {
                 max: None,
             },
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
         ];
@@ -734,7 +734,7 @@ mod composite_tests {
     fn test_validate_any_passes_first() {
         let rules = vec![
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
             ValidationRule::Length {
@@ -750,7 +750,7 @@ mod composite_tests {
     fn test_validate_any_passes_second() {
         let rules = vec![
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
             ValidationRule::Length {
@@ -766,7 +766,7 @@ mod composite_tests {
     fn test_validate_any_fails_all() {
         let rules = vec![
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
             ValidationRule::Length {
@@ -785,7 +785,7 @@ mod composite_tests {
     fn test_validate_any_multiple_passes() {
         let rules = vec![
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
             ValidationRule::Length {
@@ -803,7 +803,7 @@ mod composite_tests {
     #[test]
     fn test_validate_not_passes_when_rule_fails() {
         let rule = ValidationRule::Pattern {
-            pattern: "^[0-9]+$".to_string(),
+            pattern: CompiledPattern::new("^[0-9]+$").expect("valid regex"),
             message: None,
         };
         let result = validate_not(&rule, "abc", "field", true);
@@ -813,7 +813,7 @@ mod composite_tests {
     #[test]
     fn test_validate_not_fails_when_rule_passes() {
         let rule = ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: None,
         };
         let result = validate_not(&rule, "abc", "field", true);
@@ -873,7 +873,7 @@ mod composite_tests {
                 max: Some(20),
             },
             ValidationRule::Pattern {
-                pattern: "^[A-Za-z0-9]+$".to_string(),
+                pattern: CompiledPattern::new("^[A-Za-z0-9]+$").expect("valid regex"),
                 message: Some("Username must be alphanumeric".to_string()),
             },
         ];
@@ -890,7 +890,7 @@ mod composite_tests {
                 max: Some(20),
             },
             ValidationRule::Pattern {
-                pattern: "^[A-Za-z0-9]+$".to_string(),
+                pattern: CompiledPattern::new("^[A-Za-z0-9]+$").expect("valid regex"),
                 message: Some("Username must be alphanumeric".to_string()),
             },
         ];
@@ -903,7 +903,10 @@ mod composite_tests {
 
     #[test]
     fn test_strong_password_pattern_all() {
-        // Strong password: at least 1 uppercase, 1 lowercase, 1 digit
+        // Strong password: at least 8 chars and contains at least one uppercase letter.
+        // Note: the `regex` crate intentionally disallows look-around, so we express
+        // the "contains an uppercase letter" requirement as a non-anchored match
+        // rather than a `(?=.*[A-Z])` lookahead.
         let rules = vec![
             ValidationRule::Required,
             ValidationRule::Length {
@@ -911,7 +914,7 @@ mod composite_tests {
                 max: None,
             },
             ValidationRule::Pattern {
-                pattern: "^(?=.*[A-Z])".to_string(), // Lookahead for uppercase
+                pattern: CompiledPattern::new("[A-Z]").expect("valid regex"),
                 message: Some("Must contain at least one uppercase letter".to_string()),
             },
         ];
@@ -926,7 +929,7 @@ mod composite_tests {
                 values: vec!["admin".to_string(), "user".to_string()],
             },
             ValidationRule::Pattern {
-                pattern: "^guest_[0-9]+$".to_string(),
+                pattern: CompiledPattern::new("^guest_[0-9]+$").expect("valid regex"),
                 message: None,
             },
         ];
@@ -937,7 +940,7 @@ mod composite_tests {
     #[test]
     fn test_not_numeric_for_string_field() {
         let rule = ValidationRule::Pattern {
-            pattern: "^[0-9]+$".to_string(),
+            pattern: CompiledPattern::new("^[0-9]+$").expect("valid regex"),
             message: None,
         };
         let result = validate_not(&rule, "abc123", "code", true);
@@ -3382,7 +3385,7 @@ mod inheritance_tests {
             },
         ];
         let child = vec![ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: None,
         }];
 
@@ -3401,7 +3404,7 @@ mod inheritance_tests {
             },
         ];
         let child = vec![ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: None,
         }];
 
@@ -3413,7 +3416,7 @@ mod inheritance_tests {
     fn test_child_first_mode() {
         let parent = vec![ValidationRule::Required];
         let child = vec![ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: None,
         }];
 
@@ -3427,7 +3430,7 @@ mod inheritance_tests {
     fn test_parent_first_mode() {
         let parent = vec![ValidationRule::Required];
         let child = vec![ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: None,
         }];
 
@@ -3567,7 +3570,7 @@ mod inheritance_tests {
         // Child
         let child_rules = vec![RuleMetadata::new(
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
             "AdminUserInput",
@@ -3623,7 +3626,7 @@ mod inheritance_tests {
         // User extends Base: adds pattern
         let user_rules = vec![RuleMetadata::new(
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
             "UserInput",
@@ -4978,7 +4981,7 @@ mod rules_tests {
     #[test]
     fn test_pattern_rule() {
         let rule = ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: Some("Only lowercase letters allowed".to_string()),
         };
         assert!(!rule.is_required());
@@ -5013,7 +5016,7 @@ mod rules_tests {
         let rule = ValidationRule::All(vec![
             ValidationRule::Required,
             ValidationRule::Pattern {
-                pattern: "^[a-z]+$".to_string(),
+                pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
                 message: None,
             },
         ]);
@@ -5378,7 +5381,7 @@ mod validators_tests {
     #[test]
     fn test_create_validator_from_rule() {
         let rule = ValidationRule::Pattern {
-            pattern: "^test".to_string(),
+            pattern: CompiledPattern::new("^test").expect("valid regex"),
             message: None,
         };
         let validator = create_validator_from_rule(&rule);

@@ -356,14 +356,16 @@ impl CustomTypeRegistry {
     /// # Example
     ///
     /// ```
-    /// use fraiseql_core::validation::{CustomTypeRegistry, CustomTypeDef, ValidationRule};
+    /// use fraiseql_core::validation::{
+    ///     CompiledPattern, CustomTypeDef, CustomTypeRegistry, ValidationRule,
+    /// };
     /// use serde_json::json;
     ///
     /// let registry = CustomTypeRegistry::new(Default::default());
     /// let mut def = CustomTypeDef::new("LibraryCode".to_string());
     /// def.validation_rules = vec![
     ///     ValidationRule::Pattern {
-    ///         pattern: r"^LIB-[0-9]{4}$".to_string(),
+    ///         pattern: CompiledPattern::new(r"^LIB-[0-9]{4}$").expect("valid regex"),
     ///         message: Some("Must match LIB-NNNN format".to_string()),
     ///     },
     /// ];
@@ -440,7 +442,7 @@ impl CustomTypeRegistry {
     fn validate_pattern(
         &self,
         type_name: &str,
-        pattern: &str,
+        pattern: &crate::validation::CompiledPattern,
         message: Option<&String>,
         value: &serde_json::Value,
     ) -> Result<()> {
@@ -452,12 +454,7 @@ impl CustomTypeRegistry {
             path:    Some(format!("custom_scalars.{}", type_name)),
         })?;
 
-        let re = regex::Regex::new(pattern).map_err(|e| FraiseQLError::Validation {
-            message: format!("Custom scalar '{}' has invalid regex pattern: {}", type_name, e),
-            path:    Some(format!("custom_scalars.{}.validation_rules", type_name)),
-        })?;
-
-        if !re.is_match(str_val) {
+        if !pattern.is_match(str_val) {
             return Err(FraiseQLError::Validation {
                 message: message.cloned().unwrap_or_else(|| {
                     format!(

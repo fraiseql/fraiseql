@@ -1,6 +1,9 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use super::*;
-use crate::{error::FraiseQLError, validation::ValidationRule};
+use crate::{
+    error::FraiseQLError,
+    validation::{CompiledPattern, ValidationRule},
+};
 
 #[test]
 fn test_custom_type_def_new() {
@@ -231,7 +234,7 @@ fn test_validate_with_pattern_rule_valid() {
     let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.validation_rules = vec![ValidationRule::Pattern {
-        pattern: r"^LIB-[0-9]{4}$".to_string(),
+        pattern: CompiledPattern::new(r"^LIB-[0-9]{4}$").expect("valid regex"),
         message: Some("Library code must be LIB-#### format".to_string()),
     }];
 
@@ -247,7 +250,7 @@ fn test_validate_with_pattern_rule_invalid() {
     let registry = CustomTypeRegistry::new(CustomTypeRegistryConfig::default());
     let mut def = CustomTypeDef::new("LibraryCode".to_string());
     def.validation_rules = vec![ValidationRule::Pattern {
-        pattern: r"^LIB-[0-9]{4}$".to_string(),
+        pattern: CompiledPattern::new(r"^LIB-[0-9]{4}$").expect("valid regex"),
         message: Some("Library code must be LIB-#### format".to_string()),
     }];
 
@@ -302,7 +305,7 @@ fn test_validate_with_multiple_rules() {
     let mut def = CustomTypeDef::new("PatientID".to_string());
     def.validation_rules = vec![
         ValidationRule::Pattern {
-            pattern: r"^PAT-[0-9]{6}$".to_string(),
+            pattern: CompiledPattern::new(r"^PAT-[0-9]{6}$").expect("valid regex"),
             message: Some("Patient ID must be PAT-###### format".to_string()),
         },
         ValidationRule::Length {

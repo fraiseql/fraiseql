@@ -6,19 +6,19 @@
 //! # Examples
 //!
 //! ```
-//! use fraiseql_core::validation::{ValidationRule, InheritanceMode, inherit_validation_rules};
+//! use fraiseql_core::validation::{CompiledPattern, ValidationRule, InheritanceMode, inherit_validation_rules};
 //!
 //! // Parent: UserInput with required email and minLength 5
 //! // Child: AdminUserInput extends UserInput with additional admin-only rules
 //!
 //! let parent_rules = vec![
-//!     ValidationRule::Pattern { pattern: "^.+@.+$".to_string(), message: None },
+//!     ValidationRule::Pattern { pattern: CompiledPattern::new("^.+@.+$").expect("valid regex"), message: None },
 //!     ValidationRule::Length { min: Some(5), max: None },
 //! ];
 //!
 //! let child_rules = vec![
 //!     ValidationRule::Required,
-//!     ValidationRule::Pattern { pattern: "^admin_.+$".to_string(), message: None },
+//!     ValidationRule::Pattern { pattern: CompiledPattern::new("^admin_.+$").expect("valid regex"), message: None },
 //! ];
 //!
 //! let inherited = inherit_validation_rules(&parent_rules, &child_rules, InheritanceMode::Merge);

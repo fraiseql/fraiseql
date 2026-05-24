@@ -56,7 +56,7 @@ mod ir_tests {
         AuthoringIR, AutoParams, IRArgument, IRField, IRMutation, IRQuery, IRScalar, IRType,
         MutationOperation,
     };
-    use crate::validation::rules::ValidationRule;
+    use crate::validation::rules::{CompiledPattern, ValidationRule};
 
     #[test]
     fn test_authoring_ir_new() {
@@ -178,7 +178,7 @@ mod ir_tests {
             description:      Some("Valid email address".to_string()),
             specified_by_url: Some("https://html.spec.whatwg.org/".to_string()),
             validation_rules: vec![ValidationRule::Pattern {
-                pattern: r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$".to_string(),
+                pattern: CompiledPattern::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").expect("valid regex"),
                 message: Some("Invalid email format".to_string()),
             }],
             base_type:        Some("String".to_string()),

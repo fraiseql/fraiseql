@@ -1221,7 +1221,7 @@ mod input_validator_tests {
     use crate::{
         error::{FraiseQLError, ValidationFieldError},
         runtime::input_validator::*,
-        validation::ValidationRule,
+        validation::{CompiledPattern, ValidationRule},
     };
 
     #[test]
@@ -1259,7 +1259,7 @@ mod input_validator_tests {
     #[test]
     fn test_validate_pattern() {
         let rule = ValidationRule::Pattern {
-            pattern: "^[a-z]+$".to_string(),
+            pattern: CompiledPattern::new("^[a-z]+$").expect("valid regex"),
             message: None,
         };
 
@@ -1335,7 +1335,7 @@ mod input_validator_tests {
 
             let mut def = CustomTypeDef::new("LibraryCode".to_string());
             def.validation_rules = vec![ValidationRule::Pattern {
-                pattern: r"^LIB-[0-9]{4}$".to_string(),
+                pattern: CompiledPattern::new(r"^LIB-[0-9]{4}$").expect("valid regex"),
                 message: Some("Library code must be LIB-#### format".to_string()),
             }];
 
@@ -1363,7 +1363,7 @@ mod input_validator_tests {
 
             let mut def = CustomTypeDef::new("LibraryCode".to_string());
             def.validation_rules = vec![ValidationRule::Pattern {
-                pattern: r"^LIB-[0-9]{4}$".to_string(),
+                pattern: CompiledPattern::new(r"^LIB-[0-9]{4}$").expect("valid regex"),
                 message: Some("Library code must be LIB-#### format".to_string()),
             }];
 
@@ -1395,7 +1395,7 @@ mod input_validator_tests {
             let mut def = CustomTypeDef::new("StudentID".to_string());
             def.validation_rules = vec![
                 ValidationRule::Pattern {
-                    pattern: r"^STU-[0-9]{4}-[0-9]{3}$".to_string(),
+                    pattern: CompiledPattern::new(r"^STU-[0-9]{4}-[0-9]{3}$").expect("valid regex"),
                     message: None,
                 },
                 ValidationRule::Length {

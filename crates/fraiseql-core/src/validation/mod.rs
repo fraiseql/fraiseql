@@ -66,7 +66,7 @@ pub use mutual_exclusivity::{
 };
 pub use rate_limiting::{ValidationRateLimiter, ValidationRateLimitingConfig};
 pub use rich_scalars::{CountryCodeValidator, EmailValidator, PhoneNumberValidator, VinValidator};
-pub use rules::ValidationRule;
+pub use rules::{CompiledPattern, ValidationRule};
 pub use scalar_validator::{
     ScalarValidationError, ValidationContext, validate_custom_scalar,
     validate_custom_scalar_parse_value,
