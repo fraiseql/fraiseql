@@ -88,6 +88,10 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 ///         FraiseQLError::TypeMismatch { .. } => "type mismatch",
 ///         FraiseQLError::RateLimitExceeded { .. } => "rate limit",
 ///         FraiseQLError::Forbidden { .. } => "forbidden",
+///         FraiseQLError::Auth(_) => "auth",
+///         FraiseQLError::Webhook(_) => "webhook",
+///         FraiseQLError::Observer(_) => "observer",
+///         FraiseQLError::File(_) => "file",
 ///     }
 /// }
 /// ```
@@ -255,6 +259,36 @@ pub enum FraiseQLError {
     },
 
     // ========================================================================
+    // Domain Subsystem Errors (composed via `From` impls in subsystem crates)
+    // ========================================================================
+    /// An authentication or authorisation error originating from the auth subsystem.
+    ///
+    /// The boxed source is the subsystem-specific error type (e.g.
+    /// `fraiseql_auth::AuthError`). To preserve subsystem vocabulary while
+    /// keeping `fraiseql-error` a leaf crate, the boxed payload is
+    /// type-erased here; subsystem crates provide their own
+    /// `impl From<SubsystemError> for FraiseQLError` (the sqlx pattern).
+    #[error("Auth error: {0}")]
+    Auth(Box<dyn std::error::Error + Send + Sync>),
+
+    /// A webhook-processing error originating from the webhook subsystem.
+    #[error("Webhook error: {0}")]
+    Webhook(Box<dyn std::error::Error + Send + Sync>),
+
+    /// An observer subsystem error (event dispatch, action execution, retry exhaustion).
+    #[error("Observer error: {0}")]
+    Observer(Box<dyn std::error::Error + Send + Sync>),
+
+    /// A file-handling error (size limit, unsupported type, virus scan, quota).
+    ///
+    /// Unlike `Auth`, `Webhook`, and `Observer`, the file-domain vocabulary
+    /// lives inside `fraiseql-error` itself ([`crate::FileError`]) because no
+    /// subsystem crate owns it — file operations are spread across
+    /// `fraiseql-storage` and `fraiseql-server/storage`.
+    #[error("File error: {0}")]
+    File(#[from] crate::FileError),
+
+    // ========================================================================
     // Internal Errors
     // ========================================================================
     /// Internal error.
@@ -373,6 +407,9 @@ impl FraiseQLError {
                 | Self::NotFound { .. }
                 | Self::Conflict { .. }
                 | Self::RateLimited { .. }
+                | Self::Auth(_)
+                | Self::Webhook(_)
+                | Self::File(_)
         )
     }
 
@@ -390,6 +427,7 @@ impl FraiseQLError {
                 | Self::Unsupported { .. }
                 | Self::ServiceUnavailable { .. }
                 | Self::Internal { .. }
+                | Self::Observer(_)
         )
     }
 
@@ -413,7 +451,7 @@ impl FraiseQLError {
             | Self::Validation { .. }
             | Self::UnknownField { .. }
             | Self::UnknownType { .. } => 400,
-            Self::Authentication { .. } => 401,
+            Self::Authentication { .. } | Self::Auth(_) => 401,
             Self::Authorization { .. } => 403,
             Self::NotFound { .. } => 404,
             Self::Conflict { .. } => 409,
@@ -423,9 +461,11 @@ impl FraiseQLError {
             | Self::ConnectionPool { .. }
             | Self::Configuration { .. }
             | Self::Storage { .. }
-            | Self::Internal { .. } => 500,
+            | Self::Internal { .. }
+            | Self::Observer(_) => 500,
             Self::Unsupported { .. } => 501,
             Self::ServiceUnavailable { .. } => 503,
+            Self::Webhook(_) | Self::File(_) => 400,
         }
     }
 
@@ -443,6 +483,10 @@ impl FraiseQLError {
             Self::Cancelled { .. } => "CANCELLED",
             Self::Authorization { .. } => "FORBIDDEN",
             Self::Authentication { .. } => "UNAUTHENTICATED",
+            Self::Auth(_) => "AUTH_ERROR",
+            Self::Webhook(_) => "WEBHOOK_ERROR",
+            Self::Observer(_) => "OBSERVER_ERROR",
+            Self::File(_) => "FILE_ERROR",
             Self::RateLimited { .. } => "RATE_LIMITED",
             Self::NotFound { .. } => "NOT_FOUND",
             Self::Conflict { .. } => "CONFLICT",
@@ -595,15 +639,6 @@ impl From<std::env::VarError> for FraiseQLError {
     fn from(e: std::env::VarError) -> Self {
         Self::Configuration {
             message: format!("Environment variable error: {e}"),
-        }
-    }
-}
-
-impl From<crate::FileError> for FraiseQLError {
-    fn from(e: crate::FileError) -> Self {
-        Self::Storage {
-            message: e.to_string(),
-            code:    Some(e.error_code().to_owned()),
         }
     }
 }
