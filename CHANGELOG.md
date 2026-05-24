@@ -134,6 +134,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   misnomer. The `#[from]` semantics are unchanged: any `FraiseQLError`
   bubbles up as `ServerError::Engine` automatically.
 
+- **`FraiseQLError::Storage` removed; storage failures now use
+  `FraiseQLError::File(FileError::*)`** (F050). The 118 call sites in
+  `fraiseql-storage` and `fraiseql-functions` that used to construct
+  `FraiseQLError::Storage { message, code }` have been migrated to
+  typed `FileError` variants, eliminating the `code: Option<String>`
+  string-discriminator anti-pattern. Eight new `FileError` variants
+  cover the backend-classification space:
+
+  | New variant | HTTP status | Replaces |
+  |---|---|---|
+  | `FileError::PermissionDenied { message, source }` | 403 | `Storage { code: Some("permission_denied") }` |
+  | `FileError::IoError { message, source }` | 500 | `Storage { code: Some("io_error") }` |
+  | `FileError::InvalidKey { message }` | 400 | `Storage { code: Some("invalid_key") }` |
+  | `FileError::NotImplemented { message }` | 500 | `Storage { code: Some("not_implemented") }` |
+  | `FileError::Unsupported { message }` | 500 | `Storage { code: Some("not_supported"/"unsupported") }` |
+  | `FileError::SizeLimitExceeded { message, limit, actual }` | 500 | `Storage { code: Some("size_limit_exceeded") }` |
+  | `FileError::MimeTypeNotAllowed { message, mime }` | 500 | `Storage { code: Some("mime_type_not_allowed") }` |
+  | `FileError::Backend { message, source }` | 500 | catch-all for `Storage { code: None }` (~67 sites: HTTP / SDK failures, config-validation errors, sqlx database errors) |
+
+  Existing `FileError::NotFound` reused for `Storage { code:
+  Some("not_found") }`. **Observable HTTP change**:
+  `FraiseQLError::File(FileError::NotFound)` now returns 404 globally
+  (was 400). This aligns the global status code with what the local
+  `storage_error_response` and `fraiseql-server::file_error_response`
+  routes already returned for backend not-found cases. Every other
+  status code is preserved: `storage_error_response` still routes
+  `NotFound` → 404, `PermissionDenied` → 403, everything else → 500
+  exactly as before, only by matching on typed variants instead of the
+  `code` string. Source-chain preservation is a net improvement:
+  reqwest, AWS SDK, sqlx, std::io errors that were previously stringified
+  via `format!("backend error: {e}")` now flow through `source:
+  Some(Box::new(e))` so `Error::source()` chain walkers and `tracing`'s
+  error-chain instrumentation see the underlying type.
+
+  Downstream callers that matched on `FraiseQLError::Storage { .. }`
+  must migrate to `FraiseQLError::File(FileError::*)`. See
+  `IMPROVEMENTS.md` F050 for the rationale.
+
 ### Changed
 
 - **Cargo production dependencies** — 12 non-breaking bumps (batch update).
