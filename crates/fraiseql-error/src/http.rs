@@ -174,6 +174,13 @@ impl IntoResponse for FraiseQLError {
 ///
 /// `TooLarge` is the only variant whose message is safe to forward to the
 /// client (the size limits help the caller correct the request).
+// Reason: `FileError` is `#[non_exhaustive]`; the trailing `_` arm is the
+// security fallback for any future variant added without updating this match.
+// The in-crate match currently enumerates every variant, so the wildcard is
+// unreachable today (`unreachable_patterns`) and structurally duplicates the
+// generic arms (`match_same_arms`). Same defence-in-depth rationale as the
+// `FraiseQLError::IntoResponse` and `status_code` matches in this file.
+#[allow(clippy::match_same_arms, unreachable_patterns)]
 fn file_error_response(e: &FileError) -> (&'static str, String, Option<u64>) {
     match e {
         FileError::TooLarge { size, max } => (
@@ -194,6 +201,30 @@ fn file_error_response(e: &FileError) -> (&'static str, String, Option<u64>) {
         FileError::Storage { .. } | FileError::Processing { .. } => {
             ("file_error", "File operation failed".to_string(), None)
         },
+        // F050 backend-classification variants. Bodies are deliberately generic
+        // (the typed status-code routing happens in `FraiseQLError::status_code`).
+        FileError::PermissionDenied { .. } => {
+            ("file_error", "Permission denied".to_string(), None)
+        },
+        FileError::IoError { .. } | FileError::Backend { .. } => {
+            ("file_error", "Storage backend error".to_string(), None)
+        },
+        FileError::InvalidKey { .. } => {
+            ("file_error", "Invalid storage key".to_string(), None)
+        },
+        FileError::NotImplemented { .. } | FileError::Unsupported { .. } => {
+            ("file_error", "Operation not supported".to_string(), None)
+        },
+        FileError::SizeLimitExceeded { .. } => {
+            ("file_error", "Upload exceeds size limit".to_string(), None)
+        },
+        FileError::MimeTypeNotAllowed { .. } => {
+            ("file_error", "Content type not allowed".to_string(), None)
+        },
+        // SECURITY: `FileError` is `#[non_exhaustive]`. A future variant added
+        // without updating this match falls through to the generic file-error
+        // response.
+        _ => ("file_error", "File operation failed".to_string(), None),
     }
 }
 
