@@ -55,12 +55,17 @@ fn metrics_collector_increments_atomically() {
 }
 
 #[test]
-fn metrics_collector_clone_shares_state() {
-    let metrics = MetricsCollector::new();
-    let clone = metrics.clone();
+fn metrics_collector_arc_shares_state() {
+    // F009: MetricsCollector no longer implements Clone directly; per-field
+    // Arc<AtomicU64> was a redundant indirection because the collector is
+    // always wrapped in Arc<MetricsCollector> at the use site. Cloning the
+    // outer Arc gives the same "shared mutable counters" behaviour that the
+    // old per-field Arc derivation provided.
+    let metrics = std::sync::Arc::new(MetricsCollector::new());
+    let clone = std::sync::Arc::clone(&metrics);
 
     metrics.queries_total.fetch_add(5, Ordering::Relaxed);
-    assert_eq!(clone.queries_total.load(Ordering::Relaxed), 5);
+    assert_eq!(clone.queries_total.load(Ordering::Relaxed), 5, "Arc<MetricsCollector> clones must share the counter state");
 }
 
 #[test]

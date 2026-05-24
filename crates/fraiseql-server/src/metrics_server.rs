@@ -22,144 +22,122 @@ use std::{
 use dashmap::DashMap;
 
 /// Metrics collector for the server.
-#[derive(Debug, Clone)]
+///
+/// All atomic counters are bare [`AtomicU64`]; the collector itself is wrapped
+/// in `Arc<MetricsCollector>` at every use site (see
+/// [`AppState::metrics`](crate::routes::graphql::AppState::metrics)). The
+/// previous per-field `Arc<AtomicU64>` was a redundant second indirection
+/// that bloated the struct to ~30 cache lines and made construction 30 atomic
+/// refcount bumps (F009). Call sites are unchanged — `metrics.foo.fetch_add(...)`
+/// resolves to a single Arc deref + atomic op.
+#[derive(Debug, Default)]
 pub struct MetricsCollector {
     /// Total GraphQL queries executed
-    pub queries_total: Arc<AtomicU64>,
+    pub queries_total: AtomicU64,
 
     /// Total successful queries
-    pub queries_success: Arc<AtomicU64>,
+    pub queries_success: AtomicU64,
 
     /// Total failed queries
-    pub queries_error: Arc<AtomicU64>,
+    pub queries_error: AtomicU64,
 
     /// Total query execution time (microseconds)
-    pub queries_duration_us: Arc<AtomicU64>,
+    pub queries_duration_us: AtomicU64,
 
     /// Total database queries executed
-    pub db_queries_total: Arc<AtomicU64>,
+    pub db_queries_total: AtomicU64,
 
     /// Total database query time (microseconds)
-    pub db_queries_duration_us: Arc<AtomicU64>,
+    pub db_queries_duration_us: AtomicU64,
 
     /// Total validation errors
-    pub validation_errors_total: Arc<AtomicU64>,
+    pub validation_errors_total: AtomicU64,
 
     /// Total parse errors
-    pub parse_errors_total: Arc<AtomicU64>,
+    pub parse_errors_total: AtomicU64,
 
     /// Total execution errors
-    pub execution_errors_total: Arc<AtomicU64>,
+    pub execution_errors_total: AtomicU64,
 
     /// Total HTTP requests
-    pub http_requests_total: Arc<AtomicU64>,
+    pub http_requests_total: AtomicU64,
 
     /// Total HTTP 2xx responses
-    pub http_responses_2xx: Arc<AtomicU64>,
+    pub http_responses_2xx: AtomicU64,
 
     /// Total HTTP 4xx responses
-    pub http_responses_4xx: Arc<AtomicU64>,
+    pub http_responses_4xx: AtomicU64,
 
     /// Total HTTP 5xx responses
-    pub http_responses_5xx: Arc<AtomicU64>,
+    pub http_responses_5xx: AtomicU64,
 
     /// Cache hits
-    pub cache_hits: Arc<AtomicU64>,
+    pub cache_hits: AtomicU64,
 
     /// Cache misses
-    pub cache_misses: Arc<AtomicU64>,
+    pub cache_misses: AtomicU64,
 
     // Federation Metrics
     /// Federation entity resolutions (total)
-    pub federation_entity_resolutions_total: Arc<AtomicU64>,
+    pub federation_entity_resolutions_total: AtomicU64,
 
     /// Federation entity resolutions (errors)
-    pub federation_entity_resolutions_errors: Arc<AtomicU64>,
+    pub federation_entity_resolutions_errors: AtomicU64,
 
     /// Federation entity resolution duration (microseconds)
-    pub federation_entity_resolution_duration_us: Arc<AtomicU64>,
+    pub federation_entity_resolution_duration_us: AtomicU64,
 
     /// Federation subgraph requests (total)
-    pub federation_subgraph_requests_total: Arc<AtomicU64>,
+    pub federation_subgraph_requests_total: AtomicU64,
 
     /// Federation subgraph requests (errors)
-    pub federation_subgraph_requests_errors: Arc<AtomicU64>,
+    pub federation_subgraph_requests_errors: AtomicU64,
 
     /// Federation subgraph request duration (microseconds)
-    pub federation_subgraph_request_duration_us: Arc<AtomicU64>,
+    pub federation_subgraph_request_duration_us: AtomicU64,
 
     /// Federation mutations (total)
-    pub federation_mutations_total: Arc<AtomicU64>,
+    pub federation_mutations_total: AtomicU64,
 
     /// Federation mutations (errors)
-    pub federation_mutations_errors: Arc<AtomicU64>,
+    pub federation_mutations_errors: AtomicU64,
 
     /// Federation mutation duration (microseconds)
-    pub federation_mutation_duration_us: Arc<AtomicU64>,
+    pub federation_mutation_duration_us: AtomicU64,
 
     /// Federation entity cache hits
-    pub federation_entity_cache_hits: Arc<AtomicU64>,
+    pub federation_entity_cache_hits: AtomicU64,
 
     /// Federation entity cache misses
-    pub federation_entity_cache_misses: Arc<AtomicU64>,
+    pub federation_entity_cache_misses: AtomicU64,
 
     /// Federation errors
-    pub federation_errors_total: Arc<AtomicU64>,
+    pub federation_errors_total: AtomicU64,
 
-    /// Per-operation metrics (histogram + error counter)
+    /// Per-operation metrics (histogram + error counter).
+    ///
+    /// Kept behind `Arc` because the registry is shared with other long-lived
+    /// readers (export endpoints) that need to hold a clone independently.
     pub operation_metrics: Arc<OperationMetricsRegistry>,
 
-    /// HTTP request duration histogram
+    /// HTTP request duration histogram (shared with export endpoints).
     pub http_request_duration: Arc<Histogram>,
 
-    /// Database query duration histogram
+    /// Database query duration histogram (shared with export endpoints).
     pub db_query_duration: Arc<Histogram>,
 
     /// Total successful schema reloads
-    pub schema_reloads_total: Arc<AtomicU64>,
+    pub schema_reloads_total: AtomicU64,
 
     /// Total failed schema reload attempts
-    pub schema_reload_errors_total: Arc<AtomicU64>,
+    pub schema_reload_errors_total: AtomicU64,
 }
 
 impl MetricsCollector {
     /// Create new metrics collector.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            queries_total: Arc::new(AtomicU64::new(0)),
-            queries_success: Arc::new(AtomicU64::new(0)),
-            queries_error: Arc::new(AtomicU64::new(0)),
-            queries_duration_us: Arc::new(AtomicU64::new(0)),
-            db_queries_total: Arc::new(AtomicU64::new(0)),
-            db_queries_duration_us: Arc::new(AtomicU64::new(0)),
-            validation_errors_total: Arc::new(AtomicU64::new(0)),
-            parse_errors_total: Arc::new(AtomicU64::new(0)),
-            execution_errors_total: Arc::new(AtomicU64::new(0)),
-            http_requests_total: Arc::new(AtomicU64::new(0)),
-            http_responses_2xx: Arc::new(AtomicU64::new(0)),
-            http_responses_4xx: Arc::new(AtomicU64::new(0)),
-            http_responses_5xx: Arc::new(AtomicU64::new(0)),
-            cache_hits: Arc::new(AtomicU64::new(0)),
-            cache_misses: Arc::new(AtomicU64::new(0)),
-            federation_entity_resolutions_total: Arc::new(AtomicU64::new(0)),
-            federation_entity_resolutions_errors: Arc::new(AtomicU64::new(0)),
-            federation_entity_resolution_duration_us: Arc::new(AtomicU64::new(0)),
-            federation_subgraph_requests_total: Arc::new(AtomicU64::new(0)),
-            federation_subgraph_requests_errors: Arc::new(AtomicU64::new(0)),
-            federation_subgraph_request_duration_us: Arc::new(AtomicU64::new(0)),
-            federation_mutations_total: Arc::new(AtomicU64::new(0)),
-            federation_mutations_errors: Arc::new(AtomicU64::new(0)),
-            federation_mutation_duration_us: Arc::new(AtomicU64::new(0)),
-            federation_entity_cache_hits: Arc::new(AtomicU64::new(0)),
-            federation_entity_cache_misses: Arc::new(AtomicU64::new(0)),
-            federation_errors_total: Arc::new(AtomicU64::new(0)),
-            operation_metrics: Arc::new(OperationMetricsRegistry::default()),
-            http_request_duration: Arc::new(Histogram::new()),
-            db_query_duration: Arc::new(Histogram::new()),
-            schema_reloads_total: Arc::new(AtomicU64::new(0)),
-            schema_reload_errors_total: Arc::new(AtomicU64::new(0)),
-        }
+        Self::default()
     }
 }
 
@@ -219,12 +197,6 @@ impl MetricsCollector {
     /// Record entity cache miss.
     pub fn record_entity_cache_miss(&self) {
         self.federation_entity_cache_misses.fetch_add(1, Ordering::Relaxed);
-    }
-}
-
-impl Default for MetricsCollector {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
