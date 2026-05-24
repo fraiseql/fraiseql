@@ -1446,84 +1446,84 @@ mod trusted_documents_tests {
         docs
     }
 
-    #[tokio::test]
-    async fn strict_mode_rejects_raw_query() {
+    #[test]
+    fn strict_mode_rejects_raw_query() {
         let store =
             TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
-        let result = store.resolve(None, Some("{ users { id } }")).await;
+        let result = store.resolve(None, Some("{ users { id } }"));
         assert!(matches!(result, Err(TrustedDocumentError::ForbiddenRawQuery)));
     }
 
-    #[tokio::test]
-    async fn strict_mode_accepts_valid_document_id() {
+    #[test]
+    fn strict_mode_accepts_valid_document_id() {
         let store =
             TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
-        let result = store.resolve(Some("sha256:abc123"), None).await;
+        let result = store.resolve(Some("sha256:abc123"), None);
         assert_eq!(result.unwrap(), "{ users { id } }");
     }
 
-    #[tokio::test]
-    async fn strict_mode_rejects_unknown_document_id() {
+    #[test]
+    fn strict_mode_rejects_unknown_document_id() {
         let store =
             TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
-        let result = store.resolve(Some("sha256:unknown"), None).await;
+        let result = store.resolve(Some("sha256:unknown"), None);
         assert!(matches!(result, Err(TrustedDocumentError::DocumentNotFound { .. })));
     }
 
-    #[tokio::test]
-    async fn permissive_mode_allows_raw_queries() {
+    #[test]
+    fn permissive_mode_allows_raw_queries() {
         let store =
             TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Permissive);
-        let result = store.resolve(None, Some("{ arbitrary { query } }")).await;
+        let result = store.resolve(None, Some("{ arbitrary { query } }"));
         assert_eq!(result.unwrap(), "{ arbitrary { query } }");
     }
 
-    #[tokio::test]
-    async fn permissive_mode_uses_manifest_for_document_id() {
+    #[test]
+    fn permissive_mode_uses_manifest_for_document_id() {
         let store =
             TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Permissive);
-        let result = store.resolve(Some("sha256:abc123"), None).await;
+        let result = store.resolve(Some("sha256:abc123"), None);
         assert_eq!(result.unwrap(), "{ users { id } }");
     }
 
-    #[tokio::test]
-    async fn document_id_without_prefix_is_resolved() {
+    #[test]
+    fn document_id_without_prefix_is_resolved() {
         let store =
             TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
-        let result = store.resolve(Some("abc123"), None).await;
+        let result = store.resolve(Some("abc123"), None);
         assert_eq!(result.unwrap(), "{ users { id } }");
     }
 
-    #[tokio::test]
-    async fn disabled_store_passes_through() {
+    #[test]
+    fn disabled_store_passes_through() {
         let store = TrustedDocumentStore::disabled();
-        let result = store.resolve(None, Some("{ anything }")).await;
+        let result = store.resolve(None, Some("{ anything }"));
         assert_eq!(result.unwrap(), "{ anything }");
     }
 
-    #[tokio::test]
-    async fn hot_reload_replaces_documents() {
+    #[test]
+    fn hot_reload_replaces_documents() {
         let store =
             TrustedDocumentStore::from_documents(test_documents(), TrustedDocumentMode::Strict);
-        assert_eq!(store.document_count().await, 2);
+        assert_eq!(store.document_count(), 2);
 
         let mut new_docs = HashMap::new();
         new_docs.insert("sha256:new123".to_string(), "{ new query }".to_string());
-        store.replace_documents(new_docs).await;
+        store.replace_documents(new_docs);
 
-        assert_eq!(store.document_count().await, 1);
-        let result = store.resolve(Some("sha256:new123"), None).await;
+        assert_eq!(store.document_count(), 1);
+        let result = store.resolve(Some("sha256:new123"), None);
         assert_eq!(result.unwrap(), "{ new query }");
 
-        let result = store.resolve(Some("sha256:abc123"), None).await;
+        let result = store.resolve(Some("sha256:abc123"), None);
         assert!(
             matches!(result, Err(TrustedDocumentError::DocumentNotFound { .. })),
             "expected DocumentNotFound after hot-reload removed old document, got: {result:?}"
         );
     }
 
-    #[tokio::test]
-    async fn manifest_file_loading() {
+    #[test]
+    fn manifest_file_loading() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("trusted-documents.json");
         let manifest = serde_json::json!({
@@ -1537,8 +1537,8 @@ mod trusted_documents_tests {
 
         let store =
             TrustedDocumentStore::from_manifest_file(&path, TrustedDocumentMode::Strict).unwrap();
-        assert_eq!(store.document_count().await, 2);
-        let result = store.resolve(Some("sha256:aaa"), None).await;
+        assert_eq!(store.document_count(), 2);
+        let result = store.resolve(Some("sha256:aaa"), None);
         assert_eq!(result.unwrap(), "{ users { id } }");
     }
 

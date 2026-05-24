@@ -412,7 +412,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                                         match serde_json::from_slice::<Manifest>(&body_bytes) {
                                             Ok(manifest) => {
                                                 let count = manifest.documents.len();
-                                                store.replace_documents(manifest.documents).await;
+                                                store.replace_documents(manifest.documents);
                                                 info!(count, "Trusted documents manifest reloaded");
                                             },
                                             Err(e) => {

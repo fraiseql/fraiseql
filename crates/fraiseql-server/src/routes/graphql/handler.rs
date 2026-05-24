@@ -315,7 +315,7 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
     // If a trusted document store is configured, resolve the document ID first.
     if let Some(ref td_store) = state.trusted_docs {
         let doc_id = extract_document_id(&request);
-        match td_store.resolve(doc_id.as_deref(), request.query.as_deref()).await {
+        match td_store.resolve(doc_id.as_deref(), request.query.as_deref()) {
             Ok(resolved) => {
                 if doc_id.is_some() {
                     crate::trusted_documents::record_hit();
