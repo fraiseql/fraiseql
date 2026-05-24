@@ -128,7 +128,10 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         if revocation_manager.is_some() {
             info!("Token revocation enabled");
         }
-        let trusted_docs = Self::trusted_docs_from_schema(&schema);
+        // Collect lifecycle task handles into a JoinSet that will be moved onto
+        // the `Server` so graceful shutdown can await them.
+        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+        let trusted_docs = Self::trusted_docs_from_schema(&schema, &mut tasks);
 
         // Validate cache + RLS safety at startup.
         // Cache isolation relies entirely on per-user WHERE clauses in the cache key.
@@ -215,6 +218,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             revocation_manager,
             trusted_docs,
             db_pool,
+            tasks,
         )
         .await?;
 
@@ -298,6 +302,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             allow(unused_variables)
         )]
         db_pool: Option<sqlx::PgPool>,
+        mut tasks: tokio::task::JoinSet<()>,
     ) -> Result<Self> {
         // Initialize OIDC validator if auth is configured
         let oidc_validator = if let Some(ref auth_config) = config.auth {
@@ -369,20 +374,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Spawn background PKCE state cleanup task (every 5 minutes).
         #[cfg(feature = "auth")]
-        if let Some(ref store) = pkce_store {
-            use std::time::Duration;
-
-            use tokio::time::MissedTickBehavior;
-            let store_clone = Arc::clone(store);
-            tokio::spawn(async move {
-                let mut ticker = tokio::time::interval(Duration::from_secs(300));
-                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
-                loop {
-                    ticker.tick().await;
-                    store_clone.cleanup_expired().await;
-                }
-            });
-        }
+        Self::spawn_pkce_cleanup(pkce_store.as_ref(), &mut tasks);
 
         // Reason: state_encryption/pkce_store/oidc_server_client are only stored when
         //         feature = "auth" is enabled; without it they are legitimately unused.
@@ -441,7 +433,34 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "functions")]
             function_runtime: None,
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
+            tasks,
         })
+    }
+
+    /// Spawn the periodic PKCE state-cleanup task into the server's [`JoinSet`].
+    ///
+    /// Cleanup runs every 5 minutes for the lifetime of the server. The handle
+    /// is owned by `tasks` so graceful shutdown awaits its termination.
+    #[cfg(feature = "auth")]
+    pub(super) fn spawn_pkce_cleanup(
+        pkce_store: Option<&Arc<crate::auth::PkceStateStore>>,
+        tasks: &mut tokio::task::JoinSet<()>,
+    ) {
+        use std::time::Duration;
+
+        use tokio::time::MissedTickBehavior;
+
+        if let Some(store) = pkce_store {
+            let store_clone = Arc::clone(store);
+            tasks.spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(300));
+                ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                loop {
+                    ticker.tick().await;
+                    store_clone.cleanup_expired().await;
+                }
+            });
+        }
     }
 
     /// Set lifecycle hooks for `WebSocket` subscriptions.
