@@ -52,13 +52,12 @@ impl GcsBackend {
                     source:  Some(Box::new(e)),
                 })
             })?;
-            let creds: serde_json::Value =
-                serde_json::from_str(&creds_json).map_err(|e| {
-                    FraiseQLError::File(FileError::Backend {
-                        message: format!("Failed to parse GCS credentials JSON: {e}"),
-                        source:  Some(Box::new(e)),
-                    })
-                })?;
+            let creds: serde_json::Value = serde_json::from_str(&creds_json).map_err(|e| {
+                FraiseQLError::File(FileError::Backend {
+                    message: format!("Failed to parse GCS credentials JSON: {e}"),
+                    source:  Some(Box::new(e)),
+                })
+            })?;
             let client_email = creds["client_email"]
                 .as_str()
                 .ok_or_else(|| {
@@ -214,10 +213,7 @@ fn gcs_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
 }
 
 /// Like [`gcs_err`] but preserves the underlying error in the chain.
-fn gcs_err_src(
-    op: &str,
-    err: impl std::error::Error + Send + Sync + 'static,
-) -> FraiseQLError {
+fn gcs_err_src(op: &str, err: impl std::error::Error + Send + Sync + 'static) -> FraiseQLError {
     let message = format!("GCS {op} failed: {err}");
     FraiseQLError::File(FileError::Backend {
         message,

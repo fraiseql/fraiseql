@@ -9,7 +9,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 #[cfg(feature = "aws-s3")]
 use fraiseql_error::FraiseQLError;
-use fraiseql_error::Result;
+use fraiseql_error::{FileError, Result};
 use serde::{Deserialize, Serialize};
 
 pub mod local;
@@ -70,7 +70,7 @@ pub trait PresignCapable {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if URL generation fails.
+    /// Returns `FraiseQLError::File` if URL generation fails.
     async fn presign_put(
         &self,
         key: &str,
@@ -90,7 +90,7 @@ pub trait PresignCapable {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if URL generation fails.
+    /// Returns `FraiseQLError::File` if URL generation fails.
     async fn presign_get(&self, key: &str, expires_in: Duration) -> Result<PresignedUrl>;
 }
 
@@ -122,7 +122,7 @@ pub use self::s3::S3Backend;
 ///
 /// # Errors
 ///
-/// All methods return [`fraiseql_error::FraiseQLError::Storage`] on failure.
+/// All methods return `FraiseQLError::File` on failure.
 #[non_exhaustive]
 pub enum StorageBackend {
     /// Local filesystem storage.
@@ -161,7 +161,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the upload fails.
+    /// Returns `FraiseQLError::File` if the upload fails.
     pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         match self {
             Self::Local(b) => b.upload(key, data, content_type).await,
@@ -184,7 +184,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code `not_found` if the key does not exist,
+    /// Returns `FraiseQLError::File` with code `not_found` if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         match self {
@@ -208,7 +208,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend failures.
+    /// Returns `FraiseQLError::File` on backend failures.
     pub async fn delete(&self, key: &str) -> Result<()> {
         match self {
             Self::Local(b) => b.delete(key).await,
@@ -231,7 +231,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend communication errors.
+    /// Returns `FraiseQLError::File` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         match self {
             Self::Local(b) => b.exists(key).await,
@@ -254,7 +254,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if presigned URLs are not supported by
+    /// Returns `FraiseQLError::File` if presigned URLs are not supported by
     /// the backend or if generation fails.
     pub async fn presigned_url(&self, key: &str, expiry: Duration) -> Result<String> {
         match self {
@@ -278,7 +278,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the backend does not support presigned
+    /// Returns `FraiseQLError::File` if the backend does not support presigned
     /// URLs or if URL generation fails.
     #[cfg(feature = "aws-s3")]
     pub async fn presign_put(
@@ -295,10 +295,9 @@ impl StorageBackend {
             | Self::Exoscale(b)
             | Self::Backblaze(b)
             | Self::R2(b) => b.presign_put(key, content_type, expires_in).await,
-            _ => Err(FraiseQLError::Storage {
+            _ => Err(FraiseQLError::File(FileError::Unsupported {
                 message: "presigned PUT not supported by this backend".to_string(),
-                code:    Some("not_supported".to_string()),
-            }),
+            })),
         }
     }
 
@@ -306,7 +305,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the backend does not support presigned
+    /// Returns `FraiseQLError::File` if the backend does not support presigned
     /// URLs or if URL generation fails.
     #[cfg(feature = "aws-s3")]
     pub async fn presign_get(&self, key: &str, expires_in: Duration) -> Result<PresignedUrl> {
@@ -318,10 +317,9 @@ impl StorageBackend {
             | Self::Exoscale(b)
             | Self::Backblaze(b)
             | Self::R2(b) => b.presign_get(key, expires_in).await,
-            _ => Err(FraiseQLError::Storage {
+            _ => Err(FraiseQLError::File(FileError::Unsupported {
                 message: "presigned GET not supported by this backend".to_string(),
-                code:    Some("not_supported".to_string()),
-            }),
+            })),
         }
     }
 
@@ -329,7 +327,7 @@ impl StorageBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on I/O or backend failures.
+    /// Returns `FraiseQLError::File` on I/O or backend failures.
     pub async fn list(
         &self,
         prefix: &str,
@@ -358,20 +356,18 @@ impl StorageBackend {
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Storage` if the key is empty, contains `..`,
+/// Returns `FraiseQLError::File` if the key is empty, contains `..`,
 /// or starts with `/` or `\`.
 pub fn validate_key(key: &str) -> Result<()> {
     if key.is_empty() {
-        return Err(fraiseql_error::FraiseQLError::Storage {
+        return Err(fraiseql_error::FraiseQLError::File(FileError::InvalidKey {
             message: "Storage key must not be empty".to_string(),
-            code:    None,
-        });
+        }));
     }
     if key.contains("..") || key.starts_with('/') || key.starts_with('\\') {
-        return Err(fraiseql_error::FraiseQLError::Storage {
+        return Err(fraiseql_error::FraiseQLError::File(FileError::InvalidKey {
             message: "Invalid storage key: must be a relative path without '..'".to_string(),
-            code:    Some("invalid_key".to_string()),
-        });
+        }));
     }
     Ok(())
 }
@@ -422,27 +418,32 @@ fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Storage` if the backend type is unknown, the required
+/// Returns `FraiseQLError::File` if the backend type is unknown, the required
 /// feature is not enabled, or required configuration fields are missing.
 pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<StorageBackend> {
     let backend_name = config.backend.as_str();
 
+    /// Build a `FileError::Backend` for a missing-config or unknown-backend error.
+    fn config_err(message: impl Into<String>) -> fraiseql_error::FraiseQLError {
+        fraiseql_error::FraiseQLError::File(FileError::Backend {
+            message: message.into(),
+            source:  None,
+        })
+    }
+
     match backend_name {
         "local" => {
-            let path =
-                config.path.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "Local storage backend requires 'path' configuration".to_string(),
-                    code:    None,
-                })?;
+            let path = config
+                .path
+                .as_deref()
+                .ok_or_else(|| config_err("Local storage backend requires 'path' configuration"))?;
             Ok(StorageBackend::Local(LocalBackend::new(path)))
         },
         #[cfg(feature = "aws-s3")]
         "s3" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "AWS S3 storage backend requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config.bucket.as_deref().ok_or_else(|| {
+                config_err("AWS S3 storage backend requires 'bucket' configuration")
+            })?;
             let endpoint = config.endpoint.as_deref().map(str::to_owned);
             let backend =
                 S3Backend::new(bucket, config.region.as_deref(), endpoint.as_deref()).await;
@@ -450,11 +451,9 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
         },
         #[cfg(feature = "aws-s3")]
         "hetzner" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "Hetzner Object Storage requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config.bucket.as_deref().ok_or_else(|| {
+                config_err("Hetzner Object Storage requires 'bucket' configuration")
+            })?;
             let endpoint = config
                 .endpoint
                 .as_deref()
@@ -466,11 +465,9 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
         },
         #[cfg(feature = "aws-s3")]
         "scaleway" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "Scaleway Object Storage requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config.bucket.as_deref().ok_or_else(|| {
+                config_err("Scaleway Object Storage requires 'bucket' configuration")
+            })?;
             let endpoint = config
                 .endpoint
                 .as_deref()
@@ -482,11 +479,10 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
         },
         #[cfg(feature = "aws-s3")]
         "ovh" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "OVH Object Storage requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config
+                .bucket
+                .as_deref()
+                .ok_or_else(|| config_err("OVH Object Storage requires 'bucket' configuration"))?;
             let endpoint = config
                 .endpoint
                 .as_deref()
@@ -498,11 +494,9 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
         },
         #[cfg(feature = "aws-s3")]
         "exoscale" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "Exoscale Object Storage requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config.bucket.as_deref().ok_or_else(|| {
+                config_err("Exoscale Object Storage requires 'bucket' configuration")
+            })?;
             let endpoint = config
                 .endpoint
                 .as_deref()
@@ -514,11 +508,9 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
         },
         #[cfg(feature = "aws-s3")]
         "backblaze" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "Backblaze B2 storage requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config.bucket.as_deref().ok_or_else(|| {
+                config_err("Backblaze B2 storage requires 'bucket' configuration")
+            })?;
             let endpoint = config
                 .endpoint
                 .as_deref()
@@ -530,68 +522,44 @@ pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<Sto
         },
         #[cfg(feature = "aws-s3")]
         "r2" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "Cloudflare R2 requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config
+                .bucket
+                .as_deref()
+                .ok_or_else(|| config_err("Cloudflare R2 requires 'bucket' configuration"))?;
             let endpoint = config.endpoint.as_deref().ok_or_else(|| {
-                fraiseql_error::FraiseQLError::Storage {
-                    message: "Cloudflare R2 requires 'endpoint' configuration (account ID in URL)"
-                        .to_string(),
-                    code:    None,
-                }
+                config_err("Cloudflare R2 requires 'endpoint' configuration (account ID in URL)")
             })?;
             let backend = S3Backend::new(bucket, config.region.as_deref(), Some(endpoint)).await;
             Ok(StorageBackend::R2(backend))
         },
         #[cfg(feature = "gcs")]
         "gcs" => {
-            let bucket =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "GCS storage backend requires 'bucket' configuration".to_string(),
-                    code:    None,
-                })?;
+            let bucket = config
+                .bucket
+                .as_deref()
+                .ok_or_else(|| config_err("GCS storage backend requires 'bucket' configuration"))?;
             let backend = GcsBackend::new(bucket)?;
             Ok(StorageBackend::Gcs(backend))
         },
         #[cfg(feature = "azure-blob")]
         "azure" => {
-            let container =
-                config.bucket.as_deref().ok_or_else(|| fraiseql_error::FraiseQLError::Storage {
-                    message: "Azure Blob storage requires 'bucket' (container) configuration"
-                        .to_string(),
-                    code:    None,
-                })?;
+            let container = config.bucket.as_deref().ok_or_else(|| {
+                config_err("Azure Blob storage requires 'bucket' (container) configuration")
+            })?;
             let account = config.account_name.as_deref().ok_or_else(|| {
-                fraiseql_error::FraiseQLError::Storage {
-                    message: "Azure Blob storage requires 'account_name' configuration".to_string(),
-                    code:    None,
-                }
+                config_err("Azure Blob storage requires 'account_name' configuration")
             })?;
             let backend = AzureBackend::new(account, container)?;
             Ok(StorageBackend::Azure(backend))
         },
         #[cfg(not(feature = "aws-s3"))]
         "s3" | "hetzner" | "scaleway" | "ovh" | "exoscale" | "backblaze" | "r2" => {
-            Err(fraiseql_error::FraiseQLError::Storage {
-                message: "S3-compatible storage backends require the 'aws-s3' feature".to_string(),
-                code:    None,
-            })
+            Err(config_err("S3-compatible storage backends require the 'aws-s3' feature"))
         },
         #[cfg(not(feature = "gcs"))]
-        "gcs" => Err(fraiseql_error::FraiseQLError::Storage {
-            message: "GCS storage backend requires the 'gcs' feature".to_string(),
-            code:    None,
-        }),
+        "gcs" => Err(config_err("GCS storage backend requires the 'gcs' feature")),
         #[cfg(not(feature = "azure-blob"))]
-        "azure" => Err(fraiseql_error::FraiseQLError::Storage {
-            message: "Azure Blob storage backend requires the 'azure-blob' feature".to_string(),
-            code:    None,
-        }),
-        other => Err(fraiseql_error::FraiseQLError::Storage {
-            message: format!("Unknown storage backend: {other}"),
-            code:    None,
-        }),
+        "azure" => Err(config_err("Azure Blob storage backend requires the 'azure-blob' feature")),
+        other => Err(config_err(format!("Unknown storage backend: {other}"))),
     }
 }

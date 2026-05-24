@@ -481,16 +481,14 @@ fn error_response(status: StatusCode, code: &str, message: &str) -> Response {
 ///
 /// - `FileError::NotFound` → 404
 /// - `FileError::PermissionDenied` → 403
-/// - other backend variants (`IoError`, `Backend`, `NotImplemented`,
-///   `Unsupported`, `SizeLimitExceeded`, `MimeTypeNotAllowed`) → 500
+/// - other backend variants (`IoError`, `Backend`, `NotImplemented`, `Unsupported`,
+///   `SizeLimitExceeded`, `MimeTypeNotAllowed`) → 500
 /// - `FileError::InvalidKey` → 400
 fn storage_error_response(err: &FraiseQLError) -> Response {
     if let FraiseQLError::File(file_err) = err {
         let (status, code) = match file_err {
             FileError::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found"),
-            FileError::PermissionDenied { .. } => {
-                (StatusCode::FORBIDDEN, "permission_denied")
-            },
+            FileError::PermissionDenied { .. } => (StatusCode::FORBIDDEN, "permission_denied"),
             FileError::InvalidKey { .. } => (StatusCode::BAD_REQUEST, "invalid_key"),
             FileError::IoError { .. } => {
                 tracing::error!(error = %err, "Storage I/O error");
@@ -499,9 +497,7 @@ fn storage_error_response(err: &FraiseQLError) -> Response {
             FileError::NotImplemented { .. } => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "not_implemented")
             },
-            FileError::Unsupported { .. } => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "not_supported")
-            },
+            FileError::Unsupported { .. } => (StatusCode::INTERNAL_SERVER_ERROR, "not_supported"),
             FileError::SizeLimitExceeded { .. } => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "size_limit_exceeded")
             },
@@ -514,16 +510,12 @@ fn storage_error_response(err: &FraiseQLError) -> Response {
             },
             // Pre-F050 FileError variants — unlikely to reach the storage
             // routes but handled for completeness.
-            FileError::TooLarge { .. } => {
-                (StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large")
-            },
+            FileError::TooLarge { .. } => (StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large"),
             FileError::QuotaExceeded => (StatusCode::PAYLOAD_TOO_LARGE, "quota_exceeded"),
             FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
                 (StatusCode::UNSUPPORTED_MEDIA_TYPE, "invalid_type")
             },
-            FileError::VirusDetected { .. } => {
-                (StatusCode::UNPROCESSABLE_ENTITY, "virus_detected")
-            },
+            FileError::VirusDetected { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "virus_detected"),
             FileError::Storage { .. } | FileError::Processing { .. } => {
                 tracing::error!(error = %err, "Storage backend error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "storage_error")

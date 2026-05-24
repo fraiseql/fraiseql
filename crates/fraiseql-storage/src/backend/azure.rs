@@ -103,10 +103,7 @@ fn azure_err(op: &str, detail: impl std::fmt::Display) -> FraiseQLError {
 }
 
 /// Like [`azure_err`] but preserves the underlying error in the chain.
-fn azure_err_src(
-    op: &str,
-    err: impl std::error::Error + Send + Sync + 'static,
-) -> FraiseQLError {
+fn azure_err_src(op: &str, err: impl std::error::Error + Send + Sync + 'static) -> FraiseQLError {
     let message = format!("Azure Blob {op} failed: {err}");
     FraiseQLError::File(FileError::Backend {
         message,

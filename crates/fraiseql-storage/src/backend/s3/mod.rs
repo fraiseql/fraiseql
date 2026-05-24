@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use aws_sdk_s3::{Client, primitives::ByteStream};
-use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_error::{FileError, FraiseQLError, Result};
 
 use super::validate_key;
 
@@ -51,11 +51,13 @@ impl S3Backend {
     }
 }
 
-fn storage_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
-    FraiseQLError::Storage {
-        message: format!("S3 {op} failed: {err}"),
-        code:    None,
-    }
+/// Build a `FileError::Backend` from an AWS SDK error, preserving the source chain.
+fn storage_err_src(op: &str, err: impl std::error::Error + Send + Sync + 'static) -> FraiseQLError {
+    let message = format!("S3 {op} failed: {err}");
+    FraiseQLError::File(FileError::Backend {
+        message,
+        source: Some(Box::new(err)),
+    })
 }
 
 impl S3Backend {
@@ -63,7 +65,7 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the upload fails.
+    /// Returns `FraiseQLError::File` if the upload fails.
     pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
         self.client
@@ -74,7 +76,7 @@ impl S3Backend {
             .content_type(content_type)
             .send()
             .await
-            .map_err(|e| storage_err("put_object", e))?;
+            .map_err(|e| storage_err_src("put_object", e))?;
         Ok(key.to_owned())
     }
 
@@ -82,7 +84,7 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code `not_found` if the key does not exist,
+    /// Returns `FraiseQLError::File` with code `not_found` if the key does not exist,
     /// or other error codes on backend failures.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
@@ -96,16 +98,15 @@ impl S3Backend {
                 .map_err(|e| {
                     let msg = e.to_string();
                     if msg.contains("NoSuchKey") || msg.contains("404") {
-                        FraiseQLError::Storage {
-                            message: format!("File not found: {key}"),
-                            code:    Some("not_found".to_string()),
-                        }
+                        FraiseQLError::File(FileError::NotFound {
+                            id: key.to_string(),
+                        })
                     } else {
-                        storage_err("get_object", e)
+                        storage_err_src("get_object", e)
                     }
                 })?;
 
-        let body = resp.body.collect().await.map_err(|e| storage_err("get_object body", e))?;
+        let body = resp.body.collect().await.map_err(|e| storage_err_src("get_object body", e))?;
         Ok(body.into_bytes().to_vec())
     }
 
@@ -113,7 +114,7 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend failures.
+    /// Returns `FraiseQLError::File` on backend failures.
     pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         self.client
@@ -122,7 +123,7 @@ impl S3Backend {
             .key(key)
             .send()
             .await
-            .map_err(|e| storage_err("delete_object", e))?;
+            .map_err(|e| storage_err_src("delete_object", e))?;
         Ok(())
     }
 
@@ -130,7 +131,7 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend communication errors.
+    /// Returns `FraiseQLError::File` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         match self.client.head_object().bucket(&self.bucket).key(key).send().await {
@@ -140,7 +141,7 @@ impl S3Backend {
                 if msg.contains("NotFound") || msg.contains("NoSuchKey") || msg.contains("404") {
                     Ok(false)
                 } else {
-                    Err(storage_err("head_object", err))
+                    Err(storage_err_src("head_object", err))
                 }
             },
         }
@@ -150,11 +151,11 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if presigned URL generation fails.
+    /// Returns `FraiseQLError::File` if presigned URL generation fails.
     pub async fn presigned_url(&self, key: &str, expiry: Duration) -> Result<String> {
         validate_key(key)?;
         let presigning_config = aws_sdk_s3::presigning::PresigningConfig::expires_in(expiry)
-            .map_err(|e| storage_err("presigning config", e))?;
+            .map_err(|e| storage_err_src("presigning config", e))?;
         let presigned = self
             .client
             .get_object()
@@ -162,7 +163,7 @@ impl S3Backend {
             .key(key)
             .presigned(presigning_config)
             .await
-            .map_err(|e| storage_err("presigned URL", e))?;
+            .map_err(|e| storage_err_src("presigned URL", e))?;
         Ok(presigned.uri().to_string())
     }
 
@@ -170,7 +171,7 @@ impl S3Backend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend failures.
+    /// Returns `FraiseQLError::File` on backend failures.
     pub async fn list(
         &self,
         prefix: &str,
@@ -192,7 +193,7 @@ impl S3Backend {
             .set_continuation_token(continuation_token)
             .send()
             .await
-            .map_err(|e| storage_err("list_objects_v2", e))?;
+            .map_err(|e| storage_err_src("list_objects_v2", e))?;
 
         for obj in resp.contents() {
             let key = obj.key().unwrap_or("").to_string();
@@ -238,7 +239,7 @@ impl super::PresignCapable for S3Backend {
         validate_key(key)?;
 
         let presigning_config = aws_sdk_s3::presigning::PresigningConfig::expires_in(expires_in)
-            .map_err(|e| storage_err("presigning config", e))?;
+            .map_err(|e| storage_err_src("presigning config", e))?;
 
         let presigned = self
             .client
@@ -248,11 +249,11 @@ impl super::PresignCapable for S3Backend {
             .content_type(content_type)
             .presigned(presigning_config)
             .await
-            .map_err(|e| storage_err("presigned PUT URL", e))?;
+            .map_err(|e| storage_err_src("presigned PUT URL", e))?;
 
         let expires_at = chrono::Utc::now()
             + chrono::Duration::from_std(expires_in)
-                .map_err(|e| storage_err("duration conversion", e))?;
+                .map_err(|e| storage_err_src("duration conversion", e))?;
 
         Ok(super::PresignedUrl::new(presigned.uri().to_string(), expires_at, "PUT"))
     }
@@ -261,7 +262,7 @@ impl super::PresignCapable for S3Backend {
         validate_key(key)?;
 
         let presigning_config = aws_sdk_s3::presigning::PresigningConfig::expires_in(expires_in)
-            .map_err(|e| storage_err("presigning config", e))?;
+            .map_err(|e| storage_err_src("presigning config", e))?;
 
         let presigned = self
             .client
@@ -270,11 +271,11 @@ impl super::PresignCapable for S3Backend {
             .key(key)
             .presigned(presigning_config)
             .await
-            .map_err(|e| storage_err("presigned GET URL", e))?;
+            .map_err(|e| storage_err_src("presigned GET URL", e))?;
 
         let expires_at = chrono::Utc::now()
             + chrono::Duration::from_std(expires_in)
-                .map_err(|e| storage_err("duration conversion", e))?;
+                .map_err(|e| storage_err_src("duration conversion", e))?;
 
         Ok(super::PresignedUrl::new(presigned.uri().to_string(), expires_at, "GET"))
     }
