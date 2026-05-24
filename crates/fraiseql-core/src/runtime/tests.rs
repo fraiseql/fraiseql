@@ -1776,24 +1776,22 @@ mod matcher_tests {
 
     #[test]
     fn test_extract_arguments_none() {
-        let schema = test_schema();
-        let matcher = QueryMatcher::new(schema);
+        let _schema = test_schema();
 
-        let args = matcher.extract_arguments(None);
+        let args = QueryMatcher::extract_arguments(None);
         assert!(args.is_empty());
     }
 
     #[test]
     fn test_extract_arguments_some() {
-        let schema = test_schema();
-        let matcher = QueryMatcher::new(schema);
+        let _schema = test_schema();
 
         let variables = serde_json::json!({
             "id": "123",
             "limit": 10
         });
 
-        let args = matcher.extract_arguments(Some(&variables));
+        let args = QueryMatcher::extract_arguments(Some(&variables));
         assert_eq!(args.len(), 2);
         assert_eq!(args.get("id"), Some(&serde_json::json!("123")));
         assert_eq!(args.get("limit"), Some(&serde_json::json!(10)));

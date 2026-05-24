@@ -146,8 +146,11 @@ impl QueryMatcher {
             location: "query".to_string(),
         })?;
 
-        // 2. Build variables map for directive evaluation
-        let variables_map = self.build_variables_map(variables);
+        // 2. Build the variables map once. The same map is used for
+        //    `@skip`/`@include` directive evaluation (by reference) and then
+        //    moved onto the returned `QueryMatch` as `arguments`, so we never
+        //    pay for a second clone of the JSON tree.
+        let variables_map = Self::variables_to_map(variables);
 
         // 3. Resolve fragment spreads
         let resolver = FragmentResolver::new(&parsed.fragments);
@@ -201,8 +204,10 @@ impl QueryMatcher {
         // 6. Extract field names for backward compatibility
         let fields = self.extract_field_names(&final_selections);
 
-        // 7. Extract arguments from variables
-        let mut arguments = self.extract_arguments(variables);
+        // 7. Take ownership of the variables map for `QueryMatch.arguments`.
+        //    `variables_map` was built once at step 2 and only borrowed by the
+        //    directive evaluator; no additional clone needed.
+        let mut arguments = variables_map;
 
         // 8. Merge inline arguments from root field selection (e.g., `posts(limit: 3)`). Variables
         //    take precedence over inline arguments when both are provided.
@@ -226,9 +231,16 @@ impl QueryMatcher {
         })
     }
 
-    /// Build a variables map from JSON value for directive evaluation.
-    fn build_variables_map(
-        &self,
+    /// Convert the optional `variables` JSON object into an owned
+    /// `HashMap<String, Value>` suitable for both `@skip`/`@include` directive
+    /// evaluation and the public `QueryMatch::arguments` field.
+    ///
+    /// This used to be two separate helpers (`build_variables_map` and
+    /// `extract_arguments`) that walked the same JSON object and cloned every
+    /// key-value pair twice per request. Folding them into a single conversion
+    /// halves the per-request allocation cost for variable-heavy mutations
+    /// (see F005, F024 in `IMPROVEMENTS.md`).
+    fn variables_to_map(
         variables: Option<&serde_json::Value>,
     ) -> HashMap<String, serde_json::Value> {
         if let Some(serde_json::Value::Object(map)) = variables {
@@ -243,16 +255,17 @@ impl QueryMatcher {
         selections.iter().map(|s| s.name.clone()).collect()
     }
 
-    /// Extract arguments from variables.
-    pub(crate) fn extract_arguments(
-        &self,
+    /// Build the variables map exposed on [`QueryMatch::arguments`] from the
+    /// raw GraphQL `variables` JSON payload.
+    ///
+    /// This is the public entry point used by tests; internally the
+    /// `match_query` hot path now constructs the same map exactly once
+    /// (see [`Self::variables_to_map`]).
+    #[must_use]
+    pub fn extract_arguments(
         variables: Option<&serde_json::Value>,
     ) -> HashMap<String, serde_json::Value> {
-        if let Some(serde_json::Value::Object(map)) = variables {
-            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-        } else {
-            HashMap::new()
-        }
+        Self::variables_to_map(variables)
     }
 
     /// Resolve an inline GraphQL argument to a JSON value.
