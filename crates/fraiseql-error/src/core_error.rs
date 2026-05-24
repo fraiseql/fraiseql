@@ -448,41 +448,24 @@ impl FraiseQLError {
     }
 
     /// Check if this is a client error (4xx equivalent).
+    ///
+    /// Derived from [`Self::status_code`] so the answer stays consistent
+    /// with the variant's actual HTTP routing (notably for `File(_)`, which
+    /// straddles 4xx and 5xx after F050).
     #[must_use]
     pub const fn is_client_error(&self) -> bool {
-        matches!(
-            self,
-            Self::Parse { .. }
-                | Self::Validation { .. }
-                | Self::UnknownField { .. }
-                | Self::UnknownType { .. }
-                | Self::Authorization { .. }
-                | Self::Authentication { .. }
-                | Self::NotFound { .. }
-                | Self::Conflict { .. }
-                | Self::RateLimited { .. }
-                | Self::Auth(_)
-                | Self::Webhook(_)
-                | Self::File(_)
-        )
+        let code = self.status_code();
+        code >= 400 && code < 500
     }
 
     /// Check if this is a server error (5xx equivalent).
+    ///
+    /// Derived from [`Self::status_code`] for the same consistency reason
+    /// as [`Self::is_client_error`].
     #[must_use]
     pub const fn is_server_error(&self) -> bool {
-        matches!(
-            self,
-            Self::Database { .. }
-                | Self::ConnectionPool { .. }
-                | Self::Timeout { .. }
-                | Self::Cancelled { .. }
-                | Self::Configuration { .. }
-                | Self::Storage { .. }
-                | Self::Unsupported { .. }
-                | Self::ServiceUnavailable { .. }
-                | Self::Internal { .. }
-                | Self::Observer(_)
-        )
+        let code = self.status_code();
+        code >= 500 && code < 600
     }
 
     /// Check if this error is retryable.
@@ -522,8 +505,12 @@ impl FraiseQLError {
             | Self::Validation { .. }
             | Self::UnknownField { .. }
             | Self::UnknownType { .. }
-            | Self::Webhook(_)
-            | Self::File(_) => 400,
+            | Self::Webhook(_) => 400,
+            // File is per-variant: validation failures stay 400, backend
+            // failures escalate to 5xx, NotFound → 404, PermissionDenied →
+            // 403 (matches the legacy `storage_error_response` routing of
+            // `FraiseQLError::Storage` which F050 replaces).
+            Self::File(e) => e.status_code(),
             Self::Authentication { .. } | Self::Auth(_) => 401,
             Self::Authorization { .. } => 403,
             Self::NotFound { .. } => 404,

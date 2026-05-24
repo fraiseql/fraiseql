@@ -141,14 +141,15 @@ fn file_invalid_type_returns_400() {
 }
 
 #[test]
-fn file_not_found_returns_400() {
-    // FileError::NotFound is a file-domain error; its HTTP shape is
-    // controlled by `FraiseQLError::File(_)` which currently maps to 400.
-    // Callers that need a 404 should construct `FraiseQLError::NotFound`
-    // directly with the resource description.
+fn file_not_found_returns_404() {
+    // F050: `FileError::NotFound` now routes to 404 globally via
+    // `FraiseQLError::status_code()` delegating to `FileError::status_code()`.
+    // This matches the semantic intent (object missing in backend) and
+    // aligns with `storage_error_response` which always returned 404 for
+    // `Storage { code: Some("not_found") }` (the pre-F050 surface).
     let err: FraiseQLError = FileError::NotFound { id: "abc".into() }.into();
     let resp = err.into_response();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[test]

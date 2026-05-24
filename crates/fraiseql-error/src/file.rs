@@ -196,4 +196,50 @@ impl FileError {
             Self::Backend { .. } => "file_backend_error",
         }
     }
+
+    /// Returns the HTTP status code this variant maps to when surfaced
+    /// through [`crate::FraiseQLError::File`].
+    ///
+    /// User-fixable validation failures map to 4xx; backend / infrastructure
+    /// failures map to 5xx. The split here preserves what
+    /// `fraiseql-storage/src/routes/mod.rs::storage_error_response` previously
+    /// hard-coded via the `code: Option<String>` discriminator on the
+    /// (now-deprecated) `FraiseQLError::Storage` variant:
+    ///
+    /// - `NotFound` → 404 — backend reports object missing
+    /// - `PermissionDenied` → 403 — backend refuses the operation
+    /// - `InvalidKey` → 400 — caller supplied a malformed key
+    /// - `IoError`, `Backend`, `NotImplemented`, `Unsupported`,
+    ///   `SizeLimitExceeded`, `MimeTypeNotAllowed` → 500 — preserves the
+    ///   legacy behavior of `FraiseQLError::Storage` (which routed every
+    ///   `code` *except* `not_found`/`permission_denied` to 500 via
+    ///   `storage_error_response`)
+    /// - All other (pre-existing) variants — `TooLarge`, `InvalidType`,
+    ///   `MimeMismatch`, `VirusDetected`, `QuotaExceeded`, `Storage`,
+    ///   `Processing` — fall back to the `FraiseQLError::File`-level 400
+    ///   via the wildcard arm so that pre-F050 callers see unchanged HTTP
+    ///   responses.
+    #[must_use]
+    pub const fn status_code(&self) -> u16 {
+        match self {
+            Self::NotFound { .. } => 404,
+            Self::PermissionDenied { .. } => 403,
+            Self::InvalidKey { .. } => 400,
+            Self::IoError { .. }
+            | Self::Backend { .. }
+            | Self::NotImplemented { .. }
+            | Self::Unsupported { .. }
+            | Self::SizeLimitExceeded { .. }
+            | Self::MimeTypeNotAllowed { .. } => 500,
+            // Pre-F050 variants — preserve the legacy `FraiseQLError::File`
+            // → 400 mapping for backwards-compatibility.
+            Self::TooLarge { .. }
+            | Self::InvalidType { .. }
+            | Self::MimeMismatch { .. }
+            | Self::VirusDetected { .. }
+            | Self::QuotaExceeded
+            | Self::Storage { .. }
+            | Self::Processing { .. } => 400,
+        }
+    }
 }

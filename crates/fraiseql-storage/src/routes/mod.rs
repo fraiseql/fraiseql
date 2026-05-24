@@ -22,7 +22,7 @@ use axum::{
     routing::{get, post, put},
 };
 use bytes::Bytes;
-use fraiseql_error::FraiseQLError;
+use fraiseql_error::{FileError, FraiseQLError};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "aws-s3")]
@@ -473,21 +473,70 @@ fn error_response(status: StatusCode, code: &str, message: &str) -> Response {
 }
 
 /// Convert a `FraiseQLError` to an appropriate HTTP response.
+///
+/// After F050 (typed `FileError` migration), backend storage failures arrive
+/// as `FraiseQLError::File(FileError::*)` rather than `FraiseQLError::Storage`.
+/// The routing here matches the previous behaviour of
+/// `Storage { code: Some("...") }`:
+///
+/// - `FileError::NotFound` → 404
+/// - `FileError::PermissionDenied` → 403
+/// - other backend variants (`IoError`, `Backend`, `NotImplemented`,
+///   `Unsupported`, `SizeLimitExceeded`, `MimeTypeNotAllowed`) → 500
+/// - `FileError::InvalidKey` → 400
 fn storage_error_response(err: &FraiseQLError) -> Response {
-    if let FraiseQLError::Storage { code, message } = err {
-        let status = match code.as_deref() {
-            Some("not_found") => StatusCode::NOT_FOUND,
-            Some("permission_denied") => StatusCode::FORBIDDEN,
+    if let FraiseQLError::File(file_err) = err {
+        let (status, code) = match file_err {
+            FileError::NotFound { .. } => (StatusCode::NOT_FOUND, "not_found"),
+            FileError::PermissionDenied { .. } => {
+                (StatusCode::FORBIDDEN, "permission_denied")
+            },
+            FileError::InvalidKey { .. } => (StatusCode::BAD_REQUEST, "invalid_key"),
+            FileError::IoError { .. } => {
+                tracing::error!(error = %err, "Storage I/O error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "io_error")
+            },
+            FileError::NotImplemented { .. } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "not_implemented")
+            },
+            FileError::Unsupported { .. } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "not_supported")
+            },
+            FileError::SizeLimitExceeded { .. } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "size_limit_exceeded")
+            },
+            FileError::MimeTypeNotAllowed { .. } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "mime_type_not_allowed")
+            },
+            FileError::Backend { .. } => {
+                tracing::error!(error = %err, "Storage backend error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "storage_error")
+            },
+            // Pre-F050 FileError variants — unlikely to reach the storage
+            // routes but handled for completeness.
+            FileError::TooLarge { .. } => {
+                (StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large")
+            },
+            FileError::QuotaExceeded => (StatusCode::PAYLOAD_TOO_LARGE, "quota_exceeded"),
+            FileError::InvalidType { .. } | FileError::MimeMismatch { .. } => {
+                (StatusCode::UNSUPPORTED_MEDIA_TYPE, "invalid_type")
+            },
+            FileError::VirusDetected { .. } => {
+                (StatusCode::UNPROCESSABLE_ENTITY, "virus_detected")
+            },
+            FileError::Storage { .. } | FileError::Processing { .. } => {
+                tracing::error!(error = %err, "Storage backend error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "storage_error")
+            },
+            // SECURITY: `FileError` is `#[non_exhaustive]`. Any future variant
+            // added without updating this match falls through to a generic
+            // 500 response rather than silently leaking the wrong status.
             _ => {
-                tracing::error!(
-                    error_code = ?code,
-                    error_message = %message,
-                    "Storage backend error"
-                );
-                StatusCode::INTERNAL_SERVER_ERROR
+                tracing::error!(error = %err, "Unhandled FileError variant");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
             },
         };
-        error_response(status, code.as_deref().unwrap_or("storage_error"), message)
+        error_response(status, code, &file_err.to_string())
     } else {
         tracing::error!(error = %err, "Unexpected storage error");
         error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &err.to_string())
