@@ -1,25 +1,28 @@
 //! Rate limiting for brute-force and abuse protection.
 //!
 //! Provides [`KeyedRateLimiter`] — a per-key sliding-window counter backed by
-//! a `Mutex<HashMap>` — and [`RateLimiters`], a pre-built set of limiters for
+//! a [`DashMap`] — and [`RateLimiters`], a pre-built set of limiters for
 //! each authentication endpoint.
 // # Threading Model
 //
-// All rate limiting operations are **atomic** with respect to concurrent access:
-// - Each call to check() holds a lock for its entire duration
-// - Check-and-update operations cannot be interleaved with other threads
-// - This prevents race conditions where multiple threads simultaneously exceed limits
-// - The lock is held while reading current time, reading record, and updating counter
-// - This ensures that the decision to allow/deny a request is consistent
+// Per-key updates are **atomic** with respect to concurrent access:
+// - check() holds a per-shard write reference through the entire
+//   read-current-time → load-record → update-counter sequence
+// - Different keys land on different shards and never contend
+// - This prevents race conditions where multiple threads simultaneously exceed
+//   the limit on the *same* key
+// - Periodic sweeps and capacity eviction are best-effort and run without
+//   holding any other shard's lock
 
 use std::{
-    collections::HashMap,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU64, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
+
+use dashmap::{DashMap, mapref::entry::Entry};
 
 use crate::error::{AuthError, Result};
 
@@ -109,15 +112,21 @@ const PURGE_INTERVAL: u64 = 1_000;
 /// of unique IP addresses. The cap is conservative: 100k entries × ~100 bytes ≈ 10 MB.
 const DEFAULT_MAX_ENTRIES: usize = 100_000;
 
-/// Per-key sliding-window rate limiter backed by a `Mutex<HashMap>`.
+/// Per-key sliding-window rate limiter backed by a [`DashMap`].
 ///
 /// Each unique key (IP address, user ID, etc.) gets its own independent counter.
-/// The check-and-update sequence is atomic: no TOCTOU race can allow more requests
-/// than `max_requests` in any single window, even under high concurrency.
+/// The check-and-update sequence for a given key is atomic: no TOCTOU race can
+/// allow more requests than `max_requests` in any single window, even under
+/// high concurrency.  Distinct keys live on different shards and never block
+/// each other.
 ///
 /// The map is capped at `DEFAULT_MAX_ENTRIES` keys. When a new key arrives at
 /// capacity the entry with the oldest `window_start` is evicted to make room,
-/// bounding memory growth while still tracking new sources.
+/// bounding memory growth while still tracking new sources.  Because the
+/// eviction step is performed outside the per-key lock, the LRU choice is
+/// best-effort under heavy concurrent insertion — total entries may oscillate
+/// around the cap by a small amount.  The current LRU-by-window-start was
+/// approximate anyway (`min_by_key` over a snapshot).
 ///
 /// # Deployment note
 ///
@@ -135,7 +144,7 @@ const DEFAULT_MAX_ENTRIES: usize = 100_000;
 /// - [`KeyedRateLimiter::with_clock`] — inject a custom clock (testing).
 /// - [`KeyedRateLimiter::with_clock_and_max_entries`] — custom clock + cap (testing).
 pub struct KeyedRateLimiter {
-    records:     Arc<Mutex<HashMap<String, RequestRecord>>>,
+    records:     Arc<DashMap<String, RequestRecord>>,
     config:      AuthRateLimitConfig,
     max_entries: usize,
     /// Monotonically increasing call counter for triggering periodic sweeps.
@@ -174,7 +183,7 @@ impl KeyedRateLimiter {
     /// Create a new keyed rate limiter using wall-clock time.
     pub fn new(config: AuthRateLimitConfig) -> Self {
         Self {
-            records: Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(DashMap::new()),
             config,
             max_entries: DEFAULT_MAX_ENTRIES,
             check_count: AtomicU64::new(0),
@@ -189,7 +198,7 @@ impl KeyedRateLimiter {
     /// (unbounded — not recommended in production).
     pub fn with_max_entries(config: AuthRateLimitConfig, max_entries: usize) -> Self {
         Self {
-            records: Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(DashMap::new()),
             config,
             max_entries,
             check_count: AtomicU64::new(0),
@@ -206,7 +215,7 @@ impl KeyedRateLimiter {
         F: Fn() -> u64 + Send + Sync + 'static,
     {
         Self {
-            records: Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(DashMap::new()),
             config,
             max_entries: DEFAULT_MAX_ENTRIES,
             check_count: AtomicU64::new(0),
@@ -227,7 +236,7 @@ impl KeyedRateLimiter {
         F: Fn() -> u64 + Send + Sync + 'static,
     {
         Self {
-            records: Arc::new(Mutex::new(HashMap::new())),
+            records: Arc::new(DashMap::new()),
             config,
             max_entries,
             check_count: AtomicU64::new(0),
@@ -239,17 +248,16 @@ impl KeyedRateLimiter {
     ///
     /// # Atomicity
     ///
-    /// This operation is **atomic** - the entire check-and-update sequence happens atomically:
-    /// 1. Acquires exclusive lock on rate limit records
-    /// 2. Gets current timestamp
-    /// 3. Loads or creates request record for this key
-    /// 4. Decides: allow, reset window, or deny
-    /// 5. Updates counter/window only if request is allowed
-    /// 6. Releases lock
+    /// The check-and-update step for a given key is **atomic**: while
+    /// inspecting and mutating the `RequestRecord` for `key`, this function
+    /// holds the per-shard write reference for that key.  No concurrent thread
+    /// can observe a partial state for the same key, which prevents the
+    /// classic TOCTOU race where multiple threads simultaneously exceed the
+    /// rate limit.
     ///
-    /// No concurrent thread can observe a partial state. This prevents classic
-    /// time-of-check-time-of-use (TOCTOU) race conditions where multiple threads
-    /// simultaneously exceed the rate limit.
+    /// The periodic sweep and the capacity-eviction step are best-effort
+    /// (they run outside the per-key lock); they may overshoot the entry cap
+    /// by a small amount under heavy concurrent insertion.
     ///
     /// # Returns
     ///
@@ -259,47 +267,34 @@ impl KeyedRateLimiter {
     ///
     /// Returns [`AuthError::RateLimited`] if the key has exceeded the configured
     /// rate limit within the sliding window.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the Mutex is poisoned (another thread panicked while holding the lock).
-    /// This is acceptable because a poisoned lock indicates a thread panic, suggesting
-    /// the system is already in an inconsistent state and should be restarted.
     pub fn check(&self, key: &str) -> Result<()> {
-        // If rate limiting is disabled, always allow the request
-        // Note: This check is outside the lock for efficiency, but there's a benign race:
-        // if another thread changes config.enabled between this check and acquiring the lock,
-        // we still proceed to update the counter. This is safe because we only update counters
-        // and don't depend on the enabled flag for correctness (counter updates are idempotent).
+        // If rate limiting is disabled, always allow the request.
         if !self.config.enabled {
             return Ok(());
         }
 
-        // CRITICAL: Acquire lock - this ensures all operations below are atomic.
-        // On poison, recover the inner data — the HashMap is still valid even if the
-        // thread that held the lock panicked mid-update (worst case: a stale entry).
-        let mut records = self.records.lock().unwrap_or_else(|poisoned| {
-            tracing::warn!("rate limiter mutex was poisoned, recovering");
-            poisoned.into_inner()
-        });
         let now = (self.clock)();
 
-        // Periodic expiry sweep to bound HashMap growth.
+        // Periodic expiry sweep to bound DashMap growth.
         // Runs every PURGE_INTERVAL calls; overflow wraps silently which is fine.
         let count = self.check_count.fetch_add(1, Ordering::Relaxed);
         if count.is_multiple_of(PURGE_INTERVAL) {
-            records.retain(|_, r| now < r.window_start.saturating_add(self.config.window_secs));
+            self.records
+                .retain(|_, r| now < r.window_start.saturating_add(self.config.window_secs));
         }
 
         // Enforce max-entries cap to prevent unbounded memory growth under distributed attacks.
         // A cap of 0 disables the limit (opt-in unbounded mode).
-        // When at capacity, evict the entry with the oldest window_start (LRU by activity)
+        // When at capacity, evict the entry with the oldest window_start (best-effort LRU)
         // so new sources can always be tracked without permanently blocking new IPs.
-        if self.max_entries > 0 && !records.contains_key(key) && records.len() >= self.max_entries {
+        if self.max_entries > 0
+            && !self.records.contains_key(key)
+            && self.records.len() >= self.max_entries
+        {
             if let Some(oldest_key) =
-                records.iter().min_by_key(|(_, r)| r.window_start).map(|(k, _)| k.clone())
+                self.records.iter().min_by_key(|r| r.value().window_start).map(|r| r.key().clone())
             {
-                records.remove(&oldest_key);
+                self.records.remove(&oldest_key);
                 tracing::debug!(
                     max_entries = self.max_entries,
                     "Rate limiter at capacity — evicted oldest entry to make room for new key"
@@ -307,50 +302,46 @@ impl KeyedRateLimiter {
             }
         }
 
-        // Get or create record for this key (first request from this key)
-        let record = records.entry(key.to_string()).or_insert_with(|| RequestRecord {
-            count:        0,
-            window_start: now,
-        });
-
-        // Thread-safe decision: all branches update state atomically while holding the lock
-        if now >= record.window_start.saturating_add(self.config.window_secs) {
-            // CASE 1: Window has expired - start a new window
-            // This request is the first in the new window, so it's allowed
-            record.count = 1;
-            record.window_start = now;
-            Ok(())
-        } else if record.count < self.config.max_requests {
-            // CASE 2: Window is active and we haven't exceeded the limit
-            // This request is allowed - increment the counter atomically
-            record.count += 1;
-            Ok(())
-        } else {
-            // CASE 3: Window is active and we've reached the limit
-            // This request is NOT allowed - counter is not incremented
-            // Subsequent requests will also fail until the window expires
-            Err(AuthError::RateLimited {
-                retry_after_secs: self.config.window_secs,
-            })
+        // Get or create record for this key.  `Entry` holds a per-shard write
+        // lock through the closure / match arms, giving us per-key atomicity.
+        match self.records.entry(key.to_string()) {
+            Entry::Occupied(mut occ) => {
+                let record = occ.get_mut();
+                if now >= record.window_start.saturating_add(self.config.window_secs) {
+                    // CASE 1: Window has expired - start a new window
+                    record.count = 1;
+                    record.window_start = now;
+                    Ok(())
+                } else if record.count < self.config.max_requests {
+                    // CASE 2: Window is active and we haven't exceeded the limit
+                    record.count += 1;
+                    Ok(())
+                } else {
+                    // CASE 3: Window is active and we've reached the limit
+                    Err(AuthError::RateLimited {
+                        retry_after_secs: self.config.window_secs,
+                    })
+                }
+            },
+            Entry::Vacant(vac) => {
+                // First request from this key — start a fresh window.
+                vac.insert(RequestRecord {
+                    count:        1,
+                    window_start: now,
+                });
+                Ok(())
+            },
         }
     }
 
     /// Get the number of active rate limiters (for monitoring).
     pub fn active_limiters(&self) -> usize {
-        let records = self.records.lock().unwrap_or_else(|poisoned| {
-            tracing::warn!("rate limiter mutex was poisoned, recovering");
-            poisoned.into_inner()
-        });
-        records.len()
+        self.records.len()
     }
 
     /// Clear all rate limiters (for testing or reset).
     pub fn clear(&self) {
-        let mut records = self.records.lock().unwrap_or_else(|poisoned| {
-            tracing::warn!("rate limiter mutex was poisoned, recovering");
-            poisoned.into_inner()
-        });
-        records.clear();
+        self.records.clear();
     }
 
     /// Create a copy for independent testing
