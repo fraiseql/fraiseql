@@ -1,5 +1,7 @@
 [package]
+description = "Serverless functions runtime for FraiseQL — WASM and Deno backends"
 name = "fraiseql-functions"
+readme = "README.md"
 authors.workspace = true
 categories.workspace = true
 documentation.workspace = true

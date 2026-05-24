@@ -8,6 +8,7 @@ repository = "https://github.com/richer-xyz/fraiseql"
 homepage = "https://fraiseql.dev"
 documentation = "https://docs.rs/fraiseql-storage"
 description = "Object storage backends and HTTP handlers for FraiseQL"
+readme = "README.md"
 keywords = ["graphql", "storage", "s3", "object-store"]
 categories = ["api-bindings", "web-programming"]
 publish = true
