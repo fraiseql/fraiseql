@@ -108,6 +108,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **3 broken doctests in `traits.rs` and `PostgresAdapter`** — repaired.
 
+### Changed (breaking)
+
+- **Error taxonomy consolidation** — `FraiseQLError` is now the single root
+  error type for the workspace. The parallel HTTP-shaped `RuntimeError` enum
+  has been deleted from `fraiseql-error`, along with five vestigial shadow
+  domain enums (`fraiseql_error::{AuthError, WebhookError, NotificationError,
+  IntegrationError, ObserverError}`) that had zero production call sites.
+  Subsystem error vocabularies (`fraiseql_auth::AuthError`,
+  `fraiseql_webhooks::WebhookError`, `fraiseql_observers::ObserverError`)
+  now compose into the canonical taxonomy via owned `From<X> for
+  FraiseQLError` impls (sqlx pattern); the new variants are
+  `FraiseQLError::{Auth, Webhook, Observer, File}`. `FileError` itself is
+  retained (9 production call sites) and is now a `#[from]` variant of
+  `FraiseQLError`. The `impl IntoResponse` in `fraiseql_error::http` now
+  wraps `FraiseQLError` directly (was: `RuntimeError`), and
+  `IntoHttpResponse` bridges `Result<T, FraiseQLError>`. The umbrella crate
+  `fraiseql` no longer re-exports `RuntimeError`, `AuthError`, or
+  `WebhookError`; use `FraiseQLError` (via `fraiseql::FraiseQLError` or
+  `fraiseql::prelude::*`) instead. See `DEPRECATIONS.md` for the migration
+  matrix.
+- **`ServerError::RuntimeError` renamed to `ServerError::Engine`** — the
+  variant wraps `fraiseql_core::error::FraiseQLError` (the engine error),
+  not the now-deleted `fraiseql_error::RuntimeError`. The old name was a
+  misnomer. The `#[from]` semantics are unchanged: any `FraiseQLError`
+  bubbles up as `ServerError::Engine` automatically.
+
 ### Changed
 
 - **Cargo production dependencies** — 12 non-breaking bumps (batch update).

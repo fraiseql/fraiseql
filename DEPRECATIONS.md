@@ -16,6 +16,67 @@ This document tracks deprecated APIs and their migration paths. Deprecated items
 | `CacheStatus::RlsGuardOnly` | `fraiseql-server` | v2.2.0 | `CacheStatus::Active` or `CacheStatus::Disabled` | v3.0 |
 | `CacheStatus::from_cache_enabled` | `fraiseql-server` | v2.2.0 | `AppState::adapter_cache_enabled` | v3.0 |
 
+## Removed in v2.3.0 (no deprecation cycle — vestigial types, zero callers)
+
+The following types were deleted outright in v2.3.0 as part of the error
+taxonomy consolidation (see `CHANGELOG.md` and `POLICY_DECISIONS.md` Q1).
+Grep verification at the time of deletion found zero production call sites
+outside `fraiseql-error` itself, so the standard two-release deprecation
+cycle did not apply.
+
+| Removed | Crate | Replacement |
+|---------|-------|-------------|
+| `RuntimeError` | `fraiseql-error` | `FraiseQLError` |
+| `RuntimeError::Auth(_)` pattern | `fraiseql-error` | `FraiseQLError::Auth(_)` (boxed payload from `fraiseql_auth::AuthError`) |
+| `RuntimeError::Webhook(_)` pattern | `fraiseql-error` | `FraiseQLError::Webhook(_)` (boxed payload from `fraiseql_webhooks::WebhookError`) |
+| `RuntimeError::Observer(_)` pattern | `fraiseql-error` | `FraiseQLError::Observer(_)` (boxed payload from `fraiseql_observers::ObserverError`) |
+| `RuntimeError::File(_)` pattern | `fraiseql-error` | `FraiseQLError::File(FileError)` (via `#[from]`) |
+| `RuntimeError::Notification(_)` | `fraiseql-error` | none — no `fraiseql-notifications` subsystem exists |
+| `RuntimeError::Integration(_)` | `fraiseql-error` | none — fold into `FraiseQLError::ServiceUnavailable` or domain-specific variants |
+| `fraiseql_error::AuthError` (shadow) | `fraiseql-error` | use `fraiseql_auth::AuthError` and compose via `?` into `FraiseQLError::Auth(_)` |
+| `fraiseql_error::WebhookError` (shadow) | `fraiseql-error` | use `fraiseql_webhooks::WebhookError` and compose via `?` |
+| `fraiseql_error::ObserverError` (shadow) | `fraiseql-error` | use `fraiseql_observers::ObserverError` and compose via `?` |
+| `fraiseql_error::NotificationError` (shadow) | `fraiseql-error` | none — no callers |
+| `fraiseql_error::IntegrationError` (shadow) | `fraiseql-error` | none — no callers |
+| `impl From<FileError> for FraiseQLError { ... → Storage }` | `fraiseql-error` | replaced by `#[from]` on `FraiseQLError::File(FileError)`; the lossy `Storage` mapping is gone |
+| `pub use fraiseql_error::{AuthError, RuntimeError, WebhookError}` re-exports | `fraiseql` (umbrella) | use `FraiseQLError` (re-exported via `fraiseql::FraiseQLError` and `fraiseql::prelude::*`) |
+| `ServerError::RuntimeError(_)` | `fraiseql-server` | `ServerError::Engine(_)` (same `#[from] FraiseQLError` semantics) |
+
+### Migration recipes
+
+**Pattern: replace a `RuntimeError` return type with `FraiseQLError`.**
+
+```rust
+// before
+async fn handler(...) -> Result<Response, RuntimeError> {
+    do_something()?;  // do_something returned Result<_, AuthError>
+    ...
+}
+
+// after
+async fn handler(...) -> Result<Response, FraiseQLError> {
+    do_something()?;  // From<fraiseql_auth::AuthError> for FraiseQLError, via fraiseql-auth
+    ...
+}
+```
+
+**Pattern: match on the boxed subsystem error inside `FraiseQLError::Auth`.**
+
+```rust
+match err {
+    FraiseQLError::Auth(boxed) => {
+        if let Some(auth_err) = boxed.downcast_ref::<fraiseql_auth::AuthError>() {
+            // structured handling
+        }
+    }
+    _ => { /* … */ }
+}
+```
+
+The boxed payload is `Box<dyn Error + Send + Sync>`; `downcast_ref` recovers the
+concrete subsystem type when needed. For most call sites, `Display`/`source`
+walking is sufficient.
+
 ### Observer pool size inheritance (v2.2.0)
 
 **Behaviour change**: Prior to v2.2.0, the observer pool inherited `pool_min_size` /
