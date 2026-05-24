@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::explicit_iter_loop)] // Reason: explicit `.iter()` keeps the iteration intent obvious in test setup
 use super::*;
 
 #[test]

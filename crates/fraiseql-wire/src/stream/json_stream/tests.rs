@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unreadable_literal)] // Reason: byte-count constants in fixture assertions read more naturally without separators
 use super::*;
 
 #[test]

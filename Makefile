@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-core lint-unwrap lint-expect lint-tests-layout release load-test load-test-all helm-lint changelog changelog-full
+.PHONY: help build test test-unit test-integration test-federation test-full test-all-ignored clippy fmt check clean clean-test-containers install dev doc bench memory-profile db-up db-down db-logs db-reset db-status federation-up federation-down demo-start demo-stop demo-logs demo-status demo-clean demo-restart examples-start examples-stop examples-logs examples-status examples-clean e2e e2e-setup e2e-all e2e-python e2e-typescript e2e-java e2e-go e2e-php e2e-velocitybench e2e-clean e2e-status parity-generate parity-compare test-parity security audit test-count lint-gate lint-gate-db lint-gate-wire lint-gate-core lint-unwrap lint-expect lint-tests-layout release load-test load-test-all helm-lint changelog changelog-full
 
 # Default target
 help:
@@ -327,6 +327,28 @@ lint-gate-db:
 	  exit 1; \
 	fi; \
 	echo "OK: $$count allows (≤$(FRAISEQL_DB_LIB_ALLOWS_MAX)), no HIGH-risk cast lints at crate level"
+
+# Gate: ensure crate-level clippy allows in fraiseql-wire/src/lib.rs do not grow.
+# Target: ≤15 allows (post-F053 reorganization: 8 wire-protocol casts + 7 style prefs).
+# Test-bleed allows (unreadable_literal, explicit_iter_loop) live in mod tests blocks
+# and must not return to crate level.
+FRAISEQL_WIRE_LIB_ALLOWS_MAX ?= 15
+.PHONY: lint-gate-wire
+lint-gate-wire:
+	@count=$$(grep -c '#!\[allow(clippy::' crates/fraiseql-wire/src/lib.rs); \
+	echo "fraiseql-wire lib.rs crate-level allow count: $$count (max: $(FRAISEQL_WIRE_LIB_ALLOWS_MAX))"; \
+	for lint in unreadable_literal map_unwrap_or explicit_iter_loop range_plus_one; do \
+	  if grep -q "^#!\[allow(clippy::$$lint" crates/fraiseql-wire/src/lib.rs; then \
+	    echo "ERROR: test-bleed lint $$lint must not be allowed at crate level (move to mod tests)"; \
+	    exit 1; \
+	  fi; \
+	done; \
+	if [ "$$count" -gt "$(FRAISEQL_WIRE_LIB_ALLOWS_MAX)" ]; then \
+	  echo "ERROR: too many crate-level clippy allows in fraiseql-wire ($$count > $(FRAISEQL_WIRE_LIB_ALLOWS_MAX))"; \
+	  echo "Fix the underlying code or scope the allow to a specific module."; \
+	  exit 1; \
+	fi; \
+	echo "OK: $$count allows (≤$(FRAISEQL_WIRE_LIB_ALLOWS_MAX)), no test-bleed lints at crate level"
 
 # Gate: ensure narrow cast allows in fraiseql-core do not proliferate beyond threshold.
 # Only narrow per-site #[allow(clippy::cast_*)] annotations are counted (not crate-level //!).
