@@ -109,7 +109,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             (response_cache_key, self.ctx.response_cache.as_ref())
         {
             if let Some(cached) = rc.get(query_key, sec_hash)? {
-                return Ok((*cached).clone());
+                // F002: `Arc::unwrap_or_clone` takes ownership when the cache
+                // entry is uniquely held (the common case once moka has
+                // returned an `Arc::clone`), avoiding the recursive deep
+                // clone of every JSON node. The fallback clone only fires
+                // when another reader is racing on the same key.
+                return Ok(Arc::unwrap_or_clone(cached));
             }
         }
 
@@ -310,17 +315,26 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let response =
             ResultProjector::wrap_in_data_envelope(projected, &query_match.query_def.name);
 
-        // 13. Store in response cache (if enabled) and return value
+        // 13. Store in response cache (if enabled) and return value.
+        //
+        // F002: wrap once in `Arc`, hand the `Arc` to the cache, and
+        // `unwrap_or_clone` for the return path. When no other reader has
+        // touched the entry yet, the unwrap is free and the only cost is
+        // the original `Arc::new` heap allocation — replacing the previous
+        // pattern that deep-cloned the projected JSON to satisfy both the
+        // cache and the return type.
         if let (Some((query_key, sec_hash)), Some(rc)) =
             (response_cache_key, self.ctx.response_cache.as_ref())
         {
             let sql_source = query_match.query_def.sql_source.as_deref().unwrap_or("");
+            let cached = Arc::new(response);
             let _ = rc.put(
                 query_key,
                 sec_hash,
-                Arc::new(response.clone()),
+                Arc::clone(&cached),
                 vec![sql_source.to_string()],
             );
+            return Ok(Arc::unwrap_or_clone(cached));
         }
 
         Ok(response)
