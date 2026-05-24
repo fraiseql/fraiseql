@@ -217,9 +217,15 @@ pub enum ServerError {
     #[error("Configuration error: {0}")]
     ConfigError(String),
 
-    /// Runtime error.
-    #[error("Runtime error: {0}")]
-    RuntimeError(#[from] fraiseql_core::error::FraiseQLError),
+    /// Error from the FraiseQL execution engine (parse, validate, execute, …).
+    ///
+    /// Wraps the canonical [`fraiseql_core::error::FraiseQLError`] so engine
+    /// failures bubble up through `ServerError` without losing the structured
+    /// payload. The original variant name (`RuntimeError`) collided with the
+    /// retired `fraiseql_error::RuntimeError` HTTP-shaped enum; `Engine`
+    /// reflects what the variant actually wraps.
+    #[error("Engine error: {0}")]
+    Engine(#[from] fraiseql_core::error::FraiseQLError),
 
     /// IO error.
     #[error("IO error: {0}")]
