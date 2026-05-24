@@ -2,7 +2,39 @@
 
 Generated: 2026-05-24
 Audited at commit: 85ac41e60 (chore/clippy-strict-round2)
+Re-audited (round 2) at commit: 788320393 (feat/error-taxonomy-consolidation), 2026-05-24
 Workspace: 16 crates, fraiseql-* + fraiseql umbrella
+
+## Round-2 update — 2026-05-24, commit 788320393
+
+### Closed by execution
+- **F017** — error taxonomy consolidation. Resolved by the 7-commit refactor on `feat/error-taxonomy-consolidation` (230d4d238..788320393). `RuntimeError` and 5 shadow domain enums deleted; `FraiseQLError::{Auth, Webhook, Observer, File}` variants added; subsystem crates own their own `From<X> for FraiseQLError` impls (sqlx pattern); `ServerError::RuntimeError` renamed to `Engine`. See follow-up F049, F050, F051 below for industrial gaps the refactor introduced.
+
+### Re-prioritized under industrial framing
+- **F003** — was 🟠 H / S, **upgraded to 🟠 H / S with concrete API change recommended**. Previously hedged "If `ValidationRule` shape changes, that crosses the serde boundary — prefer a runtime-side cache." Industrial answer: change `ValidationRule::Pattern { pattern: String }` to `ValidationRule::Pattern { pattern: CompiledPattern }` with a custom serde impl that compiles at deserialize-time. The validator stops being responsible for caching, and pattern errors surface at schema load.
+- **F006 / F008 / F013 / F048** — Arc<Mutex/RwLock<HashMap>> findings. Previously each carried "internal data structure / surface unchanged" hedges. Under industrial: ship them together as a single PR titled "concurrency: lock-free read-hot maps" using `dashmap` (already a workspace dep) and `arc-swap` for the snapshot-style cases (F007, F048). Per-finding severity unchanged, but bundling raises the joint impact to 🟠 H.
+- **F016** — was 🟡 M / XS, **upgraded to 🟠 H / XS**. The doctest's broken references (`RateLimitExceeded`, `Forbidden`, `FieldExclusion`, `TypeMismatch`) are now strictly more conspicuous because the round-2 refactor added 4 *real* variants (`Auth`, `Webhook`, `Observer`, `File`) to the same match arm without fixing the dead siblings. The contradiction is the documentation. Closing this is a 5-minute edit and unblocks any future doctest enforcement.
+- **F018** — was 🟡 M / S, **upgraded to 🟠 H / S**. The `Box<dyn Fn() -> u64 + Send + Sync>` clock pattern was hedged "API change". Industrial: kill the boxed clock entirely. Make `KeyedRateLimiter<C: Clock = SystemClock>` generic; tests pass `MockClock`. One-line `Cargo.toml` add for `quanta` or hand-roll a 3-line `Clock` trait. The clock is *not* a runtime-swappable dependency in any production path.
+- **F021** — was 🟡 M / M, **upgraded to 🟠 H / M**. Fire-and-forget `tokio::spawn` in lifecycle paths was hedged "easy to introduce hangs". Industrial: replace every untracked `tokio::spawn` with a `JoinSet` held on the `Server` struct, drop the timeout-based shutdown for an explicit `select!` between handles and `shutdown_token`. The audit is mechanical (~6 call sites) and the alternative is the kind of half-graceful shutdown that ends in lost-message bug reports.
+- **F026** — was 🟢 L / L, **closed without action**. Q2 policy froze `async_trait` baseline at 180. Pre-existing decision; round-2 honours it.
+- **F032** — was 🟢 L / M (crate READMEs missing), **upgraded to 🟠 H / M**. Under industrial framing, a published-to-crates.io workspace with bare landing pages is a documentation defect that costs adoption. The cost is mechanical (16 crates × 30-line README each). Bundle into a docs PR after the F049+ taxonomy follow-ups land.
+- **F036** — was 🟡 M / M (Box<dyn ToSql> per param), **upgraded to 🟠 H / M**. Previously hedged "matching tokio-postgres lifetime rules". Industrial answer: lifetime rules are a one-time engineering cost and the trait is stable in tokio-postgres 0.7. Allocations on the hot path are uncapped under load.
+
+### New findings (F049+)
+- **F049** — `FraiseQLError::{Auth, Webhook, Observer}` boxed-payload variants drop the `Error::source()` chain.
+- **F050** — `FraiseQLError::Storage` and `FraiseQLError::File` carve the file domain across two variants with divergent HTTP codes.
+- **F051** — `FraiseQLError::Storage` variant has no documented owner after the file/storage split.
+- **F052** — `FraiseQLError::Auth(Box<dyn Error>)` widens the type-erasure surface and prevents downstream matching on auth-error subclasses.
+- **F053** — Wire-crate Q3 recommendation: split the 19 crate-level allows into a 4-line cast denylist (kept) + per-module/per-test relocations.
+- **F054** — `RateLimited` field renamed `retry_after_secs` (round-2 audit caught a round-1 doc reference still calling it `retry_after`).
+- **F055** — `IntoResponse for FraiseQLError` exhaustive match on `#[non_exhaustive]` enum will silently break on next variant add.
+
+### Closed without action (no longer applicable / wrong)
+- **F026** — `async_trait` removal audit. Q2 policy locked this. Round-2 will not re-flag traits for `async_trait` removal.
+
+---
+
+
 
 ## Severity
 🔴 Critical — correctness bug, data loss, security, or unbounded resource use
@@ -67,6 +99,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F003 — Dynamic validators recompile `Regex` per request
+- **Status:** Re-prioritized — see round-2 update (industrial framing recommends changing the `ValidationRule` shape, not a runtime cache).
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** Each `ValidationRule::Pattern` validation invokes `regex::Regex::new(pattern)` on every call. Compiling a moderate regex takes 50–200 µs; for a field validated on every request, this dominates execution time.
@@ -157,6 +190,7 @@ XL  (> one week)
 ### Correctness
 
 #### F006 — `KeyedRateLimiter` serialises every auth request through one mutex
+- **Status:** Re-prioritized — see round-2 update (bundle with F008/F013/F048 into a single "lock-free read-hot maps" PR).
 - **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** All auth-related request paths (login, OAuth callback, etc.) contend on a single `Arc<Mutex<HashMap<String, RequestRecord>>>`. Under load every request blocks on the same lock for the duration of HashMap walk and (every PURGE_INTERVAL calls) a full `.retain()` scan.
@@ -168,6 +202,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F008 — In-memory rate-limit buckets use tokio `RwLock<HashMap>` on every request
+- **Status:** Re-prioritized — see round-2 update (bundle with F006/F013/F048).
 - **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** Every request acquires a tokio `RwLock` across an await (the bucket itself), and the read lock blocks any concurrent write/refill. Under burst load, the read latency on the hot path grows.
@@ -179,6 +214,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F013 — Federation `ConnectionManager` `Mutex<HashMap>` with `.unwrap_or_else(|e| e.into_inner())`
+- **Status:** Re-prioritized — see round-2 update (bundle with F006/F008/F048).
 - **Severity:** 🟡 Medium
 - **Effort:** XS
 - **Impact:** Recovering from a poisoned lock by silently using the inner data risks operating on partially-mutated state. The pattern is correct here (HashMap remains structurally valid) but the choice of `std::sync::Mutex` over `parking_lot::Mutex` is what forces the poisoning case at all.
@@ -223,7 +259,8 @@ XL  (> one week)
 ### API design
 
 #### F018 — `Box<dyn Fn() -> u64 + Send + Sync>` clock in `KeyedRateLimiter` blocks `Clone`
-- **Severity:** 🟡 Medium
+- **Status:** Re-prioritized — see round-2 update (industrial: kill the boxed clock; generic over `Clock` trait).
+- **Severity:** 🟠 High
 - **Effort:** S
 - **Impact:** The trait-object clock prevents `KeyedRateLimiter: Clone` and forces a heap allocation on construction. The clock is only swapped in tests; a generic `<C: Fn() -> u64 + Send + Sync>` would inline it.
 - **Location:** `crates/fraiseql-auth/src/rate_limiting.rs:145`.
@@ -243,7 +280,8 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F036 — `to_sql_param` returns `Box<dyn ToSql + Sync + Send>` per parameter
-- **Severity:** 🟡 Medium
+- **Status:** Re-prioritized — see round-2 update (industrial: lifetime-rule cost is one-time, trait stable).
+- **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** Every query parameter heap-allocates a `Box<dyn ToSql>`. For a query with 10 params and 1 000 RPS, that's 10 000 allocations/s for a borrow that could be `&dyn ToSql` or an enum dispatch.
 - **Location:** `crates/fraiseql-db/src/types/db_types.rs:184`.
@@ -256,14 +294,15 @@ XL  (> one week)
 ### Error handling
 
 #### F016 — `FraiseQLError` doctest references non-existent variants
-- **Severity:** 🟡 Medium
+- **Severity:** 🟠 High (re-prioritised — see round-2 update)
 - **Effort:** XS
-- **Impact:** A documented compile_fail example references `FraiseQLError::RateLimitExceeded`, `::Forbidden`, `::FieldExclusion`, `::TypeMismatch` — none of which exist in the enum (which has 18 variants ending at `Internal`). The compile_fail attribute hides the broken doc.
-- **Location:** `crates/fraiseql-error/src/core_error.rs:86-91` vs. the actual enum at `:96-269`.
-- **Finding:** The doctest is `compile_fail` so the broken references don't gate CI; they exist as user-facing documentation.
-- **Suggested approach:** Either add the variants (if intentional roadmap) or rewrite the doctest to enumerate only the real variants and rely on `#[non_exhaustive]` to demonstrate the wildcard requirement.
+- **Impact:** A documented compile_fail example references `FraiseQLError::RateLimitExceeded`, `::Forbidden`, `::FieldExclusion`, `::TypeMismatch` — none of which exist in the enum (which has 22 variants ending at `Internal`). The compile_fail attribute hides the broken doc. **Round-2 update**: the refactor added 4 *real* variants (`Auth`, `Webhook`, `Observer`, `File`) to the same match arm without fixing the dead siblings — the doctest now has 4 valid arms and 4 invalid arms intermixed.
+- **Location:** `crates/fraiseql-error/src/core_error.rs:85-94` vs. the actual enum at `:100-302`.
+- **Finding:** The doctest is `compile_fail` so the broken references don't gate CI; they exist as user-facing documentation. Round-2 verification shows lines 85-94 still reference `RateLimitExceeded/Forbidden/FieldExclusion/TypeMismatch` (none exist) alongside the new `Auth/Webhook/Observer/File` arms (all exist).
+- **Suggested approach:** Rewrite the doctest to enumerate only the real variants and rely on `#[non_exhaustive]` to demonstrate the wildcard requirement. With 22+ variants, prefer a short example showing 2-3 variants plus the `_ => ...` wildcard.
 - **Risk:** Docs-only.
 - **Confidence:** High
+- **Status:** Closed in bc9df7dc2 — doctest rewritten to enumerate only 3 real variants (`Parse`, `Validation`, `Database`) with an explanatory comment about `#[non_exhaustive]`. All 4 fictional references removed.
 
 #### F017 — `RuntimeError` and `FraiseQLError` overlap on RateLimited / NotFound / Internal / ServiceUnavailable
 - **Severity:** 🟡 Medium
@@ -275,6 +314,7 @@ XL  (> one week)
 - **Verification:** Search for `FraiseQLError::* => RuntimeError::*` conversions; ensure all lossy ones become forwarding.
 - **Risk:** Public API change across runtime crates.
 - **Confidence:** Medium
+- **Status:** Closed — fixed in 230d4d238..788320393 (7 commits on `feat/error-taxonomy-consolidation`). `RuntimeError` deleted; `FraiseQLError::{Auth, Webhook, Observer, File}` added with subsystem-owned `From` impls. Follow-up issues from the new shape are tracked as F049, F050, F051, F052, F054, F055.
 
 #### F025 — Federation HTTP errors format the source into the message and drop the chain
 - **Severity:** 🟡 Medium
@@ -289,7 +329,8 @@ XL  (> one week)
 ### Async patterns
 
 #### F021 — `tokio::spawn` fire-and-forget without `JoinHandle` tracking in lifecycle paths
-- **Severity:** 🟡 Medium
+- **Status:** Re-prioritized — see round-2 update (industrial: `JoinSet` on the `Server` struct + `select!` shutdown).
+- **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** Server shutdown cannot await background tasks; if a task is still running during graceful shutdown it is dropped mid-flight (which for tokio tasks means cancellation, but for `mpsc` consumers may mean lost messages).
 - **Location:** `crates/fraiseql-server/src/server/lifecycle.rs:83, :127, :284`; `crates/fraiseql-server/src/server/initialization.rs:380`; `crates/fraiseql-server/src/server/extensions.rs:298`; `crates/fraiseql-server/src/server/builder.rs:377`.
@@ -300,6 +341,7 @@ XL  (> one week)
 - **Confidence:** Medium
 
 #### F026 — `async_trait` baseline at 180 is high; several traits could now use return-position `impl Trait`
+- **Status:** Closed without action — Q2 policy froze the `async_trait` baseline at 180; pre-existing decision is "wait for RTN-in-`dyn` (RFC 3425) stabilisation". Do not re-flag.
 - **Severity:** 🟢 Low
 - **Effort:** L
 - **Impact:** Each `#[async_trait]` boxes returned futures (`Pin<Box<dyn Future + Send>>`), one allocation per call. With stable RPITIT (1.75+) and `trait-variant` (already a dep of fraiseql-functions), some single-impl traits could drop the macro.
@@ -332,6 +374,7 @@ XL  (> one week)
 - **Verification:** Add a unit test asserting that `format!("{:?}", AuthRequest{ authorization_header: Some("Bearer abc".into()) })` does not contain "abc".
 - **Risk:** None — purely additive safety.
 - **Confidence:** High
+- **Status:** Closed in 1dbf83119 — `derive(Debug)` removed, manual impl emits `Some("<redacted>")`/`None`, regression tests added in `auth_middleware/tests.rs` (`test_auth_request_debug_redacts_bearer_token`, `test_auth_request_debug_with_no_header_shows_none`).
 
 #### F012 — `Secret::Drop` does not zeroize
 - **Severity:** 🟠 High
@@ -343,6 +386,7 @@ XL  (> one week)
 - **Verification:** A test that calls `expose()`, drops the Secret, and reads the freed page would be unreliable; cover via inspection of the Drop impl in unit tests (it ran without panicking).
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Closed in eda6db593 — `Drop` impl added using safe `mem::take + into_bytes + Zeroize` pattern (preserves `#![forbid(unsafe_code)]`). `into_exposed` adapted to use `mem::take` to coexist with the Drop. 4 regression tests added covering normal, empty, post-clone, and into_exposed paths.
 
 #### F027 — `OnceLock<Regex>` wrapped in `fn ` instead of `static LazyLock<Regex>`
 - **Severity:** 🟢 Low
@@ -398,7 +442,8 @@ XL  (> one week)
 ### Documentation
 
 #### F032 — Crate-level READMEs missing on most crates
-- **Severity:** 🟢 Low
+- **Status:** Re-prioritized — see round-2 update (industrial: published-to-crates.io defect, bundle into docs PR after F049-F052 land).
+- **Severity:** 🟠 High
 - **Effort:** M
 - **Impact:** `crates.io` and `docs.rs` landing pages are bare. Customers landing on `fraiseql-functions` etc. have no overview before clicking into the rustdoc.
 - **Location:** `crates/*/README.md` — none of the 16 crates has one.
@@ -537,6 +582,7 @@ XL  (> one week)
 - **Suggested approach:** Manual `Debug` redacting `access_token` / `refresh_token` fields. Or wrap in `Secret<String>`.
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Partially closed in 47c478768 — `AuthCallbackResponse` and `AuthRefreshResponse` now have manual `Debug` impls redacting token fields, with 3 regression tests in `handlers::debug_redaction_tests`. **AuthLogoutRequest left for follow-up**: the original finding listed it but the Wave-1 scope (per task instructions) was the two response types only; the request type's `refresh_token: Option<String>` has the same shape and should be covered in a follow-up (tracked separately as the same class of fix). See also `AuthRefreshRequest` at `handlers.rs:122-127` which also derives Debug with a refresh_token field.
 
 #### F046 — Federation `ConnectionManager` `Mutex<HashMap>` is uncached if `unstable` is off
 - **Severity:** 🟢 Low
@@ -558,6 +604,7 @@ XL  (> one week)
 - **Confidence:** High
 
 #### F048 — `entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>` is double-locked
+- **Status:** Re-prioritized — see round-2 update (bundle with F006/F008/F013 into "lock-free read-hot maps" PR).
 - **Severity:** 🟡 Medium
 - **Effort:** S
 - **Impact:** Each observer dispatch acquires the outer RwLock and the inner Vec is rebuilt at every reload.
@@ -565,6 +612,128 @@ XL  (> one week)
 - **Suggested approach:** Hot-reload pattern: stuff the index into an `ArcSwap<HashMap<...>>` so the reload is a single atomic pointer swap and reads need no locking.
 - **Risk:** Reload semantics — must publish atomically; ensure no torn reads of executor/matcher pair.
 - **Confidence:** Medium
+
+---
+
+---
+
+## Round-2 new findings (F049–F055)
+
+### Error handling (post-refactor)
+
+#### F049 — `FraiseQLError::{Auth, Webhook, Observer}` boxed payloads drop `Error::source()` chain
+- **Severity:** 🟠 High
+- **Effort:** XS
+- **Impact:** `tracing`, `anyhow::backtrace()`, `miette` and any other chain-walker calling `err.source()` on a `FraiseQLError::Auth(box)` value returns `None` instead of the underlying `fraiseql_auth::AuthError`. The subsystem-error chain (which may include a `reqwest::Error`, `jsonwebtoken::Error`, etc.) is **invisible** to structured logging — only the top-level `"Auth error: …"` Display string remains. The doc comment on the variant promises "preserves subsystem vocabulary via Display/source chain" — Display works; source does not.
+- **Location:** `crates/fraiseql-error/src/core_error.rs:271-280` (the three tuple variants) vs. `:299-301` (the `Internal { #[source] source: Option<Box<...>> }` shape that does it correctly).
+- **Finding:** `thiserror 2`'s `#[error("...")]` derive does *not* auto-detect a single tuple field as the source — it requires explicit `#[source]` or `#[from]`. The three new variants have neither attribute. The `Internal` variant in the same file uses `#[source]` on its `source` field and works correctly. The asymmetry is invisible to `cargo test` (no test asserts the source chain) but visible in production log payloads.
+- **Suggested approach:** Annotate each variant: change `Auth(Box<dyn std::error::Error + Send + Sync>)` to `Auth(#[source] Box<dyn std::error::Error + Send + Sync>)`. Same for `Webhook` and `Observer`. Add a regression test in `crates/fraiseql-error/tests/http_responses.rs` that asserts `err.source().is_some()` and `err.source().unwrap().to_string() == inner.to_string()` for each variant.
+- **Verification:** `let inner = WebhookError::Http("..."); let outer: FraiseQLError = inner.into(); assert_eq!(outer.source().unwrap().to_string(), "..."); ` should pass.
+- **Risk:** None — purely additive; no signature change.
+- **Confidence:** High
+- **Status:** Closed in bc0ed8e25 — `#[source]` added to `Auth`, `Webhook`, `Observer` tuple payloads; 3 regression tests added in `tests/http_responses.rs` (`auth_variant_preserves_source_chain`, `webhook_variant_preserves_source_chain`, `observer_variant_preserves_source_chain`). The Auth variant also gained the downcast_ref recovery-pattern rustdoc that closes F052.
+
+#### F050 — `FraiseQLError::Storage` and `FraiseQLError::File` carve the file domain across two variants with divergent HTTP codes
+- **Severity:** 🟠 High
+- **Effort:** S — revised to **M** after audit found 118 sites, not 60.
+- **Impact:** Storage operations in the `fraiseql-storage` crate produce `FraiseQLError::Storage` (HTTP 500, "storage_error"). Storage operations in `fraiseql-server/src/storage/*` produce `FileError::Storage` → `FraiseQLError::File` (HTTP 400, "file_error"). Identical-named-but-distinct enums (`FraiseQLError::Storage` vs `FileError::Storage`) and identical-conceptual-domain split across two `FraiseQLError` variants. A frontend cannot distinguish "user uploaded a file that failed validation" from "the backend tried to download a managed file and the bucket was unreachable" without backend-internal knowledge of which crate owns the call.
+- **Location:** 
+  - `FraiseQLError::Storage` definition: `crates/fraiseql-error/src/core_error.rs:234-241`
+  - HTTP code mapping: `crates/fraiseql-error/src/core_error.rs:465 (500)` vs `:455 (400 for File)`
+  - HTTP shape: `crates/fraiseql-error/src/http.rs:132-134` ("storage_error") vs `:120 file_error_response`
+  - 60+ `FraiseQLError::Storage` construction sites in `crates/fraiseql-storage/src/{backend,service,routes,metadata}/**.rs` — **actual count: 115** (re-audit).
+  - 30+ `FileError::Storage` construction sites in `crates/fraiseql-server/src/storage/**.rs` — **actual: 0 in `fraiseql-server`, the storage code lives in `fraiseql-storage`**. (Round-2 found 1 site in `fraiseql-functions/src/host/live/storage.rs` and 1 in `fraiseql-error/src/http.rs`.)
+- **Finding:** Round-1 F017's `From<FileError> for FraiseQLError` lossy conversion was correctly identified as a problem; the round-2 refactor deleted that conversion (`refactor(error)!: ffd3124e9`) and replaced it with the cleaner `File(#[from] FileError)` variant. But the refactor left `FraiseQLError::Storage` in place, untouched. It is now a vestigial parallel to `File`: both encode "the file-storage subsystem failed", but with different HTTP codes (500 vs 400) and different error categories ("storage_error" vs "file_error"). The split is invisible to API consumers and undocumented in the variant rustdoc. **Round-2 verification also found** the `code: Option<String>` field carries stable routing strings (`"not_found"`, `"permission_denied"`, etc.) used by `storage_error_response` for HTTP routing — migrating to `FileError` requires preserving this semantically (either by extending `FileError` or by giving up the typed routing).
+- **Suggested approach:** Two options under industrial framing:
+  - **(A) Collapse:** Migrate `fraiseql-storage`'s 60+ call sites to `FileError::Storage { message }.into()` (which becomes `FraiseQLError::File`). Delete `FraiseQLError::Storage`. The HTTP code unifies at 400 (the storage-layer caller is responsible for retry / circuit breaking, not the user). Breaking change accepted under policy.
+  - **(B) Document the split:** Add explicit rustdoc to both variants explaining when each is used (e.g. "Storage: backend infrastructure failures, returns 500 because the user cannot fix them; File: user-input failures, returns 400 because the user can change the upload"). Add a doc-test enforcing the convention. Lower-cost but leaves the dual surface.
+  - Industrial recommendation: **(A)**. The dual surface is the source of bugs, not the source of value.
+- **Verification:** After (A), `grep -rn "FraiseQLError::Storage" crates/ --include="*.rs"` returns zero hits.
+- **Risk:** 60+ call sites need updating; mechanical.
+- **Confidence:** High
+- **Status:** Deferred to Wave 2 in 686322bd6 — see `FOLLOW_UPS.md` F050 for the full Wave-2 plan. 118 sites with non-trivial semantics (the `code: Option<String>` discriminator field is routed by `storage_error_response`) exceeded the Wave-1 scope budget per the IMPROVEMENTS.md hard constraint ("STOP after 10–20 sites with thorny semantics"). Variant rustdoc upgraded with full ownership info; zero sites migrated to avoid a half-converted state.
+
+#### F051 — `FraiseQLError::Storage` variant has no documented owner after the file/storage split
+- **Severity:** 🟡 Medium
+- **Effort:** XS
+- **Impact:** The round-2 refactor added explicit rustdoc to `FraiseQLError::{Auth, Webhook, Observer, File}` explaining ownership (subsystem crate vs. fraiseql-error). `FraiseQLError::Storage` (lines 234-241) has the unchanged minimal doc `/// Storage operation error.` with no statement of (a) which crate constructs it, (b) what relationship it has with the new `File` variant, (c) when callers should use one vs. the other. After F050 lands, this entire variant goes away; if F050 is deferred or rejected, this doc gap blocks any new contributor from picking the right variant.
+- **Location:** `crates/fraiseql-error/src/core_error.rs:234-241`.
+- **Suggested approach:** Either resolve via F050 (variant deleted), or add ownership rustdoc matching the style of `Auth`/`Webhook`/`Observer`/`File`. Sample:
+  ```
+  /// A backend-storage infrastructure failure (bucket unreachable, presigned-URL
+  /// signing failed, GCS auth refresh failed). Distinct from [`Self::File`],
+  /// which carries user-facing file-validation errors (size, MIME, virus scan).
+  ///
+  /// Constructed by `fraiseql-storage` and `fraiseql-functions/host/live/storage.rs`.
+  /// Returns HTTP 500 because callers should retry, not the end user.
+  ```
+- **Risk:** None — docs-only.
+- **Confidence:** High
+- **Status:** Closed in 686322bd6 via option (B) — variant rustdoc upgraded with full owner block (`fraiseql-storage` and `fraiseql-functions/host/live/storage.rs`), distinction from `File`, the `code` field's stable string discriminators enumerated, and a forward reference to `FOLLOW_UPS.md` F050 for the planned collapse.
+
+#### F052 — `FraiseQLError::Auth(Box<dyn Error>)` widens type-erasure and prevents downstream matching on auth-error subclasses
+- **Severity:** 🟡 Medium
+- **Effort:** L (alternative shape) / S (documented limitation)
+- **Impact:** Downstream code (an axum middleware, a `match` block in `handler.rs`) cannot match on specific auth-error subclasses like `fraiseql_auth::AuthError::TokenExpired` vs. `::Forbidden` vs. `::OidcDiscoveryFailed`. The information is preserved in `Display` but cannot be pattern-matched. The doc comment on the variant explicitly acknowledges the trade-off ("type-erased here") but does not surface that this is *the* cost of the sqlx pattern.
+- **Location:** `crates/fraiseql-error/src/core_error.rs:264-280`, `crates/fraiseql-auth/src/error.rs:238-248`.
+- **Finding:** The Q1 policy decision considered (and rejected) the alternative `Auth(#[from] fraiseql_auth::AuthError)` shape because it would introduce a reverse dependency `fraiseql-error → fraiseql-auth`. The chosen sqlx pattern (subsystem crate owns the `From`-impl, fraiseql-error holds a `Box<dyn Error>`) preserves the dependency direction but trades it for the type-erasure. Both are legitimate; the trade-off is real and currently undocumented.
+- **Suggested approach:** Two paths:
+  - **(A) Document the limitation explicitly.** Add a `# Pattern-matching` rustdoc section to each of `Auth`/`Webhook`/`Observer` explaining that downstream code must `match err.source().and_then(|s| s.downcast_ref::<fraiseql_auth::AuthError>())` to access subclass-level matching, and provide a code example. Lowest-effort.
+  - **(B) Promote one or more boxed payloads to typed variants.** For `Auth` specifically (the only one with 26 variants that downstream code frequently wants to match on), revisit the dependency-direction question: introduce a tiny `fraiseql-error-core` crate holding only the engine variants, let `fraiseql-error` re-export those plus typed `Auth(fraiseql_auth::AuthError)`, and depend on `fraiseql-auth`. Higher-effort, removes the type erasure entirely.
+- **Industrial recommendation:** **(A) now, revisit (B) if a real consumer needs subclass matching.** YAGNI applies — no current code calls `downcast_ref` on the boxed payload, so the type-erasure cost is hypothetical.
+- **Verification:** For (A): doctest in the variant. For (B): `cargo semver-checks` passes; subsystem crates type-check.
+- **Risk:** (A) docs-only. (B) workspace-wide dependency-graph restructure.
+- **Confidence:** Medium
+- **Status:** Closed in bc0ed8e25 via option (A) — `# Pattern-matching on the inner error` rustdoc section added to `FraiseQLError::Auth` with a complete `downcast_ref` example; `Webhook` and `Observer` rustdoc points to `Self::Auth` for the same recovery pattern.
+
+### Build & tooling
+
+#### F053 — Wire-crate Q3 recommendation: cast denylist + module/test relocation, retire the count gate
+- **Severity:** 🟡 Medium
+- **Effort:** S
+- **Impact:** The current `fraiseql-wire/src/lib.rs:17-35` has 19 crate-level `#![allow(...)]` directives covering pedantic lints. The Q3 policy left "count-cap vs explicit denylist" open. A count cap of 20 catches "the file grew an unjustified 21st allow" but is silent on whether the *existing* 19 are still justified. An explicit denylist gives the same regression guard with finer granularity.
+- **Location:** `crates/fraiseql-wire/src/lib.rs:17-35` (19 allows); Q3 open issue in `POLICY_DECISIONS.md:118`.
+- **Finding:** Audit of the 19 allows shows three categories:
+  - **Justified protocol-level (8):** `cast_precision_loss`, `cast_possible_truncation`, `cast_sign_loss`, `cast_possible_wrap`, `format_push_string`, `needless_continue`, `iter_with_drain`, `no_effect_underscore_binding`. These encode genuine binary-decoder / wire-protocol patterns. Keep as crate-level.
+  - **Style-pref / API-shape (7):** `items_after_statements`, `match_same_arms`, `manual_let_else`, `needless_pass_by_value`, `implicit_hasher`, `doc_link_with_quotes`, `doc_markdown`. Defensible per-module; either move to specific `#[allow]` on the offending functions, or accept as crate-wide style with a rationale comment block. Industrial choice: keep crate-wide but consolidate the rationale into a single 5-line block above the allows.
+  - **Test-bleed (4):** `unreadable_literal`, `map_unwrap_or`, `explicit_iter_loop`, `range_plus_one`. These are flagged in test code (assertions, example data, range expressions). Move to `#[cfg(test)] #![allow(...)]` blocks inside the relevant `mod tests` to scope the suppression to the actual locus.
+- **Suggested approach:** 
+  1. Move the 4 test-bleed allows into `mod tests { #![allow(...)] }` blocks where they fire.
+  2. Group the 8 protocol allows under a single comment header (`// === Wire-protocol cast suppressions (binary decoders, statically bounded) ===`) and the 7 style allows under another (`// === Crate-wide style preferences (rationale: …) ===`).
+  3. Reduce wire allow-count from 19 to 15 (8 + 7).
+  4. Add a `lint-gate-wire` to `Makefile` set at 15 (current+0 slack, since count is post-refactor) **and** an explicit lint denylist in `crates/fraiseql-wire/Cargo.toml` `[lints.clippy]` that re-denies the test-bleed lints workspace-wide (catches regressions where they reappear outside `mod tests`).
+- **Verification:** `cargo clippy -p fraiseql-wire --all-targets --all-features -- -D warnings` passes after the relocation; `make lint-gate-wire` enforces the count.
+- **Risk:** None — refactor of allow scoping, no semantic change.
+- **Confidence:** High
+
+### Error handling (round-1 line shift)
+
+#### F054 — `RateLimited` field renamed `retry_after_secs` (round-1 line refs invalid)
+- **Severity:** 🟢 Low
+- **Effort:** XS
+- **Impact:** Round-1 IMPROVEMENTS.md and any external doc that referenced the field as `retry_after` is now wrong. The shape used to be `RateLimited { retry_after: Option<u64> }` but is now `RateLimited { retry_after_secs: u64 }` (no Option, renamed). The `ServiceUnavailable` variant still uses `retry_after: Option<u64>` — confusing asymmetry across two adjacent variants.
+- **Location:** `crates/fraiseql-error/src/core_error.rs:198-203` (`RateLimited`) vs `:253-259` (`ServiceUnavailable`); `:602-609` (`rate_limited_with_retry` helper).
+- **Finding:** Field naming asymmetry between two adjacent rate-limit-style variants is a documentation bug-magnet. New contributors will not realise the distinction.
+- **Suggested approach:** Either rename `ServiceUnavailable::retry_after` → `retry_after_secs` for consistency (breaking change, OK under policy), or rename both consistently. Add rustdoc on both noting the convention.
+- **Risk:** Breaking change.
+- **Confidence:** High
+- **Status:** Closed (doc-audit portion) via this commit. Verified `RateLimited { retry_after_secs: u64 }` is the canonical shape post-refactor and that no stale `retry_after` reference inside an active finding's discussion mis-states the field. The remaining asymmetry between `RateLimited::retry_after_secs` and `ServiceUnavailable::retry_after` is a real code defect tracked here for Wave 2 to harmonise (low priority — observable but not security-relevant).
+
+#### F055 — `IntoResponse for FraiseQLError` exhaustive match on `#[non_exhaustive]` enum will silently break on next variant add
+- **Severity:** 🟡 Medium
+- **Effort:** XS
+- **Impact:** `FraiseQLError` is `#[non_exhaustive]` (lines 99-100). The `IntoResponse for FraiseQLError` impl in `crates/fraiseql-error/src/http.rs:84-141` matches all 22 variants exhaustively without a `_` wildcard arm. *Within* the same crate this compiles (the `#[non_exhaustive]` attribute only affects downstream crates), but any future variant addition silently passes CI inside `fraiseql-error` itself and only fails downstream. More importantly, the `status_code()` (`:451-468`) and `error_code()` (`:483-491`) match arms have the same shape. Three exhaustive matches that all need to be updated in lockstep for every new variant.
+- **Location:** `crates/fraiseql-error/src/http.rs:84-141`, `crates/fraiseql-error/src/core_error.rs:443-498`.
+- **Finding:** The `#[non_exhaustive]` annotation was added in the A+ campaign (P01) but the three same-crate match impls negate its protection inside the defining crate. The risk surfaces every time a new variant lands: the dev adds the variant, the same-crate matches still compile, and the discovery happens only when a downstream crate fails. For internal logic (HTTP code, error category) this is OK; for the `IntoResponse` arm it's worse because a forgotten arm could return the wrong HTTP status to clients.
+- **Suggested approach:** Either:
+  - **(A)** Add `_ => ("internal_error", "An internal error occurred".to_string(), None)` at the bottom of the `into_response` match, with a `// SECURITY: unmatched variant defaults to generic 500` comment. Same treatment for `status_code()` and `error_code()`. Tradeoff: a new variant silently maps to 500 until explicitly added.
+  - **(B)** Add a `#[deny(non_exhaustive_omitted_patterns)]` attribute (currently nightly-only lint, but tracked at rust-lang/rust#89554). Industrial-future; not actionable today.
+  - **(C)** Add a unit test that constructs every variant via reflection and asserts `into_response` does not panic — impossible in safe Rust without proc-macro reflection. Skip.
+- **Industrial recommendation:** **(A) now.** Document the security convention so future variants don't trip the generic fallback by accident.
+- **Verification:** Add a `#[test]` that constructs a variant via `FraiseQLError::internal` and asserts the response is 500; add the same for each catch-all-eligible category.
+- **Risk:** Risk is *adding* the wildcard — it now hides forgotten variants. Document the convention clearly.
+- **Confidence:** High
+- **Status:** Closed in 39078b202 via option (A) — catch-all arm added to all three matches (`into_response`, `status_code`, `error_code`), each with `#[allow(clippy::match_same_arms, unreachable_patterns)]` + `// Reason:` explaining the in-crate vs downstream distinction and the security guarantee. Round-1 `Network` doctest reference (lines 78-90 of the old doctest) was removed as part of the F016 fix in bc9df7dc2 — the round-2 audit references to line 78 (`FraiseQLError::Network`) are obsolete after the F016 fix.
 
 ---
 
