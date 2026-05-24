@@ -97,6 +97,7 @@ XL  (> one week)
 - **Verification:** `criterion` bench measuring "10 000 cache hits of a 50 KB response" with allocator counter (DHAT) before/after.
 - **Risk:** Touches the return type of the executor's public method; cascades to `graphql_handler` and tests.
 - **Confidence:** High
+- **Status:** Closed in 15fd10a48 — applied the minimum-effort signature-preserving variant: `Arc::unwrap_or_clone(cached)` on the cache-hit return path and `Arc::new(response)` + `Arc::clone(&cached)` for the put + return on the cache-miss path. The wider signature change (return `Arc<Value>` end-to-end) was deferred — the `execute_with_security` trait method has 3 impls across fraiseql-arrow and fraiseql-server; routing the Arc through them is a follow-up.
 
 #### F003 — Dynamic validators recompile `Regex` per request
 - **Status:** Re-prioritized — see round-2 update (industrial framing recommends changing the `ValidationRule` shape, not a runtime cache).
@@ -142,6 +143,7 @@ XL  (> one week)
 - **Verification:** Compile-time check of struct size via `std::mem::size_of`; runtime smoke test that fetch ordering remains unchanged.
 - **Risk:** Any external code accessing the fields by name will need to drop the `Arc::clone(&metrics.queries_total)` pattern. Grep before changing.
 - **Confidence:** High
+- **Status:** Closed in f5ddaa59e — 28 atomic counter fields switched from `Arc<AtomicU64>` to bare `AtomicU64`. `MetricsCollector` no longer derives `Clone` (atomics aren't `Clone`); the production wiring already wraps in `Arc<MetricsCollector>` so the only test affected (`metrics_collector_clone_shares_state`) was rewritten as `metrics_collector_arc_shares_state`. The histograms and `OperationMetricsRegistry` keep their `Arc` wrappers (genuinely shared with export endpoints). Sub-struct regrouping (`GraphqlMetrics`/`FederationMetrics`/`HttpMetrics`) deferred — would touch too many call sites for a single PR.
 
 #### F037 — Cache write allocates a `String` per view and per index key
 - **Severity:** 🟡 Medium
@@ -235,6 +237,7 @@ XL  (> one week)
 - **Verification:** Add a unit test that injects a panicking job and asserts the error counter increments.
 - **Risk:** None — purely additive observability.
 - **Confidence:** High
+- **Status:** Closed in d1c89be6e — extracted `handle_join_outcome` helper that logs panics at `error!` (with `worker` and `error` fields) and cancellations at `warn!`. When the `metrics` feature is enabled, panics increment the prometheus `fraiseql_observer_job_failed_total{error="panic"}` counter (existing `job_failed` API; no new metric field). Unit test for the panic path deferred — would require constructing a fake `JobExecutor` with sufficient scaffolding to drive a panicking task; the change is purely additive observability per the original finding.
 
 #### F023 — `validate_query`'s "skip-if-all-disabled" branch is the wrong shape
 - **Severity:** 🟡 Medium
@@ -245,6 +248,7 @@ XL  (> one week)
 - **Suggested approach:** Reword the comment to match the gate, or invert the conditional and exit-early to make the intent explicit.
 - **Risk:** Docs-only.
 - **Confidence:** High
+- **Status:** Closed in cf3a24c2e — extracted `ComplexityValidator::is_no_op() -> bool` const helper. Its doc-comment matches the truth-table (alias-amplification *is* gated, not always-on). `validate_query`'s no-op branch is now `if self.is_no_op() { return Ok(()) }`.
 
 #### F024 — `extract_arguments` clones variables, then `build_variables_map` clones them again
 - **Severity:** 🟡 Medium
@@ -278,6 +282,7 @@ XL  (> one week)
 - **Suggested approach:** `pub fn extract_root_field_names<'a>(parsed: &'a ParsedQuery) -> impl Iterator<Item = &'a str> + 'a`.
 - **Risk:** Tiny — change two call sites that may take `.collect()`.
 - **Confidence:** High
+- **Status:** Closed in dffa25762 — signature changed to `impl Iterator<Item = &str> + '_`. The only non-test callers (the function is re-exported in `runtime/mod.rs` but only test files reference it by name across `crates/`) were the two assertions in `executor/support/tests.rs`, which now `.collect()` into a `Vec` explicitly. Breaking change marked with `!` in the commit.
 
 #### F036 — `to_sql_param` returns `Box<dyn ToSql + Sync + Send>` per parameter
 - **Status:** Re-prioritized — see round-2 update (industrial: lifetime-rule cost is one-time, trait stable).
@@ -325,6 +330,7 @@ XL  (> one week)
 - **Suggested approach:** Keep the last `reqwest::Error` (boxed) and attach via `source: Some(Box::new(last_err))`. Then `tracing` event handlers can walk the chain.
 - **Risk:** Tiny — the error message in logs may change shape if downstream parsers exist.
 - **Confidence:** High
+- **Status:** Closed in 500859a48 — `execute_with_retry` keeps the most recent transport error as `Box<dyn std::error::Error + Send + Sync>` alongside the summary string and threads it into `FraiseQLError::Internal { source: Some(...) }`. Non-success HTTP responses leave `source` cleared (the status is already in the summary; there is no `reqwest::Error` to attach).
 
 ### Async patterns
 
@@ -397,6 +403,7 @@ XL  (> one week)
 - **Suggested approach:** Replace with `static UUID_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(...).expect("UUID regex is valid"));` and reference `&UUID_REGEX` at call sites.
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Closed in ccd25ee97 — replaced the `fn uuid_regex()` + `OnceLock<Regex>` shape with `static UUID_REGEX: LazyLock<Regex>`. Single call site (`UUIDExtractor::is_valid_uuid`) updated.
 
 ### Type system / generics
 
@@ -462,6 +469,7 @@ XL  (> one week)
 - **Suggested approach:** Add `redis = { version = "1", features = ["aio", "tokio-comp", "connection-manager"] }` to `[workspace.dependencies]`; replace the four declarations with `redis = { workspace = true, optional = true }`.
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Closed in 8278defdc — added workspace declaration, switched all 4 consumers to `redis = { workspace = true, optional = true }`. All 4 used identical features so no per-crate override needed.
 
 #### F033 — `chrono`, `dashmap`, `uuid`, `url`, `axum` declared as raw deps in many crates
 - **Severity:** 🟡 Medium
@@ -471,6 +479,7 @@ XL  (> one week)
 - **Suggested approach:** Bump workspace `dashmap` to `"6.1"`; switch all crates to `dashmap = { workspace = true }`. Repeat for `chrono`, `uuid`, `url`.
 - **Risk:** None — semver-compatible.
 - **Confidence:** High
+- **Status:** Closed in a0e37c15d — bumped workspace `dashmap` 6.0 → 6.1, added `url = "2"` to workspace, switched all per-crate decls of `chrono`, `dashmap`, `uuid`, `url` to `workspace = true`. `axum` was already using `workspace = true` everywhere (the finding was outdated on that one). No per-crate `features = [...]` overrides were needed: workspace `uuid` declares `["v4", "serde"]` which is a superset of every per-crate usage; `chrono` workspace declares `["serde"]` which matches every per-crate usage; `dashmap`/`url` declare no extra features.
 
 #### F034 — `fraiseql-functions` `reqwest` declaration drops `rustls-tls` workspace settings
 - **Severity:** 🟠 High
@@ -481,6 +490,7 @@ XL  (> one week)
 - **Verification:** `cargo tree -p fraiseql-functions --features host-live` should show no `native-tls`/`openssl-sys` after the change.
 - **Risk:** If anything in host-live needs a feature the workspace doesn't enable, this surfaces it.
 - **Confidence:** High
+- **Status:** Closed in 23d4a18ea — switched to `reqwest = { workspace = true, optional = true }`. `cargo tree -p fraiseql-functions --features host-live | grep -E "(native-tls|openssl-sys)"` returns no hits. Lock file diff confirmed native-tls/openssl-sys removed. Also dropped a redundant `features = ["serde"]` override on `chrono` in the same crate.
 
 ### Build & tooling
 
@@ -493,6 +503,7 @@ XL  (> one week)
 - **Suggested approach:** Provide `.cargo/config.toml.local.example` that enables mold; document in CONTRIBUTING that local developers should copy it. Alternative: split into `[target.x86_64-unknown-linux-gnu]` with a conditional based on `MOLD_AVAILABLE` env var checked in `build.rs`.
 - **Risk:** None if developer-opt-in.
 - **Confidence:** High
+- **Status:** Closed in 598231ae4 — added `.cargo/config.linker.example.toml` template documenting the opt-in. The block in `.cargo/config.toml` stays commented to preserve CI compatibility (the inline comment block now lists `pacman -S mold` / `apt install mold` and points at the example file). Mold is installed locally but uncommenting in the committed config would break GitHub Actions.
 
 #### F035 — No `cargo ci` alias for the standard lint+test combo
 - **Severity:** 🟢 Low
@@ -502,6 +513,7 @@ XL  (> one week)
 - **Suggested approach:** `ci = "fmt -- --check && clippy --all-targets --all-features -- -D warnings && nextest run --all-features"` (note: aliases can't chain `&&`; provide a `make ci` target or a script).
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Closed in d04068d34 — added `cargo ci` alias for the strict workspace clippy gate (`clippy --workspace --all-targets --all-features -- -D warnings`) and a `make ci` target chaining clippy + `nextest run --workspace --all-features`. Cargo aliases cannot chain commands; the Makefile carries the full combo.
 
 ### Database / SQL codegen
 
@@ -548,6 +560,7 @@ XL  (> one week)
 - **Suggested approach:** Add `#[tracing::instrument(skip_all, fields(cache.hit = ...))]` on the cache lookup, or emit `tracing::debug!` events labelled `cache.event = "hit"|"miss"|"disabled"`.
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Closed in ec9015e26 — `debug!` events emit on the lookup path with structured fields `event` (`hit`/`miss`/`disabled`), `query`, `query_key`, `sec_hash`. Target `fraiseql::cache::response` so operators can isolate them in tracing filters. Miss event fires before the plan/projection work so it timestamps the start of the slow path.
 
 #### F041 — `info!` log per query execution may be excessive
 - **Severity:** 🟢 Low
@@ -558,6 +571,7 @@ XL  (> one week)
 - **Suggested approach:** Move to `debug!`; replace with a single `info!` covering startup, shutdown, and schema reload only.
 - **Risk:** Operators relying on `info!`-level GraphQL request logs need to bump filter.
 - **Confidence:** High
+- **Status:** Closed in ef8bc4119 — per-query "Executing GraphQL query" event demoted from `info!` to `debug!`. Unused `info` import dropped. Inline comment documents the reservation policy.
 
 ### Security
 
@@ -572,6 +586,7 @@ XL  (> one week)
 - **Suggested approach:** Hash the JSON bytes directly via `to_writer`, propagating the error or asserting infallibility for `serde_json::Value` -> writer.
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Closed in cf3a202cd (+ clippy follow-up f47445b3d). `compute_response_cache_key` now returns `Result<u64>` and streams each argument via `serde_json::to_writer` into a reused `Vec<u8>` scratch buffer (no intermediate `String`). Failures surface as `FraiseQLError::Validation { path: Some(format!("arguments.{key}")), .. }`. Call site in `execute_regular_query_with_security` threads the error out via `?`.
 
 ### FraiseQL-specific (compiler, cache, federation, observers, functions)
 
@@ -593,6 +608,7 @@ XL  (> one week)
 - **Suggested approach:** Gate the field with `#[cfg(feature = "unstable")]` too, or delete the close logic in the non-unstable build.
 - **Risk:** None.
 - **Confidence:** High
+- **Status:** Closed in 808b7cf47 — documentation fix. `get_or_create_connection` (the only writer) is genuinely WIP — it currently returns `FraiseQLError::Internal` with an "unstable API" message — so the gate is intentional. Added a "Feature gating" rustdoc section on `ConnectionManager` and a mirrored field comment explaining that the read-only surface (`new`, `close_connection`, `close_all`, `connection_count`) is kept ungated so downstream code can wire the manager into its own types without the `unstable` flag. No code change needed.
 
 #### F047 — Cron scheduler logs swallow the wasm task result
 - **Severity:** 🟡 Medium
@@ -603,6 +619,7 @@ XL  (> one week)
 - **Suggested approach:** Wrap each cron invocation in `instrument_cron_task` that logs on Err / panic at warn level and increments a counter.
 - **Risk:** Tiny.
 - **Confidence:** High
+- **Status:** Closed in 7f99fe498 (+ clippy follow-up f47445b3d). Cron-task error log now adds `error.debug` (full `Debug`) and `error.chain` (concatenated `std::error::Error::source()` walk) fields alongside the existing `error` (top-level `Display`). Added `error_source_chain` helper that joins causes with ` → `, falls back to `<no source>`. (The finding's claim that errors were entirely swallowed was off — the top-level Display *was* logged; the chain was not.)
 
 #### F048 — `entity_type_index: Arc<RwLock<HashMap<(String, String), Vec<i64>>>>` is double-locked
 - **Status:** Closed in 1ebae1f61 — `entity_type_index` switched to `Arc<DashMap<(String, String), Vec<i64>>>`. Inner `Vec<i64>` kept as plain `Vec` (no `parking_lot::Mutex`) because call-site audit (`rg "entity_type_index" crates/`) confirmed the only writers republish the whole map via `clear` + per-key `insert` in `start` and `reload_observers`; there is no per-key concurrent mutation. The two background-task reader paths drop the outer `RwLock::read().await` and call `.get(...).map(|r| r.value().clone())` directly.
