@@ -202,6 +202,7 @@ categories = ["database", "web-programming::http-server"]
 description = "HTTP server for FraiseQL v2 GraphQL engine"
 keywords = ["graphql", "sql", "database", "server", "api"]
 name = "fraiseql-server"
+readme = "README.md"
 authors.workspace = true
 documentation.workspace = true
 edition.workspace = true
