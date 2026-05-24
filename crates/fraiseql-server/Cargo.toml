@@ -79,7 +79,7 @@ prost = { version = "0.14.3", optional = true }
 prost-reflect = { version = "0.16.3", optional = true, features = ["serde"] }
 rand = "0.9"
 # Redis for rate limiting (optional)
-redis = {version = "1", features = ["aio", "tokio-comp", "connection-manager"], optional = true}
+redis = {workspace = true, optional = true}
 reqwest = {workspace = true}
 # MessagePack serialization for Redis idempotency store
 rmp-serde = {version = "1", optional = true}
