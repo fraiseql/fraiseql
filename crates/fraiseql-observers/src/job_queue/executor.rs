@@ -151,14 +151,49 @@ impl JobExecutor {
 
             // Limit parallelism
             if join_set.len() >= self.concurrency {
-                join_set.join_next().await;
+                if let Some(res) = join_set.join_next().await {
+                    self.handle_join_outcome(res);
+                }
             }
         }
 
         // Wait for remaining tasks
-        while join_set.join_next().await.is_some() {}
+        while let Some(res) = join_set.join_next().await {
+            self.handle_join_outcome(res);
+        }
 
         Ok(())
+    }
+
+    /// Log a panic / cancellation outcome from a spawned worker task (F014).
+    ///
+    /// `execute_job_with_retry` returns `()`, so the inner result is `Ok(())`
+    /// on every successful completion; only `JoinError`s carry information.
+    /// Panics are routed through the prometheus `job_failed` counter (with the
+    /// `panic` error label) when the `metrics` feature is enabled.
+    fn handle_join_outcome(
+        &self,
+        res: std::result::Result<(), tokio::task::JoinError>,
+    ) {
+        match res {
+            Ok(()) => {},
+            Err(je) if je.is_panic() => {
+                error!(
+                    worker = %self.worker_id,
+                    error = %je,
+                    "job worker task panicked"
+                );
+                #[cfg(feature = "metrics")]
+                self.metrics.job_failed("unknown", "panic");
+            },
+            Err(je) => {
+                warn!(
+                    worker = %self.worker_id,
+                    error = %je,
+                    "job worker task cancelled or otherwise failed to join"
+                );
+            },
+        }
     }
 
     /// Execute a single job with retry logic
