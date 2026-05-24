@@ -307,14 +307,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(
-                sql_source,
-                projection_hint.as_ref(),
-                combined_where.as_ref(),
+            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+                view:         sql_source,
+                projection:   projection_hint.as_ref(),
+                where_clause: combined_where.as_ref(),
+                order_by:     order_by_clauses.as_deref(),
                 limit,
                 offset,
-                order_by_clauses.as_deref(),
-            )
+            })
             .await?;
 
         // 10. Apply field-level RBAC filtering (reject / mask / allow)
@@ -556,14 +556,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(
-                sql_source,
-                projection_hint.as_ref(),
-                user_where.as_ref(),
+            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+                view:         sql_source,
+                projection:   projection_hint.as_ref(),
+                where_clause: user_where.as_ref(),
+                order_by:     order_by_clauses.as_deref(),
                 limit,
                 offset,
-                order_by_clauses.as_deref(),
-            )
+            })
             .await?;
 
         // 4. Project results
@@ -690,14 +690,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(
-                sql_source,
-                None,
-                composed_where.as_ref(),
+            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+                view:         sql_source,
+                projection:   None,
+                where_clause: composed_where.as_ref(),
+                order_by:     order_by_clauses.as_deref(),
                 limit,
                 offset,
-                order_by_clauses.as_deref(),
-            )
+            })
             .await?;
 
         // Project results.

@@ -452,14 +452,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let rows = self
             .ctx
             .adapter
-            .execute_with_projection_arc(
-                &sql_source,
-                projection_hint.as_ref(),
-                Some(&where_clause),
-                Some(1),
-                None,
-                None,
-            )
+            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+                view:         &sql_source,
+                projection:   projection_hint.as_ref(),
+                where_clause: Some(&where_clause),
+                order_by:     None,
+                limit:        Some(1),
+                offset:       None,
+            })
             .await?;
 
         // 7. Return the first matching row (or null).

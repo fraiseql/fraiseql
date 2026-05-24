@@ -640,15 +640,17 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
     async fn execute_with_projection_arc(
         &self,
-        view: &str,
-        projection: Option<&crate::schema::SqlProjectionHint>,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        order_by: Option<&[OrderByClause]>,
+        request: &crate::db::ProjectionRequest<'_>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
-            .await
+        self.execute_with_projection_impl(
+            request.view,
+            request.projection,
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )
+        .await
     }
 
     async fn execute_where_query_arc(

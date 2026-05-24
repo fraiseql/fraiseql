@@ -6,7 +6,13 @@
 use std::sync::Arc;
 
 use super::DatabaseAdapter;
-use crate::types::{DatabaseType, JsonbValue};
+use crate::{
+    types::{
+        DatabaseType, JsonbValue,
+        sql_hints::{OrderByClause, SqlProjectionHint},
+    },
+    where_clause::WhereClause,
+};
 
 /// Result from a relay pagination query, containing rows and an optional total count.
 #[derive(Debug, Clone)]
@@ -164,6 +170,55 @@ pub enum CursorValue {
     Int64(i64),
     /// UUID cursor — bound as text and cast to `uuid` in SQL.
     Uuid(String),
+}
+
+/// Parameters for an `execute_with_projection_arc` call (F043).
+///
+/// Consolidates the six positional parameters of the projection-execution path
+/// into a single borrowed struct so adapters and callers cannot reorder them
+/// by mistake. All fields borrow from the caller; the struct is constructed
+/// per-request on the stack and discarded after the call.
+///
+/// # Field ordering
+///
+/// The field order mirrors a SQL `SELECT … FROM view WHERE … ORDER BY … LIMIT
+/// … OFFSET …` clause, top-to-bottom, so that reading the struct mirrors the
+/// query it produces.
+///
+/// Intentionally **not** `#[non_exhaustive]`: the struct is the *call shape*
+/// of the trait method and any field addition is a breaking trait change
+/// regardless. Callers construct it with a struct literal so that omitting a
+/// field is a hard compile error.
+#[derive(Debug, Clone, Copy)]
+pub struct ProjectionRequest<'a> {
+    /// View or table name (e.g. `"v_user"`).
+    pub view:         &'a str,
+    /// Projection hint (`SELECT` shape). `None` falls back to `SELECT data`.
+    pub projection:   Option<&'a SqlProjectionHint>,
+    /// WHERE clause AST. `None` means no filter.
+    pub where_clause: Option<&'a WhereClause>,
+    /// ORDER BY clauses. Empty slice (or `None`) means unordered.
+    pub order_by:     Option<&'a [OrderByClause]>,
+    /// Row limit. `None` means no limit.
+    pub limit:        Option<u32>,
+    /// Row offset. `None` means no offset.
+    pub offset:       Option<u32>,
+}
+
+impl<'a> ProjectionRequest<'a> {
+    /// Construct a `ProjectionRequest` from a view name with no filters,
+    /// pagination or projection. Useful for tests and simple table scans.
+    #[must_use]
+    pub const fn new(view: &'a str) -> Self {
+        Self {
+            view,
+            projection: None,
+            where_clause: None,
+            order_by: None,
+            limit: None,
+            offset: None,
+        }
+    }
 }
 
 /// Type alias for boxed dynamic database adapters.

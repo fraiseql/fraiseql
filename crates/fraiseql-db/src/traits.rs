@@ -414,21 +414,26 @@ pub trait DatabaseAdapter: Send + Sync {
     /// directly — eliminating the full `Vec<JsonbValue>` clone that the non-`Arc`
     /// path requires on every cache hit.
     ///
+    /// Parameters are passed in a `ProjectionRequest` struct (F043) so adapters
+    /// and callers cannot misorder them.
+    ///
     /// # Errors
     ///
     /// Same errors as `execute_with_projection`.
     async fn execute_with_projection_arc(
         &self,
-        view: &str,
-        projection: Option<&SqlProjectionHint>,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        order_by: Option<&[OrderByClause]>,
+        request: &ProjectionRequest<'_>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection(view, projection, where_clause, limit, offset, order_by)
-            .await
-            .map(Arc::new)
+        self.execute_with_projection(
+            request.view,
+            request.projection,
+            request.where_clause,
+            request.limit,
+            request.offset,
+            request.order_by,
+        )
+        .await
+        .map(Arc::new)
     }
 
     /// Get database type (for logging/metrics).

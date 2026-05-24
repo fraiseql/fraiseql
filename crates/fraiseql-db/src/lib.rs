@@ -106,8 +106,8 @@ pub use sqlite::{SqliteAdapter, SqliteIntrospector};
 pub use sqlserver::{SqlServerAdapter, SqlServerIntrospector};
 pub use traits::{
     ArcDatabaseAdapter, BoxDatabaseAdapter, CursorValue, DatabaseAdapter, DatabaseCapabilities,
-    DirectMutationContext, DirectMutationOp, MutationStrategy, RelayDatabaseAdapter,
-    RelayPageResult, SupportsMutations,
+    DirectMutationContext, DirectMutationOp, MutationStrategy, ProjectionRequest,
+    RelayDatabaseAdapter, RelayPageResult, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
