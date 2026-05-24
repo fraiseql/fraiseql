@@ -154,19 +154,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `FileError::Backend { message, source }` | 500 | catch-all for `Storage { code: None }` (~67 sites: HTTP / SDK failures, config-validation errors, sqlx database errors) |
 
   Existing `FileError::NotFound` reused for `Storage { code:
-  Some("not_found") }`. **Observable HTTP change**:
-  `FraiseQLError::File(FileError::NotFound)` now returns 404 globally
-  (was 400). This aligns the global status code with what the local
-  `storage_error_response` and `fraiseql-server::file_error_response`
-  routes already returned for backend not-found cases. Every other
-  status code is preserved: `storage_error_response` still routes
-  `NotFound` → 404, `PermissionDenied` → 403, everything else → 500
-  exactly as before, only by matching on typed variants instead of the
-  `code` string. Source-chain preservation is a net improvement:
-  reqwest, AWS SDK, sqlx, std::io errors that were previously stringified
-  via `format!("backend error: {e}")` now flow through `source:
-  Some(Box::new(e))` so `Error::source()` chain walkers and `tracing`'s
-  error-chain instrumentation see the underlying type.
+  Some("not_found") }`. **Observable HTTP changes** (two refinements):
+  1. `FraiseQLError::File(FileError::NotFound)` now returns 404
+     globally (was 400). This aligns the global status code with what
+     the local `storage_error_response` and
+     `fraiseql-server::file_error_response` routes already returned
+     for backend not-found cases.
+  2. `FraiseQLError::File(FileError::InvalidKey)` returns 400 (was
+     500 under `Storage { code: Some("invalid_key") }`). The previous
+     500 was a bug: a caller-supplied bad key is user-fixable and
+     400 is the semantically correct status.
+
+  Every other status code is preserved: `storage_error_response`
+  still routes `NotFound` → 404, `PermissionDenied` → 403, everything
+  else → 500 exactly as before, only by matching on typed variants
+  instead of the `code` string. Source-chain preservation is a net
+  improvement: reqwest, AWS SDK, sqlx, std::io errors that were
+  previously stringified via `format!("backend error: {e}")` now flow
+  through `source: Some(Box::new(e))` so `Error::source()` chain
+  walkers and `tracing`'s error-chain instrumentation see the
+  underlying type.
 
   Downstream callers that matched on `FraiseQLError::Storage { .. }`
   must migrate to `FraiseQLError::File(FileError::*)`. See
