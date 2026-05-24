@@ -46,9 +46,15 @@ color = "always"
 verbose = false
 
 # Enable mold linker for faster linking on Linux
-# Provides 3-5x speedup on full rebuilds
-# NOTE: Disabled for CI/GitHub Actions compatibility (mold not available in runner)
-# Uncomment locally if you have mold installed for faster builds
+# Provides 3-5x speedup on full rebuilds.
+#
+# NOTE: Disabled in the committed config for CI/GitHub Actions compatibility
+# (mold not available in the GitHub runner). To enable locally:
+#
+#   1. Install mold: `pacman -S mold` (Arch) / `apt install mold` (Debian/Ubuntu).
+#   2. Copy `.cargo/config.linker.example.toml` to `.cargo/config.local.toml`
+#      (gitignored), OR uncomment the block below in your local checkout.
+#
 # [target.x86_64-unknown-linux-gnu]
 # linker = "clang"
 # rustflags = ["-C", "link-arg=-fuse-ld=mold"]
