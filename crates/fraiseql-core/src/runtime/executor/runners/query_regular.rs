@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use tracing::debug;
+
 use super::{
     super::{null_masked_fields, resolve_inject_value},
     query::QueryRunner,
@@ -109,6 +111,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             (response_cache_key, self.ctx.response_cache.as_ref())
         {
             if let Some(cached) = rc.get(query_key, sec_hash)? {
+                // F040: explicit hit event so operators can correlate slow
+                // requests with cache state from logs alone.
+                debug!(
+                    target: "fraiseql::cache::response",
+                    event = "hit",
+                    query = %query_match.query_def.name,
+                    query_key,
+                    sec_hash,
+                    "response cache hit"
+                );
                 // F002: `Arc::unwrap_or_clone` takes ownership when the cache
                 // entry is uniquely held (the common case once moka has
                 // returned an `Arc::clone`), avoiding the recursive deep
@@ -116,6 +128,24 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 // when another reader is racing on the same key.
                 return Ok(Arc::unwrap_or_clone(cached));
             }
+            // F040: miss → DB execution will run below. Emit before the
+            // expensive plan/projection work so the event timestamps the
+            // start of the slow path.
+            debug!(
+                target: "fraiseql::cache::response",
+                event = "miss",
+                query = %query_match.query_def.name,
+                query_key,
+                sec_hash,
+                "response cache miss"
+            );
+        } else {
+            debug!(
+                target: "fraiseql::cache::response",
+                event = "disabled",
+                query = %query_match.query_def.name,
+                "response cache disabled or no key available"
+            );
         }
 
         // 3. Create execution plan
