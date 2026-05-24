@@ -39,35 +39,42 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if neither `GOOGLE_CLOUD_TOKEN` nor
-    /// `GOOGLE_APPLICATION_CREDENTIALS` is set, or if the credentials file is
-    /// unreadable or malformed.
+    /// Returns `FraiseQLError::File(FileError::Backend)` if neither
+    /// `GOOGLE_CLOUD_TOKEN` nor `GOOGLE_APPLICATION_CREDENTIALS` is set, or
+    /// if the credentials file is unreadable or malformed.
     pub fn new(bucket: &str) -> Result<Self> {
         let auth = if let Ok(token) = std::env::var("GOOGLE_CLOUD_TOKEN") {
             GcsAuth::BearerToken(token)
         } else if let Ok(creds_path) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
-            let creds_json =
-                std::fs::read_to_string(&creds_path).map_err(|e| FraiseQLError::Storage {
+            let creds_json = std::fs::read_to_string(&creds_path).map_err(|e| {
+                FraiseQLError::File(FileError::Backend {
                     message: format!("Failed to read GCS credentials file '{creds_path}': {e}"),
-                    code:    None,
-                })?;
+                    source:  Some(Box::new(e)),
+                })
+            })?;
             let creds: serde_json::Value =
-                serde_json::from_str(&creds_json).map_err(|e| FraiseQLError::Storage {
-                    message: format!("Failed to parse GCS credentials JSON: {e}"),
-                    code:    None,
+                serde_json::from_str(&creds_json).map_err(|e| {
+                    FraiseQLError::File(FileError::Backend {
+                        message: format!("Failed to parse GCS credentials JSON: {e}"),
+                        source:  Some(Box::new(e)),
+                    })
                 })?;
             let client_email = creds["client_email"]
                 .as_str()
-                .ok_or_else(|| FraiseQLError::Storage {
-                    message: "GCS credentials missing 'client_email' field".to_string(),
-                    code:    None,
+                .ok_or_else(|| {
+                    FraiseQLError::File(FileError::Backend {
+                        message: "GCS credentials missing 'client_email' field".to_string(),
+                        source:  None,
+                    })
                 })?
                 .to_owned();
             let private_key = creds["private_key"]
                 .as_str()
-                .ok_or_else(|| FraiseQLError::Storage {
-                    message: "GCS credentials missing 'private_key' field".to_string(),
-                    code:    None,
+                .ok_or_else(|| {
+                    FraiseQLError::File(FileError::Backend {
+                        message: "GCS credentials missing 'private_key' field".to_string(),
+                        source:  None,
+                    })
                 })?
                 .to_owned();
             GcsAuth::ServiceAccount {
@@ -76,12 +83,12 @@ impl GcsBackend {
                 token: RwLock::new(None),
             }
         } else {
-            return Err(FraiseQLError::Storage {
+            return Err(FraiseQLError::File(FileError::Backend {
                 message: "GCS authentication requires GOOGLE_CLOUD_TOKEN or \
                           GOOGLE_APPLICATION_CREDENTIALS environment variable"
                     .to_string(),
-                code:    None,
-            });
+                source:  None,
+            }));
         };
 
         Ok(Self {
@@ -95,7 +102,7 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if JWT creation or token exchange fails.
+    /// Returns `FraiseQLError::File` if JWT creation or token exchange fails.
     pub async fn get_token(&self) -> Result<String> {
         match &self.auth {
             GcsAuth::BearerToken(token) => Ok(token.clone()),
@@ -126,7 +133,8 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the HTTP request fails or the response is invalid.
+    /// Returns `FraiseQLError::File(FileError::Backend)` if the HTTP request
+    /// fails or the response is invalid.
     pub async fn exchange_jwt(&self, jwt: &str) -> Result<String> {
         let resp = self
             .client
@@ -137,31 +145,34 @@ impl GcsBackend {
             ])
             .send()
             .await
-            .map_err(|e| FraiseQLError::Storage {
-                message: format!("GCS token exchange request failed: {e}"),
-                code:    None,
+            .map_err(|e| {
+                FraiseQLError::File(FileError::Backend {
+                    message: format!("GCS token exchange request failed: {e}"),
+                    source:  Some(Box::new(e)),
+                })
             })?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
-            return Err(FraiseQLError::Storage {
+            return Err(FraiseQLError::File(FileError::Backend {
                 message: format!("GCS token exchange returned error: {body}"),
-                code:    None,
-            });
+                source:  None,
+            }));
         }
 
-        let body: serde_json::Value = resp.json().await.map_err(|e| FraiseQLError::Storage {
-            message: format!("Failed to parse GCS token response: {e}"),
-            code:    None,
+        let body: serde_json::Value = resp.json().await.map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: format!("Failed to parse GCS token response: {e}"),
+                source:  Some(Box::new(e)),
+            })
         })?;
 
-        body["access_token"]
-            .as_str()
-            .map(str::to_owned)
-            .ok_or_else(|| FraiseQLError::Storage {
+        body["access_token"].as_str().map(str::to_owned).ok_or_else(|| {
+            FraiseQLError::File(FileError::Backend {
                 message: "GCS token response missing 'access_token' field".to_string(),
-                code:    None,
+                source:  None,
             })
+        })
     }
 }
 
@@ -181,23 +192,37 @@ fn create_gcs_jwt(client_email: &str, private_key: &str) -> Result<String> {
 
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key.as_bytes()).map_err(|e| {
-        FraiseQLError::Storage {
+        FraiseQLError::File(FileError::Backend {
             message: format!("Invalid GCS private key: {e}"),
-            code:    None,
-        }
+            source:  Some(Box::new(e)),
+        })
     })?;
 
-    jsonwebtoken::encode(&header, &claims, &key).map_err(|e| FraiseQLError::Storage {
-        message: format!("Failed to create GCS JWT: {e}"),
-        code:    None,
+    jsonwebtoken::encode(&header, &claims, &key).map_err(|e| {
+        FraiseQLError::File(FileError::Backend {
+            message: format!("Failed to create GCS JWT: {e}"),
+            source:  Some(Box::new(e)),
+        })
     })
 }
 
 fn gcs_err(op: &str, err: impl std::fmt::Display) -> FraiseQLError {
-    FraiseQLError::Storage {
+    FraiseQLError::File(FileError::Backend {
         message: format!("GCS {op} failed: {err}"),
-        code:    None,
-    }
+        source:  None,
+    })
+}
+
+/// Like [`gcs_err`] but preserves the underlying error in the chain.
+fn gcs_err_src(
+    op: &str,
+    err: impl std::error::Error + Send + Sync + 'static,
+) -> FraiseQLError {
+    let message = format!("GCS {op} failed: {err}");
+    FraiseQLError::File(FileError::Backend {
+        message,
+        source: Some(Box::new(err)),
+    })
 }
 
 impl GcsBackend {
@@ -205,7 +230,7 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the upload request fails.
+    /// Returns `FraiseQLError::File` if the upload request fails.
     pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -223,7 +248,7 @@ impl GcsBackend {
             .body(data.to_vec())
             .send()
             .await
-            .map_err(|e| gcs_err("upload", e))?;
+            .map_err(|e| gcs_err_src("upload", e))?;
 
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -237,7 +262,7 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the download fails or the key does not exist.
+    /// Returns `FraiseQLError::File` if the download fails or the key does not exist.
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -253,7 +278,7 @@ impl GcsBackend {
             .bearer_auth(&token)
             .send()
             .await
-            .map_err(|e| gcs_err("download", e))?;
+            .map_err(|e| gcs_err_src("download", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
             return Err(FileError::NotFound {
@@ -266,14 +291,17 @@ impl GcsBackend {
             return Err(gcs_err("download response", body));
         }
 
-        resp.bytes().await.map(|b| b.to_vec()).map_err(|e| gcs_err("download body", e))
+        resp.bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(|e| gcs_err_src("download body", e))
     }
 
     /// Deletes the object at the given key from GCS.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` if the delete fails or the key does not exist.
+    /// Returns `FraiseQLError::File` if the delete fails or the key does not exist.
     pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -286,7 +314,7 @@ impl GcsBackend {
             .bearer_auth(&token)
             .send()
             .await
-            .map_err(|e| gcs_err("delete", e))?;
+            .map_err(|e| gcs_err_src("delete", e))?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
             return Err(FileError::NotFound {
@@ -306,7 +334,7 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` on backend communication errors.
+    /// Returns `FraiseQLError::File` on backend communication errors.
     pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         let token = self.get_token().await?;
@@ -320,7 +348,7 @@ impl GcsBackend {
             .bearer_auth(&token)
             .send()
             .await
-            .map_err(|e| gcs_err("exists check", e))?;
+            .map_err(|e| gcs_err_src("exists check", e))?;
 
         match resp.status() {
             s if s.is_success() => Ok(true),
@@ -336,23 +364,23 @@ impl GcsBackend {
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` as V4 signing is not yet implemented.
+    /// Returns `FraiseQLError::File(FileError::NotImplemented)` as V4 signing
+    /// is not yet implemented.
     pub async fn presigned_url(&self, _key: &str, _expiry: Duration) -> Result<String> {
         // GCS V4 signed URLs require the service account private key and a
         // complex canonical-request construction.  This is planned but not yet
         // implemented — use the `gsutil signurl` CLI or GCS client libraries
         // for presigned URL generation in the meantime.
-        Err(FraiseQLError::Storage {
+        Err(FraiseQLError::File(FileError::NotImplemented {
             message: "Presigned URLs for GCS require V4 signing (not yet implemented)".to_string(),
-            code:    None,
-        })
+        }))
     }
 
     /// Lists objects in the bucket by prefix with pagination.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Storage` with code "`not_implemented`" since list
+    /// Returns `FraiseQLError::File(FileError::NotImplemented)` since list
     /// is not yet implemented for GCS.
     pub async fn list(
         &self,
@@ -360,9 +388,8 @@ impl GcsBackend {
         _cursor: Option<&str>,
         _limit: usize,
     ) -> Result<super::types::ListResult> {
-        Err(FraiseQLError::Storage {
+        Err(FraiseQLError::File(FileError::NotImplemented {
             message: "list not yet implemented for GCS".to_string(),
-            code:    Some("not_implemented".to_string()),
-        })
+        }))
     }
 }
