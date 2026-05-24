@@ -71,8 +71,11 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   FraiseQLError (enum)    Result<T>    ErrorContext    ValidationFieldError
-  AuthError  ConfigError  FileError  RuntimeError  WebhookError
-  Feature: axum-compat  → IntoResponse impl for axum handlers
+  ConfigError  FileError  GraphQLError
+  Feature: axum-compat  → IntoResponse impl for FraiseQLError (axum handlers)
+  Subsystem error types (AuthError, WebhookError, ObserverError) live in their
+  own crates and compose into FraiseQLError::{Auth, Webhook, Observer} via
+  From impls (sqlx pattern); fraiseql-error stays a leaf crate.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  LAYER 3 — fraiseql-db  (database adapters)
