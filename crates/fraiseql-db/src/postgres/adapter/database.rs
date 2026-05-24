@@ -189,10 +189,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let (sql, typed_params) =
             build_where_select_sql_ordered(view, where_clause, limit, offset, order_by)?;
 
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
-            .iter()
-            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
         self.execute_raw(&sql, &param_refs)
             .await
@@ -217,10 +214,7 @@ impl DatabaseAdapter for PostgresAdapter {
         }
         let explain_sql = format!("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {select_sql}");
 
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = typed_params
-            .iter()
-            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
         let client = self.acquire_connection_with_retry().await?;
         let rows = client.query(explain_sql.as_str(), &param_refs).await.map_err(|e| {
@@ -301,8 +295,7 @@ impl DatabaseAdapter for PostgresAdapter {
         // as TEXT (not JSONB), which is required for correct WHERE comparisons against
         // data->>'field' expressions that return TEXT.
         let typed: Vec<QueryParam> = params.iter().cloned().map(QueryParam::from).collect();
-        let param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-            typed.iter().map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync)).collect();
+        let param_refs = crate::types::as_sql_param_refs(&typed);
 
         let client = self.acquire_connection_with_retry().await?;
         let rows: Vec<Row> =

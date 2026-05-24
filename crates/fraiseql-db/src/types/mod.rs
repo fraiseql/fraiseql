@@ -7,6 +7,8 @@ pub mod sql_hints;
 // Re-export db types so `crate::types::DatabaseType` etc. still work
 #[cfg(feature = "postgres")]
 pub use db_types::QueryParam;
+#[cfg(feature = "postgres")]
+pub use db_types::as_sql_param_refs;
 pub use db_types::{DatabaseType, JsonbValue, PoolMetrics};
 // Re-export query stats types
 pub use query_stats::QueryStatEntry;

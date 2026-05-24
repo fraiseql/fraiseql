@@ -161,39 +161,6 @@ impl ToSql for QueryParam {
     }
 }
 
-/// Convert QueryParam to boxed ToSql trait object, preserving native types.
-///
-/// This function uses the boxing pattern to convert typed parameters into a form
-/// that tokio-postgres can serialize to PostgreSQL's wire protocol format.
-///
-/// # Example
-///
-/// ```rust
-/// # #[cfg(feature = "postgres")]
-/// # {
-/// use fraiseql_db::types::db_types::{QueryParam, to_sql_param};
-///
-/// let param = QueryParam::BigInt(42);
-/// let boxed = to_sql_param(&param);
-/// // boxed can be passed to tokio-postgres query methods
-/// drop(boxed);
-/// # }
-/// ```
-#[cfg(feature = "postgres")]
-#[must_use]
-pub fn to_sql_param(param: &QueryParam) -> Box<dyn ToSql + Sync + Send> {
-    match param {
-        QueryParam::Null => Box::new(None::<String>),
-        QueryParam::Bool(b) => Box::new(*b),
-        QueryParam::Int(i) => Box::new(*i),
-        QueryParam::BigInt(i) => Box::new(*i),
-        QueryParam::Float(f) => Box::new(*f),
-        QueryParam::Double(f) => Box::new(*f),
-        QueryParam::Text(s) => Box::new(s.clone()),
-        QueryParam::Json(v) => Box::new(v.clone()),
-    }
-}
-
 /// Connection pool metrics.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct PoolMetrics {
@@ -222,6 +189,20 @@ impl PoolMetrics {
     pub const fn is_exhausted(&self) -> bool {
         self.idle_connections == 0 && self.waiting_requests > 0
     }
+}
+
+/// Borrow a slice of [`QueryParam`]s as the `&[&(dyn ToSql + Sync)]` shape
+/// expected by `tokio_postgres::Client::query` and `::execute`.
+///
+/// `QueryParam` already implements [`ToSql`] (see the `impl` above), so each
+/// element can be passed by reference without boxing. This helper centralises
+/// the repeated `.iter().map(|p| p as &(dyn ToSql + Sync)).collect()` pattern
+/// used by the PostgreSQL adapter call sites and removes the last remaining
+/// per-parameter heap allocation in the query hot path.
+#[cfg(feature = "postgres")]
+#[must_use]
+pub fn as_sql_param_refs(params: &[QueryParam]) -> Vec<&(dyn ToSql + Sync)> {
+    params.iter().map(|p| p as &(dyn ToSql + Sync)).collect()
 }
 
 #[cfg(test)]

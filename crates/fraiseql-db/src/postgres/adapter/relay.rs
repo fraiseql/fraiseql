@@ -176,10 +176,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         let client = self.acquire_connection_with_retry().await?;
 
         // ── Execute page query ─────────────────────────────────────────────────
-        let page_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = page_typed_params
-            .iter()
-            .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
+        let page_param_refs = crate::types::as_sql_param_refs(&page_typed_params);
 
         let page_rows = client.query(&page_sql, &page_param_refs).await.map_err(|e| {
             FraiseQLError::Database {
@@ -212,11 +209,7 @@ impl RelayDatabaseAdapter for PostgresAdapter {
                 (format!("SELECT COUNT(*) FROM {quoted_view}"), Vec::<QueryParam>::new())
             };
 
-            let count_param_refs: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
-                count_typed_params
-                    .iter()
-                    .map(|p| p as &(dyn tokio_postgres::types::ToSql + Sync))
-                    .collect();
+            let count_param_refs = crate::types::as_sql_param_refs(&count_typed_params);
 
             let count_row = client.query_one(&count_sql, &count_param_refs).await.map_err(|e| {
                 FraiseQLError::Database {
